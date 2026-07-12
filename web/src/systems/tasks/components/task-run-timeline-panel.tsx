@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import { Activity } from "lucide-react";
 
 import {
@@ -105,10 +104,7 @@ export function TaskRunTimelinePanel({
         ? `session ${record.session_id}`
         : undefined;
 
-  const runEvents = useMemo(
-    () => items.filter(item => item.run?.id === record.id),
-    [items, record.id]
-  );
+  const runEvents = items.filter(item => item.run?.id === record.id);
 
   const warning = runCardWarning(record);
 

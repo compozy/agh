@@ -1,4 +1,4 @@
-import { useMemo, useState, type ComponentProps } from "react";
+import { useState, type ComponentProps } from "react";
 
 import { Input } from "@agh/ui";
 
@@ -40,7 +40,7 @@ function SettingsNumberInput({
 }: SettingsNumberInputProps) {
   const [rawValue, setRawValue] = useState(() => String(value));
 
-  const validationMessage = useMemo(() => validateIntegerInput(rawValue, min), [min, rawValue]);
+  const validationMessage = validateIntegerInput(rawValue, min);
 
   return (
     <Input

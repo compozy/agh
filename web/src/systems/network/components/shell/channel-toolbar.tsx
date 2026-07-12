@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import { Briefcase, CheckCheck, ChevronDown, ListFilter, UserRound } from "lucide-react";
-import { useMemo, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import {
   Button,
@@ -114,18 +114,16 @@ export function ChannelToolbar({
     isMarkLoadedReadDisabled,
   } = useNetworkListFiltersContext();
   const navigate = useNavigate();
-  const tabs = useMemo(() => buildTabs({ threadCount, directCount }), [threadCount, directCount]);
+  const tabs = buildTabs({ threadCount, directCount });
 
-  const filterFields = useMemo<FilterFieldsConfig<boolean>>(() => {
-    return CHIP_FIELDS.filter(field => field.key !== "includes_me" || canFilterBySelf).map(
-      field => ({
-        key: field.key,
-        label: field.label,
-        icon: field.icon,
-        type: "toggle" as const,
-      })
-    );
-  }, [canFilterBySelf]);
+  const filterFields: FilterFieldsConfig<boolean> = CHIP_FIELDS.filter(
+    field => field.key !== "includes_me" || canFilterBySelf
+  ).map(field => ({
+    key: field.key,
+    label: field.label,
+    icon: field.icon,
+    type: "toggle" as const,
+  }));
 
   const handleTabChange = (next: ChannelTab) => {
     const target = tabs.find(tab => tab.value === next);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -82,33 +82,25 @@ export function useLastRead(options: { workspaceId?: string | null } = {}): UseL
     return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
-  const lastReadAt = useCallback(
-    (key: NetworkLastReadLookupKey) => {
-      if (!workspaceId) {
-        return null;
-      }
-      return state[buildLastReadStorageKey({ ...key, workspaceId })] ?? null;
-    },
-    [state, workspaceId]
-  );
+  const lastReadAt = (key: NetworkLastReadLookupKey) => {
+    if (!workspaceId) return null;
+    return state[buildLastReadStorageKey({ ...key, workspaceId })] ?? null;
+  };
 
-  const markRead = useCallback(
-    (key: NetworkLastReadLookupKey, timestamp: string | null | undefined) => {
-      if (!timestamp || !workspaceId) {
-        return;
+  const markRead = (key: NetworkLastReadLookupKey, timestamp: string | null | undefined) => {
+    if (!timestamp || !workspaceId) {
+      return;
+    }
+    const storageKey = buildLastReadStorageKey({ ...key, workspaceId });
+    setState(current => {
+      if (current[storageKey] === timestamp) {
+        return current;
       }
-      const storageKey = buildLastReadStorageKey({ ...key, workspaceId });
-      setState(current => {
-        if (current[storageKey] === timestamp) {
-          return current;
-        }
-        const next = { ...current, [storageKey]: timestamp };
-        writeLastReadMap(next);
-        return next;
-      });
-    },
-    [workspaceId]
-  );
+      const next = { ...current, [storageKey]: timestamp };
+      writeLastReadMap(next);
+      return next;
+    });
+  };
 
   return { lastReadAt, markRead };
 }

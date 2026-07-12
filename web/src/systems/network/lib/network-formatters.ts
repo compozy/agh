@@ -10,25 +10,11 @@ import type {
   NetworkStatus,
 } from "../types";
 
-const numberFormatter = new Intl.NumberFormat("en-US");
-const timeFormatter = new Intl.DateTimeFormat("en-US", {
-  hour: "numeric",
-  minute: "2-digit",
-});
-
 const NETWORK_SUPPORTED_KINDS: ReadonlyArray<Exclude<NetworkKindFilter, "all">> = [
   "say",
   "receipt",
   "capability",
   "greet",
-  "whois",
-  "trace",
-];
-
-export const NETWORK_KIND_FILTERS: ReadonlyArray<Exclude<NetworkKindFilter, "all">> = [
-  "say",
-  "receipt",
-  "capability",
   "whois",
   "trace",
 ];
@@ -95,41 +81,6 @@ export function toggleDraftAgent(
     ...draft,
     selectedAgentNames,
   };
-}
-
-export function formatNetworkNumber(value?: number | null): string {
-  return numberFormatter.format(value ?? 0);
-}
-
-export function formatNetworkClockTime(value?: string | null): string {
-  if (!value) {
-    return "Unknown";
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return "Unknown";
-  }
-
-  return timeFormatter.format(parsed);
-}
-
-export function formatNetworkDateTime(value?: string | null): string {
-  if (!value) {
-    return "Unavailable";
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return "Unavailable";
-  }
-
-  return parsed.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
 }
 
 export function formatNetworkRelativeTime(value?: string | null): string {

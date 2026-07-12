@@ -8,6 +8,8 @@ import { workspaceFixtures } from "@/systems/workspace/mocks";
 
 import { WorkspaceCommandSelect } from "../workspace-command-select";
 
+const DEFAULT_WORKSPACE_ID = workspaceFixtures[0]?.id ?? null;
+
 function Frame({ children }: { children: React.ReactNode }) {
   return (
     <CenteredSurface className="w-[280px] border border-line bg-canvas-soft p-0">
@@ -24,7 +26,7 @@ interface HarnessProps {
 }
 
 function WorkspaceCommandSelectHarness({
-  defaultWorkspaceId = workspaceFixtures[0]?.id ?? null,
+  defaultWorkspaceId = DEFAULT_WORKSPACE_ID,
   defaultOpen = false,
   userHomeDir,
   onAddWorkspace = fn(),

@@ -64,10 +64,16 @@ function SkillDetailRoute() {
       content={page.selectedSkillContent}
       contentError={page.contentError}
       error={page.detailError}
-      isActionPending={page.isActionPending}
-      isContentLoading={page.isContentLoading}
-      isLoading={page.isLoadingDetail && !page.selectedSkill}
-      isShadowsLoading={page.isLoadingShadows}
+      actionStatus={page.isActionPending ? "pending" : "idle"}
+      contentStatus={page.isContentLoading ? "loading" : page.contentError ? "error" : "ready"}
+      detailStatus={
+        page.isLoadingDetail && !page.selectedSkill
+          ? "loading"
+          : page.detailError
+            ? "error"
+            : "ready"
+      }
+      shadowsStatus={page.isLoadingShadows ? "loading" : page.shadowsError ? "error" : "ready"}
       onBack={page.handleBack}
       onDisable={() => page.handleDisable()}
       onEnable={() => page.handleEnable()}

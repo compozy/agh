@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode, type SetStateAction } from "react";
 import { toast } from "sonner";
 
 import { isAgentDigestConflict } from "../adapters/agent-api";
@@ -41,6 +41,19 @@ const CONFLICT_MESSAGE = "This file changed elsewhere. Reload and retry.";
 interface LocalBaseline {
   digest: string;
   body: string;
+}
+
+interface AuthoredFileEditorState {
+  baseline: LocalBaseline;
+  conflict: boolean;
+  diagnostics: Array<{ message: string; line?: number; source_path?: string }>;
+  draft: string;
+  payload: AuthoredFilePayload | undefined;
+  resourceKey: string;
+  saveError: string | null;
+  showHistory: boolean;
+  sourcePayload: AuthoredFilePayload | undefined;
+  validationStatus: string | undefined;
 }
 
 /** Missing only for an explicit successful domain payload — never unknown/undefined. */
@@ -104,96 +117,102 @@ export function useAgentAuthoredFileEditor({
   onRestore,
 }: UseAgentAuthoredFileEditorArgs) {
   const fileLabel = kind === "soul" ? "SOUL.md" : "HEARTBEAT.md";
-  const [trackedResourceKey, setTrackedResourceKey] = useState(resourceKey);
   const initial = seedFromPayload(kind, payload);
-  const [draft, setDraft] = useState(initial.draft);
-  const [baseline, setBaseline] = useState<LocalBaseline>(initial.baseline);
-  const [diagnostics, setDiagnostics] = useState(initial.diagnostics);
-  const [effectivePayload, setEffectivePayload] = useState(payload);
+  const [storedEditor, setStoredEditor] = useState<AuthoredFileEditorState>(() => ({
+    baseline: initial.baseline,
+    conflict: false,
+    diagnostics: initial.diagnostics,
+    draft: initial.draft,
+    payload,
+    resourceKey,
+    saveError: null as string | null,
+    showHistory: false,
+    sourcePayload: payload,
+    validationStatus: payload?.validation_status,
+  }));
+  const shouldAdoptPayload =
+    storedEditor.resourceKey !== resourceKey ||
+    (storedEditor.draft === storedEditor.baseline.body && storedEditor.sourcePayload !== payload);
+  const editor = shouldAdoptPayload
+    ? {
+        baseline: initial.baseline,
+        conflict: false,
+        diagnostics: initial.diagnostics,
+        draft: initial.draft,
+        payload,
+        resourceKey,
+        saveError: null,
+        showHistory: false,
+        sourcePayload: payload,
+        validationStatus: payload?.validation_status,
+      }
+    : storedEditor;
+  if (editor !== storedEditor) {
+    setStoredEditor(editor);
+  }
   const [validating, setValidating] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [conflict, setConflict] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
-  const [validationStatus, setValidationStatus] = useState<string | undefined>(
-    payload?.validation_status
-  );
+  const { baseline, conflict, diagnostics, draft, saveError, showHistory } = editor;
 
-  const draftRef = useRef(draft);
-  const baselineRef = useRef(baseline);
-  draftRef.current = draft;
-  baselineRef.current = baseline;
+  const applyAuthoritativePayload = (authoritative: AuthoredFilePayload | undefined) => {
+    const next = seedFromPayload(kind, authoritative);
+    setStoredEditor({
+      baseline: next.baseline,
+      conflict: false,
+      diagnostics: next.diagnostics,
+      draft: next.draft,
+      payload: authoritative,
+      resourceKey,
+      saveError: null,
+      showHistory: false,
+      sourcePayload: payload,
+      validationStatus: authoritative?.validation_status,
+    });
+  };
 
-  const applyAuthoritativePayload = useCallback(
-    (authoritative: AuthoredFilePayload | undefined) => {
-      const next = seedFromPayload(kind, authoritative);
-      setDraft(next.draft);
-      setBaseline(next.baseline);
-      setDiagnostics(next.diagnostics);
-      setEffectivePayload(authoritative);
-      setValidationStatus(authoritative?.validation_status);
-      setConflict(false);
-      setSaveError(null);
-    },
-    [kind]
-  );
-
-  useEffect(() => {
-    const resourceChanged = trackedResourceKey !== resourceKey;
-    const dirty = draftRef.current !== baselineRef.current.body;
-
-    if (!resourceChanged && dirty) {
-      // Same resource + dirty: freeze draft and CAS baseline against any background payload.
-      return;
-    }
-
-    if (resourceChanged) {
-      setTrackedResourceKey(resourceKey);
-      setShowHistory(false);
-    }
-
-    applyAuthoritativePayload(payload);
-  }, [applyAuthoritativePayload, payload, resourceKey, trackedResourceKey]);
-
-  const dirty = useMemo(() => draft !== baseline.body, [baseline.body, draft]);
+  const dirty = draft !== baseline.body;
 
   const guard = useUnsavedGuard({ dirty, entityName: fileLabel });
 
-  const applyWriteError = useCallback((err: unknown, fallback: string) => {
+  const applyWriteError = (err: unknown, fallback: string) => {
     if (isAgentDigestConflict(err)) {
-      setConflict(true);
-      setSaveError(CONFLICT_MESSAGE);
+      setStoredEditor(current => ({ ...current, conflict: true, saveError: CONFLICT_MESSAGE }));
       return;
     }
-    setConflict(false);
-    setSaveError(err instanceof Error ? err.message : fallback);
-  }, []);
+    setStoredEditor(current => ({
+      ...current,
+      conflict: false,
+      saveError: err instanceof Error ? err.message : fallback,
+    }));
+  };
 
-  const handleReload = useCallback(() => {
+  const handleReload = () => {
     applyAuthoritativePayload(payload);
-  }, [applyAuthoritativePayload, payload]);
+  };
 
-  const handleValidate = useCallback(async () => {
+  const handleValidate = async () => {
     setValidating(true);
-    setSaveError(null);
-    setConflict(false);
+    setStoredEditor(current => ({ ...current, conflict: false, saveError: null }));
     try {
       const result = await onValidate(draft);
-      setDiagnostics(result.diagnostics ?? []);
-      if (result.validation_status) {
-        setValidationStatus(result.validation_status);
-      }
+      setStoredEditor(current => ({
+        ...current,
+        diagnostics: result.diagnostics ?? [],
+        validationStatus: result.validation_status ?? current.validationStatus,
+      }));
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : `Couldn't validate ${fileLabel}`);
+      setStoredEditor(current => ({
+        ...current,
+        saveError: err instanceof Error ? err.message : `Couldn't validate ${fileLabel}`,
+      }));
     } finally {
       setValidating(false);
     }
-  }, [draft, fileLabel, onValidate]);
+  };
 
-  const handleSave = useCallback(async () => {
+  const handleSave = async () => {
     setSaving(true);
-    setSaveError(null);
-    setConflict(false);
+    setStoredEditor(current => ({ ...current, conflict: false, saveError: null }));
     try {
       const authoritative = await onSave(draft, baseline.digest);
       applyAuthoritativePayload(authoritative);
@@ -203,13 +222,12 @@ export function useAgentAuthoredFileEditor({
     } finally {
       setSaving(false);
     }
-  }, [applyAuthoritativePayload, applyWriteError, baseline.digest, draft, fileLabel, onSave]);
+  };
 
-  const handleCreate = useCallback(async () => {
+  const handleCreate = async () => {
     const body = CREATE_BODIES[kind];
     setSaving(true);
-    setSaveError(null);
-    setConflict(false);
+    setStoredEditor(current => ({ ...current, conflict: false, saveError: null }));
     try {
       const authoritative = await onSave(body, baseline.digest);
       applyAuthoritativePayload(authoritative);
@@ -219,39 +237,39 @@ export function useAgentAuthoredFileEditor({
     } finally {
       setSaving(false);
     }
-  }, [applyAuthoritativePayload, applyWriteError, baseline.digest, fileLabel, kind, onSave]);
+  };
 
-  const handleRestore = useCallback(
-    async (revisionId: string) => {
-      setSaving(true);
-      setSaveError(null);
-      setConflict(false);
-      try {
-        const authoritative = await onRestore(revisionId, baseline.digest);
-        applyAuthoritativePayload(authoritative);
-        toast.success(`${fileLabel} restored`);
-      } catch (err) {
-        applyWriteError(err, `Couldn't restore ${fileLabel}`);
-      } finally {
-        setSaving(false);
-      }
-    },
-    [applyAuthoritativePayload, applyWriteError, baseline.digest, fileLabel, onRestore]
-  );
+  const handleRestore = async (revisionId: string) => {
+    setSaving(true);
+    setStoredEditor(current => ({ ...current, conflict: false, saveError: null }));
+    try {
+      const authoritative = await onRestore(revisionId, baseline.digest);
+      applyAuthoritativePayload(authoritative);
+      toast.success(`${fileLabel} restored`);
+    } catch (err) {
+      applyWriteError(err, `Couldn't restore ${fileLabel}`);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const revisions = history && "revisions" in history ? (history.revisions ?? []) : [];
 
   return {
     fileLabel,
     draft,
-    setDraft,
+    setDraft: (nextDraft: string) => setStoredEditor(current => ({ ...current, draft: nextDraft })),
     diagnostics,
     validating,
     saving,
     saveError,
     conflict,
     showHistory,
-    setShowHistory,
+    setShowHistory: (update: SetStateAction<boolean>) =>
+      setStoredEditor(current => ({
+        ...current,
+        showHistory: typeof update === "function" ? update(current.showHistory) : update,
+      })),
     dirty,
     guardDialog: guard.confirmDialog as ReactNode,
     handleValidate,
@@ -259,9 +277,9 @@ export function useAgentAuthoredFileEditor({
     handleCreate,
     handleRestore,
     handleReload,
-    payload: effectivePayload,
-    isMissing: isAuthoredFileMissing(effectivePayload) && draft === "" && baseline.body === "",
-    status: validationStatus ?? effectivePayload?.validation_status ?? "valid",
+    payload: editor.payload,
+    isMissing: isAuthoredFileMissing(editor.payload) && draft === "" && baseline.body === "",
+    status: editor.validationStatus ?? editor.payload?.validation_status ?? "valid",
     revisions,
   };
 }

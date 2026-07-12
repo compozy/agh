@@ -1,5 +1,5 @@
 import type React from "react";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 
 import type { FilterFieldConfig } from "../filters";
 import { scheduleFilterDomSync, useFilterContext } from "./use-filter-context";
@@ -33,14 +33,11 @@ export function useFilterInput<T = unknown>({
   const [isValid, setIsValid] = useState(true);
   const [validationMessage, setValidationMessage] = useState("");
 
-  const focusInputOnMount = useCallback(
-    (node: HTMLInputElement | null) => {
-      if (node && focusOnMount) {
-        scheduleFilterDomSync(() => node.focus());
-      }
-    },
-    [focusOnMount]
-  );
+  const focusInputOnMount = (node: HTMLInputElement | null) => {
+    if (node && focusOnMount) {
+      scheduleFilterDomSync(() => node.focus());
+    }
+  };
 
   const validateFilterInputOnBlur = (event: React.FocusEvent<HTMLInputElement>) => {
     const value = event.target.value;

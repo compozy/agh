@@ -24,12 +24,9 @@ interface StoryHarnessProps {
   initialQuery?: string;
   listings?: SkillMarketplaceListingPayload[];
   installedSkillNames?: Set<string>;
-  isSearchEnabled?: boolean;
-  isSearching?: boolean;
+  searchStatus?: "prompt" | "searching" | "error" | "ready";
   searchError?: Error | null;
-  isInstalling?: boolean;
-  isUpdating?: boolean;
-  isRemoving?: boolean;
+  pendingAction?: "install" | "update" | "remove";
   initialView?: ListingViewMode;
 }
 
@@ -37,17 +34,15 @@ function MarketplaceViewHarness({
   initialQuery = "",
   listings = [],
   installedSkillNames,
-  isSearchEnabled,
-  isSearching = false,
+  searchStatus,
   searchError = null,
-  isInstalling = false,
-  isUpdating = false,
-  isRemoving = false,
+  pendingAction,
   initialView = "cards",
 }: StoryHarnessProps) {
   const [query, setQuery] = useState(initialQuery);
   const [view, setView] = useState<ListingViewMode>(initialView);
-  const enabled = isSearchEnabled ?? query.trim() !== "";
+  const resolvedSearchStatus =
+    searchStatus ?? (searchError ? "error" : query.trim() === "" ? "prompt" : "ready");
   return (
     <PanelSurface>
       <div className="flex flex-col gap-4 p-4">
@@ -66,11 +61,8 @@ function MarketplaceViewHarness({
         </ListingToolbar>
         <MarketplaceView
           installedSkillNames={installedSkillNames ?? new Set()}
-          isInstalling={isInstalling}
-          isRemoving={isRemoving}
-          isSearchEnabled={enabled}
-          isSearching={isSearching}
-          isUpdating={isUpdating}
+          searchStatus={resolvedSearchStatus}
+          pendingActions={pendingAction ? new Set([pendingAction]) : undefined}
           listings={listings}
           onClearSearch={() => setQuery("")}
           onInstall={() => undefined}
@@ -105,7 +97,9 @@ export const WithInstalled: Story = {
 };
 
 export const Loading: Story = {
-  render: () => <MarketplaceViewHarness initialQuery="demo" isSearching listings={[]} />,
+  render: () => (
+    <MarketplaceViewHarness initialQuery="demo" searchStatus="searching" listings={[]} />
+  ),
 };
 
 export const ErrorState: Story = {
@@ -126,7 +120,7 @@ export const InstallingDisablesAction: Story = {
   render: () => (
     <MarketplaceViewHarness
       initialQuery="demo"
-      isInstalling
+      pendingAction="install"
       listings={skillMarketplaceListingFixtures}
     />
   ),

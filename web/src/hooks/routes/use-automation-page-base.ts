@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
 import { AutomationApiError } from "@/systems/automation";
@@ -128,37 +128,26 @@ export function useAutomationPageBase(
   const scopedWorkspaceId =
     scopeFilter === "workspace" ? (activeWorkspaceId ?? undefined) : undefined;
 
-  const listFilters = useMemo(
-    () => ({
-      limit: 50,
-      enabled: search.enabled,
-      loop: search.loop,
-      q: searchQuery,
-      scope: scopeFilter === "all" ? undefined : scopeFilter,
-      source: search.source,
-      workspace_id: scopedWorkspaceId,
-    }),
-    [scopeFilter, scopedWorkspaceId, search.enabled, search.loop, search.source, searchQuery]
-  );
+  const listFilters = {
+    limit: 50,
+    enabled: search.enabled,
+    loop: search.loop,
+    q: searchQuery,
+    scope: scopeFilter === "all" ? undefined : scopeFilter,
+    source: search.source,
+    workspace_id: scopedWorkspaceId,
+  };
 
-  const updateSearch = useCallback(
-    (updates: Partial<AutomationRouteSearch>) => {
-      void navigate({
-        search: current => ({ ...(current as AutomationRouteSearch), ...updates }),
-        to: kind === "jobs" ? "/jobs" : "/triggers",
-      });
-    },
-    [kind, navigate]
-  );
+  const updateSearch = (updates: Partial<AutomationRouteSearch>) => {
+    void navigate({
+      search: current => ({ ...(current as AutomationRouteSearch), ...updates }),
+      to: kind === "jobs" ? "/jobs" : "/triggers",
+    });
+  };
 
-  const setScopeFilter = useCallback(
-    (scope: AutomationScopeFilter) => updateSearch({ scope: scope === "all" ? undefined : scope }),
-    [updateSearch]
-  );
-  const setSearchQuery = useCallback(
-    (q: string) => updateSearch({ q: q.trim() === "" ? undefined : q }),
-    [updateSearch]
-  );
+  const setScopeFilter = (scope: AutomationScopeFilter) =>
+    updateSearch({ scope: scope === "all" ? undefined : scope });
+  const setSearchQuery = (q: string) => updateSearch({ q: q.trim() === "" ? undefined : q });
 
   return {
     activeWorkspace,

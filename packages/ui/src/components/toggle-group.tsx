@@ -33,10 +33,7 @@ function ToggleGroup({
     spacing?: number;
     orientation?: "horizontal" | "vertical";
   }) {
-  const contextValue = React.useMemo(
-    () => ({ variant, size, spacing, orientation }),
-    [variant, size, spacing, orientation]
-  );
+  const contextValue = { variant, size, spacing, orientation };
 
   return (
     <ToggleGroupPrimitive

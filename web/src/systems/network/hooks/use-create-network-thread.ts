@@ -1,6 +1,5 @@
 import { toast } from "@agh/ui";
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
 
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -97,14 +96,11 @@ export function useCreateNetworkThread(
       });
     },
   });
-  return useMemo(
-    () => ({
-      createThread: (input: CreateNetworkThreadInput) =>
-        workspaceId
-          ? mutation.mutateAsync({ ...input, workspaceId })
-          : Promise.reject(new NetworkApiError("No active workspace selected", 400)),
-      isCreating: mutation.isPending,
-    }),
-    [mutation, workspaceId]
-  );
+  return {
+    createThread: (input: CreateNetworkThreadInput) =>
+      workspaceId
+        ? mutation.mutateAsync({ ...input, workspaceId })
+        : Promise.reject(new NetworkApiError("No active workspace selected", 400)),
+    isCreating: mutation.isPending,
+  };
 }

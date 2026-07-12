@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { CommandSelect, CommandSelectShell, CommandSelectTrigger, Eyebrow } from "@agh/ui";
 
@@ -29,10 +29,7 @@ export function AgentCommandSelect({
   className,
 }: AgentCommandSelectProps) {
   const [open, setOpen] = useState(false);
-  const selectedAgent = useMemo(
-    () => agents.find(agent => agent.name === value) ?? null,
-    [agents, value]
-  );
+  const selectedAgent = agents.find(agent => agent.name === value) ?? null;
   const isSelected = (agent: AgentPayload) => agent.name === value;
   const handleSelect = (agent: AgentPayload) => {
     onChange(agent.name);

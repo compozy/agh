@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -124,10 +124,7 @@ export function useSessionCreateDialog({
     error: workspaceDetailError,
   } = useWorkspace(workspaceId, { enabled: workspaceId.length > 0 });
 
-  const providerOptions = useMemo<SessionProviderOption[]>(
-    () => workspaceDetail?.providers ?? [],
-    [workspaceDetail?.providers]
-  );
+  const providerOptions: SessionProviderOption[] = workspaceDetail?.providers ?? [];
 
   const [open, setOpenState] = useState(false);
   const [draft, setDraft] = useState<SessionCreateDialogDraft>({
@@ -140,79 +137,53 @@ export function useSessionCreateDialog({
   const [pendingAgentName, setPendingAgentName] = useState<string | null>(null);
   const [pendingWorkspaceId, setPendingWorkspaceId] = useState<string | null>(null);
 
-  const agentList = useMemo(() => agents ?? [], [agents]);
-  const selectedAgent = useMemo(
-    () => agentList.find(agent => agent.name === draft.agentName),
-    [agentList, draft.agentName]
-  );
-  const selectedProvider = useMemo(
-    () =>
-      resolveSelectedProvider(
-        draft.agentName,
-        draft.providerOverride,
-        selectedAgent,
-        providerOptions
-      ),
-    [draft.agentName, draft.providerOverride, providerOptions, selectedAgent]
+  const agentList = agents ?? [];
+  const selectedAgent = agentList.find(agent => agent.name === draft.agentName);
+  const selectedProvider = resolveSelectedProvider(
+    draft.agentName,
+    draft.providerOverride,
+    selectedAgent,
+    providerOptions
   );
 
-  const runtimeProviders = useMemo<RuntimeProviderOption[]>(
-    () =>
-      providerOptions.map(option => ({
-        id: option.name,
-        name: option.display_name?.trim() || option.name,
-        ...(option.harness?.trim() ? { harness: option.harness.trim() } : {}),
-        runtime_provider: option.runtime_provider?.trim() || option.name,
-      })),
-    [providerOptions]
-  );
+  const runtimeProviders: RuntimeProviderOption[] = providerOptions.map(option => ({
+    id: option.name,
+    name: option.display_name?.trim() || option.name,
+    ...(option.harness?.trim() ? { harness: option.harness.trim() } : {}),
+    runtime_provider: option.runtime_provider?.trim() || option.name,
+  }));
 
   // Browse/search span every provider available to the workspace via the single
   // aggregate catalog query, filtered to those providers; the selected provider's
   // raw payloads still drive reasoning-support derivation and the stale indicator.
-  const catalogProviders = useMemo<RuntimeCatalogProvider[]>(
-    () => runtimeProviders.map(entry => ({ id: entry.id })),
-    [runtimeProviders]
-  );
+  const catalogProviders: RuntimeCatalogProvider[] = runtimeProviders.map(entry => ({
+    id: entry.id,
+  }));
   const catalog = useRuntimeModelCatalog(catalogProviders, { enabled: open });
   const runtimeModels = catalog.models;
-  const catalogModels = useMemo<ProviderModelPayload[]>(
-    () => catalog.payloadsByProvider[selectedProvider] ?? [],
-    [catalog.payloadsByProvider, selectedProvider]
-  );
+  const catalogModels: ProviderModelPayload[] = catalog.payloadsByProvider[selectedProvider] ?? [];
 
-  const trimmedSelectedModel = useMemo(() => draft.modelOverride.trim(), [draft.modelOverride]);
+  const trimmedSelectedModel = draft.modelOverride.trim();
   const trimmedAgentProvider = selectedAgent?.provider.trim() ?? "";
-  const trimmedAgentModel = useMemo(() => {
-    if (trimmedAgentProvider !== selectedProvider) {
-      return "";
-    }
-    return selectedAgent?.model?.trim() ?? "";
-  }, [selectedAgent?.model, selectedProvider, trimmedAgentProvider]);
+  const trimmedAgentModel =
+    trimmedAgentProvider === selectedProvider ? (selectedAgent?.model?.trim() ?? "") : "";
   const effectiveSelectedModel = trimmedSelectedModel || trimmedAgentModel;
 
-  const reasoningSupported = useMemo(
-    () =>
-      deriveActiveSessionOptions({
-        catalog: catalogModels,
-        selectedModel: effectiveSelectedModel.length > 0 ? effectiveSelectedModel : null,
-      }).reasoningSupported,
-    [catalogModels, effectiveSelectedModel]
-  );
+  const reasoningSupported = deriveActiveSessionOptions({
+    catalog: catalogModels,
+    selectedModel: effectiveSelectedModel.length > 0 ? effectiveSelectedModel : null,
+  }).reasoningSupported;
 
   const selectedReasoning = reasoningSupported ? draft.reasoningEffort : "";
 
   // Render the EFFECTIVE model (explicit override or the inherited agent default)
   // so the selector shows the inherited model and can offer its reasoning. The
   // POST still omits `model` while it remains inherited (see `submit`).
-  const runtimeValue = useMemo<RuntimeSelectorValue>(
-    () => ({
-      provider: selectedProvider,
-      model: effectiveSelectedModel,
-      reasoning_effort: selectedReasoning,
-    }),
-    [selectedProvider, effectiveSelectedModel, selectedReasoning]
-  );
+  const runtimeValue: RuntimeSelectorValue = {
+    provider: selectedProvider,
+    model: effectiveSelectedModel,
+    reasoning_effort: selectedReasoning,
+  };
 
   const catalogStale = catalog.stale;
   const catalogLoading = catalog.loading;
@@ -220,54 +191,51 @@ export function useSessionCreateDialog({
   const catalogError = catalog.error;
   const catalogRefreshError = catalog.refreshError;
 
-  const openForAgent = useCallback(
-    (agentName: string) => {
-      if (!activeWorkspace) {
-        toast.error("Select an active workspace before starting a session.");
-        return;
-      }
-      const matched = agentList.find(agent => agent.name === agentName) ?? agentList[0];
-      const nextAgentName = matched?.name ?? agentName;
-      setDraft({
-        agentName: nextAgentName,
-        providerOverride: "",
-        modelOverride: "",
-        reasoningEffort: "",
-      });
-      setSubmitError(null);
-      setOpenState(true);
-    },
-    [activeWorkspace, agentList]
-  );
+  const openForAgent = (agentName: string) => {
+    if (!activeWorkspace) {
+      toast.error("Select an active workspace before starting a session.");
+      return;
+    }
+    const matched = agentList.find(agent => agent.name === agentName) ?? agentList[0];
+    const nextAgentName = matched?.name ?? agentName;
+    setDraft({
+      agentName: nextAgentName,
+      providerOverride: "",
+      modelOverride: "",
+      reasoningEffort: "",
+    });
+    setSubmitError(null);
+    setOpenState(true);
+  };
 
-  const setOpen = useCallback((next: boolean) => {
+  const setOpen = (next: boolean) => {
     setOpenState(next);
     if (!next) {
       setSubmitError(null);
     }
-  }, []);
+  };
 
-  const onAgentChange = useCallback((agentName: string) => {
+  const onAgentChange = (agentName: string) => {
     setDraft({ agentName, providerOverride: "", modelOverride: "", reasoningEffort: "" });
-  }, []);
+  };
 
-  const onRuntimeChange = useCallback((next: RuntimeSelectorValue) => {
+  const onRuntimeChange = (next: RuntimeSelectorValue) => {
     setDraft(current => ({
       ...current,
       providerOverride: next.provider,
       modelOverride: next.model,
       reasoningEffort: normalizeEffort(next.reasoning_effort),
     }));
-  }, []);
+  };
 
   const refreshCatalog = catalog.refresh;
 
-  const openProviderSettings = useCallback(() => {
+  const openProviderSettings = () => {
     setOpenState(false);
     void navigate({ to: "/settings/providers" });
-  }, [navigate]);
+  };
 
-  const submit = useCallback(async () => {
+  const submit = async () => {
     if (!activeWorkspace) return;
     const agentName = draft.agentName.trim();
     const provider = selectedProvider.trim();
@@ -301,20 +269,10 @@ export function useSessionCreateDialog({
       const message = describeError("Failed to create session.", error);
       setSubmitError(message);
       toast.error(message);
-    } finally {
-      setPendingAgentName(null);
-      setPendingWorkspaceId(null);
     }
-  }, [
-    activeWorkspace,
-    createSession,
-    draft.agentName,
-    effectiveSelectedModel,
-    navigate,
-    selectedProvider,
-    selectedReasoning,
-    trimmedAgentModel,
-  ]);
+    setPendingAgentName(null);
+    setPendingWorkspaceId(null);
+  };
 
   const providersError = workspaceDetailError ? describeWorkspaceError(workspaceDetailError) : null;
 

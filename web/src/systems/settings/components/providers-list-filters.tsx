@@ -1,5 +1,4 @@
 import { ListFilter, Search } from "lucide-react";
-import { useMemo } from "react";
 
 import { Button, InputGroup, InputGroupAddon, InputGroupInput } from "@agh/ui";
 import { Filters, type Filter } from "@agh/ui";
@@ -34,18 +33,14 @@ export function ProvidersListFilters({
   onDefaultChange,
   onNameQueryChange,
 }: ProvidersListFiltersProps) {
-  const fields = useMemo(() => buildProviderFilterFields(), []);
-  const chips = useMemo(
-    () =>
-      providerFiltersToChips({
-        statusFilter,
-        sourceFilter,
-        harnessFilter,
-        authModeFilter,
-        defaultFilter,
-      }),
-    [statusFilter, sourceFilter, harnessFilter, authModeFilter, defaultFilter]
-  );
+  const fields = buildProviderFilterFields();
+  const chips = providerFiltersToChips({
+    statusFilter,
+    sourceFilter,
+    harnessFilter,
+    authModeFilter,
+    defaultFilter,
+  });
 
   const handleFiltersChange = (next: Filter<string>[]) => {
     applyProviderFilterChips(next, {

@@ -31,7 +31,11 @@ export const Full: Story = {
   args: {},
   render: () => (
     <DetailHeader
-      crumbs={[{ label: "Workspaces" }, { label: "personal" }, { label: "Sessions" }]}
+      crumbs={[
+        { id: "workspaces", label: "Workspaces" },
+        { id: "personal", label: "personal" },
+        { id: "sessions", label: "Sessions" },
+      ]}
       preTitle="Run #42"
       title="Refactor internal/network for the new agh-network/v0 contract"
       back={() => undefined}

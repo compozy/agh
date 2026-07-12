@@ -485,6 +485,48 @@ describe("useSettingsProvidersPage", () => {
     });
   });
 
+  it("Should reject an additional secret value without a vault-backed reference", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsProvidersPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.providers).toHaveLength(2));
+
+    act(() => {
+      result.current.openCreate();
+      result.current.updateDraft(draft => ({
+        ...draft,
+        name: "openrouter",
+        auth_mode: "bound_secret",
+        target_env: "OPENROUTER_API_KEY",
+        secret_ref: "vault:providers/openrouter/api-key",
+        credential_slots: [
+          {
+            name: "api_key",
+            target_env: "OPENROUTER_API_KEY",
+            secret_ref: "vault:providers/openrouter/api-key",
+            kind: "api_key",
+            required: true,
+          },
+          {
+            name: "organization",
+            target_env: "OPENROUTER_ORG_ID",
+            secret_ref: "env:OPENROUTER_ORG_ID",
+            kind: "organization",
+            required: false,
+          },
+        ],
+        credential_secret_values: ["", "org-secret"],
+      }));
+    });
+
+    expect(result.current.inspectorIsValid).toBe(false);
+
+    act(() => {
+      result.current.saveInspector();
+    });
+    expect(putSettingsProvider).not.toHaveBeenCalled();
+  });
+
   it("Should send membership ids without copying merged catalog metadata", async () => {
     vi.mocked(putSettingsProvider).mockResolvedValue({
       section: "general",

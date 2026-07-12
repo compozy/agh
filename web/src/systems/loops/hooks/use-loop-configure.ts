@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { toast } from "@agh/ui";
 
@@ -49,7 +49,7 @@ export function useLoopConfigure({
   onSaved,
 }: UseLoopConfigureOptions): UseLoopConfigureResult {
   const contract = loop.definition.contract;
-  const descriptors = useMemo(() => buildCheckDescriptors(contract), [contract]);
+  const descriptors = buildCheckDescriptors(contract);
   const [draft, setDraft] = useState<LoopConfigDraft>(() =>
     initialConfigDraft(contract, descriptors, config)
   );

@@ -80,9 +80,10 @@ function StepperItem({
     completed || step < activeStep ? "completed" : activeStep === step ? "active" : "inactive";
 
   const isLoading = loading && step === activeStep;
+  const contextValue = { step, state, isDisabled: disabled, isLoading };
 
   return (
-    <StepItemContext.Provider value={{ step, state, isDisabled: disabled, isLoading }}>
+    <StepItemContext.Provider value={contextValue}>
       <div
         data-slot="stepper-item"
         className={cn(

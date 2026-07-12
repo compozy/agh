@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
@@ -14,17 +14,9 @@ export const useActiveWorkspaceStore = create<ActiveWorkspaceStore>()(
 );
 
 export function useActiveWorkspaceStoreHasHydrated(): boolean {
-  const [hasHydrated, setHasHydrated] = useState(() =>
-    useActiveWorkspaceStore.persist.hasHydrated()
+  return useSyncExternalStore(
+    listener => useActiveWorkspaceStore.persist.onFinishHydration(listener),
+    () => useActiveWorkspaceStore.persist.hasHydrated(),
+    () => false
   );
-
-  useEffect(() => {
-    const unsubscribe = useActiveWorkspaceStore.persist.onFinishHydration(() => {
-      setHasHydrated(true);
-    });
-    setHasHydrated(useActiveWorkspaceStore.persist.hasHydrated());
-    return unsubscribe;
-  }, []);
-
-  return hasHydrated;
 }

@@ -65,7 +65,10 @@ export function LoopDetailView({
       <DetailHeader
         back={onBack}
         backLabel="Back to Loops"
-        crumbs={[{ label: "Loops", to: "/loops" }, { label: loop.name }]}
+        crumbs={[
+          { id: "loops", label: "Loops", to: "/loops" },
+          { id: `loop:${loop.name}`, label: loop.name },
+        ]}
         title={loop.name}
         pills={
           <>

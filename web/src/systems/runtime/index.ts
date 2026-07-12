@@ -8,11 +8,13 @@ export {
 export { getNavCountsStore } from "./hooks/nav-counts-store";
 export {
   RuntimeConnectionIndicator,
-  resolveRuntimeConnectionState,
   type RuntimeConnectionIndicatorProps,
+} from "./components/connection-indicator";
+export {
+  resolveRuntimeConnectionState,
   type RuntimeConnectionIndicatorState,
   type RuntimeConnectionTone,
-} from "./components/connection-indicator";
+} from "./components/connection-indicator.logic";
 export { AppSidebar, type AgentsCount, type AppSidebarProps } from "./components/app-sidebar";
 export {
   runtimeModelKey,

@@ -96,24 +96,18 @@ export {
   networkDirectDetailOptions,
   networkDirectMessagesOptions,
   networkDirectsOptions,
-  networkPeerDetailOptions,
   networkPeersOptions,
   networkStatusOptions,
   networkSubscriptionsOptions,
   networkThreadDetailOptions,
   networkThreadMessagesOptions,
   networkThreadsOptions,
-  networkWorkOptions,
 } from "./lib/query-options";
 
 // Lib
 export {
-  NETWORK_KIND_FILTERS,
   createNetworkChannelDraft,
-  formatNetworkClockTime,
-  formatNetworkDateTime,
   formatNetworkKindLabel,
-  formatNetworkNumber,
   formatNetworkPresenceLabel,
   formatNetworkRelativeTime,
   formatNetworkWorkStateLabel,
@@ -247,22 +241,11 @@ export type {
   ActiveNetworkSession,
   UseActiveNetworkSessionResult,
 } from "./hooks/use-active-session";
-export { useNetworkWork, useOpenWork } from "./hooks/use-work";
-export type {
-  OpenWorkEntry,
-  UseNetworkWorkArgs,
-  UseNetworkWorkResult,
-  UseOpenWorkArgs,
-  UseOpenWorkResult,
-} from "./hooks/use-work";
+export { useOpenWork } from "./hooks/use-work";
+export type { OpenWorkEntry, UseOpenWorkArgs, UseOpenWorkResult } from "./hooks/use-work";
 
 // Lib (timeline composition + formatters)
-export {
-  buildTimelineEntries,
-  isSameDayMessage,
-  isSystemKind,
-  SYSTEM_KINDS,
-} from "./lib/group-messages";
+export { buildTimelineEntries, isSystemKind, SYSTEM_KINDS } from "./lib/group-messages";
 export type {
   TimelineDatePillEntry,
   TimelineEntry,
@@ -343,7 +326,6 @@ export {
   ComposerSlashPopover,
   ComposerToolbar,
   DetailComposer,
-  getSlashCommandEntries,
 } from "./components/composer";
 export type {
   ChannelThreadComposerProps,

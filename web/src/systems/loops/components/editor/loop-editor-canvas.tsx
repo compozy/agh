@@ -1,4 +1,3 @@
-import { useCallback, useMemo } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -16,6 +15,8 @@ import type { EditorEdge, EditorNode } from "../../lib/codec";
 import { LoopEditorNode } from "./loop-editor-node";
 
 const nodeTypes: NodeTypes = { loopNode: LoopEditorNode };
+const isValidConnection: IsValidConnection<EditorEdge> = connection =>
+  connection.source !== connection.target;
 
 interface LoopEditorCanvasProps {
   nodes: EditorNode[];
@@ -45,20 +46,12 @@ export function LoopEditorCanvas({
   onConnect,
   onSelectNode,
 }: LoopEditorCanvasProps) {
-  const isValidConnection = useCallback<IsValidConnection<EditorEdge>>(
-    connection => connection.source !== connection.target,
-    []
-  );
   // Drive the accent ring from the view-model selection so every selection path (click,
   // dock reveal, palette add) is truthful — React Flow's internal `selected` only tracks clicks.
-  const displayNodes = useMemo(
-    () =>
-      nodes.map(node =>
-        node.selected === (node.id === selectedNodeId)
-          ? node
-          : { ...node, selected: node.id === selectedNodeId }
-      ),
-    [nodes, selectedNodeId]
+  const displayNodes = nodes.map(node =>
+    node.selected === (node.id === selectedNodeId)
+      ? node
+      : { ...node, selected: node.id === selectedNodeId }
   );
   return (
     <ReactFlow

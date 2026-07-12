@@ -46,8 +46,7 @@ describe("AgentSessionsList", () => {
       <AgentSessionsList
         agentName="codex-agent"
         sessions={[]}
-        isLoading={false}
-        isError={false}
+        status="ready"
         emptyTitle="No archived sessions"
         emptyDescription="Archived sessions for codex-agent appear after completed work."
       />
@@ -89,14 +88,7 @@ describe("AgentSessionsList", () => {
       }),
     ];
 
-    render(
-      <AgentSessionsList
-        agentName="codex-agent"
-        sessions={sessions}
-        isLoading={false}
-        isError={false}
-      />
-    );
+    render(<AgentSessionsList agentName="codex-agent" sessions={sessions} status="ready" />);
 
     expect(
       within(screen.getByTestId("agent-session-row-sess_one")).getByText("just now")
@@ -122,14 +114,7 @@ describe("AgentSessionsList", () => {
       }),
     ];
 
-    render(
-      <AgentSessionsList
-        agentName="codex-agent"
-        sessions={sessions}
-        isLoading={false}
-        isError={false}
-      />
-    );
+    render(<AgentSessionsList agentName="codex-agent" sessions={sessions} status="ready" />);
 
     expect(
       within(screen.getByTestId("agent-session-row-sess_zero_duration")).getByText("0s")
@@ -159,8 +144,7 @@ describe("AgentSessionsList", () => {
           makeSession({ id: "sess_system_running", type: "system", badge: "running" }),
           makeSession({ id: "sess_coordinator_running", type: "coordinator", badge: "running" }),
         ]}
-        isLoading={false}
-        isError={false}
+        status="ready"
       />
     );
 
@@ -185,8 +169,7 @@ describe("AgentSessionsList", () => {
           makeSession({ id: "sess_idle", state: "active", badge: "idle", attachable: true }),
           makeSession({ id: "sess_stopped", state: "stopped", badge: "stopped" }),
         ]}
-        isLoading={false}
-        isError={false}
+        status="ready"
       />
     );
 
@@ -206,8 +189,7 @@ describe("AgentSessionsList", () => {
           makeSession({ id: "sess_hung", state: "active", badge: "hung" }),
           makeSession({ id: "sess_unhealthy", state: "active", badge: "unhealthy" }),
         ]}
-        isLoading={false}
-        isError={false}
+        status="ready"
       />
     );
 
@@ -248,8 +230,7 @@ describe("AgentSessionsList", () => {
             activity: staleActivity,
           }),
         ]}
-        isLoading={false}
-        isError={false}
+        status="ready"
       />
     );
 
@@ -271,9 +252,8 @@ describe("AgentSessionsList", () => {
       <AgentSessionsList
         agentName="codex-agent"
         sessions={[makeSession({ id: "sess_page_one" })]}
-        isLoading={false}
-        isError={false}
-        hasMore
+        status="ready"
+        paginationStatus="available"
         onLoadMore={onLoadMore}
       />
     );
@@ -286,10 +266,8 @@ describe("AgentSessionsList", () => {
       <AgentSessionsList
         agentName="codex-agent"
         sessions={[makeSession({ id: "sess_page_one" })]}
-        isLoading={false}
-        isError={false}
-        hasMore
-        isLoadingMore
+        status="ready"
+        paginationStatus="loading"
         onLoadMore={onLoadMore}
       />
     );

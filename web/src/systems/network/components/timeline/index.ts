@@ -4,7 +4,8 @@ export { HoverToolbar } from "./hover-toolbar";
 export type { HoverToolbarHandlers, HoverToolbarProps } from "./hover-toolbar";
 export { MessageAvatar } from "./message-avatar";
 export type { MessageAvatarProps } from "./message-avatar";
-export { MessageBodyText, readMessageBody } from "./message-body";
+export { MessageBodyText } from "./message-body";
+export { readMessageBody } from "./message-body.logic";
 export { MessageRow } from "./message-row";
 export type {
   MessageRowDensity,

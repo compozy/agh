@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -104,25 +104,31 @@ export function useAgentCreateDialog({
   const [open, setOpenState] = useState(false);
   const [mode, setMode] = useState<"create" | "duplicate">("create");
   const [duplicateSource, setDuplicateSource] = useState<AgentPayload | null>(null);
-  const [draft, setDraft] = useState<AgentCreateDialogDraft>(() =>
+  const [storedDraft, setDraft] = useState<AgentCreateDialogDraft>(() =>
     createDefaultAgentCreateDraft(Boolean(activeWorkspace))
   );
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const globalProviders = useMemo<RuntimeProviderOption[]>(
-    () => settingsProviders.data?.providers.map(settingsProviderToOption) ?? [],
-    [settingsProviders.data?.providers]
-  );
+  const globalProviderEntries = settingsProviders.data?.providers;
+  const globalProviders: RuntimeProviderOption[] =
+    globalProviderEntries?.map(settingsProviderToOption) ?? [];
 
-  const workspaceProviderOptions = useMemo<RuntimeProviderOption[]>(
-    () => workspaceProviders.map(workspaceProviderToOption),
-    [workspaceProviders]
-  );
+  const workspaceProviderOptions: RuntimeProviderOption[] =
+    workspaceProviders.map(workspaceProviderToOption);
 
-  const providerOptions = useMemo<RuntimeProviderOption[]>(
-    () => (draft.scope === "workspace" ? workspaceProviderOptions : globalProviders),
-    [draft.scope, globalProviders, workspaceProviderOptions]
-  );
+  const scopedDraft: AgentCreateDialogDraft =
+    storedDraft.scope === "workspace" && !activeWorkspace
+      ? updateAgentCreateScope(storedDraft, "global")
+      : storedDraft;
+  const sourceProviders =
+    scopedDraft.scope === "workspace" ? workspaceProviders : (globalProviderEntries ?? []);
+  const draft: AgentCreateDialogDraft =
+    scopedDraft.provider.length > 0 &&
+    !sourceProviders.some(provider => provider.name === scopedDraft.provider)
+      ? { ...scopedDraft, provider: "", model: "", reasoningEffort: "" as const }
+      : scopedDraft;
+  const providerOptions: RuntimeProviderOption[] =
+    draft.scope === "workspace" ? workspaceProviderOptions : globalProviders;
 
   const providersLoading =
     draft.scope === "workspace"
@@ -135,84 +141,60 @@ export function useAgentCreateDialog({
         ? describeError("Unable to load global provider settings.", settingsProviders.error)
         : null;
 
-  useEffect(() => {
-    setDraft(current => {
-      if (current.scope !== "workspace" || activeWorkspace) return current;
-      return updateAgentCreateScope(current, "global");
-    });
-  }, [activeWorkspace]);
-
-  useEffect(() => {
-    setDraft(current => {
-      if (current.provider.length === 0) return current;
-      if (providerOptions.some(option => option.id === current.provider)) return current;
-      return { ...current, provider: "", model: "", reasoningEffort: "" };
-    });
-  }, [providerOptions]);
-
-  const catalogProviders = useMemo<RuntimeCatalogProvider[]>(
-    () => providerOptions.map(option => ({ id: option.id, needsAuth: option.needs_auth })),
-    [providerOptions]
-  );
+  const catalogProviders: RuntimeCatalogProvider[] = providerOptions.map(option => ({
+    id: option.id,
+    needsAuth: option.needs_auth,
+  }));
   const catalog = useRuntimeModelCatalog(catalogProviders, { enabled: open });
   const runtimeModels = catalog.models;
 
-  const validationContext = useMemo(
-    () => ({
-      hasActiveWorkspace: Boolean(activeWorkspace),
-      providerOptions,
-      providersError,
-      providersLoading,
-    }),
-    [activeWorkspace, providerOptions, providersError, providersLoading]
-  );
+  const validationContext = {
+    hasActiveWorkspace: Boolean(activeWorkspace),
+    providerOptions,
+    providersError,
+    providersLoading,
+  };
 
-  const resetCreateState = useCallback(() => {
+  const resetCreateState = () => {
     setMode("create");
     setDuplicateSource(null);
     setDraft(createDefaultAgentCreateDraft(Boolean(activeWorkspace)));
     setSubmitError(null);
-  }, [activeWorkspace]);
+  };
 
-  const openDialog = useCallback(() => {
+  const openDialog = () => {
     resetCreateState();
     setOpenState(true);
-  }, [resetCreateState]);
+  };
 
-  const openForDuplicate = useCallback(
-    (agent: AgentPayload) => {
-      setMode("duplicate");
-      setDuplicateSource(agent);
-      setDraft(buildDraftFromAgentPayload(agent, Boolean(activeWorkspace)));
-      setSubmitError(null);
-      setOpenState(true);
-    },
-    [activeWorkspace]
-  );
+  const openForDuplicate = (agent: AgentPayload) => {
+    setMode("duplicate");
+    setDuplicateSource(agent);
+    setDraft(buildDraftFromAgentPayload(agent, Boolean(activeWorkspace)));
+    setSubmitError(null);
+    setOpenState(true);
+  };
 
-  const onOpenChange = useCallback(
-    (next: boolean) => {
-      setOpenState(next);
-      if (!next) {
-        resetCreateState();
-      }
-    },
-    [resetCreateState]
-  );
+  const onOpenChange = (next: boolean) => {
+    setOpenState(next);
+    if (!next) {
+      resetCreateState();
+    }
+  };
 
-  const onDraftChange = useCallback((nextDraft: AgentCreateDialogDraft) => {
+  const onDraftChange = (nextDraft: AgentCreateDialogDraft) => {
     setDraft(nextDraft);
     setSubmitError(null);
-  }, []);
+  };
 
   const onRefreshCatalog = catalog.refresh;
 
-  const onOpenProviderSettings = useCallback(() => {
+  const onOpenProviderSettings = () => {
     setOpenState(false);
     void navigate({ to: "/settings/providers" });
-  }, [navigate]);
+  };
 
-  const onSubmit = useCallback(async () => {
+  const onSubmit = async () => {
     setSubmitError(null);
     try {
       let agent: AgentPayload;
@@ -265,17 +247,7 @@ export function useAgentCreateDialog({
       setSubmitError(message);
       toast.error(message);
     }
-  }, [
-    activeWorkspace,
-    createAgent,
-    draft,
-    duplicateAgent,
-    duplicateSource,
-    mode,
-    navigate,
-    resetCreateState,
-    validationContext,
-  ]);
+  };
 
   return {
     open,

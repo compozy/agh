@@ -1,5 +1,3 @@
-import { useMemo } from "react";
-
 import { useSessionClearDialog } from "@/hooks/routes/use-session-clear-dialog";
 import { useSessionDeleteDialog } from "@/hooks/routes/use-session-delete-dialog";
 import { useSessionPageControls } from "@/hooks/routes/use-session-page-controls";
@@ -47,29 +45,23 @@ export function useSessionDetailPage({
   const sessionLedger = useSessionLedger(sessionId, session.workspace_id, {
     enabled: ledgerEnabled,
   });
-  const inspectorMemory = useMemo<InspectorMemoryState>(
-    () => ({
-      ledger: sessionLedger.data ?? null,
-      isLoading: sessionLedger.isLoading,
-      error: sessionLedger.error,
-    }),
-    [sessionLedger.data, sessionLedger.isLoading, sessionLedger.error]
-  );
+  const inspectorMemory: InspectorMemoryState = {
+    ledger: sessionLedger.data ?? null,
+    isLoading: sessionLedger.isLoading,
+    error: sessionLedger.error,
+  };
   const sessionUsage = useSessionUsage(sessionId, session.workspace_id, session.state);
-  const inspectorUsage = useMemo<InspectorUsage | null>(() => {
-    const usage = sessionUsage.data;
-    if (!usage) {
-      return null;
-    }
-    return {
-      tokensIn: usage.input_tokens ?? undefined,
-      tokensOut: usage.output_tokens ?? undefined,
-      totalTokens: usage.total_tokens ?? undefined,
-      costUsd: usage.total_cost ?? undefined,
-      costCurrency: usage.cost_currency || undefined,
-      turnCount: usage.turn_count,
-    };
-  }, [sessionUsage.data]);
+  const usage = sessionUsage.data;
+  const inspectorUsage: InspectorUsage | null = usage
+    ? {
+        tokensIn: usage.input_tokens ?? undefined,
+        tokensOut: usage.output_tokens ?? undefined,
+        totalTokens: usage.total_tokens ?? undefined,
+        costUsd: usage.total_cost ?? undefined,
+        costCurrency: usage.cost_currency || undefined,
+        turnCount: usage.turn_count,
+      }
+    : null;
   const deleteDialog = useSessionDeleteDialog(controls.handleDelete);
   const clearDialog = useSessionClearDialog(controls.handleClear);
 

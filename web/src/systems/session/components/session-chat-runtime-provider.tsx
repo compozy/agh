@@ -1,14 +1,11 @@
-import { useMemo, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { AssistantRuntimeProvider, DataRenderers, Tools, useAui } from "@assistant-ui/react";
 
 import { useMergedSessionRuntimeTranscript } from "../hooks/use-merged-session-runtime-transcript";
 import { useSessionChatRuntime } from "../hooks/use-session-chat-runtime";
 import type { SessionStreamEventSourceFactory } from "../hooks/use-session-live-tail";
-import {
-  createAghEventDataUI,
-  createAghPermissionDataUI,
-  sessionToolkit,
-} from "../lib/session-toolkit";
+import { AghEventDataUI, AghPermissionDataUI } from "../lib/session-data-ui";
+import { sessionToolkit } from "../lib/session-toolkit";
 import { SessionRuntimeRenderProvider } from "../lib/session-runtime-render-context";
 import { SessionTranscriptThreadProvider } from "../lib/session-transcript-thread-context";
 
@@ -23,11 +20,6 @@ function SessionRuntimeExtensions({
   eventSourceFactory?: SessionStreamEventSourceFactory;
   children: ReactNode;
 }) {
-  const PermissionDataUI = useMemo(
-    () => createAghPermissionDataUI(workspaceId, sessionId),
-    [sessionId, workspaceId]
-  );
-  const EventDataUI = useMemo(() => createAghEventDataUI(), []);
   const transcript = useMergedSessionRuntimeTranscript({
     eventSourceFactory,
     sessionId,
@@ -39,16 +31,14 @@ function SessionRuntimeExtensions({
       <SessionTranscriptThreadProvider
         messages={transcript.messages}
         status={transcript.status}
-        isPending={transcript.isPending}
-        isError={transcript.isError}
         error={transcript.error}
         hasOlder={transcript.hasOlder}
         isFetchingOlder={transcript.isFetchingOlder}
         loadOlder={transcript.loadOlder}
         retry={transcript.retry}
       >
-        <PermissionDataUI />
-        <EventDataUI />
+        <AghPermissionDataUI />
+        <AghEventDataUI />
         {children}
       </SessionTranscriptThreadProvider>
     </SessionRuntimeRenderProvider>

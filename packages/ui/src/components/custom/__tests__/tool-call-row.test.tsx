@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { FileEditIcon } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
@@ -102,12 +103,13 @@ describe("ToolCallRow", () => {
       </ToolCallRow>
     );
     const trigger = screen.getByRole("button");
-    expect(trigger).toHaveAttribute("tabindex", "0");
+    expect(trigger.tabIndex).toBe(0);
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     expect(container.querySelector('[data-slot="tool-call-row-chevron"]')).not.toBeNull();
   });
 
-  it("Should toggle the inline body by click, Enter, and Space", () => {
+  it("Should toggle the inline body by click, Enter, and Space", async () => {
+    const user = userEvent.setup();
     const { container } = render(
       <ToolCallRow toolName="Read" preview="agh.config.toml" status="success">
         <ToolCallRow.Input source='{"file_path":"agh.config.toml"}' format="code" language="json" />
@@ -117,12 +119,24 @@ describe("ToolCallRow", () => {
     const trigger = screen.getByRole("button");
 
     expect(container.querySelector('[data-slot="tool-call-row-body"]')).toBeNull();
-    fireEvent.click(trigger);
+    await user.click(trigger);
     expect(container.querySelector('[data-slot="tool-call-row-body"]')).not.toBeNull();
-    fireEvent.keyDown(trigger, { key: "Enter" });
+    await user.keyboard("{Enter}");
     expect(container.querySelector('[data-slot="tool-call-row-body"]')).toBeNull();
-    fireEvent.keyDown(trigger, { key: " " });
+    await user.keyboard(" ");
     expect(container.querySelector('[data-slot="tool-call-row-body"]')).not.toBeNull();
+  });
+
+  it("Should derive the trigger name from a rendered non-string tool name", () => {
+    render(
+      <ToolCallRow toolName={<span>Read workspace file</span>} status="success">
+        <ToolCallRow.Output source="ok" format="code" />
+      </ToolCallRow>
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Read workspace file Toggle tool call (success)" })
+    ).toBeInTheDocument();
   });
 
   it("Should hover with the neutral glaze and never render an accent class in the row DOM", () => {
@@ -134,7 +148,9 @@ describe("ToolCallRow", () => {
       </ToolCallRow>
     );
     const trigger = screen.getByRole("button");
-    expect(trigger.className).toContain("hover:bg-hover");
+    expect(
+      container.querySelector('[data-slot="tool-call-row-trigger"]')?.getAttribute("class")
+    ).toContain("hover:bg-hover");
 
     fireEvent.click(trigger);
     const row = container.querySelector('[data-slot="tool-call-row"]');

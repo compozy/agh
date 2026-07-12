@@ -1,4 +1,3 @@
-import { useCallback, useMemo } from "react";
 import { useChildMatches, useNavigate } from "@tanstack/react-router";
 
 import type { ListingViewMode } from "@agh/ui";
@@ -46,7 +45,7 @@ function useSkillsPage(search: SkillsRouteSearch = {}) {
   const enabledFilter = search.enabled ?? null;
 
   const skillsQuery = useSkills(workspaceId);
-  const skills = useMemo(() => skillsQuery.data ?? [], [skillsQuery.data]);
+  const skills = skillsQuery.data ?? [];
 
   const disableMutation = useDisableSkill();
   const enableMutation = useEnableSkill();
@@ -54,137 +53,99 @@ function useSkillsPage(search: SkillsRouteSearch = {}) {
   const updateMutation = useUpdateSkillMarketplace();
   const removeMutation = useRemoveSkillMarketplace();
 
-  const installedSkillNames = useMemo(() => {
-    return new Set(skills.map(skill => skill.name));
-  }, [skills]);
+  const installedSkillNames = new Set(skills.map(skill => skill.name));
 
   const marketplaceQueryActive = activeTab === "marketplace" && searchQuery.trim() !== "";
   const marketplaceSearchQuery = useSkillMarketplaceSearch(
     marketplaceQueryActive ? searchQuery : ""
   );
-  const marketplaceListings = useMemo(
-    () => (marketplaceQueryActive ? (marketplaceSearchQuery.data ?? []) : []),
-    [marketplaceQueryActive, marketplaceSearchQuery.data]
-  );
+  const marketplaceListings = marketplaceQueryActive ? (marketplaceSearchQuery.data ?? []) : [];
   const marketplaceListingCount = marketplaceListings.length;
 
-  const handleDisable = useCallback(
-    (name: string) => {
-      disableMutation.mutate({ name, workspace: workspaceId });
-    },
-    [disableMutation, workspaceId]
-  );
+  const handleDisable = (name: string) => {
+    disableMutation.mutate({ name, workspace: workspaceId });
+  };
 
-  const handleEnable = useCallback(
-    (name: string) => {
-      enableMutation.mutate({ name, workspace: workspaceId });
-    },
-    [enableMutation, workspaceId]
-  );
+  const handleEnable = (name: string) => {
+    enableMutation.mutate({ name, workspace: workspaceId });
+  };
 
-  const handleInstallMarketplace = useCallback(
-    (slug: string) => {
-      installMutation.mutate({ body: { slug }, workspace: workspaceId });
-    },
-    [installMutation, workspaceId]
-  );
+  const handleInstallMarketplace = (slug: string) => {
+    installMutation.mutate({ body: { slug }, workspace: workspaceId });
+  };
 
-  const handleUpdateMarketplace = useCallback(
-    (name: string) => {
-      updateMutation.mutate({ body: { name }, workspace: workspaceId });
-    },
-    [updateMutation, workspaceId]
-  );
+  const handleUpdateMarketplace = (name: string) => {
+    updateMutation.mutate({ body: { name }, workspace: workspaceId });
+  };
 
-  const handleRemoveMarketplace = useCallback(
-    (name: string) => {
-      removeMutation.mutate({ name, workspace: workspaceId });
-    },
-    [removeMutation, workspaceId]
-  );
+  const handleRemoveMarketplace = (name: string) => {
+    removeMutation.mutate({ name, workspace: workspaceId });
+  };
 
-  const updateSearch = useCallback(
-    (updater: (current: SkillsRouteSearch) => SkillsRouteSearch) => {
-      void navigate({
-        search: current => updater((current as SkillsRouteSearch | undefined) ?? {}),
-        to: "/skills",
-      });
-    },
-    [navigate]
-  );
+  const updateSearch = (updater: (current: SkillsRouteSearch) => SkillsRouteSearch) => {
+    void navigate({
+      search: current => updater((current as SkillsRouteSearch | undefined) ?? {}),
+      to: "/skills",
+    });
+  };
 
-  const setActiveTab = useCallback(
-    (nextTab: Tab) => {
-      updateSearch(current => ({
-        ...current,
-        tab: nextTab === "installed" ? undefined : nextTab,
-        // Clear installed-only filters when switching to marketplace.
-        source: nextTab === "marketplace" ? undefined : current.source,
-        enabled: nextTab === "marketplace" ? undefined : current.enabled,
-      }));
-    },
-    [updateSearch]
-  );
+  const setActiveTab = (nextTab: Tab) => {
+    updateSearch(current => ({
+      ...current,
+      tab: nextTab === "installed" ? undefined : nextTab,
+      // Clear installed-only filters when switching to marketplace.
+      source: nextTab === "marketplace" ? undefined : current.source,
+      enabled: nextTab === "marketplace" ? undefined : current.enabled,
+    }));
+  };
 
-  const setSearchQuery = useCallback(
-    (nextQuery: string) => {
-      updateSearch(current => ({
-        ...current,
-        q: normalizeListingSearchValue(nextQuery),
-      }));
-    },
-    [updateSearch]
-  );
+  const setSearchQuery = (nextQuery: string) => {
+    updateSearch(current => ({
+      ...current,
+      q: normalizeListingSearchValue(nextQuery),
+    }));
+  };
 
-  const setView = useCallback(
-    (nextView: ListingViewMode) => {
-      updateSearch(current => ({
-        ...current,
-        view: nextView === "rows" ? undefined : nextView,
-      }));
-    },
-    [updateSearch]
-  );
+  const setView = (nextView: ListingViewMode) => {
+    updateSearch(current => ({
+      ...current,
+      view: nextView === "rows" ? undefined : nextView,
+    }));
+  };
 
-  const setSourceFilter = useCallback(
-    (next: SkillSourceFilter | null) => {
-      updateSearch(current => ({
-        ...current,
-        source: next ?? undefined,
-      }));
-    },
-    [updateSearch]
-  );
+  const setSourceFilter = (next: SkillSourceFilter | null) => {
+    updateSearch(current => ({
+      ...current,
+      source: next ?? undefined,
+    }));
+  };
 
-  const setEnabledFilter = useCallback(
-    (next: SkillEnabledFilter | null) => {
-      updateSearch(current => ({
-        ...current,
-        enabled: next ?? undefined,
-      }));
-    },
-    [updateSearch]
-  );
+  const setEnabledFilter = (next: SkillEnabledFilter | null) => {
+    updateSearch(current => ({
+      ...current,
+      enabled: next ?? undefined,
+    }));
+  };
 
-  const clearFilters = useCallback(() => {
+  const clearFilters = () => {
     updateSearch(current => ({
       ...current,
       q: undefined,
       source: undefined,
       enabled: undefined,
     }));
-  }, [updateSearch]);
+  };
 
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = () => {
     void skillsQuery.refetch();
     if (marketplaceQueryActive) {
       void marketplaceSearchQuery.refetch();
     }
-  }, [marketplaceQueryActive, marketplaceSearchQuery, skillsQuery]);
+  };
 
-  const browseMarketplace = useCallback(() => {
+  const browseMarketplace = () => {
     setActiveTab("marketplace");
-  }, [setActiveTab]);
+  };
 
   const hasSkills = skills.length > 0;
   const error = skillsQuery.error && !hasSkills ? skillsQuery.error : null;

@@ -28,10 +28,9 @@ function SkeletonRows({
   children,
   ...props
 }: SkeletonRowsProps) {
-  const rows = React.useMemo(
-    () => Array.from({ length: count }, (_, position) => ({ id: `skeleton-row-${position}` })),
-    [count]
-  );
+  const rows = Array.from({ length: count }, (_, position) => ({
+    id: `skeleton-row-${position}`,
+  }));
 
   return (
     <div data-slot="skeleton-rows" className={cn("flex flex-col", className)} {...props}>

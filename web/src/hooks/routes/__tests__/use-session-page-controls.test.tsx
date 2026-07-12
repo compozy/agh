@@ -554,4 +554,46 @@ describe("useSessionPageControls", () => {
 
     expect(result.current.queuedPrompts).toEqual([]);
   });
+
+  it("keeps the current turn queue when an older turn callback resolves late", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.queuePromptMutation.mutateAsync
+      .mockResolvedValueOnce({ queued: true, queue_entry_id: "inq-turn-1" })
+      .mockResolvedValueOnce({ queued: true, queue_entry_id: "inq-turn-2" });
+    let session = {
+      ...makeSession("active"),
+      badge: "running",
+      activity: { turn_id: "turn-1" } as SessionPayload["activity"],
+    };
+
+    const { result, rerender } = renderHook(() =>
+      useSessionPageControls("sess-1", session, { workspaceId: WORKSPACE_ID })
+    );
+
+    await act(async () => {
+      await result.current.handleQueuePrompt("older prompt");
+    });
+    act(() => {
+      result.current.handleRemoveQueuedPrompt("inq-turn-1");
+    });
+    const [, olderTurnOptions] =
+      routeHookMocks.cancelQueuedPromptMutation.mutate.mock.calls[0] ?? [];
+
+    session = {
+      ...session,
+      activity: { turn_id: "turn-2" } as SessionPayload["activity"],
+    };
+    act(() => {
+      rerender();
+    });
+    await act(async () => {
+      await result.current.handleQueuePrompt("current prompt");
+    });
+
+    act(() => {
+      olderTurnOptions.onError(new Error("late cancel failure"));
+    });
+
+    expect(result.current.queuedPrompts).toEqual([{ id: "inq-turn-2", text: "current prompt" }]);
+  });
 });

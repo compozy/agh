@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef } from "react";
+import { useEffect, useReducer } from "react";
 import { toast } from "sonner";
 
 import { Alert, AlertActions, AlertDescription, Button } from "@agh/ui";
@@ -75,6 +75,16 @@ const TONE_ALERT_VARIANT: Record<WorkBannerTone, "info" | "warning" | "danger"> 
   danger: "danger",
 };
 
+function notifyHardStopOnMount(node: HTMLSpanElement | null) {
+  if (!node || node.dataset.notified === "true") return;
+  node.dataset.notified = "true";
+  const count = Number(node.dataset.count);
+  toast.warning("Multiple agents are blocked on input.", {
+    id: "network-work-banner-hard-stop",
+    description: `${Number.isFinite(count) ? count : 0} agents need input.`,
+  });
+}
+
 export function WorkBanner({
   openCount,
   hasNeedsInput,
@@ -101,22 +111,19 @@ export function WorkBanner({
     return () => clearTimeout(timer);
   }, [openCount]);
 
-  // Hard-stop toast debounce: fires only on the rising edge of
-  // `needsInputCount > WORK_BANNER_HARD_STOP_THRESHOLD`.
-  const wasBeyondHardStop = useRef(false);
-  useEffect(() => {
-    const beyond = (needsInputCount ?? 0) > WORK_BANNER_HARD_STOP_THRESHOLD;
-    if (beyond && !wasBeyondHardStop.current) {
-      toast.warning("Multiple agents are blocked on input.", {
-        id: "network-work-banner-hard-stop",
-        description: `${needsInputCount ?? 0} agents need input.`,
-      });
-    }
-    wasBeyondHardStop.current = beyond;
-  }, [needsInputCount]);
+  const hardStopNotifier =
+    (needsInputCount ?? 0) > WORK_BANNER_HARD_STOP_THRESHOLD ? (
+      <span
+        ref={notifyHardStopOnMount}
+        aria-hidden="true"
+        data-count={needsInputCount}
+        data-testid="network-work-banner-hard-stop-notifier"
+        hidden
+      />
+    ) : null;
 
   if (phase === "hidden") {
-    return null;
+    return hardStopNotifier;
   }
 
   const tone = resolveTone(hasNeedsInput, needsInputCount);
@@ -124,42 +131,45 @@ export function WorkBanner({
   const fading = phase === "fading";
 
   return (
-    <Alert
-      aria-live="polite"
-      className={cn(
-        "flex h-9 items-center justify-between gap-3 overflow-hidden rounded-none border-x-0 border-t-0 border-b border-line px-5 py-0 transition-all duration-slow ease-out",
-        TONE_BG[tone],
-        fading ? "max-h-0 opacity-0" : "max-h-9 opacity-100",
-        className
-      )}
-      data-state={fading ? "fading" : "visible"}
-      data-testid="network-work-banner"
-      data-tone={tone}
-      role="status"
-      variant={TONE_ALERT_VARIANT[tone]}
-    >
-      <AlertDescription
-        className="truncate text-small-body font-medium"
-        data-testid="network-work-banner-message"
+    <>
+      {hardStopNotifier}
+      <Alert
+        aria-live="polite"
+        className={cn(
+          "flex h-9 items-center justify-between gap-3 overflow-hidden rounded-none border-x-0 border-t-0 border-b border-line px-5 py-0 transition-all duration-slow ease-out",
+          TONE_BG[tone],
+          fading ? "max-h-0 opacity-0" : "max-h-9 opacity-100",
+          className
+        )}
+        data-state={fading ? "fading" : "visible"}
+        data-testid="network-work-banner"
+        data-tone={tone}
+        role="status"
+        variant={TONE_ALERT_VARIANT[tone]}
       >
-        {message}
-      </AlertDescription>
-      {onView ? (
-        <AlertActions className="mt-0">
-          <Button
-            aria-label="View open work"
-            className={cn("h-7 px-2 text-xs font-medium", TONE_VIEW_TEXT[tone])}
-            data-testid="network-work-banner-view"
-            onClick={onView}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            view
-          </Button>
-        </AlertActions>
-      ) : null}
-    </Alert>
+        <AlertDescription
+          className="truncate text-small-body font-medium"
+          data-testid="network-work-banner-message"
+        >
+          {message}
+        </AlertDescription>
+        {onView ? (
+          <AlertActions className="mt-0">
+            <Button
+              aria-label="View open work"
+              className={cn("h-7 px-2 text-xs font-medium", TONE_VIEW_TEXT[tone])}
+              data-testid="network-work-banner-view"
+              onClick={onView}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              view
+            </Button>
+          </AlertActions>
+        ) : null}
+      </Alert>
+    </>
   );
 }
 

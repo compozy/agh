@@ -66,10 +66,19 @@ function TaskRunDetailRoute() {
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="tasks-run-detail-content">
       <TaskRunDetailHeader
-        isForceFailPending={page.isForceFailPending}
-        isForceReleasePending={page.isForceReleasePending}
-        isRetryPending={page.isRetryPending}
-        isCancelPending={page.isCancelPending}
+        pendingActions={
+          new Set(
+            [
+              page.isCancelPending ? "cancel" : null,
+              page.isForceReleasePending ? "force-release" : null,
+              page.isForceFailPending ? "force-fail" : null,
+              page.isRetryPending ? "retry" : null,
+            ].filter(
+              (action): action is "cancel" | "force-release" | "force-fail" | "retry" =>
+                action !== null
+            )
+          )
+        }
         onCancelRun={page.handleCancelRun}
         onForceFailRun={page.handleForceFailRun}
         onForceReleaseRun={page.handleForceReleaseRun}

@@ -1,4 +1,4 @@
-import { useCallback, useReducer, useRef } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -31,110 +31,90 @@ export function useTasksPageActions() {
   const markReadMutation = useMarkTaskRead();
   const archiveMutation = useArchiveTask();
   const dismissMutation = useDismissTask();
-  const pendingIdsRef = useRef<PendingActionIds | null>(null);
-  if (pendingIdsRef.current === null) {
-    pendingIdsRef.current = createPendingActionIds();
-  }
-  const pendingIds = pendingIdsRef.current;
-  const [, renderPendingState] = useReducer((version: number) => version + 1, 0);
+  const [pendingGuards] = useState(createPendingActionIds);
+  const [pendingIds, setPendingIds] = useState(createPendingActionIds);
 
-  const runOnce = useCallback(
-    async (kind: PendingActionKind, id: string, operation: () => Promise<unknown>) => {
-      const pending = pendingIds[kind];
-      if (pending.has(id)) {
-        return false;
-      }
-      pending.add(id);
-      renderPendingState();
-      try {
-        await operation();
-        return true;
-      } finally {
-        pending.delete(id);
-        renderPendingState();
-      }
-    },
-    [pendingIds]
-  );
+  const runOnce = async (
+    kind: PendingActionKind,
+    id: string,
+    operation: () => Promise<unknown>
+  ) => {
+    const pending = pendingGuards[kind];
+    if (pending.has(id)) return false;
+    pending.add(id);
+    setPendingIds(current => ({ ...current, [kind]: new Set(pending) }));
+    try {
+      await operation();
+    } catch (error) {
+      pending.delete(id);
+      setPendingIds(current => ({ ...current, [kind]: new Set(pending) }));
+      throw error;
+    }
+    pending.delete(id);
+    setPendingIds(current => ({ ...current, [kind]: new Set(pending) }));
+    return true;
+  };
 
-  const handleApproveTask = useCallback(
-    async (taskId: string) => {
-      try {
-        const executed = await runOnce("approve", taskId, () =>
-          approveMutation.mutateAsync({ id: taskId })
-        );
-        if (executed) {
-          toast.success("Task approved.");
-        }
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to approve task");
+  const handleApproveTask = async (taskId: string) => {
+    try {
+      const executed = await runOnce("approve", taskId, () =>
+        approveMutation.mutateAsync({ id: taskId })
+      );
+      if (executed) {
+        toast.success("Task approved.");
       }
-    },
-    [approveMutation, runOnce]
-  );
-  const handleRejectTask = useCallback(
-    async (taskId: string) => {
-      try {
-        const executed = await runOnce("reject", taskId, () =>
-          rejectMutation.mutateAsync({ id: taskId })
-        );
-        if (executed) {
-          toast.success("Task rejected.");
-        }
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to reject task");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to approve task");
+    }
+  };
+  const handleRejectTask = async (taskId: string) => {
+    try {
+      const executed = await runOnce("reject", taskId, () =>
+        rejectMutation.mutateAsync({ id: taskId })
+      );
+      if (executed) {
+        toast.success("Task rejected.");
       }
-    },
-    [rejectMutation, runOnce]
-  );
-  const handleMarkTaskRead = useCallback(
-    async (taskId: string) => {
-      try {
-        await runOnce("markRead", taskId, () => markReadMutation.mutateAsync({ id: taskId }));
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to mark task read");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to reject task");
+    }
+  };
+  const handleMarkTaskRead = async (taskId: string) => {
+    try {
+      await runOnce("markRead", taskId, () => markReadMutation.mutateAsync({ id: taskId }));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to mark task read");
+    }
+  };
+  const handleArchiveTask = async (taskId: string) => {
+    try {
+      const executed = await runOnce("archive", taskId, () =>
+        archiveMutation.mutateAsync({ id: taskId })
+      );
+      if (executed) {
+        toast.success("Task archived.");
       }
-    },
-    [markReadMutation, runOnce]
-  );
-  const handleArchiveTask = useCallback(
-    async (taskId: string) => {
-      try {
-        const executed = await runOnce("archive", taskId, () =>
-          archiveMutation.mutateAsync({ id: taskId })
-        );
-        if (executed) {
-          toast.success("Task archived.");
-        }
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to archive task");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to archive task");
+    }
+  };
+  const handleDismissTask = async (taskId: string) => {
+    try {
+      await runOnce("dismiss", taskId, () => dismissMutation.mutateAsync({ id: taskId }));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to dismiss task");
+    }
+  };
+  const handleRetryRun = async (runId: string) => {
+    try {
+      const executed = await runOnce("retry", runId, () => retryMutation.mutateAsync({ runId }));
+      if (executed) {
+        toast.success("Run retry requested.");
       }
-    },
-    [archiveMutation, runOnce]
-  );
-  const handleDismissTask = useCallback(
-    async (taskId: string) => {
-      try {
-        await runOnce("dismiss", taskId, () => dismissMutation.mutateAsync({ id: taskId }));
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to dismiss task");
-      }
-    },
-    [dismissMutation, runOnce]
-  );
-  const handleRetryRun = useCallback(
-    async (runId: string) => {
-      try {
-        const executed = await runOnce("retry", runId, () => retryMutation.mutateAsync({ runId }));
-        if (executed) {
-          toast.success("Run retry requested.");
-        }
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to retry run");
-      }
-    },
-    [retryMutation, runOnce]
-  );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to retry run");
+    }
+  };
 
   return {
     handleApproveTask,

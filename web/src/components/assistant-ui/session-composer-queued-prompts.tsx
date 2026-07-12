@@ -2,11 +2,9 @@ import { CornerDownRight, ListPlus, Pencil, Trash2 } from "lucide-react";
 
 import { Button } from "@agh/ui";
 import { cn } from "@/lib/utils";
+import { queuedPromptPreview, type QueuedPrompt } from "./session-composer-queued-prompts.logic";
 
-export interface QueuedPrompt {
-  id: string;
-  text: string;
-}
+export type { QueuedPrompt } from "./session-composer-queued-prompts.logic";
 
 interface SessionComposerQueuedPromptsProps {
   prompts: QueuedPrompt[];
@@ -14,31 +12,6 @@ interface SessionComposerQueuedPromptsProps {
   onEdit: (prompt: QueuedPrompt) => void;
   onRemove: (id: string) => void;
   disabled?: boolean;
-}
-
-// Collapse a queued prompt to a single-line preview: first non-empty line with
-// leading markdown markers stripped, so a heading / list / quote still reads as
-// one composer row.
-export function queuedPromptPreview(text: string): string {
-  const firstLine =
-    text
-      .split(/\r?\n/)
-      .map(line => line.trim())
-      .find(line => line.length > 0) ?? "";
-  if (firstLine.length === 0) {
-    return "Queued prompt";
-  }
-  if (/^(?:`{3,}|~{3,})/.test(firstLine)) {
-    return "Code block";
-  }
-  const normalized = firstLine
-    .replace(/^#{1,6}\s+/, "")
-    .replace(/^>\s?/, "")
-    .replace(/^- \[[ xX]\]\s+/, "")
-    .replace(/^[-*+]\s+/, "")
-    .replace(/^\d+[.)]\s+/, "")
-    .trim();
-  return normalized.length > 0 ? normalized : "Queued prompt";
 }
 
 /**

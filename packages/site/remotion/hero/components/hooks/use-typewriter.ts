@@ -20,10 +20,3 @@ export function useTypewriter(
     progress,
   };
 }
-
-/**
- * Pure (frame-free) variant for static fallbacks.
- */
-export function staticTypewriter(text: string): { visible: string; done: true; progress: 1 } {
-  return { visible: text, done: true, progress: 1 };
-}

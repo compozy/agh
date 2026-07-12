@@ -15,6 +15,33 @@ interface HeroChatViewProps {
   conv?: Conversation;
 }
 
+const SHELL_STYLE: CSSProperties = {
+  padding: 16,
+  width: COMPOSITION_WIDTH,
+  height: COMPOSITION_HEIGHT,
+  backgroundColor: "transparent",
+};
+const LAYOUT_STYLE: CSSProperties = {
+  display: "flex",
+  flexDirection: "row",
+  flex: 1,
+  minHeight: 0,
+};
+const MAIN_STYLE: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  flex: 1,
+  minWidth: 0,
+  backgroundColor: TOKENS.surfacePanel,
+};
+const SCROLL_WRAP_STYLE: CSSProperties = {
+  flex: 1,
+  minHeight: 0,
+  overflow: "hidden",
+  position: "relative",
+  backgroundColor: TOKENS.canvas,
+};
+
 export function HeroChatComposition({
   staticMode = false,
   conv = CONVERSATION,
@@ -41,32 +68,6 @@ export function HeroChatComposition({
     ? conv.agents[conv.agents.length - 1].id
     : activeAgentAt(frame, conv);
 
-  const shellStyle: CSSProperties = {
-    padding: 16,
-    width: COMPOSITION_WIDTH,
-    height: COMPOSITION_HEIGHT,
-    backgroundColor: "transparent",
-  };
-  const layout: CSSProperties = {
-    display: "flex",
-    flexDirection: "row",
-    flex: 1,
-    minHeight: 0,
-  };
-  const main: CSSProperties = {
-    display: "flex",
-    flexDirection: "column",
-    flex: 1,
-    minWidth: 0,
-    backgroundColor: TOKENS.surfacePanel,
-  };
-  const scrollWrap: CSSProperties = {
-    flex: 1,
-    minHeight: 0,
-    overflow: "hidden",
-    position: "relative",
-    backgroundColor: TOKENS.canvas,
-  };
   // Bottom-anchored stack: new messages appear at the bottom,
   // older ones push up (and clip at top via overflow:hidden).
   const scrollInner: CSSProperties = {
@@ -80,13 +81,13 @@ export function HeroChatComposition({
   };
 
   return (
-    <AbsoluteFill style={shellStyle}>
+    <AbsoluteFill style={SHELL_STYLE}>
       <ChatFrame opacity={chromeOpacity}>
         <ChatHeader activeAgent={activeAgent} sessionName={conv.session.name} />
-        <div style={layout}>
+        <div style={LAYOUT_STYLE}>
           <SidebarRail activeAgent={activeAgent} />
-          <div style={main}>
-            <div style={scrollWrap}>
+          <div style={MAIN_STYLE}>
+            <div style={SCROLL_WRAP_STYLE}>
               <div style={scrollInner}>
                 {conv.agents.map(a => (
                   <MessageAgent

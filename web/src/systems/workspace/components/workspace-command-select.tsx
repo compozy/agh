@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { ChevronsUpDown, Home, Plus } from "lucide-react";
 
 import {
@@ -59,14 +59,8 @@ export function WorkspaceCommandSelect({
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = openProp ?? uncontrolledOpen;
   const setOpen = onOpenChange ?? setUncontrolledOpen;
-  const selected = useMemo(
-    () => workspaces?.find(workspace => workspace.id === value) ?? null,
-    [workspaces, value]
-  );
-  const { homeWorkspace, projectWorkspaces } = useMemo(
-    () => splitHomeWorkspace(workspaces, userHomeDir),
-    [workspaces, userHomeDir]
-  );
+  const selected = workspaces?.find(workspace => workspace.id === value) ?? null;
+  const { homeWorkspace, projectWorkspaces } = splitHomeWorkspace(workspaces, userHomeDir);
   const orderedWorkspaces = homeWorkspace
     ? [homeWorkspace, ...projectWorkspaces]
     : projectWorkspaces;

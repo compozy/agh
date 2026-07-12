@@ -84,14 +84,11 @@ function MarkdownInner({
   className,
   ...props
 }: MarkdownProps) {
-  const mergedComponents = React.useMemo<Partial<Components>>(
-    () => ({
-      ...(STREAMDOWN_SAFE_CONFIG.components as Partial<Components>),
-      ...MARKDOWN_PROSE_COMPONENTS,
-      ...components,
-    }),
-    [components]
-  );
+  const mergedComponents: Partial<Components> = {
+    ...(STREAMDOWN_SAFE_CONFIG.components as Partial<Components>),
+    ...MARKDOWN_PROSE_COMPONENTS,
+    ...components,
+  };
   const streamingProps = streaming
     ? ({ mode: "streaming" as const, parseIncompleteMarkdown: true } as const)
     : undefined;
@@ -109,7 +106,7 @@ function MarkdownInner({
   );
 }
 
-const Markdown = React.memo(MarkdownInner);
+const Markdown: React.FC<MarkdownProps> = MarkdownInner;
 Markdown.displayName = "Markdown";
 
 export { Markdown };

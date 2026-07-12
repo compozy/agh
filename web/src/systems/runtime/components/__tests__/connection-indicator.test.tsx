@@ -9,7 +9,8 @@ vi.mock("@/systems/status", () => ({
   }),
 }));
 
-import { RuntimeConnectionIndicator, resolveRuntimeConnectionState } from "../connection-indicator";
+import { RuntimeConnectionIndicator } from "../connection-indicator";
+import { resolveRuntimeConnectionState } from "../connection-indicator.logic";
 
 describe("resolveRuntimeConnectionState", () => {
   it("Should return success solid when daemon is connected and healthy", () => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState, type SetStateAction } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -17,42 +17,37 @@ export function useTaskEditRouteState(id: string | undefined) {
   const detail = detailQuery.data ?? null;
   const task = detail?.task ?? null;
 
-  const [draft, setDraft] = useState<TaskEditorDraft>(EMPTY_TASK_EDITOR_DRAFT);
-  const [isInitialized, setInitialized] = useState(false);
+  const taskKey = task ? `${task.id}:${task.updated_at}` : "pending";
+  const sourceDraft = task ? taskEditorDraftFromTask(task) : EMPTY_TASK_EDITOR_DRAFT;
+  const [draftState, setDraftState] = useState({ draft: sourceDraft, key: taskKey });
+  const draft = draftState.key === taskKey ? draftState.draft : sourceDraft;
+  const setDraft = (update: SetStateAction<TaskEditorDraft>) => {
+    setDraftState(current => {
+      const currentDraft = current.key === taskKey ? current.draft : sourceDraft;
+      return {
+        draft: typeof update === "function" ? update(currentDraft) : update,
+        key: taskKey,
+      };
+    });
+  };
 
-  useEffect(() => {
-    if (task) {
-      setDraft(taskEditorDraftFromTask(task));
-      setInitialized(true);
+  const handleSubmit = async (nextDraft: TaskEditorDraft) => {
+    if (!id) return null;
+    try {
+      await updateMutation.mutateAsync({ id, data: buildUpdateTaskRequest(nextDraft) });
+      toast.success("Task updated.");
+      await navigate({ to: "/tasks/$id", params: { id } });
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update task");
+      return null;
     }
-  }, [task]);
-
-  const handleSubmit = useCallback(
-    async (nextDraft: TaskEditorDraft) => {
-      if (!id) {
-        return null;
-      }
-
-      try {
-        await updateMutation.mutateAsync({
-          id,
-          data: buildUpdateTaskRequest(nextDraft),
-        });
-        toast.success("Task updated.");
-        await navigate({ to: "/tasks/$id", params: { id } });
-        return true;
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to update task");
-        return null;
-      }
-    },
-    [id, navigate, updateMutation]
-  );
+  };
 
   return {
     draft,
     handleSubmit,
-    isInitialized,
+    isInitialized: task !== null,
     isLoading: detailQuery.isLoading && !task,
     isSubmitting: updateMutation.isPending,
     setDraft,

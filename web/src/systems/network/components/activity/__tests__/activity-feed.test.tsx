@@ -5,6 +5,10 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn() },
+}));
+
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
     to,
@@ -30,6 +34,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 import { ActivityFeed } from "../activity-feed";
+import { toast } from "sonner";
 
 const WORKSPACE_ID = "ws_alpha";
 
@@ -52,7 +57,7 @@ describe("ActivityFeed", () => {
             peer_b: "remote",
           },
         ]}
-        isLoading={false}
+        status="ready"
         threads={[
           {
             channel: "ops",
@@ -97,7 +102,7 @@ describe("ActivityFeed", () => {
             peer_b: "remote",
           },
         ]}
-        isLoading={false}
+        status="ready"
         threads={[
           {
             channel: "ops",
@@ -131,11 +136,11 @@ describe("ActivityFeed", () => {
         channel="ops"
         directs={[]}
         directTotal={3}
-        hasMoreDirects
-        hasMoreThreads
-        isLoading={false}
-        onLoadMoreDirects={loadDirects}
-        onLoadMoreThreads={loadThreads}
+        status="ready"
+        pagination={{
+          threads: { status: "available", onLoadMore: loadThreads },
+          directs: { status: "available", onLoadMore: loadDirects },
+        }}
         threadTotal={4}
         threads={[]}
       />
@@ -145,5 +150,30 @@ describe("ActivityFeed", () => {
     await user.click(screen.getByRole("button", { name: "Load more direct rooms" }));
     expect(loadThreads).toHaveBeenCalledTimes(1);
     expect(loadDirects).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should report a rejected page load and allow the operator to retry", async () => {
+    const user = userEvent.setup();
+    const loadThreads = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error("thread page unavailable"))
+      .mockResolvedValue(undefined);
+    render(
+      <ActivityFeed
+        workspaceId={WORKSPACE_ID}
+        channel="ops"
+        directs={[]}
+        status="ready"
+        pagination={{ threads: { status: "available", onLoadMore: loadThreads } }}
+        threads={[]}
+      />
+    );
+
+    const loadMoreButton = screen.getByRole("button", { name: "Load more threads" });
+    await user.click(loadMoreButton);
+    expect(toast.error).toHaveBeenCalledWith("thread page unavailable");
+
+    await user.click(loadMoreButton);
+    expect(loadThreads).toHaveBeenCalledTimes(2);
   });
 });

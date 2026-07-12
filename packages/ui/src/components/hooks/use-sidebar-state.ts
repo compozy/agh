@@ -31,9 +31,15 @@ interface UseSidebarStateOptions {
  * `useNarrowViewport(breakpoint)` collapsed the ladder into one query and
  * lost the 220 px tier.
  */
-export function useSidebarViewport(thresholds: ViewportThresholds): SidebarViewport {
+export function useSidebarViewport(
+  thresholds: ViewportThresholds,
+  onViewportChange?: (viewport: SidebarViewport) => void
+): SidebarViewport {
   const { drawer, md } = thresholds;
   const [viewport, setViewport] = React.useState<SidebarViewport>("default");
+  const notifyViewportChange = React.useEffectEvent((nextViewport: SidebarViewport) => {
+    onViewportChange?.(nextViewport);
+  });
   React.useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
     const drawerQuery = window.matchMedia(`(max-width: ${Math.max(0, drawer - 1)}px)`);
@@ -44,6 +50,7 @@ export function useSidebarViewport(thresholds: ViewportThresholds): SidebarViewp
         : mdQuery.matches
           ? "md"
           : "default";
+      notifyViewportChange(nextViewport);
       setViewport(nextViewport);
     }
     evaluate();
@@ -70,37 +77,33 @@ export function useSidebarState({
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const panelRef = React.useRef<HTMLDivElement | null>(null);
   const userCollapsed = isControlled ? Boolean(collapsedProp) : uncontrolled;
-  const viewport = useSidebarViewport({ drawer: collapseBreakpoint, md: mdBreakpoint });
+  const viewport = useSidebarViewport(
+    { drawer: collapseBreakpoint, md: mdBreakpoint },
+    nextViewport => {
+      if (nextViewport !== "drawer") setMobileOpen(false);
+    }
+  );
   const isDrawer = viewport === "drawer";
   const panelVisible = isDrawer ? mobileOpen : !userCollapsed;
   const effectivelyCollapsed = !panelVisible;
   const resolvedPanelWidth = resolvePanelWidth(viewport, panelWidthOverride);
 
-  const setCollapsed = React.useCallback(
-    (next: boolean) => {
-      if (!isControlled) setUncontrolled(next);
-      onCollapse?.(next);
-    },
-    [isControlled, onCollapse, setUncontrolled]
-  );
+  const setCollapsed = (next: boolean) => {
+    if (!isControlled) setUncontrolled(next);
+    onCollapse?.(next);
+  };
 
-  const handleToggle = React.useCallback(() => {
+  const handleToggle = () => {
     if (isDrawer) {
       setMobileOpen(current => !current);
       return;
     }
     setCollapsed(!userCollapsed);
-  }, [isDrawer, setCollapsed, userCollapsed]);
+  };
 
-  const closeDrawer = React.useCallback(() => {
+  const closeDrawer = () => {
     setMobileOpen(false);
-  }, []);
-
-  React.useEffect(() => {
-    if (!isDrawer && mobileOpen) {
-      setMobileOpen(false);
-    }
-  }, [isDrawer, mobileOpen]);
+  };
 
   React.useEffect(() => {
     if (!isDrawer || !mobileOpen || typeof window === "undefined") return;

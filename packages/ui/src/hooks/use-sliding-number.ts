@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import { useMotionValue, useSpring } from "motion/react";
+import { useMotionValue, useMotionValueEvent, useSpring } from "motion/react";
 
 import { useIsInView, type UseIsInViewOptions } from "./use-is-in-view";
 
@@ -18,6 +18,10 @@ export interface UseSlidingNumberParams {
   decimalPlaces: number;
   initiallyStable: boolean;
   delay: number;
+}
+
+function formatSlidingNumber(num: number, decimalPlaces: number): string {
+  return decimalPlaces != null ? num.toFixed(decimalPlaces) : num.toString();
 }
 
 export function useSlidingNumber({
@@ -40,8 +44,6 @@ export function useSlidingNumber({
   });
 
   const initialNumeric = Math.abs(Number(number));
-  const [prevNumber, setPrevNumber] = React.useState<number>(initiallyStable ? initialNumeric : 0);
-
   const hasAnimated = fromNumber !== undefined;
 
   const motionVal = useMotionValue(initiallyStable ? initialNumeric : (fromNumber ?? 0));
@@ -49,7 +51,7 @@ export function useSlidingNumber({
 
   const skippedInitialWhenStable = React.useRef(false);
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     if (!hasAnimated) return;
     if (initiallyStable && !skippedInitialWhenStable.current) {
       skippedInitialWhenStable.current = true;
@@ -61,55 +63,41 @@ export function useSlidingNumber({
     return () => clearTimeout(timeoutId);
   }, [hasAnimated, initiallyStable, isInView, number, motionVal, delay]);
 
-  const [effectiveNumber, setEffectiveNumber] = React.useState<number>(
+  const [animatedNumber, setAnimatedNumber] = React.useState<number>(
     initiallyStable ? initialNumeric : 0
   );
+  const inferredDecimals =
+    typeof decimalPlaces === "number" && decimalPlaces >= 0
+      ? decimalPlaces
+      : (() => {
+          const value = String(number);
+          const decimalIndex = value.indexOf(".");
+          return decimalIndex >= 0 ? value.length - decimalIndex - 1 : 0;
+        })();
+  const factor = Math.pow(10, inferredDecimals);
+  useMotionValueEvent(springVal, "change", latest => {
+    if (!hasAnimated) return;
+    const next = inferredDecimals > 0 ? Math.round(latest * factor) / factor : Math.round(latest);
+    setAnimatedNumber(current => (current === next ? current : next));
+    onNumberChange?.(next);
+  });
+  const effectiveNumber = hasAnimated
+    ? animatedNumber
+    : initiallyStable || isInView
+      ? initialNumeric
+      : 0;
+  const [numberFrame, setNumberFrame] = React.useState(() => ({
+    current: effectiveNumber,
+    previous: effectiveNumber,
+  }));
+  const nextNumberFrame =
+    numberFrame.current === effectiveNumber
+      ? numberFrame
+      : { current: effectiveNumber, previous: numberFrame.current };
+  if (nextNumberFrame !== numberFrame) setNumberFrame(nextNumberFrame);
+  const prevNumber = nextNumberFrame.previous;
 
-  React.useEffect(() => {
-    if (hasAnimated) {
-      const inferredDecimals =
-        typeof decimalPlaces === "number" && decimalPlaces >= 0
-          ? decimalPlaces
-          : (() => {
-              const s = String(number);
-              const idx = s.indexOf(".");
-              return idx >= 0 ? s.length - idx - 1 : 0;
-            })();
-
-      const factor = Math.pow(10, inferredDecimals);
-
-      const unsubscribe = springVal.on("change", (latest: number) => {
-        const newValue =
-          inferredDecimals > 0 ? Math.round(latest * factor) / factor : Math.round(latest);
-
-        if (effectiveNumber !== newValue) {
-          setEffectiveNumber(newValue);
-          onNumberChange?.(newValue);
-        }
-      });
-      return () => unsubscribe();
-    } else {
-      setEffectiveNumber(initiallyStable ? initialNumeric : !isInView ? 0 : initialNumeric);
-      return undefined;
-    }
-  }, [
-    hasAnimated,
-    springVal,
-    isInView,
-    number,
-    decimalPlaces,
-    onNumberChange,
-    effectiveNumber,
-    initiallyStable,
-    initialNumeric,
-  ]);
-
-  const formatNumber = React.useCallback(
-    (num: number) => (decimalPlaces != null ? num.toFixed(decimalPlaces) : num.toString()),
-    [decimalPlaces]
-  );
-
-  const numberStr = formatNumber(effectiveNumber);
+  const numberStr = formatSlidingNumber(effectiveNumber, decimalPlaces);
   const [newIntStrRaw = "0", newDecStrRaw = ""] = numberStr.split(".");
 
   const finalIntLength = padStart
@@ -118,42 +106,29 @@ export function useSlidingNumber({
 
   const newIntStr = padStart ? newIntStrRaw.padStart(finalIntLength, "0") : newIntStrRaw;
 
-  const prevFormatted = formatNumber(prevNumber);
+  const prevFormatted = formatSlidingNumber(prevNumber, decimalPlaces);
   const [prevIntStrRaw = "", prevDecStrRaw = ""] = prevFormatted.split(".");
   const prevIntStr = padStart ? prevIntStrRaw.padStart(finalIntLength, "0") : prevIntStrRaw;
 
-  const adjustedPrevInt = React.useMemo(() => {
-    return prevIntStr.length > finalIntLength
+  const adjustedPrevInt =
+    prevIntStr.length > finalIntLength
       ? prevIntStr.slice(-finalIntLength)
       : prevIntStr.padStart(finalIntLength, "0");
-  }, [prevIntStr, finalIntLength]);
 
-  const adjustedPrevDec = React.useMemo(() => {
-    if (!newDecStrRaw) return "";
-    return prevDecStrRaw.length > newDecStrRaw.length
+  const adjustedPrevDec = newDecStrRaw
+    ? prevDecStrRaw.length > newDecStrRaw.length
       ? prevDecStrRaw.slice(0, newDecStrRaw.length)
-      : prevDecStrRaw.padEnd(newDecStrRaw.length, "0");
-  }, [prevDecStrRaw, newDecStrRaw]);
+      : prevDecStrRaw.padEnd(newDecStrRaw.length, "0")
+    : "";
 
-  React.useEffect(() => {
-    if (isInView || initiallyStable) {
-      setPrevNumber(effectiveNumber);
-    }
-  }, [effectiveNumber, isInView, initiallyStable]);
-
-  const intPlaces = React.useMemo(
-    () => Array.from({ length: finalIntLength }, (_, i) => Math.pow(10, finalIntLength - i - 1)),
-    [finalIntLength]
+  const intPlaces = Array.from({ length: finalIntLength }, (_, i) =>
+    Math.pow(10, finalIntLength - i - 1)
   );
-  const decPlaces = React.useMemo(
-    () =>
-      newDecStrRaw
-        ? Array.from({ length: newDecStrRaw.length }, (_, i) =>
-            Math.pow(10, newDecStrRaw.length - i - 1)
-          )
-        : [],
-    [newDecStrRaw]
-  );
+  const decPlaces = newDecStrRaw
+    ? Array.from({ length: newDecStrRaw.length }, (_, i) =>
+        Math.pow(10, newDecStrRaw.length - i - 1)
+      )
+    : [];
 
   const newDecValue = newDecStrRaw ? parseInt(newDecStrRaw, 10) : 0;
   const prevDecValue = adjustedPrevDec ? parseInt(adjustedPrevDec, 10) : 0;

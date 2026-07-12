@@ -30,14 +30,24 @@ function NetworkChannelActivityRoute() {
         channel={channel}
         directs={filteredDirects}
         directTotal={directsQuery.total}
-        hasMoreDirects={directsQuery.hasMore}
-        hasMoreThreads={threadsQuery.hasMore}
         isFiltered={isFiltered}
-        isLoading={threadsQuery.isLoading || directsQuery.isLoading}
-        isLoadingMoreDirects={directsQuery.isLoadingMore}
-        isLoadingMoreThreads={threadsQuery.isLoadingMore}
-        onLoadMoreDirects={directsQuery.loadMore}
-        onLoadMoreThreads={threadsQuery.loadMore}
+        status={threadsQuery.isLoading || directsQuery.isLoading ? "loading" : "ready"}
+        pagination={{
+          threads:
+            threadsQuery.hasMore || threadsQuery.isLoadingMore
+              ? {
+                  status: threadsQuery.isLoadingMore ? "loading" : "available",
+                  onLoadMore: threadsQuery.loadMore,
+                }
+              : undefined,
+          directs:
+            directsQuery.hasMore || directsQuery.isLoadingMore
+              ? {
+                  status: directsQuery.isLoadingMore ? "loading" : "available",
+                  onLoadMore: directsQuery.loadMore,
+                }
+              : undefined,
+        }}
         sort={sort}
         threadTotal={threadsQuery.total}
         threads={filteredThreads}

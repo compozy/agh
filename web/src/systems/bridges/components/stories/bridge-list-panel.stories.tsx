@@ -67,7 +67,7 @@ export const Empty: Story = {
 export const FilteredEmpty: Story = {
   render: () => (
     <PanelSurface className="max-w-3xl">
-      <BridgeListPanel {...defaultProps} bridges={[]} hasActiveFilters />
+      <BridgeListPanel {...defaultProps} bridges={[]} emptyState="filtered" />
     </PanelSurface>
   ),
 };

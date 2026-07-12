@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { CommandEmpty, CommandItem, CommandList, CommandSelectGroup, Eyebrow } from "@agh/ui";
 
@@ -63,7 +63,7 @@ export function AgentCommandList({
   emptyState = "No agents match your search.",
   itemTestId,
 }: AgentCommandListProps) {
-  const groups = useMemo(() => collectGroups(buildAgentCategoryTree(agents)), [agents]);
+  const groups = collectGroups(buildAgentCategoryTree(agents));
 
   return (
     <CommandList>

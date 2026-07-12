@@ -1,5 +1,4 @@
 import { ListFilter } from "lucide-react";
-import { useMemo } from "react";
 
 import { Button } from "@agh/ui";
 import { Filters, type Filter } from "@agh/ui";
@@ -36,16 +35,12 @@ function LoopCatalogFilters({
   onCategoryFilterChange,
   onStatusFilterChange,
 }: LoopCatalogFiltersProps) {
-  const fields = useMemo(() => buildLoopFilterFields(categories, statuses), [categories, statuses]);
-  const chips = useMemo(
-    () =>
-      loopFiltersToChips({
-        kind: kindFilter,
-        category: categoryFilter,
-        status: statusFilter,
-      }),
-    [categoryFilter, kindFilter, statusFilter]
-  );
+  const fields = buildLoopFilterFields(categories, statuses);
+  const chips = loopFiltersToChips({
+    kind: kindFilter,
+    category: categoryFilter,
+    status: statusFilter,
+  });
 
   const handleFiltersChange = (next: Filter<string>[]) => {
     applyLoopFilterChips(next, {

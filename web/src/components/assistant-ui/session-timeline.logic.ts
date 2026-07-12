@@ -307,10 +307,11 @@ function workRowsFromCluster(
 // true while any part is still live.
 function reasoningRowFromCluster(parts: SessionTimelineReasoningPart[]): SessionReasoningRow {
   const first = parts[0];
-  const text = parts
-    .map(part => part.text)
-    .filter(value => value.length > 0)
-    .join("\n\n");
+  const textParts: string[] = [];
+  for (const part of parts) {
+    if (part.text.length > 0) textParts.push(part.text);
+  }
+  const text = textParts.join("\n\n");
   return {
     kind: "reasoning",
     id: `reasoning:${first?.id ?? "empty"}`,

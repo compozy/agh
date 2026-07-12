@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useDeleteWorkspace, useResolveWorkspace, useWorkspaces } from "@/systems/workspace";
 import type { WorkspacePayload } from "@/systems/workspace";
@@ -73,75 +73,64 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
     }
   }, [addToDraft, registeredWorkspaces.data, workspaces.length]);
 
-  const navigateTo = useCallback((path: string) => {
+  const navigateTo = (path: string) => {
     setCurrentPath(path);
-  }, []);
+  };
 
-  const goToParent = useCallback(() => {
+  const goToParent = () => {
     if (data?.parent) {
       setCurrentPath(data.parent);
     }
-  }, [data?.parent]);
+  };
 
-  const goHome = useCallback(() => {
+  const goHome = () => {
     if (data?.home) {
       setCurrentPath(data.home);
     }
-  }, [data?.home]);
+  };
 
-  const addWorkspace = useCallback(
-    async (path: string) => {
-      const trimmed = path.trim();
-      if (trimmed.length === 0 || workspaces.some(item => item.path === trimmed)) {
-        return;
-      }
-      setResolveError(null);
-      try {
-        const workspace = await resolveWorkspace.mutateAsync({ path: trimmed });
-        addToDraft(draftFromWorkspace(workspace, trimmed));
-      } catch (error) {
-        setResolveError(
-          error instanceof Error ? error.message : "Failed to register that folder as a workspace."
-        );
-      }
-    },
-    [addToDraft, resolveWorkspace, workspaces]
-  );
+  const addWorkspace = async (path: string) => {
+    const trimmed = path.trim();
+    if (trimmed.length === 0 || workspaces.some(item => item.path === trimmed)) return;
+    setResolveError(null);
+    try {
+      const workspace = await resolveWorkspace.mutateAsync({ path: trimmed });
+      addToDraft(draftFromWorkspace(workspace, trimmed));
+    } catch (error) {
+      setResolveError(
+        error instanceof Error ? error.message : "Failed to register that folder as a workspace."
+      );
+    }
+  };
 
-  const removeWorkspace = useCallback(
-    async (path: string) => {
-      const draft = workspaces.find(item => item.path === path);
-      const workspaceId =
-        draft?.workspaceId ??
-        registeredWorkspaces.data?.find(workspace => workspace.root_dir === path)?.id ??
-        "";
-      if (workspaceId.length === 0) {
-        removeFromDraft(path);
-        return;
-      }
-
-      setResolveError(null);
-      try {
-        await deleteWorkspace.mutateAsync(workspaceId);
-      } catch (error) {
-        setResolveError(error instanceof Error ? error.message : "Failed to remove workspace.");
-        return;
-      }
+  const removeWorkspace = async (path: string) => {
+    const draft = workspaces.find(item => item.path === path);
+    const workspaceId =
+      draft?.workspaceId ??
+      registeredWorkspaces.data?.find(workspace => workspace.root_dir === path)?.id ??
+      "";
+    if (workspaceId.length === 0) {
       removeFromDraft(path);
-    },
-    [deleteWorkspace, registeredWorkspaces.data, removeFromDraft, workspaces]
-  );
+      return;
+    }
 
-  const isAdded = useCallback(
-    (path: string) => workspaces.some(item => item.path === path),
-    [workspaces]
-  );
+    setResolveError(null);
+    try {
+      await deleteWorkspace.mutateAsync(workspaceId);
+    } catch (error) {
+      setResolveError(error instanceof Error ? error.message : "Failed to remove workspace.");
+      return;
+    }
+    removeFromDraft(path);
+  };
+
+  const isAdded = (path: string) => workspaces.some(item => item.path === path);
 
   return {
     currentPath: data?.path ?? currentPath,
     parent: data?.parent ?? null,
     home: data?.home ?? null,
-    entries: useMemo(() => data?.entries ?? [], [data?.entries]),
+    entries: data?.entries ?? [],
     isBrowsing: browse.isLoading || browse.isFetching,
     browseError: browse.error
       ? browse.error instanceof Error

@@ -16,6 +16,24 @@ import { useInitialState } from "./use-initial-state";
 
 type DialogRootProps = DialogPrimitive.Root.Props;
 
+const DIALOG_OVERLAY_RENDER = (
+  <m.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+  />
+);
+
+const DIALOG_POPUP_RENDER = (
+  <m.div
+    initial={{ opacity: 0, scale: 0.97 }}
+    animate={{ opacity: 1, scale: 1 }}
+    exit={{ opacity: 0, scale: 0.97 }}
+    transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+  />
+);
+
 function Dialog({
   open: controlledOpen,
   defaultOpen = false,
@@ -33,7 +51,7 @@ function Dialog({
     onOpenChange?.(next, details);
   };
 
-  const value = React.useMemo<DialogMotionContextValue>(() => ({ actionsRef, open }), [open]);
+  const value: DialogMotionContextValue = { actionsRef, open };
 
   return (
     <DialogPrimitive.Root
@@ -64,22 +82,10 @@ function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
 }
 
 function DialogOverlay({ className, style, ...props }: DialogPrimitive.Backdrop.Props) {
-  const overlayRender = React.useMemo(
-    () => (
-      <m.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
-      />
-    ),
-    []
-  );
-
   return (
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
-      render={overlayRender}
+      render={DIALOG_OVERLAY_RENDER}
       className={cn("fixed inset-0 isolate z-50 bg-overlay-scrim", className)}
       style={{ backdropFilter: "blur(var(--overlay-blur))", ...style }}
       {...props}
@@ -121,20 +127,9 @@ function DialogContent({
 }: DialogContentProps) {
   const { actionsRef, open } = useDialogMotion();
 
-  const handleExitComplete = React.useCallback(() => {
+  const handleExitComplete = () => {
     actionsRef.current?.unmount();
-  }, [actionsRef]);
-  const popupRender = React.useMemo(
-    () => (
-      <m.div
-        initial={{ opacity: 0, scale: 0.97 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.97 }}
-        transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
-      />
-    ),
-    []
-  );
+  };
 
   return (
     <AnimatePresence onExitComplete={handleExitComplete}>
@@ -144,7 +139,7 @@ function DialogContent({
           <DialogPrimitive.Popup
             data-slot="dialog-content"
             data-frame={unframed ? "unframed" : "framed"}
-            render={popupRender}
+            render={DIALOG_POPUP_RENDER}
             className={cn(
               DIALOG_CONTENT_BASE,
               unframed ? DIALOG_CONTENT_UNFRAMED : DIALOG_CONTENT_FRAMED,

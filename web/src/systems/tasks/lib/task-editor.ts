@@ -63,25 +63,6 @@ export function createTaskEditorDraft(
   };
 }
 
-export function applyTemplateDefaultsToTaskEditorDraft(
-  draft: TaskEditorDraft,
-  templateId: TaskTemplateId
-): TaskEditorDraft {
-  const template = getTaskTemplate(templateId);
-
-  return {
-    ...draft,
-    priority: template.defaults.priority ?? draft.priority,
-    maxAttempts:
-      typeof template.defaults.max_attempts === "number"
-        ? template.defaults.max_attempts
-        : (draft.maxAttempts ?? 1),
-    approvalPolicy: template.defaults.approval_policy ?? draft.approvalPolicy,
-    networkChannel: template.defaults.network_channel ?? draft.networkChannel,
-    saveAsDraft: template.defaults.draft,
-  };
-}
-
 export function taskEditorDraftFromTask(task: TaskRecord): TaskEditorDraft {
   return {
     title: task.title,

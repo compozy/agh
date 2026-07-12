@@ -39,7 +39,6 @@ function insertCelReference(
 }
 
 export interface ReferenceAutocomplete {
-  ref: RefObject<FieldElement | null>;
   matches: LoopReferenceSuggestion[];
   activeIndex: number;
   onChange: (event: ChangeEvent<FieldElement>) => void;
@@ -57,11 +56,11 @@ export interface ReferenceAutocomplete {
  * UX only — it never blocks a keystroke; the linter owns reference resolution.
  */
 export function useReferenceAutocomplete(
+  fieldRef: RefObject<FieldElement | null>,
   onValueChange: (value: string) => void,
   suggestions: readonly LoopReferenceSuggestion[],
   cel = false
 ): ReferenceAutocomplete {
-  const ref = useRef<FieldElement>(null);
   const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [query, setQuery] = useState<string | null>(null);
   const [pendingCaret, setPendingCaret] = useState<number | null>(null);
@@ -79,20 +78,14 @@ export function useReferenceAutocomplete(
   );
 
   useLayoutEffect(() => {
-    if (pendingCaret !== null && ref.current) {
-      ref.current.focus();
-      ref.current.setSelectionRange(pendingCaret, pendingCaret);
+    if (pendingCaret !== null && fieldRef.current) {
+      fieldRef.current.focus();
+      fieldRef.current.setSelectionRange(pendingCaret, pendingCaret);
       setPendingCaret(null);
     }
-  }, [pendingCaret]);
+  }, [fieldRef, pendingCaret]);
 
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [query]);
-
-  useEffect(() => {
-    setActiveIndex(index => (matches.length === 0 ? 0 : Math.min(index, matches.length - 1)));
-  }, [matches.length]);
+  const visibleActiveIndex = matches.length === 0 ? 0 : Math.min(activeIndex, matches.length - 1);
 
   useEffect(() => {
     if (query === null) return;
@@ -103,7 +96,8 @@ export function useReferenceAutocomplete(
     return () => window.removeEventListener("keydown", onEscape);
   }, [query]);
 
-  const refresh = (element: FieldElement) =>
+  const refresh = (element: FieldElement) => {
+    setActiveIndex(0);
     setQuery(
       activeReferenceQuery(
         element.value,
@@ -111,9 +105,10 @@ export function useReferenceAutocomplete(
         cel ? "cel" : "template"
       )
     );
+  };
 
   const select = (path: string) => {
-    const element = ref.current;
+    const element = fieldRef.current;
     if (!element) return;
     const caret = element.selectionStart ?? element.value.length;
     const next = cel
@@ -125,9 +120,8 @@ export function useReferenceAutocomplete(
   };
 
   return {
-    ref,
     matches,
-    activeIndex,
+    activeIndex: visibleActiveIndex,
     onChange: event => {
       onValueChange(event.target.value);
       refresh(event.target);
@@ -136,16 +130,16 @@ export function useReferenceAutocomplete(
       if (matches.length === 0) return;
       if (event.key === "ArrowDown") {
         event.preventDefault();
-        setActiveIndex(index => (index + 1) % matches.length);
+        setActiveIndex((visibleActiveIndex + 1) % matches.length);
         return;
       }
       if (event.key === "ArrowUp") {
         event.preventDefault();
-        setActiveIndex(index => (index - 1 + matches.length) % matches.length);
+        setActiveIndex((visibleActiveIndex - 1 + matches.length) % matches.length);
         return;
       }
       if (event.key === "Enter") {
-        const match = matches[activeIndex];
+        const match = matches[visibleActiveIndex];
         if (!match) return;
         event.preventDefault();
         select(match.path);

@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useLayoutEffect, useMemo, useRef } from "react";
+import { Fragment, useLayoutEffect, useRef } from "react";
 
 import { Button, Skeleton, SkeletonRows } from "@agh/ui";
 
@@ -95,10 +95,7 @@ export function MessageTimeline({
     height: number;
     top: number;
   } | null>(null);
-  const entries = useMemo(
-    () => buildTimelineEntries({ messages, now, lastReadAt }),
-    [messages, now, lastReadAt]
-  );
+  const entries = buildTimelineEntries({ messages, now, lastReadAt });
   const firstMessageId = messages[0]?.message_id;
   useLayoutEffect(() => {
     const anchor = anchorRef.current;
@@ -113,7 +110,7 @@ export function MessageTimeline({
       anchor.top + (offsetDelta !== 0 ? offsetDelta : anchor.element.scrollHeight - anchor.height);
     anchorRef.current = null;
   }, [firstMessageId, messages.length]);
-  const handleLoadOlder = useCallback(() => {
+  const handleLoadOlder = () => {
     const root = rootRef.current;
     if (!root || !onLoadOlder || isLoadingOlder) return;
     const viewport = asScrollContainer
@@ -131,7 +128,7 @@ export function MessageTimeline({
       top: viewport.scrollTop,
     };
     void onLoadOlder();
-  }, [asScrollContainer, isLoadingOlder, onLoadOlder]);
+  };
 
   if (errorState) {
     return (

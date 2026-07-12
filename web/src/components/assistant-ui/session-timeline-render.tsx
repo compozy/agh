@@ -1,5 +1,5 @@
 import { ChevronRight, CircleStop } from "lucide-react";
-import { memo, useMemo, useRef } from "react";
+import { useRef } from "react";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
@@ -18,6 +18,7 @@ import { useAssistantMessageTimeline } from "./hooks/use-assistant-message-timel
 import {
   TimelineRowContext,
   type TimelineRowSharedState,
+  toggleTimelineExpansion,
   useTimelineRowContext,
 } from "./hooks/use-timeline-row-context";
 import { SessionDataEventCard, SessionMessageText } from "./session-message-parts";
@@ -177,19 +178,27 @@ function SessionWorkRowView({ row }: { row: SessionWorkRow }) {
 }
 
 function SessionWorkToggleRowView({ row }: { row: SessionWorkToggleRow }) {
-  const { toggleWorkGroup } = useTimelineRowContext();
-  return <WorkToggleButton row={row} onToggle={button => toggleWorkGroup(row.groupId, button)} />;
+  const { setExpandedWorkGroups } = useTimelineRowContext();
+  return (
+    <WorkToggleButton
+      row={row}
+      onToggle={button => toggleTimelineExpansion(setExpandedWorkGroups, row.groupId, button)}
+    />
+  );
 }
 
 function SessionChangedFilesRowContent({ row }: { row: SessionChangedFilesRow }) {
-  const { toggleChangedFiles } = useTimelineRowContext();
+  const { setExpandedChangedFiles } = useTimelineRowContext();
   return (
-    <SessionChangedFilesRowView row={row} onToggle={button => toggleChangedFiles(row.id, button)} />
+    <SessionChangedFilesRowView
+      row={row}
+      onToggle={button => toggleTimelineExpansion(setExpandedChangedFiles, row.id, button)}
+    />
   );
 }
 
 function SessionTurnFoldRowView({ row }: { row: SessionTurnFoldRow }) {
-  const { expandedTurns, toggleTurn } = useTimelineRowContext();
+  const { expandedTurns, setExpandedTurns } = useTimelineRowContext();
   // An interrupted turn keeps its work expanded so the operator keeps their
   // place; the fold row becomes a danger-toned interruption label above the
   // always-visible work (never a collapsing disclosure).
@@ -213,7 +222,7 @@ function SessionTurnFoldRowView({ row }: { row: SessionTurnFoldRow }) {
       <TurnFoldButton
         row={row}
         expanded={expanded}
-        onToggle={button => toggleTurn(row.turnId ?? row.id, button)}
+        onToggle={button => toggleTimelineExpansion(setExpandedTurns, row.turnId ?? row.id, button)}
       />
       {expanded ? (
         <div className="ml-4 flex min-w-0 flex-col gap-1">{renderTimelineRows(row.rows)}</div>
@@ -222,13 +231,12 @@ function SessionTurnFoldRowView({ row }: { row: SessionTurnFoldRow }) {
   );
 }
 
-// One memoized dispatcher per row. With structural sharing
-// (`computeStableSessionRows`) an unchanged row keeps its reference across derive
-// passes, so this memo bails and only the row whose visible content changed
-// re-renders during steady-state streaming. Interactive variants read their
-// callbacks/expansion from `TimelineRowContext`, so a toggle (context change)
-// re-renders only its own consumers while streaming leaves the context untouched.
-export const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: SessionRow }) {
+// Structural sharing (`computeStableSessionRows`) keeps unchanged row inputs
+// referentially stable so the React Compiler can reuse their rendered subtrees.
+// Interactive variants read callbacks and expansion from `TimelineRowContext`;
+// toggles update their consumers while steady-state streaming leaves the context
+// untouched.
+export function TimelineRowContent({ row }: { row: SessionRow }) {
   switch (row.kind) {
     case "text":
       return <SessionTextRowView row={row} />;
@@ -247,7 +255,7 @@ export const TimelineRowContent = memo(function TimelineRowContent({ row }: { ro
     case "turn-fold":
       return <SessionTurnFoldRowView row={row} />;
   }
-});
+}
 
 // Referentially stable renderer: no closure deps, so re-deriving the row list
 // never re-creates the mapping function. Row identity carries the change signal.
@@ -285,15 +293,23 @@ function GoalPromptNotice({ goal }: { goal: GoalPromptMeta }) {
 }
 
 export function AssistantMessageTimeline() {
-  const { expandedTurns, goal, rows, toggleChangedFiles, toggleTurn, toggleWorkGroup } =
-    useAssistantMessageTimeline();
-  // The toggle callbacks are already stable (`useCallback`), so this value's
-  // identity changes only when `expandedTurns` does (a turn toggle) — never while
-  // a turn streams — keeping memoized rows stable during steady-state streaming.
-  const sharedState = useMemo<TimelineRowSharedState>(
-    () => ({ expandedTurns, toggleWorkGroup, toggleTurn, toggleChangedFiles }),
-    [expandedTurns, toggleWorkGroup, toggleTurn, toggleChangedFiles]
-  );
+  const {
+    expandedTurns,
+    goal,
+    rows,
+    setExpandedChangedFiles,
+    setExpandedTurns,
+    setExpandedWorkGroups,
+  } = useAssistantMessageTimeline();
+  // The React Compiler stabilizes this context value and its callbacks while
+  // their inputs remain unchanged, so steady-state streaming does not invalidate
+  // interactive row consumers.
+  const sharedState: TimelineRowSharedState = {
+    expandedTurns,
+    setExpandedWorkGroups,
+    setExpandedTurns,
+    setExpandedChangedFiles,
+  };
 
   return (
     <TimelineRowContext.Provider value={sharedState}>

@@ -3,6 +3,8 @@ import { AlertCircle, AlertTriangle, Check, ChevronDown, Search } from "lucide-r
 
 import { cn, Eyebrow, Spinner } from "@agh/ui";
 
+import { withOccurrenceKeys } from "@/lib/occurrence-keys";
+
 import { isBlockingIssue, type LoopLintState } from "../../lib/loop-editor-lint";
 import type { LoopValidationIssue } from "../../types";
 
@@ -94,12 +96,12 @@ export function LoopLinterDock({ lint, validateFailed, onReveal }: LoopLinterDoc
               expected_version compare-and-swap.
             </p>
           ) : (
-            lint.issues.map((issue, index) => (
-              <IssueRow
-                key={`${issue.code}-${issue.node_id ?? "graph"}-${index}`}
-                issue={issue}
-                onReveal={onReveal}
-              />
+            withOccurrenceKeys(
+              lint.issues,
+              issue =>
+                `${issue.node_id ?? ""}\u0000${issue.code}\u0000${issue.severity}\u0000${issue.message}`
+            ).map(({ item: issue, key }) => (
+              <IssueRow key={key} issue={issue} onReveal={onReveal} />
             ))
           )}
         </div>

@@ -954,6 +954,21 @@ describe("RuntimeSelector favorites and recents persistence", () => {
     expect(readList(RECENTS_STORAGE_KEY)).toEqual([validKey]);
   });
 
+  it("Should not rewrite unchanged favorites when only the valid-key set identity changes", async () => {
+    const validKey = runtimeModelKey("codex", "gpt-a");
+    window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify([validKey]));
+    const writeSpy = vi.spyOn(Storage.prototype, "setItem");
+    let validKeys = new Set([validKey]);
+    const { rerender } = renderHook(() => useRuntimeFavorites(validKeys, true));
+
+    await waitFor(() => expect(readList(FAVORITES_STORAGE_KEY)).toEqual([validKey]));
+    writeSpy.mockClear();
+    validKeys = new Set([validKey]);
+    rerender();
+
+    expect(writeSpy).not.toHaveBeenCalled();
+  });
+
   it("Should render the pinned 'Recent & favorites' block under the all rail and a 'Favorites' block under the fav rail", async () => {
     window.localStorage.setItem(
       FAVORITES_STORAGE_KEY,

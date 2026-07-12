@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useChildMatches, useNavigate } from "@tanstack/react-router";
 
 import type { ListingViewMode } from "@agh/ui";
@@ -32,7 +32,9 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   const { openDialog } = useAgentCreateHost();
   const sessionCreate = useSessionCreate();
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const [draftQuery, setDraftQuery] = useState(search.q ?? "");
+  const routeQuery = search.q ?? "";
+  const [draftQueryState, setDraftQueryState] = useState({ routeQuery, value: routeQuery });
+  const draftQuery = draftQueryState.routeQuery === routeQuery ? draftQueryState.value : routeQuery;
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const agentsEnabled = workspaceId !== "" && !hasChildMatch;
@@ -51,18 +53,10 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   const view: ListingViewMode = search.view ?? "rows";
 
   useEffect(() => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-      debounceRef.current = null;
-    }
-    setDraftQuery(search.q ?? "");
-  }, [search.q]);
-
-  useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, []);
+  }, [routeQuery]);
 
   useEffect(() => {
     if (hasChildMatch) return;
@@ -77,75 +71,46 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [hasChildMatch]);
 
-  const updateSearch = useCallback(
-    (updater: (current: AgentsFleetSearch) => AgentsFleetSearch) => {
-      void navigate({
-        search: current => updater(current),
-        to: "/agents",
-      });
-    },
-    [navigate]
-  );
+  const updateSearch = (updater: (current: AgentsFleetSearch) => AgentsFleetSearch) => {
+    void navigate({ search: current => updater(current), to: "/agents" });
+  };
 
-  const setDraftQueryAndDebounce = useCallback(
-    (nextQuery: string) => {
-      setDraftQuery(nextQuery);
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
-        debounceRef.current = null;
-        updateSearch(current => ({
-          ...current,
-          q: normalizeListingSearchValue(nextQuery),
-        }));
-      }, SEARCH_DEBOUNCE_MS);
-    },
-    [updateSearch]
-  );
-
-  const setFilters = useCallback(
-    (next: Pick<AgentsFleetSearch, "category" | "status">) => {
-      updateSearch(current => ({
-        ...current,
-        category: next.category,
-        status: next.status,
-      }));
-    },
-    [updateSearch]
-  );
-
-  const setView = useCallback(
-    (nextView: ListingViewMode) => {
-      updateSearch(current => ({
-        ...current,
-        view: nextView === "rows" ? undefined : nextView,
-      }));
-    },
-    [updateSearch]
-  );
-
-  const clearFilters = useCallback(() => {
+  const setDraftQueryAndDebounce = (nextQuery: string) => {
+    setDraftQueryState({ routeQuery, value: nextQuery });
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    setDraftQuery("");
+    debounceRef.current = setTimeout(() => {
+      debounceRef.current = null;
+      updateSearch(current => ({ ...current, q: normalizeListingSearchValue(nextQuery) }));
+    }, SEARCH_DEBOUNCE_MS);
+  };
+
+  const setFilters = (next: Pick<AgentsFleetSearch, "category" | "status">) => {
+    updateSearch(current => ({ ...current, category: next.category, status: next.status }));
+  };
+
+  const setView = (nextView: ListingViewMode) => {
+    updateSearch(current => ({
+      ...current,
+      view: nextView === "rows" ? undefined : nextView,
+    }));
+  };
+
+  const clearFilters = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setDraftQueryState({ routeQuery, value: "" });
     updateSearch(current => ({
       view: current.view,
     }));
-  }, [updateSearch]);
+  };
 
-  const openNewSession = useCallback(
-    (agentName: string) => {
-      sessionCreate.openForAgent(agentName);
-    },
-    [sessionCreate]
-  );
+  const openNewSession = (agentName: string) => {
+    sessionCreate.openForAgent(agentName);
+  };
 
-  const rows = useMemo(
-    () =>
-      projectAgentFleetRows({
-        items: catalogQuery.agents,
-        sessionsAvailable: catalogQuery.sessionsAvailable,
-      }),
-    [catalogQuery.agents, catalogQuery.sessionsAvailable]
-  );
+  const rows = projectAgentFleetRows({
+    items: catalogQuery.agents,
+    sessionsAvailable: catalogQuery.sessionsAvailable,
+  });
 
   const filtersActive = hasActiveAgentFleetFilters(search);
   const isLoading = catalogQuery.isLoading;

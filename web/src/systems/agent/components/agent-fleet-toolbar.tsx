@@ -1,5 +1,5 @@
 import { ListFilter } from "lucide-react";
-import { useMemo, type RefObject } from "react";
+import type { RefObject } from "react";
 
 import {
   Button,
@@ -40,8 +40,8 @@ function AgentFleetToolbar({
   onFiltersChange,
   onViewChange,
 }: AgentFleetToolbarProps) {
-  const fields = useMemo(() => buildAgentFleetFilterFields(categoryOptions), [categoryOptions]);
-  const chips = useMemo(() => agentFleetFiltersToChips(search), [search]);
+  const fields = buildAgentFleetFilterFields(categoryOptions);
+  const chips = agentFleetFiltersToChips(search);
 
   const handleFiltersChange = (next: Filter<string>[]) => {
     onFiltersChange(agentFleetChipsToFilters(next));

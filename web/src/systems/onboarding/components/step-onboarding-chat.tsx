@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useAui, useAuiState } from "@assistant-ui/react";
 
 import { SessionThread } from "@/components/assistant-ui/session-thread";
@@ -152,7 +152,7 @@ function OnboardingChatPanel({
     sessionThreadReady,
   ]);
 
-  const handleCancelPrompt = useCallback(() => {
+  const handleCancelPrompt = () => {
     void cancelSessionPrompt(workspaceId, sessionId).catch(error => {
       reportError(
         error instanceof Error
@@ -160,7 +160,7 @@ function OnboardingChatPanel({
           : "Failed to cancel the onboarding prompt."
       );
     });
-  }, [reportError, sessionId, workspaceId]);
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="onboarding-step-chat">

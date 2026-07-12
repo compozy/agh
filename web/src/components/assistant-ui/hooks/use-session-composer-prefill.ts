@@ -1,10 +1,10 @@
-import { useContext } from "react";
+import { use } from "react";
 
 import {
   SessionComposerPrefillContext,
   type SessionComposerPrefill,
-} from "../session-composer-prefill-context";
+} from "../session-composer-prefill-context-value";
 
 export function useSessionComposerPrefill(): SessionComposerPrefill | null {
-  return useContext(SessionComposerPrefillContext);
+  return use(SessionComposerPrefillContext);
 }

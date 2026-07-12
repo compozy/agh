@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -58,50 +58,41 @@ export function useSessionGoalHeader(workspaceId: string, sessionId: string) {
     },
   });
 
-  const applyResult = useCallback(
-    (next: SessionGoalCommandResult) => {
-      setGoalResult(sessionId, next);
-      if (next.snapshot !== null || next.outcome === "cleared") {
-        queryClient.setQueryData<SessionGoalResponse>(sessionKeys.goal(workspaceId, sessionId), {
-          goal: next.snapshot,
-        });
-      }
-      void queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(workspaceId) });
-    },
-    [queryClient, sessionId, setGoalResult, workspaceId]
-  );
-
-  const command = useCallback(
-    (action: GoalControlAction, message: string) => {
-      setPendingAction(action);
-      mutation.mutate(
-        { id: sessionId, message },
-        {
-          onSuccess: response => {
-            if (isGoalResult(response)) applyResult(response);
-          },
-          onError: error => toast.error(error.message),
-          onSettled: () => setPendingAction(undefined),
-        }
-      );
-    },
-    [applyResult, mutation, sessionId]
-  );
-
-  const composerAffordance = useMemo(() => {
-    if (
-      result?.snapshot &&
-      (result.reason_code === "goal_replace_required" ||
-        result.reason_code === "goal_replace_stale")
-    ) {
-      return {
-        kind: "replace" as const,
-        expectedRunId: result.snapshot.run_id,
-        objective: replacementObjective(resultCommand) ?? result.snapshot.objective,
-      };
+  const applyResult = (next: SessionGoalCommandResult) => {
+    setGoalResult(sessionId, next);
+    if (next.snapshot !== null || next.outcome === "cleared") {
+      queryClient.setQueryData<SessionGoalResponse>(sessionKeys.goal(workspaceId, sessionId), {
+        goal: next.snapshot,
+      });
     }
-    return undefined;
-  }, [result, resultCommand]);
+    void queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(workspaceId) });
+  };
+
+  const command = (action: GoalControlAction, message: string) => {
+    setPendingAction(action);
+    mutation.mutate(
+      { id: sessionId, message },
+      {
+        onSuccess: response => {
+          if (isGoalResult(response)) applyResult(response);
+        },
+        onError: error => toast.error(error.message),
+        onSettled: () => setPendingAction(undefined),
+      }
+    );
+  };
+
+  const resultSnapshot = result?.snapshot;
+  const replaceRequired =
+    resultSnapshot &&
+    (result.reason_code === "goal_replace_required" || result.reason_code === "goal_replace_stale");
+  const composerAffordance = replaceRequired
+    ? {
+        kind: "replace" as const,
+        expectedRunId: resultSnapshot.run_id,
+        objective: replacementObjective(resultCommand) ?? resultSnapshot.objective,
+      }
+    : undefined;
 
   return {
     composerAffordance,

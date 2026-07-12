@@ -525,4 +525,37 @@ describe("useTaskStream", () => {
     rerender({ seq: 22 });
     expect(factory).toHaveBeenCalledTimes(2);
   });
+
+  it("Should keep the source open when callback identities change", () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const eventSource = new FakeTaskStreamEventSource();
+    const factory = vi.fn(() => eventSource);
+    const firstOnEvent = vi.fn();
+    const nextOnEvent = vi.fn();
+
+    const { rerender } = renderHook(
+      ({ onEvent }: { onEvent: (payload: TaskStreamPayload) => void }) =>
+        useTaskStream("task_001", {
+          afterSequence: 14,
+          eventSourceFactory: factory,
+          onEvent,
+        }),
+      {
+        wrapper: createWrapper(queryClient),
+        initialProps: { onEvent: firstOnEvent },
+      }
+    );
+
+    rerender({ onEvent: nextOnEvent });
+    expect(factory).toHaveBeenCalledTimes(1);
+    expect(eventSource.close).not.toHaveBeenCalled();
+
+    const payload = buildStreamPayload();
+    act(() => {
+      eventSource.emitNamed("task.run_started", payload);
+    });
+
+    expect(firstOnEvent).not.toHaveBeenCalled();
+    expect(nextOnEvent).toHaveBeenCalledWith(payload);
+  });
 });

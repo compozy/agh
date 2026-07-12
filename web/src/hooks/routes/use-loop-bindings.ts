@@ -1,5 +1,3 @@
-import { useMemo } from "react";
-
 import { useAutomationJobs, useAutomationTriggers } from "@/systems/automation";
 import type { LoopBindingRow } from "@/systems/loops";
 
@@ -51,10 +49,10 @@ export function useLoopBindings(workspaceId: string, loopName: string): LoopBind
   );
   const triggers = triggersQuery.triggers;
   const jobs = jobsQuery.jobs;
-  const rows = useMemo(() => {
-    if (!workspaceId || !loopName) return EMPTY_ROWS;
-    return buildLoopBindingIndex(triggers, jobs, workspaceId).get(loopName)?.rows ?? EMPTY_ROWS;
-  }, [triggers, jobs, workspaceId, loopName]);
+  const rows =
+    workspaceId && loopName
+      ? (buildLoopBindingIndex(triggers, jobs, workspaceId).get(loopName)?.rows ?? EMPTY_ROWS)
+      : EMPTY_ROWS;
   return {
     rows,
     isLoading: triggersQuery.isLoading || jobsQuery.isLoading,

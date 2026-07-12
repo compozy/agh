@@ -1,6 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 import { Activity, AlertCircle, ChevronRight, FileCode, Gauge, Library } from "lucide-react";
-import type { AssistantState } from "@assistant-ui/react";
 
 import {
   Button,
@@ -16,34 +15,22 @@ import {
   type PillTone,
 } from "@agh/ui";
 
-import { isAgentEventPayload, parseToolUseResult } from "../lib/message-parts";
 import { formatMessageTimestamp } from "../lib/format-timestamp";
 import { SessionLedgerUnavailableError } from "../adapters/session-api";
 import type { SessionLedgerEvent, SessionLedgerMeta } from "../types";
 import { SessionVaultPanel, type VaultSecret } from "@/systems/vault";
+import {
+  deriveFileReads,
+  deriveTraceEvents,
+  TRACE_LIMIT_DEFAULT,
+  type InspectorFileEntry,
+  type InspectorTraceEvent,
+  type InspectorTraceKind,
+  type InspectorTraceStatus,
+  type ThreadMessageState,
+} from "./session-inspector.logic";
 
-type ThreadMessageState = AssistantState["thread"]["messages"][number];
 const EMPTY_VAULT_SECRETS: readonly VaultSecret[] = [];
-const EMPTY_INSPECTOR_FILES: InspectorFileEntry[] = [];
-
-export type InspectorTraceKind =
-  | "start"
-  | "user"
-  | "agent"
-  | "tool"
-  | "diff"
-  | "system"
-  | "approval";
-
-export type InspectorTraceStatus = "ok" | "warn" | "error" | "pending";
-
-export interface InspectorTraceEvent {
-  id: string;
-  kind: InspectorTraceKind;
-  label: string;
-  timestamp: number;
-  status: InspectorTraceStatus;
-}
 
 /**
  * Aggregated token-usage summary for the inspector Usage tab. Every field maps
@@ -72,11 +59,6 @@ export interface InspectorMemoryState {
   ledger?: InspectorSessionLedger | null;
   isLoading?: boolean;
   error?: Error | null;
-}
-
-export interface InspectorFileEntry {
-  path: string;
-  readCount: number;
 }
 
 export interface SessionInspectorProps {
@@ -108,7 +90,6 @@ export interface SessionInspectorProps {
   className?: string;
 }
 
-const TRACE_LIMIT_DEFAULT = 6;
 const LEDGER_EVENT_LIMIT = 20;
 const EMPTY_MEMORY_STATE: InspectorMemoryState = Object.freeze({});
 const SECTION_LABELS = {
@@ -154,214 +135,32 @@ const TRACE_KIND_LABEL: Record<InspectorTraceKind, string> = {
   approval: "APPROVAL",
 };
 
-function traceKindFromRole(role: ThreadMessageState["role"]): InspectorTraceKind {
-  switch (role) {
-    case "user":
-      return "user";
-    case "assistant":
-      return "agent";
-    case "system":
-      return "system";
-  }
-
-  const _exhaustive: never = role;
-  return _exhaustive;
-}
-
-function traceStatusFromMessage(message: ThreadMessageState): InspectorTraceStatus {
-  if (message.role !== "assistant") {
-    return "ok";
-  }
-
-  if (message.status?.type === "running" || message.status?.type === "requires-action") {
-    return "pending";
-  }
-
-  if (message.status?.type === "incomplete") {
-    return message.status.reason === "error" ? "error" : "warn";
-  }
-
-  return "ok";
-}
-
-function toolStatusFromPart(part: ThreadMessageState["parts"][number]): InspectorTraceStatus {
-  if (part.type !== "tool-call") {
-    return "ok";
-  }
-
-  if (part.isError || (part.status.type === "incomplete" && part.status.reason === "error")) {
-    return "error";
-  }
-
-  if (part.status.type === "running" || part.status.type === "requires-action") {
-    return "pending";
-  }
-
-  if (part.status.type === "incomplete") {
-    return "warn";
-  }
-
-  return "ok";
-}
-
-function getTextPartText(message: ThreadMessageState): string {
-  return message.content.reduce((text, part) => {
-    if (part.type !== "text" && part.type !== "reasoning") {
-      return text;
-    }
-    return `${text}${part.text}`;
-  }, "");
-}
-
-function traceLabelFromMessage(message: ThreadMessageState): string {
-  if (message.role === "system") {
-    const first = getTextPartText(message).split("\n")[0] ?? "";
-    return first || "system event";
-  }
-
-  if (message.role === "user") {
-    return "Prompt sent";
-  }
-
-  return "Agent response";
-}
-
-/**
- * Map the current thread messages into trace rows for the Inspector.
- * Pure — no hooks. The first message is tagged as `start` so the session-resume
- * line reads like the mock. The last `limit` events are returned.
- */
-export function deriveTraceEvents(
-  messages: readonly ThreadMessageState[],
-  limit = TRACE_LIMIT_DEFAULT
-): InspectorTraceEvent[] {
-  if (messages.length === 0) {
-    return [];
-  }
-
-  const events: InspectorTraceEvent[] = [];
-
-  const firstTimestamp = messages[0]?.createdAt.getTime() ?? Date.now();
-  events.push({
-    id: `start-${messages[0]?.id ?? "session"}`,
-    kind: "start",
-    label: "Session started",
-    timestamp: firstTimestamp,
-    status: "ok",
-  });
-
-  for (const message of messages) {
-    const timestamp = message.createdAt.getTime();
-
-    if (message.role === "user" || message.role === "system") {
-      events.push({
-        id: message.id,
-        kind: traceKindFromRole(message.role),
-        label: traceLabelFromMessage(message),
-        timestamp,
-        status: traceStatusFromMessage(message),
-      });
-      continue;
-    }
-
-    const hasAssistantNarration = message.content.some(
-      part => part.type === "text" || part.type === "reasoning"
-    );
-
-    if (hasAssistantNarration) {
-      events.push({
-        id: message.id,
-        kind: "agent",
-        label: traceLabelFromMessage(message),
-        timestamp,
-        status: traceStatusFromMessage(message),
-      });
-    }
-
-    for (const part of message.parts) {
-      if (part.type === "tool-call") {
-        events.push({
-          id: part.toolCallId,
-          kind: "tool",
-          label: part.toolName || "tool call",
-          timestamp,
-          status: toolStatusFromPart(part),
-        });
-      }
-
-      if (part.type === "data" && part.name === "agh-permission") {
-        const raw = part.data as { title?: string; decision?: string } | undefined;
-        events.push({
-          id: `${message.id}-${part.name}`,
-          kind: "approval",
-          label: raw?.title || "Permission required",
-          timestamp,
-          status: raw?.decision ? "ok" : "pending",
-        });
-      }
-    }
-  }
-
-  return events.slice(-limit);
-}
-
-/**
- * Aggregate tool messages by their file path into a file-read summary. Pulls
- * `toolResult.filePath` first, then falls back to known input fields
- * (`file_path` / `filePath` / `path`). Order is preserved by first appearance.
- */
-export function deriveFileReads(messages: readonly ThreadMessageState[]): InspectorFileEntry[] {
-  const index = new Map<string, InspectorFileEntry>();
-  for (const message of messages) {
-    if (message.role !== "assistant") {
-      continue;
-    }
-
-    for (const part of message.parts) {
-      if (part.type !== "tool-call") {
-        continue;
-      }
-
-      const result = isAgentEventPayload(part.result) ? parseToolUseResult(part.result) : null;
-      const path = result?.filePath ?? readFilePathFromInput(part.args);
-      if (!path) {
-        continue;
-      }
-
-      const existing = index.get(path);
-      if (existing) {
-        existing.readCount += 1;
-      } else {
-        index.set(path, { path, readCount: 1 });
-      }
-    }
-  }
-  return Array.from(index.values());
-}
-
-function readFilePathFromInput(input: Record<string, unknown> | undefined): string | undefined {
-  if (!input) {
-    return undefined;
-  }
-  const raw = input.file_path ?? input.filePath ?? input.path;
-  return typeof raw === "string" && raw.length > 0 ? raw : undefined;
-}
-
 function formatNumber(value?: number): string {
   if (typeof value !== "number" || !Number.isFinite(value)) return "—";
   return value.toLocaleString();
+}
+
+const currencyFormatters = new Map<string, Intl.NumberFormat>();
+
+function currencyFormatter(currency: string, digits: number): Intl.NumberFormat {
+  const key = `${currency}:${digits}`;
+  const cached = currencyFormatters.get(key);
+  if (cached) return cached;
+  const formatter = Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency,
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+  currencyFormatters.set(key, formatter);
+  return formatter;
 }
 
 function formatCost(value?: number, currency?: string): string {
   if (typeof value !== "number" || !Number.isFinite(value)) return "—";
   const code = normalizedCurrencyCode(currency);
   const digits = Math.abs(value) < 1 ? 3 : 2;
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: code,
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  }).format(value);
+  return currencyFormatter(code, digits).format(value);
 }
 
 function normalizedCurrencyCode(currency?: string): string {
@@ -441,7 +240,7 @@ export function SessionInspector({
   vaultSecrets = EMPTY_VAULT_SECRETS,
   vaultIsLoading = false,
   vaultError = null,
-  files = EMPTY_INSPECTOR_FILES,
+  files,
   totalTraceEvents,
   traceLimit = TRACE_LIMIT_DEFAULT,
   onViewAllTrace,
@@ -450,28 +249,21 @@ export function SessionInspector({
   className,
 }: SessionInspectorProps) {
   const [activeTab, setActiveTab] = useState<InspectorTabId>("trace");
-  const handleTabChange = useCallback((id: string) => {
+  const handleTabChange = (id: string) => {
     if (id === "trace" || id === "usage" || id === "memory" || id === "files" || id === "vault") {
       setActiveTab(id);
     }
-  }, []);
+  };
 
-  const traceEvents = useMemo(
-    () => deriveTraceEvents(messages, traceLimit),
-    [messages, traceLimit]
-  );
-  const derivedFiles = useMemo(() => files ?? deriveFileReads(messages), [files, messages]);
+  const traceEvents = deriveTraceEvents(messages, traceLimit);
+  const derivedFiles = files ?? deriveFileReads(messages);
   const traceTotal = totalTraceEvents ?? messages.length;
   const memoryState = memory ?? EMPTY_MEMORY_STATE;
 
-  const tabs = useMemo(
-    () =>
-      SESSION_INSPECTOR_TABS.map(tab => ({
-        id: tab.id,
-        label: <span data-testid={SESSION_INSPECTOR_TAB_TESTIDS[tab.id]}>{tab.label}</span>,
-      })),
-    []
-  );
+  const tabs = SESSION_INSPECTOR_TABS.map(tab => ({
+    id: tab.id,
+    label: <span data-testid={SESSION_INSPECTOR_TAB_TESTIDS[tab.id]}>{tab.label}</span>,
+  }));
 
   return (
     <DetailInspector

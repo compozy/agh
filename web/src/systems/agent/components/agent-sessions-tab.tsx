@@ -20,10 +20,8 @@ export interface AgentSessionsTabProps {
   active: number;
   resumable: number;
   lastActivityAt: string | null;
-  isLoading: boolean;
-  isError: boolean;
-  hasMore: boolean;
-  isLoadingMore: boolean;
+  status: "loading" | "error" | "ready";
+  paginationStatus?: "available" | "loading";
   onLoadMore: () => void;
   filter: AgentSessionFilter;
   onFilterChange: (filter: AgentSessionFilter) => void;
@@ -38,10 +36,8 @@ export function AgentSessionsTab({
   active,
   resumable,
   lastActivityAt,
-  isLoading,
-  isError,
-  hasMore,
-  isLoadingMore,
+  status,
+  paginationStatus,
   onLoadMore,
   filter,
   onFilterChange,
@@ -54,7 +50,7 @@ export function AgentSessionsTab({
 
   return (
     <div className="flex flex-col gap-4" data-testid="agent-sessions-tab">
-      {isLoading ? (
+      {status === "loading" ? (
         <div
           className="grid grid-cols-2 gap-3 md:grid-cols-4"
           data-testid="agent-sessions-metrics-loading"
@@ -69,7 +65,7 @@ export function AgentSessionsTab({
           active={active}
           resumable={resumable}
           lastActivityAt={lastActivityAt}
-          unavailable={isError}
+          unavailable={status === "error"}
         />
       )}
       <PillGroup
@@ -83,10 +79,8 @@ export function AgentSessionsTab({
       <AgentSessionsList
         agentName={agentName}
         sessions={filtered}
-        isLoading={isLoading}
-        isError={isError}
-        hasMore={hasMore}
-        isLoadingMore={isLoadingMore}
+        status={status}
+        paginationStatus={paginationStatus}
         onLoadMore={onLoadMore}
         emptyTitle={emptyTitle}
         emptyDescription={
@@ -102,7 +96,7 @@ export function AgentSessionsTab({
           )
         }
       />
-      {filter === "all" && !isLoading && !isError && sessions.length === 0 ? (
+      {filter === "all" && status === "ready" && sessions.length === 0 ? (
         <div className="flex justify-center">
           <button
             type="button"

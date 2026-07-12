@@ -61,10 +61,7 @@ function Pill({
   const size: PillSize = sizeProp ?? "sm";
   const mono = Boolean(monoProp);
   const solid = Boolean(solidProp);
-  const ctx = React.useMemo<PillContextValue>(
-    () => ({ size, mono, tone, pulse: Boolean(pulse) }),
-    [size, mono, tone, pulse]
-  );
+  const ctx: PillContextValue = { size, mono, tone, pulse: Boolean(pulse) };
   const element = useRender({
     defaultTagName: "span",
     props: mergeProps<"span">(
@@ -149,7 +146,11 @@ function PillLink({
       size={size}
       mono={mono}
       className={cn("hover:border-accent hover:text-accent", className)}
-      render={render ?? <a href={href ?? "#"} />}
+      render={
+        render ?? (
+          <a href={href ?? "#"} aria-label={typeof children === "string" ? children : undefined} />
+        )
+      }
       {...props}
     >
       {children}

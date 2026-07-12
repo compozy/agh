@@ -46,9 +46,14 @@ function NetworkChannelThreadsRoute() {
             activeThreadId={activeThreadId}
             channel={channel}
             dim={showOverlay && !isFullPage}
-            isLoading={threadsQuery.isLoading}
-            hasMore={threadsQuery.hasMore}
-            isLoadingMore={threadsQuery.isLoadingMore}
+            status={threadsQuery.isLoading ? "loading" : "ready"}
+            paginationStatus={
+              threadsQuery.isLoadingMore
+                ? "loading"
+                : threadsQuery.hasMore
+                  ? "available"
+                  : undefined
+            }
             isFiltered={isFiltered}
             onLoadMore={threadsQuery.loadMore}
             threads={filteredThreads}

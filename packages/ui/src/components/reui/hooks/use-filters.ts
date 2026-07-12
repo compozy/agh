@@ -1,6 +1,6 @@
 import { useRender } from "@base-ui/react/use-render";
 import type React from "react";
-import { useCallback, useEffect, useId, useMemo, useReducer, useRef } from "react";
+import { useEffect, useId, useReducer, useRef } from "react";
 
 import type { Filter, FilterFieldConfig, FilterFieldsConfig } from "../filters";
 import { createFilter, flattenFields, getFieldsMap } from "./filter-helpers";
@@ -38,6 +38,18 @@ const FILTERS_MENU_INITIAL_STATE: FiltersMenuState = {
 function filtersMenuReducer(state: FiltersMenuState, action: FiltersMenuAction): FiltersMenuState {
   const patch = typeof action === "function" ? action(state) : action;
   return { ...state, ...patch };
+}
+
+function getSelectableFields<T>(
+  fields: FilterFieldsConfig<T>,
+  allowMultiple: boolean,
+  filters: Filter<T>[]
+): FilterFieldConfig<T>[] {
+  return flattenFields(fields).filter((field: FilterFieldConfig<T>) => {
+    if (!field.key || field.type === "separator") return false;
+    if (allowMultiple) return true;
+    return !filters.some(filter => filter.field === field.key);
+  });
 }
 
 interface UseFiltersOptions<T = unknown> {
@@ -104,17 +116,14 @@ export function useFilters<T = unknown>({
     };
   }, []);
 
-  const focusRootInput = useCallback(
-    (node: HTMLInputElement | null) => {
-      rootInputRef.current = node;
-      if (node && addFilterOpen && activeMenu === "root") {
-        scheduleFilterDomSync(() => node.focus());
-      }
-    },
-    [activeMenu, addFilterOpen]
-  );
+  const focusRootInput = (node: HTMLInputElement | null) => {
+    rootInputRef.current = node;
+    if (node && addFilterOpen && activeMenu === "root") {
+      scheduleFilterDomSync(() => node.focus());
+    }
+  };
 
-  const markLastAddedFilter = useCallback((filterId: string) => {
+  const markLastAddedFilter = (filterId: string) => {
     if (lastAddedFilterTimerRef.current) {
       clearTimeout(lastAddedFilterTimerRef.current);
     }
@@ -123,72 +132,53 @@ export function useFilters<T = unknown>({
       setMenuState({ lastAddedFilterId: null });
       lastAddedFilterTimerRef.current = null;
     }, 1000);
-  }, []);
+  };
 
-  const mergedI18n = useMemo<FilterI18nConfig>(
-    () => ({
-      ...DEFAULT_I18N,
-      ...i18n,
-      operators: { ...DEFAULT_I18N.operators, ...i18n?.operators },
-      placeholders: { ...DEFAULT_I18N.placeholders, ...i18n?.placeholders },
-      validation: { ...DEFAULT_I18N.validation, ...i18n?.validation },
-    }),
-    [i18n]
+  const mergedI18n: FilterI18nConfig = {
+    ...DEFAULT_I18N,
+    ...i18n,
+    operators: { ...DEFAULT_I18N.operators, ...i18n?.operators },
+    placeholders: { ...DEFAULT_I18N.placeholders, ...i18n?.placeholders },
+    validation: { ...DEFAULT_I18N.validation, ...i18n?.validation },
+  };
+
+  const fieldsMap = getFieldsMap(fields);
+
+  const addFilter = (fieldKey: string) => {
+    const field = fieldsMap[fieldKey];
+    if (field && field.key) {
+      const defaultOperator =
+        field.defaultOperator || (field.type === "multiselect" ? "is_any_of" : "is");
+      const defaultValues: unknown[] =
+        field.type === "text" ? [""] : field.type === "toggle" ? [true] : [];
+      const newFilter = createFilter<T>(fieldKey, defaultOperator, defaultValues as T[]);
+      markLastAddedFilter(newFilter.id);
+      onChange([...filters, newFilter]);
+      setMenuState({
+        addFilterOpen: false,
+        menuSearchInput: "",
+        highlightedIndex: -1,
+      });
+    }
+  };
+
+  const selectableFields = getSelectableFields(fields, allowMultiple, filters);
+
+  const filteredFields = selectableFields.filter(
+    field => !menuSearchInput || field.label?.toLowerCase().includes(menuSearchInput.toLowerCase())
   );
-
-  const fieldsMap = useMemo(() => getFieldsMap(fields), [fields]);
-
-  const addFilter = useCallback(
-    (fieldKey: string) => {
-      const field = fieldsMap[fieldKey];
-      if (field && field.key) {
-        const defaultOperator =
-          field.defaultOperator || (field.type === "multiselect" ? "is_any_of" : "is");
-        const defaultValues: unknown[] =
-          field.type === "text" ? [""] : field.type === "toggle" ? [true] : [];
-        const newFilter = createFilter<T>(fieldKey, defaultOperator, defaultValues as T[]);
-        markLastAddedFilter(newFilter.id);
-        onChange([...filters, newFilter]);
-        setMenuState({
-          addFilterOpen: false,
-          menuSearchInput: "",
-          highlightedIndex: -1,
-        });
-      }
-    },
-    [fieldsMap, filters, markLastAddedFilter, onChange]
-  );
-
-  const selectableFields = useMemo(() => {
-    const flatFields = flattenFields(fields);
-    return flatFields.filter((field: FilterFieldConfig<T>) => {
-      if (!field.key || field.type === "separator") return false;
-      if (allowMultiple) return true;
-      return !filters.some(filter => filter.field === field.key);
-    });
-  }, [allowMultiple, fields, filters]);
-
-  const filteredFields = useMemo(() => {
-    return selectableFields.filter(
-      field =>
-        !menuSearchInput || field.label?.toLowerCase().includes(menuSearchInput.toLowerCase())
-    );
-  }, [menuSearchInput, selectableFields]);
 
   const rootHighlightedIndex =
     highlightedIndex >= 0 ? highlightedIndex : addFilterOpen && filteredFields.length > 0 ? 0 : -1;
 
-  const highlightRootOption = useCallback(
-    (index: number) => {
-      setMenuState({ highlightedIndex: index });
-      if (addFilterOpen) {
-        scrollFilterOptionIntoView(rootId, index);
-      }
-    },
-    [addFilterOpen, rootId]
-  );
+  const highlightRootOption = (index: number) => {
+    setMenuState({ highlightedIndex: index });
+    if (addFilterOpen) {
+      scrollFilterOptionIntoView(rootId, index);
+    }
+  };
 
-  const handleAddFilterOpenChange = useCallback((open: boolean) => {
+  const handleAddFilterOpenChange = (open: boolean) => {
     setMenuState({ addFilterOpen: open });
     if (!open) {
       setMenuState({
@@ -200,11 +190,11 @@ export function useFilters<T = unknown>({
     } else {
       setMenuState({ activeMenu: "root", highlightedIndex: -1 });
     }
-  }, []);
+  };
 
-  const activateRootMenu = useCallback(() => {
+  const activateRootMenu = () => {
     setMenuState({ activeMenu: "root" });
-  }, []);
+  };
 
   const triggerButton = useRender({
     render: trigger as React.ReactElement,

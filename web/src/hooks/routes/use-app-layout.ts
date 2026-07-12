@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 
 import { useSidebarStore } from "@/hooks/use-sidebar-store";
 import { useAgentCatalog, useAgentCreateDialog, useAgents } from "@/systems/agent";
@@ -55,16 +55,13 @@ function useAppLayout() {
       : null,
   });
 
-  const handleNewSession = useCallback(
-    (agentName: string) => {
-      sessionCreate.openForAgent(agentName);
-    },
-    [sessionCreate]
-  );
+  const handleNewSession = (agentName: string) => {
+    sessionCreate.openForAgent(agentName);
+  };
 
-  const openWorkspaceSetup = useCallback(() => {
+  const openWorkspaceSetup = () => {
     setWorkspaceSetupOpen(true);
-  }, []);
+  };
 
   return {
     collapsed,

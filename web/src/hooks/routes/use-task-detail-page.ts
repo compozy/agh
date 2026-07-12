@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -78,13 +78,10 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
   const enableInspect = options.enableInspect ?? true;
   const enableStream = options.enableStream ?? true;
 
-  const timelineFilters: TaskTimelineFilter = useMemo(
-    () => ({
-      limit: timelineLimit,
-      after_sequence: options.timelineFilters?.after_sequence,
-    }),
-    [options.timelineFilters?.after_sequence, timelineLimit]
-  );
+  const timelineFilters: TaskTimelineFilter = {
+    limit: timelineLimit,
+    after_sequence: options.timelineFilters?.after_sequence,
+  };
 
   const detailQuery = useTask(taskId, { enabled: hasTaskId });
   const timelineQuery = useTaskTimeline(taskId, timelineFilters, {
@@ -109,8 +106,8 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
   const tree = treeQuery.data ?? null;
   const inspect = inspectQuery.data ?? null;
 
-  const activeRun = useMemo(() => detail?.summary?.active_run ?? null, [detail]);
-  const isLive = useMemo(() => isRunActive(activeRun?.status ?? null), [activeRun]);
+  const activeRun = detail?.summary?.active_run ?? null;
+  const isLive = isRunActive(activeRun?.status ?? null);
 
   // Keep the always-visible header/overview surfaces (status, blocked-reasons,
   // needs_attention badge, wake indicator) fresh from needs_attention / recover /
@@ -126,32 +123,28 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
     afterSequence: hasEventSeq ? Math.max(0, detailEventSeq) : undefined,
   });
 
-  const multiAgent = useMemo<MultiAgentView>(
-    () => deriveMultiAgentView(tree, treeQuery.isLoading, Boolean(treeQuery.error), isLive),
-    [isLive, tree, treeQuery.error, treeQuery.isLoading]
+  const multiAgent: MultiAgentView = deriveMultiAgentView(
+    tree,
+    treeQuery.isLoading,
+    Boolean(treeQuery.error),
+    isLive
   );
 
-  const fatalError = useMemo(() => {
-    if (!hasTaskId) {
-      return new Error("Missing task id");
-    }
+  const fatalError = hasTaskId ? (detailQuery.error ?? null) : new Error("Missing task id");
 
-    return detailQuery.error ?? null;
-  }, [detailQuery.error, hasTaskId]);
-
-  const handlePanelChange = useCallback((next: TaskDetailPanel) => {
+  const handlePanelChange = (next: TaskDetailPanel) => {
     setPanel(next);
-  }, []);
+  };
 
-  const handleTimelineLoadMore = useCallback(() => {
+  const handleTimelineLoadMore = () => {
     setTimelineLimit(current => current + TIMELINE_PAGE_SIZE);
-  }, []);
+  };
 
-  const handleTimelineReset = useCallback(() => {
+  const handleTimelineReset = () => {
     setTimelineLimit(options.initialTimelineLimit ?? DEFAULT_TIMELINE_LIMIT);
-  }, [options.initialTimelineLimit]);
+  };
 
-  const handlePublishTask = useCallback(async () => {
+  const handlePublishTask = async () => {
     if (!hasTaskId) {
       return;
     }
@@ -162,9 +155,9 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to publish task");
     }
-  }, [hasTaskId, publishMutation, taskId]);
+  };
 
-  const handleCancelTask = useCallback(async () => {
+  const handleCancelTask = async () => {
     if (!hasTaskId) {
       return;
     }
@@ -175,9 +168,9 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to cancel task");
     }
-  }, [cancelMutation, hasTaskId, taskId]);
+  };
 
-  const handleEnqueueRun = useCallback(async () => {
+  const handleEnqueueRun = async () => {
     if (!hasTaskId) {
       return;
     }
@@ -188,27 +181,24 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to enqueue run");
     }
-  }, [enqueueMutation, hasTaskId, taskId]);
+  };
 
-  const handlePauseTask = useCallback(
-    async (reason: string) => {
-      if (!hasTaskId) {
-        return;
-      }
+  const handlePauseTask = async (reason: string) => {
+    if (!hasTaskId) {
+      return;
+    }
 
-      try {
-        await pauseMutation.mutateAsync({ id: taskId, data: { reason } });
-        toast.success("Task paused.");
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to pause task";
-        toast.error(message);
-        throw error;
-      }
-    },
-    [hasTaskId, pauseMutation, taskId]
-  );
+    try {
+      await pauseMutation.mutateAsync({ id: taskId, data: { reason } });
+      toast.success("Task paused.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to pause task";
+      toast.error(message);
+      throw error;
+    }
+  };
 
-  const handleResumeTask = useCallback(async () => {
+  const handleResumeTask = async () => {
     if (!hasTaskId) {
       return;
     }
@@ -221,9 +211,9 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
       toast.error(message);
       throw error;
     }
-  }, [hasTaskId, resumeMutation, taskId]);
+  };
 
-  const handleRecoverTask = useCallback(async () => {
+  const handleRecoverTask = async () => {
     if (!hasTaskId) {
       return;
     }
@@ -236,7 +226,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
       toast.error(message);
       throw error;
     }
-  }, [hasTaskId, recoverMutation, taskId]);
+  };
 
   const isTimelineSaturated =
     typeof timelineFilters.limit === "number" && timeline.length >= timelineFilters.limit;

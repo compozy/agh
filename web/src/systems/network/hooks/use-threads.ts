@@ -1,5 +1,4 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { useCallback } from "react";
 
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -40,12 +39,12 @@ export function useNetworkThreads(
       enabled
     )
   );
-  const loadMore = useCallback(async () => {
+  const loadMore = async () => {
     if (!query.hasNextPage || query.isFetchingNextPage) {
       return;
     }
     await query.fetchNextPage();
-  }, [query.fetchNextPage, query.hasNextPage, query.isFetchingNextPage]);
+  };
 
   return {
     threads: flattenNetworkThreads(query.data),

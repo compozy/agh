@@ -22,16 +22,13 @@ export interface MarketplaceViewProps {
   listings: SkillMarketplaceListingPayload[];
   installedSkillNames: Set<string>;
   view: ListingViewMode;
-  isSearchEnabled: boolean;
-  isSearching: boolean;
+  searchStatus: "prompt" | "searching" | "error" | "ready";
   searchError: Error | null;
   onClearSearch: () => void;
   onInstall: (slug: string) => void;
   onUpdate: (name: string) => void;
   onRemove: (name: string) => void;
-  isInstalling: boolean;
-  isUpdating: boolean;
-  isRemoving: boolean;
+  pendingActions?: ReadonlySet<"install" | "update" | "remove">;
 }
 
 type InstallActionState = "idle" | "installing";
@@ -238,20 +235,17 @@ function MarketplaceView({
   listings,
   installedSkillNames,
   view,
-  isSearchEnabled,
-  isSearching,
+  searchStatus,
   searchError,
   onClearSearch,
   onInstall,
   onUpdate,
   onRemove,
-  isInstalling,
-  isUpdating,
-  isRemoving,
+  pendingActions,
 }: MarketplaceViewProps) {
   let body: ReactNode;
 
-  if (!isSearchEnabled) {
+  if (searchStatus === "prompt") {
     body = (
       <div
         className="flex min-h-60 items-center justify-center"
@@ -265,13 +259,13 @@ function MarketplaceView({
         />
       </div>
     );
-  } else if (isSearching && listings.length === 0) {
+  } else if (searchStatus === "searching" && listings.length === 0) {
     body = (
       <div className="flex min-h-60 items-center justify-center" data-testid="marketplace-loading">
         <Spinner aria-hidden="true" className="size-5 text-subtle" />
       </div>
     );
-  } else if (searchError) {
+  } else if (searchStatus === "error" && searchError) {
     body = (
       <div className="px-2 py-2" data-testid="marketplace-error">
         <Alert variant="danger">
@@ -306,9 +300,9 @@ function MarketplaceView({
       </div>
     );
   } else {
-    const installState: InstallActionState = isInstalling ? "installing" : "idle";
-    const updateState: UpdateActionState = isUpdating ? "updating" : "idle";
-    const removeState: RemoveActionState = isRemoving ? "removing" : "idle";
+    const installState: InstallActionState = pendingActions?.has("install") ? "installing" : "idle";
+    const updateState: UpdateActionState = pendingActions?.has("update") ? "updating" : "idle";
+    const removeState: RemoveActionState = pendingActions?.has("remove") ? "removing" : "idle";
 
     const items = listings.map(listing => {
       const installed = installedSkillNames.has(listing.name);

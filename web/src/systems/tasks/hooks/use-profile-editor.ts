@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 
 import type { TaskExecutionProfile, TaskExecutionProfileSetRequest } from "../types";
 
@@ -22,20 +22,20 @@ function buildEmptyProfile(taskId: string, now: string): TaskExecutionProfileSet
 }
 
 export function useProfileEditor({ taskId, profile, onSetProfile }: UseProfileEditorState) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpenState] = useState(false);
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!open) {
-      return;
+  const setOpen = (next: boolean) => {
+    if (next) {
+      const seed = profile ?? buildEmptyProfile(taskId, new Date().toISOString());
+      setValue(JSON.stringify(seed, null, 2));
+      setError(null);
     }
-    const seed = profile ?? buildEmptyProfile(taskId, new Date().toISOString());
-    setValue(JSON.stringify(seed, null, 2));
-    setError(null);
-  }, [open, profile, taskId]);
+    setOpenState(next);
+  };
 
-  const submit = useCallback(async () => {
+  const submit = async () => {
     setError(null);
     let parsed: TaskExecutionProfileSetRequest;
     try {
@@ -64,7 +64,7 @@ export function useProfileEditor({ taskId, profile, onSetProfile }: UseProfileEd
     } catch {
       // Caller surfaces the toast; keep dialog open so the operator can retry.
     }
-  }, [onSetProfile, taskId, value]);
+  };
 
   return { open, setOpen, value, setValue, error, submit };
 }

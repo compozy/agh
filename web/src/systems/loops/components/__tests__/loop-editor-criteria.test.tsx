@@ -52,6 +52,18 @@ describe("LoopEditorCriteria", () => {
     expect(JSON.parse(screen.getByTestId("json").textContent || "x")).toEqual([]);
   });
 
+  it("Should preserve an id-less criterion row while its fields change", () => {
+    render(<Harness initial={[{ type: "command", check: "make test", expect: "exit_zero" }]} />);
+    const checkInput = screen.getByLabelText("Command check");
+    checkInput.focus();
+
+    fireEvent.change(checkInput, { target: { value: "make verify" } });
+
+    expect(screen.getByTestId("json")).toHaveTextContent('"check":"make verify"');
+    expect(screen.getByLabelText("Command check")).toBe(checkInput);
+    expect(checkInput).toHaveFocus();
+  });
+
   it("Should allocate the next generated id after the highest existing criterion suffix", () => {
     render(
       <Harness

@@ -80,53 +80,52 @@ export function InspectorMembersList({
   }
 
   return (
-    <div
+    <ul
       aria-label="Channel members"
       className={cn("flex min-h-0 flex-1 flex-col overflow-y-auto", className)}
       data-testid="network-inspector-members-list"
-      role="list"
     >
       {members.map(member => (
-        <Item
-          className="rounded-none border-b border-line px-4 py-3 last:border-b-0"
-          data-testid={`network-inspector-member-${member.peerId}`}
-          key={member.peerId}
-          role="listitem"
-        >
-          <ItemMedia>
-            <MessageAvatar
-              initialFrom={member.displayName || member.peerId}
-              seed={member.peerId}
-              sizePx={32}
-            />
-          </ItemMedia>
-          <ItemContent className="min-w-0">
-            <ItemTitle className="min-w-0 text-small-body">
-              {member.displayName || `@${member.peerId}`}
-            </ItemTitle>
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <Eyebrow data-testid={`network-inspector-member-role-${member.peerId}`}>
-                {member.role === "agent" ? "AGENT" : "HUMAN"}
-              </Eyebrow>
-              <span
-                className="inline-flex min-w-0 items-center gap-1 text-form-label text-muted"
-                data-testid={`network-inspector-member-presence-${member.peerId}`}
-              >
+        <li key={member.peerId} className="contents">
+          <Item
+            className="rounded-none border-b border-line px-4 py-3 last:border-b-0"
+            data-testid={`network-inspector-member-${member.peerId}`}
+          >
+            <ItemMedia>
+              <MessageAvatar
+                initialFrom={member.displayName || member.peerId}
+                seed={member.peerId}
+                sizePx={32}
+              />
+            </ItemMedia>
+            <ItemContent className="min-w-0">
+              <ItemTitle className="min-w-0 text-small-body">
+                {member.displayName || `@${member.peerId}`}
+              </ItemTitle>
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <Eyebrow data-testid={`network-inspector-member-role-${member.peerId}`}>
+                  {member.role === "agent" ? "AGENT" : "HUMAN"}
+                </Eyebrow>
                 <span
-                  aria-hidden="true"
-                  className={cn(
-                    "size-1.5 shrink-0 rounded-full",
-                    presenceDotTone(member.presenceState)
-                  )}
-                />
-                <span className="min-w-0 truncate">
-                  {formatNetworkPresenceLabel(member.presenceState, member.lastSeenAgeSeconds)}
+                  className="inline-flex min-w-0 items-center gap-1 text-form-label text-muted"
+                  data-testid={`network-inspector-member-presence-${member.peerId}`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "size-1.5 shrink-0 rounded-full",
+                      presenceDotTone(member.presenceState)
+                    )}
+                  />
+                  <span className="min-w-0 truncate">
+                    {formatNetworkPresenceLabel(member.presenceState, member.lastSeenAgeSeconds)}
+                  </span>
                 </span>
-              </span>
-            </div>
-          </ItemContent>
-        </Item>
+              </div>
+            </ItemContent>
+          </Item>
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }

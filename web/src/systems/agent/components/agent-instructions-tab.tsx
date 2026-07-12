@@ -1,5 +1,3 @@
-import { useMemo } from "react";
-
 import { Button, DescriptionCard, Eyebrow, PillGroup, Skeleton, type PillGroupItem } from "@agh/ui";
 
 import type { AgentInstructionsTabViewModel } from "../hooks/use-agent-instructions-tab";
@@ -27,40 +25,37 @@ export function AgentInstructionsTab({
   viewModel: page,
   onNewSession,
 }: AgentInstructionsTabProps) {
-  const fileItems: PillGroupItem<AgentInstructionFile>[] = useMemo(
-    () => [
-      { value: "agent", label: <Eyebrow>AGENT.md</Eyebrow>, testId: "agent-file-tab-agent" },
-      {
-        value: "soul",
-        label: (
-          <span className="inline-flex items-center gap-1.5">
-            <Eyebrow>SOUL.md</Eyebrow>
-            {page.soulMissing ? (
-              <span className="text-warning" data-testid="agent-file-soul-missing-badge">
-                missing
-              </span>
-            ) : null}
-          </span>
-        ),
-        testId: "agent-file-tab-soul",
-      },
-      {
-        value: "heartbeat",
-        label: (
-          <span className="inline-flex items-center gap-1.5">
-            <Eyebrow>HEARTBEAT.md</Eyebrow>
-            {page.heartbeatMissing ? (
-              <span className="text-warning" data-testid="agent-file-heartbeat-missing-badge">
-                missing
-              </span>
-            ) : null}
-          </span>
-        ),
-        testId: "agent-file-tab-heartbeat",
-      },
-    ],
-    [page.heartbeatMissing, page.soulMissing]
-  );
+  const fileItems: PillGroupItem<AgentInstructionFile>[] = [
+    { value: "agent", label: <Eyebrow>AGENT.md</Eyebrow>, testId: "agent-file-tab-agent" },
+    {
+      value: "soul",
+      label: (
+        <span className="inline-flex items-center gap-1.5">
+          <Eyebrow>SOUL.md</Eyebrow>
+          {page.soulMissing ? (
+            <span className="text-warning" data-testid="agent-file-soul-missing-badge">
+              missing
+            </span>
+          ) : null}
+        </span>
+      ),
+      testId: "agent-file-tab-soul",
+    },
+    {
+      value: "heartbeat",
+      label: (
+        <span className="inline-flex items-center gap-1.5">
+          <Eyebrow>HEARTBEAT.md</Eyebrow>
+          {page.heartbeatMissing ? (
+            <span className="text-warning" data-testid="agent-file-heartbeat-missing-badge">
+              missing
+            </span>
+          ) : null}
+        </span>
+      ),
+      testId: "agent-file-tab-heartbeat",
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-4" data-testid="agent-instructions-tab">

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 
 import { useSettingsPage } from "@/hooks/routes/use-settings-page";
 import {
@@ -104,7 +104,7 @@ function toRequest(draft: ProviderDraft): SettingsProviderRequest {
 
   const secrets: SettingsProviderRequest["secrets"] = [];
   for (const [index, credential] of credentialSlots.entries()) {
-    const value = index === 0 ? draft.secret_value : (draft.credential_secret_values[index] ?? "");
+    const value = credentialSecretValue(draft, index);
     if (!value.trim() || !credential.secret_ref.startsWith("vault:")) {
       continue;
     }
@@ -119,6 +119,10 @@ function toRequest(draft: ProviderDraft): SettingsProviderRequest {
   return secrets.length > 0 ? { settings, secrets } : { settings };
 }
 
+function credentialSecretValue(draft: ProviderDraft, index: number): string {
+  return index === 0 ? draft.secret_value : (draft.credential_secret_values[index] ?? "");
+}
+
 function envSecretRef(apiKeyEnv?: string): string {
   const envName = apiKeyEnv?.trim();
   return envName ? `env:${envName}` : "";
@@ -126,8 +130,10 @@ function envSecretRef(apiKeyEnv?: string): string {
 
 function joinCuratedModels(models: SettingsProviderModelRequest[]): string {
   return models
-    .map(model => model.id.trim())
-    .filter(Boolean)
+    .flatMap(model => {
+      const id = model.id.trim();
+      return id ? [id] : [];
+    })
     .join("\n");
 }
 
@@ -225,6 +231,34 @@ type LastAction = ProviderLastAction | null;
 
 export type { ProviderDraft };
 
+function isProviderInspectorValid(
+  inspector: ProviderInspectorState,
+  providers: readonly SettingsProviderEntry[]
+): boolean {
+  if (inspector.mode !== "edit" && inspector.mode !== "create") return false;
+  const name = inspector.draft.name.trim();
+  if (name.length === 0) return false;
+  if (
+    inspector.draft.auth_mode === "bound_secret" &&
+    buildCredentialSlots(inspector.draft).length === 0
+  ) {
+    return false;
+  }
+  if (
+    buildCredentialSlots(inspector.draft).some(
+      (slot, index) =>
+        credentialSecretValue(inspector.draft, index).trim().length > 0 &&
+        !slot.secret_ref.startsWith("vault:")
+    )
+  ) {
+    return false;
+  }
+  return (
+    inspector.mode !== "create" ||
+    !providers.some(provider => provider.name.toLowerCase() === name.toLowerCase())
+  );
+}
+
 export function useSettingsProvidersPage() {
   const query = useSettingsProviders();
   const putMutation = usePutSettingsProvider();
@@ -239,55 +273,49 @@ export function useSettingsProvidersPage() {
   const envelope = query.data ?? null;
   const providers = envelope?.providers ?? [];
 
-  const counts = useMemo(() => {
-    const installed = providers.filter(
+  const counts = {
+    total: providers.length,
+    installed: providers.filter(
       provider => provider.command_available && providerCredentialsConfigured(provider)
-    ).length;
-    const binaryMissing = providers.filter(provider => !provider.command_available).length;
-    const unconfigured = providers.filter(
+    ).length,
+    binaryMissing: providers.filter(provider => !provider.command_available).length,
+    unconfigured: providers.filter(
       provider => provider.command_available && !providerCredentialsConfigured(provider)
-    ).length;
-    return { total: providers.length, installed, binaryMissing, unconfigured };
-  }, [providers]);
+    ).length,
+  };
 
-  const filteredProviders = useMemo(
-    () => applyProviderFilters(providers, filters),
-    [providers, filters]
-  );
+  const filteredProviders = applyProviderFilters(providers, filters);
 
-  const setStatusFilter = useCallback((next: ProviderStateLabel | null) => {
+  const setStatusFilter = (next: ProviderStateLabel | null) => {
     setFilters(current => ({ ...current, statusFilter: next }));
-  }, []);
-  const setSourceFilter = useCallback((next: SettingsSourceKind | null) => {
+  };
+  const setSourceFilter = (next: SettingsSourceKind | null) => {
     setFilters(current => ({ ...current, sourceFilter: next }));
-  }, []);
-  const setHarnessFilter = useCallback((next: ProviderHarness | null) => {
+  };
+  const setHarnessFilter = (next: ProviderHarness | null) => {
     setFilters(current => ({ ...current, harnessFilter: next }));
-  }, []);
-  const setAuthModeFilter = useCallback((next: ProviderAuthMode | null) => {
+  };
+  const setAuthModeFilter = (next: ProviderAuthMode | null) => {
     setFilters(current => ({ ...current, authModeFilter: next }));
-  }, []);
-  const setDefaultFilter = useCallback((next: ProviderDefaultFilter | null) => {
+  };
+  const setDefaultFilter = (next: ProviderDefaultFilter | null) => {
     setFilters(current => ({ ...current, defaultFilter: next }));
-  }, []);
-  const setNameQuery = useCallback((next: string) => {
+  };
+  const setNameQuery = (next: string) => {
     setFilters(current => ({ ...current, nameQuery: next }));
-  }, []);
+  };
 
-  const openInspect = useCallback(
-    (entry: SettingsProviderEntry) => {
-      putMutation.reset();
-      setInspector({ mode: "inspect", entry });
-    },
-    [putMutation]
-  );
+  const openInspect = (entry: SettingsProviderEntry) => {
+    putMutation.reset();
+    setInspector({ mode: "inspect", entry });
+  };
 
-  const openCreate = useCallback(() => {
+  const openCreate = () => {
     putMutation.reset();
     setInspector({ mode: "create", draft: emptyDraft() });
-  }, [putMutation]);
+  };
 
-  const switchToEdit = useCallback(() => {
+  const switchToEdit = () => {
     setInspector(current => {
       if (current.mode !== "inspect") return current;
       return {
@@ -297,9 +325,9 @@ export function useSettingsProvidersPage() {
         cameFrom: "inspect",
       };
     });
-  }, []);
+  };
 
-  const cancelEdit = useCallback(() => {
+  const cancelEdit = () => {
     putMutation.reset();
     setInspector(current => {
       if (current.mode === "edit" && current.cameFrom === "inspect") {
@@ -307,46 +335,26 @@ export function useSettingsProvidersPage() {
       }
       return { mode: "closed" };
     });
-  }, [putMutation]);
+  };
 
-  const closeInspector = useCallback(() => {
+  const closeInspector = () => {
     setInspector({ mode: "closed" });
     putMutation.reset();
-  }, [putMutation]);
+  };
 
-  const updateDraft = useCallback((updater: (draft: ProviderDraft) => ProviderDraft) => {
+  const updateDraft = (updater: (draft: ProviderDraft) => ProviderDraft) => {
     setInspector(current => {
       if (current.mode !== "edit" && current.mode !== "create") return current;
       return { ...current, draft: updater(current.draft) };
     });
-  }, []);
+  };
 
-  const inspectorIsValid = useMemo(() => {
-    if (inspector.mode !== "edit" && inspector.mode !== "create") return false;
-    const name = inspector.draft.name.trim();
-    if (name.length === 0) return false;
-    if (
-      inspector.draft.auth_mode === "bound_secret" &&
-      buildCredentialSlots(inspector.draft).length === 0
-    ) {
-      return false;
-    }
-    if (
-      inspector.draft.secret_value.trim() &&
-      !inspector.draft.secret_ref.trim().startsWith("vault:")
-    ) {
-      return false;
-    }
-    if (inspector.mode === "create") {
-      return !providers.some(provider => provider.name.toLowerCase() === name.toLowerCase());
-    }
-    return true;
-  }, [inspector, providers]);
+  const inspectorIsValid = isProviderInspectorValid(inspector, providers);
 
-  const saveInspector = useCallback(() => {
+  const saveInspector = () => {
     if (inspector.mode !== "edit" && inspector.mode !== "create") return;
+    if (!inspectorIsValid) return;
     const name = inspector.draft.name.trim();
-    if (!name) return;
     const body = toRequest(inspector.draft);
     putMutation.mutate(
       { name, body },
@@ -357,22 +365,19 @@ export function useSettingsProvidersPage() {
         },
       }
     );
-  }, [inspector, putMutation]);
+  };
 
-  const openDelete = useCallback(
-    (entry: SettingsProviderEntry) => {
-      deleteMutation.reset();
-      setDeleteTarget({ mode: "open", entry });
-    },
-    [deleteMutation]
-  );
+  const openDelete = (entry: SettingsProviderEntry) => {
+    deleteMutation.reset();
+    setDeleteTarget({ mode: "open", entry });
+  };
 
-  const closeDelete = useCallback(() => {
+  const closeDelete = () => {
     setDeleteTarget({ mode: "closed" });
     deleteMutation.reset();
-  }, [deleteMutation]);
+  };
 
-  const confirmDelete = useCallback(() => {
+  const confirmDelete = () => {
     if (deleteTarget.mode === "closed") return;
     const target = deleteTarget.entry;
     deleteMutation.mutate(target.name, {
@@ -391,9 +396,9 @@ export function useSettingsProvidersPage() {
         );
       },
     });
-  }, [deleteMutation, deleteTarget]);
+  };
 
-  const dismissLastAction = useCallback(() => setLastAction(null), []);
+  const dismissLastAction = () => setLastAction(null);
 
   return {
     isLoading: query.isLoading,

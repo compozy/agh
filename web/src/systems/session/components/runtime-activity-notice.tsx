@@ -3,28 +3,12 @@ import { Activity, AlertCircle, AlertTriangle, Info } from "lucide-react";
 import { Alert, AlertDescription, AlertMeta, AlertTitle, Pill } from "@agh/ui";
 
 import type { AgentEventPayload, RuntimeActivityPayload, TranscriptMarkerPayload } from "../types";
-
-const RUNTIME_EVENT_TYPES = new Set(["runtime_progress", "runtime_warning"]);
-const TRANSCRIPT_MARKER_EVENT_TYPES = new Set([
-  "transcript_marker.created",
-  "transcript_marker.redacted",
-]);
-
-export function isRuntimeActivityEvent(event: AgentEventPayload): boolean {
-  return RUNTIME_EVENT_TYPES.has(event.type) && event.runtime !== undefined;
-}
-
-export function isSessionErrorEvent(event: AgentEventPayload): boolean {
-  return event.type === "error" && (hasText(event.error) || hasText(event.failure?.summary));
-}
-
-export function isTranscriptMarkerEvent(event: AgentEventPayload): boolean {
-  return TRANSCRIPT_MARKER_EVENT_TYPES.has(event.type);
-}
-
-function hasText(value: string | undefined): value is string {
-  return typeof value === "string" && value.trim().length > 0;
-}
+import {
+  hasText,
+  isRuntimeActivityEvent,
+  isSessionErrorEvent,
+  isTranscriptMarkerEvent,
+} from "./runtime-activity-notice.logic";
 
 function formatDuration(seconds: number | undefined): string | null {
   if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0) {

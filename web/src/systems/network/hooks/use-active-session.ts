@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { useActiveWorkspace } from "@/systems/workspace";
@@ -52,35 +51,33 @@ export function useActiveNetworkSession(
   const enabled = Boolean(channel) && workspaceId !== "";
   const detailQuery = useQuery(networkChannelDetailOptions(workspaceId, channel ?? "", enabled));
 
-  return useMemo(() => {
-    if (!enabled) {
-      return {
-        session: null,
-        disabledReason: "Pick a channel to start composing.",
-        isLoading: false,
-      };
-    }
-    if (detailQuery.isLoading && !detailQuery.data) {
-      return { session: null, disabledReason: "Loading channel...", isLoading: true };
-    }
-    const detail = detailQuery.data ?? null;
-    const peer = pickLocalPeer(detail);
-    if (!peer || !peer.session_id) {
-      return {
-        session: null,
-        disabledReason: "Join this channel from another surface to compose here.",
-        isLoading: false,
-      };
-    }
+  if (!enabled) {
     return {
-      session: {
-        channel: detail?.channel ?? channel ?? "",
-        peerId: peer.peer_id,
-        sessionId: peer.session_id,
-        displayName: peer.display_name,
-      },
-      disabledReason: null,
+      session: null,
+      disabledReason: "Pick a channel to start composing.",
       isLoading: false,
     };
-  }, [enabled, detailQuery.isLoading, detailQuery.data, channel]);
+  }
+  if (detailQuery.isLoading && !detailQuery.data) {
+    return { session: null, disabledReason: "Loading channel...", isLoading: true };
+  }
+  const detail = detailQuery.data ?? null;
+  const peer = pickLocalPeer(detail);
+  if (!peer || !peer.session_id) {
+    return {
+      session: null,
+      disabledReason: "Join this channel from another surface to compose here.",
+      isLoading: false,
+    };
+  }
+  return {
+    session: {
+      channel: detail?.channel ?? channel ?? "",
+      peerId: peer.peer_id,
+      sessionId: peer.session_id,
+      displayName: peer.display_name,
+    },
+    disabledReason: null,
+    isLoading: false,
+  };
 }

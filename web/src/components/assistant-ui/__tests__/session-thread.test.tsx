@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, type ComponentProps } from "react";
+import { useEffect, useState, type ComponentProps } from "react";
 import type { ThreadMessage } from "@assistant-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -21,13 +21,12 @@ import type { SessionMessage } from "@/systems/session/types";
 import type { SessionTranscriptThreadStatus } from "@/systems/session/lib/session-transcript-thread-context-value";
 
 import { SessionThread } from "../session-thread";
-import { formatDataPreview } from "../session-message-parts";
+import { formatDataPreview } from "../session-message-parts.logic";
 import { TimelineRowContent } from "../session-timeline-render";
 import {
   computeStableSessionRows,
   deriveSessionRows,
   EMPTY_STABLE_SESSION_ROWS,
-  type SessionRow,
   type SessionTimelinePart,
   type StableSessionRowsState,
 } from "../session-timeline.logic";
@@ -151,8 +150,6 @@ function renderThreadState({
         <SessionTranscriptThreadProvider
           messages={messages}
           status={status}
-          isPending={status === "pending"}
-          isError={status === "error"}
           error={error}
           retry={retry}
         >
@@ -252,7 +249,7 @@ describe("SessionThread transcript states", () => {
     renderThreadState({ status: "success", messages });
 
     expect(await screen.findByText("Launch readiness snapshot")).toBeInTheDocument();
-    expect(screen.getByTestId("virtualized-thread-messages")).toBeInTheDocument();
+    expect(screen.getByTestId("thread-messages")).toBeInTheDocument();
     expect(screen.queryByText(/Start a conversation/i)).not.toBeInTheDocument();
   });
 
@@ -367,8 +364,6 @@ describe("SessionThread transcript states", () => {
             <SessionTranscriptThreadProvider
               messages={messages}
               status="success"
-              isPending={false}
-              isError={false}
               error={null}
               retry={vi.fn()}
             >
@@ -389,7 +384,7 @@ describe("SessionThread transcript states", () => {
 
     expect(await screen.findByText("Continue delegated task run")).toBeInTheDocument();
     expect(await screen.findByText("Continuing after reconnect.")).toBeInTheDocument();
-    expect(screen.getByTestId("virtualized-thread-messages")).toBeInTheDocument();
+    expect(screen.getByTestId("thread-messages")).toBeInTheDocument();
   });
 
   it("Should render grouped tool clusters behind a previous-calls toggle", async () => {
@@ -971,40 +966,22 @@ describe("SessionThread transcript states", () => {
 });
 
 // Suite: streaming render-count probe (task 39).
-// Invariant: derive-layer structural sharing + memoized `TimelineRowContent` mean
-// streaming N chunk updates into the live row re-renders only that row — settled
-// rows keep their reference AND never re-commit.
-// Boundary IN: `computeStableSessionRows` row identity + the memoized row renderer.
+// Invariant: derive-layer structural sharing + compiler-stabilized `TimelineRowContent` mean
+// streaming N chunk updates change only the live row's visible subtree; settled
+// rows keep both their data reference and mounted DOM subtree.
+// Boundary IN: `computeStableSessionRows` row identity + the compiler-managed row renderer.
 // Boundary OUT: SSE/query wiring (owned by use-session-live-tail.test.tsx).
 describe("SessionThread streaming render-count", () => {
   function textPart(id: string, value: string, state: string, turnId: string): SessionTimelinePart {
     return { kind: "text", id, text: value, turnId, timestamp: "2026-07-07T12:00:00Z", state };
   }
 
-  // Wraps the production memoized row renderer and counts renders per row id. Its
-  // memo comparison mirrors `TimelineRowContent` (shallow on `row`, with a stable
-  // `onRender`), so a bail here means the whole `TimelineRowContent` subtree was
-  // skipped — the exact render-avoidance a settled row must get while a sibling
-  // streams. Same probe shape as the task-30 timer render-count test.
-  const CountingRow = memo(function CountingRow({
-    row,
-    onRender,
-  }: {
-    row: SessionRow;
-    onRender: (id: string) => void;
-  }) {
-    onRender(row.id);
-    return <TimelineRowContent row={row} />;
-  });
-
   function StableTimeline({
     liveText,
     stateRef,
-    onRowRender,
   }: {
     liveText: string;
     stateRef: { current: StableSessionRowsState };
-    onRowRender: (id: string) => void;
   }) {
     // Mirror the production hook: re-derive fresh rows, then structurally share
     // against the prior pass so unchanged rows keep their reference.
@@ -1017,37 +994,45 @@ describe("SessionThread streaming render-count", () => {
     return (
       <>
         {stable.result.map(row => (
-          <CountingRow key={row.id} row={row} onRender={onRowRender} />
+          <div key={row.id} data-session-row-id={row.id}>
+            <TimelineRowContent row={row} />
+          </div>
         ))}
       </>
     );
   }
 
-  it("Should re-render only the live row across streaming chunk updates and keep settled rows referentially stable", () => {
-    const renders = new Map<string, number>();
-    const bump = (id: string) => renders.set(id, (renders.get(id) ?? 0) + 1);
+  it("Should preserve the settled row subtree while the live row changes across streaming chunks", () => {
     const stateRef: { current: StableSessionRowsState } = { current: EMPTY_STABLE_SESSION_ROWS };
 
-    const { rerender } = render(
-      <StableTimeline liveText="chunk 1" stateRef={stateRef} onRowRender={bump} />
+    const { container, rerender } = render(
+      <StableTimeline liveText="chunk 1" stateRef={stateRef} />
     );
     const settledRowAtMount = stateRef.current.result[0];
+    const settledElement = container.querySelector<HTMLElement>(
+      '[data-session-row-id="text:settled"]'
+    );
+    const liveElement = container.querySelector<HTMLElement>('[data-session-row-id="text:live"]');
+    if (!settledElement || !liveElement) {
+      throw new Error("Expected settled and live timeline rows to render");
+    }
+    const settledSubtreeAtMount = settledElement.firstElementChild;
 
     for (const chunk of [
       "chunk 1 chunk 2",
       "chunk 1 chunk 2 chunk 3",
       "chunk 1 chunk 2 chunk 3 chunk 4",
     ]) {
-      rerender(<StableTimeline liveText={chunk} stateRef={stateRef} onRowRender={bump} />);
+      rerender(<StableTimeline liveText={chunk} stateRef={stateRef} />);
+      const nextSettledElement = container.querySelector('[data-session-row-id="text:settled"]');
+      const nextLiveElement = container.querySelector('[data-session-row-id="text:live"]');
+
+      expect(nextSettledElement).toBe(settledElement);
+      expect(nextSettledElement?.firstElementChild).toBe(settledSubtreeAtMount);
+      expect(nextLiveElement).toHaveTextContent(chunk);
     }
 
-    // The settled row's reference survives every streaming update...
     expect(stateRef.current.result[0]).toBe(settledRowAtMount);
-    // ...so its memoized renderer commits exactly once (mount) and is skipped on
-    // all three streaming chunk updates.
-    expect(renders.get("text:settled")).toBe(1);
-    // The live row re-renders on each chunk: mount + three updates.
-    expect(renders.get("text:live")).toBe(4);
   });
 });
 
@@ -1068,8 +1053,6 @@ function renderComposer(overrides: Partial<ComponentProps<typeof SessionThread>>
         <SessionTranscriptThreadProvider
           messages={[]}
           status="success"
-          isPending={false}
-          isError={false}
           error={null}
           retry={vi.fn()}
         >
@@ -1232,8 +1215,6 @@ function renderComposerRerenderable(overrides: Partial<ComponentProps<typeof Ses
         <SessionTranscriptThreadProvider
           messages={[]}
           status="success"
-          isPending={false}
-          isError={false}
           error={null}
           retry={vi.fn()}
         >

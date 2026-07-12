@@ -6,14 +6,6 @@ export const storyCompany = {
   tagline: "Launch week for Northstar Pay Checkout across Brazil and Mexico",
 } as const;
 
-export const storyLaunchWeek = {
-  codeName: "Launch Week",
-  launchWindow: "2026-04-17T18:30:00Z",
-  goToMarketTarget: "1,200 pilot merchants",
-  revenueGoal: "$2.4M GMV",
-  supportSla: "< 4 minutes for launch-room escalations",
-} as const;
-
 export const storyWorkspaceIds = {
   hq: "ws_launch_hq",
   risk: "ws_risk_ops",

@@ -60,6 +60,19 @@ describe("LoopEditor", () => {
     ).toHaveTextContent("run_agent");
   });
 
+  it("Should preserve both nodes when palette additions are dispatched in one event turn", async () => {
+    renderEditor();
+    await screen.findByTestId("loop-editor");
+    await waitFor(() => expect(screen.getAllByTestId("loop-editor-node")).toHaveLength(8));
+
+    fireEvent.click(screen.getByTestId("loop-palette-item-run-agent"));
+    fireEvent.click(screen.getByTestId("loop-palette-item-run-agent"));
+
+    await waitFor(() => expect(screen.getAllByTestId("loop-editor-node")).toHaveLength(10));
+    expect(nodeCard("run_agent")).toBeInTheDocument();
+    expect(nodeCard("run_agent_2")).toBeInTheDocument();
+  });
+
   it("E2E-web-12: swaps the inspector field set when a different node is selected", async () => {
     renderEditor();
     await screen.findByTestId("loop-editor");

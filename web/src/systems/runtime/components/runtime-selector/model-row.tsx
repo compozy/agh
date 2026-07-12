@@ -1,5 +1,5 @@
 import { Brain, Check, Star, Wrench } from "lucide-react";
-import { Fragment, type ReactNode } from "react";
+import { Fragment, type ReactElement } from "react";
 
 import { cn, KindIcon, providerKindIconRegistry } from "@agh/ui";
 
@@ -22,8 +22,8 @@ function DotSep() {
   return <span aria-hidden="true" className="size-0.5 shrink-0 rounded-full bg-faint" />;
 }
 
-function buildChips(model: RuntimeModelOption): ReactNode[] {
-  const chips: ReactNode[] = [];
+function buildChips(model: RuntimeModelOption): ReactElement[] {
+  const chips: ReactElement[] = [];
   const ctx = formatContext(model.context_window);
   if (ctx)
     chips.push(
@@ -158,7 +158,7 @@ export function ModelRow({
           <span className="text-subtle">{providerName}</span>
           {chips.length > 0 ? <DotSep /> : null}
           {chips.map((chip, index) => (
-            <Fragment key={index}>
+            <Fragment key={chip.key}>
               {index > 0 ? <DotSep /> : null}
               {chip}
             </Fragment>

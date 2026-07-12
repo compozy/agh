@@ -13,11 +13,30 @@ interface ToolCardProps {
   staticMode?: boolean;
 }
 
+const TOOL_ICON_PROPS = { width: 13, height: 13, viewBox: "0 0 24 24", fill: "none" } as const;
+const TOOL_LABEL_STYLE: CSSProperties = {
+  color: TOKENS.textPrimary,
+  fontFamily: TOKENS.fontSans,
+  fontSize: 12,
+  fontWeight: 500,
+  flexShrink: 0,
+};
+const TOOL_SUMMARY_STYLE: CSSProperties = {
+  color: TOKENS.textSecondary,
+  fontFamily: TOKENS.fontMono,
+  fontSize: 11,
+  letterSpacing: TOKENS.trackingMono,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  minWidth: 0,
+  flex: 1,
+};
+
 function ToolIcon({ name }: { name: ToolIconName }) {
-  const common = { width: 13, height: 13, viewBox: "0 0 24 24", fill: "none" } as const;
   if (name === "read") {
     return (
-      <svg {...common} aria-hidden="true">
+      <svg {...TOOL_ICON_PROPS} aria-hidden="true">
         <path
           d="M6 3h9l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"
           stroke="currentColor"
@@ -31,7 +50,7 @@ function ToolIcon({ name }: { name: ToolIconName }) {
   }
   if (name === "diff") {
     return (
-      <svg {...common} aria-hidden="true">
+      <svg {...TOOL_ICON_PROPS} aria-hidden="true">
         <path
           d="M7 3v13a3 3 0 0 0 3 3h7M7 3l-3 3M7 3l3 3"
           stroke="currentColor"
@@ -45,7 +64,7 @@ function ToolIcon({ name }: { name: ToolIconName }) {
   }
   if (name === "test") {
     return (
-      <svg {...common} aria-hidden="true">
+      <svg {...TOOL_ICON_PROPS} aria-hidden="true">
         <path
           d="M9 3h6M10 3v7l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3"
           stroke="currentColor"
@@ -58,7 +77,7 @@ function ToolIcon({ name }: { name: ToolIconName }) {
   }
   if (name === "net") {
     return (
-      <svg {...common} aria-hidden="true">
+      <svg {...TOOL_ICON_PROPS} aria-hidden="true">
         <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.7" />
         <path
           d="M3.5 12h17M12 3.5c2.5 2.5 3.8 5.6 3.8 8.5s-1.3 6-3.8 8.5c-2.5-2.5-3.8-5.6-3.8-8.5s1.3-6 3.8-8.5z"
@@ -70,7 +89,7 @@ function ToolIcon({ name }: { name: ToolIconName }) {
     );
   }
   return (
-    <svg {...common} aria-hidden="true">
+    <svg {...TOOL_ICON_PROPS} aria-hidden="true">
       <path
         d="M5 12l7-8 7 8-7 8-7-8z"
         stroke="currentColor"
@@ -125,24 +144,6 @@ export function ToolCard({
     alignItems: "center",
     flexShrink: 0,
   };
-  const labelStyle: CSSProperties = {
-    color: TOKENS.textPrimary,
-    fontFamily: TOKENS.fontSans,
-    fontSize: 12,
-    fontWeight: 500,
-    flexShrink: 0,
-  };
-  const summaryStyle: CSSProperties = {
-    color: TOKENS.textSecondary,
-    fontFamily: TOKENS.fontMono,
-    fontSize: 11,
-    letterSpacing: TOKENS.trackingMono,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    minWidth: 0,
-    flex: 1,
-  };
   const badge: CSSProperties = {
     marginLeft: "auto",
     fontFamily: TOKENS.fontMono,
@@ -163,8 +164,8 @@ export function ToolCard({
       <span style={iconBox}>
         <ToolIcon name={icon} />
       </span>
-      <span style={labelStyle}>{label}</span>
-      <span style={summaryStyle}>{summary}</span>
+      <span style={TOOL_LABEL_STYLE}>{label}</span>
+      <span style={TOOL_SUMMARY_STYLE}>{summary}</span>
       <span style={badge}>{done ? "DONE" : "RUNNING"}</span>
     </div>
   );

@@ -92,8 +92,12 @@ export function useTestBridgeDelivery() {
 }
 
 export function useResolveBridgeTarget() {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: ({ id, data }: ResolveBridgeTargetParams) => resolveBridgeTarget(id, data),
+    onSuccess: (_result, { id }) =>
+      queryClient.invalidateQueries({ queryKey: bridgeKeys.targetsForBridge(id) }),
   });
 }
 

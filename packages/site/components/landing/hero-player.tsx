@@ -15,18 +15,18 @@ interface HeroPlayerProps {
   className?: string;
 }
 
+const CONTAINER_STYLE = {
+  background:
+    "radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--color-accent) 10%, transparent) 0%, transparent 58%)",
+} as const;
+
 export function HeroPlayer({ className }: HeroPlayerProps) {
   const reduced = useReducedMotion();
 
   const containerClass = cn("relative mx-auto aspect-square w-full max-w-140", className);
-  const containerStyle = {
-    background:
-      "radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--color-accent) 10%, transparent) 0%, transparent 58%)",
-  } as const;
-
   if (reduced) {
     return (
-      <div className={containerClass} style={containerStyle}>
+      <div className={containerClass} style={CONTAINER_STYLE}>
         <Thumbnail
           component={HeroChatComposition}
           inputProps={{ staticMode: true }}
@@ -42,7 +42,7 @@ export function HeroPlayer({ className }: HeroPlayerProps) {
   }
 
   return (
-    <div className={containerClass} style={containerStyle}>
+    <div className={containerClass} style={CONTAINER_STYLE}>
       <Player
         component={HeroChatComposition}
         compositionWidth={COMPOSITION_WIDTH}

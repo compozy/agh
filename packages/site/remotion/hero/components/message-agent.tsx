@@ -17,6 +17,42 @@ interface MessageAgentProps {
   staticMode?: boolean;
 }
 
+const LABEL_ROW_STYLE: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  marginLeft: 6,
+};
+const DOT_STYLE: CSSProperties = {
+  width: 6,
+  height: 6,
+  borderRadius: 999,
+  backgroundColor: TOKENS.success,
+  boxShadow: `0 0 0 3px ${TOKENS.success}1a`,
+};
+const NAME_STYLE: CSSProperties = {
+  fontFamily: TOKENS.fontMono,
+  fontSize: 10,
+  fontWeight: 600,
+  letterSpacing: TOKENS.trackingBadge,
+  textTransform: "uppercase",
+  color: TOKENS.textLabel,
+};
+const TIMESTAMP_STYLE: CSSProperties = {
+  fontFamily: TOKENS.fontSans,
+  fontSize: 10,
+  color: TOKENS.textLabel,
+  fontVariantNumeric: "tabular-nums",
+};
+const BODY_STYLE: CSSProperties = {
+  marginTop: 4,
+  marginLeft: 6,
+  fontSize: 13,
+  lineHeight: 1.5,
+  color: TOKENS.textSecondary,
+  fontFamily: TOKENS.fontSans,
+};
+
 export function MessageAgent({
   agent,
   timestamp,
@@ -53,53 +89,18 @@ export function MessageAgent({
     transform: `translateY(${translateY}px)`,
     flexShrink: 0,
   };
-  const labelRow: CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    marginLeft: 6,
-  };
-  const dot: CSSProperties = {
-    width: 6,
-    height: 6,
-    borderRadius: 999,
-    backgroundColor: TOKENS.success,
-    boxShadow: `0 0 0 3px ${TOKENS.success}1a`,
-  };
-  const name: CSSProperties = {
-    fontFamily: TOKENS.fontMono,
-    fontSize: 10,
-    fontWeight: 600,
-    letterSpacing: TOKENS.trackingBadge,
-    textTransform: "uppercase",
-    color: TOKENS.textLabel,
-  };
-  const ts: CSSProperties = {
-    fontFamily: TOKENS.fontSans,
-    fontSize: 10,
-    color: TOKENS.textLabel,
-    fontVariantNumeric: "tabular-nums",
-  };
-  const body: CSSProperties = {
-    marginTop: 4,
-    marginLeft: 6,
-    fontSize: 13,
-    lineHeight: 1.5,
-    color: TOKENS.textSecondary,
-    fontFamily: TOKENS.fontSans,
-  };
   const caret = reply && !done && !staticMode && frame >= reply.start && frame % 14 < 7 ? "▍" : "";
 
   return (
     <div style={wrap}>
-      <div style={labelRow}>
-        <span style={dot} />
-        <span style={name}>{agent}</span>
-        <span style={ts}>{timestamp}</span>
+      <div style={LABEL_ROW_STYLE}>
+        <span style={DOT_STYLE} />
+        <span style={NAME_STYLE}>{agent}</span>
+        <span style={TIMESTAMP_STYLE}>{timestamp}</span>
       </div>
       {children}
       {reply && (visibleText.length > 0 || done) && (
-        <div style={body}>
+        <div style={BODY_STYLE}>
           {visibleText}
           <span style={{ color: TOKENS.accent }}>{caret}</span>
         </div>

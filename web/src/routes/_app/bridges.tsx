@@ -196,9 +196,10 @@ function BridgesPage() {
             bridgeHealth={page.bridgeHealth}
             bridges={page.bridges}
             errorMessage={page.backgroundError?.message}
-            hasActiveFilters={page.hasActiveFilters}
-            hasNextPage={page.hasNextPage}
-            isFetchingNextPage={page.isFetchingNextPage}
+            emptyState={page.hasActiveFilters ? "filtered" : "default"}
+            paginationStatus={
+              page.isFetchingNextPage ? "loading" : page.hasNextPage ? "available" : undefined
+            }
             onClearFilters={page.clearFilters}
             onLoadMore={() => void page.loadMore()}
             view={page.view}

@@ -21,18 +21,18 @@ function makeSkill(overrides: Partial<SkillPayload> = {}): SkillPayload {
 function renderPanel(props: Partial<React.ComponentProps<typeof SkillDetailPanel>> = {}) {
   const merged: React.ComponentProps<typeof SkillDetailPanel> = {
     skill: makeSkill(),
-    isLoading: false,
+    detailStatus: "ready",
     error: null,
     content: undefined,
-    isContentLoading: false,
+    contentStatus: "ready",
     contentError: null,
     onViewContent: vi.fn(),
     onRetryContent: vi.fn(),
     onDisable: vi.fn(),
     onEnable: vi.fn(),
-    isActionPending: false,
+    actionStatus: "idle",
     shadows: undefined,
-    isShadowsLoading: false,
+    shadowsStatus: "ready",
     shadowsError: null,
     ...props,
   };
@@ -45,12 +45,12 @@ function renderPanel(props: Partial<React.ComponentProps<typeof SkillDetailPanel
 
 describe("SkillDetailPanel", () => {
   it("Should render loading state when isLoading is true", () => {
-    renderPanel({ skill: undefined, isLoading: true });
+    renderPanel({ skill: undefined, detailStatus: "loading" });
     expect(screen.getByTestId("skill-detail-loading")).toBeInTheDocument();
   });
 
   it("Should render error Empty state when error is present", () => {
-    renderPanel({ skill: undefined, error: new Error("kaboom") });
+    renderPanel({ skill: undefined, detailStatus: "error", error: new Error("kaboom") });
     expect(screen.getByTestId("skill-detail-error")).toHaveTextContent("kaboom");
   });
 
@@ -171,8 +171,8 @@ describe("SkillDetailPanel", () => {
     expect(onEnable).not.toHaveBeenCalled();
   });
 
-  it("Should disable the Switch while isActionPending is true", () => {
-    renderPanel({ isActionPending: true });
+  it("Should disable the Switch while an action is pending", () => {
+    renderPanel({ actionStatus: "pending" });
     const sw = screen.getByTestId("skill-enabled-switch");
     expect(sw).toHaveAttribute("aria-disabled", "true");
     expect(sw).toHaveAttribute("data-disabled");
@@ -222,7 +222,7 @@ describe("SkillDetailPanel", () => {
   });
 
   it("Should render content loading, error and body states", () => {
-    const { rerender } = renderPanel({ isContentLoading: true });
+    const { rerender } = renderPanel({ contentStatus: "loading" });
     expect(screen.getByTestId("content-loading")).toBeInTheDocument();
 
     rerender(
@@ -230,11 +230,11 @@ describe("SkillDetailPanel", () => {
         <SkillDetailPanel
           content={undefined}
           contentError={new Error("content offline")}
+          contentStatus="error"
+          detailStatus="ready"
           error={null}
-          isActionPending={false}
-          isContentLoading={false}
-          isLoading={false}
-          isShadowsLoading={false}
+          actionStatus="idle"
+          shadowsStatus="ready"
           onDisable={vi.fn()}
           onEnable={vi.fn()}
           onRetryContent={vi.fn()}
@@ -252,11 +252,11 @@ describe("SkillDetailPanel", () => {
         <SkillDetailPanel
           content="# Hello"
           contentError={null}
+          contentStatus="ready"
+          detailStatus="ready"
           error={null}
-          isActionPending={false}
-          isContentLoading={false}
-          isLoading={false}
-          isShadowsLoading={false}
+          actionStatus="idle"
+          shadowsStatus="ready"
           onDisable={vi.fn()}
           onEnable={vi.fn()}
           onRetryContent={vi.fn()}

@@ -7,6 +7,8 @@ import type { LoopTimelineGeneration } from "../../lib/loop-timeline";
 import type { GoalTurnTimelineItem } from "../../hooks/use-goal-turns";
 import { LoopGenerationCard } from "./loop-generation-card";
 
+const EMPTY_GOAL_TURNS: readonly GoalTurnTimelineItem[] = [];
+
 interface LoopGenerationTimelineProps {
   generations: LoopTimelineGeneration[];
   gateVerdicts: Record<string, LoopGateVerdict>;
@@ -29,7 +31,7 @@ export function LoopGenerationTimeline({
   gateVerdicts,
   channelMessages,
   isLive,
-  goalTurns = [],
+  goalTurns = EMPTY_GOAL_TURNS,
   hasMoreGoalTurns = false,
   isLoadingMoreGoalTurns = false,
   onLoadMoreGoalTurns,

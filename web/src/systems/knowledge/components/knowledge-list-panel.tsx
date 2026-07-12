@@ -142,12 +142,13 @@ function KnowledgeListPanel({
   errorMessage = null,
   searchMode = false,
   searchInfo = null,
-  totalCount = memories.length,
+  totalCount,
   hasMore = false,
   isLoadingMore = false,
   onLoadMore,
   onRetry,
 }: KnowledgeListPanelProps) {
+  const resolvedTotalCount = totalCount === undefined ? memories.length : totalCount;
   const groups = groupKnowledgeMemoriesByScope(memories);
   const isEmpty = memories.length === 0;
 
@@ -243,7 +244,7 @@ function KnowledgeListPanel({
             {!searchMode && !errorMessage && hasMore && onLoadMore ? (
               <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-3">
                 <span className="text-xs tabular-nums text-subtle">
-                  {memories.length} of {totalCount}
+                  {memories.length} of {resolvedTotalCount}
                 </span>
                 <Button
                   aria-busy={isLoadingMore}

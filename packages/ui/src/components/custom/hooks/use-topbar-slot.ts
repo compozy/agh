@@ -31,18 +31,19 @@ export interface TopbarSlotValue {
   overflow?: React.ReactNode;
 }
 
-export interface TopbarSlotSetters {
-  setSlot: (owner: object, slot: TopbarSlotValue | null) => void;
+interface TopbarSlotPublisher {
+  publishSlot: (owner: object, slot: TopbarSlotValue | null) => void;
   clearSlot: (owner: object) => void;
 }
 
-export interface TopbarSlotContextValue extends TopbarSlotSetters {
-  slot: TopbarSlotValue | null;
+interface TopbarSlotStore extends TopbarSlotPublisher {
+  getSnapshot: () => TopbarSlotValue | null;
+  subscribe: (listener: () => void) => () => void;
 }
 
-export const TopbarSlotSettersContext = React.createContext<TopbarSlotSetters | null>(null);
+export const TopbarSlotSettersContext = React.createContext<TopbarSlotPublisher | null>(null);
 
-export const TopbarSlotContext = React.createContext<TopbarSlotContextValue | null>(null);
+export const TopbarSlotContext = React.createContext<TopbarSlotStore | null>(null);
 
 function slotKey(slot: TopbarSlotValue | null): string {
   if (slot === null) return "null";
@@ -92,47 +93,60 @@ export function isSameTopbarSlot(a: TopbarSlotValue | null, b: TopbarSlotValue |
   return slotKey(a) === slotKey(b);
 }
 
+export function createTopbarSlotStore(): TopbarSlotStore {
+  let active: { owner: object; slot: TopbarSlotValue | null } | null = null;
+  const listeners = new Set<() => void>();
+  const emit = () => {
+    for (const listener of listeners) listener();
+  };
+
+  return {
+    getSnapshot: () => active?.slot ?? null,
+    subscribe: listener => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    publishSlot: (owner, slot) => {
+      if (active?.owner === owner && isSameTopbarSlot(active.slot, slot)) return;
+      active = { owner, slot };
+      emit();
+    },
+    clearSlot: owner => {
+      if (active?.owner !== owner) return;
+      active = null;
+      emit();
+    },
+  };
+}
+
+const subscribeToNothing = () => () => undefined;
+const getNullSnapshot = () => null;
+
 /**
  * Pushes a topbar slot for the lifetime of the calling component.
  */
 export function useTopbarSlot(slot: TopbarSlotValue | null): void {
   const setters = React.use(TopbarSlotSettersContext);
-  const setSlot = setters?.setSlot;
-  const clearSlot = setters?.clearSlot;
-  const ownerRef = React.useRef<object>({});
-  const slotRef = React.useRef(slot);
-  slotRef.current = slot;
-  const signature = slotKey(slot);
-  React.useEffect(() => {
-    if (!setSlot || !clearSlot) return;
-    if (slotRef.current === null) {
-      clearSlot(ownerRef.current);
+  const [owner] = React.useState<object>(() => ({}));
+  React.useLayoutEffect(() => {
+    if (!setters) return;
+    if (slot === null) {
+      setters.clearSlot(owner);
       return;
     }
-    setSlot(ownerRef.current, slotRef.current);
-  }, [
-    setSlot,
-    clearSlot,
-    signature,
-    slot?.back,
-    slot?.title,
-    slot?.tabs,
-    slot?.search,
-    slot?.actions,
-    slot?.meta,
-    slot?.overflow,
-  ]);
+    setters.publishSlot(owner, slot);
+  }, [owner, setters, slot]);
   React.useEffect(() => {
-    if (!clearSlot) return;
-    return () => clearSlot(ownerRef.current);
-  }, [clearSlot]);
+    if (!setters) return;
+    return () => setters.clearSlot(owner);
+  }, [owner, setters]);
 }
 
 export function useTopbarSlotValue(): TopbarSlotValue | null {
-  const ctx = React.use(TopbarSlotContext);
-  return ctx?.slot ?? null;
-}
-
-export function useTopbarSlotContext(): TopbarSlotContextValue | null {
-  return React.use(TopbarSlotContext);
+  const store = React.use(TopbarSlotContext);
+  return React.useSyncExternalStore(
+    store?.subscribe ?? subscribeToNothing,
+    store?.getSnapshot ?? getNullSnapshot,
+    store?.getSnapshot ?? getNullSnapshot
+  );
 }

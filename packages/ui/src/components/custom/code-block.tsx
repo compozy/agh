@@ -216,14 +216,14 @@ function CopyIconButton({
     []
   );
 
-  const scheduleReset = React.useCallback(() => {
+  const scheduleReset = () => {
     if (copyFeedbackTimerRef.current) {
       clearTimeout(copyFeedbackTimerRef.current);
     }
     copyFeedbackTimerRef.current = setTimeout(() => setCopyState("idle"), COPY_FEEDBACK_MS);
-  }, []);
+  };
 
-  const handleCopy = React.useCallback(async () => {
+  const handleCopy = async () => {
     if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
       setCopyState("failed");
       scheduleReset();
@@ -237,7 +237,7 @@ function CopyIconButton({
       setCopyState("failed");
     }
     scheduleReset();
-  }, [scheduleReset, value]);
+  };
 
   const ariaLabel =
     copyState === "copied" ? copiedLabel : copyState === "failed" ? copyFailedLabel : copyLabel;

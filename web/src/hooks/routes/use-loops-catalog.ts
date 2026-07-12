@@ -1,4 +1,3 @@
-import { useCallback } from "react";
 import { useChildMatches, useNavigate } from "@tanstack/react-router";
 
 import type { ListingViewMode } from "@agh/ui";
@@ -57,67 +56,49 @@ function useLoopsCatalog(search: LoopsRouteSearch = {}) {
   };
   const loopsQuery = useLoops(workspaceId, catalogFilters, workspaceId !== "" && !hasChildMatch);
 
-  const updateSearch = useCallback(
-    (updater: (current: LoopsRouteSearch) => LoopsRouteSearch) => {
-      void navigate({
-        search: current => updater(current),
-        to: "/loops",
-      });
-    },
-    [navigate]
-  );
+  const updateSearch = (updater: (current: LoopsRouteSearch) => LoopsRouteSearch) => {
+    void navigate({
+      search: current => updater(current),
+      to: "/loops",
+    });
+  };
 
-  const setSearchQuery = useCallback(
-    (nextQuery: string) => {
-      updateSearch(current => ({
-        ...current,
-        q: normalizeListingSearchValue(nextQuery),
-      }));
-    },
-    [updateSearch]
-  );
+  const setSearchQuery = (nextQuery: string) => {
+    updateSearch(current => ({
+      ...current,
+      q: normalizeListingSearchValue(nextQuery),
+    }));
+  };
 
-  const setView = useCallback(
-    (nextView: ListingViewMode) => {
-      updateSearch(current => ({
-        ...current,
-        view: nextView === "rows" ? undefined : nextView,
-      }));
-    },
-    [updateSearch]
-  );
+  const setView = (nextView: ListingViewMode) => {
+    updateSearch(current => ({
+      ...current,
+      view: nextView === "rows" ? undefined : nextView,
+    }));
+  };
 
-  const setKindFilter = useCallback(
-    (next: LoopKindFilter) => {
-      updateSearch(current => ({
-        ...current,
-        kind: next === "all" ? undefined : next,
-      }));
-    },
-    [updateSearch]
-  );
+  const setKindFilter = (next: LoopKindFilter) => {
+    updateSearch(current => ({
+      ...current,
+      kind: next === "all" ? undefined : next,
+    }));
+  };
 
-  const setCategoryFilter = useCallback(
-    (next: string | null) => {
-      updateSearch(current => ({
-        ...current,
-        category: next ?? undefined,
-      }));
-    },
-    [updateSearch]
-  );
+  const setCategoryFilter = (next: string | null) => {
+    updateSearch(current => ({
+      ...current,
+      category: next ?? undefined,
+    }));
+  };
 
-  const setStatusFilter = useCallback(
-    (next: LoopStatusFilter | null) => {
-      updateSearch(current => ({
-        ...current,
-        status: next ?? undefined,
-      }));
-    },
-    [updateSearch]
-  );
+  const setStatusFilter = (next: LoopStatusFilter | null) => {
+    updateSearch(current => ({
+      ...current,
+      status: next ?? undefined,
+    }));
+  };
 
-  const clearFilters = useCallback(() => {
+  const clearFilters = () => {
     updateSearch(current => ({
       ...current,
       q: undefined,
@@ -125,18 +106,15 @@ function useLoopsCatalog(search: LoopsRouteSearch = {}) {
       category: undefined,
       status: undefined,
     }));
-  }, [updateSearch]);
+  };
 
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = () => {
     void loopsQuery.refetch();
-  }, [loopsQuery]);
+  };
 
-  const handleRun = useCallback(
-    (entry: LoopCatalogEntry) => {
-      void navigate({ to: "/loops/$name/run", params: { name: entry.name } });
-    },
-    [navigate]
-  );
+  const handleRun = (entry: LoopCatalogEntry) => {
+    void navigate({ to: "/loops/$name/run", params: { name: entry.name } });
+  };
 
   return {
     activeWorkspace,

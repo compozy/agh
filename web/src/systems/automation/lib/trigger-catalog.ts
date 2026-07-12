@@ -282,10 +282,14 @@ export function listEventGroups(query = ""): EventGroupBucket[] {
  */
 export function availableDataFields(def: EventDef): string[] {
   const out = [...def.fields];
+  const fields = new Set(out);
   if (def.openPayload) {
     for (const key of Object.keys(def.sample.data)) {
       const path = `data.${key}`;
-      if (!out.includes(path)) out.push(path);
+      if (!fields.has(path)) {
+        fields.add(path);
+        out.push(path);
+      }
     }
   }
   return out;

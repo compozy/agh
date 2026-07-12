@@ -1,6 +1,10 @@
 import { ConfirmDialog } from "@agh/ui";
 import { useBlocker } from "@tanstack/react-router";
-import { useCallback, useMemo, type ReactNode } from "react";
+import type { ReactNode } from "react";
+
+function shouldBlockNavigation(): boolean {
+  return true;
+}
 
 export interface UseUnsavedGuardOptions {
   dirty: boolean;
@@ -25,41 +29,37 @@ export function useUnsavedGuard({
   dirty,
   entityName,
 }: UseUnsavedGuardOptions): UseUnsavedGuardResult {
-  const shouldBlock = useCallback(() => dirty, [dirty]);
   const blocker = useBlocker({
-    shouldBlockFn: shouldBlock,
+    shouldBlockFn: shouldBlockNavigation,
     withResolver: true,
     disabled: !dirty,
     enableBeforeUnload: dirty,
   });
 
-  const proceed = useCallback(() => {
+  const proceed = () => {
     blocker.proceed?.();
-  }, [blocker]);
+  };
 
-  const reset = useCallback(() => {
+  const reset = () => {
     blocker.reset?.();
-  }, [blocker]);
+  };
 
-  const confirmDialog = useMemo(
-    () => (
-      <ConfirmDialog
-        open={blocker.status === "blocked"}
-        onOpenChange={open => {
-          if (!open) reset();
-        }}
-        tone="warning"
-        title="Discard unsaved changes?"
-        description={`Your edits to ${entityName} will be lost.`}
-        confirmLabel="Discard changes"
-        cancelLabel="Keep editing"
-        onConfirm={proceed}
-        confirmButtonProps={{ "data-testid": "unsaved-guard-discard" }}
-        cancelButtonProps={{ "data-testid": "unsaved-guard-keep-editing" }}
-        contentProps={{ "data-testid": "unsaved-guard-dialog" }}
-      />
-    ),
-    [blocker.status, entityName, proceed, reset]
+  const confirmDialog = (
+    <ConfirmDialog
+      open={blocker.status === "blocked"}
+      onOpenChange={open => {
+        if (!open) reset();
+      }}
+      tone="warning"
+      title="Discard unsaved changes?"
+      description={`Your edits to ${entityName} will be lost.`}
+      confirmLabel="Discard changes"
+      cancelLabel="Keep editing"
+      onConfirm={proceed}
+      confirmButtonProps={{ "data-testid": "unsaved-guard-discard" }}
+      cancelButtonProps={{ "data-testid": "unsaved-guard-keep-editing" }}
+      contentProps={{ "data-testid": "unsaved-guard-dialog" }}
+    />
   );
 
   return {

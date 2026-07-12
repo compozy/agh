@@ -47,7 +47,7 @@ function SkeletonUserRow() {
  * from the `@agh/ui` `Skeleton` primitive (`animate-shimmer` over neutral surfaces) so
  * a loading session is never mistaken for an empty one.
  */
-export function ThreadMessageSkeleton() {
+function ThreadMessageSkeleton() {
   return (
     <div
       role="status"
@@ -65,7 +65,7 @@ export function ThreadMessageSkeleton() {
 /**
  * Empty transcript pane — shown ONLY when the fetch succeeded with zero messages.
  */
-export function ThreadEmpty({ agentName }: { agentName: string }) {
+function ThreadEmpty({ agentName }: { agentName: string }) {
   return (
     <div className={STATE_PANE_FRAME}>
       <div className="max-w-md text-center">
@@ -83,7 +83,7 @@ export function ThreadEmpty({ agentName }: { agentName: string }) {
  * Retryable error pane — shown when the transcript fetch failed. Surfaces the provider
  * detail when present and keeps the recovery action wired to the transcript refetch.
  */
-export function ThreadError({ error, onRetry }: { error: Error | null; onRetry: () => void }) {
+function ThreadError({ error, onRetry }: { error: Error | null; onRetry: () => void }) {
   const detail = formatMessageError(error);
   return (
     <div className={STATE_PANE_FRAME}>

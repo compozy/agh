@@ -1,5 +1,4 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
 
 import { sessionKeys } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
@@ -75,30 +74,21 @@ export function useSendNetworkMessage(
     },
     onSettled: (_data, _error, variables) => invalidateConversation(queryClient, variables),
   });
-  const scoped = useCallback(
-    (input: SendNetworkMessageInput, clientMessageId?: string) => {
-      if (!workspaceId) {
-        return Promise.reject(new NetworkApiError("No active workspace selected", 400));
-      }
-      return mutation.mutateAsync({ ...input, clientMessageId, workspaceId });
-    },
-    [mutation, workspaceId]
-  );
-  const discard = useCallback(
-    (input: SendNetworkMessageInput, clientMessageId: string) => {
-      if (workspaceId)
-        discardOptimisticMessage(queryClient, { ...input, workspaceId }, clientMessageId);
-    },
-    [queryClient, workspaceId]
-  );
-  return useMemo(
-    () => ({
-      send: (input: SendNetworkMessageInput) => scoped(input),
-      retry: (input: SendNetworkMessageInput, clientMessageId: string) =>
-        scoped(input, clientMessageId),
-      discard,
-      isSending: mutation.isPending,
-    }),
-    [discard, mutation.isPending, scoped]
-  );
+  const scoped = (input: SendNetworkMessageInput, clientMessageId?: string) => {
+    if (!workspaceId) {
+      return Promise.reject(new NetworkApiError("No active workspace selected", 400));
+    }
+    return mutation.mutateAsync({ ...input, clientMessageId, workspaceId });
+  };
+  const discard = (input: SendNetworkMessageInput, clientMessageId: string) => {
+    if (workspaceId)
+      discardOptimisticMessage(queryClient, { ...input, workspaceId }, clientMessageId);
+  };
+  return {
+    send: (input: SendNetworkMessageInput) => scoped(input),
+    retry: (input: SendNetworkMessageInput, clientMessageId: string) =>
+      scoped(input, clientMessageId),
+    discard,
+    isSending: mutation.isPending,
+  };
 }

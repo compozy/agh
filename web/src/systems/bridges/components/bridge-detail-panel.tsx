@@ -962,7 +962,7 @@ function BridgeDetailHeader({
       actions={actions}
       back={onBack}
       backLabel="Back to bridges"
-      crumbs={onBack ? [{ label: "Bridges", onSelect: onBack }] : undefined}
+      crumbs={onBack ? [{ id: "bridges", label: "Bridges", onSelect: onBack }] : undefined}
       data-testid="bridge-detail-header"
       meta={meta}
       pills={pills}

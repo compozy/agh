@@ -1,10 +1,4 @@
-import type {
-  Filter,
-  FilterFieldConfig,
-  FilterFieldGroup,
-  FilterFieldsConfig,
-  FilterGroup,
-} from "../filters";
+import type { Filter, FilterFieldConfig, FilterFieldGroup, FilterFieldsConfig } from "../filters";
 
 export const isFieldGroup = <T = unknown>(
   item: FilterFieldConfig<T> | FilterFieldGroup<T>
@@ -54,16 +48,4 @@ export const createFilter = <T = unknown>(
   field,
   operator: operator || "is",
   values,
-});
-
-export const createFilterGroup = <T = unknown>(
-  id: string,
-  label: string,
-  fields: FilterFieldConfig<T>[],
-  initialFilters: Filter<T>[] = []
-): FilterGroup<T> => ({
-  id,
-  label,
-  filters: initialFilters,
-  fields,
 });

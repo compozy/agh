@@ -1,5 +1,4 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
 
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -75,35 +74,23 @@ export function useNetworkMessages({
     filters: query,
     enabled: isReady && Boolean(active.data) && !active.isFetchingNextPage,
   });
-  const loadOlder = useCallback(async () => {
+  const loadOlder = async () => {
     if (!active.hasNextPage || active.isFetchingNextPage) {
       return;
     }
     await active.fetchNextPage();
-  }, [active.fetchNextPage, active.hasNextPage, active.isFetchingNextPage]);
+  };
 
-  return useMemo(
-    () => ({
-      messages:
-        surface === "thread"
-          ? flattenNetworkMessages(threadQuery.data)
-          : flattenNetworkMessages(directQuery.data),
-      isLoading: isReady && active.isLoading,
-      isFetching: active.isFetching || tail.isFetching,
-      hasOlder: active.hasNextPage,
-      isLoadingOlder: active.isFetchingNextPage,
-      loadOlder,
-      error: active.error ?? tail.error,
-    }),
-    [
-      active,
-      directQuery.data,
-      isReady,
-      loadOlder,
-      surface,
-      tail.error,
-      tail.isFetching,
-      threadQuery.data,
-    ]
-  );
+  return {
+    messages:
+      surface === "thread"
+        ? flattenNetworkMessages(threadQuery.data)
+        : flattenNetworkMessages(directQuery.data),
+    isLoading: isReady && active.isLoading,
+    isFetching: active.isFetching || tail.isFetching,
+    hasOlder: active.hasNextPage,
+    isLoadingOlder: active.isFetchingNextPage,
+    loadOlder,
+    error: active.error ?? tail.error,
+  };
 }

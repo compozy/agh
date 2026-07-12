@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { loadGithubStars } from "./github-stars-api";
 import { useIsInView, type UseIsInViewOptions } from "./use-is-in-view";
 
 export interface GithubStarsContextType {
@@ -40,38 +41,60 @@ export function useGithubStarsController({
     inViewMargin,
   });
 
-  const [stars, setStars] = React.useState(value ?? 0);
+  const [loadedStars, setLoadedStars] = React.useState(0);
   const [currentStars, setCurrentStars] = React.useState(0);
-  const [isLoading, setIsLoading] = React.useState(true);
-  const isCompleted = React.useMemo(() => currentStars === stars, [currentStars, stars]);
+  const [remoteIsLoading, setRemoteIsLoading] = React.useState(true);
+  const stars = value ?? loadedStars;
+  const isLoading = value === undefined ? remoteIsLoading : false;
+  const setStars = (nextStars: number) => setLoadedStars(nextStars);
+  const isCompleted = currentStars === stars;
 
   React.useEffect(() => {
-    if (value !== undefined && username && repo) return;
+    if (value !== undefined) return;
     if (!isInView) {
-      setStars(0);
-      setIsLoading(true);
+      setLoadedStars(0);
+      setRemoteIsLoading(true);
       return;
     }
+    setLoadedStars(0);
+    if (!username || !repo) {
+      setRemoteIsLoading(false);
+      return;
+    }
+    setRemoteIsLoading(true);
 
+    const controller = new AbortController();
     const timeout = setTimeout(() => {
-      fetch(`https://api.github.com/repos/${username}/${repo}`)
-        .then(response => response.json())
-        .then(data => {
-          if (data && typeof data.stargazers_count === "number") {
-            setStars(data.stargazers_count);
+      void loadGithubStars(username, repo, controller.signal)
+        .then(nextStars => {
+          if (nextStars !== null) {
+            setLoadedStars(nextStars);
           }
         })
-        .catch(console.error)
-        .finally(() => setIsLoading(false));
+        .catch(error => {
+          if (!(error instanceof DOMException && error.name === "AbortError")) {
+            console.error("Failed to load GitHub repository stars", error);
+          }
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setRemoteIsLoading(false);
+        });
     }, delay);
 
-    return () => clearTimeout(timeout);
+    return () => {
+      clearTimeout(timeout);
+      controller.abort();
+    };
   }, [username, repo, value, isInView, delay]);
 
-  const contextValue = React.useMemo<GithubStarsContextType>(
-    () => ({ stars, currentStars, isCompleted, isLoading, setStars, setCurrentStars }),
-    [stars, currentStars, isCompleted, isLoading]
-  );
+  const contextValue: GithubStarsContextType = {
+    stars,
+    currentStars,
+    isCompleted,
+    isLoading,
+    setStars,
+    setCurrentStars,
+  };
 
   return { localRef, isLoading, contextValue };
 }

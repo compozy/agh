@@ -195,11 +195,24 @@ function SkillsPage() {
       {isMarketplace ? (
         <MarketplaceView
           installedSkillNames={page.installedSkillNames}
-          isInstalling={page.isInstalling}
-          isRemoving={page.isRemoving}
-          isSearchEnabled={page.isMarketplaceSearchEnabled}
-          isSearching={page.isMarketplaceSearching}
-          isUpdating={page.isUpdating}
+          searchStatus={
+            !page.isMarketplaceSearchEnabled
+              ? "prompt"
+              : page.isMarketplaceSearching
+                ? "searching"
+                : page.marketplaceSearchError
+                  ? "error"
+                  : "ready"
+          }
+          pendingActions={
+            new Set(
+              [
+                page.isInstalling ? "install" : null,
+                page.isUpdating ? "update" : null,
+                page.isRemoving ? "remove" : null,
+              ].filter((action): action is "install" | "update" | "remove" => action !== null)
+            )
+          }
           listings={page.marketplaceListings}
           onClearSearch={() => page.setSearchQuery("")}
           onInstall={page.handleInstallMarketplace}

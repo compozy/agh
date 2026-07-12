@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useId,
-  useMemo,
-  useRef,
-  type ComponentProps,
-  type KeyboardEvent,
-} from "react";
+import { useId, type ComponentProps, type KeyboardEvent, type RefObject } from "react";
 
 import type { Popover } from "@agh/ui";
 
@@ -22,6 +15,9 @@ export interface UseRuntimeSelectorPopupArgs {
   providers: RuntimeProviderOption[];
   value: RuntimeSelectorValue;
   disabled: boolean;
+  triggerRef: RefObject<HTMLDivElement | null>;
+  searchRef: RefObject<HTMLInputElement | null>;
+  popupRef: RefObject<HTMLDivElement | null>;
 }
 
 /**
@@ -41,22 +37,22 @@ export function useRuntimeSelectorPopup({
   providers,
   value,
   disabled,
+  triggerRef,
+  searchRef,
+  popupRef,
 }: UseRuntimeSelectorPopupArgs) {
   const { open, openWith, close } = controller;
-  const triggerRef = useRef<HTMLDivElement>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
-  const popupRef = useRef<HTMLDivElement>(null);
 
   const baseId = useId();
   const popupId = `${baseId}-popup`;
   const listId = `${baseId}-list`;
-  const optionId = useCallback((rowIndex: number) => `${baseId}-option-${rowIndex}`, [baseId]);
+  const optionId = (rowIndex: number) => `${baseId}-option-${rowIndex}`;
   const activeDescendant =
     controller.highlightIndex >= 0 ? optionId(controller.highlightIndex) : undefined;
 
   // Register with the single global ⌘K owner registry (one document listener for
   // all selectors; deterministic owner resolution — never a per-instance handler).
-  const openModel = useCallback(() => openWith("model"), [openWith]);
+  const openModel = () => openWith("model");
   useCommandKOwnership({
     id: baseId,
     disabled,
@@ -67,127 +63,105 @@ export function useRuntimeSelectorPopup({
   });
 
   // Focus entering this trigger makes it the last-focused ⌘K owner candidate.
-  const handleTriggerFocus = useCallback(() => noteCommandKFocus(baseId), [baseId]);
+  const handleTriggerFocus = () => noteCommandKFocus(baseId);
 
-  const providerName = useMemo(() => {
-    const byId = new Map(providers.map(provider => [provider.id, provider.name]));
-    return (id: string) => byId.get(id) ?? id;
-  }, [providers]);
+  const providerNames = new Map(providers.map(provider => [provider.id, provider.name]));
+  const providerName = (id: string) => providerNames.get(id) ?? id;
 
-  const providerKind = useMemo(() => {
-    const byId = new Map(
-      providers.map(provider => [provider.id, provider.runtime_provider ?? provider.id])
-    );
-    return (id: string) => byId.get(id) ?? id;
-  }, [providers]);
+  const providerKinds = new Map(
+    providers.map(provider => [provider.id, provider.runtime_provider ?? provider.id])
+  );
+  const providerKind = (id: string) => providerKinds.get(id) ?? id;
 
   // Resolve the popup element a deep-link intent should land on: the current
   // provider's rail radio, the active reasoning button, else the search field.
-  const focusRegion = useCallback(
-    (intent: TriggerFocus): HTMLElement | null => {
-      const root = popupRef.current;
-      if (root && intent === "provider") {
-        const railItem = root.querySelector<HTMLElement>(
-          `[data-rail="${CSS.escape(value.provider)}"]`
-        );
-        if (railItem) return railItem;
-      }
-      if (root && intent === "reasoning") {
-        const active = root.querySelector<HTMLElement>('[data-on="true"]');
-        if (active) return active;
-        const first = root.querySelector<HTMLElement>("[data-rz]");
-        if (first) return first;
-      }
-      return searchRef.current;
-    },
-    [value.provider]
-  );
+  const focusRegion = (intent: TriggerFocus): HTMLElement | null => {
+    const root = popupRef.current;
+    if (root && intent === "provider") {
+      const railItem = root.querySelector<HTMLElement>(
+        `[data-rail="${CSS.escape(value.provider)}"]`
+      );
+      if (railItem) return railItem;
+    }
+    if (root && intent === "reasoning") {
+      const active = root.querySelector<HTMLElement>('[data-on="true"]');
+      if (active) return active;
+      const first = root.querySelector<HTMLElement>("[data-rz]");
+      if (first) return first;
+    }
+    return searchRef.current;
+  };
 
-  const handleOpenChange = useCallback<PopoverOpenChange>(
-    (next, details) => {
-      if (next) {
-        if (!disabled) openWith("model");
-        return;
-      }
-      // The anchor group is not a base-ui trigger, so an outside-press landing on
-      // it would close-then-reopen; ignore it and let the segment handlers drive.
-      if (details.reason === "outside-press") {
-        const target = details.event?.target as Node | null;
-        if (target && triggerRef.current?.contains(target)) return;
-      }
-      close();
-    },
-    [close, disabled, openWith]
-  );
+  const handleOpenChange: PopoverOpenChange = (next, details) => {
+    if (next) {
+      if (!disabled) openWith("model");
+      return;
+    }
+    // The anchor group is not a base-ui trigger, so an outside-press landing on
+    // it would close-then-reopen; ignore it and let the segment handlers drive.
+    if (details.reason === "outside-press") {
+      const target = details.event?.target as Node | null;
+      if (target && triggerRef.current?.contains(target)) return;
+    }
+    close();
+  };
 
-  const handleSegment = useCallback(
-    (focus: TriggerFocus) => {
-      if (disabled) return;
-      controller.focusIntent.current = focus;
-      if (!open) {
-        openWith(focus);
-        return;
-      }
-      // Already open: clicking a different segment must actively re-route focus to
-      // that region (updating the intent ref alone would not move focus, since
-      // base-ui only applies `initialFocus` on the open transition).
-      focusRegion(focus)?.focus();
-    },
-    [controller.focusIntent, disabled, focusRegion, open, openWith]
-  );
+  const handleSegment = (focus: TriggerFocus) => {
+    if (disabled) return;
+    controller.setFocusIntent(focus);
+    if (!open) {
+      openWith(focus);
+      return;
+    }
+    // Already open: clicking a different segment must actively re-route focus to
+    // that region (updating the intent ref alone would not move focus, since
+    // base-ui only applies `initialFocus` on the open transition).
+    focusRegion(focus)?.focus();
+  };
 
-  const resolveInitialFocus = useCallback(
-    (): HTMLElement | null => focusRegion(controller.focusIntent.current),
-    [controller.focusIntent, focusRegion]
-  );
+  const resolveInitialFocus = (): HTMLElement | null => focusRegion(controller.getFocusIntent());
 
-  const anchor = useCallback(() => triggerRef.current, []);
+  const anchor = () => triggerRef.current;
 
   // Restore focus to the exact segment that opened the popup (the tracked intent),
   // not always the first segment. Falls back to the provider segment then the group.
-  const finalFocus = useCallback(() => {
+  const finalFocus = () => {
     const trigger = triggerRef.current;
     if (!trigger) return null;
-    const intent = controller.focusIntent.current;
+    const intent = controller.getFocusIntent();
     return (
       trigger.querySelector<HTMLElement>(`[data-focus="${intent}"]`) ??
       trigger.querySelector<HTMLElement>('[data-focus="provider"]') ??
       trigger
     );
-  }, [controller.focusIntent]);
+  };
 
-  const handleSearchKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLInputElement>) => {
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        controller.moveHighlight(1);
-      } else if (event.key === "ArrowUp") {
-        event.preventDefault();
-        controller.moveHighlight(-1);
-      } else if (event.key === "Home") {
-        event.preventDefault();
-        controller.moveHighlightEdge("first");
-      } else if (event.key === "End") {
-        event.preventDefault();
-        controller.moveHighlightEdge("last");
-      } else if (event.key === "Enter") {
-        if (controller.commitHighlight()) event.preventDefault();
-      } else if (event.altKey && event.code === "KeyF") {
-        // Alt+F favorites the highlighted option (announced via aria-keyshortcuts).
-        // `event.code` is layout-independent so it survives Alt producing "ƒ" on
-        // macOS; Cmd/Ctrl-D is intentionally avoided (browser bookmark conflict).
-        if (controller.toggleHighlightedFavorite()) event.preventDefault();
-      }
-      // ⌘K while open is handled by the global command-k registry (rule 1: the
-      // open selector owns the shortcut and toggles itself closed).
-    },
-    [controller]
-  );
+  const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      controller.moveHighlight(1);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      controller.moveHighlight(-1);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      controller.moveHighlightEdge("first");
+    } else if (event.key === "End") {
+      event.preventDefault();
+      controller.moveHighlightEdge("last");
+    } else if (event.key === "Enter") {
+      if (controller.commitHighlight()) event.preventDefault();
+    } else if (event.altKey && event.code === "KeyF") {
+      // Alt+F favorites the highlighted option (announced via aria-keyshortcuts).
+      // `event.code` is layout-independent so it survives Alt producing "ƒ" on
+      // macOS; Cmd/Ctrl-D is intentionally avoided (browser bookmark conflict).
+      if (controller.toggleHighlightedFavorite()) event.preventDefault();
+    }
+    // ⌘K while open is handled by the global command-k registry (rule 1: the
+    // open selector owns the shortcut and toggles itself closed).
+  };
 
   return {
-    triggerRef,
-    searchRef,
-    popupRef,
     popupId,
     listId,
     optionId,

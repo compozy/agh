@@ -96,6 +96,8 @@ describe("AutomationRunHistory", () => {
     expect(within(failedRow).getByText("Delivery: dispatcher unavailable")).toBeInTheDocument();
     expect(within(completedRow).getByText("fire_daily_review_001")).toBeInTheDocument();
     expect(screen.getByText(/scheduled Apr 11, 2026/)).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    expect(screen.getAllByRole("listitem").every(item => item.tagName === "LI")).toBe(true);
   });
 
   it("Should render rows without a session as static rows that surface a pending hint", () => {

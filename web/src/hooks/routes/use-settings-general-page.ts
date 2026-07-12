@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useState, type SetStateAction } from "react";
 
 import { useSettingsPage } from "@/hooks/routes/use-settings-page";
 import {
@@ -49,45 +49,46 @@ export function useSettingsGeneralPage() {
   const envelope = query.data ?? null;
   const workspaceContextKey = activeWorkspaceId ?? "__none__";
 
-  const [draft, setDraft] = useState<GeneralConfig | null>(null);
-  const [lastAppliedLabel, setLastAppliedLabel] = useState<string | null>(null);
-  const draftWorkspaceContext = useRef<string | null>(null);
+  const [draftState, setDraftState] = useState<{
+    draft: GeneralConfig | null;
+    workspaceKey: string;
+  }>({ draft: null, workspaceKey: workspaceContextKey });
+  const draft =
+    draftState.workspaceKey === workspaceContextKey
+      ? (draftState.draft ?? envelope?.config ?? null)
+      : (envelope?.config ?? null);
+  const setDraft = (update: SetStateAction<GeneralConfig | null>) => {
+    setDraftState(current => {
+      const currentDraft =
+        current.workspaceKey === workspaceContextKey
+          ? (current.draft ?? envelope?.config ?? null)
+          : (envelope?.config ?? null);
+      return {
+        draft: typeof update === "function" ? update(currentDraft) : update,
+        workspaceKey: workspaceContextKey,
+      };
+    });
+  };
+  const [lastAppliedState, setLastAppliedState] = useState<{
+    label: string | null;
+    workspaceKey: string;
+  }>({ label: null, workspaceKey: workspaceContextKey });
+  const lastAppliedLabel =
+    lastAppliedState.workspaceKey === workspaceContextKey ? lastAppliedState.label : null;
+  const setLastAppliedLabel = (label: string | null) => {
+    setLastAppliedState({ label, workspaceKey: workspaceContextKey });
+  };
 
-  useEffect(() => {
-    if (envelope && draft === null) {
-      setDraft(envelope.config);
-      draftWorkspaceContext.current = workspaceContextKey;
-      return;
-    }
+  const isDirty =
+    envelope && draft ? JSON.stringify(envelope.config) !== JSON.stringify(draft) : false;
 
-    if (!envelope || draft === null) {
-      return;
-    }
-
-    if (draftWorkspaceContext.current === null) {
-      draftWorkspaceContext.current = workspaceContextKey;
-      return;
-    }
-
-    if (draftWorkspaceContext.current !== workspaceContextKey) {
-      setDraft(envelope.config);
-      setLastAppliedLabel(null);
-      draftWorkspaceContext.current = workspaceContextKey;
-    }
-  }, [envelope, draft, workspaceContextKey]);
-
-  const isDirty = useMemo(() => {
-    if (!envelope || !draft) return false;
-    return JSON.stringify(envelope.config) !== JSON.stringify(draft);
-  }, [envelope, draft]);
-
-  const handleReset = useCallback(() => {
+  const handleReset = () => {
     if (envelope) {
       setDraft(envelope.config);
     }
-  }, [envelope]);
+  };
 
-  const handleSave = useCallback(() => {
+  const handleSave = () => {
     if (!draft) return;
     const body: SettingsUpdateGeneralRequest = { config: draft };
     mutation.mutate(body, {
@@ -95,15 +96,15 @@ export function useSettingsGeneralPage() {
         setLastAppliedLabel(applyResultLabel(result));
       },
     });
-  }, [draft, mutation]);
+  };
 
-  const handleReload = useCallback(() => {
+  const handleReload = () => {
     reload.mutate(undefined, {
       onSuccess: result => {
         setLastAppliedLabel(applyResultLabel(result));
       },
     });
-  }, [reload]);
+  };
 
   const saveError =
     mutation.error instanceof SettingsApiError
@@ -112,9 +113,9 @@ export function useSettingsGeneralPage() {
         ? mutation.error.message
         : null;
 
-  const handleRetry = useCallback(() => {
+  const handleRetry = () => {
     void query.refetch();
-  }, [query]);
+  };
 
   return {
     isLoading: query.isLoading,

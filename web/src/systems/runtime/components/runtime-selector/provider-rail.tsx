@@ -1,5 +1,5 @@
 import { LayoutGrid, Settings, Star } from "lucide-react";
-import { useCallback, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useRef, type KeyboardEvent, type ReactNode } from "react";
 
 import { cn, KindIcon, providerKindIconRegistry } from "@agh/ui";
 
@@ -8,6 +8,10 @@ import type { RuntimeProviderOption } from "./types";
 
 const RAIL_ITEM_CLASS =
   "relative mx-auto grid size-9 place-items-center rounded-md text-muted outline-none transition-colors hover:bg-row-hover hover:text-fg-strong focus-visible:bg-row-hover focus-visible:text-fg-strong focus-visible:ring-2 focus-visible:ring-accent disabled:pointer-events-none data-[active=true]:bg-row-selected data-[active=true]:text-fg-strong";
+
+function getRailOrder(providers: RuntimeProviderOption[]): RailFilter[] {
+  return ["all", "fav", ...providers.map(provider => provider.id)];
+}
 
 function ActiveMark({ active }: { active: boolean }) {
   if (!active) return null;
@@ -44,43 +48,40 @@ export function ProviderRail({
   onOpenSettings,
 }: ProviderRailProps) {
   const railRef = useRef<HTMLDivElement>(null);
-  // Ordered roving targets: All, Favorites, then each provider.
-  const order: RailFilter[] = ["all", "fav", ...providers.map(provider => provider.id)];
 
-  const moveFocus = useCallback(
-    (current: RailFilter, direction: 1 | -1) => {
-      if (order.length === 0) return;
-      const position = order.indexOf(current);
-      const start = position < 0 ? 0 : position;
-      const next = order[(start + direction + order.length) % order.length];
-      onRail(next);
-      const target = railRef.current?.querySelector<HTMLButtonElement>(
-        `[data-rail="${CSS.escape(String(next))}"]`
-      );
-      target?.focus();
-    },
-    [order, onRail]
-  );
+  const moveFocus = (current: RailFilter, direction: 1 | -1) => {
+    // Ordered roving targets: All, Favorites, then each provider. Build the
+    // order only for keyboard navigation instead of allocating a hook
+    // dependency on every render.
+    const order = getRailOrder(providers);
+    const position = order.indexOf(current);
+    const start = position < 0 ? 0 : position;
+    const next = order[(start + direction + order.length) % order.length];
+    onRail(next);
+    const target = railRef.current?.querySelector<HTMLButtonElement>(
+      `[data-rail="${CSS.escape(String(next))}"]`
+    );
+    target?.focus();
+  };
 
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLDivElement>) => {
-      if (searching) return;
-      if (event.key === "ArrowDown" || event.key === "ArrowRight") {
-        event.preventDefault();
-        moveFocus(railFilter, 1);
-      } else if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
-        event.preventDefault();
-        moveFocus(railFilter, -1);
-      } else if (event.key === "Home") {
-        event.preventDefault();
-        moveFocus(order[order.length - 1] ?? railFilter, 1);
-      } else if (event.key === "End") {
-        event.preventDefault();
-        moveFocus(order[0] ?? railFilter, -1);
-      }
-    },
-    [searching, moveFocus, railFilter, order]
-  );
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (searching) return;
+    if (event.key === "ArrowDown" || event.key === "ArrowRight") {
+      event.preventDefault();
+      moveFocus(railFilter, 1);
+    } else if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+      event.preventDefault();
+      moveFocus(railFilter, -1);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      const order = getRailOrder(providers);
+      moveFocus(order[order.length - 1] ?? railFilter, 1);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      const order = getRailOrder(providers);
+      moveFocus(order[0] ?? railFilter, -1);
+    }
+  };
 
   const railRadio = (target: RailFilter, label: string, content: ReactNode, dim = false) => {
     const active = railFilter === target;

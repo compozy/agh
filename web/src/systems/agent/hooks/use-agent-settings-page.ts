@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -74,32 +74,29 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
   });
 
   const agent = agentQuery.data;
-  const [draft, setDraftState] = useState<AgentSettingsDraft | null>(null);
-  const [baselineAgent, setBaselineAgent] = useState<AgentPayload | null>(null);
+  const agentKey = agent?.definition_digest ?? "pending";
+  const [editorState, setEditorState] = useState<{
+    baseline: AgentPayload | null;
+    draft: AgentSettingsDraft | null;
+    key: string;
+  }>({ baseline: null, draft: null, key: agentKey });
+  const baselineAgent =
+    editorState.key === agentKey ? (editorState.baseline ?? agent ?? null) : (agent ?? null);
+  const draft =
+    editorState.key === agentKey
+      ? (editorState.draft ?? (agent ? buildSettingsDraftFromAgent(agent) : null))
+      : agent
+        ? buildSettingsDraftFromAgent(agent)
+        : null;
   const [conflictBanner, setConflictBanner] = useState<string | null>(null);
   const [mutationDenied, setMutationDenied] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!agent) return;
-    setBaselineAgent(current =>
-      current?.definition_digest === agent.definition_digest ? current : agent
-    );
-    setDraftState(current => {
-      if (current === null) return buildSettingsDraftFromAgent(agent);
-      if (current.definitionDigest === agent.definition_digest) return current;
-      return buildSettingsDraftFromAgent(agent);
-    });
-  }, [agent]);
 
   const draftSafe = draft;
   const dirty = Boolean(
     baselineAgent && draftSafe && isAgentSettingsDraftDirty(draftSafe, baselineAgent)
   );
-  const validation = useMemo(
-    () => (draftSafe ? validateAgentSettingsDraft(draftSafe) : null),
-    [draftSafe]
-  );
+  const validation = draftSafe ? validateAgentSettingsDraft(draftSafe) : null;
   const canSave = Boolean(validation?.canSave);
   const saveBlocked = dirty && (!canSave || mutationDenied);
   const fieldErrorCount = validation ? Object.values(validation.fields).filter(Boolean).length : 0;
@@ -108,55 +105,60 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
   const deleteFlow = useAgentDeleteFlow({ agent, workspaceId: activeWorkspaceId });
 
   const useWorkspaceProviders = agent?.origin === "workspace";
-  const globalProviders = useMemo(
-    () => settingsProviders.data?.providers.map(settingsProviderToOption) ?? [],
-    [settingsProviders.data?.providers]
-  );
-  const workspaceProviders = useMemo(
-    () => (workspaceDetail.data?.providers ?? []).map(workspaceProviderToOption),
-    [workspaceDetail.data?.providers]
-  );
+  const globalProviders = settingsProviders.data?.providers.map(settingsProviderToOption) ?? [];
+  const workspaceProviders = (workspaceDetail.data?.providers ?? []).map(workspaceProviderToOption);
   const providerOptions = useWorkspaceProviders ? workspaceProviders : globalProviders;
   const providersLoading = useWorkspaceProviders
     ? activeWorkspaceId !== null && workspaceDetail.isLoading
     : settingsProviders.isLoading || settingsProviders.isFetching;
 
-  const catalogProviders = useMemo<RuntimeCatalogProvider[]>(
-    () => providerOptions.map(option => ({ id: option.id, needsAuth: option.needs_auth })),
-    [providerOptions]
-  );
+  const catalogProviders: RuntimeCatalogProvider[] = providerOptions.map(option => ({
+    id: option.id,
+    needsAuth: option.needs_auth,
+  }));
   const catalog = useRuntimeModelCatalog(catalogProviders, { enabled: Boolean(agent) });
 
-  const setDraft = useCallback((next: AgentSettingsDraft) => {
-    setDraftState(next);
+  const setDraft = (next: AgentSettingsDraft) => {
+    setEditorState({ baseline: baselineAgent, draft: next, key: agentKey });
     setSaveError(null);
     setConflictBanner(null);
-  }, []);
+  };
 
-  const patchDraft = useCallback((patch: Partial<AgentSettingsDraft>) => {
-    setDraftState(current => (current ? { ...current, ...patch } : current));
+  const patchDraft = (patch: Partial<AgentSettingsDraft>) => {
+    setEditorState({
+      baseline: baselineAgent,
+      draft: draftSafe ? { ...draftSafe, ...patch } : null,
+      key: agentKey,
+    });
     setSaveError(null);
     setConflictBanner(null);
-  }, []);
+  };
 
-  const onDiscard = useCallback(() => {
+  const onDiscard = () => {
     if (!baselineAgent) return;
-    setDraftState(buildSettingsDraftFromAgent(baselineAgent));
+    setEditorState({
+      baseline: baselineAgent,
+      draft: buildSettingsDraftFromAgent(baselineAgent),
+      key: baselineAgent.definition_digest,
+    });
     setSaveError(null);
     setConflictBanner(null);
-  }, [baselineAgent]);
+  };
 
-  const onReloadAndRetry = useCallback(async () => {
+  const onReloadAndRetry = async () => {
     setConflictBanner(null);
     setSaveError(null);
     const result = await agentQuery.refetch();
     if (result.data) {
-      setBaselineAgent(result.data);
-      setDraftState(buildSettingsDraftFromAgent(result.data));
+      setEditorState({
+        baseline: result.data,
+        draft: buildSettingsDraftFromAgent(result.data),
+        key: result.data.definition_digest,
+      });
     }
-  }, [agentQuery]);
+  };
 
-  const onSave = useCallback(() => {
+  const onSave = () => {
     if (!draftSafe || !agent || saveBlocked || updateAgent.isPending) return;
     const params = buildUpdateAgentParams(draftSafe, activeWorkspaceId);
     if (!params) return;
@@ -169,8 +171,11 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
       { name: agent.name, params },
       {
         onSuccess: updated => {
-          setBaselineAgent(updated);
-          setDraftState(buildSettingsDraftFromAgent(updated));
+          setEditorState({
+            baseline: updated,
+            draft: buildSettingsDraftFromAgent(updated),
+            key: updated.definition_digest,
+          });
           toast.success("Changes saved");
         },
         onError: error => {
@@ -192,30 +197,27 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
         },
       }
     );
-  }, [activeWorkspaceId, agent, draftSafe, saveBlocked, updateAgent]);
+  };
 
-  const setSection = useCallback(
-    (next: AgentSettingsSection) => {
-      void navigate({
-        to: "/agents/$name/settings",
-        params: { name },
-        search: { section: next },
-        replace: true,
-      });
-    },
-    [name, navigate]
-  );
+  const setSection = (next: AgentSettingsSection) => {
+    void navigate({
+      to: "/agents/$name/settings",
+      params: { name },
+      search: { section: next },
+      replace: true,
+    });
+  };
 
-  const onBackToDetail = useCallback(() => {
+  const onBackToDetail = () => {
     void navigate({
       to: "/agents/$name",
       params: { name },
     });
-  }, [name, navigate]);
+  };
 
-  const onOpenProviderSettings = useCallback(() => {
+  const onOpenProviderSettings = () => {
     void navigate({ to: "/settings/providers" });
-  }, [navigate]);
+  };
 
   const saveBlockedCaption = mutationDenied
     ? "Editing is not permitted for this agent."

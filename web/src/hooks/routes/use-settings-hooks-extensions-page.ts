@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 
 import { useSettingsPage } from "@/hooks/routes/use-settings-page";
 import {
@@ -142,7 +142,7 @@ export function useSettingsHooksExtensionsPage() {
 
   const envelope = query.data ?? null;
 
-  const [draft, setDraft] = useState<PolicyConfig | null>(null);
+  const [draftOverride, setDraft] = useState<PolicyConfig | null>();
   const [lastAction, setLastAction] = useState<LastAction>(null);
   const [pendingHookName, setPendingHookName] = useState<string | null>(null);
   const [pendingExtensionName, setPendingExtensionName] = useState<string | null>(null);
@@ -154,63 +154,51 @@ export function useSettingsHooksExtensionsPage() {
   const [marketplaceAllowUnverified, setMarketplaceAllowUnverified] = useState(false);
   const [selectedProvenanceName, setSelectedProvenanceName] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (envelope && draft === null) {
-      setDraft(clonePolicy(envelope.config));
-    }
-  }, [envelope, draft]);
+  const draft =
+    draftOverride === undefined ? (envelope ? clonePolicy(envelope.config) : null) : draftOverride;
 
-  const hooks: SettingsHookEntry[] = useMemo(() => envelope?.hooks ?? [], [envelope]);
-  const installedFromEnvelope = useMemo(() => envelope?.installed ?? [], [envelope]);
-  const extensions = useMemo<SettingsExtensionEntry[]>(() => {
-    const live = extensionsQuery.data;
-    if (live && live.length > 0) return live;
-    return installedFromEnvelope.map(entry => ({
-      name: entry.name,
-      enabled: entry.enabled,
-      version: entry.version ?? "",
-      state: entry.state ?? "",
-      health: entry.health,
-      health_message: entry.health_message,
-      last_error: entry.last_error,
-      requires_env: entry.requires_env,
-      missing_env: entry.missing_env,
-      source: "settings",
-      type: "unknown",
-      daemon_running: true,
-    }));
-  }, [extensionsQuery.data, installedFromEnvelope]);
+  const hooks: SettingsHookEntry[] = envelope?.hooks ?? [];
+  const installedFromEnvelope = envelope?.installed ?? [];
+  const extensions: SettingsExtensionEntry[] =
+    extensionsQuery.data && extensionsQuery.data.length > 0
+      ? extensionsQuery.data
+      : installedFromEnvelope.map(entry => ({
+          name: entry.name,
+          enabled: entry.enabled,
+          version: entry.version ?? "",
+          state: entry.state ?? "",
+          health: entry.health,
+          health_message: entry.health_message,
+          last_error: entry.last_error,
+          requires_env: entry.requires_env,
+          missing_env: entry.missing_env,
+          source: "settings",
+          type: "unknown",
+          daemon_running: true,
+        }));
 
-  const marketplaceFilter = useMemo<SettingsExtensionMarketplaceFilter>(
-    () => ({
-      q: marketplaceSearch.trim() || undefined,
-      limit: 12,
-    }),
-    [marketplaceSearch]
-  );
+  const marketplaceFilter: SettingsExtensionMarketplaceFilter = {
+    q: marketplaceSearch.trim() || undefined,
+    limit: 12,
+  };
   const marketplaceQuery = useSettingsExtensionMarketplace(marketplaceFilter);
   const provenanceQuery = useSettingsExtensionProvenance(selectedProvenanceName ?? "", {
     enabled: Boolean(selectedProvenanceName),
   });
-  const notificationPresets = useMemo<SettingsNotificationPresetEntry[]>(
-    () => notificationPresetsQuery.data?.presets ?? [],
-    [notificationPresetsQuery.data?.presets]
-  );
+  const notificationPresets: SettingsNotificationPresetEntry[] =
+    notificationPresetsQuery.data?.presets ?? [];
 
   const transportParity: SettingsHooksExtensionsTransportParity | null =
     envelope?.transport_parity ?? null;
 
-  const isPolicyDirty = useMemo(() => {
-    if (!envelope || !draft) return false;
-    return !samePolicy(envelope.config, draft);
-  }, [envelope, draft]);
+  const isPolicyDirty = Boolean(envelope && draft && !samePolicy(envelope.config, draft));
 
-  const handleResetPolicy = useCallback(() => {
+  const handleResetPolicy = () => {
     if (envelope) setDraft(clonePolicy(envelope.config));
     policyMutation.reset();
-  }, [envelope, policyMutation]);
+  };
 
-  const handleSavePolicy = useCallback(() => {
+  const handleSavePolicy = () => {
     if (!draft) return;
     const body: SettingsUpdateHooksExtensionsRequest = { config: draft };
     policyMutation.mutate(body, {
@@ -218,244 +206,214 @@ export function useSettingsHooksExtensionsPage() {
         setLastAction({ kind: "saved", result });
       },
     });
-  }, [draft, policyMutation]);
+  };
 
-  const updateDraft = useCallback(
-    (updater: (current: PolicyConfig) => PolicyConfig) => {
-      if (!draft) return;
-      setDraft(updater(draft));
-    },
-    [draft]
-  );
+  const updateDraft = (updater: (current: PolicyConfig) => PolicyConfig) => {
+    if (!draft) return;
+    setDraft(updater(draft));
+  };
 
-  const toggleAllowedKind = useCallback(
-    (kind: string) => {
-      updateDraft(current => {
-        const existing = current.resources.allowed_kinds ?? [];
-        const next = existing.includes(kind)
-          ? existing.filter(value => value !== kind)
-          : [...existing, kind].sort();
-        return {
-          ...current,
-          resources: { ...current.resources, allowed_kinds: next },
-        };
-      });
-    },
-    [updateDraft]
-  );
-
-  const toggleHookEnabled = useCallback(
-    (entry: SettingsHookEntry, nextEnabled: boolean) => {
-      hookMutation.reset();
-      setPendingHookName(entry.name);
-      const declaration: SettingsHookRequest["declaration"] = {
-        ...entry.declaration,
-        required: nextEnabled,
+  const toggleAllowedKind = (kind: string) => {
+    updateDraft(current => {
+      const existing = current.resources.allowed_kinds ?? [];
+      const next = existing.includes(kind)
+        ? existing.filter(value => value !== kind)
+        : [...existing, kind].sort();
+      return {
+        ...current,
+        resources: { ...current.resources, allowed_kinds: next },
       };
-      hookMutation.mutate(
-        { name: entry.name, body: { declaration } },
-        {
-          onSuccess: result => {
-            setLastAction({
-              kind: "hook-toggled",
-              name: entry.name,
-              enabled: nextEnabled,
-              result,
-            });
-          },
-          onSettled: () => {
-            setPendingHookName(null);
-          },
-        }
-      );
-    },
-    [hookMutation]
-  );
+    });
+  };
 
-  const toggleExtensionEnabled = useCallback(
-    (entry: SettingsExtensionEntry, nextEnabled: boolean) => {
-      enableMutation.reset();
-      disableMutation.reset();
-      setPendingExtensionName(entry.name);
-      const mutation = nextEnabled ? enableMutation : disableMutation;
-      mutation.mutate(entry.name, {
-        onSuccess: () => {
+  const toggleHookEnabled = (entry: SettingsHookEntry, nextEnabled: boolean) => {
+    hookMutation.reset();
+    setPendingHookName(entry.name);
+    const declaration: SettingsHookRequest["declaration"] = {
+      ...entry.declaration,
+      required: nextEnabled,
+    };
+    hookMutation.mutate(
+      { name: entry.name, body: { declaration } },
+      {
+        onSuccess: result => {
           setLastAction({
-            kind: "extension-toggled",
+            kind: "hook-toggled",
             name: entry.name,
             enabled: nextEnabled,
+            result,
+          });
+        },
+        onSettled: () => {
+          setPendingHookName(null);
+        },
+      }
+    );
+  };
+
+  const toggleExtensionEnabled = (entry: SettingsExtensionEntry, nextEnabled: boolean) => {
+    enableMutation.reset();
+    disableMutation.reset();
+    setPendingExtensionName(entry.name);
+    const mutation = nextEnabled ? enableMutation : disableMutation;
+    mutation.mutate(entry.name, {
+      onSuccess: () => {
+        setLastAction({
+          kind: "extension-toggled",
+          name: entry.name,
+          enabled: nextEnabled,
+        });
+      },
+      onSettled: () => {
+        setPendingExtensionName(null);
+      },
+    });
+  };
+
+  const searchMarketplace = () => {
+    void marketplaceQuery.refetch();
+  };
+
+  const installMarketplaceExtension = (entry: SettingsExtensionMarketplaceEntry) => {
+    installMutation.reset();
+    setPendingMarketplaceSlug(entry.slug);
+    installMutation.mutate(
+      {
+        slug: entry.slug,
+        source: entry.source,
+        version: entry.version,
+        ...(marketplaceAllowUnverified ? { allow_unverified: true } : {}),
+      },
+      {
+        onSuccess: extension => {
+          setLastAction({ kind: "extension-installed", name: extension.name });
+        },
+        onSettled: () => {
+          setPendingMarketplaceSlug(null);
+        },
+      }
+    );
+  };
+
+  const updateExtension = (entry: SettingsExtensionEntry) => {
+    updateExtensionMutation.reset();
+    setPendingExtensionName(entry.name);
+    updateExtensionMutation.mutate(
+      {
+        name: entry.name,
+        body: marketplaceAllowUnverified ? { allow_unverified: true } : {},
+      },
+      {
+        onSuccess: result => {
+          setLastAction({
+            kind: "extension-updated",
+            name: entry.name,
+            status: result.status,
           });
         },
         onSettled: () => {
           setPendingExtensionName(null);
         },
-      });
-    },
-    [disableMutation, enableMutation]
-  );
+      }
+    );
+  };
 
-  const searchMarketplace = useCallback(() => {
-    void marketplaceQuery.refetch();
-  }, [marketplaceQuery]);
-
-  const installMarketplaceExtension = useCallback(
-    (entry: SettingsExtensionMarketplaceEntry) => {
-      installMutation.reset();
-      setPendingMarketplaceSlug(entry.slug);
-      installMutation.mutate(
-        {
-          slug: entry.slug,
-          source: entry.source,
-          version: entry.version,
-          ...(marketplaceAllowUnverified ? { allow_unverified: true } : {}),
-        },
-        {
-          onSuccess: extension => {
-            setLastAction({ kind: "extension-installed", name: extension.name });
-          },
-          onSettled: () => {
-            setPendingMarketplaceSlug(null);
-          },
+  const removeExtension = (entry: SettingsExtensionEntry) => {
+    removeExtensionMutation.reset();
+    setPendingExtensionName(entry.name);
+    removeExtensionMutation.mutate(entry.name, {
+      onSuccess: () => {
+        setLastAction({ kind: "extension-removed", name: entry.name });
+        if (selectedProvenanceName === entry.name) {
+          setSelectedProvenanceName(null);
         }
-      );
-    },
-    [installMutation, marketplaceAllowUnverified]
-  );
+      },
+      onSettled: () => {
+        setPendingExtensionName(null);
+      },
+    });
+  };
 
-  const updateExtension = useCallback(
-    (entry: SettingsExtensionEntry) => {
-      updateExtensionMutation.reset();
-      setPendingExtensionName(entry.name);
-      updateExtensionMutation.mutate(
-        {
-          name: entry.name,
-          body: marketplaceAllowUnverified ? { allow_unverified: true } : {},
-        },
-        {
-          onSuccess: result => {
-            setLastAction({
-              kind: "extension-updated",
-              name: entry.name,
-              status: result.status,
-            });
-          },
-          onSettled: () => {
-            setPendingExtensionName(null);
-          },
-        }
-      );
-    },
-    [marketplaceAllowUnverified, updateExtensionMutation]
-  );
+  const createNotificationPreset = (body: SettingsCreateNotificationPresetRequest) => {
+    createNotificationPresetMutation.reset();
+    setPendingNotificationPresetName(body.name ?? null);
+    createNotificationPresetMutation.mutate(body, {
+      onSuccess: preset => {
+        setLastAction({ kind: "notification-preset-created", name: preset.name });
+      },
+      onSettled: () => {
+        setPendingNotificationPresetName(null);
+      },
+    });
+  };
 
-  const removeExtension = useCallback(
-    (entry: SettingsExtensionEntry) => {
-      removeExtensionMutation.reset();
-      setPendingExtensionName(entry.name);
-      removeExtensionMutation.mutate(entry.name, {
-        onSuccess: () => {
-          setLastAction({ kind: "extension-removed", name: entry.name });
-          if (selectedProvenanceName === entry.name) {
-            setSelectedProvenanceName(null);
-          }
-        },
-        onSettled: () => {
-          setPendingExtensionName(null);
-        },
-      });
-    },
-    [removeExtensionMutation, selectedProvenanceName]
-  );
-
-  const createNotificationPreset = useCallback(
-    (body: SettingsCreateNotificationPresetRequest) => {
-      createNotificationPresetMutation.reset();
-      setPendingNotificationPresetName(body.name ?? null);
-      createNotificationPresetMutation.mutate(body, {
-        onSuccess: preset => {
-          setLastAction({ kind: "notification-preset-created", name: preset.name });
+  const toggleNotificationPreset = (
+    preset: SettingsNotificationPresetEntry,
+    nextEnabled: boolean
+  ) => {
+    updateNotificationPresetMutation.reset();
+    setPendingNotificationPresetName(preset.name);
+    updateNotificationPresetMutation.mutate(
+      { name: preset.name, body: { enabled: nextEnabled } },
+      {
+        onSuccess: updated => {
+          setLastAction({
+            kind: "notification-preset-toggled",
+            name: updated.name,
+            enabled: updated.enabled,
+          });
         },
         onSettled: () => {
           setPendingNotificationPresetName(null);
         },
-      });
-    },
-    [createNotificationPresetMutation]
-  );
+      }
+    );
+  };
 
-  const toggleNotificationPreset = useCallback(
-    (preset: SettingsNotificationPresetEntry, nextEnabled: boolean) => {
-      updateNotificationPresetMutation.reset();
-      setPendingNotificationPresetName(preset.name);
-      updateNotificationPresetMutation.mutate(
-        { name: preset.name, body: { enabled: nextEnabled } },
-        {
-          onSuccess: updated => {
-            setLastAction({
-              kind: "notification-preset-toggled",
-              name: updated.name,
-              enabled: updated.enabled,
-            });
-          },
-          onSettled: () => {
-            setPendingNotificationPresetName(null);
-          },
-        }
-      );
-    },
-    [updateNotificationPresetMutation]
-  );
+  const deleteNotificationPreset = (preset: SettingsNotificationPresetEntry) => {
+    deleteNotificationPresetMutation.reset();
+    setPendingNotificationPresetName(preset.name);
+    deleteNotificationPresetMutation.mutate(preset.name, {
+      onSuccess: () => {
+        setLastAction({ kind: "notification-preset-deleted", name: preset.name });
+      },
+      onSettled: () => {
+        setPendingNotificationPresetName(null);
+      },
+    });
+  };
 
-  const deleteNotificationPreset = useCallback(
-    (preset: SettingsNotificationPresetEntry) => {
-      deleteNotificationPresetMutation.reset();
-      setPendingNotificationPresetName(preset.name);
-      deleteNotificationPresetMutation.mutate(preset.name, {
-        onSuccess: () => {
-          setLastAction({ kind: "notification-preset-deleted", name: preset.name });
-        },
-        onSettled: () => {
-          setPendingNotificationPresetName(null);
-        },
-      });
-    },
-    [deleteNotificationPresetMutation]
-  );
-
-  const openExtensionProvenance = useCallback((entry: SettingsExtensionEntry) => {
+  const openExtensionProvenance = (entry: SettingsExtensionEntry) => {
     setSelectedProvenanceName(entry.name);
-  }, []);
+  };
 
-  const closeExtensionProvenance = useCallback(() => {
+  const closeExtensionProvenance = () => {
     setSelectedProvenanceName(null);
-  }, []);
+  };
 
-  const dismissLastAction = useCallback(() => setLastAction(null), []);
+  const dismissLastAction = () => setLastAction(null);
 
-  const hooksCounts = useMemo(() => {
-    const total = hooks.length;
-    const enabled = hooks.filter(entry => entry.declaration.required !== false).length;
-    return { total, enabled };
-  }, [hooks]);
-
-  const extensionsCounts = useMemo(() => {
-    const total = extensions.length;
-    const enabled = extensions.filter(entry => entry.enabled).length;
-    return { total, enabled };
-  }, [extensions]);
+  const hooksCounts = {
+    total: hooks.length,
+    enabled: hooks.filter(entry => entry.declaration.required !== false).length,
+  };
+  const extensionsCounts = {
+    total: extensions.length,
+    enabled: extensions.filter(entry => entry.enabled).length,
+  };
 
   const canMutateHooks = transportParity?.settings_http !== false;
   const canMutatePolicy = transportParity?.settings_http !== false;
   const canMutateExtensions = transportParity?.extensions_http !== false;
 
-  const handleRetry = useCallback(() => {
+  const handleRetry = () => {
     void Promise.all([
       query.refetch(),
       extensionsQuery.refetch(),
       marketplaceQuery.refetch(),
       notificationPresetsQuery.refetch(),
     ]);
-  }, [extensionsQuery, marketplaceQuery, notificationPresetsQuery, query]);
+  };
 
   return {
     isLoading: query.isLoading,

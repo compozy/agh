@@ -9,6 +9,13 @@ const clockSecondsFormatter = new Intl.DateTimeFormat("en-US", {
   second: "2-digit",
 });
 
+const monthDayFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+});
+
+const weekdayFormatter = new Intl.DateTimeFormat("en-US", { weekday: "long" });
+
 const isoToleranceMs = 1_000;
 
 export interface DatePillReference {
@@ -81,21 +88,15 @@ export function formatDatePill(
   }
 
   const crossesYear = target.getFullYear() !== reference.getFullYear();
-  const monthFormatter = new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-  const weekdayFormatter = new Intl.DateTimeFormat("en-US", { weekday: "long" });
-
   if (crossesYear) {
-    return `${target.getFullYear()} · ${monthFormatter.format(target).toUpperCase()}`;
+    return `${target.getFullYear()} · ${monthDayFormatter.format(target).toUpperCase()}`;
   }
 
   if (dayDelta > 1 && dayDelta < 7) {
     return weekdayFormatter.format(target).toUpperCase();
   }
 
-  return `${weekdayFormatter.format(target).toUpperCase()} · ${monthFormatter.format(target).toUpperCase()}`;
+  return `${weekdayFormatter.format(target).toUpperCase()} · ${monthDayFormatter.format(target).toUpperCase()}`;
 }
 
 export function isWithinSeconds(

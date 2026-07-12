@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { MessageSquare } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import {
   Empty,
@@ -21,13 +21,13 @@ import {
 import { getAgentSessionStatus } from "../lib/session-status";
 import { isSessionRunning, type SessionPayload } from "@/systems/session";
 
+const RELATIVE_TIME_REFRESH_MS = 30_000;
+
 export interface AgentSessionsListProps {
   agentName: string;
   sessions: SessionPayload[];
-  isLoading: boolean;
-  isError: boolean;
-  hasMore?: boolean;
-  isLoadingMore?: boolean;
+  status: "loading" | "error" | "ready";
+  paginationStatus?: "available" | "loading";
   onLoadMore?: () => void;
   emptyTitle?: ReactNode;
   emptyDescription?: ReactNode;
@@ -36,19 +36,21 @@ export interface AgentSessionsListProps {
 export function AgentSessionsList({
   agentName,
   sessions,
-  isLoading,
-  isError,
-  hasMore = false,
-  isLoadingMore = false,
+  status,
+  paginationStatus,
   onLoadMore,
   emptyTitle = "No sessions yet",
-  emptyDescription = `Start a new session for ${agentName} from the toolbar above.`,
+  emptyDescription,
 }: AgentSessionsListProps) {
-  if (isLoading) {
+  const resolvedEmptyDescription =
+    emptyDescription === undefined
+      ? `Start a new session for ${agentName} from the toolbar above.`
+      : emptyDescription;
+  if (status === "loading") {
     return <AgentSessionsSkeleton />;
   }
 
-  if (isError) {
+  if (status === "error") {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
         <Empty
@@ -68,7 +70,7 @@ export function AgentSessionsList({
         <Empty
           icon={MessageSquare}
           title={emptyTitle}
-          description={emptyDescription}
+          description={resolvedEmptyDescription}
           data-testid="agent-sessions-empty"
           fill={false}
         />
@@ -76,7 +78,35 @@ export function AgentSessionsList({
     );
   }
 
-  const now = Date.now();
+  return (
+    <AgentSessionsTable
+      agentName={agentName}
+      sessions={sessions}
+      paginationStatus={paginationStatus}
+      onLoadMore={onLoadMore}
+    />
+  );
+}
+
+interface AgentSessionsTableProps {
+  agentName: string;
+  sessions: SessionPayload[];
+  paginationStatus?: "available" | "loading";
+  onLoadMore?: () => void;
+}
+
+function AgentSessionsTable({
+  agentName,
+  sessions,
+  paginationStatus,
+  onLoadMore,
+}: AgentSessionsTableProps) {
+  const [now, setNow] = useState(Date.now);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), RELATIVE_TIME_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, []);
 
   return (
     <div className="flex flex-col" data-testid="agent-sessions-table-wrapper">
@@ -98,19 +128,19 @@ export function AgentSessionsList({
           </TableBody>
         </Table>
       </div>
-      {hasMore || isLoadingMore ? (
+      {paginationStatus ? (
         <div className="flex justify-center border-t border-line px-4 py-3">
           <Button
             type="button"
             variant="neutral"
             size="sm"
-            disabled={isLoadingMore}
-            aria-busy={isLoadingMore}
+            disabled={paginationStatus === "loading"}
+            aria-busy={paginationStatus === "loading"}
             onClick={onLoadMore}
             data-testid="agent-sessions-load-more"
           >
-            {isLoadingMore ? <Spinner aria-hidden="true" /> : null}
-            {isLoadingMore ? "Loading more sessions" : "Load more sessions"}
+            {paginationStatus === "loading" ? <Spinner aria-hidden="true" /> : null}
+            {paginationStatus === "loading" ? "Loading more sessions" : "Load more sessions"}
           </Button>
         </div>
       ) : null}

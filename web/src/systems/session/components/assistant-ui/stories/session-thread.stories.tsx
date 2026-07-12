@@ -392,8 +392,6 @@ function renderWithTranscriptState(
     <SessionTranscriptThreadProvider
       messages={[]}
       status={state.status}
-      isPending={state.status === "pending"}
-      isError={state.status === "error"}
       error={state.error ?? null}
       retry={() => undefined}
     >

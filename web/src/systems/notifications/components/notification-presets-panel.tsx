@@ -49,10 +49,10 @@ export function NotificationPresetsPanel({
   const [localError, setLocalError] = useState<string | null>(null);
 
   const submit = () => {
-    const eventList = form.events
-      .split(",")
-      .map(item => item.trim())
-      .filter(Boolean);
+    const eventList = form.events.split(",").flatMap(item => {
+      const event = item.trim();
+      return event ? [event] : [];
+    });
     const targets = parseNotificationPresetTargetEntry(form.target);
     if (form.name.trim() === "" || eventList.length === 0) {
       setLocalError("Name and event are required.");

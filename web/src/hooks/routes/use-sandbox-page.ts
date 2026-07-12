@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 
 import { useSettingsPage } from "@/hooks/routes/use-settings-page";
 import {
@@ -95,49 +95,42 @@ export function useSandboxPage() {
   const envelope = query.data ?? null;
   const sandboxes = envelope?.sandboxes ?? [];
 
-  const counts = useMemo(() => {
-    const total = sandboxes.length;
-    const totalWorkspaces = sandboxes.reduce((acc, entry) => acc + entry.workspace_usage_count, 0);
-    return { total, totalWorkspaces };
-  }, [sandboxes]);
+  const counts = {
+    total: sandboxes.length,
+    totalWorkspaces: sandboxes.reduce((acc, entry) => acc + entry.workspace_usage_count, 0),
+  };
 
-  const openCreate = useCallback(() => {
+  const openCreate = () => {
     putMutation.reset();
     setEditor({ mode: "create", draft: emptyDraft() });
-  }, [putMutation]);
+  };
 
-  const openEdit = useCallback(
-    (entry: SettingsSandboxEntry) => {
-      putMutation.reset();
-      setEditor({ mode: "edit", name: entry.name, draft: toDraft(entry), entry });
-    },
-    [putMutation]
-  );
+  const openEdit = (entry: SettingsSandboxEntry) => {
+    putMutation.reset();
+    setEditor({ mode: "edit", name: entry.name, draft: toDraft(entry), entry });
+  };
 
-  const closeEditor = useCallback(() => {
+  const closeEditor = () => {
     setEditor({ mode: "closed" });
     putMutation.reset();
-  }, [putMutation]);
+  };
 
-  const updateDraft = useCallback((updater: (draft: SandboxDraft) => SandboxDraft) => {
+  const updateDraft = (updater: (draft: SandboxDraft) => SandboxDraft) => {
     setEditor(current => {
       if (current.mode === "closed") return current;
       return { ...current, draft: updater(current.draft) };
     });
-  }, []);
+  };
 
-  const editorIsValid = useMemo(() => {
-    if (editor.mode === "closed") return false;
-    const name = editor.draft.name.trim();
-    if (name.length === 0) return false;
-    if (editor.draft.backend.trim().length === 0) return false;
-    if (editor.mode === "create") {
-      return !sandboxes.some(entry => entry.name.toLowerCase() === name.toLowerCase());
-    }
-    return true;
-  }, [editor, sandboxes]);
+  const editorName = editor.mode === "closed" ? "" : editor.draft.name.trim();
+  const editorIsValid =
+    editor.mode !== "closed" &&
+    editorName.length > 0 &&
+    editor.draft.backend.trim().length > 0 &&
+    (editor.mode !== "create" ||
+      !sandboxes.some(entry => entry.name.toLowerCase() === editorName.toLowerCase()));
 
-  const saveEditor = useCallback(() => {
+  const saveEditor = () => {
     if (editor.mode === "closed") return;
     const name = editor.draft.name.trim();
     if (!name) return;
@@ -151,22 +144,19 @@ export function useSandboxPage() {
         },
       }
     );
-  }, [editor, putMutation]);
+  };
 
-  const openDelete = useCallback(
-    (entry: SettingsSandboxEntry) => {
-      deleteMutation.reset();
-      setDeleteTarget({ mode: "open", entry });
-    },
-    [deleteMutation]
-  );
+  const openDelete = (entry: SettingsSandboxEntry) => {
+    deleteMutation.reset();
+    setDeleteTarget({ mode: "open", entry });
+  };
 
-  const closeDelete = useCallback(() => {
+  const closeDelete = () => {
     setDeleteTarget({ mode: "closed" });
     deleteMutation.reset();
-  }, [deleteMutation]);
+  };
 
-  const confirmDelete = useCallback(() => {
+  const confirmDelete = () => {
     if (deleteTarget.mode === "closed") return;
     const target = deleteTarget.entry;
     deleteMutation.mutate(target.name, {
@@ -180,9 +170,9 @@ export function useSandboxPage() {
         setDeleteTarget({ mode: "closed" });
       },
     });
-  }, [deleteMutation, deleteTarget]);
+  };
 
-  const dismissLastAction = useCallback(() => setLastAction(null), []);
+  const dismissLastAction = () => setLastAction(null);
 
   return {
     isLoading: query.isLoading,

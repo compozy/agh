@@ -215,18 +215,15 @@ export { SearchInput, type SearchInputProps } from "./components/custom/search-i
 export { Empty, type EmptyProps } from "./components/empty";
 export { Section, type SectionProps } from "./components/custom/section";
 
-// Topbar — dormant code in P3; mounted by P4 shell.
+// Topbar shell and route-slot publication API.
 export {
   Topbar,
   TopbarOverflowIcon,
-  TopbarSlotContext,
   TopbarSlotProvider,
   useTopbarSlot,
-  useTopbarSlotContext,
   useTopbarSlotValue,
   type TopbarProps,
   type TopbarRouteContext,
-  type TopbarSlotContextValue,
   type TopbarSlotProviderProps,
   type TopbarSlotValue,
 } from "./components/custom/topbar";
@@ -634,7 +631,8 @@ export type {
   TreeItemLabelProps,
   TreeDragLineProps,
 } from "./components/reui/tree";
-export { Filters, createFilter } from "./components/reui/filters";
+export { Filters } from "./components/reui/filters";
+export { createFilter } from "./components/reui/hooks/filter-helpers";
 export type { Filter, FilterFieldsConfig, FilterFieldConfig } from "./components/reui/filters";
 export { Textarea, type TextareaProps, type TextareaVariant } from "./components/textarea";
 export { Toaster, type ToasterProps } from "./components/sonner";

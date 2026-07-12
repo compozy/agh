@@ -1,5 +1,5 @@
 import type React from "react";
-import { useCallback, useId, useMemo, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 
 import type { FilterFieldConfig } from "../filters";
 import { scheduleFilterDomSync, scrollFilterOptionIntoView } from "./use-filter-context";
@@ -28,55 +28,44 @@ export function useFilterSubmenuContent<T = unknown>({
   const inputRef = useRef<HTMLInputElement>(null);
   const baseId = useId();
 
-  const focusSubmenuSearchInput = useCallback(
-    (node: HTMLInputElement | null) => {
-      inputRef.current = node;
-      if (node && isActive && field.searchable !== false) {
-        scheduleFilterDomSync(() => node.focus());
-      }
-    },
-    [field.searchable, isActive]
-  );
+  const focusSubmenuSearchInput = (node: HTMLInputElement | null) => {
+    inputRef.current = node;
+    if (node && isActive && field.searchable !== false) {
+      scheduleFilterDomSync(() => node.focus());
+    }
+  };
 
-  const focusSubmenuListbox = useCallback(
-    (node: HTMLDivElement | null) => {
-      if (node && isActive && field.searchable === false) {
-        scheduleFilterDomSync(() => node.focus());
-      }
-    },
-    [field.searchable, isActive]
-  );
+  const focusSubmenuListbox = (node: HTMLDivElement | null) => {
+    if (node && isActive && field.searchable === false) {
+      scheduleFilterDomSync(() => node.focus());
+    }
+  };
 
-  const highlightSubmenuOption = useCallback(
-    (index: number) => {
-      setHighlightedIndex(index);
-      if (isActive) {
-        scrollFilterOptionIntoView(baseId, index);
-      }
-    },
-    [baseId, isActive]
-  );
+  const highlightSubmenuOption = (index: number) => {
+    setHighlightedIndex(index);
+    if (isActive) {
+      scrollFilterOptionIntoView(baseId, index);
+    }
+  };
 
-  const filteredOptions = useMemo(() => {
-    return (
-      field.options?.filter(option => {
-        const isSelected = currentValues.includes(option.value);
-        if (isSelected) return true;
-        if (!searchInput) return true;
-        return option.label.toLowerCase().includes(searchInput.toLowerCase());
-      }) || []
-    );
-  }, [currentValues, field.options, searchInput]);
+  const currentValueSet = new Set(currentValues);
+  const filteredOptions =
+    field.options?.filter(option => {
+      const isSelected = currentValueSet.has(option.value);
+      if (isSelected) return true;
+      if (!searchInput) return true;
+      return option.label.toLowerCase().includes(searchInput.toLowerCase());
+    }) ?? [];
 
   const activeHighlightedIndex =
     highlightedIndex >= 0 ? highlightedIndex : isActive && filteredOptions.length > 0 ? 0 : -1;
 
-  const handleSearchInputChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSearchInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchInput(event.target.value);
     setHighlightedIndex(-1);
-  }, []);
+  };
 
-  const selectHighlightedOption = useCallback(() => {
+  const selectHighlightedOption = () => {
     const option = filteredOptions[activeHighlightedIndex];
     if (!option) return;
 
@@ -84,55 +73,42 @@ export function useFilterSubmenuContent<T = unknown>({
     if (!isMultiSelect) {
       onBack?.();
     }
-  }, [activeHighlightedIndex, currentValues, filteredOptions, isMultiSelect, onBack, onToggle]);
+  };
 
-  const handleNavigationKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLElement>) => {
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        if (filteredOptions.length > 0) {
-          highlightSubmenuOption(
-            activeHighlightedIndex < filteredOptions.length - 1 ? activeHighlightedIndex + 1 : 0
-          );
-        }
-      } else if (event.key === "ArrowUp") {
-        event.preventDefault();
-        if (filteredOptions.length > 0) {
-          highlightSubmenuOption(
-            activeHighlightedIndex > 0 ? activeHighlightedIndex - 1 : filteredOptions.length - 1
-          );
-        }
-      } else if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        onBack?.();
-      } else if (event.key === "Enter" && activeHighlightedIndex >= 0) {
-        event.preventDefault();
-        selectHighlightedOption();
-      } else if (event.key === "Escape") {
-        event.preventDefault();
-        onClose?.();
+  const handleNavigationKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      if (filteredOptions.length > 0) {
+        highlightSubmenuOption(
+          activeHighlightedIndex < filteredOptions.length - 1 ? activeHighlightedIndex + 1 : 0
+        );
       }
-
-      event.stopPropagation();
-    },
-    [
-      activeHighlightedIndex,
-      filteredOptions.length,
-      highlightSubmenuOption,
-      onBack,
-      onClose,
-      selectHighlightedOption,
-    ]
-  );
-
-  const handleListboxKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
-      if (field.searchable === false) {
-        handleNavigationKeyDown(event);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      if (filteredOptions.length > 0) {
+        highlightSubmenuOption(
+          activeHighlightedIndex > 0 ? activeHighlightedIndex - 1 : filteredOptions.length - 1
+        );
       }
-    },
-    [field.searchable, handleNavigationKeyDown]
-  );
+    } else if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      onBack?.();
+    } else if (event.key === "Enter" && activeHighlightedIndex >= 0) {
+      event.preventDefault();
+      selectHighlightedOption();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      onClose?.();
+    }
+
+    event.stopPropagation();
+  };
+
+  const handleListboxKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (field.searchable === false) {
+      handleNavigationKeyDown(event);
+    }
+  };
 
   return {
     activeHighlightedIndex,

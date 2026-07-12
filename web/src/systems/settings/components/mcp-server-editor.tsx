@@ -1,7 +1,7 @@
 import { Plus, Trash2 } from "lucide-react";
-import { useMemo } from "react";
 
 import type { MCPDraft, MCPEditorState, MCPEnvPair } from "@/hooks/routes/use-mcp-page";
+import { useLocalRowKeys } from "@/hooks/use-local-row-keys";
 import type { SettingsMCPServerEntry, SettingsMCPServerTarget } from "@/systems/settings";
 import { Button, Input, NativeSelect, NativeSelectOption, Pill } from "@agh/ui";
 
@@ -156,6 +156,27 @@ interface TargetSelectorProps {
   onChange: (target: SettingsMCPServerTarget) => void;
 }
 
+function targetDescription(
+  scope: "global" | "workspace",
+  entry: SettingsMCPServerEntry | null,
+  isCreate: boolean
+): string {
+  if (isCreate) {
+    return scope === "workspace"
+      ? "Auto writes new entries to the workspace mcp.json. Pick config to write into <workspace>/.agh/config.toml instead."
+      : "Auto writes new entries to ~/.agh/mcp.json. Pick config to write into ~/.agh/config.toml instead.";
+  }
+  if (!entry) return "Where to persist this definition in the selected scope.";
+  const effectiveKind = entry.source_metadata.effective_source.kind;
+  if (effectiveKind.endsWith("sidecar")) {
+    return "Auto replaces the sidecar definition (highest precedence). Choosing config writes a new config override that would shadow the sidecar only if precedence allowed it; in v1 sidecar wins so config entry stays shadowed.";
+  }
+  if (effectiveKind.endsWith("config")) {
+    return "Auto replaces the config definition. Choosing sidecar writes into mcp.json, which would shadow the config entry after save.";
+  }
+  return "Auto replaces the current highest-precedence definition in the selected scope.";
+}
+
 function TargetSelector({
   target,
   availableTargets,
@@ -164,22 +185,7 @@ function TargetSelector({
   isCreate,
   onChange,
 }: TargetSelectorProps) {
-  const description = useMemo(() => {
-    if (isCreate) {
-      return scope === "workspace"
-        ? "Auto writes new entries to the workspace mcp.json. Pick config to write into <workspace>/.agh/config.toml instead."
-        : "Auto writes new entries to ~/.agh/mcp.json. Pick config to write into ~/.agh/config.toml instead.";
-    }
-    if (!entry) return "Where to persist this definition in the selected scope.";
-    const effectiveKind = entry.source_metadata.effective_source.kind;
-    if (effectiveKind.endsWith("sidecar")) {
-      return "Auto replaces the sidecar definition (highest precedence). Choosing config writes a new config override that would shadow the sidecar only if precedence allowed it; in v1 sidecar wins so config entry stays shadowed.";
-    }
-    if (effectiveKind.endsWith("config")) {
-      return "Auto replaces the config definition. Choosing sidecar writes into mcp.json, which would shadow the config entry after save.";
-    }
-    return "Auto replaces the current highest-precedence definition in the selected scope.";
-  }, [entry, isCreate, scope]);
+  const description = targetDescription(scope, entry, isCreate);
 
   return (
     <SettingsFieldRow
@@ -221,6 +227,7 @@ function TargetSelector({
 }
 
 function ArgsEditor({ args, onChange }: { args: string[]; onChange: (next: string[]) => void }) {
+  const rowKeys = useLocalRowKeys(args, "mcp-arg");
   return (
     <SettingsFieldRow
       data-testid="settings-mcp-servers-editor-args"
@@ -233,7 +240,7 @@ function ArgsEditor({ args, onChange }: { args: string[]; onChange: (next: strin
           data-testid="settings-mcp-servers-editor-args-list"
         >
           {args.map((arg, index) => (
-            <div key={`arg-${index}`} className="flex items-center gap-2">
+            <div key={rowKeys.keys[index]} className="flex items-center gap-2">
               <Input
                 className="flex-1 font-mono"
                 data-testid={`settings-mcp-servers-editor-args-input-${index}`}
@@ -249,7 +256,10 @@ function ArgsEditor({ args, onChange }: { args: string[]; onChange: (next: strin
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                onClick={() => onChange(args.filter((_, i) => i !== index))}
+                onClick={() => {
+                  rowKeys.remove(index);
+                  onChange(args.filter((_, i) => i !== index));
+                }}
                 aria-label={`Remove arg ${index}`}
                 data-testid={`settings-mcp-servers-editor-args-remove-${index}`}
               >
@@ -261,7 +271,10 @@ function ArgsEditor({ args, onChange }: { args: string[]; onChange: (next: strin
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => onChange([...args, ""])}
+            onClick={() => {
+              rowKeys.append();
+              onChange([...args, ""]);
+            }}
             data-testid="settings-mcp-servers-editor-args-add"
           >
             <Plus className="size-3" />
@@ -280,6 +293,7 @@ function EnvEditor({
   env: MCPEnvPair[];
   onChange: (next: MCPEnvPair[]) => void;
 }) {
+  const rowKeys = useLocalRowKeys(env, "mcp-env");
   return (
     <SettingsFieldRow
       data-testid="settings-mcp-servers-editor-env"
@@ -292,7 +306,7 @@ function EnvEditor({
           data-testid="settings-mcp-servers-editor-env-list"
         >
           {env.map((pair, index) => (
-            <div key={`env-${index}`} className="flex items-center gap-2">
+            <div key={rowKeys.keys[index]} className="flex items-center gap-2">
               <Input
                 className="w-44 font-mono"
                 data-testid={`settings-mcp-servers-editor-env-key-${index}`}
@@ -319,7 +333,10 @@ function EnvEditor({
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                onClick={() => onChange(env.filter((_, i) => i !== index))}
+                onClick={() => {
+                  rowKeys.remove(index);
+                  onChange(env.filter((_, i) => i !== index));
+                }}
                 aria-label={`Remove env ${index}`}
                 data-testid={`settings-mcp-servers-editor-env-remove-${index}`}
               >
@@ -331,7 +348,10 @@ function EnvEditor({
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => onChange([...env, { key: "", value: "" }])}
+            onClick={() => {
+              rowKeys.append();
+              onChange([...env, { key: "", value: "" }]);
+            }}
             data-testid="settings-mcp-servers-editor-env-add"
           >
             <Plus className="size-3" />

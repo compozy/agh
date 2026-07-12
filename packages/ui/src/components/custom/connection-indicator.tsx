@@ -6,39 +6,19 @@ import { cn } from "../../lib/utils";
 import {
   ConnectionIndicatorContext,
   type ConnectionIndicatorContextValue,
-  useConnectionIndicatorContext,
 } from "./hooks/use-connection-indicator-context";
-import { Pill, type PillDotProps, type PillTone } from "./pill";
-
-type ConnectionStatus = "connected" | "connecting" | "disconnected" | "error";
-type ConnectionVariant = "footer" | "rail-dot" | "inline";
+import {
+  ConnectionIndicatorDot,
+  ConnectionIndicatorLabel,
+  type ConnectionStatus,
+  type ConnectionVariant,
+} from "./connection-indicator-parts";
 
 interface ConnectionIndicatorProps extends React.ComponentProps<"div"> {
   status: ConnectionStatus;
   label?: React.ReactNode;
   variant?: ConnectionVariant;
 }
-
-interface ConnectionIndicatorDotProps extends Omit<PillDotProps, "tone" | "pulse"> {
-  status?: ConnectionStatus;
-}
-
-interface ConnectionIndicatorLabelProps extends React.ComponentProps<"span"> {
-  status?: ConnectionStatus;
-}
-
-interface StatusConfig {
-  tone: PillTone;
-  label: string;
-  pulse: boolean;
-}
-
-const STATUS_CONFIG: Record<ConnectionStatus, StatusConfig> = {
-  connected: { tone: "success", label: "Connected", pulse: false },
-  connecting: { tone: "warning", label: "Connecting", pulse: true },
-  disconnected: { tone: "danger", label: "Disconnected", pulse: false },
-  error: { tone: "danger", label: "Connection error", pulse: false },
-};
 
 function ConnectionIndicator({
   status,
@@ -48,10 +28,7 @@ function ConnectionIndicator({
   children,
   ...props
 }: ConnectionIndicatorProps) {
-  const value = React.useMemo<ConnectionIndicatorContextValue>(
-    () => ({ label, status, variant }),
-    [label, status, variant]
-  );
+  const value: ConnectionIndicatorContextValue = { label, status, variant };
 
   return (
     <ConnectionIndicatorContext.Provider value={value}>
@@ -78,61 +55,16 @@ function ConnectionIndicator({
   );
 }
 
-function ConnectionIndicatorDot({ status, className, ...props }: ConnectionIndicatorDotProps) {
-  const context = useConnectionIndicatorContext(status);
-  const config = STATUS_CONFIG[context.status];
-
-  return (
-    <Pill.Dot
-      aria-hidden="true"
-      className={className}
-      data-slot="connection-indicator-dot"
-      data-status={context.status}
-      data-variant={context.variant}
-      pulse={config.pulse}
-      tone={config.tone}
-      {...props}
-    />
-  );
-}
-
-function ConnectionIndicatorLabel({
-  status,
-  className,
-  children,
-  ...props
-}: ConnectionIndicatorLabelProps) {
-  const context = useConnectionIndicatorContext(status);
-  const config = STATUS_CONFIG[context.status];
-
-  return (
-    <span
-      className={cn(
-        context.variant === "inline"
-          ? "font-sans text-form-label tracking-eyebrow text-muted"
-          : "eyebrow text-muted",
-        className
-      )}
-      data-slot="connection-indicator-label"
-      data-status={context.status}
-      data-variant={context.variant}
-      {...props}
-    >
-      {children ?? context.label ?? config.label}
-    </span>
-  );
-}
-
 const ConnectionIndicatorCompound = Object.assign(ConnectionIndicator, {
   Dot: ConnectionIndicatorDot,
   Label: ConnectionIndicatorLabel,
 });
 
-export { ConnectionIndicatorCompound as ConnectionIndicator, STATUS_CONFIG };
+export { ConnectionIndicatorCompound as ConnectionIndicator };
 export type {
   ConnectionIndicatorDotProps,
   ConnectionIndicatorLabelProps,
-  ConnectionIndicatorProps,
   ConnectionStatus,
   ConnectionVariant,
-};
+} from "./connection-indicator-parts";
+export type { ConnectionIndicatorProps };

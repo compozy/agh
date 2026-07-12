@@ -2,6 +2,8 @@ import { Plus, X } from "lucide-react";
 
 import { Button, Label, NativeSelect, NativeSelectOption } from "@agh/ui";
 
+import { useLocalRowKeys } from "@/hooks/use-local-row-keys";
+
 import type { LoopReferenceSuggestion } from "../../lib/loop-references";
 import { MonoTag } from "../mono-tag";
 import { LoopReferenceInput } from "./loop-reference-input";
@@ -71,22 +73,30 @@ export function LoopEditorCriteria({
       ? { ...criterion, type: defaultType }
       : criterion;
   });
+  const rowKeys = useLocalRowKeys(criteria, "criterion");
 
   const update = (index: number, patch: Record<string, unknown>) => {
     onChange(
       criteria.map((criterion, i) => (i === index ? { ...criterion, ...patch } : criterion))
     );
   };
-  const remove = (index: number) => onChange(criteria.filter((_, i) => i !== index));
+  const remove = (index: number) => {
+    rowKeys.remove(index);
+    onChange(criteria.filter((_, i) => i !== index));
+  };
   const add = () => {
     if (!defaultType) return;
+    rowKeys.append();
     onChange([...criteria, criterionForType(nextCriterionId(criteria), defaultType)]);
   };
 
   return (
     <div className="flex flex-col gap-2" data-testid="loop-editor-criteria">
       {criteria.map((criterion, index) => (
-        <div key={index} className="rounded-md border border-line-soft bg-canvas-soft p-2.5">
+        <div
+          key={rowKeys.keys[index]}
+          className="rounded-md border border-line-soft bg-canvas-soft p-2.5"
+        >
           <div className="mb-2 flex items-center gap-2">
             <span className="font-mono text-[11.5px] text-fg-strong">
               {str(criterion.id) || "criterion"}

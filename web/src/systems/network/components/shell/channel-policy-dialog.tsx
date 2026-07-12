@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 
 import {
   Button,
@@ -119,11 +119,8 @@ function ChannelPolicyDialogForm({
   onSubmit,
 }: Omit<ChannelPolicyDialogProps, "open">) {
   const [formState, setFormState] = useState(() => initialFormState(channel, detail));
-  const selectedPolicy = useMemo(
-    () =>
-      FANOUT_POLICIES.find(candidate => candidate.value === formState.policy) ?? FANOUT_POLICIES[0],
-    [formState.policy]
-  );
+  const selectedPolicy =
+    FANOUT_POLICIES.find(candidate => candidate.value === formState.policy) ?? FANOUT_POLICIES[0];
 
   const setPurpose = (purpose: string) => {
     setFormState(current => ({ ...current, purpose }));

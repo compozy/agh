@@ -17,14 +17,3 @@ export const KIND_MEANING = {
   receipt: "Acknowledge work admission, rejection, or cancellation",
   trace: "Stream lifecycle progress for an open work_id",
 } as const satisfies Record<NetworkKind, string>;
-
-/**
- * Conversation surfaces. `surface:"thread"` is the public N-to-N container;
- * `surface:"direct"` is the restricted two-party container.
- */
-export type NetworkSurface = "thread" | "direct";
-
-export const SURFACE_MEANING = {
-  thread: "Public N-to-N conversation container, identified by thread_id",
-  direct: "Restricted two-party conversation container, identified by deterministic direct_id",
-} as const satisfies Record<NetworkSurface, string>;

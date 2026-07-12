@@ -35,7 +35,7 @@ function Sheet({
     onOpenChange?.(next, details);
   };
 
-  const value = React.useMemo<SheetMotionContextValue>(() => ({ actionsRef, open }), [open]);
+  const value: SheetMotionContextValue = { actionsRef, open };
 
   return (
     <SheetPrimitive.Root
@@ -123,9 +123,9 @@ function SheetContent({
 }: SheetContentProps) {
   const { actionsRef, open } = useSheetMotion();
 
-  const handleExitComplete = React.useCallback(() => {
+  const handleExitComplete = () => {
     actionsRef.current?.unmount();
-  }, [actionsRef]);
+  };
 
   return (
     <AnimatePresence onExitComplete={handleExitComplete}>

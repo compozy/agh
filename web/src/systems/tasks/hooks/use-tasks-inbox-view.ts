@@ -1,5 +1,3 @@
-import { useCallback, useMemo } from "react";
-
 import {
   type InboxLaneCount,
   applyInboxFilterChips,
@@ -91,25 +89,15 @@ export function useTasksInboxView({
   priorityFilter,
   onPriorityChange,
 }: UseTasksInboxViewArgs) {
-  const allItems = useMemo(() => flattenItems(inbox), [inbox]);
-  const laneCounts = useMemo(() => computeLaneCounts(inbox?.groups), [inbox?.groups]);
-  const filterFields = useMemo(() => buildInboxFilterFields(laneCounts), [laneCounts]);
-  const filterChips = useMemo(
-    () => inboxFiltersToChips({ laneFilter, statusFilter, priorityFilter }),
-    [laneFilter, priorityFilter, statusFilter]
-  );
-  const handleFiltersChange = useCallback(
-    (chips: Parameters<typeof applyInboxFilterChips>[0]) => {
-      applyInboxFilterChips(chips, {
-        onLaneChange,
-        onStatusChange,
-        onPriorityChange,
-      });
-    },
-    [onLaneChange, onPriorityChange, onStatusChange]
-  );
-  const groups = useMemo(() => partitionByGroup(allItems), [allItems]);
-  const groupTotals = useMemo(() => countByDisplayGroup(inbox?.groups), [inbox?.groups]);
+  const allItems = flattenItems(inbox);
+  const laneCounts = computeLaneCounts(inbox?.groups);
+  const filterFields = buildInboxFilterFields(laneCounts);
+  const filterChips = inboxFiltersToChips({ laneFilter, statusFilter, priorityFilter });
+  const handleFiltersChange = (chips: Parameters<typeof applyInboxFilterChips>[0]) => {
+    applyInboxFilterChips(chips, { onLaneChange, onStatusChange, onPriorityChange });
+  };
+  const groups = partitionByGroup(allItems);
+  const groupTotals = countByDisplayGroup(inbox?.groups);
 
   return {
     archivedTotal: inbox?.archived_total ?? 0,

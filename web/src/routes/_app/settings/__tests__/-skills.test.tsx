@@ -239,6 +239,32 @@ describe("SkillsSettingsPage", () => {
     expect(screen.getByTestId("settings-page-skills-allowed-mcp-input")).toHaveValue("mcp-one");
   });
 
+  it("preserves a trailing delimiter while editing an allow-list and commits on blur", () => {
+    render(
+      <UIProvider reducedMotion="always">
+        <SkillsSettingsPage />
+      </UIProvider>
+    );
+    const input = screen.getByTestId("settings-page-skills-allowed-mcp-input");
+
+    fireEvent.blur(input);
+    expect(pageState.setDraft).not.toHaveBeenCalled();
+
+    fireEvent.change(input, { target: { value: "mcp-one, " } });
+    expect(input).toHaveValue("mcp-one, ");
+    expect(pageState.setDraft).not.toHaveBeenCalled();
+
+    fireEvent.change(input, { target: { value: "mcp-one, mcp-two" } });
+    fireEvent.blur(input);
+
+    expect(pageState.setDraft).toHaveBeenCalledTimes(1);
+    const update = pageState.setDraft.mock.calls[0]?.[0];
+    expect(typeof update).toBe("function");
+    expect(update?.(pageState.draft)).toMatchObject({
+      allowed_marketplace_mcp: ["mcp-one", "mcp-two"],
+    });
+  });
+
   it("shows the applied label for disabled skills when the draft is clean", () => {
     pageState.lastDisabledLabel = "Saved · applied immediately";
     render(

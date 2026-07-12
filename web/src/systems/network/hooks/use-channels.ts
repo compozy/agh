@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -61,56 +61,58 @@ export interface UseNetworkChannelsOptions {
   recentLimit?: number;
 }
 
-export function useNetworkChannels(
-  options: UseNetworkChannelsOptions = {}
-): UseNetworkChannelsResult {
+export function useNetworkChannels({
+  enabled: enabledOption = true,
+  workspaceId: requestedWorkspaceId,
+  recentLimit = NETWORK_DEFAULT_RECENTS_LIMIT,
+}: UseNetworkChannelsOptions = {}): UseNetworkChannelsResult {
   const { activeWorkspaceId } = useActiveWorkspace();
-  const selectedWorkspaceId = options.workspaceId ?? activeWorkspaceId;
+  const selectedWorkspaceId = requestedWorkspaceId ?? activeWorkspaceId;
   const workspaceId = selectedWorkspaceId ?? "";
-  const enabled = (options.enabled ?? true) && Boolean(selectedWorkspaceId);
-  const recentLimit = options.recentLimit ?? NETWORK_DEFAULT_RECENTS_LIMIT;
+  const enabled = enabledOption && Boolean(selectedWorkspaceId);
   const query = useQuery(
     networkChannelsOptions(workspaceId, { recent_limit: recentLimit }, enabled)
   );
-  const [pinnedIds, setPinnedIds] = useState<string[]>(() =>
-    readPinnedChannels(selectedWorkspaceId)
-  );
+  const workspaceKey = selectedWorkspaceId ?? "";
+  const [pinnedState, setPinnedState] = useState(() => ({
+    ids: readPinnedChannels(selectedWorkspaceId),
+    workspaceKey,
+  }));
+  const pinnedIds =
+    pinnedState.workspaceKey === workspaceKey
+      ? pinnedState.ids
+      : readPinnedChannels(selectedWorkspaceId);
 
-  useEffect(() => setPinnedIds(readPinnedChannels(selectedWorkspaceId)), [selectedWorkspaceId]);
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
     function handleStorage(event: StorageEvent) {
       if (event.key === PINNED_CHANNELS_STORAGE_KEY) {
-        setPinnedIds(readPinnedChannels(selectedWorkspaceId));
+        setPinnedState({
+          ids: readPinnedChannels(selectedWorkspaceId),
+          workspaceKey,
+        });
       }
     }
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
-  }, [selectedWorkspaceId]);
+  }, [activeWorkspaceId, requestedWorkspaceId, selectedWorkspaceId, workspaceKey]);
 
-  const togglePinned = useCallback(
-    (channel: string) => {
-      if (!selectedWorkspaceId) return;
-      setPinnedIds(current => {
-        const next = current.includes(channel)
-          ? current.filter(value => value !== channel)
-          : [channel, ...current];
-        writePinnedChannels(selectedWorkspaceId, next);
-        return next;
-      });
-    },
-    [selectedWorkspaceId]
-  );
-  const isPinned = useCallback((channel: string) => pinnedIds.includes(channel), [pinnedIds]);
-  const channels = useMemo(() => query.data?.channels ?? [], [query.data?.channels]);
-  const pinned = useMemo(
-    () => channels.filter(channel => pinnedIds.includes(channel.channel)),
-    [channels, pinnedIds]
-  );
-  const unpinned = useMemo(
-    () => channels.filter(channel => !pinnedIds.includes(channel.channel)),
-    [channels, pinnedIds]
-  );
+  const togglePinned = (channel: string) => {
+    if (!selectedWorkspaceId) return;
+    setPinnedState(current => {
+      const currentIds = current.workspaceKey === workspaceKey ? current.ids : pinnedIds;
+      const next = currentIds.includes(channel)
+        ? currentIds.filter(value => value !== channel)
+        : [channel, ...currentIds];
+      writePinnedChannels(selectedWorkspaceId, next);
+      return { ids: next, workspaceKey };
+    });
+  };
+  const channels = query.data?.channels ?? [];
+  const pinnedIdSet = new Set(pinnedIds);
+  const isPinned = (channel: string) => pinnedIdSet.has(channel);
+  const pinned = channels.filter(channel => pinnedIdSet.has(channel.channel));
+  const unpinned = channels.filter(channel => !pinnedIdSet.has(channel.channel));
 
   return {
     channels,

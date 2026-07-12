@@ -8,33 +8,32 @@ export interface MeasuredBounds {
 }
 
 export type UseMeasureResult<T extends HTMLElement = HTMLElement> = readonly [
-  (node: T | null) => void,
+  React.RefCallback<T>,
   MeasuredBounds,
 ];
 
+function observeElement(node: Element, onBounds: (bounds: MeasuredBounds) => void): () => void {
+  const observer = new ResizeObserver(entries => {
+    const entry = entries[0];
+    if (!entry) return;
+    onBounds(entry.contentRect);
+  });
+  observer.observe(node);
+  return () => observer.disconnect();
+}
+
 export function useMeasure<T extends HTMLElement = HTMLElement>(): UseMeasureResult<T> {
   const [bounds, setBounds] = React.useState<MeasuredBounds>({ width: 0, height: 0 });
-  const observerRef = React.useRef<ResizeObserver | null>(null);
-
-  const refCallback = React.useCallback((node: T | null) => {
-    observerRef.current?.disconnect();
+  const [refCallback] = React.useState<React.RefCallback<T>>(() => (node: T | null) => {
     if (!node || typeof ResizeObserver === "undefined") {
-      observerRef.current = null;
       return;
     }
-    const observer = new ResizeObserver(entries => {
-      const entry = entries[0];
-      if (!entry) return;
-      const { width, height } = entry.contentRect;
+    return observeElement(node, ({ width, height }) => {
       setBounds(prev =>
         prev.width === width && prev.height === height ? prev : { width, height }
       );
     });
-    observer.observe(node);
-    observerRef.current = observer;
-  }, []);
-
-  React.useEffect(() => () => observerRef.current?.disconnect(), []);
+  });
 
   return [refCallback, bounds] as const;
 }

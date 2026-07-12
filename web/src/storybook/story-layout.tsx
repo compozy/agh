@@ -1,7 +1,5 @@
 import type { ReactNode } from "react";
 
-import { Sidebar } from "@agh/ui";
-
 import { cn } from "@/lib/utils";
 
 interface StoryFrameProps {
@@ -30,16 +28,6 @@ export function PanelSurface({ children, className }: StoryFrameProps) {
       )}
     >
       {children}
-    </StorySurface>
-  );
-}
-
-export function SidebarSurface({ children, className }: StoryFrameProps) {
-  return (
-    <StorySurface className={cn("max-w-sm p-0", className)}>
-      <div className="h-105">
-        <Sidebar nav={children} />
-      </div>
     </StorySurface>
   );
 }

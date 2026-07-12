@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef, useState, type SetStateAction } from "react";
 import { toast } from "sonner";
 
 import { useCreateChildTask, useCreateTask, useEnqueueTaskRun } from "@/systems/tasks";
@@ -34,93 +34,101 @@ export function useTaskCreateRouteState(search: { template?: TaskTemplateId }) {
   const activeTaskScope = taskScopeForActiveWorkspace(activeWorkspace, userHomeDir);
   const createDraftWorkspaceId =
     activeTaskScope?.scope === "workspace" ? activeTaskScope.workspace : undefined;
-  const [draft, setDraft] = useState<TaskEditorDraft>(() =>
-    createTaskEditorDraft(templateId, createDraftWorkspaceId)
-  );
+  const draftKey = `${templateId}:${createDraftWorkspaceId ?? "global"}`;
+  const [draftState, setDraftState] = useState(() => ({
+    draft: createTaskEditorDraft(templateId, createDraftWorkspaceId),
+    key: draftKey,
+  }));
+  const draft =
+    draftState.key === draftKey
+      ? draftState.draft
+      : createTaskEditorDraft(templateId, createDraftWorkspaceId);
+  const setDraft = (update: SetStateAction<TaskEditorDraft>) => {
+    setDraftState(current => {
+      const currentDraft =
+        current.key === draftKey
+          ? current.draft
+          : createTaskEditorDraft(templateId, createDraftWorkspaceId);
+      return {
+        draft: typeof update === "function" ? update(currentDraft) : update,
+        key: draftKey,
+      };
+    });
+  };
 
-  useEffect(() => {
-    setDraft(createTaskEditorDraft(templateId, createDraftWorkspaceId));
-  }, [createDraftWorkspaceId, templateId]);
+  const handleTemplateChange = (nextTemplateId: TaskTemplateId) => {
+    void navigate({
+      to: "/tasks/new",
+      search: () =>
+        nextTemplateId === DEFAULT_TASK_TEMPLATE_ID
+          ? { template: undefined }
+          : { template: nextTemplateId },
+    });
+  };
 
-  const handleTemplateChange = useCallback(
-    (nextTemplateId: TaskTemplateId) => {
-      void navigate({
-        to: "/tasks/new",
-        search: () =>
-          nextTemplateId === DEFAULT_TASK_TEMPLATE_ID
-            ? { template: undefined }
-            : { template: nextTemplateId },
-      });
-    },
-    [navigate]
-  );
+  const handleSubmit = async (nextDraft: TaskEditorDraft, asDraft: boolean) => {
+    if (submitInFlightRef.current) {
+      return null;
+    }
 
-  const handleSubmit = useCallback(
-    async (nextDraft: TaskEditorDraft, asDraft: boolean) => {
-      if (submitInFlightRef.current) {
-        return null;
-      }
+    const trimmedTitle = nextDraft.title.trim();
+    if (!trimmedTitle) {
+      toast.error("Provide a title before creating the task.");
+      return null;
+    }
 
-      const trimmedTitle = nextDraft.title.trim();
-      if (!trimmedTitle) {
-        toast.error("Provide a title before creating the task.");
-        return null;
-      }
+    if (nextDraft.scope === "workspace" && !nextDraft.workspaceId) {
+      toast.error("Select a workspace before creating a workspace task.");
+      return null;
+    }
 
-      if (nextDraft.scope === "workspace" && !nextDraft.workspaceId) {
-        toast.error("Select a workspace before creating a workspace task.");
-        return null;
-      }
+    const parentTaskId = nextDraft.parentTaskId.trim();
+    const isChildTask = parentTaskId.length > 0;
 
-      const parentTaskId = nextDraft.parentTaskId.trim();
-      const isChildTask = parentTaskId.length > 0;
-
-      submitInFlightRef.current = true;
-      try {
-        const created = isChildTask
-          ? await createChildMutation.mutateAsync({
-              parentId: parentTaskId,
-              data: buildCreateChildTaskRequest(nextDraft, {
-                asDraft,
-                templateId,
-              }),
+    submitInFlightRef.current = true;
+    try {
+      const created = isChildTask
+        ? await createChildMutation.mutateAsync({
+            parentId: parentTaskId,
+            data: buildCreateChildTaskRequest(nextDraft, {
+              asDraft,
+              templateId,
+            }),
+          })
+        : await createMutation.mutateAsync(
+            buildCreateTaskRequest(nextDraft, {
+              asDraft,
+              templateId,
             })
-          : await createMutation.mutateAsync(
-              buildCreateTaskRequest(nextDraft, {
-                asDraft,
-                templateId,
-              })
-            );
-        const wantsImmediateRun =
-          !created.draft && getTaskTemplate(templateId).preview.enqueueOnSubmit;
-        if (wantsImmediateRun && created.id) {
-          try {
-            await enqueueMutation.mutateAsync({ id: created.id });
-          } catch (runError) {
-            const message =
-              runError instanceof Error ? runError.message : "Failed to enqueue first run";
-            toast.error(`Task created, but enqueue failed: ${message}`);
-          }
+          );
+      const wantsImmediateRun =
+        !created.draft && getTaskTemplate(templateId).preview.enqueueOnSubmit;
+      if (wantsImmediateRun && created.id) {
+        try {
+          await enqueueMutation.mutateAsync({ id: created.id });
+        } catch (runError) {
+          const message =
+            runError instanceof Error ? runError.message : "Failed to enqueue first run";
+          toast.error(`Task created, but enqueue failed: ${message}`);
         }
-
-        toast.success(
-          created.draft ? `Saved draft "${trimmedTitle}".` : `Created task "${trimmedTitle}".`
-        );
-
-        if (created.id) {
-          await navigate({ to: "/tasks/$id", params: { id: created.id } });
-        }
-
-        return created;
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Failed to create task");
-        return null;
-      } finally {
-        submitInFlightRef.current = false;
       }
-    },
-    [createChildMutation, createMutation, enqueueMutation, navigate, templateId]
-  );
+
+      toast.success(
+        created.draft ? `Saved draft "${trimmedTitle}".` : `Created task "${trimmedTitle}".`
+      );
+
+      if (created.id) {
+        await navigate({ to: "/tasks/$id", params: { id: created.id } });
+      }
+
+      submitInFlightRef.current = false;
+      return created;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create task");
+      submitInFlightRef.current = false;
+      return null;
+    }
+  };
 
   return {
     draft,

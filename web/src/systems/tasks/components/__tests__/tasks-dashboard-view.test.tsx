@@ -14,7 +14,7 @@ import { buildDashboardFixture } from "../test-fixtures";
 
 describe("TasksDashboardView", () => {
   it("renders loading state when no dashboard is available", () => {
-    render(<TasksDashboardView dashboard={null} isLoading />);
+    render(<TasksDashboardView dashboard={null} dashboardStatus="loading" />);
     expect(screen.getByTestId("tasks-dashboard-loading")).toBeInTheDocument();
   });
 

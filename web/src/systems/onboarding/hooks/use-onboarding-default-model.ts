@@ -1,5 +1,3 @@
-import { useCallback, useMemo } from "react";
-
 import { isReasoningEffort, type ReasoningEffort } from "@/lib/api-contract";
 import {
   providerNeedsAuth,
@@ -60,10 +58,35 @@ function normalizeEffort(effort: string): ReasoningEffort | "" {
   return effort === "" ? "" : isReasoningEffort(effort) ? effort : "";
 }
 
+function updateRuntime(next: RuntimeSelectorValue): void {
+  const store = useOnboardingDraftStore.getState();
+  const providerChanged = next.provider !== store.provider;
+  store.patch({
+    provider: next.provider,
+    model: next.model,
+    reasoning: normalizeEffort(next.reasoning_effort),
+    ...(providerChanged ? { envVar: "", apiKey: "" } : {}),
+  });
+}
+
+function updateAuthMode(authMode: OnboardingAuthMode): void {
+  useOnboardingDraftStore
+    .getState()
+    .patch(authMode === "native_cli" ? { authMode, envVar: "", apiKey: "" } : { authMode });
+}
+
+function updateEnvVar(envVar: string): void {
+  useOnboardingDraftStore.getState().patch({ envVar });
+}
+
+function updateApiKey(apiKey: string): void {
+  useOnboardingDraftStore.getState().patch({ apiKey });
+}
+
 export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
   const draft = useOnboardingDraftStore();
   const providersQuery = useProviders();
-  const providers = useMemo(() => providersQuery.data?.providers ?? [], [providersQuery.data]);
+  const providers = providersQuery.data?.providers ?? [];
 
   const provider = draft.provider;
 
@@ -72,67 +95,36 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
   const updateGeneral = useUpdateSettingsGeneral();
   const putProvider = usePutSettingsProvider();
 
-  const existingApiKeyTargetEnv = useMemo(
-    () =>
-      providerDetailQuery.data?.settings.credential_slots
-        ?.find(slot => slot.name === "api_key")
-        ?.target_env.trim() ?? "",
-    [providerDetailQuery.data]
-  );
+  const existingApiKeyTargetEnv =
+    providerDetailQuery.data?.settings.credential_slots
+      ?.find(slot => slot.name === "api_key")
+      ?.target_env.trim() ?? "";
 
-  const runtimeProviders = useMemo<RuntimeProviderOption[]>(
-    () =>
-      providers.map(entry => ({
-        id: entry.name,
-        name: entry.display_name?.trim() || entry.name,
-        runtime_provider: entry.name,
-        needs_auth: providerNeedsAuth(entry.auth_status?.state),
-      })),
-    [providers]
-  );
+  const runtimeProviders: RuntimeProviderOption[] = providers.map(entry => ({
+    id: entry.name,
+    name: entry.display_name?.trim() || entry.name,
+    runtime_provider: entry.name,
+    needs_auth: providerNeedsAuth(entry.auth_status?.state),
+  }));
 
   // Onboarding lets the operator browse every configured provider's catalog via
   // the single aggregate query, filtered to the configured providers.
-  const catalogProviders = useMemo<RuntimeCatalogProvider[]>(
-    () => runtimeProviders.map(entry => ({ id: entry.id, needsAuth: entry.needs_auth })),
-    [runtimeProviders]
-  );
+  const catalogProviders: RuntimeCatalogProvider[] = runtimeProviders.map(entry => ({
+    id: entry.id,
+    needsAuth: entry.needs_auth,
+  }));
   const catalog = useRuntimeModelCatalog(catalogProviders, { enabled: true });
   const runtimeModels = catalog.models;
 
-  const runtimeValue = useMemo<RuntimeSelectorValue>(
-    () => ({ provider: draft.provider, model: draft.model, reasoning_effort: draft.reasoning }),
-    [draft.provider, draft.model, draft.reasoning]
-  );
-
-  const onRuntimeChange = useCallback((next: RuntimeSelectorValue) => {
-    const store = useOnboardingDraftStore.getState();
-    const providerChanged = next.provider !== store.provider;
-    store.patch({
-      provider: next.provider,
-      model: next.model,
-      reasoning: normalizeEffort(next.reasoning_effort),
-      ...(providerChanged ? { envVar: "", apiKey: "" } : {}),
-    });
-  }, []);
+  const runtimeValue: RuntimeSelectorValue = {
+    provider: draft.provider,
+    model: draft.model,
+    reasoning_effort: draft.reasoning,
+  };
 
   const onRefreshCatalog = catalog.refresh;
 
-  const onAuthModeChange = useCallback((authMode: OnboardingAuthMode) => {
-    useOnboardingDraftStore
-      .getState()
-      .patch(authMode === "native_cli" ? { authMode, envVar: "", apiKey: "" } : { authMode });
-  }, []);
-
-  const onEnvVarChange = useCallback((envVar: string) => {
-    useOnboardingDraftStore.getState().patch({ envVar });
-  }, []);
-
-  const onApiKeyChange = useCallback((apiKey: string) => {
-    useOnboardingDraftStore.getState().patch({ apiKey });
-  }, []);
-
-  const commit = useCallback(async () => {
+  const commit = async () => {
     const trimmedProvider = draft.provider.trim();
     if (trimmedProvider.length === 0) {
       throw new Error("Select a provider before continuing.");
@@ -165,15 +157,7 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
     await updateGeneral.mutateAsync({
       config: { ...config, defaults: { ...config.defaults, provider: trimmedProvider } },
     });
-  }, [
-    draft,
-    generalQuery.data,
-    generalQuery.error,
-    providerDetailQuery.data,
-    providerDetailQuery.error,
-    putProvider,
-    updateGeneral,
-  ]);
+  };
 
   const providerSettingsError =
     provider.length > 0 && providerDetailQuery.error
@@ -216,11 +200,11 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
     configurationError,
     isValid: canCommit,
     isCommitting: putProvider.isPending || updateGeneral.isPending,
-    onRuntimeChange,
+    onRuntimeChange: updateRuntime,
     onRefreshCatalog,
-    onAuthModeChange,
-    onEnvVarChange,
-    onApiKeyChange,
+    onAuthModeChange: updateAuthMode,
+    onEnvVarChange: updateEnvVar,
+    onApiKeyChange: updateApiKey,
     commit,
   };
 }

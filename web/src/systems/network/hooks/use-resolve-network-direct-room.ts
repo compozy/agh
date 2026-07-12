@@ -1,5 +1,4 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
 
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -31,15 +30,9 @@ export function useResolveNetworkDirectRoom(
       });
     },
   });
-  const resolveRoom = useCallback(
-    (input: ResolveNetworkDirectRoomInput) =>
-      workspaceId
-        ? mutation.mutateAsync({ ...input, workspaceId })
-        : Promise.reject(new NetworkApiError("No active workspace selected", 400)),
-    [mutation, workspaceId]
-  );
-  return useMemo(
-    () => ({ resolveRoom, isResolving: mutation.isPending, error: mutation.error ?? null }),
-    [mutation.error, mutation.isPending, resolveRoom]
-  );
+  const resolveRoom = (input: ResolveNetworkDirectRoomInput) =>
+    workspaceId
+      ? mutation.mutateAsync({ ...input, workspaceId })
+      : Promise.reject(new NetworkApiError("No active workspace selected", 400));
+  return { resolveRoom, isResolving: mutation.isPending, error: mutation.error ?? null };
 }

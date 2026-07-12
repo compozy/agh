@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useState } from "react";
 
 import {
   useTaskInbox,
@@ -31,6 +31,18 @@ interface UseTasksPageOptions {
   forceListData?: boolean;
 }
 
+function resolveTaskScopeError(
+  hasActiveTaskScope: boolean,
+  scopeLoading: boolean,
+  scopeSourceError: Error | null,
+  userHomeDir: string | undefined
+): Error | null {
+  if (hasActiveTaskScope || scopeLoading) return null;
+  if (scopeSourceError) return scopeSourceError;
+  if (!userHomeDir) return new Error("Daemon status did not provide a user home directory.");
+  return new Error("No active workspace is available for task scope.");
+}
+
 function useTasksPage(options: UseTasksPageOptions = {}) {
   const workspace = useActiveWorkspace();
   const daemonStatus = useDaemonStatus();
@@ -50,10 +62,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const deferredInboxQuery = useDeferredValue(inboxSearchQuery);
 
-  const activeTaskScope = useMemo(
-    () => taskScopeForActiveWorkspace(activeWorkspace, userHomeDir),
-    [activeWorkspace, userHomeDir]
-  );
+  const activeTaskScope = taskScopeForActiveWorkspace(activeWorkspace, userHomeDir);
   const hasActiveTaskScope = activeTaskScope !== null;
   const scopeSourceError =
     (!userHomeDir ? daemonStatus.error : null) ??
@@ -63,67 +72,42 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     !hasActiveTaskScope &&
     !scopeSourceError &&
     (!workspace.hasHydrated || workspace.isPending || daemonStatus.isPending);
-  const scopeError = useMemo(() => {
-    if (hasActiveTaskScope || scopeLoading) {
-      return null;
-    }
-    if (scopeSourceError) {
-      return scopeSourceError;
-    }
-    if (!userHomeDir) {
-      return new Error("Daemon status did not provide a user home directory.");
-    }
-    return new Error("No active workspace is available for task scope.");
-  }, [activeWorkspace, hasActiveTaskScope, scopeLoading, scopeSourceError, userHomeDir]);
-  const listFilters: TaskListFilter = useMemo(
-    () => ({
-      ...(activeTaskScope ? defaultTaskCatalogFilter(activeTaskScope) : {}),
-      status: statusFilter ?? undefined,
-      priority: priorityFilter ?? undefined,
-      include_drafts: true,
-      owner_kind: ownerFilter?.kind,
-      owner_ref: ownerFilter?.ref,
-      query: deferredSearchQuery.trim() || undefined,
-      sort: sortBy,
-      limit: DEFAULT_TASK_LIST_LIMIT,
-    }),
-    [activeTaskScope, deferredSearchQuery, ownerFilter, priorityFilter, sortBy, statusFilter]
+  const scopeError = resolveTaskScopeError(
+    hasActiveTaskScope,
+    scopeLoading,
+    scopeSourceError,
+    userHomeDir
   );
-  const dashboardFilters: TaskDashboardFilter = useMemo(
-    () => ({
-      scope: activeTaskScope?.scope,
-      workspace: activeTaskScope?.workspace,
-    }),
-    [activeTaskScope]
-  );
-  const inboxFilters: TaskInboxFilter = useMemo(
-    () => ({
-      scope: activeTaskScope?.scope,
-      workspace: activeTaskScope?.workspace,
-      lane: inboxLaneFilter === "all" ? undefined : inboxLaneFilter,
-      status: inboxStatusFilter ?? undefined,
-      priority: inboxPriorityFilter ?? undefined,
-      unread: inboxUnreadOnly ? true : undefined,
-      query: deferredInboxQuery.trim() || undefined,
-      limit: DEFAULT_TASK_LIST_LIMIT,
-    }),
-    [
-      activeTaskScope,
-      deferredInboxQuery,
-      inboxLaneFilter,
-      inboxPriorityFilter,
-      inboxStatusFilter,
-      inboxUnreadOnly,
-    ]
-  );
-  const inboxBadgeFilters: TaskInboxFilter = useMemo(
-    () => ({
-      scope: activeTaskScope?.scope,
-      workspace: activeTaskScope?.workspace,
-      limit: 1,
-    }),
-    [activeTaskScope]
-  );
+  const listFilters: TaskListFilter = {
+    ...(activeTaskScope ? defaultTaskCatalogFilter(activeTaskScope) : {}),
+    status: statusFilter ?? undefined,
+    priority: priorityFilter ?? undefined,
+    include_drafts: true,
+    owner_kind: ownerFilter?.kind,
+    owner_ref: ownerFilter?.ref,
+    query: deferredSearchQuery.trim() || undefined,
+    sort: sortBy,
+    limit: DEFAULT_TASK_LIST_LIMIT,
+  };
+  const dashboardFilters: TaskDashboardFilter = {
+    scope: activeTaskScope?.scope,
+    workspace: activeTaskScope?.workspace,
+  };
+  const inboxFilters: TaskInboxFilter = {
+    scope: activeTaskScope?.scope,
+    workspace: activeTaskScope?.workspace,
+    lane: inboxLaneFilter === "all" ? undefined : inboxLaneFilter,
+    status: inboxStatusFilter ?? undefined,
+    priority: inboxPriorityFilter ?? undefined,
+    unread: inboxUnreadOnly ? true : undefined,
+    query: deferredInboxQuery.trim() || undefined,
+    limit: DEFAULT_TASK_LIST_LIMIT,
+  };
+  const inboxBadgeFilters: TaskInboxFilter = {
+    scope: activeTaskScope?.scope,
+    workspace: activeTaskScope?.workspace,
+    limit: 1,
+  };
 
   const isListTab =
     hasActiveTaskScope && (mode === "list" || mode === "kanban" || options.forceListData === true);
@@ -139,50 +123,40 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
 
   const allTasks = tasksQuery.data ?? [];
   const visibleTasks = allTasks;
-  const statusCounts = useMemo(
-    () => taskStatusCountsFromFacets(tasksQuery.facets),
-    [tasksQuery.facets]
-  );
-  const kanbanColumns: KanbanColumnGroup[] = useMemo(
-    () => groupTasksForKanban(visibleTasks),
-    [visibleTasks]
-  );
-  const ownerOptions = useMemo(
-    () =>
-      tasksQuery.facets.owners.map(facet => ({
-        kind: facet.owner.kind,
-        ref: facet.owner.ref,
-      })),
-    [tasksQuery.facets.owners]
-  );
+  const statusCounts = taskStatusCountsFromFacets(tasksQuery.facets);
+  const kanbanColumns: KanbanColumnGroup[] = groupTasksForKanban(visibleTasks);
+  const ownerOptions = tasksQuery.facets.owners.map(facet => ({
+    kind: facet.owner.kind,
+    ref: facet.owner.ref,
+  }));
 
   const effectiveSelectedTaskId = visibleTasks[0]?.id ?? null;
   const actions = useTasksPageActions();
-  const loadMoreTasks = useCallback(() => {
+  const loadMoreTasks = () => {
     void tasksQuery.fetchNextPage();
-  }, [tasksQuery]);
-  const loadMoreInbox = useCallback(() => {
+  };
+  const loadMoreInbox = () => {
     void inboxQuery.fetchNextPage();
-  }, [inboxQuery]);
-  const retryTasks = useCallback(() => {
+  };
+  const retryTasks = () => {
     if (tasksQuery.isFetchNextPageError) {
       void tasksQuery.fetchNextPage();
       return;
     }
     void tasksQuery.refetch();
-  }, [tasksQuery]);
-  const retryInbox = useCallback(() => {
+  };
+  const retryInbox = () => {
     if (inboxQuery.isFetchNextPageError) {
       void inboxQuery.fetchNextPage();
       return;
     }
     void inboxQuery.refetch();
-  }, [inboxQuery]);
+  };
 
-  const handleModeChange = useCallback((next: TaskViewMode) => {
+  const handleModeChange = (next: TaskViewMode) => {
     setMode(next);
     setSearchQuery("");
-  }, []);
+  };
   const hasListFilters = Boolean(
     statusFilter || ownerFilter || priorityFilter || deferredSearchQuery.trim()
   );

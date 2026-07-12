@@ -179,14 +179,16 @@ export { ThinkingBlock, type ThinkingBlockProps } from "./components/thinking-bl
 export { PermissionPrompt, type PermissionPromptProps } from "./components/permission-prompt";
 export {
   SessionInspector,
-  deriveFileReads,
-  deriveTraceEvents,
-  type InspectorFileEntry,
   type InspectorMemoryState,
   type InspectorSessionLedger,
-  type InspectorTraceEvent,
-  type InspectorTraceKind,
-  type InspectorTraceStatus,
   type InspectorUsage,
   type SessionInspectorProps,
 } from "./components/session-inspector";
+export {
+  deriveFileReads,
+  deriveTraceEvents,
+  type InspectorFileEntry,
+  type InspectorTraceEvent,
+  type InspectorTraceKind,
+  type InspectorTraceStatus,
+} from "./components/session-inspector.logic";

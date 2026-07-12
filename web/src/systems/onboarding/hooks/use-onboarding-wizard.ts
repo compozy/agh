@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { useOnboardingDraftStore } from "../stores/use-onboarding-draft-store";
@@ -71,23 +71,18 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
   const canContinue =
     step === 1 ? defaultModel.isValid : step === 2 ? workspaces.workspaces.length > 0 : true;
 
-  const goToStep = useCallback(
-    (next: number) => {
-      if (next < 1 || next > ONBOARDING_STEP_COUNT || next > maxStep) {
-        return;
-      }
-      setStep(next);
-    },
-    [maxStep, setStep]
-  );
+  const goToStep = (next: number) => {
+    if (next < 1 || next > ONBOARDING_STEP_COUNT || next > maxStep) return;
+    setStep(next);
+  };
 
-  const back = useCallback(() => {
+  const back = () => {
     if (step > 1) {
       setStep(step - 1);
     }
-  }, [setStep, step]);
+  };
 
-  const finish = useCallback(async () => {
+  const finish = async () => {
     setCommitError(null);
     try {
       await complete.mutateAsync();
@@ -98,9 +93,9 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
       setCommitError(message);
       toast.error(message);
     }
-  }, [complete, onComplete, reset]);
+  };
 
-  const next = useCallback(async () => {
+  const next = async () => {
     setCommitError(null);
     if (step === 1) {
       try {
@@ -121,7 +116,7 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
       return;
     }
     await finish();
-  }, [chat, defaultModel, finish, setStep, step]);
+  };
 
   return {
     step,

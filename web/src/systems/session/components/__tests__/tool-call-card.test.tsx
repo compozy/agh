@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { UIMessage } from "../../types";
@@ -167,21 +168,25 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @agh/ui
     expect(headingEl?.className).toContain("text-muted");
   });
 
-  it("Should toggle the specialized output body by click and keyboard", () => {
+  it("Should toggle the specialized output body by click and keyboard", async () => {
+    const user = userEvent.setup();
     render(<SessionToolCallRow message={makeToolMessage()} />);
     const rowTrigger = document.querySelector<HTMLElement>('[data-slot="tool-call-row-trigger"]');
     expect(rowTrigger).not.toBeNull();
     expect(rowTrigger).toHaveAttribute("aria-expanded", "false");
     expect(queryBody()).toBeNull();
 
-    fireEvent.click(rowTrigger as HTMLElement);
+    await user.click(rowTrigger as HTMLElement);
     expect(queryBody()).not.toBeNull();
     expect(document.querySelector('[data-slot="tool-call-row-output"]')).not.toBeNull();
     expect(screen.getByTestId("read-content")).toHaveTextContent("/src/main.ts");
 
-    fireEvent.keyDown(rowTrigger as HTMLElement, { key: "Enter" });
+    // SUT_IS_CORRECT_BECAUSE native buttons own Enter/Space activation; userEvent
+    // exercises the browser interaction instead of bypassing it with keydown only.
+    (rowTrigger as HTMLElement).focus();
+    await user.keyboard("{Enter}");
     expect(queryBody()).toBeNull();
-    fireEvent.keyDown(rowTrigger as HTMLElement, { key: " " });
+    await user.keyboard(" ");
     expect(queryBody()).not.toBeNull();
   });
 

@@ -278,5 +278,6 @@ describe("SandboxPage", () => {
     expect(banner).toHaveAttribute("data-slot", "alert");
     expect(banner).toHaveTextContent('Deleted "local"');
     expect(banner).toHaveTextContent("3 workspaces affected");
+    expect(screen.getByRole("button", { name: "Dismiss result" })).toBeInTheDocument();
   });
 });

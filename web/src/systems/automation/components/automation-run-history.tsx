@@ -70,7 +70,7 @@ function AutomationRunRow({ run }: AutomationRunRowProps) {
     return (
       <Link
         aria-label={ariaLabel}
-        className="group/run-row flex min-w-0 items-start gap-4 border-b border-line px-4 py-3 text-left text-fg transition-colors duration-base ease-out last:border-b-0 hover:bg-hover focus-visible:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-line-strong"
+        className="group/run-row flex min-w-0 items-start gap-4 px-4 py-3 text-left text-fg transition-colors duration-base ease-out hover:bg-hover focus-visible:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-line-strong"
         data-testid={testId}
         params={{ id: run.session_id }}
         to="/session/$id"
@@ -90,7 +90,7 @@ function AutomationRunRow({ run }: AutomationRunRowProps) {
   return (
     <div
       aria-label={ariaLabel}
-      className="flex min-w-0 items-start gap-4 border-b border-line px-4 py-3 last:border-b-0"
+      className="flex min-w-0 items-start gap-4 px-4 py-3"
       data-testid={testId}
     >
       {body}
@@ -139,17 +139,16 @@ export function AutomationRunHistory({
           <Empty description={emptyDescription} icon={History} title={emptyTitle} fill={false} />
         </div>
       ) : (
-        <div
+        <ul
           className="overflow-hidden rounded-lg bg-canvas-soft"
           data-testid="automation-run-history-rows"
-          role="list"
         >
           {runs.map(run => (
-            <div key={run.id} role="listitem">
+            <li className="border-b border-line last:border-b-0" key={run.id}>
               <AutomationRunRow run={run} />
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </Section>
   );

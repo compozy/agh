@@ -31,7 +31,7 @@ function Popover({
     onOpenChange?.(next, details);
   };
 
-  const value = React.useMemo<PopoverMotionContextValue>(() => ({ actionsRef, open }), [open]);
+  const value: PopoverMotionContextValue = { actionsRef, open };
 
   return (
     <PopoverPrimitive.Root
@@ -71,9 +71,9 @@ function PopoverContent({
 }: PopoverContentProps) {
   const { actionsRef, open } = usePopoverMotion();
 
-  const handleExitComplete = React.useCallback(() => {
+  const handleExitComplete = () => {
     actionsRef.current?.unmount();
-  }, [actionsRef]);
+  };
 
   return (
     <AnimatePresence onExitComplete={handleExitComplete}>

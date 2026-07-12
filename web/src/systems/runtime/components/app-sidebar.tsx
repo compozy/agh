@@ -18,7 +18,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import { useMemo, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { Logo, Sidebar, SidebarSectionLabel, cn } from "@agh/ui";
 
@@ -297,33 +297,24 @@ function AppSidebar({
   activeSessionCount,
   className,
 }: AppSidebarProps) {
-  const rail = useMemo(
-    () => (
-      <RailSlot
-        workspaces={workspaces}
-        activeWorkspaceId={activeWorkspaceId}
-        onSelectWorkspace={onSelectWorkspace}
-        onAddWorkspace={onAddWorkspace}
-      />
-    ),
-    [activeWorkspaceId, onAddWorkspace, onSelectWorkspace, workspaces]
+  const rail = (
+    <RailSlot
+      workspaces={workspaces}
+      activeWorkspaceId={activeWorkspaceId}
+      onSelectWorkspace={onSelectWorkspace}
+      onAddWorkspace={onAddWorkspace}
+    />
   );
-  const header = useMemo(
-    () => (
-      <WorkspaceCommandSelect
-        workspaces={workspaces}
-        value={activeWorkspaceId}
-        onChange={onSelectWorkspace}
-        onAddWorkspace={onAddWorkspace}
-      />
-    ),
-    [activeWorkspaceId, onAddWorkspace, onSelectWorkspace, workspaces]
+  const header = (
+    <WorkspaceCommandSelect
+      workspaces={workspaces}
+      value={activeWorkspaceId}
+      onChange={onSelectWorkspace}
+      onAddWorkspace={onAddWorkspace}
+    />
   );
-  const nav = useMemo(() => <NavSlot agentsCount={agentsCount} />, [agentsCount]);
-  const footer = useMemo(
-    () => <FooterSlot activeSessionCount={activeSessionCount} />,
-    [activeSessionCount]
-  );
+  const nav = <NavSlot agentsCount={agentsCount} />;
+  const footer = <FooterSlot activeSessionCount={activeSessionCount} />;
 
   return (
     <Sidebar

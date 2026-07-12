@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 export type InspectorTab = "members" | "work" | "activity";
 
@@ -71,20 +71,18 @@ export interface UseInspectorStateResult {
  */
 export function useInspectorState(channel: string | null | undefined): UseInspectorStateResult {
   const key = channel ?? "";
-  const [state, setState] = useState<InspectorChannelState>(() => {
-    if (!key) {
-      return DEFAULT_STATE;
-    }
-    return readStore()[key] ?? DEFAULT_STATE;
-  });
-
-  useEffect(() => {
-    if (!key) {
-      setState(DEFAULT_STATE);
-      return;
-    }
-    setState(readStore()[key] ?? DEFAULT_STATE);
-  }, [key]);
+  const [storedState, setStoredState] = useState<{ key: string; value: InspectorChannelState }>(
+    () => ({
+      key,
+      value: key ? (readStore()[key] ?? DEFAULT_STATE) : DEFAULT_STATE,
+    })
+  );
+  const state =
+    storedState.key === key
+      ? storedState.value
+      : key
+        ? (readStore()[key] ?? DEFAULT_STATE)
+        : DEFAULT_STATE;
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -95,49 +93,38 @@ export function useInspectorState(channel: string | null | undefined): UseInspec
         return;
       }
       if (!key) {
-        setState(DEFAULT_STATE);
+        setStoredState({ key, value: DEFAULT_STATE });
         return;
       }
-      setState(readStore()[key] ?? DEFAULT_STATE);
+      setStoredState({ key, value: readStore()[key] ?? DEFAULT_STATE });
     }
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
-  }, [key]);
+  }, [channel, key]);
 
-  const persist = useCallback(
-    (next: InspectorChannelState) => {
-      setState(next);
-      if (!key) {
-        return;
-      }
-      const store = readStore();
-      store[key] = next;
-      writeStore(store);
-    },
-    [key]
-  );
+  const persist = (next: InspectorChannelState) => {
+    setStoredState({ key, value: next });
+    if (!key) return;
+    const store = readStore();
+    store[key] = next;
+    writeStore(store);
+  };
 
-  const toggle = useCallback(() => {
+  const toggle = () => {
     persist({ open: !state.open, tab: state.tab });
-  }, [persist, state.open, state.tab]);
+  };
 
-  const close = useCallback(() => {
+  const close = () => {
     persist({ open: false, tab: state.tab });
-  }, [persist, state.tab]);
+  };
 
-  const openWith = useCallback(
-    (tab: InspectorTab) => {
-      persist({ open: true, tab });
-    },
-    [persist]
-  );
+  const openWith = (tab: InspectorTab) => {
+    persist({ open: true, tab });
+  };
 
-  const setTab = useCallback(
-    (tab: InspectorTab) => {
-      persist({ open: state.open, tab });
-    },
-    [persist, state.open]
-  );
+  const setTab = (tab: InspectorTab) => {
+    persist({ open: state.open, tab });
+  };
 
   return { open: state.open, tab: state.tab, toggle, close, openWith, setTab };
 }

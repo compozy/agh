@@ -1,5 +1,3 @@
-import { useMemo } from "react";
-
 import type { ConnectionStatus, PillTone } from "@agh/ui";
 
 import { useAgents } from "@/systems/agent";
@@ -152,68 +150,41 @@ function useHomePage(): HomePageView {
     filters: { state: "active", limit: 1 },
   });
 
-  const daemonStatus = useMemo(
-    () => deriveDaemonStatus(connectionStatus, health),
-    [connectionStatus, health]
-  );
+  const daemonStatus = deriveDaemonStatus(connectionStatus, health);
 
-  const activeSessionsMetric = useMemo<HomeMetricEntry>(() => {
-    if (activeWorkspaceId === null) {
-      return {
-        key: "active-sessions",
-        label: "Active Sessions",
-        value: String(health?.active_sessions ?? 0),
-      };
-    }
-
-    if (sessionsError) {
-      return {
-        key: "active-sessions",
-        label: "Active Sessions",
-        value: "—",
-        detail: activeWorkspace ? `unavailable for ${activeWorkspace.name}` : "unavailable",
-      };
-    }
-
-    return {
+  let activeSessionsMetric: HomeMetricEntry;
+  if (activeWorkspaceId === null) {
+    activeSessionsMetric = {
+      key: "active-sessions",
+      label: "Active Sessions",
+      value: String(health?.active_sessions ?? 0),
+    };
+  } else if (sessionsError) {
+    activeSessionsMetric = {
+      key: "active-sessions",
+      label: "Active Sessions",
+      value: "—",
+      detail: activeWorkspace ? `unavailable for ${activeWorkspace.name}` : "unavailable",
+    };
+  } else {
+    activeSessionsMetric = {
       key: "active-sessions",
       label: "Active Sessions",
       value: String(activeSessionsTotal),
       detail: activeWorkspace ? `in ${activeWorkspace.name}` : undefined,
     };
-  }, [
-    activeSessionsTotal,
-    activeWorkspace,
-    activeWorkspaceId,
-    health?.active_sessions,
-    sessionsError,
-  ]);
+  }
 
   const agentsCount = agents?.length ?? 0;
   const workspacesCount = workspaces.length;
   const uptimeLabel = formatUptimeSeconds(health?.uptime_seconds);
 
-  const metrics = useMemo<HomeMetricEntry[]>(
-    () => [
-      activeSessionsMetric,
-      {
-        key: "workspaces",
-        label: "Workspaces",
-        value: String(workspacesCount),
-      },
-      {
-        key: "agents",
-        label: "Agents",
-        value: String(agentsCount),
-      },
-      {
-        key: "uptime",
-        label: "Daemon Uptime",
-        value: uptimeLabel,
-      },
-    ],
-    [activeSessionsMetric, workspacesCount, agentsCount, uptimeLabel]
-  );
+  const metrics: HomeMetricEntry[] = [
+    activeSessionsMetric,
+    { key: "workspaces", label: "Workspaces", value: String(workspacesCount) },
+    { key: "agents", label: "Agents", value: String(agentsCount) },
+    { key: "uptime", label: "Daemon Uptime", value: uptimeLabel },
+  ];
 
   const isLoading =
     isHealthInitialLoading ||

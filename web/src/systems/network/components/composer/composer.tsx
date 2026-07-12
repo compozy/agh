@@ -1,4 +1,5 @@
 import { AtSign } from "lucide-react";
+import { useRef, type RefObject } from "react";
 
 import { Button, Pill, Textarea } from "@agh/ui";
 
@@ -34,6 +35,7 @@ export interface ComposerProps {
 
 interface ComposerViewProps extends ComposerProps {
   state: UseComposerStateResult;
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
 }
 
 function ComposerView({
@@ -45,6 +47,7 @@ function ComposerView({
   disabledReason,
   className,
   state,
+  textareaRef,
 }: ComposerViewProps) {
   return (
     <form
@@ -68,7 +71,7 @@ function ComposerView({
         onChange={state.handleChange}
         onKeyDown={state.handleKeyDown}
         placeholder={disabled ? (disabledReason ?? placeholder) : placeholder}
-        ref={state.textareaRef}
+        ref={textareaRef}
         rows={TEXTAREA_MIN_ROWS}
         style={{ maxHeight: `${TEXTAREA_MAX_ROWS * 1.5}rem` }}
         value={state.value}
@@ -122,10 +125,12 @@ function ComposerView({
 }
 
 export function Composer(props: ComposerProps) {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const state = useComposerState({
     disabled: props.disabled ?? false,
     isSending: props.isSending ?? false,
     onSubmit: props.onSubmit,
+    textareaRef,
   });
-  return <ComposerView {...props} state={state} />;
+  return <ComposerView {...props} state={state} textareaRef={textareaRef} />;
 }

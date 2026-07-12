@@ -1,5 +1,4 @@
 import { AlertCircle, ListChecks, Search } from "lucide-react";
-import { useMemo } from "react";
 
 import { Button, Empty, ListingPage, ListingToolbar, Skeleton, Spinner } from "@agh/ui";
 
@@ -69,13 +68,9 @@ export function TasksListSurface({
   onLoadMore,
   onRetryLoad,
 }: TasksListSurfaceProps) {
-  const buckets = useMemo(
-    () =>
-      groupTasksForList(tasks).filter(
-        bucket =>
-          bucket.tasks.length > 0 || taskStatusFacetTotal(bucket.group.statuses, statusCounts) > 0
-      ),
-    [statusCounts, tasks]
+  const buckets = groupTasksForList(tasks).filter(
+    bucket =>
+      bucket.tasks.length > 0 || taskStatusFacetTotal(bucket.group.statuses, statusCounts) > 0
   );
 
   const visibleCount = tasks.length;

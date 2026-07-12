@@ -56,14 +56,13 @@ export function TaskKanbanColumn({
         : `${count} of ${totalCount}`;
 
   return (
-    <section
+    <li
       className={cn(
         "flex min-w-0 flex-col overflow-hidden rounded-lg bg-canvas-soft",
         "min-h-115 max-h-[calc(100vh-var(--space-kanban-col-offset))]",
         className
       )}
       data-testid={`tasks-kanban-column-${column.id}`}
-      role="listitem"
     >
       <header className="flex shrink-0 items-center gap-2 px-3 pt-3 pb-2">
         {dotTone === null ? null : <StatusDot tone={dotTone} size="default" label={column.label} />}
@@ -106,6 +105,6 @@ export function TaskKanbanColumn({
             ))
           : children}
       </div>
-    </section>
+    </li>
   );
 }

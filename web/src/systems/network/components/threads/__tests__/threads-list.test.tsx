@@ -57,7 +57,7 @@ describe("ThreadsList", () => {
       <ThreadsList
         activeThreadId={null}
         channel="ops"
-        isLoading={false}
+        status="ready"
         threads={threads}
         workspaceId={WORKSPACE_ID}
       />
@@ -73,7 +73,7 @@ describe("ThreadsList", () => {
       <ThreadsList
         activeThreadId="thread-1"
         channel="ops"
-        isLoading={false}
+        status="ready"
         threads={threads}
         workspaceId={WORKSPACE_ID}
       />
@@ -89,7 +89,7 @@ describe("ThreadsList", () => {
       <ThreadsList
         activeThreadId={null}
         channel="ops"
-        isLoading
+        status="loading"
         threads={[]}
         workspaceId={WORKSPACE_ID}
       />
@@ -102,7 +102,7 @@ describe("ThreadsList", () => {
       <ThreadsList
         activeThreadId={null}
         channel="ops"
-        isLoading={false}
+        status="ready"
         threads={[]}
         workspaceId={WORKSPACE_ID}
       />
@@ -116,7 +116,7 @@ describe("ThreadsList", () => {
         activeThreadId="thread-1"
         channel="ops"
         dim
-        isLoading={false}
+        status="ready"
         threads={threads}
         workspaceId={WORKSPACE_ID}
       />
@@ -131,9 +131,8 @@ describe("ThreadsList", () => {
       <ThreadsList
         activeThreadId={null}
         channel="ops"
-        hasMore
-        isLoading={false}
-        isLoadingMore={false}
+        status="ready"
+        paginationStatus="available"
         onLoadMore={onLoadMore}
         threads={threads}
         total={2}
@@ -162,7 +161,7 @@ describe("ThreadsList", () => {
         <ThreadsList
           activeThreadId={null}
           channel="design"
-          isLoading={false}
+          status="ready"
           threads={[longThread]}
           workspaceId={WORKSPACE_ID}
         />

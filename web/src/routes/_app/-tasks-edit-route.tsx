@@ -1,5 +1,4 @@
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
-import { useCallback } from "react";
 
 import { useTaskEditRouteState } from "@/hooks/routes/use-task-edit-route-state";
 import { TaskEditorModal } from "@/systems/tasks/components/task-editor-modal";
@@ -11,14 +10,11 @@ export function TaskEditRoute() {
   const navigate = useNavigate({ from: "/tasks/$id/edit" });
   const page = useTaskEditRouteState(id);
 
-  const handleOpenChange = useCallback(
-    (open: boolean) => {
-      if (!open) {
-        void navigate({ to: "/tasks/$id", params: { id } });
-      }
-    },
-    [id, navigate]
-  );
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      void navigate({ to: "/tasks/$id", params: { id } });
+    }
+  };
 
   if (page.isLoading) {
     return (

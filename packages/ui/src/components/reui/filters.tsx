@@ -2,7 +2,6 @@
 
 import { cva } from "class-variance-authority";
 import type React from "react";
-import { useCallback, useMemo } from "react";
 
 import { Button } from "@agh/ui/components/button";
 import { ButtonGroup, ButtonGroupText } from "@agh/ui/components/button-group";
@@ -32,9 +31,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@agh/ui/components/tool
 import { cn } from "@agh/ui/lib/utils";
 import { AlertCircleIcon, CheckIcon, XIcon } from "lucide-react";
 
-import { createFilter, createFilterGroup, getFieldsMap } from "./hooks/filter-helpers";
+import { createFilter, getFieldsMap } from "./hooks/filter-helpers";
 import {
-  DEFAULT_I18N,
   FilterContext,
   type FilterContextValue,
   type FilterI18nConfig,
@@ -44,9 +42,6 @@ import { useFilterInput } from "./hooks/use-filter-input";
 import { useFilterSubmenuContent } from "./hooks/use-filter-submenu-content";
 import { useFilters, type FiltersMenuAction } from "./hooks/use-filters";
 import { useSelectOptionsPopover } from "./hooks/use-select-options-popover";
-
-export { createFilter, createFilterGroup, DEFAULT_I18N };
-export type { FilterI18nConfig };
 
 // Container variant for filters wrapper
 const filtersContainerVariants = cva("flex flex-wrap items-center", {
@@ -271,10 +266,6 @@ const createOperatorsFromI18n = (i18n: FilterI18nConfig): Record<string, FilterO
     { value: "not_empty", label: i18n.operators.notEmpty },
   ],
 });
-
-// Default operators for different field types (using default i18n)
-export const DEFAULT_OPERATORS: Record<string, FilterOperator[]> =
-  createOperatorsFromI18n(DEFAULT_I18N);
 
 // Helper function to get operators for a field
 const getOperatorsForField = <T = unknown,>(
@@ -715,39 +706,33 @@ interface FiltersContentProps<T = unknown> {
   focusFilterId?: string | null;
 }
 
-export const FiltersContent = <T = unknown,>({
+const FiltersContent = <T = unknown,>({
   filters,
   fields,
   onChange,
   focusFilterId = null,
 }: FiltersContentProps<T>) => {
   const context = useFilterContext();
-  const fieldsMap = useMemo(() => getFieldsMap(fields), [fields]);
+  const fieldsMap = getFieldsMap(fields);
 
-  const updateFilter = useCallback(
-    (filterId: string, updates: Partial<Filter<T>>) => {
-      onChange(
-        filters.map(filter => {
-          if (filter.id === filterId) {
-            const updatedFilter = { ...filter, ...updates };
-            if (updates.operator === "empty" || updates.operator === "not_empty") {
-              updatedFilter.values = [] as T[];
-            }
-            return updatedFilter;
+  const updateFilter = (filterId: string, updates: Partial<Filter<T>>) => {
+    onChange(
+      filters.map(filter => {
+        if (filter.id === filterId) {
+          const updatedFilter = { ...filter, ...updates };
+          if (updates.operator === "empty" || updates.operator === "not_empty") {
+            updatedFilter.values = [] as T[];
           }
-          return filter;
-        })
-      );
-    },
-    [filters, onChange]
-  );
+          return updatedFilter;
+        }
+        return filter;
+      })
+    );
+  };
 
-  const removeFilter = useCallback(
-    (filterId: string) => {
-      onChange(filters.filter(filter => filter.id !== filterId));
-    },
-    [filters, onChange]
-  );
+  const removeFilter = (filterId: string) => {
+    onChange(filters.filter(filter => filter.id !== filterId));
+  };
 
   return (
     <div
@@ -868,6 +853,7 @@ function FilterSubmenuContent<T = unknown>({
     onClose,
     onToggle,
   });
+  const selectedValues = new Set(currentValues);
 
   return (
     <div className="flex flex-col" onMouseEnter={onActive}>
@@ -920,7 +906,7 @@ function FilterSubmenuContent<T = unknown>({
             ) : (
               <DropdownMenuGroup>
                 {filteredOptions.map((option, index) => {
-                  const isSelected = currentValues.includes(option.value);
+                  const isSelected = selectedValues.has(option.value);
                   const isHighlighted = activeHighlightedIndex === index;
                   const itemId = `${baseId}-item-${index}`;
 
@@ -1298,19 +1284,18 @@ export function Filters<T = unknown>({
     shortcutKey,
     trigger,
   });
+  const contextValue = {
+    variant,
+    size,
+    radius,
+    i18n: mergedI18n,
+    className,
+    trigger,
+    allowMultiple,
+  };
 
   return (
-    <FilterContext.Provider
-      value={{
-        variant,
-        size,
-        radius,
-        i18n: mergedI18n,
-        className,
-        trigger,
-        allowMultiple,
-      }}
-    >
+    <FilterContext.Provider value={contextValue}>
       <div className={cn(filtersContainerVariants({ variant, size }), className)}>
         {selectableFields.length > 0 && (
           <DropdownMenu open={addFilterOpen} onOpenChange={handleAddFilterOpenChange}>

@@ -3,14 +3,9 @@ import { useEffect, useEffectEvent, useRef } from "react";
 import { Command, CommandEmpty, CommandItem, CommandList, CommandShortcut } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
+import { filterSlashCommandEntries, type SlashCommandEntry } from "./composer-slash-popover.logic";
 
-export interface SlashCommandEntry {
-  /** The literal command keyword without the leading `/`. */
-  command: string;
-  description: string;
-  disabled?: boolean;
-  disabledReason?: string;
-}
+export type { SlashCommandEntry } from "./composer-slash-popover.logic";
 
 export interface ComposerSlashPopoverProps {
   open: boolean;
@@ -18,35 +13,6 @@ export interface ComposerSlashPopoverProps {
   onSelect: (entry: SlashCommandEntry) => void;
   onClose: () => void;
   className?: string;
-}
-
-const SLASH_COMMANDS: ReadonlyArray<SlashCommandEntry> = [
-  {
-    command: "run",
-    description: "Run a capability for this conversation.",
-  },
-  {
-    command: "mention",
-    description: "Mention a peer to draw their attention.",
-  },
-  {
-    command: "attach",
-    description: "Attach context (file, URL, capability ref).",
-    disabled: true,
-    disabledReason: "Post-MVP",
-  },
-];
-
-export function getSlashCommandEntries(): ReadonlyArray<SlashCommandEntry> {
-  return SLASH_COMMANDS;
-}
-
-function filterEntries(filterValue: string): ReadonlyArray<SlashCommandEntry> {
-  const trimmed = filterValue.trim().toLowerCase();
-  if (trimmed === "") {
-    return SLASH_COMMANDS;
-  }
-  return SLASH_COMMANDS.filter(entry => entry.command.toLowerCase().startsWith(trimmed));
 }
 
 export function ComposerSlashPopover({
@@ -77,7 +43,7 @@ export function ComposerSlashPopover({
     return null;
   }
 
-  const entries = filterEntries(filterValue);
+  const entries = filterSlashCommandEntries(filterValue);
 
   return (
     <Command

@@ -6,7 +6,8 @@
         "./lint-plugins/react-hooks-separation.mjs",
         "./lint-plugins/test-file-location.mjs",
         "./lint-plugins/compozy-design-system.mjs",
-        "./lint-plugins/ui-primitive-reuse.mjs"
+        "./lint-plugins/ui-primitive-reuse.mjs",
+        { "name": "react-doctor", "specifier": "oxlint-plugin-react-doctor" }
     ],
     "categories": {},
     "rules": {
@@ -130,6 +131,47 @@
             ],
             "rules": {
                 "compozy-react-hooks/hooks-in-hooks-folder": "error"
+            }
+        },
+        {
+            "files": [
+                "web/src/**/*.{ts,tsx}",
+                "packages/ui/src/**/*.{ts,tsx}",
+                "packages/site/**/*.{ts,tsx}"
+            ],
+            "rules": {
+                "react-doctor/effect-needs-cleanup": "error",
+                "react-doctor/hooks-no-nan-in-deps": "error",
+                "react-doctor/checked-requires-onchange-or-readonly": "error",
+                "react-doctor/no-reset-all-state-on-prop-change": "error",
+                "react-doctor/no-pass-live-state-to-parent": "error",
+                "react-doctor/no-array-index-as-key": "error",
+                "react-doctor/exhaustive-deps": "error",
+                "react-doctor/no-effect-with-fresh-deps": "error",
+                "react-doctor/no-derived-useState": "error",
+                "react-doctor/no-event-handler": "error",
+                "react-doctor/button-has-type": "error",
+                "react-doctor/no-call-component-as-function": "error",
+                "react-doctor/jsx-no-constructed-context-values": "error",
+                "react-doctor/use-lazy-motion": "error",
+                "react-doctor/rerender-memo-with-default-value": "error",
+                "react-doctor/js-set-map-lookups": "error",
+                "react-doctor/js-combine-iterations": "error",
+                "react-doctor/js-flatmap-filter": "error",
+                "react-doctor/js-hoist-intl": "error",
+                "react-doctor/no-scale-from-zero": "error",
+                "react-doctor/no-barrel-import": "error",
+                "react-doctor/rerender-lazy-state-init": "error",
+                "react-doctor/prefer-tag-over-role": "error",
+                "react-doctor/anchor-has-content": "error",
+                "react-doctor/no-redundant-roles": "error",
+                "react-doctor/react-compiler-no-manual-memoization": "error",
+                "react-doctor/prefer-module-scope-static-value": "error",
+                "react-doctor/prefer-module-scope-pure-function": "error",
+                "react-doctor/only-export-components": "error",
+                "react-doctor/no-many-boolean-props": "error",
+                "react-doctor/no-react19-deprecated-apis": "error",
+                "react-doctor/no-giant-component": "error"
             }
         },
         {

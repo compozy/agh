@@ -1,9 +1,8 @@
-import { useCallback } from "react";
 import { toast } from "sonner";
 
 import type { NetworkConversationMessage } from "../../types";
 import type { HoverToolbarHandlers } from "./hover-toolbar";
-import { readMessageBody } from "./message-body";
+import { readMessageBody } from "./message-body.logic";
 
 export interface MessageCopyTarget {
   surface: "thread" | "direct";
@@ -49,34 +48,31 @@ export function useMessageCopyActions(
 ): (message: NetworkConversationMessage) => HoverToolbarHandlers {
   const { surface, workspaceId, channel, conversationId } = target;
 
-  return useCallback(
-    (message: NetworkConversationMessage): HoverToolbarHandlers => {
-      const text = readMessageBody(message);
-      return {
-        onCopyLink: async () => {
-          const link = buildMessageLink(
-            { surface, workspaceId, channel, conversationId },
-            message.message_id
-          );
-          const ok = await writeClipboard(link);
-          if (ok) {
-            toast.success("Link copied");
-          } else {
-            toast.error("Couldn't copy link");
-          }
-        },
-        onCopyText: text
-          ? async () => {
-              const ok = await writeClipboard(text);
-              if (ok) {
-                toast.success("Message copied");
-              } else {
-                toast.error("Couldn't copy message");
-              }
+  return (message: NetworkConversationMessage): HoverToolbarHandlers => {
+    const text = readMessageBody(message);
+    return {
+      onCopyLink: async () => {
+        const link = buildMessageLink(
+          { surface, workspaceId, channel, conversationId },
+          message.message_id
+        );
+        const ok = await writeClipboard(link);
+        if (ok) {
+          toast.success("Link copied");
+        } else {
+          toast.error("Couldn't copy link");
+        }
+      },
+      onCopyText: text
+        ? async () => {
+            const ok = await writeClipboard(text);
+            if (ok) {
+              toast.success("Message copied");
+            } else {
+              toast.error("Couldn't copy message");
             }
-          : undefined,
-      };
-    },
-    [surface, workspaceId, channel, conversationId]
-  );
+          }
+        : undefined,
+    };
+  };
 }

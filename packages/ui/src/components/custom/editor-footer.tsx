@@ -4,7 +4,7 @@ import * as React from "react";
 
 import { cn } from "../../lib/utils";
 
-export interface EditorFooterProps extends React.ComponentProps<"div"> {
+export interface EditorFooterProps extends React.ComponentProps<"footer"> {
   primary?: React.ReactNode;
   secondary?: React.ReactNode;
   meta?: React.ReactNode;
@@ -23,21 +23,17 @@ function EditorFooter({
   children,
   ...props
 }: EditorFooterProps) {
-  const handleKeyDown = React.useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
-      if (!escapeHandler) return;
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onEscape?.();
-      }
-    },
-    [escapeHandler, onEscape]
-  );
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (!escapeHandler) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onEscape?.();
+    }
+  };
   return (
-    <div
+    <footer
       data-slot="editor-footer"
       data-escape={escapeHandler ? "true" : undefined}
-      role="contentinfo"
       onKeyDown={handleKeyDown}
       className={cn(
         "sticky bottom-0 z-10 flex min-h-editor-footer flex-wrap items-center gap-3 border-t border-line bg-canvas px-4 py-2.5",
@@ -62,7 +58,7 @@ function EditorFooter({
         </div>
       ) : null}
       {children}
-    </div>
+    </footer>
   );
 }
 

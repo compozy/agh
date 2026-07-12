@@ -1,10 +1,14 @@
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LoopLinterDock } from "../editor/loop-linter-dock";
 import { buildLintState, emptyLintState } from "../../lib/loop-editor-lint";
 
 describe("LoopLinterDock", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("Should show a neutral pending state before the first daemon verdict", () => {
     render(<LoopLinterDock lint={emptyLintState()} validateFailed={false} onReveal={vi.fn()} />);
     expect(screen.getByTestId("loop-linter-count")).toHaveTextContent("checking…");
@@ -58,5 +62,21 @@ describe("LoopLinterDock", () => {
     const row = screen.getByTestId("loop-linter-issue");
     expect(row).toHaveAttribute("data-severity", "error");
     expect(within(row).getByText(/returns 422/i)).toBeInTheDocument();
+  });
+
+  it("Should render duplicate daemon issues without React key collisions", () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const issue = {
+      node_id: "implement",
+      code: "fan_out_ceiling_exceeded",
+      message: "too wide",
+      severity: "error" as const,
+    };
+    const lint = buildLintState({ valid: false, errors: [issue, issue] });
+
+    render(<LoopLinterDock lint={lint} validateFailed={false} onReveal={vi.fn()} />);
+
+    expect(screen.getAllByTestId("loop-linter-issue")).toHaveLength(2);
+    expect(consoleError).not.toHaveBeenCalled();
   });
 });

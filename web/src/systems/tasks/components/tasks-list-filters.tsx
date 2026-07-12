@@ -1,5 +1,4 @@
 import { ListFilter } from "lucide-react";
-import { useMemo } from "react";
 
 import { Button } from "@agh/ui";
 import { Filters, type Filter } from "@agh/ui";
@@ -29,12 +28,8 @@ export function TasksListFilters({
   onOwnerChange,
   onPriorityChange,
 }: TasksListFiltersProps) {
-  const fields = useMemo(() => buildTaskFilterFields(ownerOptions), [ownerOptions]);
-
-  const chips = useMemo(
-    () => taskFiltersToChips({ statusFilter, ownerFilter, priorityFilter }),
-    [statusFilter, ownerFilter, priorityFilter]
-  );
+  const fields = buildTaskFilterFields(ownerOptions);
+  const chips = taskFiltersToChips({ statusFilter, ownerFilter, priorityFilter });
 
   const handleFiltersChange = (next: Filter<string>[]) => {
     applyTaskFilterChips(next, {

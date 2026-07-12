@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useState } from "react";
 
 import { createFilter, type Filter as ReuiFilter } from "@agh/ui";
 
@@ -68,34 +68,25 @@ export function useNetworkListFilters({
   const session = useActiveNetworkSession(channel, { workspaceId });
   const selfPeerId = session.session?.peerId ?? null;
   const canFilterBySelf = Boolean(selfPeerId);
-  const selected = useMemo(() => activeKeys(filters), [filters]);
+  const effectiveFilters = canFilterBySelf
+    ? filters
+    : filters.filter(filter => filter.field !== "includes_me");
+  const selected = activeKeys(effectiveFilters);
 
-  useEffect(() => {
-    if (!canFilterBySelf) {
-      setFilterState(current => current.filter(filter => filter.field !== "includes_me"));
-    }
-  }, [canFilterBySelf]);
-
-  const setFilters = useCallback(
-    (next: NetworkChipFilter[]) => {
-      setFilterState(
-        next.filter(
-          filter =>
-            isKnownChipKey(filter.field) && (filter.field !== "includes_me" || canFilterBySelf)
-        )
-      );
-    },
-    [canFilterBySelf]
-  );
-  const serverQuery = useMemo(
-    () => ({
-      ...(deferredSearch ? { query: deferredSearch } : {}),
-      ...(selected.has("has_work") ? { has_work: true } : {}),
-      ...(selected.has("includes_me") && selfPeerId ? { peer_id: selfPeerId } : {}),
-      sort,
-    }),
-    [deferredSearch, selected, selfPeerId, sort]
-  );
+  const setFilters = (next: NetworkChipFilter[]) => {
+    setFilterState(
+      next.filter(
+        filter =>
+          isKnownChipKey(filter.field) && (filter.field !== "includes_me" || canFilterBySelf)
+      )
+    );
+  };
+  const serverQuery = {
+    ...(deferredSearch ? { query: deferredSearch } : {}),
+    ...(selected.has("has_work") ? { has_work: true } : {}),
+    ...(selected.has("includes_me") && selfPeerId ? { peer_id: selfPeerId } : {}),
+    sort,
+  };
   const queryEnabled = enabled && Boolean(workspaceId) && Boolean(channel);
   const threadsQuery = useNetworkThreads(channel, {
     workspaceId,
@@ -109,15 +100,12 @@ export function useNetworkListFilters({
   });
   const lastRead = useLastRead({ workspaceId });
 
-  const isUnread = useCallback(
-    (key: NetworkLastReadLookupKey, lastActivityAt?: string | null) => {
-      if (!lastActivityAt) return false;
-      const readAt = lastRead.lastReadAt(key);
-      return !readAt || new Date(lastActivityAt).getTime() > new Date(readAt).getTime();
-    },
-    [lastRead]
-  );
-  const markLoadedRead = useCallback(() => {
+  const isUnread = (key: NetworkLastReadLookupKey, lastActivityAt?: string | null) => {
+    if (!lastActivityAt) return false;
+    const readAt = lastRead.lastReadAt(key);
+    return !readAt || new Date(lastActivityAt).getTime() > new Date(readAt).getTime();
+  };
+  const markLoadedRead = () => {
     for (const thread of threadsQuery.threads) {
       lastRead.markRead(
         { channel, surface: "thread", containerId: thread.thread_id },
@@ -130,27 +118,18 @@ export function useNetworkListFilters({
         direct.last_activity_at
       );
     }
-  }, [channel, directsQuery.directs, lastRead, threadsQuery.threads]);
-  const isMarkLoadedReadDisabled = useMemo(
-    () =>
-      !threadsQuery.threads.some(thread =>
-        isUnread(
-          { channel, surface: "thread", containerId: thread.thread_id },
-          thread.last_activity_at
-        )
-      ) &&
-      !directsQuery.directs.some(direct =>
-        isUnread(
-          { channel, surface: "direct", containerId: direct.direct_id },
-          direct.last_activity_at
-        )
-      ),
-    [channel, directsQuery.directs, isUnread, threadsQuery.threads]
+  };
+  const hasUnreadThread = threadsQuery.threads.some(thread =>
+    isUnread({ channel, surface: "thread", containerId: thread.thread_id }, thread.last_activity_at)
   );
-  const isFiltered = filters.length > 0 || searchQuery.trim().length > 0;
+  const hasUnreadDirect = directsQuery.directs.some(direct =>
+    isUnread({ channel, surface: "direct", containerId: direct.direct_id }, direct.last_activity_at)
+  );
+  const isMarkLoadedReadDisabled = !hasUnreadThread && !hasUnreadDirect;
+  const isFiltered = effectiveFilters.length > 0 || searchQuery.trim().length > 0;
 
   return {
-    filters,
+    filters: effectiveFilters,
     sort,
     searchQuery,
     canFilterBySelf,

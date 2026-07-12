@@ -1,6 +1,5 @@
 import { AlertCircle, Wrench } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { useMemo } from "react";
 
 import {
   Button,
@@ -170,14 +169,8 @@ function SkillListPanel({
   isLoading = false,
   errorMessage = null,
 }: SkillListPanelProps) {
-  const filterState: SkillFilterState = useMemo(
-    () => ({ source: sourceFilter, enabled: enabledFilter }),
-    [enabledFilter, sourceFilter]
-  );
-  const filtered = useMemo(
-    () => filterInstalledSkills(skills, searchQuery, filterState),
-    [filterState, searchQuery, skills]
-  );
+  const filterState: SkillFilterState = { source: sourceFilter, enabled: enabledFilter };
+  const filtered = filterInstalledSkills(skills, searchQuery, filterState);
   const hasActiveFilters =
     searchQuery.trim() !== "" || sourceFilter !== null || enabledFilter !== null;
   const isEmpty = filtered.length === 0;

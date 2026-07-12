@@ -1,5 +1,3 @@
-import { memo, useMemo } from "react";
-
 import { CodeBlock, CopyIconButton, ToolCallRow, type ToolCallStatus } from "@agh/ui";
 
 import { deriveToolRowStatus, hasToolInput, toolResultIsEmpty } from "../lib/message-parts";
@@ -76,72 +74,63 @@ function progressLabelFor(
  * language via `deriveToolRowStatus`: pending / running / failed / success /
  * empty, with neutral→success promotion gated on `turnSettled`.
  */
-export const SessionToolCallRow = memo(
-  function SessionToolCallRow({
-    message,
-    defaultExpanded = false,
-    turnSettled = false,
-  }: SessionToolCallRowProps) {
-    const { status, runtimeError } = deriveToolRowStatus({
-      toolError: message.toolError,
-      toolResult: message.toolResult,
-      hasInput: hasToolInput(message.toolInput),
-      turnSettled,
-    });
-    const registryTool = resolveRegisteredToolName(message.toolName ?? "tool");
-    const compactSummary = getToolCompactSummary(registryTool, message.toolInput);
-    const progressLabel = progressLabelFor(message, status, runtimeError);
-    const toolIcon = getToolIcon(registryTool, message.toolInput);
-    const inputJson = useMemo(() => formatJsonSource(message.toolInput), [message.toolInput]);
-    const copyPayload = useMemo(() => formatToolPayload(message), [message]);
-    const hasOutput = !toolResultIsEmpty(message.toolResult);
-    const isSpecialized = SPECIALIZED_TOOLS.has(registryTool);
-    const errorText =
-      typeof message.toolResult?.error === "string" ? message.toolResult.error : undefined;
-    const errorMessage = status === "failed" ? errorText : undefined;
-    const showGenericInput = !isSpecialized && Boolean(inputJson);
-    const showExpandedBody = isSpecialized || hasOutput;
-    const copyAction = (
-      <CopyIconButton
-        value={copyPayload}
-        copyLabel="Copy tool payload"
-        copiedLabel="Tool payload copied"
-        copyFailedLabel="Tool payload copy failed"
-        className="text-subtle hover:text-fg"
-      />
-    );
+export function SessionToolCallRow({
+  message,
+  defaultExpanded = false,
+  turnSettled = false,
+}: SessionToolCallRowProps) {
+  const { status, runtimeError } = deriveToolRowStatus({
+    toolError: message.toolError,
+    toolResult: message.toolResult,
+    hasInput: hasToolInput(message.toolInput),
+    turnSettled,
+  });
+  const registryTool = resolveRegisteredToolName(message.toolName ?? "tool");
+  const compactSummary = getToolCompactSummary(registryTool, message.toolInput);
+  const progressLabel = progressLabelFor(message, status, runtimeError);
+  const toolIcon = getToolIcon(registryTool, message.toolInput);
+  const inputJson = formatJsonSource(message.toolInput);
+  const copyPayload = formatToolPayload(message);
+  const hasOutput = !toolResultIsEmpty(message.toolResult);
+  const isSpecialized = SPECIALIZED_TOOLS.has(registryTool);
+  const errorText =
+    typeof message.toolResult?.error === "string" ? message.toolResult.error : undefined;
+  const errorMessage = status === "failed" ? errorText : undefined;
+  const showGenericInput = !isSpecialized && Boolean(inputJson);
+  const showExpandedBody = isSpecialized || hasOutput;
+  const copyAction = (
+    <CopyIconButton
+      value={copyPayload}
+      copyLabel="Copy tool payload"
+      copiedLabel="Tool payload copied"
+      copyFailedLabel="Tool payload copy failed"
+      className="text-subtle hover:text-fg"
+    />
+  );
 
-    return (
-      <div data-testid="tool-call-row">
-        <ToolCallRow
-          toolName={progressLabel}
-          icon={toolIcon}
-          preview={compactSummary}
-          status={status}
-          runtimeError={runtimeError}
-          errorMessage={errorMessage}
-          actions={copyAction}
-          defaultExpanded={defaultExpanded || status === "failed"}
-        >
-          {showGenericInput ? (
-            <ToolCallRow.Input>
-              <CodeBlock code={inputJson} density="compact" showPrompt={false} copyable={false} />
-            </ToolCallRow.Input>
-          ) : null}
-          {showExpandedBody ? (
-            <ToolCallRow.Output>
-              <ExpandedToolContent message={message} />
-            </ToolCallRow.Output>
-          ) : null}
-        </ToolCallRow>
-      </div>
-    );
-  },
-  (previous, next) =>
-    previous.message.toolInput === next.message.toolInput &&
-    previous.message.toolResult === next.message.toolResult &&
-    previous.message.toolError === next.message.toolError &&
-    previous.message.toolName === next.message.toolName &&
-    previous.defaultExpanded === next.defaultExpanded &&
-    previous.turnSettled === next.turnSettled
-);
+  return (
+    <div data-testid="tool-call-row">
+      <ToolCallRow
+        toolName={progressLabel}
+        icon={toolIcon}
+        preview={compactSummary}
+        status={status}
+        runtimeError={runtimeError}
+        errorMessage={errorMessage}
+        actions={copyAction}
+        defaultExpanded={defaultExpanded || status === "failed"}
+      >
+        {showGenericInput ? (
+          <ToolCallRow.Input>
+            <CodeBlock code={inputJson} density="compact" showPrompt={false} copyable={false} />
+          </ToolCallRow.Input>
+        ) : null}
+        {showExpandedBody ? (
+          <ToolCallRow.Output>
+            <ExpandedToolContent message={message} />
+          </ToolCallRow.Output>
+        ) : null}
+      </ToolCallRow>
+    </div>
+  );
+}

@@ -1,5 +1,4 @@
 import { useMatchRoute } from "@tanstack/react-router";
-import { useMemo } from "react";
 
 import {
   SETTINGS_ROOT_PATH,
@@ -17,22 +16,17 @@ function useSettingsPage(options: UseSettingsPageOptions = {}) {
   const matchRoute = useMatchRoute();
   const restart = useSettingsRestart();
 
-  const matchedSection = useMemo<SettingsSectionDescriptor | null>(() => {
-    if (options.currentSlug) {
-      const explicit = SETTINGS_SECTIONS.find(section => section.slug === options.currentSlug);
-      if (explicit) {
-        return explicit;
-      }
-    }
-
-    for (const section of SETTINGS_SECTIONS) {
-      if (matchRoute({ to: settingsSectionPath(section.slug), fuzzy: true })) {
-        return section;
-      }
-    }
-
-    return null;
-  }, [matchRoute, options.currentSlug]);
+  let matchedSection: SettingsSectionDescriptor | null = null;
+  if (options.currentSlug) {
+    matchedSection =
+      SETTINGS_SECTIONS.find(section => section.slug === options.currentSlug) ?? null;
+  }
+  if (!matchedSection) {
+    matchedSection =
+      SETTINGS_SECTIONS.find(section =>
+        matchRoute({ to: settingsSectionPath(section.slug), fuzzy: true })
+      ) ?? null;
+  }
 
   const isRestartBannerVisible =
     restart.isRestartRequired || restart.isPolling || restart.isSuccessful || restart.isFailed;

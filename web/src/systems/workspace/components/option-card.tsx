@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { cn, FormSection } from "@agh/ui";
+import { FormSection } from "@agh/ui";
 
 import { useOptionCardSlot } from "../hooks/use-option-card-slot";
 import {
@@ -8,8 +8,15 @@ import {
   type OptionCardContextValue,
   type OptionCardSize,
 } from "./option-card-context";
-
-type OptionCardTone = "neutral" | "accent";
+import {
+  OptionCardAction,
+  OptionCardBody,
+  OptionCardContent,
+  OptionCardDescription,
+  OptionCardIcon,
+  OptionCardMeta,
+  OptionCardTitle,
+} from "./option-card-parts";
 
 interface OptionCardHeaderProps {
   eyebrow?: React.ReactNode;
@@ -33,7 +40,7 @@ interface OptionCardProps extends Omit<
 }
 
 function OptionCardRoot({ className, size = "comfortable", children, ...props }: OptionCardProps) {
-  const ctx = React.useMemo<OptionCardContextValue>(() => ({ size }), [size]);
+  const ctx: OptionCardContextValue = { size };
 
   let headerEyebrow: React.ReactNode;
   let headerRight: React.ReactNode;
@@ -65,99 +72,6 @@ function OptionCardRoot({ className, size = "comfortable", children, ...props }:
   );
 }
 
-function OptionCardBody({ className, children, ...props }: React.ComponentProps<"div">) {
-  useOptionCardSlot("Body");
-  return (
-    <div
-      data-slot="option-card-body"
-      className={cn("flex items-start gap-3", className)}
-      {...props}
-    >
-      {children}
-    </div>
-  );
-}
-
-interface OptionCardIconProps extends React.ComponentProps<"span"> {
-  tone?: OptionCardTone;
-}
-
-function OptionCardIcon({ className, tone = "neutral", children, ...props }: OptionCardIconProps) {
-  useOptionCardSlot("Icon");
-  return (
-    <span
-      data-slot="option-card-icon"
-      data-tone={tone}
-      aria-hidden="true"
-      className={cn(
-        "inline-flex size-10 shrink-0 items-center justify-center rounded bg-surface-glaze",
-        tone === "accent" ? "text-accent" : "text-fg",
-        className
-      )}
-      {...props}
-    >
-      {children}
-    </span>
-  );
-}
-
-function OptionCardContent({ className, children, ...props }: React.ComponentProps<"div">) {
-  useOptionCardSlot("Content");
-  return (
-    <div data-slot="option-card-content" className={cn("min-w-0 flex-1", className)} {...props}>
-      {children}
-    </div>
-  );
-}
-
-function OptionCardTitle({ className, children, ...props }: React.ComponentProps<"p">) {
-  useOptionCardSlot("Title");
-  return (
-    <p
-      data-slot="option-card-title"
-      className={cn("text-sm font-medium text-fg", className)}
-      {...props}
-    >
-      {children}
-    </p>
-  );
-}
-
-function OptionCardDescription({ className, children, ...props }: React.ComponentProps<"p">) {
-  useOptionCardSlot("Description");
-  return (
-    <p
-      data-slot="option-card-description"
-      className={cn("mt-1 text-sm leading-6 text-muted", className)}
-      {...props}
-    >
-      {children}
-    </p>
-  );
-}
-
-function OptionCardMeta({ className, children, ...props }: React.ComponentProps<"p">) {
-  useOptionCardSlot("Meta");
-  return (
-    <p
-      data-slot="option-card-meta"
-      className={cn("mt-3 truncate font-mono text-eyebrow text-subtle", className)}
-      {...props}
-    >
-      {children}
-    </p>
-  );
-}
-
-function OptionCardAction({ className, children, ...props }: React.ComponentProps<"div">) {
-  useOptionCardSlot("Action");
-  return (
-    <div data-slot="option-card-action" className={className} {...props}>
-      {children}
-    </div>
-  );
-}
-
 const OptionCard = Object.assign(OptionCardRoot, {
   Header: OptionCardHeaderSentinel,
   Body: OptionCardBody,
@@ -170,10 +84,5 @@ const OptionCard = Object.assign(OptionCardRoot, {
 });
 
 export { OptionCard };
-export type {
-  OptionCardHeaderProps,
-  OptionCardIconProps,
-  OptionCardProps,
-  OptionCardSize,
-  OptionCardTone,
-};
+export type { OptionCardHeaderProps, OptionCardProps, OptionCardSize };
+export type { OptionCardIconProps, OptionCardTone } from "./option-card-parts";

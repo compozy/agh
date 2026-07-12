@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
 
 import { networkStatusOptions } from "../lib/query-options";
 import type { NetworkChannelSummary, NetworkRecentEntry, NetworkStatus } from "../types";
@@ -40,10 +39,8 @@ export function useNetworkPage(
     enabled,
     isLoading: channelsResult.isLoading,
   });
-  const firstVisibleChannel = useMemo<NetworkChannelSummary | null>(
-    () => channelsResult.pinned[0] ?? channelsResult.unpinned[0] ?? null,
-    [channelsResult.pinned, channelsResult.unpinned]
-  );
+  const firstVisibleChannel: NetworkChannelSummary | null =
+    channelsResult.pinned[0] ?? channelsResult.unpinned[0] ?? null;
   return {
     status,
     isStatusLoading: statusQuery.isLoading && !status,
