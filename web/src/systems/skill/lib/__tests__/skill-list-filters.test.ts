@@ -1,4 +1,4 @@
-import type { Filter } from "@agh/ui/components/reui/filters";
+import type { Filter } from "@agh/ui";
 import { describe, expect, it, vi } from "vitest";
 
 import type { SkillPayload } from "../../types";

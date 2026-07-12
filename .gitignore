@@ -72,6 +72,8 @@ docs/proposals/**
 .codex/qa/**
 .compozy/_archived/**
 .compozy/_research/**
+# QA living docs — generated views and bulky evidence (source: docs/qa/scenarios/)
+docs/qa/state.csv
 docs/qa/evidence/**
 docs/design/**
 docs/tweets/**

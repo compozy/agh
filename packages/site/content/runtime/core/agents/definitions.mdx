@@ -67,6 +67,77 @@ Discovery order is first-wins:
 If two definitions use the same `name`, AGH keeps the first one it found. It does not merge or
 inherit from the lower-precedence definition.
 
+## Effective origin and shadowing
+
+Agent list and detail responses identify the effective definition with `origin` (`global` or
+`workspace`) and `workspace_id` when the winner is workspace-local. They also return the resolved
+`skills` policy and a canonical `definition_digest`. Use those fields instead of inferring the
+winner from a filesystem path.
+
+A workspace definition shadows a global definition with the same name. Updates, duplicates, and
+deletes target the effective winner. Deleting the workspace winner can therefore reveal the global
+definition immediately; the delete response reports that transition in `unshadowed_origin`. AGH
+does not merge either definition before or after the delete.
+
+## Browse a workspace fleet
+
+Use the workspace catalog when a client needs a bounded fleet view instead of the complete
+definition list:
+
+```http
+GET /api/agents/catalog?workspace=ws_alpha&q=release&category=Engineering%20%2F%20Release&status=active&limit=50
+```
+
+The daemon applies `q`, `category`, and `status` before the cursor page is cut. Each result combines
+the effective agent definition with exact visible-session totals. `facets.total` and
+`facets.categories` describe the complete workspace fleet; `facets.active` and `facets.idle` are
+exact when `sessions_available` is true. Follow the opaque `page.next_cursor` with the same filters
+to load another page.
+
+If the session authority is unavailable, the endpoint still returns definitions with
+`sessions_available: false` and no per-agent `sessions` value. Clients must show session state as
+unavailable instead of inferring that those agents are idle. HTTP and UDS expose the same catalog
+contract.
+
+## Edit with compare-and-swap
+
+Read the current definition before editing and retain its `definition_digest`. A full-definition
+update sends that value as `expected_digest`; AGH returns `409 Conflict` if another writer changed
+the definition first. Reload the current definition, reapply the intended edit, and retry with the
+new digest. Do not retry a stale payload unchanged.
+
+The CLI exposes the same contract:
+
+```bash
+agh agent info code-reviewer --workspace ~/dev/project -o json
+agh agent update code-reviewer \
+  --workspace ~/dev/project \
+  --expected-digest <definition-digest> \
+  --model claude-sonnet-5 \
+  -o json
+```
+
+See [`agh agent update`](/runtime/cli-reference/agent/update) for the generated flag reference. The
+HTTP equivalent is `PUT /api/agents/:name` with the full `agent` payload, `workspace`, and
+`expected_digest`.
+
+## Duplicate and delete definitions
+
+`agh agent duplicate <source> <new-name>` copies the complete authored agent directory on the
+daemon side, including `AGENT.md`, `SOUL.md`, `HEARTBEAT.md`, `mcp.json`, and other sidecars. Field
+overrides are applied to the copied `AGENT.md`; the target must not already exist. Because the
+daemon performs the copy, clients do not need to read or re-submit sidecar secrets. See
+[`agh agent duplicate`](/runtime/cli-reference/agent/duplicate).
+
+`agh agent delete <name>` removes the effective authored directory and its sidecars. It does not
+delete existing session records or their event history. The CLI prompts for confirmation unless
+`--yes` is supplied; automation should use structured output and inspect `unshadowed_origin`. Keep
+authored agent directories in version control when you need recovery after deletion. See
+[`agh agent delete`](/runtime/cli-reference/agent/delete).
+
+The HTTP lifecycle endpoints are `PUT /api/agents/:name`, `DELETE /api/agents/:name`, and
+`POST /api/agents/:name/duplicate`. HTTP and UDS use the same daemon-owned semantics.
+
 ## Resolution cascade
 
 Session creation first resolves the agent name, then resolves the provider and runtime fields.

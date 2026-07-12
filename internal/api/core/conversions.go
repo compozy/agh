@@ -381,18 +381,6 @@ func SessionRepairPayloadFromResult(result *session.RepairResult) contract.Sessi
 	}
 }
 
-// AgentPayloadsFromDefs converts a list of agent definitions into response payloads.
-func AgentPayloadsFromDefs(agents []aghconfig.AgentDef) []contract.AgentPayload {
-	payload := make([]contract.AgentPayload, 0, len(agents))
-	for _, agent := range agents {
-		if !aghconfig.IsPublicAgentDef(agent) {
-			continue
-		}
-		payload = append(payload, AgentPayloadFromDef(agent))
-	}
-	return payload
-}
-
 // TokenUsagePayloadFromUsage converts token usage info into the shared payload.
 func TokenUsagePayloadFromUsage(usage *acp.TokenUsage) *contract.TokenUsagePayload {
 	if usage == nil {

@@ -38,8 +38,30 @@ type AgentLoader func(name string, homePaths aghconfig.HomePaths) (aghconfig.Age
 
 // AgentCatalog exposes projected resource-backed agent definitions.
 type AgentCatalog interface {
-	ListAgents(ctx context.Context) ([]aghconfig.AgentDef, error)
-	GetAgent(ctx context.Context, name string) (aghconfig.AgentDef, error)
+	ListAgents(ctx context.Context) ([]AgentCatalogEntry, error)
+	GetAgent(ctx context.Context, name string) (AgentCatalogEntry, error)
+}
+
+// AgentCatalogEntry carries one definition with its durable ownership scope.
+type AgentCatalogEntry struct {
+	Def         aghconfig.AgentDef
+	Origin      contract.AgentOrigin
+	WorkspaceID string
+}
+
+// AgentDefinitionSync converges authored definitions into runtime projections.
+type AgentDefinitionSync interface {
+	Sync(ctx context.Context) error
+}
+
+// SoulHistoryPurger removes history owned by one effective definition.
+type SoulHistoryPurger interface {
+	PurgeAgentHistory(ctx context.Context, ref soul.WorkspaceRef, agentName string, sourcePath string) error
+}
+
+// HeartbeatHistoryPurger removes history owned by one effective definition.
+type HeartbeatHistoryPurger interface {
+	PurgeAgentHistory(ctx context.Context, ref heartbeat.WorkspaceRef, agentName string, sourcePath string) error
 }
 
 // ModelCatalogService exposes daemon-owned provider model catalog reads and refreshes.
@@ -81,6 +103,15 @@ type SessionManager interface {
 // the runtime manager without widening internal full-snapshot consumers.
 type SessionPageManager interface {
 	ListPage(ctx context.Context, query session.ListQuery) (session.ListPage, error)
+}
+
+// AgentSessionCounter exposes exact workspace-scoped session aggregates for
+// agent fleet catalogs.
+type AgentSessionCounter interface {
+	CountSessionsByAgent(
+		ctx context.Context,
+		workspaceID string,
+	) (map[string]session.AgentSessionCount, error)
 }
 
 // SessionAttachManager owns durable attach CAS and live-session synchronization.

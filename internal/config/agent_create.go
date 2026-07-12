@@ -1,12 +1,15 @@
 package config
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
+	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/goccy/go-yaml"
 )
 
@@ -30,6 +33,8 @@ type AgentDefinitionDraft struct {
 	Permissions     string
 	Skills          AgentSkillsConfig
 	CategoryPath    []string
+	MCPServers      []MCPServer
+	Hooks           []hookspkg.HookDecl
 	Prompt          string
 }
 
@@ -47,7 +52,17 @@ func CreateAgentDefFile(path string, draft AgentDefinitionDraft, overwrite bool)
 	if err := ensureAgentDefinitionWritable(normalizedPath, overwrite); err != nil {
 		return AgentDef{}, err
 	}
-	if err := writePersistedFile(normalizedPath, contents); err != nil {
+	write := writePersistedFile
+	if !overwrite {
+		write = writePersistedFileExclusive
+	}
+	if err := write(normalizedPath, contents); err != nil {
+		if !overwrite && errors.Is(err, os.ErrExist) {
+			return AgentDef{}, errors.Join(
+				ErrAgentDefinitionExists,
+				fmt.Errorf("config: agent definition already exists at %s: %w", normalizedPath, err),
+			)
+		}
 		return AgentDef{}, fmt.Errorf("config: write agent definition %q: %w", normalizedPath, err)
 	}
 
@@ -61,7 +76,7 @@ func RenderAgentDefinition(draft AgentDefinitionDraft) ([]byte, AgentDef, error)
 	if err := ValidateAgentName(agentName); err != nil {
 		return nil, AgentDef{}, errors.Join(ErrInvalidAgentDefinition, err)
 	}
-	agent := AgentDef{
+	agent := canonicalAgentDefinition(AgentDef{
 		Name:            agentName,
 		Provider:        strings.TrimSpace(draft.Provider),
 		Command:         strings.TrimSpace(draft.Command),
@@ -73,8 +88,10 @@ func RenderAgentDefinition(draft AgentDefinitionDraft) ([]byte, AgentDef, error)
 		Permissions:     strings.TrimSpace(draft.Permissions),
 		Skills:          AgentSkillsConfig{Disabled: trimAgentDefinitionAtoms(draft.Skills.Disabled)},
 		CategoryPath:    trimAgentDefinitionAtoms(draft.CategoryPath),
+		MCPServers:      cloneMCPServers(draft.MCPServers),
+		Hooks:           cloneHookDecls(draft.Hooks),
 		Prompt:          strings.TrimSpace(draft.Prompt),
-	}
+	})
 	agent.Skills = normalizeAgentSkillsConfig(agent.Skills)
 	agent.CategoryPath = normalizeAgentCategoryPath(agent.CategoryPath)
 	if err := agent.Validate(); err != nil {
@@ -104,6 +121,61 @@ func RenderAgentDefinition(draft AgentDefinitionDraft) ([]byte, AgentDef, error)
 		)
 	}
 	return contents, validated, nil
+}
+
+// AgentDefinitionDraftFromDef preserves every AGENT.md-authored field in a mutable draft.
+func AgentDefinitionDraftFromDef(agent AgentDef) AgentDefinitionDraft {
+	canonical := canonicalAgentDefinition(CloneAgentDef(agent))
+	return AgentDefinitionDraft{
+		Name:            canonical.Name,
+		Provider:        canonical.Provider,
+		Command:         canonical.Command,
+		Model:           canonical.Model,
+		ReasoningEffort: canonical.ReasoningEffort,
+		Tools:           cloneStrings(canonical.Tools),
+		Toolsets:        cloneStrings(canonical.Toolsets),
+		DenyTools:       cloneStrings(canonical.DenyTools),
+		Permissions:     canonical.Permissions,
+		Skills:          normalizeAgentSkillsConfig(canonical.Skills),
+		CategoryPath:    cloneStrings(canonical.CategoryPath),
+		MCPServers:      cloneMCPServers(canonical.MCPServers),
+		Hooks:           cloneHookDecls(canonical.Hooks),
+		Prompt:          canonical.Prompt,
+	}
+}
+
+// AgentDefinitionDigest returns the canonical semantic digest used for update CAS.
+func AgentDefinitionDigest(agent AgentDef) (string, error) {
+	contents, _, err := RenderAgentDefinition(AgentDefinitionDraftFromDef(agent))
+	if err != nil {
+		return "", fmt.Errorf("config: render agent definition digest: %w", err)
+	}
+	digest := sha256.Sum256(contents)
+	return fmt.Sprintf("%x", digest[:]), nil
+}
+
+func canonicalAgentDefinition(agent AgentDef) AgentDef {
+	agent.Tools = sortedAgentDefinitionAtoms(agent.Tools)
+	agent.Toolsets = sortedAgentDefinitionAtoms(agent.Toolsets)
+	agent.DenyTools = sortedAgentDefinitionAtoms(agent.DenyTools)
+	agent.Skills.Disabled = sortedAgentDefinitionAtoms(agent.Skills.Disabled)
+	agent.MCPServers = cloneMCPServers(agent.MCPServers)
+	for index := range agent.MCPServers {
+		slices.Sort(agent.MCPServers[index].Auth.Scopes)
+	}
+	slices.SortFunc(agent.MCPServers, func(left MCPServer, right MCPServer) int {
+		if byName := strings.Compare(left.Name, right.Name); byName != 0 {
+			return byName
+		}
+		return strings.Compare(string(left.Transport), string(right.Transport))
+	})
+	return agent
+}
+
+func sortedAgentDefinitionAtoms(values []string) []string {
+	atoms := trimAgentDefinitionAtoms(values)
+	slices.Sort(atoms)
+	return slices.Compact(atoms)
 }
 
 func ensureAgentDefinitionWritable(path string, overwrite bool) error {

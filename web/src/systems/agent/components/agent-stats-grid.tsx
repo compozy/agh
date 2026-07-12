@@ -6,6 +6,7 @@ export interface AgentStatsGridProps {
   resumable: number;
   lastActivityAt: string | null;
   className?: string;
+  unavailable?: boolean;
 }
 
 export function AgentStatsGrid({
@@ -14,20 +15,30 @@ export function AgentStatsGrid({
   resumable,
   lastActivityAt,
   className,
+  unavailable = false,
 }: AgentStatsGridProps) {
+  const unavailableValue = "--";
   return (
     <MetricGrid data-testid="agent-stats-grid" className={className}>
       <Metric
         label="Active sessions"
-        value={active}
-        tone={active > 0 ? "success" : "default"}
+        value={unavailable ? unavailableValue : active}
+        tone={!unavailable && active > 0 ? "success" : "default"}
         data-testid="agent-stat-active"
       />
-      <Metric label="Total sessions" value={total} data-testid="agent-stat-total" />
-      <Metric label="Resumable" value={resumable} data-testid="agent-stat-resumable" />
+      <Metric
+        label="Total sessions"
+        value={unavailable ? unavailableValue : total}
+        data-testid="agent-stat-total"
+      />
+      <Metric
+        label="Resumable"
+        value={unavailable ? unavailableValue : resumable}
+        data-testid="agent-stat-resumable"
+      />
       <Metric
         label="Last activity"
-        value={formatRelative(lastActivityAt)}
+        value={unavailable ? unavailableValue : formatRelative(lastActivityAt)}
         data-testid="agent-stat-last-activity"
       />
     </MetricGrid>

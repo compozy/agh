@@ -535,6 +535,30 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 	}
 }
 
+func TestAgentLifecycleCommandPaths(t *testing.T) {
+	t.Parallel()
+
+	for _, verb := range []string{"create", "update", "delete", "duplicate"} {
+		t.Run("Should register agent "+verb, func(t *testing.T) {
+			t.Parallel()
+
+			stdout, _, err := executeRootCommand(
+				t,
+				newTestDeps(t, &stubClient{}),
+				"agent",
+				verb,
+				"--help",
+			)
+			if err != nil {
+				t.Fatalf("agent %s --help error = %v", verb, err)
+			}
+			if !strings.Contains(stdout, "agh agent "+verb) {
+				t.Fatalf("agent %s help = %q, want command path", verb, stdout)
+			}
+		})
+	}
+}
+
 func TestExecuteContextVersion(t *testing.T) {
 	t.Parallel()
 

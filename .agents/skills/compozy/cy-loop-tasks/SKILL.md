@@ -1,14 +1,15 @@
 ---
 name: cy-loop-tasks
-description: Drives end-to-end execution of a Compozy techspec across many agent restarts by detecting the current phase from state.yaml plus .compozy/tasks/<slug>/ and running exactly one phase action per iteration — task execution with atomic checkpoint commits, QA, then consecutive cy-impl-peer-review rounds until SHIP. Use when running a Compozy techspec under the codex-loop plugin in goal mode, when manually iterating a techspec one phase action at a time, or when frontend tasks must be orchestrated through herdr worker TUIs via the --frontend parameter. Do not use for one-off tasks without a .compozy/tasks/<slug>/ directory, or for techspec authoring (use cy-create-techspec).
+description: Drives end-to-end execution of a Compozy techspec by detecting the current phase from state.yaml plus .compozy/tasks/<slug>/, running exactly one phase action per iteration, printing the iteration summary, then continuing immediately into the next iteration until Phase E or a blocker — task execution with atomic checkpoint commits, QA, then consecutive cy-impl-peer-review rounds until SHIP. Use when running a Compozy techspec under the codex-loop plugin in goal mode, when shipping a techspec end-to-end in one session, or when frontend tasks must be orchestrated through herdr worker TUIs via the --frontend parameter. Do not use for one-off tasks without a .compozy/tasks/<slug>/ directory, or for techspec authoring (use cy-create-techspec).
 ---
 
 # Loop Tasks Driver
 
-Execute one deterministic iteration of a long-running Compozy techspec.
-Each iteration: detect the current phase, run exactly one phase action,
-write memory, update `state.yaml`, and stop. The next invocation resumes
-from wherever the filesystem now indicates.
+Drive a Compozy techspec to completion as a **continue** loop: each
+iteration detects the current phase, runs exactly one phase action,
+writes memory, updates `state.yaml`, and prints the iteration summary —
+then **continues** at detect unless the outcome is a blocker or Phase E.
+Filesystem state still resumes cleanly if the session ends mid-loop.
 
 The loop is a five-phase state machine:
 
@@ -20,9 +21,9 @@ The loop is a five-phase state machine:
 | D | `cy-impl-peer-review` rounds until SHIP + checkpoint commit per round | orchestrator |
 | E | done-signature | orchestrator |
 
-The skill lives inside the Stop→restart loop of `~/dev/ai/codex-loop-plugin`
-in goal mode and works identically when a human re-invokes it manually one
-iteration at a time. The plugin itself is never modified.
+Compatible with `~/dev/ai/codex-loop-plugin` goal mode; the plugin itself
+is never modified. Prefer in-session **continue** over waiting for a
+Stop→restart — restarts are a resume safety net, not the driver.
 
 ## Inputs
 
@@ -67,13 +68,19 @@ Two lanes dispatch work to herdr worker TUIs. Before any dispatch, read
   claude-fable-5`), launched direct — never plan-first. The orchestrator runs
   `qa_execution` itself.
 
-## Workflow (one iteration)
+## Workflow
+
+Each **iteration** is one detect → phase action → memory → state →
+summary cycle. After a completed (non-blocked) summary that is not
+Phase E, **continue** at Step 1 in the same turn — do not end the
+session between rounds.
 
 **Step 1 — Detect.**
 
 1. Print `pwd` and confirm the working directory is the repo root (the
    directory containing `.compozy/tasks/`); on mismatch, stop and report.
-2. Activate `cy-workflow-memory` so its protocol is loaded for later use.
+2. Activate `cy-workflow-memory` so its protocol is loaded for later use
+   (once per session is enough; re-activate only if context was dropped).
 3. Run `python3 .agents/skills/compozy/cy-loop-tasks/scripts/detect-phase.py <slug>`.
    The printed line decides the whole iteration; the output catalog and
    entry/exit conditions are in `references/phase-transitions.md`.
@@ -169,8 +176,8 @@ Run only the printed action.
    skill first (e.g. `agh-qa-bootstrap` in AGH) when installed.
 2. Dispatch the Fable 5 worker per `references/herdr-delegation.md`
    (QA-report lane). The worker activates `qa-report` with
-   `qa-docs-path=docs/qa` and updates journey flows, `docs/qa/state.csv`
-   scenario rows, and cycle charters.
+   `qa-docs-path=docs/qa` and updates journey flows, `docs/qa/scenarios/`
+   files, and cycle charters.
 3. Verify the worker evidence (each reported artifact exists, no worker
    commit), then run `python3 .agents/skills/compozy/cy-loop-tasks/scripts/update-state.py <slug> --phase C --qa-report-done --action "qa-report produced" --outcome completed --memory-written "memory/qa-report.md,memory/MEMORY.md"`.
 
@@ -178,7 +185,7 @@ Run only the printed action.
 
 1. Activate `qa-execution` with `qa-docs-path=docs/qa`; it writes the dated
    run report at `docs/qa/reports/<YYYY-MM-DD>-<slug>.md` and updates
-   `state.csv` verdicts.
+   scenario-file verdicts.
 2. Run `python3 .agents/skills/compozy/cy-loop-tasks/scripts/update-state.py <slug> --phase C --qa-execution-done --action "qa-execution produced" --outcome completed --memory-written "memory/qa-execution.md,memory/MEMORY.md"`,
    adding `--verify-fail` when the report's Final Status is "not ready" or
    any Blocks-Completion/Data-Loss bug is open, else `--verify-pass`.
@@ -226,15 +233,18 @@ round.
    field `n/a (phase != B/D)`.
 4. Print the literal contents of `assets/done-signature.txt` on its own line
    — the codex-loop goal-check confirmation scans for it.
-5. Stop.
+5. Stop — Phase E is the only successful terminal.
 
-**Step 3 — Self-audit and emit the iteration summary.**
+**Step 3 — Self-audit, summarize, then continue.**
 
 1. Walk `references/checklist.md` for the phase just executed; every box must
    pass before summarizing.
 2. Print the iteration summary block from
-   `assets/iteration-summary.template.md` as the LAST block of the assistant
-   message. Phase E already printed it and adds only the done-signature line.
+   `assets/iteration-summary.template.md` (Phase E already printed it and
+   adds only the done-signature line).
+3. **Continue gate:** if `outcome=blocked` or `phase_out=E`, stop. Otherwise
+   re-enter Step 1 immediately — the summary marks the round; it does not
+   end the session.
 
 ## Memory protocol
 
@@ -249,7 +259,9 @@ The canonical `[[CODEX_LOOP ...]]` header, the manual invocation text, and
 
 ## Critical Rules
 
-- One phase action per iteration — let the loop drive the next one.
+- One phase action per iteration; after a completed summary, **continue** at
+  detect until Phase E or a blocker — never idle between rounds waiting for
+  a restart or re-invocation.
 - `state.yaml` mutates only through `init-state.py` and `update-state.py`;
   hand-edits void resume guarantees. There is no top-level `current_phase` —
   `detect-phase.py` derives it from durable state and filesystem truth every
@@ -294,12 +306,12 @@ The canonical `[[CODEX_LOOP ...]]` header, the manual invocation text, and
   error on stderr. Hand-editing is the usual cause; restore from `git diff`
   and resume.
 - **`cy-final-verify` FAIL** — record `--verify-fail --action "verify FAIL:
-  <summary>" --outcome blocked` and let the next iteration re-enter the same
-  phase. Two consecutive verify failures in one phase → declare a blocker and
-  stop (two-touch rule).
+  <summary>" --outcome blocked`, print the summary, and stop (continue gate).
+  A later invocation re-detects the same phase. Two consecutive verify
+  failures in one phase → declare a blocker (two-touch rule).
 - **`commit-checkpoint.py` exit 1** — record `--verify-fail --blocker
-  "checkpoint-commit-failed: <stderr summary>"` and stop; never bypass the
-  hook. `SKIP: no changes` on stdout is success, not failure.
+  "checkpoint-commit-failed: <stderr summary>"`, print the summary, and stop;
+  never bypass the hook. `SKIP: no changes` on stdout is success, not failure.
 - **Worker launch or delegation failure** — the pane shows raw JSON instead
   of a TUI banner, `rtk herdr agent list` stays `unknown`, or the status wait
   times out with no progress: interrupt
@@ -313,5 +325,5 @@ The canonical `[[CODEX_LOOP ...]]` header, the manual invocation text, and
   re-run it.
 - **Two-touch rule** — a third corrective change to the same task or area
   escalates to a blocker instead of a third patch.
-- **Blocker recorded** — stop without the done-signature; every following
-  iteration re-detects it until a human resolves it.
+- **Blocker recorded** — print the summary and stop without the done-signature;
+  a later invocation re-detects it until a human resolves it.

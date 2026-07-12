@@ -26,8 +26,10 @@ const (
 
 type authoredContextDeps struct {
 	SoulAuthoring      core.SoulAuthoringService
+	SoulHistoryPurger  core.SoulHistoryPurger
 	SoulRefresher      core.SoulRefresher
 	HeartbeatAuthoring core.HeartbeatAuthoringService
+	HeartbeatPurger    core.HeartbeatHistoryPurger
 	HeartbeatStatus    core.HeartbeatStatusService
 	HeartbeatWake      core.HeartbeatWakeService
 	SessionHealth      core.SessionHealthReader
@@ -49,9 +51,17 @@ func authoredContextRuntimeDeps(ctx context.Context, state *bootState, sessions 
 	if state == nil {
 		return deps
 	}
-	deps.SoulAuthoring = soulAuthoringServiceDependency(state.registry, state.logger)
+	soulService := soulAuthoringServiceDependency(state.registry, state.logger)
+	if soulService != nil {
+		deps.SoulAuthoring = soulService
+		deps.SoulHistoryPurger = soulService
+	}
 	deps.SoulRefresher = soulRefresherDependency(sessions)
-	deps.HeartbeatAuthoring = heartbeatAuthoringServiceDependency(state.registry, state.logger)
+	heartbeatService := heartbeatAuthoringServiceDependency(state.registry, state.logger)
+	if heartbeatService != nil {
+		deps.HeartbeatAuthoring = heartbeatService
+		deps.HeartbeatPurger = heartbeatService
+	}
 	deps.SessionHealth = sessionHealthReaderDependency(sessions)
 	deps.HeartbeatStatus = heartbeatStatusServiceDependency(
 		state.registry,
@@ -77,38 +87,12 @@ func authoredContextRuntimeDeps(ctx context.Context, state *bootState, sessions 
 	return deps
 }
 
-func soulAuthoringServiceDependency(store any, logger *slog.Logger) core.SoulAuthoringService {
-	authoringStore, ok := store.(soul.AuthoringStore)
-	if !ok {
-		return nil
-	}
-	service, err := soul.NewManagedSoulAuthoringService(authoringStore)
-	if err != nil {
-		logAuthoredContextDependencyError(logger, "daemon: create soul authoring service", err)
-		return nil
-	}
-	return service
-}
-
 func soulRefresherDependency(sessions SessionManager) core.SoulRefresher {
 	refresher, ok := sessions.(core.SoulRefresher)
 	if !ok {
 		return nil
 	}
 	return refresher
-}
-
-func heartbeatAuthoringServiceDependency(store any, logger *slog.Logger) core.HeartbeatAuthoringService {
-	authoringStore, ok := store.(heartbeat.AuthoringStore)
-	if !ok {
-		return nil
-	}
-	service, err := heartbeat.NewManagedHeartbeatAuthoringService(authoringStore)
-	if err != nil {
-		logAuthoredContextDependencyError(logger, "daemon: create heartbeat authoring service", err)
-		return nil
-	}
-	return service
 }
 
 func heartbeatStatusServiceDependency(

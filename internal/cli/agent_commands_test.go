@@ -1,13 +1,20 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/compozy/agh/internal/agentidentity"
+	"github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
 )
 
@@ -18,15 +25,19 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 		t.Parallel()
 
 		agent := AgentRecord{
-			Name:            "coder",
-			Provider:        "fake",
-			Command:         "codex",
-			Model:           "gpt-5.4",
-			ReasoningEffort: "max",
-			Tools:           []string{"shell", "git"},
-			Permissions:     "standard",
-			CategoryPath:    []string{"Marketing", "Sales"},
-			Prompt:          "You are coder.",
+			Name:             "coder",
+			Provider:         "fake",
+			Command:          "codex",
+			Model:            "gpt-5.4",
+			ReasoningEffort:  "max",
+			Tools:            []string{"shell", "git"},
+			Permissions:      "standard",
+			CategoryPath:     []string{"Marketing", "Sales"},
+			Origin:           contract.AgentOriginWorkspace,
+			WorkspaceID:      "ws-1",
+			Skills:           &contract.CreateAgentSkillsConfig{Disabled: []string{"legacy-review"}},
+			DefinitionDigest: "digest-coder",
+			Prompt:           "You are coder.",
 			MCPServers: []AgentMCPServer{{
 				Name:    "github",
 				Command: "agh-github",
@@ -72,7 +83,8 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 		if err != nil {
 			t.Fatalf("agent list human error = %v", err)
 		}
-		if !strings.Contains(listHuman, "Category") || !strings.Contains(listHuman, "Marketing / Sales") {
+		if !strings.Contains(listHuman, "Category") || !strings.Contains(listHuman, "Marketing / Sales") ||
+			!strings.Contains(listHuman, "Origin") || !strings.Contains(listHuman, "workspace") {
 			t.Fatalf("agent list human output = %q, want category column", listHuman)
 		}
 
@@ -80,7 +92,9 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 		if err != nil {
 			t.Fatalf("agent list toon error = %v", err)
 		}
-		if !strings.Contains(listToon, "agents[1]{name,provider,model,category,tool_count,permissions}:") ||
+		const wantHeader = "agents[1]{name,provider,model,category,origin,workspace_id," +
+			"disabled_skills,definition_digest,tool_count,permissions}:"
+		if !strings.Contains(listToon, wantHeader) ||
 			!strings.Contains(listToon, "Marketing / Sales") {
 			t.Fatalf("agent list toon output = %q, want category key", listToon)
 		}
@@ -92,6 +106,8 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 		if !strings.Contains(human, "Agent") || !strings.Contains(human, agent.Name) ||
 			!strings.Contains(human, "MCP Servers") ||
 			!strings.Contains(human, "Marketing / Sales") ||
+			!strings.Contains(human, "digest-coder") ||
+			!strings.Contains(human, "legacy-review") ||
 			!strings.Contains(human, "Reasoning Effort") ||
 			!strings.Contains(human, "max") {
 			t.Fatalf("agent info human output = %q, want agent details", human)
@@ -103,7 +119,7 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 		}
 		if !strings.Contains(
 			toon,
-			"agent{name,provider,command,model,reasoning_effort,category,tools,permissions,prompt}:",
+			"agent{name,provider,command,model,reasoning_effort,category,origin,workspace_id,disabled_skills,definition_digest,tools,permissions,prompt}:",
 		) ||
 			!strings.Contains(toon, agent.Name) ||
 			!strings.Contains(toon, "max") {
@@ -169,22 +185,67 @@ func TestAgentCommandsPassWorkspaceQuery(t *testing.T) {
 func TestAgentCreateCommand(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should create a workspace-local agent definition", func(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "Should require one prompt source",
+			args: []string{"agent", "create", "coder", "--provider", "claude"},
+			want: "--prompt or --prompt-file is required",
+		},
+		{
+			name: "Should reject conflicting prompt sources",
+			args: []string{
+				"agent", "create", "coder", "--provider", "claude",
+				"--prompt", "Code.", "--prompt-file", "prompt.md",
+			},
+			want: "use either --prompt or --prompt-file",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			called := false
+			deps := newTestDeps(t, &stubClient{
+				createAgentFn: func(context.Context, contract.CreateAgentRequest) (AgentRecord, error) {
+					called = true
+					return AgentRecord{}, nil
+				},
+			})
+			_, _, err := executeRootCommand(t, deps, tc.args...)
+			if err == nil || !strings.Contains(err.Error(), tc.want) || called {
+				t.Fatalf("agent create prompt error/called = %v/%t, want %q", err, called, tc.want)
+			}
+		})
+	}
+
+	t.Run("Should create a workspace-local agent through the daemon", func(t *testing.T) {
 		t.Parallel()
 
 		workspaceRoot := t.TempDir()
 		const workspaceRef = "ws-alpha"
 		deps := newTestDeps(t, &stubClient{
-			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
-				if ref != workspaceRef {
-					t.Fatalf("GetWorkspace() ref = %q, want %q", ref, workspaceRef)
+			createAgentFn: func(_ context.Context, request contract.CreateAgentRequest) (AgentRecord, error) {
+				if request.Scope != contract.AgentCreateScopeWorkspace || request.Workspace != workspaceRef {
+					t.Fatalf("CreateAgent() scope/workspace = %q/%q", request.Scope, request.Workspace)
 				}
-				return WorkspaceDetailRecord{
-					Workspace: WorkspaceRecord{
-						ID:      workspaceRef,
-						RootDir: workspaceRoot,
-						Name:    "Alpha",
-					},
+				if request.Agent.Name != "pricing_strategist" || request.Agent.Provider != "claude" ||
+					request.Agent.ReasoningEffort != "max" || len(request.Agent.Tools) != 1 ||
+					request.Agent.Skills == nil ||
+					!slices.Equal(request.Agent.Skills.Disabled, []string{"legacy-review"}) {
+					t.Fatalf("CreateAgent() request = %#v", request)
+				}
+				return AgentRecord{
+					Name:             request.Agent.Name,
+					Provider:         request.Agent.Provider,
+					Model:            request.Agent.Model,
+					ReasoningEffort:  request.Agent.ReasoningEffort,
+					Prompt:           request.Agent.Prompt,
+					Origin:           contract.AgentOriginWorkspace,
+					WorkspaceID:      workspaceRef,
+					DefinitionDigest: "digest-create",
 				}, nil
 			},
 		})
@@ -207,6 +268,8 @@ func TestAgentCreateCommand(t *testing.T) {
 			"You own Ad8 pricing strategy.",
 			"--tool",
 			"builtin__shell",
+			"--disable-skill",
+			"legacy-review",
 			"--category",
 			"Strategy",
 			"-o",
@@ -225,27 +288,8 @@ func TestAgentCreateCommand(t *testing.T) {
 			t.Fatalf("created agent = %#v, want pricing strategist metadata", created)
 		}
 
-		path := filepath.Join(
-			workspaceRoot,
-			aghconfig.DirName,
-			aghconfig.AgentsDirName,
-			"pricing_strategist",
-			"AGENT.md",
-		)
-		fileInfo, err := os.Stat(path)
-		if err != nil {
-			t.Fatalf("os.Stat(created AGENT.md) error = %v", err)
-		}
-		if fileInfo.Mode().Perm() != 0o600 {
-			t.Fatalf("created AGENT.md mode = %v, want 0600", fileInfo.Mode().Perm())
-		}
-		loaded, err := aghconfig.LoadAgentDefFile(path)
-		if err != nil {
-			t.Fatalf("LoadAgentDefFile(created AGENT.md) error = %v", err)
-		}
-		if len(loaded.Tools) != 1 || loaded.Name != created.Name || loaded.Provider != created.Provider ||
-			loaded.ReasoningEffort != "max" || loaded.Tools[0] != "builtin__shell" {
-			t.Fatalf("loaded agent = %#v, want created agent definition", loaded)
+		if _, err := os.Stat(filepath.Join(workspaceRoot, aghconfig.DirName)); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("CLI filesystem authoring path exists or stat failed: %v", err)
 		}
 	})
 
@@ -273,6 +317,297 @@ func TestAgentCreateCommand(t *testing.T) {
 	})
 }
 
+func TestAgentUpdateCommand(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should require an expected digest before reading the agent", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+		deps := newTestDeps(t, &stubClient{
+			getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
+				called = true
+				return AgentRecord{}, nil
+			},
+		})
+		_, _, err := executeRootCommand(t, deps, "agent", "update", "coder", "--model", "new")
+		if err == nil || !strings.Contains(err.Error(), "--expected-digest is required") || called {
+			t.Fatalf("agent update digest error/called = %v/%t", err, called)
+		}
+	})
+
+	t.Run("Should merge field flags and prompt file into a digest-guarded update", func(t *testing.T) {
+		t.Parallel()
+
+		promptPath := filepath.Join(t.TempDir(), "prompt.md")
+		if err := os.WriteFile(promptPath, []byte("Review every edge.\n"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(prompt) error = %v", err)
+		}
+		current := AgentRecord{
+			Name: "coder", Provider: "fake", Model: "old", Prompt: "Code.",
+			Origin: contract.AgentOriginWorkspace, WorkspaceID: "ws-1", DefinitionDigest: "digest-1",
+			Skills: &contract.CreateAgentSkillsConfig{Disabled: []string{"legacy"}},
+		}
+		deps := newTestDeps(t, &stubClient{
+			getAgentFn: func(_ context.Context, name string, query AgentQuery) (AgentRecord, error) {
+				if name != "coder" || query.Workspace != "ws-1" {
+					t.Fatalf("GetAgent() = %q/%#v", name, query)
+				}
+				return current, nil
+			},
+			updateAgentFn: func(_ context.Context, name string, request contract.UpdateAgentRequest) (AgentRecord, error) {
+				if name != "coder" || request.Workspace != "ws-1" || request.ExpectedDigest != "digest-1" {
+					t.Fatalf("UpdateAgent() route/request = %q/%#v", name, request)
+				}
+				if request.Agent.Model != "new" || request.Agent.Prompt != "Review every edge." ||
+					request.Agent.Skills == nil ||
+					!slices.Equal(request.Agent.Skills.Disabled, []string{"security-audit"}) {
+					t.Fatalf("UpdateAgent() agent = %#v", request.Agent)
+				}
+				updated := current
+				updated.Model = request.Agent.Model
+				updated.Prompt = request.Agent.Prompt
+				updated.DefinitionDigest = "digest-2"
+				return updated, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t, deps, "agent", "update", "coder", "--workspace", "ws-1",
+			"--expected-digest", "digest-1", "--model", "new", "--prompt-file", promptPath, "-o", "json",
+			"--disable-skill", "security-audit",
+		)
+		if err != nil || !strings.Contains(stdout, `"definition_digest": "digest-2"`) {
+			t.Fatalf("agent update = %q, %v", stdout, err)
+		}
+	})
+
+	t.Run("Should clear disabled skills when the flag is explicitly empty", func(t *testing.T) {
+		t.Parallel()
+
+		current := AgentRecord{
+			Name:             "coder",
+			Provider:         "fake",
+			Prompt:           "Code.",
+			DefinitionDigest: "digest-1",
+			Skills:           &contract.CreateAgentSkillsConfig{Disabled: []string{"legacy"}},
+		}
+		deps := newTestDeps(t, &stubClient{
+			getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
+				return current, nil
+			},
+			updateAgentFn: func(
+				_ context.Context,
+				_ string,
+				request contract.UpdateAgentRequest,
+			) (AgentRecord, error) {
+				if request.Agent.Skills == nil || len(request.Agent.Skills.Disabled) != 0 {
+					t.Fatalf("UpdateAgent() skills = %#v, want explicit empty disabled list", request.Agent.Skills)
+				}
+				return current, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"agent",
+			"update",
+			"coder",
+			"--expected-digest",
+			"digest-1",
+			"--disable-skill",
+			"",
+		)
+		if err != nil {
+			t.Fatalf("agent update clear disabled skills error = %v", err)
+		}
+	})
+
+	t.Run("Should name a missing prompt file", func(t *testing.T) {
+		t.Parallel()
+
+		missing := filepath.Join(t.TempDir(), "missing.md")
+		deps := newTestDeps(t, &stubClient{
+			getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
+				return AgentRecord{Name: "coder", Provider: "fake", Prompt: "Code."}, nil
+			},
+		})
+		_, _, err := executeRootCommand(
+			t, deps, "agent", "update", "coder", "--expected-digest", "digest-1", "--prompt-file", missing,
+		)
+		if err == nil || !strings.Contains(err.Error(), missing) {
+			t.Fatalf("agent update missing prompt error = %v, want path %q", err, missing)
+		}
+	})
+
+	t.Run("Should render a digest conflict as structured invalid input", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
+				return AgentRecord{Name: "coder", Provider: "fake", Prompt: "Code."}, nil
+			},
+			updateAgentFn: func(context.Context, string, contract.UpdateAgentRequest) (AgentRecord, error) {
+				return AgentRecord{}, &daemonAPIError{
+					statusCode: http.StatusConflict,
+					payload:    contract.ErrorPayload{Error: "api: agent definition conflict"},
+				}
+			},
+		})
+		exitCode, _, stderr := executeRootCommandWithExit(
+			t, deps, "agent", "update", "coder", "--expected-digest", "stale", "-o", "json",
+		)
+		const wantStderr = "{\"error\":\"api: agent definition conflict\"}\n"
+		if exitCode != agentidentity.ExitIdentityInvalid || stderr != wantStderr {
+			t.Fatalf("agent update conflict exit/stderr = %d/%q", exitCode, stderr)
+		}
+	})
+}
+
+func TestAgentDeleteCommand(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should decline a TTY prompt without calling the daemon", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+		deps := newTestDeps(t, &stubClient{
+			deleteAgentFn: func(context.Context, string, string) (contract.DeleteAgentResponse, error) {
+				called = true
+				return contract.DeleteAgentResponse{}, nil
+			},
+		})
+		deps.inputIsTerminal = func(io.Reader) bool { return true }
+		cmd := newRootCommand(deps)
+		var stdout bytes.Buffer
+		var stderr bytes.Buffer
+		cmd.SetOut(&stdout)
+		cmd.SetErr(&stderr)
+		cmd.SetIn(strings.NewReader("n\n"))
+		cmd.SetArgs([]string{"agent", "delete", "coder"})
+		err := cmd.ExecuteContext(t.Context())
+		if err == nil || !strings.Contains(err.Error(), "declined") || called {
+			t.Fatalf("agent delete decline error/called = %v/%t", err, called)
+		}
+		if !strings.Contains(stderr.String(), `Delete agent "coder"? [y/N]`) {
+			t.Fatalf("agent delete prompt = %q", stderr.String())
+		}
+	})
+
+	t.Run("Should require yes for structured output before calling the daemon", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+		deps := newTestDeps(t, &stubClient{
+			deleteAgentFn: func(context.Context, string, string) (contract.DeleteAgentResponse, error) {
+				called = true
+				return contract.DeleteAgentResponse{}, nil
+			},
+		})
+		_, _, err := executeRootCommand(t, deps, "agent", "delete", "coder", "-o", "toon")
+		if err == nil || !strings.Contains(err.Error(), "requires --yes") || called {
+			t.Fatalf("agent delete structured consent error/called = %v/%t", err, called)
+		}
+	})
+
+	t.Run("Should emit the unshadowed origin in structured output", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			deleteAgentFn: func(_ context.Context, name string, workspace string) (contract.DeleteAgentResponse, error) {
+				if name != "coder" || workspace != "ws-1" {
+					t.Fatalf("DeleteAgent() = %q/%q", name, workspace)
+				}
+				return contract.DeleteAgentResponse{
+					Name: name, Origin: contract.AgentOriginWorkspace, UnshadowedOrigin: contract.AgentOriginGlobal,
+				}, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(
+			t, deps, "agent", "delete", "coder", "--workspace", "ws-1", "--yes", "-o", "json",
+		)
+		if err != nil || !strings.Contains(stdout, `"unshadowed_origin": "global"`) {
+			t.Fatalf("agent delete output/error = %q/%v", stdout, err)
+		}
+	})
+}
+
+func TestAgentDuplicateCommand(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should require a workspace for workspace scope before calling the daemon", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+		deps := newTestDeps(t, &stubClient{
+			duplicateAgentFn: func(context.Context, string, contract.DuplicateAgentRequest) (AgentRecord, error) {
+				called = true
+				return AgentRecord{}, nil
+			},
+		})
+		_, _, err := executeRootCommand(
+			t, deps, "agent", "duplicate", "coder", "reviewer", "--scope", "workspace",
+		)
+		if err == nil || !strings.Contains(err.Error(), "--workspace is required") || called {
+			t.Fatalf("agent duplicate workspace error/called = %v/%t", err, called)
+		}
+	})
+
+	t.Run("Should map override flags to one server-side duplicate request", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			duplicateAgentFn: func(_ context.Context, source string, request contract.DuplicateAgentRequest) (AgentRecord, error) {
+				if source != "coder" {
+					t.Fatalf("DuplicateAgent() source = %q", source)
+				}
+				if request.Name != "reviewer" ||
+					request.Scope != contract.AgentCreateScopeWorkspace ||
+					request.Workspace != "ws-1" ||
+					request.Overrides == nil ||
+					request.Overrides.Model != "new" ||
+					request.Overrides.Prompt != "Review." ||
+					request.Overrides.Skills == nil ||
+					!slices.Equal(request.Overrides.Skills.Disabled, []string{"legacy-review"}) {
+					t.Fatalf("DuplicateAgent() = %q/%#v", source, request)
+				}
+				return AgentRecord{
+					Name: "reviewer", Provider: "fake", Model: "new", Prompt: "Review.",
+					Origin: contract.AgentOriginWorkspace, WorkspaceID: "ws-1", DefinitionDigest: "copy-digest",
+				}, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(
+			t, deps, "agent", "duplicate", "coder", "reviewer", "--scope", "workspace",
+			"--workspace", "ws-1", "--model", "new", "--prompt", "Review.",
+			"--disable-skill", "legacy-review", "-o", "json",
+		)
+		if err != nil || !strings.Contains(stdout, `"name": "reviewer"`) {
+			t.Fatalf("agent duplicate output/error = %q/%v", stdout, err)
+		}
+	})
+
+	t.Run("Should render an existing target conflict deterministically", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			duplicateAgentFn: func(context.Context, string, contract.DuplicateAgentRequest) (AgentRecord, error) {
+				return AgentRecord{}, &daemonAPIError{
+					statusCode: http.StatusConflict,
+					payload:    contract.ErrorPayload{Error: "api: agent definition already exists"},
+				}
+			},
+		})
+		exitCode, _, stderr := executeRootCommandWithExit(
+			t, deps, "agent", "duplicate", "coder", "reviewer", "-o", "json",
+		)
+		if exitCode != agentidentity.ExitIdentityInvalid || !strings.Contains(stderr, "already exists") {
+			t.Fatalf("agent duplicate conflict exit/stderr = %d/%q", exitCode, stderr)
+		}
+	})
+}
+
 func TestAgentWorkspaceFlagRejectsEmptyExplicitValue(t *testing.T) {
 	t.Parallel()
 
@@ -286,6 +621,42 @@ func TestAgentWorkspaceFlagRejectsEmptyExplicitValue(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "workspace flag cannot be empty") {
 			t.Fatalf("agent list --workspace blank error = %v, want workspace flag message", err)
+		}
+	})
+}
+
+func TestAgentDefinitionDaemonErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve a not-found API error and unavailable exit code", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
+				return AgentRecord{}, &daemonAPIError{
+					statusCode: http.StatusNotFound,
+					payload:    contract.ErrorPayload{Error: `uds: agent "missing" is not available`},
+				}
+			},
+		})
+		exitCode, _, stderr := executeRootCommandWithExit(
+			t,
+			deps,
+			"agent",
+			"info",
+			"missing",
+			"-o",
+			"json",
+		)
+		if exitCode != agentidentity.ExitUnavailable {
+			t.Fatalf("agent info missing exit code = %d, want %d", exitCode, agentidentity.ExitUnavailable)
+		}
+		var payload contract.ErrorPayload
+		if err := json.Unmarshal([]byte(stderr), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(agent info error) = %v; stderr=%s", err, stderr)
+		}
+		if !strings.Contains(payload.Error, "missing") {
+			t.Fatalf("agent info error payload = %#v, want missing agent", payload)
 		}
 	})
 }

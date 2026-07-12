@@ -33,21 +33,38 @@ export interface TopbarSlotValue {
 
 export interface TopbarSlotContextValue {
   slot: TopbarSlotValue | null;
-  setSlot: (slot: TopbarSlotValue | null) => void;
+  setSlot: (owner: object, slot: TopbarSlotValue | null) => void;
+  clearSlot: (owner: object) => void;
 }
 
 export const TopbarSlotContext = React.createContext<TopbarSlotContextValue | null>(null);
 
 function slotKey(slot: TopbarSlotValue | null): string {
   if (slot === null) return "null";
+  const seen = new WeakSet<object>();
   try {
     return JSON.stringify(slot, (key, value) => {
       if (typeof value === "function") return undefined;
-      if (key === "ref" || key === "_owner" || key === "_store") return undefined;
+      if (key === "ref" || key.startsWith("_")) return undefined;
+      if (typeof value === "bigint") return String(value);
+      if (typeof value === "object" && value !== null) {
+        if (seen.has(value)) return undefined;
+        seen.add(value);
+      }
       return value;
     });
   } catch {
-    return String(Math.random());
+    return JSON.stringify({
+      title: typeof slot.title === "string" ? slot.title : Boolean(slot.title),
+      count: slot.count,
+      tabs: Boolean(slot.tabs),
+      search: Boolean(slot.search),
+      actions: Boolean(slot.actions),
+      back: Boolean(slot.back),
+      backLabel: slot.backLabel,
+      meta: Boolean(slot.meta),
+      overflow: Boolean(slot.overflow),
+    });
   }
 }
 
@@ -62,14 +79,23 @@ export function isSameTopbarSlot(a: TopbarSlotValue | null, b: TopbarSlotValue |
 export function useTopbarSlot(slot: TopbarSlotValue | null): void {
   const ctx = React.use(TopbarSlotContext);
   const setSlot = ctx?.setSlot;
+  const clearSlot = ctx?.clearSlot;
+  const ownerRef = React.useRef<object>({});
+  const slotRef = React.useRef(slot);
+  slotRef.current = slot;
+  const signature = slotKey(slot);
   React.useEffect(() => {
-    if (!setSlot) return;
-    setSlot(slot);
-  }, [setSlot, slot]);
+    if (!setSlot || !clearSlot) return;
+    if (slotRef.current === null) {
+      clearSlot(ownerRef.current);
+      return;
+    }
+    setSlot(ownerRef.current, slotRef.current);
+  }, [setSlot, clearSlot, signature]);
   React.useEffect(() => {
-    if (!setSlot) return;
-    return () => setSlot(null);
-  }, [setSlot]);
+    if (!clearSlot) return;
+    return () => clearSlot(ownerRef.current);
+  }, [clearSlot]);
 }
 
 export function useTopbarSlotValue(): TopbarSlotValue | null {

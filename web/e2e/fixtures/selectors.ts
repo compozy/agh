@@ -878,7 +878,7 @@ export function sessionLifecycleSelectors(
 ): SessionLifecycleSelectors {
   return {
     agentPageNewSession: page.getByTestId("agent-page-new-session"),
-    agentRow: (agentName: string) => page.getByTestId(`agent-row-${agentName}`),
+    agentRow: (agentName: string) => page.getByTestId(`agent-fleet-row-link-${agentName}`),
     appSidebar: page.getByTestId(sessionLifecycleTestIds.appSidebar),
     chatHeader: page.getByTestId(sessionLifecycleTestIds.chatView),
     chatView: page.getByTestId(sessionLifecycleTestIds.chatView),

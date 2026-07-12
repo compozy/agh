@@ -4,7 +4,7 @@ import { fn } from "storybook/test";
 import { CenteredSurface } from "@/storybook/story-layout";
 import { primaryAgentFixture } from "@/systems/agent/mocks";
 
-import { AgentPageActions, AgentPageStatusPill } from "../agent-page-header";
+import { AgentPageActions, AgentPageMeta, AgentPageStatusPill } from "../agent-page-header";
 
 const meta: Meta<typeof AgentPageActions> = {
   title: "systems/agent/components/AgentPageHeader",
@@ -14,7 +14,7 @@ const meta: Meta<typeof AgentPageActions> = {
     docs: {
       description: {
         component:
-          "Topbar-slot building blocks for the agent detail route. `AgentPageStatusPill` flips between IDLE and ACTIVE based on the active session count; `AgentPageActions` clusters refresh, configure, and primary new-session buttons.",
+          "Topbar-slot building blocks for the agent detail route. Status pill, category/origin meta, New session, Edit settings, and overflow Duplicate/Delete.",
       },
     },
   },
@@ -23,18 +23,12 @@ const meta: Meta<typeof AgentPageActions> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/**
- * Actions — the right-side toolbar cluster routes push into the topbar
- * `actions` slot. Refresh + configure use `outline` icon-buttons; new-session
- * is the default action button.
- */
 export const Actions: Story = {
   args: {
-    agent: primaryAgentFixture,
-    isRefreshing: false,
-    onRefresh: fn(),
-    onConfigure: fn(),
+    onEditSettings: fn(),
     onNewSession: fn(),
+    onDuplicate: fn(),
+    onDelete: fn(),
     isCreatingSession: false,
     newSessionDisabled: false,
   },
@@ -47,17 +41,12 @@ export const Actions: Story = {
   ),
 };
 
-/**
- * RefreshingAndCreating — both async actions are in their busy state:
- * refresh button shows the spinning icon, new-session is `aria-busy`.
- */
-export const RefreshingAndCreating: Story = {
+export const CreatingSession: Story = {
   args: {
-    agent: primaryAgentFixture,
-    isRefreshing: true,
-    onRefresh: fn(),
-    onConfigure: fn(),
+    onEditSettings: fn(),
     onNewSession: fn(),
+    onDuplicate: fn(),
+    onDelete: fn(),
     isCreatingSession: true,
     newSessionDisabled: true,
   },
@@ -70,10 +59,6 @@ export const RefreshingAndCreating: Story = {
   ),
 };
 
-/**
- * StatusIdle — `AgentPageStatusPill` rendered without any active sessions:
- * neutral mono pill reading `IDLE`.
- */
 export const StatusIdle: StoryObj<typeof AgentPageStatusPill> = {
   args: {},
   render: () => (
@@ -83,15 +68,20 @@ export const StatusIdle: StoryObj<typeof AgentPageStatusPill> = {
   ),
 };
 
-/**
- * StatusActive — at least one session is active; the pill flips to
- * the success tone and reads `ACTIVE`.
- */
 export const StatusActive: StoryObj<typeof AgentPageStatusPill> = {
   args: {},
   render: () => (
     <CenteredSurface>
       <AgentPageStatusPill activeCount={3} />
+    </CenteredSurface>
+  ),
+};
+
+export const PageMeta: StoryObj<typeof AgentPageMeta> = {
+  args: {},
+  render: () => (
+    <CenteredSurface>
+      <AgentPageMeta agent={primaryAgentFixture} />
     </CenteredSurface>
   ),
 };

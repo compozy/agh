@@ -27,7 +27,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     docs: {
       description: {
         component:
-          "Agent detail route stories rendered through the real router. Covers the live sessions table, the right-rail MCP panel, the empty/loading branches, and the not-found state.",
+          "Agent detail route stories rendered through the real router. Covers the four-tab cockpit, Overview/Sessions states, and loading/not-found branches.",
       },
     },
   },
@@ -67,34 +67,170 @@ const fraudAgentRoute = `/agents/${storyAgentNames.fraud}`;
 const complianceAgentRoute = `/agents/${storyAgentNames.compliance}`;
 const missingAgentRoute = "/agents/ghost-risk-agent";
 
+function AgentWorkspaceSetup() {
+  return <StorybookWorkspaceSetup workspaceId={storyWorkspaceIds.risk} />;
+}
+
 /**
- * Default agent detail page for the payout-operations agent , sessions table, status pill, stats grid.
+ * Default agent detail page — Overview cockpit with status pill and toolbar.
  */
 export const Default: Story = {
   args: {},
   parameters: appRouteParameters(fraudAgentRoute),
-  render: () => <StorybookWorkspaceSetup />,
+  render: () => <AgentWorkspaceSetup />,
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await expect(canvas.findByTestId("agent-detail-page")).resolves.toBeDefined();
+    await expect(canvas.findByTestId("agent-overview-tab")).resolves.toBeDefined();
     await expect(canvas.findByTestId("agent-page-header-status")).resolves.toBeDefined();
     await expect(canvas.findByTestId("agent-page-toolbar")).resolves.toBeDefined();
-    await expect(canvas.findByTestId("agent-sessions-table")).resolves.toBeDefined();
+    expect(canvas.queryByTestId("agent-info-inspector")).toBeNull();
+  },
+};
+
+export const InstructionsAgent: Story = {
+  args: {},
+  parameters: appRouteParameters(`${fraudAgentRoute}?tab=instructions&file=agent`),
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.findByTestId("agent-file-agent")).resolves.toBeDefined();
+  },
+};
+
+export const SoulMissing: Story = {
+  args: {},
+  parameters: appRouteParameters(`${fraudAgentRoute}?tab=instructions&file=soul`),
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.findByTestId("agent-soul-missing")).resolves.toBeDefined();
+  },
+};
+
+export const SoulEditor: Story = {
+  args: {},
+  parameters: appRouteParameters(`${fraudAgentRoute}?tab=instructions&file=soul`),
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await (await canvas.findByTestId("agent-soul-create")).click();
+    await expect(canvas.findByTestId("agent-soul-editor")).resolves.toBeDefined();
+  },
+};
+
+export const HeartbeatMissing: Story = {
+  args: {},
+  parameters: appRouteParameters(`${fraudAgentRoute}?tab=instructions&file=heartbeat`),
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.findByTestId("agent-heartbeat-missing")).resolves.toBeDefined();
+  },
+};
+
+export const HeartbeatEditor: Story = {
+  args: {},
+  parameters: appRouteParameters(`${fraudAgentRoute}?tab=instructions&file=heartbeat`),
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await (await canvas.findByTestId("agent-heartbeat-create")).click();
+    await expect(canvas.findByTestId("agent-heartbeat-editor")).resolves.toBeDefined();
+  },
+};
+
+export const Configuration: Story = {
+  args: {},
+  parameters: appRouteParameters(`${fraudAgentRoute}?tab=configuration`),
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.findByTestId("agent-configuration-tab")).resolves.toBeDefined();
+  },
+};
+
+export const Sessions: Story = {
+  args: {},
+  parameters: appRouteParameters(`${fraudAgentRoute}?tab=sessions`),
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.findByTestId("agent-sessions-tab")).resolves.toBeDefined();
+  },
+};
+
+export const Diagnostics: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(fraudAgentRoute),
+    ...storybookMswParameters({
+      agent: [
+        aghApiMock.get("/api/agents/{name}", () =>
+          HttpResponse.json({
+            agent: {
+              ...agentFixtures.find(agent => agent.name === storyAgentNames.fraud)!,
+              diagnostics: [
+                {
+                  error_kind: "frontmatter.invalid",
+                  message: "Unknown field in agent definition",
+                  path: "AGENT.md:3",
+                },
+              ],
+            },
+          })
+        ),
+      ],
+    }),
+  },
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.findByTestId("agent-diagnostics-banner")).resolves.toBeDefined();
+  },
+};
+
+export const SessionsError: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(fraudAgentRoute),
+    ...storybookMswParameters({
+      session: [
+        aghApiMock.get("/api/sessions", () =>
+          HttpResponse.json({ error: "sessions unavailable" }, { status: 500 })
+        ),
+      ],
+    }),
+  },
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.findByTestId("agent-overview-sessions-notice")).resolves.toBeDefined();
   },
 };
 
 /**
- * Agent that has no sessions yet , empty state inside the sessions panel + IDLE status pill.
+ * Agent that has no sessions yet, with an empty state inside the Sessions tab.
  */
 export const NoSessions: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters(complianceAgentRoute),
+    ...appRouteParameters(`${complianceAgentRoute}?tab=sessions`),
     ...storybookMswParameters({
       session: [aghApiMock.get("/api/sessions", () => HttpResponse.json(sessionPage([])))],
     }),
   },
-  render: () => <StorybookWorkspaceSetup />,
+  render: () => <AgentWorkspaceSetup />,
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -118,16 +254,16 @@ export const SessionsLoading: Story = {
       ],
     }),
   },
-  render: () => <StorybookWorkspaceSetup />,
+  render: () => <AgentWorkspaceSetup />,
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.findByTestId("agent-sessions-loading")).resolves.toBeDefined();
+    await expect(canvas.findByTestId("agent-overview-metrics-skeleton")).resolves.toBeDefined();
   },
 };
 
 /**
- * Agent detail loading branch , `/api/agents/:name` is in flight while the shell stays mounted.
+ * Agent detail loading branch: `/api/agents/:name` is in flight while the shell stays mounted.
  */
 export const AgentLoading: Story = {
   args: {},
@@ -142,7 +278,7 @@ export const AgentLoading: Story = {
       ],
     }),
   },
-  render: () => <StorybookWorkspaceSetup />,
+  render: () => <AgentWorkspaceSetup />,
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -165,7 +301,7 @@ export const NotFound: Story = {
       ],
     }),
   },
-  render: () => <StorybookWorkspaceSetup />,
+  render: () => <AgentWorkspaceSetup />,
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -174,12 +310,12 @@ export const NotFound: Story = {
 };
 
 /**
- * Failed-session branch , at least one session has a populated failure payload, surfacing the FAILED chip.
+ * Failed-session branch: at least one session has a populated failure payload, surfacing the FAILED chip.
  */
 export const WithFailedSession: Story = {
   args: {},
   parameters: {
-    ...appRouteParameters(fraudAgentRoute),
+    ...appRouteParameters(`${fraudAgentRoute}?tab=sessions`),
     ...storybookMswParameters({
       session: [
         aghApiMock.get("/api/sessions", () =>
@@ -204,7 +340,7 @@ export const WithFailedSession: Story = {
       ],
     }),
   },
-  render: () => <StorybookWorkspaceSetup />,
+  render: () => <AgentWorkspaceSetup />,
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -215,7 +351,7 @@ export const WithFailedSession: Story = {
 };
 
 /**
- * Live agents list returning many agents , confirms the sidebar still resolves the active row when the
+ * Live agents list returning many agents confirms the sidebar still resolves the active row when the
  * detail route's agent is deeper in the list.
  */
 export const ManyAgents: Story = {
@@ -226,5 +362,5 @@ export const ManyAgents: Story = {
       agent: [aghApiMock.get("/api/agents", () => HttpResponse.json({ agents: agentFixtures }))],
     }),
   },
-  render: () => <StorybookWorkspaceSetup />,
+  render: () => <AgentWorkspaceSetup />,
 };

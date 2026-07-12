@@ -476,7 +476,9 @@ async function assertDashboardNavigation(
   runtime: BrowserRuntime,
   workspace: WorkspacePayload
 ): Promise<void> {
-  await page.getByTestId(`agent-row-${dashboardAgentAlpha}`).click();
+  await page.getByTestId("nav-agents").click();
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/agents");
+  await page.getByTestId(`agent-fleet-row-link-${dashboardAgentAlpha}`).click();
   await expect.poll(() => new URL(page.url()).pathname).toBe(`/agents/${dashboardAgentAlpha}`);
 
   const workspaceId = workspace.id;

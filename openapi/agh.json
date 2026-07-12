@@ -11192,6 +11192,9 @@
                                                     "command": {
                                                         "type": "string"
                                                     },
+                                                    "definition_digest": {
+                                                        "type": "string"
+                                                    },
                                                     "deny_tools": {
                                                         "items": {
                                                             "type": "string"
@@ -11301,6 +11304,10 @@
                                                     "name": {
                                                         "type": "string"
                                                     },
+                                                    "origin": {
+                                                        "enum": ["global", "workspace"],
+                                                        "type": "string"
+                                                    },
                                                     "permissions": {
                                                         "type": "string"
                                                     },
@@ -11322,6 +11329,18 @@
                                                         ],
                                                         "type": "string"
                                                     },
+                                                    "skills": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "disabled": {
+                                                                "items": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "array"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    },
                                                     "tools": {
                                                         "items": {
                                                             "type": "string"
@@ -11333,9 +11352,18 @@
                                                             "type": "string"
                                                         },
                                                         "type": "array"
+                                                    },
+                                                    "workspace_id": {
+                                                        "type": "string"
                                                     }
                                                 },
-                                                "required": ["name", "prompt", "provider"],
+                                                "required": [
+                                                    "definition_digest",
+                                                    "name",
+                                                    "origin",
+                                                    "prompt",
+                                                    "provider"
+                                                ],
                                                 "type": "object"
                                             },
                                             "type": "array"
@@ -11532,6 +11560,9 @@
                                                 "command": {
                                                     "type": "string"
                                                 },
+                                                "definition_digest": {
+                                                    "type": "string"
+                                                },
                                                 "deny_tools": {
                                                     "items": {
                                                         "type": "string"
@@ -11641,6 +11672,10 @@
                                                 "name": {
                                                     "type": "string"
                                                 },
+                                                "origin": {
+                                                    "enum": ["global", "workspace"],
+                                                    "type": "string"
+                                                },
                                                 "permissions": {
                                                     "type": "string"
                                                 },
@@ -11662,6 +11697,18 @@
                                                     ],
                                                     "type": "string"
                                                 },
+                                                "skills": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "disabled": {
+                                                            "items": {
+                                                                "type": "string"
+                                                            },
+                                                            "type": "array"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
                                                 "tools": {
                                                     "items": {
                                                         "type": "string"
@@ -11673,9 +11720,18 @@
                                                         "type": "string"
                                                     },
                                                     "type": "array"
+                                                },
+                                                "workspace_id": {
+                                                    "type": "string"
                                                 }
                                             },
-                                            "required": ["name", "prompt", "provider"],
+                                            "required": [
+                                                "definition_digest",
+                                                "name",
+                                                "origin",
+                                                "prompt",
+                                                "provider"
+                                            ],
                                             "type": "object"
                                         }
                                     },
@@ -12064,14 +12120,2674 @@
                 "x-agh-transports": ["http", "uds"]
             }
         },
-        "/api/agents/{agent_name}/heartbeat": {
+        "/api/agents/catalog": {
+            "get": {
+                "operationId": "listAgentCatalog",
+                "parameters": [
+                    {
+                        "description": "Workspace id, name, or path",
+                        "in": "query",
+                        "name": "workspace",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Case-insensitive agent name or category search",
+                        "in": "query",
+                        "name": "q",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Exact category path joined by slash separators",
+                        "in": "query",
+                        "name": "category",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Agent session status",
+                        "in": "query",
+                        "name": "status",
+                        "schema": {
+                            "enum": ["active", "idle"],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Opaque cursor bound to workspace and filters",
+                        "in": "query",
+                        "name": "cursor",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Agents per page (1-100; default 50)",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "format": "int32",
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "agents": {
+                                            "items": {
+                                                "properties": {
+                                                    "agent": {
+                                                        "properties": {
+                                                            "category_path": {
+                                                                "items": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "array"
+                                                            },
+                                                            "command": {
+                                                                "type": "string"
+                                                            },
+                                                            "definition_digest": {
+                                                                "type": "string"
+                                                            },
+                                                            "deny_tools": {
+                                                                "items": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "array"
+                                                            },
+                                                            "diagnostics": {
+                                                                "items": {
+                                                                    "properties": {
+                                                                        "error_kind": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "message": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "path": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "error_kind",
+                                                                        "message",
+                                                                        "path"
+                                                                    ],
+                                                                    "type": "object"
+                                                                },
+                                                                "type": "array"
+                                                            },
+                                                            "mcp_servers": {
+                                                                "items": {
+                                                                    "properties": {
+                                                                        "args": {
+                                                                            "items": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "type": "array"
+                                                                        },
+                                                                        "auth": {
+                                                                            "nullable": true,
+                                                                            "properties": {
+                                                                                "authorization_url": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "client_id": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "client_secret_ref": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "issuer_url": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "metadata_url": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "revocation_url": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "scopes": {
+                                                                                    "items": {
+                                                                                        "type": "string"
+                                                                                    },
+                                                                                    "type": "array"
+                                                                                },
+                                                                                "token_url": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "type": {
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "type": "object"
+                                                                        },
+                                                                        "command": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "env": {
+                                                                            "additionalProperties": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "type": "object"
+                                                                        },
+                                                                        "name": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "secret_env": {
+                                                                            "additionalProperties": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "type": "object"
+                                                                        },
+                                                                        "transport": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "url": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": ["name"],
+                                                                    "type": "object"
+                                                                },
+                                                                "type": "array"
+                                                            },
+                                                            "model": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "origin": {
+                                                                "enum": ["global", "workspace"],
+                                                                "type": "string"
+                                                            },
+                                                            "permissions": {
+                                                                "type": "string"
+                                                            },
+                                                            "prompt": {
+                                                                "type": "string"
+                                                            },
+                                                            "provider": {
+                                                                "type": "string"
+                                                            },
+                                                            "reasoning_effort": {
+                                                                "enum": [
+                                                                    "none",
+                                                                    "minimal",
+                                                                    "low",
+                                                                    "medium",
+                                                                    "high",
+                                                                    "xhigh",
+                                                                    "max"
+                                                                ],
+                                                                "type": "string"
+                                                            },
+                                                            "skills": {
+                                                                "nullable": true,
+                                                                "properties": {
+                                                                    "disabled": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            },
+                                                            "tools": {
+                                                                "items": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "array"
+                                                            },
+                                                            "toolsets": {
+                                                                "items": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "array"
+                                                            },
+                                                            "workspace_id": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "definition_digest",
+                                                            "name",
+                                                            "origin",
+                                                            "prompt",
+                                                            "provider"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "sessions": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "active": {
+                                                                "type": "integer"
+                                                            },
+                                                            "total": {
+                                                                "type": "integer"
+                                                            }
+                                                        },
+                                                        "required": ["active", "total"],
+                                                        "type": "object"
+                                                    }
+                                                },
+                                                "required": ["agent"],
+                                                "type": "object"
+                                            },
+                                            "type": "array"
+                                        },
+                                        "facets": {
+                                            "properties": {
+                                                "active": {
+                                                    "type": "integer"
+                                                },
+                                                "categories": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "idle": {
+                                                    "type": "integer"
+                                                },
+                                                "total": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": ["active", "categories", "idle", "total"],
+                                            "type": "object"
+                                        },
+                                        "page": {
+                                            "properties": {
+                                                "has_more": {
+                                                    "type": "boolean"
+                                                },
+                                                "limit": {
+                                                    "type": "integer"
+                                                },
+                                                "next_cursor": {
+                                                    "type": "string"
+                                                },
+                                                "total": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": ["has_more", "limit", "total"],
+                                            "type": "object"
+                                        },
+                                        "sessions_available": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": ["agents", "facets", "page", "sessions_available"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid filter"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace not found"
+                    },
+                    "410": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace root missing"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace resolver unavailable"
+                    }
+                },
+                "summary": "List a filtered workspace agent fleet with exact session totals",
+                "tags": ["agents"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/agents/{name}": {
+            "delete": {
+                "operationId": "deleteAgent",
+                "parameters": [
+                    {
+                        "description": "Agent name",
+                        "in": "path",
+                        "name": "name",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Workspace id, name, or path used to resolve the effective definition",
+                        "in": "query",
+                        "name": "workspace",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "origin": {
+                                            "enum": ["global", "workspace"],
+                                            "type": "string"
+                                        },
+                                        "unshadowed_origin": {
+                                            "enum": ["global", "workspace"],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["name", "origin"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Agent not found"
+                    },
+                    "410": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace root missing"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace resolver or definition sync unavailable"
+                    }
+                },
+                "summary": "Durably delete one effective authored agent definition",
+                "tags": ["agents"],
+                "x-agh-transports": ["http", "uds"]
+            },
+            "get": {
+                "operationId": "getAgent",
+                "parameters": [
+                    {
+                        "description": "Agent name",
+                        "in": "path",
+                        "name": "name",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Workspace id, name, or path used to resolve a workspace-local agent",
+                        "in": "query",
+                        "name": "workspace",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "agent": {
+                                            "properties": {
+                                                "category_path": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "command": {
+                                                    "type": "string"
+                                                },
+                                                "definition_digest": {
+                                                    "type": "string"
+                                                },
+                                                "deny_tools": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "diagnostics": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "error_kind": {
+                                                                "type": "string"
+                                                            },
+                                                            "message": {
+                                                                "type": "string"
+                                                            },
+                                                            "path": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "error_kind",
+                                                            "message",
+                                                            "path"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "mcp_servers": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "args": {
+                                                                "items": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "array"
+                                                            },
+                                                            "auth": {
+                                                                "nullable": true,
+                                                                "properties": {
+                                                                    "authorization_url": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "client_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "client_secret_ref": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "issuer_url": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "metadata_url": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "revocation_url": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "scopes": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "token_url": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "type": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            },
+                                                            "command": {
+                                                                "type": "string"
+                                                            },
+                                                            "env": {
+                                                                "additionalProperties": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "object"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "secret_env": {
+                                                                "additionalProperties": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "object"
+                                                            },
+                                                            "transport": {
+                                                                "type": "string"
+                                                            },
+                                                            "url": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["name"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "model": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "origin": {
+                                                    "enum": ["global", "workspace"],
+                                                    "type": "string"
+                                                },
+                                                "permissions": {
+                                                    "type": "string"
+                                                },
+                                                "prompt": {
+                                                    "type": "string"
+                                                },
+                                                "provider": {
+                                                    "type": "string"
+                                                },
+                                                "reasoning_effort": {
+                                                    "enum": [
+                                                        "none",
+                                                        "minimal",
+                                                        "low",
+                                                        "medium",
+                                                        "high",
+                                                        "xhigh",
+                                                        "max"
+                                                    ],
+                                                    "type": "string"
+                                                },
+                                                "skills": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "disabled": {
+                                                            "items": {
+                                                                "type": "string"
+                                                            },
+                                                            "type": "array"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "tools": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "toolsets": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "workspace_id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "definition_digest",
+                                                "name",
+                                                "origin",
+                                                "prompt",
+                                                "provider"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["agent"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Agent not found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    }
+                },
+                "summary": "Get one agent definition by name, optionally resolved for a workspace",
+                "tags": ["agents"],
+                "x-agh-transports": ["http", "uds"]
+            },
+            "put": {
+                "operationId": "updateAgent",
+                "parameters": [
+                    {
+                        "description": "Agent name",
+                        "in": "path",
+                        "name": "name",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "agent": {
+                                        "properties": {
+                                            "category_path": {
+                                                "items": {
+                                                    "type": "string"
+                                                },
+                                                "type": "array"
+                                            },
+                                            "command": {
+                                                "type": "string"
+                                            },
+                                            "deny_tools": {
+                                                "items": {
+                                                    "type": "string"
+                                                },
+                                                "type": "array"
+                                            },
+                                            "model": {
+                                                "type": "string"
+                                            },
+                                            "name": {
+                                                "type": "string"
+                                            },
+                                            "permissions": {
+                                                "enum": [
+                                                    "deny-all",
+                                                    "approve-reads",
+                                                    "approve-all"
+                                                ],
+                                                "type": "string"
+                                            },
+                                            "prompt": {
+                                                "type": "string"
+                                            },
+                                            "provider": {
+                                                "type": "string"
+                                            },
+                                            "reasoning_effort": {
+                                                "enum": [
+                                                    "none",
+                                                    "minimal",
+                                                    "low",
+                                                    "medium",
+                                                    "high",
+                                                    "xhigh",
+                                                    "max"
+                                                ],
+                                                "type": "string"
+                                            },
+                                            "skills": {
+                                                "nullable": true,
+                                                "properties": {
+                                                    "disabled": {
+                                                        "items": {
+                                                            "type": "string"
+                                                        },
+                                                        "type": "array"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            },
+                                            "tools": {
+                                                "items": {
+                                                    "type": "string"
+                                                },
+                                                "type": "array"
+                                            },
+                                            "toolsets": {
+                                                "items": {
+                                                    "type": "string"
+                                                },
+                                                "type": "array"
+                                            }
+                                        },
+                                        "required": ["name", "prompt", "provider"],
+                                        "type": "object"
+                                    },
+                                    "expected_digest": {
+                                        "type": "string"
+                                    },
+                                    "workspace": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": ["agent", "expected_digest"],
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "JSON request body",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "agent": {
+                                            "properties": {
+                                                "category_path": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "command": {
+                                                    "type": "string"
+                                                },
+                                                "definition_digest": {
+                                                    "type": "string"
+                                                },
+                                                "deny_tools": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "diagnostics": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "error_kind": {
+                                                                "type": "string"
+                                                            },
+                                                            "message": {
+                                                                "type": "string"
+                                                            },
+                                                            "path": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "error_kind",
+                                                            "message",
+                                                            "path"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "mcp_servers": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "args": {
+                                                                "items": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "array"
+                                                            },
+                                                            "auth": {
+                                                                "nullable": true,
+                                                                "properties": {
+                                                                    "authorization_url": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "client_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "client_secret_ref": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "issuer_url": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "metadata_url": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "revocation_url": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "scopes": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "token_url": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "type": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            },
+                                                            "command": {
+                                                                "type": "string"
+                                                            },
+                                                            "env": {
+                                                                "additionalProperties": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "object"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "secret_env": {
+                                                                "additionalProperties": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "object"
+                                                            },
+                                                            "transport": {
+                                                                "type": "string"
+                                                            },
+                                                            "url": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["name"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "model": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "origin": {
+                                                    "enum": ["global", "workspace"],
+                                                    "type": "string"
+                                                },
+                                                "permissions": {
+                                                    "type": "string"
+                                                },
+                                                "prompt": {
+                                                    "type": "string"
+                                                },
+                                                "provider": {
+                                                    "type": "string"
+                                                },
+                                                "reasoning_effort": {
+                                                    "enum": [
+                                                        "none",
+                                                        "minimal",
+                                                        "low",
+                                                        "medium",
+                                                        "high",
+                                                        "xhigh",
+                                                        "max"
+                                                    ],
+                                                    "type": "string"
+                                                },
+                                                "skills": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "disabled": {
+                                                            "items": {
+                                                                "type": "string"
+                                                            },
+                                                            "type": "array"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "tools": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "toolsets": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "workspace_id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "definition_digest",
+                                                "name",
+                                                "origin",
+                                                "prompt",
+                                                "provider"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["agent"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid agent definition request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Agent not found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Agent definition digest conflict"
+                    },
+                    "410": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace root missing"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace resolver or definition sync unavailable"
+                    }
+                },
+                "summary": "Replace one effective AGENT.md definition with digest CAS",
+                "tags": ["agents"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/agents/{name}/duplicate": {
+            "post": {
+                "operationId": "duplicateAgent",
+                "parameters": [
+                    {
+                        "description": "Source agent name",
+                        "in": "path",
+                        "name": "name",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "name": {
+                                        "type": "string"
+                                    },
+                                    "overrides": {
+                                        "nullable": true,
+                                        "properties": {
+                                            "category_path": {
+                                                "items": {
+                                                    "type": "string"
+                                                },
+                                                "type": "array"
+                                            },
+                                            "command": {
+                                                "type": "string"
+                                            },
+                                            "deny_tools": {
+                                                "items": {
+                                                    "type": "string"
+                                                },
+                                                "type": "array"
+                                            },
+                                            "model": {
+                                                "type": "string"
+                                            },
+                                            "permissions": {
+                                                "enum": [
+                                                    "deny-all",
+                                                    "approve-reads",
+                                                    "approve-all"
+                                                ],
+                                                "type": "string"
+                                            },
+                                            "prompt": {
+                                                "type": "string"
+                                            },
+                                            "provider": {
+                                                "type": "string"
+                                            },
+                                            "reasoning_effort": {
+                                                "enum": [
+                                                    "none",
+                                                    "minimal",
+                                                    "low",
+                                                    "medium",
+                                                    "high",
+                                                    "xhigh",
+                                                    "max"
+                                                ],
+                                                "type": "string"
+                                            },
+                                            "skills": {
+                                                "nullable": true,
+                                                "properties": {
+                                                    "disabled": {
+                                                        "items": {
+                                                            "type": "string"
+                                                        },
+                                                        "type": "array"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            },
+                                            "tools": {
+                                                "items": {
+                                                    "type": "string"
+                                                },
+                                                "type": "array"
+                                            },
+                                            "toolsets": {
+                                                "items": {
+                                                    "type": "string"
+                                                },
+                                                "type": "array"
+                                            }
+                                        },
+                                        "type": "object"
+                                    },
+                                    "scope": {
+                                        "enum": ["workspace", "global"],
+                                        "type": "string"
+                                    },
+                                    "workspace": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": ["name"],
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "description": "JSON request body",
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "agent": {
+                                            "properties": {
+                                                "category_path": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "command": {
+                                                    "type": "string"
+                                                },
+                                                "definition_digest": {
+                                                    "type": "string"
+                                                },
+                                                "deny_tools": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "diagnostics": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "error_kind": {
+                                                                "type": "string"
+                                                            },
+                                                            "message": {
+                                                                "type": "string"
+                                                            },
+                                                            "path": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "error_kind",
+                                                            "message",
+                                                            "path"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "mcp_servers": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "args": {
+                                                                "items": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "array"
+                                                            },
+                                                            "auth": {
+                                                                "nullable": true,
+                                                                "properties": {
+                                                                    "authorization_url": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "client_id": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "client_secret_ref": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "issuer_url": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "metadata_url": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "revocation_url": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "scopes": {
+                                                                        "items": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
+                                                                    "token_url": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "type": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            },
+                                                            "command": {
+                                                                "type": "string"
+                                                            },
+                                                            "env": {
+                                                                "additionalProperties": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "object"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "secret_env": {
+                                                                "additionalProperties": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "object"
+                                                            },
+                                                            "transport": {
+                                                                "type": "string"
+                                                            },
+                                                            "url": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": ["name"],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "model": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "origin": {
+                                                    "enum": ["global", "workspace"],
+                                                    "type": "string"
+                                                },
+                                                "permissions": {
+                                                    "type": "string"
+                                                },
+                                                "prompt": {
+                                                    "type": "string"
+                                                },
+                                                "provider": {
+                                                    "type": "string"
+                                                },
+                                                "reasoning_effort": {
+                                                    "enum": [
+                                                        "none",
+                                                        "minimal",
+                                                        "low",
+                                                        "medium",
+                                                        "high",
+                                                        "xhigh",
+                                                        "max"
+                                                    ],
+                                                    "type": "string"
+                                                },
+                                                "skills": {
+                                                    "nullable": true,
+                                                    "properties": {
+                                                        "disabled": {
+                                                            "items": {
+                                                                "type": "string"
+                                                            },
+                                                            "type": "array"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "tools": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "toolsets": {
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "type": "array"
+                                                },
+                                                "workspace_id": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "definition_digest",
+                                                "name",
+                                                "origin",
+                                                "prompt",
+                                                "provider"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": ["agent"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Created"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Invalid duplicate agent request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Agent not found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Target agent definition already exists"
+                    },
+                    "410": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace root missing"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace resolver or definition sync unavailable"
+                    }
+                },
+                "summary": "Duplicate one effective authored agent definition server-side",
+                "tags": ["agents"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/agents/{name}/heartbeat": {
             "delete": {
                 "operationId": "deleteAgentHeartbeat",
                 "parameters": [
                     {
                         "description": "Agent name",
                         "in": "path",
-                        "name": "agent_name",
+                        "name": "name",
                         "required": true,
                         "schema": {
                             "type": "string"
@@ -12992,7 +15708,7 @@
                     {
                         "description": "Agent name",
                         "in": "path",
-                        "name": "agent_name",
+                        "name": "name",
                         "required": true,
                         "schema": {
                             "type": "string"
@@ -14181,7 +16897,7 @@
                     {
                         "description": "Agent name",
                         "in": "path",
-                        "name": "agent_name",
+                        "name": "name",
                         "required": true,
                         "schema": {
                             "type": "string"
@@ -15529,14 +18245,14 @@
                 "x-agh-transports": ["http", "uds"]
             }
         },
-        "/api/agents/{agent_name}/heartbeat/history": {
+        "/api/agents/{name}/heartbeat/history": {
             "get": {
                 "operationId": "listAgentHeartbeatHistory",
                 "parameters": [
                     {
                         "description": "Agent name",
                         "in": "path",
-                        "name": "agent_name",
+                        "name": "name",
                         "required": true,
                         "schema": {
                             "type": "string"
@@ -15899,14 +18615,14 @@
                 "x-agh-transports": ["http", "uds"]
             }
         },
-        "/api/agents/{agent_name}/heartbeat/rollback": {
+        "/api/agents/{name}/heartbeat/rollback": {
             "post": {
                 "operationId": "rollbackAgentHeartbeat",
                 "parameters": [
                     {
                         "description": "Agent name",
                         "in": "path",
-                        "name": "agent_name",
+                        "name": "name",
                         "required": true,
                         "schema": {
                             "type": "string"
@@ -17257,14 +19973,14 @@
                 "x-agh-transports": ["http", "uds"]
             }
         },
-        "/api/agents/{agent_name}/heartbeat/status": {
+        "/api/agents/{name}/heartbeat/status": {
             "get": {
                 "operationId": "getAgentHeartbeatStatus",
                 "parameters": [
                     {
                         "description": "Agent name",
                         "in": "path",
-                        "name": "agent_name",
+                        "name": "name",
                         "required": true,
                         "schema": {
                             "type": "string"
@@ -17943,14 +20659,14 @@
                 "x-agh-transports": ["http", "uds"]
             }
         },
-        "/api/agents/{agent_name}/heartbeat/validate": {
+        "/api/agents/{name}/heartbeat/validate": {
             "post": {
                 "operationId": "validateAgentHeartbeat",
                 "parameters": [
                     {
                         "description": "Agent name",
                         "in": "path",
-                        "name": "agent_name",
+                        "name": "name",
                         "required": true,
                         "schema": {
                             "type": "string"
@@ -19146,14 +21862,14 @@
                 "x-agh-transports": ["http", "uds"]
             }
         },
-        "/api/agents/{agent_name}/heartbeat/wake": {
+        "/api/agents/{name}/heartbeat/wake": {
             "post": {
                 "operationId": "wakeAgentHeartbeat",
                 "parameters": [
                     {
                         "description": "Agent name",
                         "in": "path",
-                        "name": "agent_name",
+                        "name": "name",
                         "required": true,
                         "schema": {
                             "type": "string"
@@ -19655,14 +22371,14 @@
                 "x-agh-transports": ["http", "uds"]
             }
         },
-        "/api/agents/{agent_name}/soul": {
+        "/api/agents/{name}/soul": {
             "delete": {
                 "operationId": "deleteAgentSoul",
                 "parameters": [
                     {
                         "description": "Agent name",
                         "in": "path",
-                        "name": "agent_name",
+                        "name": "name",
                         "required": true,
                         "schema": {
                             "type": "string"
@@ -20322,7 +23038,7 @@
                     {
                         "description": "Agent name",
                         "in": "path",
-                        "name": "agent_name",
+                        "name": "name",
                         "required": true,
                         "schema": {
                             "type": "string"
@@ -20791,7 +23507,7 @@
                     {
                         "description": "Agent name",
                         "in": "path",
-                        "name": "agent_name",
+                        "name": "name",
                         "required": true,
                         "schema": {
                             "type": "string"
@@ -21584,14 +24300,14 @@
                 "x-agh-transports": ["http", "uds"]
             }
         },
-        "/api/agents/{agent_name}/soul/history": {
+        "/api/agents/{name}/soul/history": {
             "get": {
                 "operationId": "listAgentSoulHistory",
                 "parameters": [
                     {
                         "description": "Agent name",
                         "in": "path",
-                        "name": "agent_name",
+                        "name": "name",
                         "required": true,
                         "schema": {
                             "type": "string"
@@ -22003,14 +24719,14 @@
                 "x-agh-transports": ["http", "uds"]
             }
         },
-        "/api/agents/{agent_name}/soul/rollback": {
+        "/api/agents/{name}/soul/rollback": {
             "post": {
                 "operationId": "rollbackAgentSoul",
                 "parameters": [
                     {
                         "description": "Agent name",
                         "in": "path",
-                        "name": "agent_name",
+                        "name": "name",
                         "required": true,
                         "schema": {
                             "type": "string"
@@ -22803,14 +25519,14 @@
                 "x-agh-transports": ["http", "uds"]
             }
         },
-        "/api/agents/{agent_name}/soul/validate": {
+        "/api/agents/{name}/soul/validate": {
             "post": {
                 "operationId": "validateAgentDefinitionSoul",
                 "parameters": [
                     {
                         "description": "Agent name",
                         "in": "path",
-                        "name": "agent_name",
+                        "name": "name",
                         "required": true,
                         "schema": {
                             "type": "string"
@@ -23413,329 +26129,6 @@
                     }
                 },
                 "summary": "Validate a proposed Soul body for an agent definition",
-                "tags": ["agents"],
-                "x-agh-transports": ["http", "uds"]
-            }
-        },
-        "/api/agents/{name}": {
-            "get": {
-                "operationId": "getAgent",
-                "parameters": [
-                    {
-                        "description": "Agent name",
-                        "in": "path",
-                        "name": "name",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "Workspace id, name, or path used to resolve a workspace-local agent",
-                        "in": "query",
-                        "name": "workspace",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "properties": {
-                                        "agent": {
-                                            "properties": {
-                                                "category_path": {
-                                                    "items": {
-                                                        "type": "string"
-                                                    },
-                                                    "type": "array"
-                                                },
-                                                "command": {
-                                                    "type": "string"
-                                                },
-                                                "deny_tools": {
-                                                    "items": {
-                                                        "type": "string"
-                                                    },
-                                                    "type": "array"
-                                                },
-                                                "diagnostics": {
-                                                    "items": {
-                                                        "properties": {
-                                                            "error_kind": {
-                                                                "type": "string"
-                                                            },
-                                                            "message": {
-                                                                "type": "string"
-                                                            },
-                                                            "path": {
-                                                                "type": "string"
-                                                            }
-                                                        },
-                                                        "required": [
-                                                            "error_kind",
-                                                            "message",
-                                                            "path"
-                                                        ],
-                                                        "type": "object"
-                                                    },
-                                                    "type": "array"
-                                                },
-                                                "mcp_servers": {
-                                                    "items": {
-                                                        "properties": {
-                                                            "args": {
-                                                                "items": {
-                                                                    "type": "string"
-                                                                },
-                                                                "type": "array"
-                                                            },
-                                                            "auth": {
-                                                                "nullable": true,
-                                                                "properties": {
-                                                                    "authorization_url": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "client_id": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "client_secret_ref": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "issuer_url": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "metadata_url": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "revocation_url": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "scopes": {
-                                                                        "items": {
-                                                                            "type": "string"
-                                                                        },
-                                                                        "type": "array"
-                                                                    },
-                                                                    "token_url": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "type": {
-                                                                        "type": "string"
-                                                                    }
-                                                                },
-                                                                "type": "object"
-                                                            },
-                                                            "command": {
-                                                                "type": "string"
-                                                            },
-                                                            "env": {
-                                                                "additionalProperties": {
-                                                                    "type": "string"
-                                                                },
-                                                                "type": "object"
-                                                            },
-                                                            "name": {
-                                                                "type": "string"
-                                                            },
-                                                            "secret_env": {
-                                                                "additionalProperties": {
-                                                                    "type": "string"
-                                                                },
-                                                                "type": "object"
-                                                            },
-                                                            "transport": {
-                                                                "type": "string"
-                                                            },
-                                                            "url": {
-                                                                "type": "string"
-                                                            }
-                                                        },
-                                                        "required": ["name"],
-                                                        "type": "object"
-                                                    },
-                                                    "type": "array"
-                                                },
-                                                "model": {
-                                                    "type": "string"
-                                                },
-                                                "name": {
-                                                    "type": "string"
-                                                },
-                                                "permissions": {
-                                                    "type": "string"
-                                                },
-                                                "prompt": {
-                                                    "type": "string"
-                                                },
-                                                "provider": {
-                                                    "type": "string"
-                                                },
-                                                "reasoning_effort": {
-                                                    "enum": [
-                                                        "none",
-                                                        "minimal",
-                                                        "low",
-                                                        "medium",
-                                                        "high",
-                                                        "xhigh",
-                                                        "max"
-                                                    ],
-                                                    "type": "string"
-                                                },
-                                                "tools": {
-                                                    "items": {
-                                                        "type": "string"
-                                                    },
-                                                    "type": "array"
-                                                },
-                                                "toolsets": {
-                                                    "items": {
-                                                        "type": "string"
-                                                    },
-                                                    "type": "array"
-                                                }
-                                            },
-                                            "required": ["name", "prompt", "provider"],
-                                            "type": "object"
-                                        }
-                                    },
-                                    "required": ["agent"],
-                                    "type": "object"
-                                }
-                            }
-                        },
-                        "description": "OK"
-                    },
-                    "404": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "properties": {
-                                        "diagnostic": {
-                                            "nullable": true,
-                                            "properties": {
-                                                "category": {
-                                                    "type": "string"
-                                                },
-                                                "code": {
-                                                    "type": "string"
-                                                },
-                                                "data_freshness": {
-                                                    "type": "string"
-                                                },
-                                                "doc_url": {
-                                                    "type": "string"
-                                                },
-                                                "evidence": {
-                                                    "additionalProperties": {},
-                                                    "type": "object"
-                                                },
-                                                "id": {
-                                                    "type": "string"
-                                                },
-                                                "message": {
-                                                    "type": "string"
-                                                },
-                                                "severity": {
-                                                    "type": "string"
-                                                },
-                                                "suggested_command": {
-                                                    "type": "string"
-                                                },
-                                                "title": {
-                                                    "type": "string"
-                                                }
-                                            },
-                                            "required": [
-                                                "category",
-                                                "code",
-                                                "data_freshness",
-                                                "id",
-                                                "message",
-                                                "severity",
-                                                "title"
-                                            ],
-                                            "type": "object"
-                                        },
-                                        "error": {
-                                            "type": "string"
-                                        }
-                                    },
-                                    "required": ["error"],
-                                    "type": "object"
-                                }
-                            }
-                        },
-                        "description": "Agent not found"
-                    },
-                    "500": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "properties": {
-                                        "diagnostic": {
-                                            "nullable": true,
-                                            "properties": {
-                                                "category": {
-                                                    "type": "string"
-                                                },
-                                                "code": {
-                                                    "type": "string"
-                                                },
-                                                "data_freshness": {
-                                                    "type": "string"
-                                                },
-                                                "doc_url": {
-                                                    "type": "string"
-                                                },
-                                                "evidence": {
-                                                    "additionalProperties": {},
-                                                    "type": "object"
-                                                },
-                                                "id": {
-                                                    "type": "string"
-                                                },
-                                                "message": {
-                                                    "type": "string"
-                                                },
-                                                "severity": {
-                                                    "type": "string"
-                                                },
-                                                "suggested_command": {
-                                                    "type": "string"
-                                                },
-                                                "title": {
-                                                    "type": "string"
-                                                }
-                                            },
-                                            "required": [
-                                                "category",
-                                                "code",
-                                                "data_freshness",
-                                                "id",
-                                                "message",
-                                                "severity",
-                                                "title"
-                                            ],
-                                            "type": "object"
-                                        },
-                                        "error": {
-                                            "type": "string"
-                                        }
-                                    },
-                                    "required": ["error"],
-                                    "type": "object"
-                                }
-                            }
-                        },
-                        "description": "Internal server error"
-                    }
-                },
-                "summary": "Get one agent definition by name, optionally resolved for a workspace",
                 "tags": ["agents"],
                 "x-agh-transports": ["http", "uds"]
             }
@@ -139151,6 +141544,9 @@
                                                     "command": {
                                                         "type": "string"
                                                     },
+                                                    "definition_digest": {
+                                                        "type": "string"
+                                                    },
                                                     "deny_tools": {
                                                         "items": {
                                                             "type": "string"
@@ -139260,6 +141656,10 @@
                                                     "name": {
                                                         "type": "string"
                                                     },
+                                                    "origin": {
+                                                        "enum": ["global", "workspace"],
+                                                        "type": "string"
+                                                    },
                                                     "permissions": {
                                                         "type": "string"
                                                     },
@@ -139281,6 +141681,18 @@
                                                         ],
                                                         "type": "string"
                                                     },
+                                                    "skills": {
+                                                        "nullable": true,
+                                                        "properties": {
+                                                            "disabled": {
+                                                                "items": {
+                                                                    "type": "string"
+                                                                },
+                                                                "type": "array"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    },
                                                     "tools": {
                                                         "items": {
                                                             "type": "string"
@@ -139292,9 +141704,18 @@
                                                             "type": "string"
                                                         },
                                                         "type": "array"
+                                                    },
+                                                    "workspace_id": {
+                                                        "type": "string"
                                                     }
                                                 },
-                                                "required": ["name", "prompt", "provider"],
+                                                "required": [
+                                                    "definition_digest",
+                                                    "name",
+                                                    "origin",
+                                                    "prompt",
+                                                    "provider"
+                                                ],
                                                 "type": "object"
                                             },
                                             "type": "array"

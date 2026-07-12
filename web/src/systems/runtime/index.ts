@@ -5,6 +5,7 @@ export {
   selectNavCount,
   useNavCounts,
 } from "./hooks/use-nav-counts";
+export { getNavCountsStore } from "./hooks/nav-counts-store";
 export {
   RuntimeConnectionIndicator,
   resolveRuntimeConnectionState,
@@ -12,8 +13,7 @@ export {
   type RuntimeConnectionIndicatorState,
   type RuntimeConnectionTone,
 } from "./components/connection-indicator";
-export { AppSidebar, type AppSidebarProps } from "./components/app-sidebar";
-export { computeAgentsCount, type AgentsCount } from "./components/app-sidebar-counts";
+export { AppSidebar, type AgentsCount, type AppSidebarProps } from "./components/app-sidebar";
 export {
   runtimeModelKey,
   RuntimeSelector,

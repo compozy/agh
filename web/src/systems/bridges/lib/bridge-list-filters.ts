@@ -1,4 +1,4 @@
-import type { Filter, FilterFieldsConfig } from "@agh/ui/components/reui/filters";
+import type { Filter, FilterFieldsConfig } from "@agh/ui";
 
 import { bridgeStatusLabel } from "./bridge-formatters";
 import type {

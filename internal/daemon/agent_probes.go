@@ -38,9 +38,10 @@ func collectAgentProbeTargets(
 			return nil, fmt.Errorf("daemon: list agents for probe health: %w", err)
 		}
 		sort.SliceStable(agents, func(i, j int) bool {
-			return strings.TrimSpace(agents[i].Name) < strings.TrimSpace(agents[j].Name)
+			return strings.TrimSpace(agents[i].Def.Name) < strings.TrimSpace(agents[j].Def.Name)
 		})
-		for _, agent := range agents {
+		for _, entry := range agents {
+			agent := entry.Def
 			resolved, err := cfg.ResolveAgent(agent)
 			if err != nil {
 				if logger != nil {

@@ -4,6 +4,7 @@ import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentPayload } from "@/systems/agent";
+import { FIXTURE_AGENT_DEFINITION_DIGEST } from "@/systems/agent/mocks";
 import type { AllModelsListResponse, AllModelsRefreshResponse } from "@/systems/model-catalog";
 import type { WorkspaceDetailPayload, WorkspacePayload } from "@/systems/workspace";
 
@@ -85,13 +86,42 @@ const activeWorkspace: WorkspacePayload = {
 };
 
 const agents: AgentPayload[] = [
-  { name: "claude-agent", provider: "claude", prompt: "help" },
-  { name: "codex-agent", provider: "codex", prompt: "code" },
+  {
+    name: "claude-agent",
+    provider: "claude",
+    prompt: "help",
+    origin: "workspace",
+    workspace_id: "ws_alpha",
+    definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+  },
+  {
+    name: "codex-agent",
+    provider: "codex",
+    prompt: "code",
+    origin: "workspace",
+    workspace_id: "ws_alpha",
+    definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+  },
 ];
 
 const agentsWithDefaultModel: AgentPayload[] = [
-  { name: "claude-agent", provider: "claude", prompt: "help" },
-  { name: "codex-agent", provider: "codex", model: "gpt-5.5", prompt: "code" },
+  {
+    name: "claude-agent",
+    provider: "claude",
+    prompt: "help",
+    origin: "workspace",
+    workspace_id: "ws_alpha",
+    definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+  },
+  {
+    name: "codex-agent",
+    provider: "codex",
+    model: "gpt-5.5",
+    prompt: "code",
+    origin: "workspace",
+    workspace_id: "ws_alpha",
+    definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+  },
 ];
 
 const createdSession: SessionPayload = {

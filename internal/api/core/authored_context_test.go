@@ -11,8 +11,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/api/core"
 	"github.com/compozy/agh/internal/api/testutil"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/heartbeat"
@@ -111,12 +113,18 @@ type packageOwnedAgentCatalog struct {
 	artifacts session.AgentArtifacts
 }
 
-func (c packageOwnedAgentCatalog) ListAgents(context.Context) ([]aghconfig.AgentDef, error) {
-	return []aghconfig.AgentDef{aghconfig.CloneAgentDef(c.artifacts.Agent)}, nil
+func (c packageOwnedAgentCatalog) ListAgents(context.Context) ([]core.AgentCatalogEntry, error) {
+	return []core.AgentCatalogEntry{{
+		Def:    aghconfig.CloneAgentDef(c.artifacts.Agent),
+		Origin: contract.AgentOriginGlobal,
+	}}, nil
 }
 
-func (c packageOwnedAgentCatalog) GetAgent(context.Context, string) (aghconfig.AgentDef, error) {
-	return aghconfig.CloneAgentDef(c.artifacts.Agent), nil
+func (c packageOwnedAgentCatalog) GetAgent(context.Context, string) (core.AgentCatalogEntry, error) {
+	return core.AgentCatalogEntry{
+		Def:    aghconfig.CloneAgentDef(c.artifacts.Agent),
+		Origin: contract.AgentOriginGlobal,
+	}, nil
 }
 
 func (c packageOwnedAgentCatalog) ResolveAgentArtifacts(
@@ -129,6 +137,7 @@ func (c packageOwnedAgentCatalog) ResolveAgentArtifacts(
 type heartbeatStatusSpy struct {
 	calls int
 	last  heartbeat.StatusRequest
+	err   error
 }
 
 func (s *heartbeatStatusSpy) Inspect(context.Context, heartbeat.InspectRequest) (heartbeat.InspectResult, error) {
@@ -141,6 +150,9 @@ func (s *heartbeatStatusSpy) Status(
 ) (heartbeat.StatusResult, error) {
 	s.calls++
 	s.last = req
+	if s.err != nil {
+		return heartbeat.StatusResult{}, s.err
+	}
 	return heartbeat.StatusResult{
 		AgentName: req.Target.AgentName,
 		Enabled:   true,
@@ -148,6 +160,18 @@ func (s *heartbeatStatusSpy) Status(
 		Active:    true,
 		Valid:     true,
 	}, nil
+}
+
+type sessionHealthReaderStub struct {
+	health heartbeat.SessionHealth
+	err    error
+}
+
+func (s sessionHealthReaderStub) GetSessionHealth(
+	_ context.Context,
+	_ string,
+) (heartbeat.SessionHealth, error) {
+	return s.health, s.err
 }
 
 type heartbeatWakeSpy struct {
@@ -237,7 +261,7 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 	fixture.Handlers.SoulAuthoring = soulAuthoring
 	fixture.Handlers.HeartbeatStatus = statusSpy
 	fixture.Handlers.HeartbeatWake = wakeSpy
-	fixture.Engine.PUT("/agents/:agent_name/soul", fixture.Handlers.PutAgentSoul)
+	fixture.Engine.PUT("/agents/:name/soul", fixture.Handlers.PutAgentSoul)
 	fixture.Engine.GET("/agents/:name/heartbeat/status", fixture.Handlers.GetAgentHeartbeatStatus)
 	fixture.Engine.POST("/agents/:name/heartbeat/wake", fixture.Handlers.WakeAgentHeartbeat)
 
@@ -383,6 +407,161 @@ func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *tes
 	})
 }
 
+func TestSessionReadsSurviveAgentDefinitionDeletion(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		path          string
+		heartbeatErr  error
+		wantStatus    int
+		registerRoute func(handlerFixture)
+		assertPayload func(*testing.T, map[string]any)
+	}{
+		{
+			name:         "Should return status without Heartbeat enrichment after agent deletion",
+			path:         "/workspaces/ws-stable/sessions/sess-deleted-agent/status",
+			heartbeatErr: heartbeat.ErrAuthoringAgentNotFound,
+			wantStatus:   http.StatusOK,
+			registerRoute: func(fixture handlerFixture) {
+				fixture.Engine.GET(
+					"/workspaces/:workspace_id/sessions/:session_id/status",
+					fixture.Handlers.GetSessionStatus,
+				)
+			},
+			assertPayload: func(t *testing.T, payload map[string]any) {
+				t.Helper()
+				if got, want := payload["session_id"], "sess-deleted-agent"; got != want {
+					t.Fatalf("session_id = %#v, want %q", got, want)
+				}
+				if got, want := payload["agent_name"], "deleted-agent"; got != want {
+					t.Fatalf("agent_name = %#v, want %q", got, want)
+				}
+				if _, ok := payload["wake_state"]; ok {
+					t.Fatalf("wake_state = %#v, want omitted", payload["wake_state"])
+				}
+			},
+		},
+		{
+			name:         "Should return inspection without Heartbeat enrichment after agent deletion",
+			path:         "/workspaces/ws-stable/sessions/sess-deleted-agent/inspect",
+			heartbeatErr: heartbeat.ErrAuthoringAgentNotFound,
+			wantStatus:   http.StatusOK,
+			registerRoute: func(fixture handlerFixture) {
+				fixture.Engine.GET(
+					"/workspaces/:workspace_id/sessions/:session_id/inspect",
+					fixture.Handlers.InspectSession,
+				)
+			},
+			assertPayload: func(t *testing.T, payload map[string]any) {
+				t.Helper()
+				health, ok := payload["health"].(map[string]any)
+				if !ok {
+					t.Fatalf("health = %#v, want object", payload["health"])
+				}
+				if got, want := health["session_id"], "sess-deleted-agent"; got != want {
+					t.Fatalf("health.session_id = %#v, want %q", got, want)
+				}
+				if got, want := health["agent_name"], "deleted-agent"; got != want {
+					t.Fatalf("health.agent_name = %#v, want %q", got, want)
+				}
+				if _, ok := payload["wake_state"]; ok {
+					t.Fatalf("wake_state = %#v, want omitted", payload["wake_state"])
+				}
+			},
+		},
+		{
+			name:         "Should preserve unrelated Heartbeat status failures",
+			path:         "/workspaces/ws-stable/sessions/sess-deleted-agent/status",
+			heartbeatErr: errors.New("heartbeat status unavailable"),
+			wantStatus:   http.StatusInternalServerError,
+			registerRoute: func(fixture handlerFixture) {
+				fixture.Engine.GET(
+					"/workspaces/:workspace_id/sessions/:session_id/status",
+					fixture.Handlers.GetSessionStatus,
+				)
+			},
+			assertPayload: func(t *testing.T, payload map[string]any) {
+				t.Helper()
+				if got, want := payload["error"], "heartbeat status unavailable"; got != want {
+					t.Fatalf("error = %#v, want %q", got, want)
+				}
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			workspaceRoot := t.TempDir()
+			manager := testutil.StubSessionManager{
+				StatusFn: func(ctx context.Context, id string) (*session.Info, error) {
+					if err := ctx.Err(); err != nil {
+						return nil, err
+					}
+					return &session.Info{
+						ID:          id,
+						WorkspaceID: "ws-registry",
+						AgentName:   "deleted-agent",
+					}, nil
+				},
+			}
+			workspaces := testutil.StubWorkspaceService{
+				ResolveFn: func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+					if err := ctx.Err(); err != nil {
+						return workspacepkg.ResolvedWorkspace{}, err
+					}
+					if ref := strings.TrimSpace(ref); ref != "ws-stable" && ref != "ws-registry" {
+						return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+					}
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{
+							ID:      "ws-registry",
+							RootDir: workspaceRoot,
+							Name:    "Deleted agent session",
+						},
+						WorkspaceID: "ws-stable",
+						Config: aghconfig.Config{
+							Agents: aghconfig.AgentsConfig{Heartbeat: aghconfig.DefaultHeartbeatConfig()},
+						},
+					}, nil
+				},
+			}
+			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces, nil, nil)
+			fixture.Handlers.SessionHealth = sessionHealthReaderStub{health: heartbeat.SessionHealth{
+				SessionID:       "sess-deleted-agent",
+				WorkspaceID:     "ws-registry",
+				AgentName:       "deleted-agent",
+				State:           heartbeat.SessionHealthStateIdle,
+				Health:          heartbeat.SessionHealthHealthy,
+				Attachable:      true,
+				EligibleForWake: false,
+				UpdatedAt:       time.Date(2026, 7, 11, 19, 30, 0, 0, time.UTC),
+			}}
+			statusSpy := &heartbeatStatusSpy{err: testCase.heartbeatErr}
+			fixture.Handlers.HeartbeatStatus = statusSpy
+			testCase.registerRoute(fixture)
+
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, testCase.path, nil)
+			recorder := httptest.NewRecorder()
+			fixture.Engine.ServeHTTP(recorder, req)
+
+			if got, want := recorder.Code, testCase.wantStatus; got != want {
+				t.Fatalf("response code = %d, want %d body=%s", got, want, recorder.Body.String())
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("Unmarshal(response) error = %v", err)
+			}
+			testCase.assertPayload(t, payload)
+			if got, want := statusSpy.calls, 1; got != want {
+				t.Fatalf("HeartbeatStatus.Status() calls = %d, want %d", got, want)
+			}
+		})
+	}
+}
+
 func TestAuthoredContextHeartbeatStatusAndWakeRejectForeignSessionWorkspace(t *testing.T) {
 	t.Parallel()
 
@@ -485,7 +664,7 @@ func TestAuthoredContextRejectsPackageOwnedSidecarMutations(t *testing.T) {
 			path:   "/agents/marketer/soul",
 			body:   []byte(`{"workspace_id":"ws-1","body":"new soul"}`),
 			registerRoute: func(fixture handlerFixture) {
-				fixture.Engine.PUT("/agents/:agent_name/soul", fixture.Handlers.PutAgentSoul)
+				fixture.Engine.PUT("/agents/:name/soul", fixture.Handlers.PutAgentSoul)
 			},
 			assertCalls: func(t *testing.T, soulAuthoring *soulIfMatchTestAuthoring, _ *packageOwnedHeartbeatAuthoring) {
 				t.Helper()
@@ -500,7 +679,7 @@ func TestAuthoredContextRejectsPackageOwnedSidecarMutations(t *testing.T) {
 			path:   "/agents/marketer/soul",
 			body:   []byte(`{"workspace_id":"ws-1"}`),
 			registerRoute: func(fixture handlerFixture) {
-				fixture.Engine.DELETE("/agents/:agent_name/soul", fixture.Handlers.DeleteAgentSoul)
+				fixture.Engine.DELETE("/agents/:name/soul", fixture.Handlers.DeleteAgentSoul)
 			},
 			assertCalls: func(t *testing.T, soulAuthoring *soulIfMatchTestAuthoring, _ *packageOwnedHeartbeatAuthoring) {
 				t.Helper()
@@ -515,7 +694,7 @@ func TestAuthoredContextRejectsPackageOwnedSidecarMutations(t *testing.T) {
 			path:   "/agents/marketer/heartbeat",
 			body:   []byte(`{"workspace_id":"ws-1","body":"new heartbeat"}`),
 			registerRoute: func(fixture handlerFixture) {
-				fixture.Engine.PUT("/agents/:agent_name/heartbeat", fixture.Handlers.PutAgentHeartbeat)
+				fixture.Engine.PUT("/agents/:name/heartbeat", fixture.Handlers.PutAgentHeartbeat)
 			},
 			assertCalls: func(t *testing.T, _ *soulIfMatchTestAuthoring, heartbeatAuthoring *packageOwnedHeartbeatAuthoring) {
 				t.Helper()
@@ -530,7 +709,7 @@ func TestAuthoredContextRejectsPackageOwnedSidecarMutations(t *testing.T) {
 			path:   "/agents/marketer/heartbeat/rollback",
 			body:   []byte(`{"workspace_id":"ws-1","revision_id":"rev-hb-1"}`),
 			registerRoute: func(fixture handlerFixture) {
-				fixture.Engine.POST("/agents/:agent_name/heartbeat/rollback", fixture.Handlers.RollbackAgentHeartbeat)
+				fixture.Engine.POST("/agents/:name/heartbeat/rollback", fixture.Handlers.RollbackAgentHeartbeat)
 			},
 			assertCalls: func(t *testing.T, _ *soulIfMatchTestAuthoring, heartbeatAuthoring *packageOwnedHeartbeatAuthoring) {
 				t.Helper()
@@ -628,7 +807,7 @@ func TestSoulHandlersRejectIfMatchHeader(t *testing.T) {
 			path:   "/agents/coder/soul",
 			body:   []byte(`{"body":"# Soul"}`),
 			registerRoute: func(fixture handlerFixture) {
-				fixture.Engine.PUT("/agents/:agent_name/soul", fixture.Handlers.PutAgentSoul)
+				fixture.Engine.PUT("/agents/:name/soul", fixture.Handlers.PutAgentSoul)
 			},
 			wantError: "authored context validation error: soul_if_match_header_unsupported: use expected_digest in request body",
 			assertCalls: func(t *testing.T, authoring *soulIfMatchTestAuthoring, refresher *soulIfMatchTestRefresher) {
@@ -644,7 +823,7 @@ func TestSoulHandlersRejectIfMatchHeader(t *testing.T) {
 			path:   "/agents/coder/soul",
 			body:   []byte(`{}`),
 			registerRoute: func(fixture handlerFixture) {
-				fixture.Engine.DELETE("/agents/:agent_name/soul", fixture.Handlers.DeleteAgentSoul)
+				fixture.Engine.DELETE("/agents/:name/soul", fixture.Handlers.DeleteAgentSoul)
 			},
 			wantError: "authored context validation error: soul_if_match_header_unsupported: use expected_digest in request body",
 			assertCalls: func(t *testing.T, authoring *soulIfMatchTestAuthoring, refresher *soulIfMatchTestRefresher) {
@@ -660,7 +839,7 @@ func TestSoulHandlersRejectIfMatchHeader(t *testing.T) {
 			path:   "/agents/coder/soul/rollback",
 			body:   []byte(`{"revision_id":"rev_1"}`),
 			registerRoute: func(fixture handlerFixture) {
-				fixture.Engine.POST("/agents/:agent_name/soul/rollback", fixture.Handlers.RollbackAgentSoul)
+				fixture.Engine.POST("/agents/:name/soul/rollback", fixture.Handlers.RollbackAgentSoul)
 			},
 			wantError: "authored context validation error: soul_if_match_header_unsupported: use expected_digest in request body",
 			assertCalls: func(t *testing.T, authoring *soulIfMatchTestAuthoring, refresher *soulIfMatchTestRefresher) {

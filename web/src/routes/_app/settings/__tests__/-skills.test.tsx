@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UIProvider } from "@agh/ui";
 import { storyCompany } from "@/storybook/fintech-scenario";
 import type { AgentPayload } from "@/systems/agent";
+import { FIXTURE_AGENT_DEFINITION_DIGEST } from "@/systems/agent/mocks";
 import type { SettingsSkillsSection } from "@/systems/settings";
 import type { WorkspacePayload } from "@/systems/workspace";
 
@@ -37,6 +38,14 @@ const agentFixture: AgentPayload = {
   name: "coder",
   provider: "codex",
   prompt: "Review code.",
+  origin: "global",
+  definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+};
+
+const workspaceAgentFixture: AgentPayload = {
+  ...agentFixture,
+  origin: "workspace",
+  workspace_id: "ws-polybot",
 };
 
 const workspaceFixture: WorkspacePayload = {
@@ -321,7 +330,7 @@ describe("SkillsSettingsPage", () => {
     pageState.draft = { ...envelope.config, disabled_skills: ["review"] };
     pageState.availableScopes = ["global", "agent"];
     pageState.selection = { scope: "agent", agentName: "coder", workspaceId: "ws-polybot" };
-    pageState.selectedAgent = agentFixture;
+    pageState.selectedAgent = workspaceAgentFixture;
     pageState.selectedWorkspaceContext = workspaceFixture;
 
     render(
@@ -363,9 +372,19 @@ describe("SkillsSettingsPage", () => {
     const user = userEvent.setup();
     pageState.availableScopes = ["global", "agent"];
     pageState.selection = { scope: "agent", agentName: "coder", workspaceId: "ws-polybot" };
-    pageState.selectedAgent = agentFixture;
+    pageState.selectedAgent = workspaceAgentFixture;
     pageState.selectedWorkspaceContext = workspaceFixture;
-    pageState.agents = [agentFixture, { name: "writer", provider: "claude", prompt: "" }];
+    pageState.agents = [
+      workspaceAgentFixture,
+      {
+        name: "writer",
+        provider: "claude",
+        prompt: "",
+        origin: "workspace",
+        workspace_id: "ws-polybot",
+        definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+      },
+    ];
 
     render(
       <UIProvider reducedMotion="always">

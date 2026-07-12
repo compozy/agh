@@ -1,27 +1,13 @@
-import { Plus, ShieldCheck, X } from "lucide-react";
-import { useId, useState, type KeyboardEvent } from "react";
+import { ShieldCheck } from "lucide-react";
 
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-  FormSection,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-  Pill,
-  RadioCard,
-} from "@agh/ui";
+import { Field, FieldDescription, FieldLabel, FormSection, RadioCard } from "@agh/ui";
 
 import {
   AGENT_CREATE_PERMISSION_OPTIONS,
-  appendAgentCreateTokens,
-  removeAgentCreateToken,
   type AgentCreateDialogDraft,
   type AgentCreatePermissionChoice,
 } from "../lib/agent-create-draft";
+import { TokenListField } from "./token-list-field";
 
 const PERMISSION_DESCRIPTIONS: Record<AgentCreatePermissionChoice, string> = {
   "": "Use the runtime's default approval mode.",
@@ -109,95 +95,5 @@ export function AgentCreateAccessStep({
         />
       </div>
     </FormSection>
-  );
-}
-
-function TokenListField({
-  description,
-  error,
-  label,
-  onChange,
-  placeholder,
-  testId,
-  values,
-}: {
-  description: string;
-  error?: string;
-  label: string;
-  onChange: (values: string[]) => void;
-  placeholder: string;
-  testId: string;
-  values: string[];
-}) {
-  const inputId = useId();
-  const [inputValue, setInputValue] = useState("");
-
-  const commit = () => {
-    if (inputValue.trim().length === 0) return;
-    onChange(appendAgentCreateTokens(values, inputValue));
-    setInputValue("");
-  };
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter" || event.key === ",") {
-      event.preventDefault();
-      commit();
-    }
-  };
-
-  return (
-    <Field data-invalid={Boolean(error)}>
-      <FieldLabel htmlFor={inputId}>{label}</FieldLabel>
-      <FieldDescription>{description}</FieldDescription>
-      <InputGroup>
-        <InputGroupInput
-          aria-invalid={Boolean(error)}
-          data-testid={testId + "-input"}
-          id={inputId}
-          onBlur={commit}
-          onChange={event => {
-            const next = event.target.value;
-            if (/[,\n]/.test(next)) {
-              onChange(appendAgentCreateTokens(values, next));
-              setInputValue("");
-              return;
-            }
-            setInputValue(next);
-          }}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          value={inputValue}
-        />
-        <InputGroupAddon align="inline-end">
-          <InputGroupButton
-            aria-label={"Add " + label.toLowerCase()}
-            data-testid={testId + "-add"}
-            disabled={inputValue.trim().length === 0}
-            onClick={commit}
-            size="icon-xs"
-          >
-            <Plus aria-hidden="true" className="size-3" />
-          </InputGroupButton>
-        </InputGroupAddon>
-      </InputGroup>
-      {values.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5" data-testid={testId + "-tokens"}>
-          {values.map(value => (
-            <Pill key={value} className="gap-1 pr-1" size="sm">
-              <span className="max-w-44 truncate">{value}</span>
-              <button
-                aria-label={"Remove " + value}
-                className="inline-flex size-4 items-center justify-center rounded-sm text-subtle transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:shadow-focus-ring"
-                onClick={() => onChange(removeAgentCreateToken(values, value))}
-                type="button"
-              >
-                <X aria-hidden="true" className="size-3" />
-              </button>
-            </Pill>
-          ))}
-        </div>
-      ) : null}
-      <FieldError data-testid={testId + "-error"}>{error}</FieldError>
-    </Field>
   );
 }

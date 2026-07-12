@@ -49,14 +49,6 @@ type AuthoringService interface {
 	Rollback(ctx context.Context, req RollbackRequest) (MutationResult, error)
 }
 
-// AuthoringStore is the persistence boundary used by managed authoring.
-type AuthoringStore interface {
-	UpsertSoulSnapshot(ctx context.Context, snapshot Snapshot) (Snapshot, error)
-	AppendSoulRevision(ctx context.Context, revision Revision) (Revision, error)
-	ListSoulRevisions(ctx context.Context, query RevisionListQuery) ([]Revision, error)
-	FindSoulRevisionForRollback(ctx context.Context, query RollbackLookup) (Revision, error)
-}
-
 // AuthoringTarget identifies the workspace and agent whose SOUL.md is managed.
 type AuthoringTarget struct {
 	WorkspaceID   string

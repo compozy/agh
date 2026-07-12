@@ -23,7 +23,8 @@ import (
 )
 
 const (
-	handlersErrorKey = "error"
+	handlersErrorKey     = "error"
+	handlersOperationKey = "operation"
 )
 
 const defaultPollInterval = 100 * time.Millisecond
@@ -408,162 +409,17 @@ func parseOptionalPositiveIntQuery(c *gin.Context, name string, fallback int, ma
 	return value, nil
 }
 
-// ListAgents returns all readable agent definitions in home paths.
-func (h *BaseHandlers) ListAgents(c *gin.Context) {
-	if workspaceRef := strings.TrimSpace(c.Query("workspace")); workspaceRef != "" {
-		agentDefs, diagnostics, err := h.workspaceAgentDefsWithDiagnostics(c.Request.Context(), workspaceRef)
-		if err != nil {
-			h.respondError(c, statusForAgentWorkspaceError(err), err)
-			return
-		}
-		h.respondAgentDefs(c, agentDefs, diagnostics)
-		return
-	}
-
-	if h.AgentCatalog != nil {
-		agentDefs, err := h.AgentCatalog.ListAgents(c.Request.Context())
-		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				c.JSON(http.StatusOK, contract.AgentsResponse{Agents: []contract.AgentPayload{}})
-				return
-			}
-			h.respondError(c, http.StatusInternalServerError, err)
-			return
-		}
-		h.respondAgentDefs(c, agentDefs)
-		return
-	}
-
-	entries, err := os.ReadDir(h.HomePaths.AgentsDir)
-	switch {
-	case err == nil:
-	case errors.Is(err, os.ErrNotExist):
-		c.JSON(http.StatusOK, contract.AgentsResponse{Agents: []contract.AgentPayload{}})
-		return
-	default:
-		h.respondError(
-			c,
-			http.StatusInternalServerError,
-			fmt.Errorf("%s: read agents directory %q: %w", h.transportName(), h.HomePaths.AgentsDir, err),
-		)
-		return
-	}
-
-	agentDefs := make([]aghconfig.AgentDef, 0, len(entries))
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		name := strings.TrimSpace(entry.Name())
-		if name == "" {
-			continue
-		}
-		if aghconfig.IsInternalManagedAgentName(name) {
-			continue
-		}
-
-		agent, loadErr := h.AgentLoader(name, h.HomePaths)
-		if loadErr != nil {
-			h.Logger.Warn(
-				h.transportName()+": skip unreadable agent definition",
-				"agent_name",
-				name,
-				handlersErrorKey,
-				loadErr,
-			)
-			continue
-		}
-		if !aghconfig.IsPublicAgentDef(agent) {
-			continue
-		}
-		agentDefs = append(agentDefs, agent)
-	}
-
-	h.respondAgentDefs(c, agentDefs)
-}
-
-// CreateAgent writes a new global or workspace-local AGENT.md definition.
-func (h *BaseHandlers) CreateAgent(c *gin.Context) {
-	var req contract.CreateAgentRequest
-	if err := decodeStrictCreateAgentRequest(c, &req); err != nil {
-		h.respondError(
-			c,
-			http.StatusBadRequest,
-			fmt.Errorf("%s: decode create agent request: %w", h.transportName(), err),
-		)
-		return
-	}
-
-	draft, path, err := h.createAgentDraftAndPath(c.Request.Context(), req)
-	if err != nil {
-		h.respondError(c, statusForCreateAgentError(err), err)
-		return
-	}
-
-	agent, err := aghconfig.CreateAgentDefFile(path, draft, false)
-	if err != nil {
-		h.respondError(c, statusForCreateAgentError(err), err)
-		return
-	}
-	c.JSON(http.StatusCreated, contract.AgentResponse{Agent: AgentPayloadFromDef(agent)})
-}
-
-// GetAgent returns one agent definition by name.
-func (h *BaseHandlers) GetAgent(c *gin.Context) {
-	if aghconfig.IsInternalManagedAgentName(c.Param("name")) {
-		h.respondError(
-			c,
-			http.StatusNotFound,
-			fmt.Errorf("%s: agent %q is not available: %w", h.transportName(), c.Param("name"), os.ErrNotExist),
-		)
-		return
-	}
-
-	if workspaceRef := strings.TrimSpace(c.Query("workspace")); workspaceRef != "" {
-		agent, err := h.workspaceAgentDef(c.Request.Context(), workspaceRef, c.Param("name"))
-		if err != nil {
-			h.respondError(c, statusForAgentWorkspaceError(err), err)
-			return
-		}
-		c.JSON(http.StatusOK, contract.AgentResponse{Agent: AgentPayloadFromDef(agent)})
-		return
-	}
-
-	if h.AgentCatalog != nil {
-		agent, err := h.AgentCatalog.GetAgent(c.Request.Context(), c.Param("name"))
-		if err != nil {
-			status := http.StatusInternalServerError
-			if errors.Is(err, os.ErrNotExist) {
-				status = http.StatusNotFound
-			}
-			h.respondError(c, status, err)
-			return
-		}
-		c.JSON(http.StatusOK, contract.AgentResponse{Agent: AgentPayloadFromDef(agent)})
-		return
-	}
-
-	agent, err := h.AgentLoader(c.Param("name"), h.HomePaths)
-	if err != nil {
-		status := http.StatusInternalServerError
-		if errors.Is(err, os.ErrNotExist) {
-			status = http.StatusNotFound
-		}
-		h.respondError(c, status, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, contract.AgentResponse{Agent: AgentPayloadFromDef(agent)})
-}
-
 func decodeStrictCreateAgentRequest(c *gin.Context, req *contract.CreateAgentRequest) error {
+	return decodeStrictJSONBody(c, req)
+}
+
+func decodeStrictJSONBody(c *gin.Context, target any) error {
 	if c == nil || c.Request == nil || c.Request.Body == nil {
 		return io.EOF
 	}
 	decoder := json.NewDecoder(c.Request.Body)
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(req); err != nil {
+	if err := decoder.Decode(target); err != nil {
 		return err
 	}
 	var extra struct{}
@@ -578,17 +434,17 @@ func decodeStrictCreateAgentRequest(c *gin.Context, req *contract.CreateAgentReq
 func (h *BaseHandlers) createAgentDraftAndPath(
 	ctx context.Context,
 	req contract.CreateAgentRequest,
-) (aghconfig.AgentDefinitionDraft, string, error) {
+) (aghconfig.AgentDefinitionDraft, string, string, error) {
 	draft, err := createAgentDraftFromRequest(req)
 	if err != nil {
-		return aghconfig.AgentDefinitionDraft{}, "", err
+		return aghconfig.AgentDefinitionDraft{}, "", "", err
 	}
 
-	path, err := h.createAgentDefinitionPath(ctx, req)
+	target, err := createAgentDefinitionTargetFor(ctx, req, h.HomePaths, h.Workspaces, h.transportName())
 	if err != nil {
-		return aghconfig.AgentDefinitionDraft{}, "", err
+		return aghconfig.AgentDefinitionDraft{}, "", "", err
 	}
-	return draft, path, nil
+	return draft, target.Path, target.WorkspaceID, nil
 }
 
 func (h *BaseHandlers) createAgentDefinitionPath(
@@ -598,51 +454,51 @@ func (h *BaseHandlers) createAgentDefinitionPath(
 	return createAgentDefinitionPathFor(ctx, req, h.HomePaths, h.Workspaces, h.transportName())
 }
 
-func (h *BaseHandlers) workspaceAgentDefs(ctx context.Context, workspaceRef string) ([]aghconfig.AgentDef, error) {
-	agents, _, err := h.workspaceAgentDefsWithDiagnostics(ctx, workspaceRef)
-	return agents, err
-}
-
-func (h *BaseHandlers) workspaceAgentDefsWithDiagnostics(
+func (h *BaseHandlers) workspaceAgentEntriesWithDiagnostics(
 	ctx context.Context,
 	workspaceRef string,
-) ([]aghconfig.AgentDef, []workspacepkg.AgentDiagnostic, error) {
+) ([]AgentCatalogEntry, string, []workspacepkg.AgentDiagnostic, error) {
 	if h.Workspaces == nil {
-		return nil, nil, fmt.Errorf("%s: %w", h.transportName(), workspacepkg.ErrWorkspaceResolverUnavailable)
+		return nil, "", nil, fmt.Errorf("api: %w", workspacepkg.ErrWorkspaceResolverUnavailable)
 	}
 	resolved, err := h.Workspaces.Resolve(ctx, workspaceRef)
 	if err != nil {
-		return nil, nil, err
+		return nil, "", nil, err
 	}
-	agents, err := h.workspaceDetailAgents(ctx, &resolved)
+	entries, err := h.workspaceDetailAgentEntries(ctx, &resolved)
 	if err != nil {
-		return nil, nil, err
+		return nil, "", nil, err
 	}
-	return agents, append([]workspacepkg.AgentDiagnostic(nil), resolved.AgentDiagnostics...), nil
+	return entries,
+		strings.TrimSpace(resolved.ID),
+		append([]workspacepkg.AgentDiagnostic(nil), resolved.AgentDiagnostics...),
+		nil
 }
 
 func (h *BaseHandlers) workspaceAgentDef(
 	ctx context.Context,
 	workspaceRef string,
 	name string,
-) (aghconfig.AgentDef, error) {
+) (AgentCatalogEntry, error) {
 	trimmedName := strings.TrimSpace(name)
 	if trimmedName == "" {
-		return aghconfig.AgentDef{}, fmt.Errorf("%s: agent name is required: %w", h.transportName(), os.ErrNotExist)
+		return AgentCatalogEntry{}, fmt.Errorf("api: agent name is required: %w", os.ErrNotExist)
 	}
 
-	agents, err := h.workspaceAgentDefs(ctx, workspaceRef)
+	entries, workspaceID, _, err := h.workspaceAgentEntriesWithDiagnostics(ctx, workspaceRef)
 	if err != nil {
-		return aghconfig.AgentDef{}, err
+		return AgentCatalogEntry{}, err
 	}
-	for _, agent := range agents {
-		if strings.TrimSpace(agent.Name) == trimmedName {
-			return agent, nil
+	for _, entry := range entries {
+		if strings.TrimSpace(entry.Def.Name) == trimmedName {
+			if entry.Origin == contract.AgentOriginWorkspace {
+				entry.WorkspaceID = workspaceID
+			}
+			return entry, nil
 		}
 	}
-	return aghconfig.AgentDef{}, fmt.Errorf(
-		"%s: agent %q is not available in workspace %q: %w",
-		h.transportName(),
+	return AgentCatalogEntry{}, fmt.Errorf(
+		"api: agent %q is not available in workspace %q: %w",
 		trimmedName,
 		strings.TrimSpace(workspaceRef),
 		workspacepkg.ErrAgentNotAvailable,
@@ -652,31 +508,52 @@ func (h *BaseHandlers) workspaceAgentDef(
 func (h *BaseHandlers) respondAgentDefs(
 	c *gin.Context,
 	agentDefs []aghconfig.AgentDef,
+	workspaceID string,
+	diagnostics ...[]workspacepkg.AgentDiagnostic,
+) {
+	entries := make([]AgentCatalogEntry, 0, len(agentDefs))
+	for _, agent := range agentDefs {
+		entries = append(entries, h.agentCatalogEntryFromDef(agent, workspaceID))
+	}
+	h.respondAgentEntries(c, entries, workspaceID, diagnostics...)
+}
+
+func (h *BaseHandlers) respondAgentEntries(
+	c *gin.Context,
+	entries []AgentCatalogEntry,
+	diagnosticWorkspaceID string,
 	diagnostics ...[]workspacepkg.AgentDiagnostic,
 ) {
 	diagnosticCount := 0
 	for _, group := range diagnostics {
 		diagnosticCount += len(group)
 	}
-	agents := make([]contract.AgentPayload, 0, len(agentDefs)+diagnosticCount)
-	for _, agent := range agentDefs {
-		if !aghconfig.IsPublicAgentDef(agent) {
+	agents := make([]contract.AgentPayload, 0, len(entries)+diagnosticCount)
+	for _, entry := range entries {
+		if !aghconfig.IsPublicAgentDef(entry.Def) {
 			continue
 		}
-		agents = append(agents, AgentPayloadFromDef(agent))
+		agents = append(agents, AgentPayloadFromEntry(entry))
 	}
 	for _, group := range diagnostics {
 		for _, diagnostic := range group {
 			if aghconfig.IsInternalManagedAgentName(diagnostic.Name) {
 				continue
 			}
-			agents = append(agents, AgentPayloadFromDiagnostic(diagnostic))
+			agents = append(agents, AgentPayloadFromDiagnostic(diagnostic, diagnosticWorkspaceID))
 		}
 	}
 	sort.Slice(agents, func(i, j int) bool {
 		return agents[i].Name < agents[j].Name
 	})
 	c.JSON(http.StatusOK, contract.AgentsResponse{Agents: agents})
+}
+
+func (h *BaseHandlers) agentCatalogEntryFromDef(
+	agent aghconfig.AgentDef,
+	workspaceID string,
+) AgentCatalogEntry {
+	return AgentCatalogEntryFromDef(h.HomePaths, agent, strings.TrimSpace(workspaceID))
 }
 
 func statusForAgentWorkspaceError(err error) int {
@@ -891,7 +768,7 @@ func (h *BaseHandlers) logSessionReadError(operation string, sessionID string, e
 		logger = h.Logger
 	}
 	logAttrs := []any{
-		"operation",
+		handlersOperationKey,
 		operation,
 		"session_id",
 		strings.TrimSpace(sessionID),

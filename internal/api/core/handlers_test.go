@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -21,9 +22,11 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/diagnostics"
 	"github.com/compozy/agh/internal/events"
+	"github.com/compozy/agh/internal/heartbeat"
 	"github.com/compozy/agh/internal/network"
 	"github.com/compozy/agh/internal/observe"
 	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/soul"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/transcript"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -1722,6 +1725,8 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			nil,
 			nil,
 		)
+		syncer := &recordingAgentDefinitionSync{}
+		fixture.Handlers.AgentDefinitionSync = syncer
 		body := mustJSON(t, contract.CreateAgentRequest{
 			Scope: contract.AgentCreateScopeGlobal,
 			Agent: contract.CreateAgentPayload{
@@ -1772,6 +1777,9 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			loaded.ReasoningEffort != "max" ||
 			len(loaded.Skills.Disabled) != 1 || loaded.Skills.Disabled[0] != "legacy-skill" {
 			t.Fatalf("loaded agent = %#v, want permissions and disabled skill", loaded)
+		}
+		if syncer.calls != 1 {
+			t.Fatalf("Sync() calls = %d, want 1", syncer.calls)
 		}
 	})
 
@@ -2009,6 +2017,716 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 	})
 }
 
+func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should replace a global definition with CAS and a fresh digest", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", aghconfig.AgentDefinitionFileName)
+		current, err := aghconfig.CreateAgentDefFile(path, aghconfig.AgentDefinitionDraft{
+			Name: "coder", Provider: "codex", Prompt: "Before.",
+		}, false)
+		if err != nil {
+			t.Fatalf("CreateAgentDefFile() error = %v", err)
+		}
+		digest, err := aghconfig.AgentDefinitionDigest(current)
+		if err != nil {
+			t.Fatalf("AgentDefinitionDigest() error = %v", err)
+		}
+		syncer := &recordingAgentDefinitionSync{}
+		fixture.Handlers.AgentDefinitionSync = syncer
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPut,
+			"/agents/coder",
+			mustJSON(t, contract.UpdateAgentRequest{
+				Agent: contract.CreateAgentPayload{
+					Name: "coder", Provider: "codex", Model: "gpt-5", Prompt: "After.",
+					Permissions: contract.SettingsPermissionModeApproveReads,
+				},
+				ExpectedDigest: digest,
+			}),
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("update status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		var payload contract.AgentResponse
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if payload.Agent.Prompt != "After." || payload.Agent.Model != "gpt-5" ||
+			payload.Agent.Origin != contract.AgentOriginGlobal || payload.Agent.DefinitionDigest == digest {
+			t.Fatalf("updated payload = %#v", payload.Agent)
+		}
+		if syncer.calls != 1 {
+			t.Fatalf("Sync() calls = %d, want 1", syncer.calls)
+		}
+		loaded, err := aghconfig.LoadAgentDefFile(path)
+		if err != nil {
+			t.Fatalf("LoadAgentDefFile(updated) error = %v", err)
+		}
+		if loaded.Prompt != "After." || loaded.Permissions != string(contract.SettingsPermissionModeApproveReads) {
+			t.Fatalf("updated definition = %#v", loaded)
+		}
+	})
+
+	t.Run("Should preserve MCP sidecar ownership when updating the authored definition", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", aghconfig.AgentDefinitionFileName)
+		if _, err := aghconfig.CreateAgentDefFile(path, aghconfig.AgentDefinitionDraft{
+			Name: "coder", Provider: "codex", Prompt: "Before.",
+		}, false); err != nil {
+			t.Fatalf("CreateAgentDefFile() error = %v", err)
+		}
+		mcpPath := filepath.Join(filepath.Dir(path), aghconfig.MCPJSONName)
+		if err := os.WriteFile(mcpPath, []byte(`{"mcpServers":{"github":{"command":"sidecar"}}}`), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(mcp.json) error = %v", err)
+		}
+		current, err := aghconfig.LoadAgentDefFile(path)
+		if err != nil {
+			t.Fatalf("LoadAgentDefFile() error = %v", err)
+		}
+		digest, err := aghconfig.AgentDefinitionDigest(current)
+		if err != nil {
+			t.Fatalf("AgentDefinitionDigest() error = %v", err)
+		}
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPut,
+			"/agents/coder",
+			mustJSON(t, contract.UpdateAgentRequest{
+				Agent:          contract.CreateAgentPayload{Name: "coder", Provider: "codex", Prompt: "After."},
+				ExpectedDigest: digest,
+			}),
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("update status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		contents, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("os.ReadFile(AGENT.md) error = %v", err)
+		}
+		authored, err := aghconfig.ParseAgentDef(contents)
+		if err != nil {
+			t.Fatalf("ParseAgentDef(AGENT.md) error = %v", err)
+		}
+		if len(authored.MCPServers) != 0 {
+			t.Fatalf("authored MCP servers = %#v, want sidecar-only ownership", authored.MCPServers)
+		}
+		loaded, err := aghconfig.LoadAgentDefFile(path)
+		if err != nil {
+			t.Fatalf("LoadAgentDefFile(updated) error = %v", err)
+		}
+		if len(loaded.MCPServers) != 1 || loaded.MCPServers[0].Name != "github" {
+			t.Fatalf("runtime MCP servers = %#v, want merged github sidecar", loaded.MCPServers)
+		}
+	})
+
+	t.Run("Should reject stale digest name mismatch invalid permission and unknown agent", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		path := filepath.Join(fixture.HomePaths.AgentsDir, "coder", aghconfig.AgentDefinitionFileName)
+		current, err := aghconfig.CreateAgentDefFile(path, aghconfig.AgentDefinitionDraft{
+			Name: "coder", Provider: "codex", Prompt: "Before.",
+		}, false)
+		if err != nil {
+			t.Fatalf("CreateAgentDefFile() error = %v", err)
+		}
+		digest, err := aghconfig.AgentDefinitionDigest(current)
+		if err != nil {
+			t.Fatalf("AgentDefinitionDigest() error = %v", err)
+		}
+		tests := []struct {
+			name       string
+			route      string
+			req        contract.UpdateAgentRequest
+			wantStatus int
+		}{
+			{
+				name: "stale digest", route: "/agents/coder", wantStatus: http.StatusConflict,
+				req: contract.UpdateAgentRequest{
+					Agent:          contract.CreateAgentPayload{Name: "coder", Provider: "codex", Prompt: "Changed."},
+					ExpectedDigest: "stale",
+				},
+			},
+			{
+				name: "name mismatch", route: "/agents/coder", wantStatus: http.StatusBadRequest,
+				req: contract.UpdateAgentRequest{
+					Agent: contract.CreateAgentPayload{
+						Name: "reviewer", Provider: "codex", Prompt: "Changed.",
+					},
+					ExpectedDigest: digest,
+				},
+			},
+			{
+				name: "invalid permission", route: "/agents/coder", wantStatus: http.StatusBadRequest,
+				req: contract.UpdateAgentRequest{
+					Agent: contract.CreateAgentPayload{
+						Name: "coder", Provider: "codex", Prompt: "Changed.", Permissions: "maybe",
+					},
+					ExpectedDigest: digest,
+				},
+			},
+			{
+				name: "unknown agent", route: "/agents/missing", wantStatus: http.StatusNotFound,
+				req: contract.UpdateAgentRequest{
+					Agent:          contract.CreateAgentPayload{Name: "missing", Provider: "codex", Prompt: "Changed."},
+					ExpectedDigest: digest,
+				},
+			},
+		}
+		for _, tc := range tests {
+			t.Run("Should reject "+tc.name, func(t *testing.T) {
+				t.Parallel()
+				resp := performRequest(t, fixture.Engine, http.MethodPut, tc.route, mustJSON(t, tc.req))
+				if resp.Code != tc.wantStatus {
+					t.Fatalf("update status = %d, want %d; body=%s", resp.Code, tc.wantStatus, resp.Body.String())
+				}
+			})
+		}
+	})
+
+	t.Run("Should delete only the effective workspace definition and disclose the global twin", func(t *testing.T) {
+		t.Parallel()
+		workspaceRoot := t.TempDir()
+		workspacePath := filepath.Join(
+			workspaceRoot,
+			aghconfig.DirName,
+			aghconfig.AgentsDirName,
+			"coder",
+			aghconfig.AgentDefinitionFileName,
+		)
+		workspaceAgent, err := aghconfig.CreateAgentDefFile(workspacePath, aghconfig.AgentDefinitionDraft{
+			Name: "coder", Provider: "codex", Prompt: "Workspace.",
+		}, false)
+		if err != nil {
+			t.Fatalf("CreateAgentDefFile(workspace) error = %v", err)
+		}
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{
+				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{
+						Workspace:   workspacepkg.Workspace{ID: "ws-registry", RootDir: workspaceRoot},
+						WorkspaceID: "ws-identity",
+						Agents:      []aghconfig.AgentDef{workspaceAgent},
+					}, nil
+				},
+			},
+			nil,
+			nil,
+		)
+		globalPath := filepath.Join(fixture.HomePaths.AgentsDir, "coder", aghconfig.AgentDefinitionFileName)
+		if _, err := aghconfig.CreateAgentDefFile(globalPath, aghconfig.AgentDefinitionDraft{
+			Name: "coder", Provider: "codex", Prompt: "Global.",
+		}, false); err != nil {
+			t.Fatalf("CreateAgentDefFile(global) error = %v", err)
+		}
+		soulPurger := &recordingSoulHistoryPurger{}
+		heartbeatPurger := &recordingHeartbeatHistoryPurger{}
+		fixture.Handlers.SoulHistoryPurger = soulPurger
+		fixture.Handlers.HeartbeatHistoryPurger = heartbeatPurger
+		resp := performRequest(t, fixture.Engine, http.MethodDelete, "/agents/coder?workspace=alpha", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("delete status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		var payload contract.DeleteAgentResponse
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if payload.Origin != contract.AgentOriginWorkspace || payload.UnshadowedOrigin != contract.AgentOriginGlobal {
+			t.Fatalf("delete payload = %#v", payload)
+		}
+		if _, err := os.Stat(workspacePath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Stat(workspace definition) error = %v, want os.ErrNotExist", err)
+		}
+		if _, err := os.Stat(globalPath); err != nil {
+			t.Fatalf("os.Stat(global twin) error = %v", err)
+		}
+		if soulPurger.workspaceID != "ws-registry" || soulPurger.name != "coder" ||
+			soulPurger.sourcePath != workspacePath {
+			t.Fatalf("soul purge = %#v", soulPurger)
+		}
+		if heartbeatPurger.workspaceID != "ws-registry" || heartbeatPurger.sourcePath != workspacePath {
+			t.Fatalf("heartbeat purge = %#v", heartbeatPurger)
+		}
+		repeat := performRequest(t, fixture.Engine, http.MethodDelete, "/agents/coder?workspace=alpha", nil)
+		if repeat.Code != http.StatusNotFound {
+			t.Fatalf(
+				"repeat delete status = %d, want %d; body=%s",
+				repeat.Code,
+				http.StatusNotFound,
+				repeat.Body.String(),
+			)
+		}
+	})
+
+	t.Run("Should leave unshadowed origin empty when no global twin exists", func(t *testing.T) {
+		t.Parallel()
+		workspaceRoot := t.TempDir()
+		workspacePath := filepath.Join(
+			workspaceRoot,
+			aghconfig.DirName,
+			aghconfig.AgentsDirName,
+			"coder",
+			aghconfig.AgentDefinitionFileName,
+		)
+		workspaceAgent, err := aghconfig.CreateAgentDefFile(workspacePath, aghconfig.AgentDefinitionDraft{
+			Name: "coder", Provider: "codex", Prompt: "Workspace.",
+		}, false)
+		if err != nil {
+			t.Fatalf("CreateAgentDefFile(workspace) error = %v", err)
+		}
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{
+				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{
+						Workspace:   workspacepkg.Workspace{ID: "ws-registry", RootDir: workspaceRoot},
+						WorkspaceID: "ws-identity",
+						Agents:      []aghconfig.AgentDef{workspaceAgent},
+					}, nil
+				},
+			},
+			nil,
+			nil,
+		)
+		fixture.Handlers.SoulHistoryPurger = &recordingSoulHistoryPurger{}
+		fixture.Handlers.HeartbeatHistoryPurger = &recordingHeartbeatHistoryPurger{}
+
+		resp := performRequest(t, fixture.Engine, http.MethodDelete, "/agents/coder?workspace=alpha", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("delete status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		var payload contract.DeleteAgentResponse
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if payload.Origin != contract.AgentOriginWorkspace || payload.UnshadowedOrigin != "" {
+			t.Fatalf("delete payload = %#v, want workspace origin without unshadow disclosure", payload)
+		}
+	})
+
+	t.Run("Should delete a workspace definition when the global twin is invalid", func(t *testing.T) {
+		t.Parallel()
+		workspaceRoot := t.TempDir()
+		workspacePath := filepath.Join(
+			workspaceRoot,
+			aghconfig.DirName,
+			aghconfig.AgentsDirName,
+			"coder",
+			aghconfig.AgentDefinitionFileName,
+		)
+		workspaceAgent, err := aghconfig.CreateAgentDefFile(workspacePath, aghconfig.AgentDefinitionDraft{
+			Name: "coder", Provider: "codex", Prompt: "Workspace.",
+		}, false)
+		if err != nil {
+			t.Fatalf("CreateAgentDefFile(workspace) error = %v", err)
+		}
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{
+				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{ID: "ws-registry", RootDir: workspaceRoot},
+						Agents:    []aghconfig.AgentDef{workspaceAgent},
+					}, nil
+				},
+			},
+			nil,
+			nil,
+		)
+		globalPath := filepath.Join(fixture.HomePaths.AgentsDir, "coder", aghconfig.AgentDefinitionFileName)
+		if err := os.MkdirAll(filepath.Dir(globalPath), 0o700); err != nil {
+			t.Fatalf("os.MkdirAll(global) error = %v", err)
+		}
+		if err := os.WriteFile(globalPath, []byte("not valid frontmatter\n"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(global) error = %v", err)
+		}
+		fixture.Handlers.SoulHistoryPurger = &recordingSoulHistoryPurger{}
+		fixture.Handlers.HeartbeatHistoryPurger = &recordingHeartbeatHistoryPurger{}
+
+		resp := performRequest(t, fixture.Engine, http.MethodDelete, "/agents/coder?workspace=alpha", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("delete status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		var payload contract.DeleteAgentResponse
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if payload.UnshadowedOrigin != "" {
+			t.Fatalf("unshadowed origin = %q, want empty for invalid global twin", payload.UnshadowedOrigin)
+		}
+		if _, err := os.Stat(workspacePath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Stat(workspace definition) error = %v, want os.ErrNotExist", err)
+		}
+	})
+
+	t.Run(
+		"Should duplicate the server-side directory with overrides and reject an existing target",
+		func(t *testing.T) {
+			t.Parallel()
+			fixture := newHandlerFixture(
+				t,
+				testutil.StubSessionManager{},
+				testutil.StubObserver{},
+				testutil.StubWorkspaceService{},
+				nil,
+				nil,
+			)
+			sourcePath := filepath.Join(fixture.HomePaths.AgentsDir, "coder", aghconfig.AgentDefinitionFileName)
+			if _, err := aghconfig.CreateAgentDefFile(sourcePath, aghconfig.AgentDefinitionDraft{
+				Name: "coder", Provider: "codex", Prompt: "Source.",
+			}, false); err != nil {
+				t.Fatalf("CreateAgentDefFile(source) error = %v", err)
+			}
+			if err := os.WriteFile(
+				filepath.Join(filepath.Dir(sourcePath), "SOUL.md"),
+				[]byte("soul\n"),
+				0o600,
+			); err != nil {
+				t.Fatalf("WriteFile(SOUL.md) error = %v", err)
+			}
+			mcpBody := []byte(`{"mcpServers":{"github":{"command":"sidecar"}}}`)
+			if err := os.WriteFile(
+				filepath.Join(filepath.Dir(sourcePath), aghconfig.MCPJSONName),
+				mcpBody,
+				0o600,
+			); err != nil {
+				t.Fatalf("WriteFile(mcp.json) error = %v", err)
+			}
+			request := contract.DuplicateAgentRequest{
+				Name: "reviewer",
+				Overrides: &contract.DuplicateAgentOverrides{
+					Provider:        "claude",
+					Command:         "claude --print",
+					Model:           "claude-opus",
+					ReasoningEffort: contract.ReasoningEffort("high"),
+					Tools:           []string{"agh__skill_view"},
+					Toolsets:        []string{"agh__catalog"},
+					DenyTools:       []string{"agh__delete_*"},
+					Permissions:     contract.SettingsPermissionModeApproveReads,
+					CategoryPath:    []string{"Engineering", "Review"},
+					Skills:          &contract.CreateAgentSkillsConfig{Disabled: []string{"legacy"}},
+					Prompt:          "Review.",
+				},
+			}
+			resp := performRequest(t, fixture.Engine, http.MethodPost, "/agents/coder/duplicate", mustJSON(t, request))
+			if resp.Code != http.StatusCreated {
+				t.Fatalf("duplicate status = %d, want %d; body=%s", resp.Code, http.StatusCreated, resp.Body.String())
+			}
+			var payload contract.AgentResponse
+			decodeJSON(t, resp.Body.Bytes(), &payload)
+			if payload.Agent.Name != "reviewer" || payload.Agent.Provider != "claude" ||
+				payload.Agent.Command != "claude --print" || payload.Agent.Model != "claude-opus" ||
+				payload.Agent.ReasoningEffort != contract.ReasoningEffort("high") ||
+				!slices.Equal(payload.Agent.Tools, []string{"agh__skill_view"}) ||
+				!slices.Equal(payload.Agent.Toolsets, []string{"agh__catalog"}) ||
+				!slices.Equal(payload.Agent.DenyTools, []string{"agh__delete_*"}) ||
+				payload.Agent.Permissions != string(contract.SettingsPermissionModeApproveReads) ||
+				!slices.Equal(payload.Agent.CategoryPath, []string{"Engineering", "Review"}) ||
+				payload.Agent.Skills == nil || !slices.Equal(payload.Agent.Skills.Disabled, []string{"legacy"}) ||
+				payload.Agent.Prompt != "Review." || payload.Agent.Origin != contract.AgentOriginGlobal {
+				t.Fatalf("duplicate payload = %#v", payload.Agent)
+			}
+			targetDir := filepath.Join(fixture.HomePaths.AgentsDir, "reviewer")
+			soulBody, err := os.ReadFile(filepath.Join(targetDir, "SOUL.md"))
+			if err != nil {
+				t.Fatalf("ReadFile(duplicate SOUL.md) error = %v", err)
+			}
+			if string(soulBody) != "soul\n" {
+				t.Fatalf("duplicate SOUL.md = %q", soulBody)
+			}
+			duplicatedMCP, err := os.ReadFile(filepath.Join(targetDir, aghconfig.MCPJSONName))
+			if err != nil {
+				t.Fatalf("ReadFile(duplicate mcp.json) error = %v", err)
+			}
+			if !bytes.Equal(duplicatedMCP, mcpBody) {
+				t.Fatalf("duplicate mcp.json = %q, want %q", duplicatedMCP, mcpBody)
+			}
+			definitionBody, err := os.ReadFile(filepath.Join(targetDir, aghconfig.AgentDefinitionFileName))
+			if err != nil {
+				t.Fatalf("ReadFile(duplicate AGENT.md) error = %v", err)
+			}
+			authored, err := aghconfig.ParseAgentDef(definitionBody)
+			if err != nil {
+				t.Fatalf("ParseAgentDef(duplicate AGENT.md) error = %v", err)
+			}
+			if len(authored.MCPServers) != 0 {
+				t.Fatalf("duplicate authored MCP servers = %#v, want sidecar-only ownership", authored.MCPServers)
+			}
+			conflict := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodPost,
+				"/agents/coder/duplicate",
+				mustJSON(t, request),
+			)
+			if conflict.Code != http.StatusConflict {
+				t.Fatalf(
+					"duplicate conflict status = %d, want %d; body=%s",
+					conflict.Code,
+					http.StatusConflict,
+					conflict.Body.String(),
+				)
+			}
+		},
+	)
+
+	t.Run("Should default duplicate scope to the workspace source origin", func(t *testing.T) {
+		t.Parallel()
+		workspaceRoot := t.TempDir()
+		sourcePath := filepath.Join(
+			workspaceRoot,
+			aghconfig.DirName,
+			aghconfig.AgentsDirName,
+			"coder",
+			aghconfig.AgentDefinitionFileName,
+		)
+		source, err := aghconfig.CreateAgentDefFile(sourcePath, aghconfig.AgentDefinitionDraft{
+			Name: "coder", Provider: "codex", Prompt: "Workspace source.",
+		}, false)
+		if err != nil {
+			t.Fatalf("CreateAgentDefFile(source) error = %v", err)
+		}
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{
+				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+						Agents:    []aghconfig.AgentDef{source},
+					}, nil
+				},
+			},
+			nil,
+			nil,
+		)
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/agents/coder/duplicate",
+			mustJSON(t, contract.DuplicateAgentRequest{Name: "reviewer", Workspace: "alpha"}),
+		)
+		if resp.Code != http.StatusCreated {
+			t.Fatalf("duplicate status = %d, want %d; body=%s", resp.Code, http.StatusCreated, resp.Body.String())
+		}
+		var payload contract.AgentResponse
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if payload.Agent.Origin != contract.AgentOriginWorkspace || payload.Agent.WorkspaceID != "ws-1" {
+			t.Fatalf("duplicate payload = %#v, want ws-1 workspace origin", payload.Agent)
+		}
+		targetPath := filepath.Join(
+			workspaceRoot,
+			aghconfig.DirName,
+			aghconfig.AgentsDirName,
+			"reviewer",
+			aghconfig.AgentDefinitionFileName,
+		)
+		if _, err := os.Stat(targetPath); err != nil {
+			t.Fatalf("os.Stat(workspace duplicate) error = %v", err)
+		}
+
+		explicitResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/agents/coder/duplicate",
+			mustJSON(t, contract.DuplicateAgentRequest{
+				Name: "operator", Scope: contract.AgentCreateScopeWorkspace, Workspace: "alpha",
+			}),
+		)
+		if explicitResp.Code != http.StatusCreated {
+			t.Fatalf(
+				"explicit duplicate status = %d, want %d; body=%s",
+				explicitResp.Code,
+				http.StatusCreated,
+				explicitResp.Body.String(),
+			)
+		}
+		var explicitPayload contract.AgentResponse
+		decodeJSON(t, explicitResp.Body.Bytes(), &explicitPayload)
+		if explicitPayload.Agent.Origin != contract.AgentOriginWorkspace ||
+			explicitPayload.Agent.WorkspaceID != "ws-1" {
+			t.Fatalf("explicit duplicate payload = %#v, want ws-1 workspace origin", explicitPayload.Agent)
+		}
+		explicitTargetPath := filepath.Join(
+			workspaceRoot,
+			aghconfig.DirName,
+			aghconfig.AgentsDirName,
+			"operator",
+			aghconfig.AgentDefinitionFileName,
+		)
+		if _, err := os.Stat(explicitTargetPath); err != nil {
+			t.Fatalf("os.Stat(explicit workspace duplicate) error = %v", err)
+		}
+	})
+
+	t.Run("Should reject invalid duplicate scopes before writing", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		sourcePath := filepath.Join(fixture.HomePaths.AgentsDir, "coder", aghconfig.AgentDefinitionFileName)
+		if _, err := aghconfig.CreateAgentDefFile(sourcePath, aghconfig.AgentDefinitionDraft{
+			Name: "coder", Provider: "codex", Prompt: "Source.",
+		}, false); err != nil {
+			t.Fatalf("CreateAgentDefFile(source) error = %v", err)
+		}
+		requests := []contract.DuplicateAgentRequest{
+			{Name: "workspace-copy", Scope: contract.AgentCreateScopeWorkspace},
+			{Name: "invalid-copy", Scope: contract.AgentCreateScope("invalid")},
+		}
+		for _, request := range requests {
+			t.Run("Should reject "+request.Name, func(t *testing.T) {
+				t.Parallel()
+				resp := performRequest(
+					t,
+					fixture.Engine,
+					http.MethodPost,
+					"/agents/coder/duplicate",
+					mustJSON(t, request),
+				)
+				if resp.Code != http.StatusBadRequest {
+					t.Fatalf(
+						"duplicate status = %d, want %d; body=%s",
+						resp.Code,
+						http.StatusBadRequest,
+						resp.Body.String(),
+					)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject unknown fields in mutation bodies", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		tests := []struct {
+			name   string
+			method string
+			path   string
+			body   []byte
+		}{
+			{
+				name:   "update",
+				method: http.MethodPut,
+				path:   "/agents/coder",
+				body: []byte(`{
+					"agent":{"name":"coder","provider":"codex","prompt":"Changed."},
+					"expected_digest":"digest",
+					"unexpected":true
+				}`),
+			},
+			{
+				name:   "duplicate",
+				method: http.MethodPost,
+				path:   "/agents/coder/duplicate",
+				body:   []byte(`{"name":"copy","unexpected":true}`),
+			},
+		}
+		for _, tc := range tests {
+			t.Run("Should strictly decode "+tc.name, func(t *testing.T) {
+				t.Parallel()
+				resp := performRequest(t, fixture.Engine, tc.method, tc.path, tc.body)
+				if resp.Code != http.StatusBadRequest {
+					t.Fatalf(
+						"strict decode status = %d, want %d; body=%s",
+						resp.Code,
+						http.StatusBadRequest,
+						resp.Body.String(),
+					)
+				}
+			})
+		}
+	})
+}
+
+type recordingAgentDefinitionSync struct {
+	calls int
+	err   error
+}
+
+func (s *recordingAgentDefinitionSync) Sync(context.Context) error {
+	s.calls++
+	return s.err
+}
+
+type recordingSoulHistoryPurger struct {
+	workspaceID string
+	name        string
+	sourcePath  string
+}
+
+func (p *recordingSoulHistoryPurger) PurgeAgentHistory(
+	_ context.Context,
+	ref soul.WorkspaceRef,
+	name string,
+	sourcePath string,
+) error {
+	p.workspaceID = ref.WorkspaceID
+	p.name = name
+	p.sourcePath = sourcePath
+	return nil
+}
+
+type recordingHeartbeatHistoryPurger struct {
+	workspaceID string
+	name        string
+	sourcePath  string
+}
+
+func (p *recordingHeartbeatHistoryPurger) PurgeAgentHistory(
+	_ context.Context,
+	ref heartbeat.WorkspaceRef,
+	name string,
+	sourcePath string,
+) error {
+	p.workspaceID = ref.WorkspaceID
+	p.name = name
+	p.sourcePath = sourcePath
+	return nil
+}
+
 func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {
 	t.Parallel()
 
@@ -2025,13 +2743,27 @@ func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {
 		)
 		fixture.Handlers.AgentCatalog = stubAgentCatalog{
 			agents: []aghconfig.AgentDef{
-				{Name: "zeta", Prompt: "Zeta prompt"},
-				{Name: "alpha", Prompt: "Alpha prompt"},
-				{Name: aghconfig.OnboardingAgentName, Prompt: "Onboarding prompt"},
+				{Name: "zeta", Provider: "codex", Prompt: "Zeta prompt"},
+				{
+					Name:     "alpha",
+					Provider: "codex",
+					Skills:   aghconfig.AgentSkillsConfig{Disabled: []string{"legacy"}},
+					Prompt:   "Alpha prompt",
+				},
+				{Name: aghconfig.OnboardingAgentName, Provider: "codex", Prompt: "Onboarding prompt"},
 			},
 			get: map[string]aghconfig.AgentDef{
-				"alpha":                       {Name: "alpha", Prompt: "Alpha prompt"},
-				aghconfig.OnboardingAgentName: {Name: aghconfig.OnboardingAgentName, Prompt: "Onboarding prompt"},
+				"alpha": {
+					Name:     "alpha",
+					Provider: "codex",
+					Skills:   aghconfig.AgentSkillsConfig{Disabled: []string{"legacy"}},
+					Prompt:   "Alpha prompt",
+				},
+				aghconfig.OnboardingAgentName: {
+					Name:     aghconfig.OnboardingAgentName,
+					Provider: "codex",
+					Prompt:   "Onboarding prompt",
+				},
 			},
 		}
 
@@ -2045,6 +2777,10 @@ func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {
 		}
 		if len(listed.Agents) != 2 || listed.Agents[0].Name != "alpha" || listed.Agents[1].Name != "zeta" {
 			t.Fatalf("listed agents = %#v, want alpha then zeta", listed.Agents)
+		}
+		if listed.Agents[0].Origin != contract.AgentOriginGlobal || listed.Agents[0].DefinitionDigest == "" ||
+			listed.Agents[0].Skills == nil || len(listed.Agents[0].Skills.Disabled) != 1 {
+			t.Fatalf("listed alpha read shape = %#v", listed.Agents[0])
 		}
 
 		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/alpha", nil)
@@ -2170,6 +2906,14 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 			listed.Agents[0].Diagnostics[0].ErrorKind != "frontmatter.missing" {
 			t.Fatalf("workspace malformed agent diagnostics = %#v, want frontmatter.missing", listed.Agents[0])
 		}
+		if listed.Agents[0].Origin != contract.AgentOriginWorkspace || listed.Agents[0].WorkspaceID != "ws-1" ||
+			listed.Agents[1].Origin != contract.AgentOriginGlobal || listed.Agents[1].WorkspaceID != "" ||
+			listed.Agents[2].Origin != contract.AgentOriginWorkspace || listed.Agents[2].WorkspaceID != "ws-1" {
+			t.Fatalf(
+				"workspace agent origins = %#v, want workspace diagnostics/agents and global catalog additions",
+				listed.Agents,
+			)
+		}
 
 		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/founder?workspace="+workspaceRef, nil)
 		if getResp.Code != http.StatusOK {
@@ -2184,7 +2928,8 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 		if err := json.Unmarshal(getResp.Body.Bytes(), &got); err != nil {
 			t.Fatalf("json.Unmarshal(get workspace agent) error = %v", err)
 		}
-		if got.Agent.Name != "founder" || got.Agent.Provider != "codex" {
+		if got.Agent.Name != "founder" || got.Agent.Provider != "codex" ||
+			got.Agent.Origin != contract.AgentOriginWorkspace || got.Agent.WorkspaceID != "ws-1" {
 			t.Fatalf("get workspace agent = %#v, want founder/codex", got.Agent)
 		}
 		onboardingResp := performRequest(
@@ -2227,6 +2972,127 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 			t.Fatalf("get missing workspace agent body = %s, want not available message", missingResp.Body.String())
 		}
 	})
+
+	t.Run("Should filter and page the fleet with exact backend session totals", func(t *testing.T) {
+		t.Parallel()
+
+		const workspaceRef = "alpha"
+		manager := testutil.StubSessionManager{
+			CountByAgentFn: func(
+				_ context.Context,
+				workspaceID string,
+			) (map[string]session.AgentSessionCount, error) {
+				if workspaceID != "ws-1" {
+					t.Fatalf("CountSessionsByAgent() workspace = %q, want ws-1", workspaceID)
+				}
+				return map[string]session.AgentSessionCount{
+					"alpha": {Total: 2, Active: 1},
+					"beta":  {Total: 1},
+					"gamma": {Total: 3, Active: 2},
+				}, nil
+			},
+		}
+		fixture := newHandlerFixture(
+			t,
+			manager,
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{
+				ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+					if ref != workspaceRef {
+						t.Fatalf("Resolve() ref = %q, want %q", ref, workspaceRef)
+					}
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{ID: "ws-1", Name: workspaceRef},
+						Agents: []aghconfig.AgentDef{
+							{Name: "alpha", Provider: "codex", CategoryPath: []string{"Release", "Backend"}},
+							{Name: "beta", Provider: "codex", CategoryPath: []string{"Release", "Backend"}},
+							{Name: "gamma", Provider: "codex", CategoryPath: []string{"Operations"}},
+						},
+					}, nil
+				},
+			},
+			nil,
+			nil,
+		)
+
+		firstResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/agents/catalog?workspace=alpha&q=a&status=active&limit=1",
+			nil,
+		)
+		if firstResp.Code != http.StatusOK {
+			t.Fatalf("first agent catalog status = %d; body=%s", firstResp.Code, firstResp.Body.String())
+		}
+		var first contract.AgentCatalogResponse
+		decodeJSON(t, firstResp.Body.Bytes(), &first)
+		if len(first.Agents) != 1 || first.Agents[0].Agent.Name != "alpha" ||
+			first.Agents[0].Sessions == nil || first.Agents[0].Sessions.Active != 1 ||
+			first.Agents[0].Sessions.Total != 2 {
+			t.Fatalf("first agent catalog = %#v, want alpha with 1/2 sessions", first)
+		}
+		if first.Page.Total != 2 || !first.Page.HasMore || first.Page.NextCursor == "" ||
+			!first.SessionsAvailable || first.Facets.Total != 3 || first.Facets.Active != 2 ||
+			first.Facets.Idle != 1 || !slices.Equal(
+			first.Facets.Categories,
+			[]string{"Operations", "Release / Backend"},
+		) {
+			t.Fatalf("first agent catalog metadata = %#v", first)
+		}
+
+		secondResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/agents/catalog?workspace=alpha&q=a&status=active&limit=1&cursor="+
+				first.Page.NextCursor,
+			nil,
+		)
+		var second contract.AgentCatalogResponse
+		decodeJSON(t, secondResp.Body.Bytes(), &second)
+		if secondResp.Code != http.StatusOK || len(second.Agents) != 1 ||
+			second.Agents[0].Agent.Name != "gamma" || second.Page.HasMore {
+			t.Fatalf("second agent catalog = status %d payload %#v", secondResp.Code, second)
+		}
+
+		mismatch := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/agents/catalog?workspace=alpha&status=idle&cursor="+first.Page.NextCursor,
+			nil,
+		)
+		if mismatch.Code != http.StatusBadRequest {
+			t.Fatalf("mismatched agent cursor status = %d, want %d", mismatch.Code, http.StatusBadRequest)
+		}
+
+		fixture.Handlers.Sessions = testutil.StubSessionManager{
+			CountByAgentFn: func(context.Context, string) (map[string]session.AgentSessionCount, error) {
+				return nil, errors.New("session catalog unavailable")
+			},
+		}
+		partialResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/agents/catalog?workspace=alpha&status=active",
+			nil,
+		)
+		var partial contract.AgentCatalogResponse
+		decodeJSON(t, partialResp.Body.Bytes(), &partial)
+		if partialResp.Code != http.StatusOK || partial.SessionsAvailable || len(partial.Agents) != 3 {
+			t.Fatalf("partial agent catalog = status %d payload %#v", partialResp.Code, partial)
+		}
+		for _, item := range partial.Agents {
+			if item.Sessions != nil {
+				t.Fatalf("partial agent %q sessions = %#v, want nil", item.Agent.Name, item.Sessions)
+			}
+		}
+		if partial.Facets.Active != 0 || partial.Facets.Idle != 0 {
+			t.Fatalf("partial agent catalog facets = %#v, want no invented session status", partial.Facets)
+		}
+	})
 }
 
 type stubAgentCatalog struct {
@@ -2238,22 +3104,32 @@ type stubAgentCatalog struct {
 
 var _ core.AgentCatalog = stubAgentCatalog{}
 
-func (s stubAgentCatalog) ListAgents(context.Context) ([]aghconfig.AgentDef, error) {
+func (s stubAgentCatalog) ListAgents(context.Context) ([]core.AgentCatalogEntry, error) {
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
-	return append([]aghconfig.AgentDef(nil), s.agents...), nil
+	entries := make([]core.AgentCatalogEntry, 0, len(s.agents))
+	for _, agent := range s.agents {
+		entries = append(entries, core.AgentCatalogEntry{
+			Def:    aghconfig.CloneAgentDef(agent),
+			Origin: contract.AgentOriginGlobal,
+		})
+	}
+	return entries, nil
 }
 
-func (s stubAgentCatalog) GetAgent(_ context.Context, name string) (aghconfig.AgentDef, error) {
+func (s stubAgentCatalog) GetAgent(_ context.Context, name string) (core.AgentCatalogEntry, error) {
 	if s.getErr != nil {
-		return aghconfig.AgentDef{}, s.getErr
+		return core.AgentCatalogEntry{}, s.getErr
 	}
 	agent, ok := s.get[name]
 	if !ok {
-		return aghconfig.AgentDef{}, os.ErrNotExist
+		return core.AgentCatalogEntry{}, os.ErrNotExist
 	}
-	return agent, nil
+	return core.AgentCatalogEntry{
+		Def:    aghconfig.CloneAgentDef(agent),
+		Origin: contract.AgentOriginGlobal,
+	}, nil
 }
 
 func TestDaemonStatusIncludesNetworkDiagnosticsWithoutCredentials(t *testing.T) {

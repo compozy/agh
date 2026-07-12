@@ -67,18 +67,13 @@ vi.mock("@/systems/runtime", () => ({
   AppSidebar: ({
     className,
     onAddWorkspace,
-    onAddAgent,
   }: {
     className?: string;
     onAddWorkspace: () => void;
-    onAddAgent: () => void;
   }) => (
     <div className={className} data-testid="app-sidebar">
       <button data-testid="app-sidebar-add-workspace" onClick={onAddWorkspace} type="button">
         Add workspace
-      </button>
-      <button data-testid="app-sidebar-add-agent" onClick={onAddAgent} type="button">
-        Add agent
       </button>
     </div>
   ),
@@ -111,6 +106,10 @@ vi.mock("@/systems/status", () => ({
 }));
 
 vi.mock("@/systems/agent", () => ({
+  useAgentCatalog: () => ({
+    facets: { active: 0, categories: [], idle: 0, total: 0 },
+    sessionsAvailable: true,
+  }),
   useAgents: () => ({
     data: [],
     isLoading: false,
@@ -150,6 +149,26 @@ vi.mock("@/systems/agent", () => ({
   }),
   AgentCreateDialog: ({ open }: { open: boolean }) =>
     open ? <div data-testid="agent-create-dialog" /> : null,
+  AgentCreateHostProvider: ({
+    openDialog,
+    openForDuplicate: _openForDuplicate,
+    children,
+  }: {
+    openDialog: () => void;
+    openForDuplicate?: (agent: unknown) => void;
+    children: ReactNode;
+  }) => (
+    <div data-testid="agent-create-host">
+      <button data-testid="host-create-agent" onClick={openDialog} type="button">
+        New agent
+      </button>
+      {children}
+    </div>
+  ),
+  useAgentCreateHost: () => ({
+    openDialog: mockOpenAgentCreate,
+    openForDuplicate: vi.fn(),
+  }),
 }));
 
 vi.mock("@/systems/session", () => ({
@@ -159,6 +178,7 @@ vi.mock("@/systems/session", () => ({
   }),
   useSessions: () => ({
     data: [],
+    total: 0,
   }),
   useSessionCreateDialog: () => ({
     open: false,
@@ -381,10 +401,10 @@ describe("AppLayout", () => {
     expect(mockSetActiveWorkspaceId).toHaveBeenCalledWith("ws_new");
   });
 
-  it("opens agent creation from the sidebar trigger", () => {
+  it("opens agent creation from the create host entry point", () => {
     render(<AppLayout />);
 
-    fireEvent.click(screen.getByTestId("app-sidebar-add-agent"));
+    fireEvent.click(screen.getByTestId("host-create-agent"));
 
     expect(mockOpenAgentCreate).toHaveBeenCalledOnce();
   });

@@ -1,6 +1,6 @@
 # QA Tail Template
 
-Canonical row shape for the QA pair. Mirror this exactly when appending to a fresh `_tasks.md`. The pair operates on the repo's living QA tree (`docs/qa/` — state.csv, journeys, charters, bugs registry, dated reports), never on per-round `qa/` trees.
+Canonical row shape for the QA pair. Mirror this exactly when appending to a fresh `_tasks.md`. The pair operates on the repo's living QA tree (`docs/qa/` — scenario files, journeys, charters, content-addressed bugs, dated reports), never on per-round `qa/` trees.
 
 ## Column order (preserved from `cy-create-tasks` output)
 
@@ -18,7 +18,7 @@ Body content for the task file (`task_NN.md`):
 
 - `<critical>ALWAYS READ _techspec.md, every ADR, and every per-task memory file before planning.</critical>`
 - Activate the `qa-report` skill with `qa-docs-path=docs/qa` (bootstrap the tree if absent).
-- Output: journey flowcharts updated in `docs/qa/journeys/`, scenario rows minted/updated in `docs/qa/state.csv`, session charters in `docs/qa/charters/` for this cycle.
+- Output: journey flowcharts updated in `docs/qa/journeys/`, scenario files minted/updated in `docs/qa/scenarios/`, session charters in `docs/qa/charters/` for this cycle.
 - Coverage: every public surface touched by tasks 01..N — CLI verbs, HTTP, UDS, web routes, doc pages, automation triggers, extension points, agent-operation paths, and `config.toml` keys — expressed as scenario `entry_points` on journey-derived rows, not as standalone test cases.
 - Map regression hot spots from `_techspec.md` invariants and ADRs into the cycle's charter selection (targeted tier + one adjacent canary journey).
 
@@ -30,14 +30,14 @@ Body content for the task file (`task_NN.md`):
 
 Body content:
 
-- `<critical>ALWAYS READ docs/qa/state.csv and the cycle's charters in docs/qa/charters/ before executing.</critical>`
+- `<critical>ALWAYS READ the in-scope docs/qa/scenarios/ files, open docs/qa/bugs/, and the cycle's charters in docs/qa/charters/ before executing.</critical>`
 - Activate `qa-execution` with `qa-docs-path=docs/qa`. For release-grade scope on the AGH runtime, also activate `real-scenario-qa` (playbook lab + operator kickoff + runtime observation).
 - Activate `agh-worktree-isolation` (unique `AGH_HOME` + ports + tmux socket) when concurrency is signaled.
 - For UI features: drive Playwright via `browser-use:browser` with `agent-browser` fallback.
 - For CLI/API/agent-manageability features: exercise structured CLI output, HTTP/UDS routes, status/config discovery, deterministic errors, and compare persisted state.
-- Register every reproduced defect in `docs/qa/bugs/BUG-NNNN.md` (dedup against the registry first; never reset ids) and link it in the affected `state.csv` rows.
+- Register every reproduced defect in `docs/qa/bugs/BUG-<YYYYMMDD>-<slug>.md` (dedup against the registry first) and link it in the affected scenario files.
 - Fixes follow the fix-loop governor: small/contained only, regression test red-before/green-after, one logical fix per commit; escalate the rest to "Decisions for a Human".
-- Update `state.csv` verdicts and write the dated run report at `docs/qa/reports/<YYYY-MM-DD>-<slug>.md`. Exit gate: re-run gates (`make verify`) before Final Status.
+- Update scenario-file verdicts and write the dated run report at `docs/qa/reports/<YYYY-MM-DD>-<slug>.md`. Exit gate: re-run gates (`make verify`) before Final Status.
 
 ## E2E directive variants
 

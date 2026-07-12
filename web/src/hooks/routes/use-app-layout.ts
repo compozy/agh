@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 
 import { useSidebarStore } from "@/hooks/use-sidebar-store";
-import { useAgentCreateDialog, useAgents } from "@/systems/agent";
+import { useAgentCatalog, useAgentCreateDialog, useAgents } from "@/systems/agent";
 import { useDaemonHealth } from "@/systems/status";
 import { useSessionCreateDialog, useSessions } from "@/systems/session";
 import { useActiveWorkspace, useWorkspace } from "@/systems/workspace";
@@ -33,8 +33,14 @@ function useAppLayout() {
   });
   const workspaceAgents = activeWorkspaceId === null ? undefined : agents;
   const [isWorkspaceSetupOpen, setWorkspaceSetupOpen] = useState(false);
-  const { data: sessions } = useSessions(activeWorkspaceId, {
+  const agentCatalogSummary = useAgentCatalog(
+    activeWorkspaceId ?? "",
+    { limit: 1 },
+    { enabled: activeWorkspaceId !== null }
+  );
+  const activeSessions = useSessions(activeWorkspaceId, {
     enabled: activeWorkspaceId !== null,
+    filters: { state: "active", limit: 1 },
   });
   const sessionCreate = useSessionCreateDialog({
     agents: workspaceAgents,
@@ -76,7 +82,14 @@ function useAppLayout() {
     agentsError: activeWorkspaceId !== null && agentsError,
     isWorkspaceSetupOpen,
     setWorkspaceSetupOpen,
-    sessions,
+    agentsCount:
+      agentCatalogSummary.sessionsAvailable && agentCatalogSummary.facets
+        ? {
+            live: agentCatalogSummary.facets.active,
+            total: agentCatalogSummary.facets.total,
+          }
+        : undefined,
+    activeSessionCount: activeSessions.total,
     handleNewSession,
     isCreatingSession: sessionCreate.isSubmitting,
     pendingSessionAgentName: sessionCreate.pendingAgentName,

@@ -780,12 +780,14 @@ func (h *BaseHandlers) GetSessionStatus(c *gin.Context) {
 		UpdatedAt:           health.UpdatedAt,
 	}
 	if h.HeartbeatStatus != nil {
-		status, err := h.heartbeatStatusForHealth(c.Request.Context(), health, false)
+		status, err := h.availableHeartbeatStatusForHealth(c.Request.Context(), health, false)
 		if err != nil {
 			h.respondError(c, StatusForHeartbeatError(err), err)
 			return
 		}
-		response.WakeState = status.WakeState
+		if status != nil {
+			response.WakeState = status.WakeState
+		}
 	}
 	h.respondAuthoredJSON(c, http.StatusOK, response)
 }
@@ -806,15 +808,17 @@ func (h *BaseHandlers) InspectSession(c *gin.Context) {
 		Health:    health,
 	}
 	if h.HeartbeatStatus != nil {
-		status, statusErr := h.heartbeatStatusForHealth(c.Request.Context(), health, true)
+		status, statusErr := h.availableHeartbeatStatusForHealth(c.Request.Context(), health, true)
 		if statusErr != nil {
 			h.respondError(c, StatusForHeartbeatError(statusErr), statusErr)
 			return
 		}
-		response.WakeState = status.WakeState
-		response.PolicyDigest = status.Digest
-		response.ConfigDigest = status.ConfigDigest
-		response.Diagnostics = status.Diagnostics
+		if status != nil {
+			response.WakeState = status.WakeState
+			response.PolicyDigest = status.Digest
+			response.ConfigDigest = status.ConfigDigest
+			response.Diagnostics = status.Diagnostics
+		}
 	}
 	if includeEvents {
 		target, targetErr := h.resolveAuthoredAgentTarget(c.Request.Context(), health.WorkspaceID, health.AgentName)
@@ -1336,26 +1340,6 @@ func (h *BaseHandlers) sessionPayloadWithOptionalHealth(
 	return payload, nil
 }
 
-func (h *BaseHandlers) heartbeatStatusForHealth(
-	ctx context.Context,
-	health contract.SessionHealthPayload,
-	includeHealth bool,
-) (contract.HeartbeatStatusResponse, error) {
-	target, err := h.resolveAuthoredAgentTarget(ctx, health.WorkspaceID, health.AgentName)
-	if err != nil {
-		return contract.HeartbeatStatusResponse{}, err
-	}
-	result, err := h.HeartbeatStatus.Status(ctx, heartbeat.StatusRequest{
-		Target:               target.heartbeatAuthoringTarget(),
-		SessionID:            health.SessionID,
-		IncludeSessionHealth: includeHealth,
-	})
-	if err != nil {
-		return contract.HeartbeatStatusResponse{}, err
-	}
-	return contract.HeartbeatStatusResponseFromResult(&result)
-}
-
 func (h *BaseHandlers) heartbeatWakeEvents(
 	ctx context.Context,
 	target authoredAgentTarget,
@@ -1538,7 +1522,7 @@ func pathAgentName(c *gin.Context) string {
 	if c == nil {
 		return ""
 	}
-	return firstNonEmpty(c.Param("name"), c.Param("agent_name"))
+	return strings.TrimSpace(c.Param("name"))
 }
 
 func authoredRouteAgentName(pathName string) (string, error) {

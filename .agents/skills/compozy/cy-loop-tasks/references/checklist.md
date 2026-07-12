@@ -13,7 +13,7 @@ final iteration.
 - [ ] `.agents/skills/compozy/cy-loop-tasks/scripts/update-state.py` was called with the right flags so `state.yaml` reflects the new reality.
 - [ ] `cy-final-verify` ran for any iteration that produced code or fixes; delegated PASS/FAIL evidence was captured and cited in the summary's `verify_evidence`.
 - [ ] For any herdr dispatch: the worker launched as a TUI (banner + input box, status left `unknown`), and HEAD is unchanged (no worker commit).
-- [ ] The iteration summary block (from `assets/iteration-summary.template.md`) is the LAST thing in the assistant message — nothing after it except, in Phase E only, the done-signature line.
+- [ ] The iteration summary block (from `assets/iteration-summary.template.md`) was printed after the phase work. On completed non-E outcomes, Step 1 was re-entered immediately (**continue**); on blocked or Phase E, the session stopped (Phase E adds the done-signature as the final line).
 
 ## Phase 0 (bootstrap) only
 

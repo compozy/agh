@@ -11,10 +11,10 @@ For a feature with slug `<slug>` whose techspec lives at
 `.compozy/tasks/<slug>/_techspec.md`:
 
 ```text
-[[CODEX_LOOP name="<slug>" goal="ship <slug> end-to-end via cy-loop-tasks: every iteration runs .agents/skills/compozy/cy-loop-tasks/scripts/detect-phase.py and executes the printed action; finish only when qa-report and qa-execution are complete, consecutive cy-impl-peer-review rounds reach SHIP, and make verify is PASS"]]
+[[CODEX_LOOP name="<slug>" goal="ship <slug> end-to-end via cy-loop-tasks: every iteration runs .agents/skills/compozy/cy-loop-tasks/scripts/detect-phase.py and executes the printed action; continue across iterations until qa-report and qa-execution are complete, consecutive cy-impl-peer-review rounds reach SHIP, and make verify is PASS"]]
 
 Use the cy-loop-tasks skill at .agents/skills/compozy/cy-loop-tasks/SKILL.md.
-The skill is a state machine — one iteration per Stop. Slug: <slug>.
+The skill is a continue loop — one phase action per iteration, then the next, until Phase E or a blocker. Slug: <slug>.
 ```
 
 The `goal=` text becomes `state.yaml.goal_signature` and is shown to the
@@ -29,7 +29,7 @@ parameter to the invocation line:
 
 ```text
 Use the cy-loop-tasks skill at .agents/skills/compozy/cy-loop-tasks/SKILL.md.
-The skill is a state machine — one iteration per Stop. Slug: <slug>. --frontend claude
+The skill is a continue loop — one phase action per iteration, then the next, until Phase E or a blocker. Slug: <slug>. --frontend claude
 ```
 
 - `--frontend claude` → Claude Code workers (`claude
@@ -55,16 +55,13 @@ This does not affect the skill itself — only the plugin's verdict quality.
 
 ## Invoking without the plugin (manual run)
 
-The skill can also be exercised manually inside a single Claude Code or
-Codex session — the codex-loop restart flow is convenient but optional:
-
 ```
 Activate the cy-loop-tasks skill at .agents/skills/compozy/cy-loop-tasks/SKILL.md
-for slug <slug>. Run one iteration, then stop.
+for slug <slug>. Continue until Phase E or a blocker.
 ```
 
-The agent runs detect-phase, takes one action, updates state + memory, and
-stops. Re-invoke for each subsequent iteration.
+The agent runs detect → one action → summary, then continues at detect in
+the same session. Filesystem state still resumes if the session ends early.
 
 ## When NOT to use the goal header
 

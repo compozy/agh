@@ -47,12 +47,15 @@ type BaseHandlerConfig struct {
 	Workspaces                   WorkspaceService
 	Onboarding                   OnboardingStore
 	AgentCatalog                 AgentCatalog
+	AgentDefinitionSync          AgentDefinitionSync
 	ModelCatalog                 ModelCatalogService
 	ProviderAuthRunner           authproviders.ProviderAuthCommandRunner
 	AgentContextService          AgentContextService
 	SoulAuthoring                SoulAuthoringService
+	SoulHistoryPurger            SoulHistoryPurger
 	SoulRefresher                SoulRefresher
 	HeartbeatAuthoring           HeartbeatAuthoringService
+	HeartbeatHistoryPurger       HeartbeatHistoryPurger
 	HeartbeatStatus              HeartbeatStatusService
 	HeartbeatWake                HeartbeatWakeService
 	SessionHealth                SessionHealthReader
@@ -108,12 +111,15 @@ type BaseHandlers struct {
 	Workspaces                   WorkspaceService
 	Onboarding                   OnboardingStore
 	AgentCatalog                 AgentCatalog
+	AgentDefinitionSync          AgentDefinitionSync
 	ModelCatalog                 ModelCatalogService
 	ProviderAuthRunner           authproviders.ProviderAuthCommandRunner
 	AgentContextService          AgentContextService
 	SoulAuthoring                SoulAuthoringService
+	SoulHistoryPurger            SoulHistoryPurger
 	SoulRefresher                SoulRefresher
 	HeartbeatAuthoring           HeartbeatAuthoringService
+	HeartbeatHistoryPurger       HeartbeatHistoryPurger
 	HeartbeatStatus              HeartbeatStatusService
 	HeartbeatWake                HeartbeatWakeService
 	SessionHealth                SessionHealthReader
@@ -178,9 +184,12 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		Workspaces:                   cfg.Workspaces,
 		Onboarding:                   cfg.Onboarding,
 		AgentCatalog:                 cfg.AgentCatalog,
+		AgentDefinitionSync:          cfg.AgentDefinitionSync,
 		ModelCatalog:                 cfg.ModelCatalog,
 		ProviderAuthRunner:           defaults.providerAuthRunner,
 		AgentContextService:          cfg.AgentContextService,
+		SoulHistoryPurger:            cfg.SoulHistoryPurger,
+		HeartbeatHistoryPurger:       cfg.HeartbeatHistoryPurger,
 		CoordinatorConfig:            cfg.CoordinatorConfig,
 		SkillsRegistry:               cfg.SkillsRegistry,
 		SkillResources:               cfg.SkillResources,

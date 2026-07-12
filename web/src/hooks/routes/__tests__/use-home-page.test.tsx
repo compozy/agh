@@ -4,6 +4,7 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentPayload } from "@/systems/agent";
+import { FIXTURE_AGENT_DEFINITION_DIGEST } from "@/systems/agent/mocks";
 import type { HealthPayload } from "@/systems/status";
 import type { SessionPayload } from "@/systems/session";
 import type { WorkspacePayload } from "@/systems/workspace";
@@ -126,13 +127,47 @@ const WORKSPACES_FIXTURE: WorkspacePayload[] = [
 ];
 
 const AGENTS_FIXTURE: AgentPayload[] = [
-  { name: "alpha", provider: "claude", prompt: "" },
-  { name: "beta", provider: "codex", prompt: "" },
+  {
+    name: "alpha",
+    provider: "claude",
+    prompt: "",
+    origin: "global",
+    definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+  },
+  {
+    name: "beta",
+    provider: "codex",
+    prompt: "",
+    origin: "global",
+    definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+  },
 ];
 
 const WORKSPACE_AGENTS_FIXTURE: AgentPayload[] = [
-  ...AGENTS_FIXTURE,
-  { name: "gamma", provider: "codex", prompt: "" },
+  {
+    name: "alpha",
+    provider: "claude",
+    prompt: "",
+    origin: "workspace",
+    workspace_id: "ws_main",
+    definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+  },
+  {
+    name: "beta",
+    provider: "codex",
+    prompt: "",
+    origin: "workspace",
+    workspace_id: "ws_main",
+    definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+  },
+  {
+    name: "gamma",
+    provider: "codex",
+    prompt: "",
+    origin: "workspace",
+    workspace_id: "ws_main",
+    definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+  },
 ];
 
 const SESSIONS_FIXTURE: SessionPayload[] = [
@@ -245,10 +280,33 @@ describe("useHomePage", () => {
   });
 
   it("updates the agents metric when the active workspace changes", async () => {
-    const mainAgents: AgentPayload[] = [{ name: "main-only", provider: "claude", prompt: "" }];
+    const mainAgents: AgentPayload[] = [
+      {
+        name: "main-only",
+        provider: "claude",
+        prompt: "",
+        origin: "workspace",
+        workspace_id: "ws_main",
+        definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+      },
+    ];
     const secondaryAgents: AgentPayload[] = [
-      { name: "secondary-one", provider: "codex", prompt: "" },
-      { name: "secondary-two", provider: "gemini", prompt: "" },
+      {
+        name: "secondary-one",
+        provider: "codex",
+        prompt: "",
+        origin: "workspace",
+        workspace_id: "ws_secondary",
+        definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+      },
+      {
+        name: "secondary-two",
+        provider: "gemini",
+        prompt: "",
+        origin: "workspace",
+        workspace_id: "ws_secondary",
+        definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+      },
     ];
     vi.mocked(fetchAgents).mockImplementation(async (workspace?: string | null) => {
       if (workspace === "ws_secondary") {

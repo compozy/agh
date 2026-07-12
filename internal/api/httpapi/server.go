@@ -68,12 +68,15 @@ type Server struct {
 	workspaces        core.WorkspaceService
 	onboarding        core.OnboardingStore
 	agentCatalog      core.AgentCatalog
+	agentSync         core.AgentDefinitionSync
 	modelCatalog      core.ModelCatalogService
 	agentContext      core.AgentContextService
 	coordinatorConfig core.CoordinatorConfigResolver
 	soulAuthoring     core.SoulAuthoringService
+	soulHistoryPurger core.SoulHistoryPurger
 	soulRefresher     core.SoulRefresher
 	heartbeatAuthor   core.HeartbeatAuthoringService
+	heartbeatPurger   core.HeartbeatHistoryPurger
 	heartbeatStatus   core.HeartbeatStatusService
 	heartbeatWake     core.HeartbeatWakeService
 	sessionHealth     core.SessionHealthReader
@@ -315,13 +318,6 @@ func WithSkillsRegistry(registry core.SkillsRegistry) Option {
 func WithSkillResourceSyncer(syncer core.SkillResourceSyncer) Option {
 	return func(server *Server) {
 		server.skillResources = syncer
-	}
-}
-
-// WithAgentCatalog injects the projected resource-backed agent catalog.
-func WithAgentCatalog(catalog core.AgentCatalog) Option {
-	return func(server *Server) {
-		server.agentCatalog = catalog
 	}
 }
 
@@ -603,12 +599,15 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		workspaces:        s.workspaces,
 		onboarding:        s.onboarding,
 		agentCatalog:      s.agentCatalog,
+		agentSync:         s.agentSync,
 		modelCatalog:      s.modelCatalog,
 		agentContext:      s.agentContext,
 		coordinatorConfig: s.coordinatorConfig,
 		soulAuthoring:     s.soulAuthoring,
+		soulHistoryPurger: s.soulHistoryPurger,
 		soulRefresher:     s.soulRefresher,
 		heartbeatAuthor:   s.heartbeatAuthor,
+		heartbeatPurger:   s.heartbeatPurger,
 		heartbeatStatus:   s.heartbeatStatus,
 		heartbeatWake:     s.heartbeatWake,
 		sessionHealth:     s.sessionHealth,

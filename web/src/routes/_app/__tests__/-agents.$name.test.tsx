@@ -8,20 +8,37 @@ import type { SessionPayload } from "@/systems/session";
 import { primarySessionFixture } from "@/systems/session/testing";
 
 let childMatches: Array<{ id: string }> = [];
+let routeSearch: { tab: string; file: string; filter: string } = {
+  tab: "overview",
+  file: "agent",
+  filter: "all",
+};
 const mockUseAgentDetailPage = vi.fn();
 const mockUseTopbarSlot = vi.hoisted(() => vi.fn());
+const mockUseActiveWorkspace = vi.hoisted(() => vi.fn(() => ({ activeWorkspaceId: "ws_test" })));
 
 vi.mock("@tanstack/react-router", () => ({
-  createFileRoute: () => (opts: { component: () => ReactNode }) => ({
-    component: opts.component,
-    useParams: () => ({ name: "codex-agent" }),
-  }),
+  createFileRoute:
+    () =>
+    (opts: {
+      component: () => ReactNode;
+      validateSearch?: (search: Record<string, unknown>) => unknown;
+    }) => ({
+      component: opts.component,
+      validateSearch: opts.validateSearch,
+      useParams: () => ({ name: "codex-agent" }),
+      useSearch: () => routeSearch,
+    }),
   Outlet: () => <div data-testid="agent-detail-outlet" />,
   useChildMatches: () => childMatches,
 }));
 
 vi.mock("@/hooks/routes/use-agent-detail-page", () => ({
-  useAgentDetailPage: (name: string) => mockUseAgentDetailPage(name),
+  useAgentDetailPage: (name: string, search: unknown) => mockUseAgentDetailPage(name, search),
+}));
+
+vi.mock("@/systems/workspace", () => ({
+  useActiveWorkspace: () => mockUseActiveWorkspace(),
 }));
 
 vi.mock("@agh/ui", async importOriginal => {
@@ -32,64 +49,107 @@ vi.mock("@agh/ui", async importOriginal => {
   };
 });
 
-vi.mock("@/systems/agent", () => ({
-  AgentInfoInspector: () => <aside data-testid="agent-info-inspector" />,
-  AgentPageActions: () => <div data-testid="agent-page-actions" />,
-  AgentPageStatusPill: ({ activeCount }: { activeCount: number }) => (
-    <span data-testid="agent-page-status-pill">{activeCount}</span>
-  ),
-  AgentSessionsList: ({
-    sessions,
-    isLoading,
-    isError,
-    emptyTitle,
-    emptyDescription,
-    hasMore,
-    isLoadingMore,
-  }: {
-    sessions: SessionPayload[];
-    isLoading: boolean;
-    isError: boolean;
-    emptyTitle?: ReactNode;
-    emptyDescription?: ReactNode;
-    hasMore?: boolean;
-    isLoadingMore?: boolean;
-  }) => (
-    <div
-      data-testid="agent-sessions-list"
-      data-loading={isLoading}
-      data-error={isError}
-      data-session-ids={sessions.map(session => session.id).join(",")}
-      data-has-more={hasMore}
-      data-loading-more={isLoadingMore}
-    >
-      {sessions.map(session => (
-        <span key={session.id}>{session.id}</span>
-      ))}
-      {emptyTitle ? <span data-testid="agent-sessions-empty-title">{emptyTitle}</span> : null}
-      {emptyDescription ? (
-        <span data-testid="agent-sessions-empty-description">{emptyDescription}</span>
-      ) : null}
-    </div>
-  ),
-  AgentStatsGrid: ({
-    total,
-    active,
-    resumable,
-  }: {
-    total: number;
-    active: number;
-    resumable: number;
-  }) => (
-    <div
-      data-testid="agent-stats-grid"
-      data-total={total}
-      data-active={active}
-      data-resumable={resumable}
-    />
-  ),
-}));
+vi.mock("@/systems/agent", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/agent")>();
+  return {
+    ...actual,
+    AgentPageActions: () => <div data-testid="agent-page-actions" />,
+    AgentPageStatusPill: ({ activeCount }: { activeCount: number }) => (
+      <span data-testid="agent-page-status-pill">{activeCount}</span>
+    ),
+    AgentPageMeta: () => <span data-testid="agent-page-meta" />,
+    AgentDiagnosticsBanner: () => <div data-testid="agent-diagnostics-banner" />,
+    AgentOverviewTab: ({
+      sessions,
+      sessionsTotal,
+      activeSessionsTotal,
+      resumableSessionsTotal,
+    }: {
+      sessions: SessionPayload[];
+      sessionsTotal: number;
+      activeSessionsTotal: number;
+      resumableSessionsTotal: number;
+    }) => (
+      <div
+        data-testid="agent-overview-tab"
+        data-session-ids={sessions.map(session => session.id).join(",")}
+        data-total={sessionsTotal}
+        data-active={activeSessionsTotal}
+        data-resumable={resumableSessionsTotal}
+      />
+    ),
+    useAgentInstructionsTab: () => ({
+      promptWordCount: "0 words",
+      soulMissing: false,
+      heartbeatMissing: false,
+      soul: {
+        resourceKey: '["ws-test","coder","soul"]',
+        payload: undefined,
+        isLoading: false,
+        isError: false,
+        history: undefined,
+        onValidate: vi.fn(),
+        onSave: vi.fn(),
+        onRestore: vi.fn(),
+        onRetry: vi.fn(),
+      },
+      heartbeat: {
+        resourceKey: '["ws-test","coder","heartbeat"]',
+        payload: undefined,
+        isLoading: false,
+        isError: false,
+        history: undefined,
+        onValidate: vi.fn(),
+        onSave: vi.fn(),
+        onRestore: vi.fn(),
+        onRetry: vi.fn(),
+        status: undefined,
+        statusLoading: false,
+        statusError: false,
+        onRetryStatus: vi.fn(),
+        activeSessions: [],
+        wakeSessionId: null,
+        setWakeSessionId: vi.fn(),
+        onWake: vi.fn(),
+        waking: false,
+        wakeDecision: undefined,
+        wakeError: null,
+      },
+    }),
+    AgentInstructionsTab: ({ file }: { file: string }) => (
+      <div data-testid="agent-instructions-tab" data-file={file} />
+    ),
+    AgentConfigurationTab: () => <div data-testid="agent-configuration-tab" />,
+    AgentSessionsTab: ({
+      sessions,
+      filter,
+      total,
+      active,
+      resumable,
+      hasMore,
+    }: {
+      sessions: SessionPayload[];
+      filter: string;
+      total: number;
+      active: number;
+      resumable: number;
+      hasMore: boolean;
+    }) => (
+      <div
+        data-testid="agent-sessions-tab"
+        data-session-ids={sessions.map(session => session.id).join(",")}
+        data-filter={filter}
+        data-total={total}
+        data-active={active}
+        data-resumable={resumable}
+        data-has-more={hasMore}
+      />
+    ),
+    validateAgentDetailSearch: actual.validateAgentDetailSearch,
+  };
+});
 
+import { validateAgentDetailSearch } from "@/systems/agent";
 import { Route } from "../agents.$name";
 
 const AgentDetailRoute = (Route as unknown as { component: () => ReactNode }).component;
@@ -109,19 +169,18 @@ function makePage(overrides: Partial<UseAgentDetailPageResult> = {}): UseAgentDe
     onLoadMoreSessions: vi.fn(),
     sessionsLoading: false,
     sessionsError: false,
-    isRefreshing: false,
+    search: { tab: "overview", file: "agent", filter: "all" },
+    setTab: vi.fn(),
+    setFile: vi.fn(),
+    setFilter: vi.fn(),
     isCreatingForAgent: false,
     newSessionDisabled: false,
-    sessionCreate: {
-      openForAgent: vi.fn(),
-      isCreating: false,
-      pendingAgentName: null,
-      hasActiveWorkspace: true,
-    },
-    onRefresh: vi.fn(),
-    onConfigure: vi.fn(),
     onNewSession: vi.fn(),
-    onGoHome: vi.fn(),
+    onEditSettings: vi.fn(),
+    onDuplicate: vi.fn(),
+    onDelete: vi.fn(),
+    onBackToAgents: vi.fn(),
+    deleteDialog: null,
     ...overrides,
   };
 }
@@ -129,12 +188,33 @@ function makePage(overrides: Partial<UseAgentDetailPageResult> = {}): UseAgentDe
 describe("Agent detail route", () => {
   beforeEach(() => {
     childMatches = [];
+    routeSearch = { tab: "overview", file: "agent", filter: "all" };
     mockUseAgentDetailPage.mockReset();
     mockUseTopbarSlot.mockReset();
     mockUseAgentDetailPage.mockReturnValue(makePage());
   });
 
-  it("renders nested child routes without starting the detail page queries", () => {
+  it("Should validate search defaults and tab/file/filter values", () => {
+    expect(validateAgentDetailSearch({})).toEqual({
+      tab: "overview",
+      file: "agent",
+      filter: "all",
+    });
+    expect(
+      validateAgentDetailSearch({ tab: "instructions", file: "soul", filter: "active" })
+    ).toEqual({
+      tab: "instructions",
+      file: "soul",
+      filter: "active",
+    });
+    expect(validateAgentDetailSearch({ tab: "nope", file: "x", filter: "y" })).toEqual({
+      tab: "overview",
+      file: "agent",
+      filter: "all",
+    });
+  });
+
+  it("Should render nested child routes without starting the detail page queries", () => {
     childMatches = [{ id: "/_app/agents/$name/sessions/$id" }];
 
     render(<AgentDetailRoute />);
@@ -143,51 +223,74 @@ describe("Agent detail route", () => {
     expect(mockUseAgentDetailPage).not.toHaveBeenCalled();
   });
 
-  it("does not render authoritative stats while sessions are loading", () => {
-    mockUseAgentDetailPage.mockReturnValue(
-      makePage({ sessions: [], sessionsLoading: true, sessionsError: false })
-    );
-
-    render(<AgentDetailRoute />);
-
-    expect(screen.getByTestId("agent-sessions-list")).toHaveAttribute("data-loading", "true");
-    expect(screen.queryByTestId("agent-stats-grid")).not.toBeInTheDocument();
-  });
-
-  it("renders stats after session data resolves", () => {
-    render(<AgentDetailRoute />);
-
-    expect(screen.getByTestId("agent-stats-grid")).toBeInTheDocument();
-  });
-
-  it("renders server-owned totals without deriving them from the loaded page", () => {
+  it("Should render the tabbed detail surface with exact server-owned session totals", () => {
     const normalSession = {
       ...primarySessionFixture,
       id: "sess-normal",
       type: "user",
       state: "active",
     } satisfies SessionPayload;
-    mockUseAgentDetailPage.mockReturnValue(
-      makePage({
-        sessions: [normalSession],
-        sessionsTotal: 205,
-        activeSessionsTotal: 7,
-        resumableSessionsTotal: 13,
-      })
-    );
+    mockUseAgentDetailPage.mockReturnValue(makePage({ sessions: [normalSession] }));
 
     render(<AgentDetailRoute />);
 
-    const topbarSlot = mockUseTopbarSlot.mock.calls.at(-1)?.[0];
-    expect(topbarSlot).toMatchObject({ count: 205 });
-    expect(topbarSlot?.tabs.props.activeCount).toBe(7);
-    expect(screen.getByTestId("agent-stats-grid")).toHaveAttribute("data-total", "205");
-    expect(screen.getByTestId("agent-stats-grid")).toHaveAttribute("data-active", "7");
-    expect(screen.getByTestId("agent-stats-grid")).toHaveAttribute("data-resumable", "13");
-    expect(screen.getByTestId("agent-sessions-list")).toHaveAttribute(
+    expect(screen.getByTestId("agent-detail-page")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-detail-tabs")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-overview-tab")).toHaveAttribute(
       "data-session-ids",
       "sess-normal"
     );
-    expect(screen.getByTestId("agent-sessions-list")).toHaveAttribute("data-has-more", "true");
+    expect(screen.getByTestId("agent-overview-tab")).toHaveAttribute("data-total", "205");
+    expect(screen.getByTestId("agent-overview-tab")).toHaveAttribute("data-active", "7");
+    expect(screen.getByTestId("agent-overview-tab")).toHaveAttribute("data-resumable", "13");
+    const slot = mockUseTopbarSlot.mock.calls.at(-1)?.[0];
+    render(slot.tabs);
+    expect(screen.getByTestId("agent-page-status-pill")).toHaveTextContent("7");
+    expect(slot?.backLabel).toBe("Agents");
+    expect(slot?.actions).toBeTruthy();
+  });
+
+  it("Should associate the active detail tab with its tabpanel", () => {
+    render(<AgentDetailRoute />);
+
+    const tab = screen.getByRole("tab", { name: "Overview" });
+    const panel = screen.getByRole("tabpanel");
+
+    expect(tab).toHaveAttribute("aria-controls", panel.id);
+    expect(panel).toHaveAttribute("aria-labelledby", tab.id);
+    expect(panel).toContainElement(screen.getByTestId("agent-overview-tab"));
+  });
+
+  it("Should render geometry skeleton while the agent is loading", () => {
+    mockUseAgentDetailPage.mockReturnValue(makePage({ agent: undefined, agentLoading: true }));
+    render(<AgentDetailRoute />);
+    expect(screen.getByTestId("agent-detail-loading")).toBeInTheDocument();
+  });
+
+  it("Should restore instructions file and sessions filter deep links exactly", () => {
+    routeSearch = { tab: "instructions", file: "soul", filter: "all" };
+    mockUseAgentDetailPage.mockReturnValue(
+      makePage({ search: { tab: "instructions", file: "soul", filter: "all" } })
+    );
+    const view = render(<AgentDetailRoute />);
+    expect(screen.getByTestId("agent-instructions-tab")).toHaveAttribute("data-file", "soul");
+
+    routeSearch = { tab: "sessions", file: "agent", filter: "failed" };
+    mockUseAgentDetailPage.mockReturnValue(
+      makePage({ search: { tab: "sessions", file: "agent", filter: "failed" } })
+    );
+    view.rerender(<AgentDetailRoute />);
+    expect(screen.getByTestId("agent-sessions-tab")).toHaveAttribute("data-filter", "failed");
+    expect(screen.getByTestId("agent-sessions-tab")).toHaveAttribute("data-total", "205");
+    expect(screen.getByTestId("agent-sessions-tab")).toHaveAttribute("data-has-more", "true");
+  });
+
+  it("Should omit the status pill instead of claiming Idle when sessions are unavailable", () => {
+    mockUseAgentDetailPage.mockReturnValue(makePage({ sessions: [], sessionsError: true }));
+    render(<AgentDetailRoute />);
+    const slot = mockUseTopbarSlot.mock.calls.at(-1)?.[0];
+    render(slot.tabs);
+    expect(screen.queryByTestId("agent-page-status-pill")).toBeNull();
+    expect(screen.getByTestId("agent-page-meta")).toBeVisible();
   });
 });

@@ -229,6 +229,10 @@ type DaemonClient interface {
 	DeleteWorkspace(ctx context.Context, ref string) error
 	ListAgents(ctx context.Context, query AgentQuery) ([]AgentRecord, error)
 	GetAgent(ctx context.Context, name string, query AgentQuery) (AgentRecord, error)
+	CreateAgent(ctx context.Context, request contract.CreateAgentRequest) (AgentRecord, error)
+	UpdateAgent(ctx context.Context, name string, request contract.UpdateAgentRequest) (AgentRecord, error)
+	DeleteAgent(ctx context.Context, name string, workspace string) (contract.DeleteAgentResponse, error)
+	DuplicateAgent(ctx context.Context, name string, request contract.DuplicateAgentRequest) (AgentRecord, error)
 	GetAgentSoul(ctx context.Context, name string, query AgentQuery) (AgentSoulRecord, error)
 	ValidateAgentSoul(ctx context.Context, name string, request AgentSoulValidateRequest) (AgentSoulRecord, error)
 	PutAgentSoul(ctx context.Context, name string, request AgentSoulPutRequest) (AgentSoulMutationRecord, error)
@@ -629,9 +633,6 @@ type SessionEventQuery struct {
 	AfterSequence int64
 }
 
-// AgentRecord is the shared daemon agent definition payload.
-type AgentRecord = contract.AgentPayload
-
 // AgentSoulRecord is the dedicated managed Soul read model.
 type AgentSoulRecord = contract.AgentSoulPayload
 
@@ -697,14 +698,6 @@ type AgentHeartbeatWakeRequest = contract.HeartbeatWakeRequest
 
 // AgentHeartbeatWakeDecisionRecord is one manual Heartbeat wake decision payload.
 type AgentHeartbeatWakeDecisionRecord = contract.HeartbeatWakeDecisionPayload
-
-// AgentMCPServer is one MCP server entry returned by the daemon API.
-type AgentMCPServer = contract.AgentMCPServerJSON
-
-// AgentQuery captures agent definition filters.
-type AgentQuery struct {
-	Workspace string
-}
 
 // SkillRecord is the shared daemon skill payload.
 type SkillRecord = contract.SkillPayload
@@ -3118,33 +3111,6 @@ func (c *unixSocketClient) DeleteWorkspace(ctx context.Context, ref string) erro
 	return c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
 }
 
-func (c *unixSocketClient) ListAgents(ctx context.Context, query AgentQuery) ([]AgentRecord, error) {
-	var response struct {
-		Agents []AgentRecord `json:"agents"`
-	}
-	if err := c.doJSON(ctx, http.MethodGet, "/api/agents", agentValues(query), nil, &response); err != nil {
-		return nil, err
-	}
-	return response.Agents, nil
-}
-
-func (c *unixSocketClient) GetAgent(ctx context.Context, name string, query AgentQuery) (AgentRecord, error) {
-	var response struct {
-		Agent AgentRecord `json:"agent"`
-	}
-	if err := c.doJSON(
-		ctx,
-		http.MethodGet,
-		"/api/agents/"+url.PathEscape(strings.TrimSpace(name)),
-		agentValues(query),
-		nil,
-		&response,
-	); err != nil {
-		return AgentRecord{}, err
-	}
-	return response.Agent, nil
-}
-
 func (c *unixSocketClient) GetAgentSoul(
 	ctx context.Context,
 	name string,
@@ -5516,14 +5482,6 @@ func requireVaultRef(ref string) (string, error) {
 		return "", errors.New("cli: vault ref is required")
 	}
 	return trimmed, nil
-}
-
-func agentValues(query AgentQuery) url.Values {
-	values := url.Values{}
-	if trimmed := strings.TrimSpace(query.Workspace); trimmed != "" {
-		values.Set("workspace", trimmed)
-	}
-	return values
 }
 
 func agentSoulHistoryValues(request AgentSoulHistoryRequest) url.Values {

@@ -16,8 +16,10 @@
 This is a human-filled substitution template. No bundled helper renders
 the {{ placeholders }} automatically.
 
-This block is required at the END of every iteration's last assistant
-message. The codex-loop goal-check confirmation prompt scans for it as
-evidence of progress. When phase_out == E, the agent ALSO emits the
-content of assets/done-signature.txt on a line of its own.
+Print this block after every completed iteration. On completed non-E
+outcomes the agent continues at detect in the same turn; on blocked or
+Phase E it stops. When phase_out == E, the agent ALSO emits the content
+of assets/done-signature.txt on a line of its own. The codex-loop
+goal-check confirmation prompt scans for these blocks as progress
+evidence.
 -->

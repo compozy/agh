@@ -475,6 +475,48 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
+			name: "ShouldDescribeAgentDefinitionMutationContracts",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				update := operationFor(t, doc, "/api/agents/{name}", "PUT")
+				assertParameter(t, update, "name", openapi3.ParameterInPath, true)
+				assertResponseStatus(t, update, 409)
+				updateSchema := jsonRequestSchema(t, update)
+				assertRequired(t, updateSchema, "agent", "expected_digest")
+				updateAgentSchema := propertySchema(t, updateSchema, "agent")
+				assertPropertyAbsent(t, updateAgentSchema, "mcp_servers")
+
+				deleteAgent := operationFor(t, doc, "/api/agents/{name}", "DELETE")
+				assertParameter(t, deleteAgent, "workspace", openapi3.ParameterInQuery, false)
+				deleteSchema := jsonResponseSchema(t, deleteAgent, 200)
+				assertRequired(t, deleteSchema, "name", "origin")
+				assertNotRequired(t, deleteSchema, "unshadowed_origin")
+
+				duplicate := operationFor(t, doc, "/api/agents/{name}/duplicate", "POST")
+				assertResponseStatus(t, duplicate, 201)
+				assertResponseStatus(t, duplicate, 409)
+				duplicateSchema := jsonRequestSchema(t, duplicate)
+				assertRequired(t, duplicateSchema, "name")
+				assertNotRequired(t, duplicateSchema, "scope", "workspace", "overrides")
+				assertEnumValues(t, propertySchema(t, duplicateSchema, "scope"), "workspace", "global")
+
+				getAgent := operationFor(t, doc, "/api/agents/{name}", "GET")
+				getSchema := jsonResponseSchema(t, getAgent, 200)
+				agentSchema := propertySchema(t, getSchema, "agent")
+				assertRequired(
+					t,
+					agentSchema,
+					"name",
+					"provider",
+					"origin",
+					"definition_digest",
+					"prompt",
+				)
+				assertEnumValues(t, propertySchema(t, agentSchema, "origin"), "global", "workspace")
+			},
+		},
+		{
 			name: "ShouldDescribeProviderModelCatalogAndOpenAIProjection",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()

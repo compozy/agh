@@ -24,6 +24,7 @@ export interface RuntimeSelectorTriggerProps extends Omit<ComponentProps<"div">,
   open?: boolean;
   needsAuth?: boolean;
   disabled?: boolean;
+  readOnly?: boolean;
   modelPlaceholder?: string;
   /** id of the popup dialog the segments control (announced via aria-controls). */
   popupId?: string;
@@ -57,6 +58,7 @@ export const RuntimeSelectorTrigger = forwardRef<HTMLDivElement, RuntimeSelector
       open = false,
       needsAuth = false,
       disabled = false,
+      readOnly = false,
       modelPlaceholder = "Select model",
       popupId,
       ariaLabelledby,
@@ -83,6 +85,7 @@ export const RuntimeSelectorTrigger = forwardRef<HTMLDivElement, RuntimeSelector
         key={key}
         type="button"
         disabled={disabled}
+        aria-disabled={readOnly || undefined}
         aria-label={label}
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -96,7 +99,7 @@ export const RuntimeSelectorTrigger = forwardRef<HTMLDivElement, RuntimeSelector
         )}
         onClick={event => {
           event.stopPropagation();
-          if (!disabled) onSegment?.(focus);
+          if (!disabled && !readOnly) onSegment?.(focus);
         }}
       >
         {content}
@@ -187,14 +190,14 @@ export const RuntimeSelectorTrigger = forwardRef<HTMLDivElement, RuntimeSelector
         aria-labelledby={ariaLabelledby}
         aria-label={ariaLabelledby ? undefined : summary}
         tabIndex={-1}
-        aria-disabled={disabled || undefined}
+        aria-disabled={disabled || readOnly || undefined}
         data-open={open ? "true" : "false"}
         data-variant={variant}
         className={cn(
           "inline-flex select-none items-stretch rounded-md border bg-elevated shadow-highlight transition-colors",
           variant === "small" ? "h-[30px]" : "h-[34px]",
           open ? "border-accent-dim" : "border-line-strong",
-          disabled && "cursor-not-allowed opacity-60",
+          (disabled || readOnly) && "cursor-not-allowed opacity-60",
           className
         )}
         {...props}
@@ -213,6 +216,7 @@ export const RuntimeSelectorTrigger = forwardRef<HTMLDivElement, RuntimeSelector
         <button
           type="button"
           disabled={disabled}
+          aria-disabled={readOnly || undefined}
           aria-label="Open runtime selector"
           aria-haspopup="dialog"
           aria-expanded={open}
@@ -221,7 +225,7 @@ export const RuntimeSelectorTrigger = forwardRef<HTMLDivElement, RuntimeSelector
           className={cn(SEGMENT_CLASS, "rounded-r-md px-[9px] text-faint", open && "text-fg")}
           onClick={event => {
             event.stopPropagation();
-            if (!disabled) onSegment?.(compact ? "provider" : "model");
+            if (!disabled && !readOnly) onSegment?.(compact ? "provider" : "model");
           }}
         >
           <ChevronDown

@@ -1,4 +1,4 @@
-import type { Filter, FilterFieldsConfig } from "@agh/ui/components/reui/filters";
+import type { Filter, FilterFieldsConfig } from "@agh/ui";
 
 import type { SkillPayload } from "../types";
 import { filterSkillsByQuery, skillSourceLabel } from "./skill-formatters";

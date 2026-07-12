@@ -17,10 +17,10 @@ func TestAuthoredContextOpenAPIContracts(t *testing.T) {
 			status int
 		}{
 			{path: "/api/agent/soul", method: "GET", status: 200},
-			{path: "/api/agents/{agent_name}/soul", method: "PUT", status: 200},
-			{path: "/api/agents/{agent_name}/heartbeat", method: "GET", status: 200},
-			{path: "/api/agents/{agent_name}/heartbeat/status", method: "GET", status: 200},
-			{path: "/api/agents/{agent_name}/heartbeat/wake", method: "POST", status: 200},
+			{path: "/api/agents/{name}/soul", method: "PUT", status: 200},
+			{path: "/api/agents/{name}/heartbeat", method: "GET", status: 200},
+			{path: "/api/agents/{name}/heartbeat/status", method: "GET", status: 200},
+			{path: "/api/agents/{name}/heartbeat/wake", method: "POST", status: 200},
 			{path: "/api/workspaces/{workspace_id}/sessions/{session_id}/health", method: "GET", status: 200},
 			{path: "/api/workspaces/{workspace_id}/sessions/{session_id}/status", method: "GET", status: 200},
 			{path: "/api/workspaces/{workspace_id}/sessions/{session_id}/inspect", method: "GET", status: 200},
@@ -54,18 +54,18 @@ func TestAuthoredContextOpenAPIContracts(t *testing.T) {
 		t.Parallel()
 
 		doc := authoredContextDocument(t)
-		validateSoul := operationFor(t, doc, "/api/agents/{agent_name}/soul/validate", "POST")
+		validateSoul := operationFor(t, doc, "/api/agents/{name}/soul/validate", "POST")
 		validateSoulSchema := jsonRequestSchema(t, validateSoul)
 		assertNotRequired(t, validateSoulSchema, "workspace_id", "body")
 		assertPropertyAbsent(t, validateSoulSchema, "agent_name")
 
-		putSoul := operationFor(t, doc, "/api/agents/{agent_name}/soul", "PUT")
+		putSoul := operationFor(t, doc, "/api/agents/{name}/soul", "PUT")
 		putSoulSchema := jsonRequestSchema(t, putSoul)
 		assertRequired(t, putSoulSchema, "body", "expected_digest")
 		assertNotRequired(t, putSoulSchema, "workspace_id", "idempotency_key")
 		assertPropertyAbsent(t, putSoulSchema, "agent_name")
 
-		deleteSoul := operationFor(t, doc, "/api/agents/{agent_name}/soul", "DELETE")
+		deleteSoul := operationFor(t, doc, "/api/agents/{name}/soul", "DELETE")
 		deleteSoulSchema := jsonRequestSchema(t, deleteSoul)
 		assertRequired(t, deleteSoulSchema, "expected_digest")
 		assertPropertyAbsent(t, deleteSoulSchema, "agent_name")
@@ -73,7 +73,7 @@ func TestAuthoredContextOpenAPIContracts(t *testing.T) {
 			t.Fatalf("Soul delete request schema exposed transport-specific if_match: %#v", property)
 		}
 
-		rollbackSoul := operationFor(t, doc, "/api/agents/{agent_name}/soul/rollback", "POST")
+		rollbackSoul := operationFor(t, doc, "/api/agents/{name}/soul/rollback", "POST")
 		rollbackSoulSchema := jsonRequestSchema(t, rollbackSoul)
 		assertRequired(t, rollbackSoulSchema, "revision_id", "expected_digest")
 		assertNotRequired(t, rollbackSoulSchema, "idempotency_key")
@@ -84,24 +84,24 @@ func TestAuthoredContextOpenAPIContracts(t *testing.T) {
 		t.Parallel()
 
 		doc := authoredContextDocument(t)
-		validateHeartbeat := operationFor(t, doc, "/api/agents/{agent_name}/heartbeat/validate", "POST")
+		validateHeartbeat := operationFor(t, doc, "/api/agents/{name}/heartbeat/validate", "POST")
 		validateHeartbeatSchema := jsonRequestSchema(t, validateHeartbeat)
 		assertRequired(t, validateHeartbeatSchema, "body")
 		assertNotRequired(t, validateHeartbeatSchema, "workspace_id")
 		assertPropertyAbsent(t, validateHeartbeatSchema, "agent_name")
 
-		putHeartbeat := operationFor(t, doc, "/api/agents/{agent_name}/heartbeat", "PUT")
+		putHeartbeat := operationFor(t, doc, "/api/agents/{name}/heartbeat", "PUT")
 		putHeartbeatSchema := jsonRequestSchema(t, putHeartbeat)
 		assertRequired(t, putHeartbeatSchema, "body", "expected_digest")
 		assertNotRequired(t, putHeartbeatSchema, "workspace_id", "idempotency_key")
 		assertPropertyAbsent(t, putHeartbeatSchema, "agent_name")
 
-		deleteHeartbeat := operationFor(t, doc, "/api/agents/{agent_name}/heartbeat", "DELETE")
+		deleteHeartbeat := operationFor(t, doc, "/api/agents/{name}/heartbeat", "DELETE")
 		deleteHeartbeatSchema := jsonRequestSchema(t, deleteHeartbeat)
 		assertRequired(t, deleteHeartbeatSchema, "expected_digest")
 		assertPropertyAbsent(t, deleteHeartbeatSchema, "agent_name")
 
-		rollbackHeartbeat := operationFor(t, doc, "/api/agents/{agent_name}/heartbeat/rollback", "POST")
+		rollbackHeartbeat := operationFor(t, doc, "/api/agents/{name}/heartbeat/rollback", "POST")
 		rollbackHeartbeatSchema := jsonRequestSchema(t, rollbackHeartbeat)
 		assertRequired(t, rollbackHeartbeatSchema, "expected_digest")
 		assertNotRequired(t, rollbackHeartbeatSchema, "revision_id", "target_digest")
@@ -110,7 +110,7 @@ func TestAuthoredContextOpenAPIContracts(t *testing.T) {
 			t.Fatalf("Heartbeat rollback request schema exposed transport-specific if_match: %#v", property)
 		}
 
-		wakeHeartbeat := operationFor(t, doc, "/api/agents/{agent_name}/heartbeat/wake", "POST")
+		wakeHeartbeat := operationFor(t, doc, "/api/agents/{name}/heartbeat/wake", "POST")
 		wakeHeartbeatSchema := jsonRequestSchema(t, wakeHeartbeat)
 		assertRequired(t, wakeHeartbeatSchema, "session_id", "source")
 		assertNotRequired(t, wakeHeartbeatSchema, "workspace_id", "dry_run", "idempotency_key")
@@ -207,7 +207,7 @@ func TestAuthoredContextOpenAPIContracts(t *testing.T) {
 			"session_health_unknown",
 		)
 
-		wakeOperation := operationFor(t, doc, "/api/agents/{agent_name}/heartbeat/wake", "POST")
+		wakeOperation := operationFor(t, doc, "/api/agents/{name}/heartbeat/wake", "POST")
 		wakeResponseSchema := jsonResponseSchema(t, wakeOperation, 200)
 		decisionSchema := propertySchema(t, wakeResponseSchema, "decision")
 		assertEnumValues(t, propertySchema(t, decisionSchema, "result"),
@@ -245,7 +245,7 @@ func TestAuthoredContextOpenAPIContracts(t *testing.T) {
 			method string
 		}{
 			{path: "/api/agent/soul", method: "GET"},
-			{path: "/api/agents/{agent_name}/heartbeat/status", method: "GET"},
+			{path: "/api/agents/{name}/heartbeat/status", method: "GET"},
 			{path: "/api/workspaces/{workspace_id}/sessions/{session_id}/inspect", method: "GET"},
 		} {
 			operation := operationFor(t, doc, target.path, target.method)

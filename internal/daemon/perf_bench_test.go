@@ -64,6 +64,7 @@ func BenchmarkAgentSkillSourceSyncerSyncNoop(b *testing.B) {
 		rawStore,
 		agentStore,
 		agentCodec,
+		nil,
 		skillStore,
 		skillCodec,
 		nil,

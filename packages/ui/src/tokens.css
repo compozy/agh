@@ -73,6 +73,7 @@
   --color-info: #8e8eb5;
   --color-info-tint: rgba(142, 142, 181, 0.12);
   --color-neutral: #7a7a80;
+  --color-neutral-ink: #8a8a90;
   --color-neutral-tint: rgba(150, 150, 155, 0.06);
 
   /* Surface glaze ladder — translucent white tints over the warm ramp. */
@@ -322,6 +323,7 @@
   --width-search-input-min: 220px;
   --width-filters-menu-default: 200px;
   --width-filters-menu-stack: 220px;
+  --width-settings-nav: 224px;
 
   /* Modal height ceilings — wizard / editor / tall form sheets. */
   --height-modal-md: 760px;

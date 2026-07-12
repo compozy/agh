@@ -2,7 +2,7 @@ import { ListFilter } from "lucide-react";
 import { useMemo } from "react";
 
 import { Button } from "@agh/ui";
-import { Filters, type Filter } from "@agh/ui/components/reui/filters";
+import { Filters, type Filter } from "@agh/ui";
 
 import {
   applySkillFilterChips,

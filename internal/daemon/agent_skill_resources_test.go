@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"os"
+	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
 	bundlepkg "github.com/compozy/agh/internal/bundles"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/heartbeat"
@@ -56,16 +59,19 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 	if got, want := len(listed), 2; got != want {
 		t.Fatalf("len(ListAgents()) = %d, want %d", got, want)
 	}
-	if listed[0].Name != "alpha" || listed[1].Name != "coder" {
+	if listed[0].Def.Name != "alpha" || listed[1].Def.Name != "coder" {
 		t.Fatalf("ListAgents() = %#v, want global agents sorted by name", listed)
+	}
+	if listed[0].Origin != contract.AgentOriginGlobal || listed[0].WorkspaceID != "" {
+		t.Fatalf("ListAgents()[0] origin = %#v", listed[0])
 	}
 
 	got, err := dependency.GetAgent(context.Background(), "alpha")
 	if err != nil {
 		t.Fatalf("GetAgent(alpha) error = %v", err)
 	}
-	if got.Prompt != "global alpha" {
-		t.Fatalf("GetAgent(alpha).Prompt = %q, want global alpha", got.Prompt)
+	if got.Def.Prompt != "global alpha" {
+		t.Fatalf("GetAgent(alpha).Def.Prompt = %q, want global alpha", got.Def.Prompt)
 	}
 	if _, err := dependency.GetAgent(context.Background(), "missing"); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("GetAgent(missing) error = %v, want os.ErrNotExist", err)
@@ -78,6 +84,11 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 	}
 
 	resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-1"}}
+	workspaceEntries := dependency.agentEntriesForWorkspace(resolved)
+	if len(workspaceEntries) != 2 || workspaceEntries[1].Origin != contract.AgentOriginWorkspace ||
+		workspaceEntries[1].WorkspaceID != "ws-1" {
+		t.Fatalf("workspace entries = %#v", workspaceEntries)
+	}
 	coder, err := dependency.ResolveAgent("coder", resolved)
 	if err != nil {
 		t.Fatalf("ResolveAgent(coder) error = %v", err)
@@ -92,6 +103,52 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 	if onboarding.Prompt != "global onboarding" {
 		t.Fatalf("ResolveAgent(onboarding).Prompt = %q, want global onboarding", onboarding.Prompt)
 	}
+}
+
+func TestAgentSkillSourceSyncerSerializesConvergence(t *testing.T) {
+	t.Parallel()
+	t.Run("Should serialize concurrent Sync calls into ordered convergence passes", func(t *testing.T) {
+		t.Parallel()
+
+		entered := make(chan int, 2)
+		release := make(chan struct{})
+		wantErr := errors.New("stop after provider")
+		var calls atomic.Int32
+		syncer := &agentSkillSourceSyncer{
+			providers: []agentSkillDeclarationProvider{func(context.Context) (agentSkillDesiredResources, error) {
+				call := int(calls.Add(1))
+				entered <- call
+				<-release
+				return agentSkillDesiredResources{}, wantErr
+			}},
+		}
+		firstDone := make(chan error, 1)
+		go func() {
+			firstDone <- syncer.Sync(context.Background())
+		}()
+		if call := <-entered; call != 1 {
+			t.Fatalf("first provider call = %d, want 1", call)
+		}
+		secondDone := make(chan error, 1)
+		go func() {
+			secondDone <- syncer.Sync(context.Background())
+		}()
+		select {
+		case call := <-entered:
+			t.Fatalf("provider call %d entered before the first convergence pass released", call)
+		case <-time.After(25 * time.Millisecond):
+		}
+		close(release)
+		if err := <-firstDone; !errors.Is(err, wantErr) {
+			t.Fatalf("first Sync() error = %v, want %v", err, wantErr)
+		}
+		if call := <-entered; call != 2 {
+			t.Fatalf("second provider call = %d, want 2", call)
+		}
+		if err := <-secondDone; !errors.Is(err, wantErr) {
+			t.Fatalf("second Sync() error = %v, want %v", err, wantErr)
+		}
+	})
 }
 
 func TestResourceAgentCatalogFallsBackToResolvedWorkspaceSnapshot(t *testing.T) {
@@ -432,6 +489,7 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 		rawStore,
 		agentStore,
 		agentCodec,
+		nil,
 		skillStore,
 		skillCodec,
 		nil,
@@ -506,6 +564,7 @@ func TestAgentSkillSourceSyncerSyncSkillsProjectsRegistrySynchronously(t *testin
 			rawStore,
 			agentStore,
 			agentCodec,
+			nil,
 			skillStore,
 			skillCodec,
 			newSkillProjector(registry),
@@ -569,6 +628,7 @@ func TestAgentSkillSourceSyncerRepairsLegacyManagedAgentRecordsBeforeDecode(t *t
 		rawStore,
 		agentStore,
 		agentCodec,
+		nil,
 		skillStore,
 		skillCodec,
 		nil,
@@ -682,6 +742,25 @@ func TestAppendAgentAndSkillResourcesPublishesMCPAttachments(t *testing.T) {
 	if desired.mcpServers[0].spec.Name != "agent-mcp" || desired.mcpServers[1].spec.Name != "skill-mcp" {
 		t.Fatalf("mcpServers = %#v, want agent and skill MCP attachments", desired.mcpServers)
 	}
+}
+
+func TestAgentDefinitionSyncRuntimeWiring(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should inject the boot publisher into both server transports", func(t *testing.T) {
+		t.Parallel()
+
+		_, httpDeps, udsDeps := bootModelCatalogTestDaemon(t, nil)
+		if httpDeps.AgentDefinitionSync == nil {
+			t.Fatal("HTTP RuntimeDeps AgentDefinitionSync = nil, want boot publisher")
+		}
+		if udsDeps.AgentDefinitionSync == nil {
+			t.Fatal("UDS RuntimeDeps AgentDefinitionSync = nil, want boot publisher")
+		}
+		if httpDeps.AgentDefinitionSync != udsDeps.AgentDefinitionSync {
+			t.Fatal("HTTP and UDS received different agent definition sync publishers")
+		}
+	})
 }
 
 func agentSkillSyncStores(

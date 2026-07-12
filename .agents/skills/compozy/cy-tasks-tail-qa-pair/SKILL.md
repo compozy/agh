@@ -1,12 +1,12 @@
 ---
 name: cy-tasks-tail-qa-pair
-description: Appends a qa-report planning task and a qa-execution task at the end of every cy-create-tasks output, wired to the living docs/qa contract (state.csv, journeys, charters, bug registry, dated reports). Adds e2e coverage (Playwright or browser-use) for UI-bearing features. Use after cy-create-tasks finishes generating _tasks.md and the file lacks the trailing QA pair. Do not use for tasks generated outside the Compozy PRD pipeline, for ideation/brainstorming output, or for review-round task lists.
+description: Appends a qa-report planning task and a qa-execution task at the end of every cy-create-tasks output, wired to the living docs/qa contract (scenario files, journeys, charters, bug registry, dated reports). Adds e2e coverage (Playwright or browser-use) for UI-bearing features. Use after cy-create-tasks finishes generating _tasks.md and the file lacks the trailing QA pair. Do not use for tasks generated outside the Compozy PRD pipeline, for ideation/brainstorming output, or for review-round task lists.
 trigger: explicit
 ---
 
 # Tasks Tail QA Pair
 
-Auto-append the canonical QA pair (`$qa-report` + `$qa-execution`) to every `_tasks.md` produced by `cy-create-tasks`, so the implementation agent always closes a program with a real verification pass. The pair operates on the repo's living QA tree (`docs/qa/`) — plans become journeys/charters/scenario rows, results become registry bugs and dated reports.
+Auto-append the canonical QA pair (`$qa-report` + `$qa-execution`) to every `_tasks.md` produced by `cy-create-tasks`, so the implementation agent always closes a program with a real verification pass. The pair operates on the repo's living QA tree (`docs/qa/`) — plans become journeys/charters/scenario files, results become registry bugs and dated reports.
 
 ## Procedures
 

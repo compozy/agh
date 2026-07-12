@@ -1,29 +1,83 @@
 import { Outlet, createFileRoute, useChildMatches } from "@tanstack/react-router";
 import { AlertCircle, Compass, User2 } from "lucide-react";
 
-import { Button, Empty, Spinner, useTopbarSlot } from "@agh/ui";
+import {
+  Button,
+  Empty,
+  LaneTabs,
+  Skeleton,
+  TabsContent,
+  useTopbarSlot,
+  type LaneTabsItem,
+} from "@agh/ui";
 
 import { useAgentDetailPage } from "@/hooks/routes/use-agent-detail-page";
 import {
-  AgentInfoInspector,
+  AgentConfigurationTab,
+  AgentDiagnosticsBanner,
+  AgentInstructionsTab,
+  AgentOverviewTab,
   AgentPageActions,
+  AgentPageMeta,
   AgentPageStatusPill,
-  AgentSessionsList,
-  AgentStatsGrid,
+  AgentSessionsTab,
+  useAgentInstructionsTab,
+  validateAgentDetailSearch,
+  type AgentDetailTab,
+  type AgentInstructionFile,
+  type AgentPayload,
 } from "@/systems/agent";
+import type { SessionPayload } from "@/systems/session";
+import { useActiveWorkspace } from "@/systems/workspace";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { preloadAgentDetailRoute } from "./-app-preload";
 
 export const Route = createFileRoute("/_app/agents/$name")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
-    topbar: { title: params.name, icon: User2 },
+    topbar: {
+      title: params.name,
+      icon: User2,
+    },
   }),
+  validateSearch: validateAgentDetailSearch,
   loader: ({ context, location, params }) =>
     location.pathname.split("/").filter(Boolean).length === 2
       ? preloadAgentDetailRoute(context.queryClient, params.name)
       : Promise.resolve(),
   component: AgentDetailPage,
 });
+
+interface AgentInstructionsSectionProps {
+  agent: AgentPayload;
+  file: AgentInstructionFile;
+  onFileChange: (file: AgentInstructionFile) => void;
+  onEditAgentPrompt: () => void;
+  workspaceId: string | null;
+  sessions: SessionPayload[];
+  onNewSession: () => void;
+}
+
+function AgentInstructionsSection({
+  agent,
+  file,
+  onFileChange,
+  onEditAgentPrompt,
+  workspaceId,
+  sessions,
+  onNewSession,
+}: AgentInstructionsSectionProps) {
+  const viewModel = useAgentInstructionsTab({ agent, file, workspaceId, sessions });
+  return (
+    <AgentInstructionsTab
+      agent={agent}
+      file={file}
+      onFileChange={onFileChange}
+      onEditAgentPrompt={onEditAgentPrompt}
+      viewModel={viewModel}
+      onNewSession={onNewSession}
+    />
+  );
+}
 
 function AgentDetailPage() {
   const { name } = Route.useParams();
@@ -42,18 +96,41 @@ interface AgentDetailContentProps {
 }
 
 function AgentDetailContent({ name }: AgentDetailContentProps) {
-  const page = useAgentDetailPage(name);
+  const rawSearch = Route.useSearch();
+  const page = useAgentDetailPage(name, rawSearch);
+  const search = page.search;
+  const { activeWorkspaceId } = useActiveWorkspace();
+
+  const tabItems: LaneTabsItem<AgentDetailTab>[] = [
+    { value: "overview", label: "Overview", testId: "agent-tab-overview" },
+    { value: "instructions", label: "Instructions", testId: "agent-tab-instructions" },
+    { value: "configuration", label: "Configuration", testId: "agent-tab-configuration" },
+    {
+      value: "sessions",
+      label: "Sessions",
+      count: page.sessionsTotal,
+      liveLabel: page.activeSessionsTotal > 0 ? "Live" : undefined,
+      testId: "agent-tab-sessions",
+    },
+  ];
 
   useTopbarSlot({
-    count: page.sessionsTotal,
-    tabs: page.agent ? <AgentPageStatusPill activeCount={page.activeSessionsTotal} /> : undefined,
+    back: page.onBackToAgents,
+    backLabel: "Agents",
+    tabs: page.agent ? (
+      <div className="flex min-w-0 items-center gap-2">
+        {!page.sessionsLoading && !page.sessionsError ? (
+          <AgentPageStatusPill activeCount={page.activeSessionsTotal} />
+        ) : null}
+        <AgentPageMeta agent={page.agent} />
+      </div>
+    ) : undefined,
     actions: page.agent ? (
       <AgentPageActions
-        agent={page.agent}
-        isRefreshing={page.isRefreshing}
-        onRefresh={page.onRefresh}
-        onConfigure={page.onConfigure}
+        onEditSettings={() => page.onEditSettings()}
         onNewSession={page.onNewSession}
+        onDuplicate={page.onDuplicate}
+        onDelete={page.onDelete}
         isCreatingSession={page.isCreatingForAgent}
         newSessionDisabled={page.newSessionDisabled}
       />
@@ -62,8 +139,17 @@ function AgentDetailContent({ name }: AgentDetailContentProps) {
 
   if (page.agentLoading) {
     return (
-      <div className="flex flex-1 items-center justify-center" data-testid="agent-detail-loading">
-        <Spinner className="size-5 text-subtle" />
+      <div
+        className="flex min-h-0 flex-1 flex-col gap-4 px-6 py-5"
+        data-testid="agent-detail-loading"
+      >
+        <Skeleton className="h-10 w-64" />
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <Skeleton key={index} className="h-20 rounded-md" />
+          ))}
+        </div>
+        <Skeleton className="h-48 rounded-md" />
       </div>
     );
   }
@@ -82,11 +168,11 @@ function AgentDetailContent({ name }: AgentDetailContentProps) {
               type="button"
               variant="ghost"
               size="sm"
-              onClick={page.onGoHome}
-              data-testid="agent-detail-go-home"
+              onClick={page.onBackToAgents}
+              data-testid="agent-detail-back-agents"
             >
               <Compass className="size-3" />
-              Go home
+              Back to agents
             </Button>
           }
           data-testid="agent-detail-not-found"
@@ -95,37 +181,83 @@ function AgentDetailContent({ name }: AgentDetailContentProps) {
     );
   }
 
-  const hasResolvedSessions = !page.sessionsLoading && !page.sessionsError;
-
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden" data-testid="agent-detail-page">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+    <div
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+      data-testid="agent-detail-page"
+    >
+      {page.deleteDialog}
+      <LaneTabs
+        ariaLabel="Agent detail panels"
+        className="min-h-0 flex-1 gap-0"
+        items={tabItems}
+        listClassName="w-full px-6"
+        onChange={page.setTab}
+        value={search.tab}
+        data-testid="agent-detail-tabs"
+      >
         <div
-          className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-5"
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-5"
           data-testid="agent-detail-body"
         >
-          {hasResolvedSessions ? (
-            <div className="flex flex-col gap-3" data-testid="agent-session-summary">
-              <AgentStatsGrid
-                total={page.sessionsTotal}
-                active={page.activeSessionsTotal}
-                resumable={page.resumableSessionsTotal}
-                lastActivityAt={page.lastSessionActivityAt}
-              />
-            </div>
+          {page.agent.diagnostics && page.agent.diagnostics.length > 0 ? (
+            <AgentDiagnosticsBanner diagnostics={page.agent.diagnostics} />
           ) : null}
-          <AgentSessionsList
-            agentName={name}
-            sessions={page.sessions}
-            isLoading={page.sessionsLoading}
-            isError={page.sessionsError}
-            hasMore={page.hasMoreSessions}
-            isLoadingMore={page.isLoadingMoreSessions}
-            onLoadMore={page.onLoadMoreSessions}
-          />
+
+          <TabsContent value="overview" className="flex flex-col gap-6">
+            <AgentOverviewTab
+              agent={page.agent}
+              sessions={page.sessions}
+              sessionsTotal={page.sessionsTotal}
+              activeSessionsTotal={page.activeSessionsTotal}
+              resumableSessionsTotal={page.resumableSessionsTotal}
+              lastSessionActivityAt={page.lastSessionActivityAt}
+              sessionsLoading={page.sessionsLoading}
+              sessionsError={page.sessionsError}
+              onViewAllSessions={() => page.setTab("sessions")}
+            />
+          </TabsContent>
+
+          <TabsContent value="instructions" className="flex flex-col gap-6">
+            <AgentInstructionsSection
+              agent={page.agent}
+              file={search.file}
+              onFileChange={page.setFile}
+              onEditAgentPrompt={() => page.onEditSettings("instructions")}
+              workspaceId={activeWorkspaceId}
+              sessions={page.sessions}
+              onNewSession={page.onNewSession}
+            />
+          </TabsContent>
+
+          <TabsContent value="configuration" className="flex flex-col gap-6">
+            <AgentConfigurationTab
+              agent={page.agent}
+              onEditSection={section => page.onEditSettings(section)}
+            />
+          </TabsContent>
+
+          <TabsContent value="sessions" className="flex flex-col gap-6">
+            <AgentSessionsTab
+              agentName={name}
+              sessions={page.sessions}
+              total={page.sessionsTotal}
+              active={page.activeSessionsTotal}
+              resumable={page.resumableSessionsTotal}
+              lastActivityAt={page.lastSessionActivityAt}
+              isLoading={page.sessionsLoading}
+              isError={page.sessionsError}
+              hasMore={page.hasMoreSessions}
+              isLoadingMore={page.isLoadingMoreSessions}
+              onLoadMore={page.onLoadMoreSessions}
+              filter={search.filter}
+              onFilterChange={page.setFilter}
+              onNewSession={page.onNewSession}
+              onClearFilter={() => page.setFilter("all")}
+            />
+          </TabsContent>
         </div>
-      </div>
-      <AgentInfoInspector agent={page.agent} />
+      </LaneTabs>
     </div>
   );
 }

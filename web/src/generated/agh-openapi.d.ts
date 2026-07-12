@@ -277,7 +277,60 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/agents/{agent_name}/heartbeat": {
+  "/api/agents/catalog": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List a filtered workspace agent fleet with exact session totals */
+    get: operations["listAgentCatalog"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{name}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one agent definition by name, optionally resolved for a workspace */
+    get: operations["getAgent"];
+    /** Replace one effective AGENT.md definition with digest CAS */
+    put: operations["updateAgent"];
+    post?: never;
+    /** Durably delete one effective authored agent definition */
+    delete: operations["deleteAgent"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{name}/duplicate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Duplicate one effective authored agent definition server-side */
+    post: operations["duplicateAgent"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{name}/heartbeat": {
     parameters: {
       query?: never;
       header?: never;
@@ -296,7 +349,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/agents/{agent_name}/heartbeat/history": {
+  "/api/agents/{name}/heartbeat/history": {
     parameters: {
       query?: never;
       header?: never;
@@ -313,7 +366,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/agents/{agent_name}/heartbeat/rollback": {
+  "/api/agents/{name}/heartbeat/rollback": {
     parameters: {
       query?: never;
       header?: never;
@@ -330,7 +383,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/agents/{agent_name}/heartbeat/status": {
+  "/api/agents/{name}/heartbeat/status": {
     parameters: {
       query?: never;
       header?: never;
@@ -347,7 +400,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/agents/{agent_name}/heartbeat/validate": {
+  "/api/agents/{name}/heartbeat/validate": {
     parameters: {
       query?: never;
       header?: never;
@@ -364,7 +417,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/agents/{agent_name}/heartbeat/wake": {
+  "/api/agents/{name}/heartbeat/wake": {
     parameters: {
       query?: never;
       header?: never;
@@ -381,7 +434,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/agents/{agent_name}/soul": {
+  "/api/agents/{name}/soul": {
     parameters: {
       query?: never;
       header?: never;
@@ -400,7 +453,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/agents/{agent_name}/soul/history": {
+  "/api/agents/{name}/soul/history": {
     parameters: {
       query?: never;
       header?: never;
@@ -417,7 +470,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/agents/{agent_name}/soul/rollback": {
+  "/api/agents/{name}/soul/rollback": {
     parameters: {
       query?: never;
       header?: never;
@@ -434,7 +487,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/agents/{agent_name}/soul/validate": {
+  "/api/agents/{name}/soul/validate": {
     parameters: {
       query?: never;
       header?: never;
@@ -445,23 +498,6 @@ export interface paths {
     put?: never;
     /** Validate a proposed Soul body for an agent definition */
     post: operations["validateAgentDefinitionSoul"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/agents/{name}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get one agent definition by name, optionally resolved for a workspace */
-    get: operations["getAgent"];
-    put?: never;
-    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -9222,6 +9258,7 @@ export interface operations {
             agents: {
               category_path?: string[];
               command?: string;
+              definition_digest: string;
               deny_tools?: string[];
               diagnostics?: {
                 error_kind: string;
@@ -9254,13 +9291,19 @@ export interface operations {
               }[];
               model?: string;
               name: string;
+              /** @enum {string} */
+              origin: "global" | "workspace";
               permissions?: string;
               prompt: string;
               provider: string;
               /** @enum {string} */
               reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              skills?: {
+                disabled?: string[];
+              } | null;
               tools?: string[];
               toolsets?: string[];
+              workspace_id?: string;
             }[];
           };
         };
@@ -9338,6 +9381,7 @@ export interface operations {
             agent: {
               category_path?: string[];
               command?: string;
+              definition_digest: string;
               deny_tools?: string[];
               diagnostics?: {
                 error_kind: string;
@@ -9370,13 +9414,19 @@ export interface operations {
               }[];
               model?: string;
               name: string;
+              /** @enum {string} */
+              origin: "global" | "workspace";
               permissions?: string;
               prompt: string;
               provider: string;
               /** @enum {string} */
               reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              skills?: {
+                disabled?: string[];
+              } | null;
               tools?: string[];
               toolsets?: string[];
+              workspace_id?: string;
             };
           };
         };
@@ -9533,6 +9583,994 @@ export interface operations {
       };
     };
   };
+  listAgentCatalog: {
+    parameters: {
+      query: {
+        /** @description Workspace id, name, or path */
+        workspace: string;
+        /** @description Case-insensitive agent name or category search */
+        q?: string;
+        /** @description Exact category path joined by slash separators */
+        category?: string;
+        /** @description Agent session status */
+        status?: "active" | "idle";
+        /** @description Opaque cursor bound to workspace and filters */
+        cursor?: string;
+        /** @description Agents per page (1-100; default 50) */
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            agents: {
+              agent: {
+                category_path?: string[];
+                command?: string;
+                definition_digest: string;
+                deny_tools?: string[];
+                diagnostics?: {
+                  error_kind: string;
+                  message: string;
+                  path: string;
+                }[];
+                mcp_servers?: {
+                  args?: string[];
+                  auth?: {
+                    authorization_url?: string;
+                    client_id?: string;
+                    client_secret_ref?: string;
+                    issuer_url?: string;
+                    metadata_url?: string;
+                    revocation_url?: string;
+                    scopes?: string[];
+                    token_url?: string;
+                    type?: string;
+                  } | null;
+                  command?: string;
+                  env?: {
+                    [key: string]: string;
+                  };
+                  name: string;
+                  secret_env?: {
+                    [key: string]: string;
+                  };
+                  transport?: string;
+                  url?: string;
+                }[];
+                model?: string;
+                name: string;
+                /** @enum {string} */
+                origin: "global" | "workspace";
+                permissions?: string;
+                prompt: string;
+                provider: string;
+                /** @enum {string} */
+                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                skills?: {
+                  disabled?: string[];
+                } | null;
+                tools?: string[];
+                toolsets?: string[];
+                workspace_id?: string;
+              };
+              sessions?: {
+                active: number;
+                total: number;
+              } | null;
+            }[];
+            facets: {
+              active: number;
+              categories: string[];
+              idle: number;
+              total: number;
+            };
+            page: {
+              has_more: boolean;
+              limit: number;
+              next_cursor?: string;
+              total: number;
+            };
+            sessions_available: boolean;
+          };
+        };
+      };
+      /** @description Invalid filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace root missing */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace resolver unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  getAgent: {
+    parameters: {
+      query?: {
+        /** @description Workspace id, name, or path used to resolve a workspace-local agent */
+        workspace?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            agent: {
+              category_path?: string[];
+              command?: string;
+              definition_digest: string;
+              deny_tools?: string[];
+              diagnostics?: {
+                error_kind: string;
+                message: string;
+                path: string;
+              }[];
+              mcp_servers?: {
+                args?: string[];
+                auth?: {
+                  authorization_url?: string;
+                  client_id?: string;
+                  client_secret_ref?: string;
+                  issuer_url?: string;
+                  metadata_url?: string;
+                  revocation_url?: string;
+                  scopes?: string[];
+                  token_url?: string;
+                  type?: string;
+                } | null;
+                command?: string;
+                env?: {
+                  [key: string]: string;
+                };
+                name: string;
+                secret_env?: {
+                  [key: string]: string;
+                };
+                transport?: string;
+                url?: string;
+              }[];
+              model?: string;
+              name: string;
+              /** @enum {string} */
+              origin: "global" | "workspace";
+              permissions?: string;
+              prompt: string;
+              provider: string;
+              /** @enum {string} */
+              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              skills?: {
+                disabled?: string[];
+              } | null;
+              tools?: string[];
+              toolsets?: string[];
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Agent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  updateAgent: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent: {
+            category_path?: string[];
+            command?: string;
+            deny_tools?: string[];
+            model?: string;
+            name: string;
+            /** @enum {string} */
+            permissions?: "deny-all" | "approve-reads" | "approve-all";
+            prompt: string;
+            provider: string;
+            /** @enum {string} */
+            reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+            skills?: {
+              disabled?: string[];
+            } | null;
+            tools?: string[];
+            toolsets?: string[];
+          };
+          expected_digest: string;
+          workspace?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            agent: {
+              category_path?: string[];
+              command?: string;
+              definition_digest: string;
+              deny_tools?: string[];
+              diagnostics?: {
+                error_kind: string;
+                message: string;
+                path: string;
+              }[];
+              mcp_servers?: {
+                args?: string[];
+                auth?: {
+                  authorization_url?: string;
+                  client_id?: string;
+                  client_secret_ref?: string;
+                  issuer_url?: string;
+                  metadata_url?: string;
+                  revocation_url?: string;
+                  scopes?: string[];
+                  token_url?: string;
+                  type?: string;
+                } | null;
+                command?: string;
+                env?: {
+                  [key: string]: string;
+                };
+                name: string;
+                secret_env?: {
+                  [key: string]: string;
+                };
+                transport?: string;
+                url?: string;
+              }[];
+              model?: string;
+              name: string;
+              /** @enum {string} */
+              origin: "global" | "workspace";
+              permissions?: string;
+              prompt: string;
+              provider: string;
+              /** @enum {string} */
+              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              skills?: {
+                disabled?: string[];
+              } | null;
+              tools?: string[];
+              toolsets?: string[];
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid agent definition request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Agent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Agent definition digest conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace root missing */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace resolver or definition sync unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  deleteAgent: {
+    parameters: {
+      query?: {
+        /** @description Workspace id, name, or path used to resolve the effective definition */
+        workspace?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            name: string;
+            /** @enum {string} */
+            origin: "global" | "workspace";
+            /** @enum {string} */
+            unshadowed_origin?: "global" | "workspace";
+          };
+        };
+      };
+      /** @description Agent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace root missing */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace resolver or definition sync unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  duplicateAgent: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Source agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          name: string;
+          overrides?: {
+            category_path?: string[];
+            command?: string;
+            deny_tools?: string[];
+            model?: string;
+            /** @enum {string} */
+            permissions?: "deny-all" | "approve-reads" | "approve-all";
+            prompt?: string;
+            provider?: string;
+            /** @enum {string} */
+            reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+            skills?: {
+              disabled?: string[];
+            } | null;
+            tools?: string[];
+            toolsets?: string[];
+          } | null;
+          /** @enum {string} */
+          scope?: "workspace" | "global";
+          workspace?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            agent: {
+              category_path?: string[];
+              command?: string;
+              definition_digest: string;
+              deny_tools?: string[];
+              diagnostics?: {
+                error_kind: string;
+                message: string;
+                path: string;
+              }[];
+              mcp_servers?: {
+                args?: string[];
+                auth?: {
+                  authorization_url?: string;
+                  client_id?: string;
+                  client_secret_ref?: string;
+                  issuer_url?: string;
+                  metadata_url?: string;
+                  revocation_url?: string;
+                  scopes?: string[];
+                  token_url?: string;
+                  type?: string;
+                } | null;
+                command?: string;
+                env?: {
+                  [key: string]: string;
+                };
+                name: string;
+                secret_env?: {
+                  [key: string]: string;
+                };
+                transport?: string;
+                url?: string;
+              }[];
+              model?: string;
+              name: string;
+              /** @enum {string} */
+              origin: "global" | "workspace";
+              permissions?: string;
+              prompt: string;
+              provider: string;
+              /** @enum {string} */
+              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              skills?: {
+                disabled?: string[];
+              } | null;
+              tools?: string[];
+              toolsets?: string[];
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid duplicate agent request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Agent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Target agent definition already exists */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace root missing */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace resolver or definition sync unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   getAgentHeartbeat: {
     parameters: {
       query?: {
@@ -9542,7 +10580,7 @@ export interface operations {
       header?: never;
       path: {
         /** @description Agent name */
-        agent_name: string;
+        name: string;
       };
       cookie?: never;
     };
@@ -9923,7 +10961,7 @@ export interface operations {
       header?: never;
       path: {
         /** @description Agent name */
-        agent_name: string;
+        name: string;
       };
       cookie?: never;
     };
@@ -10358,7 +11396,7 @@ export interface operations {
       header?: never;
       path: {
         /** @description Agent name */
-        agent_name: string;
+        name: string;
       };
       cookie?: never;
     };
@@ -10677,7 +11715,7 @@ export interface operations {
       header?: never;
       path: {
         /** @description Agent name */
-        agent_name: string;
+        name: string;
       };
       cookie?: never;
     };
@@ -10819,7 +11857,7 @@ export interface operations {
       header?: never;
       path: {
         /** @description Agent name */
-        agent_name: string;
+        name: string;
       };
       cookie?: never;
     };
@@ -11264,7 +12302,7 @@ export interface operations {
       header?: never;
       path: {
         /** @description Agent name */
-        agent_name: string;
+        name: string;
       };
       cookie?: never;
     };
@@ -11522,7 +12560,7 @@ export interface operations {
       header?: never;
       path: {
         /** @description Agent name */
-        agent_name: string;
+        name: string;
       };
       cookie?: never;
     };
@@ -11911,7 +12949,7 @@ export interface operations {
       header?: never;
       path: {
         /** @description Agent name */
-        agent_name: string;
+        name: string;
       };
       cookie?: never;
     };
@@ -12136,7 +13174,7 @@ export interface operations {
       header?: never;
       path: {
         /** @description Agent name */
-        agent_name: string;
+        name: string;
       };
       cookie?: never;
     };
@@ -12314,7 +13352,7 @@ export interface operations {
       header?: never;
       path: {
         /** @description Agent name */
-        agent_name: string;
+        name: string;
       };
       cookie?: never;
     };
@@ -12599,7 +13637,7 @@ export interface operations {
       header?: never;
       path: {
         /** @description Agent name */
-        agent_name: string;
+        name: string;
       };
       cookie?: never;
     };
@@ -12850,7 +13888,7 @@ export interface operations {
       header?: never;
       path: {
         /** @description Agent name */
-        agent_name: string;
+        name: string;
       };
       cookie?: never;
     };
@@ -13006,7 +14044,7 @@ export interface operations {
       header?: never;
       path: {
         /** @description Agent name */
-        agent_name: string;
+        name: string;
       };
       cookie?: never;
     };
@@ -13291,7 +14329,7 @@ export interface operations {
       header?: never;
       path: {
         /** @description Agent name */
-        agent_name: string;
+        name: string;
       };
       cookie?: never;
     };
@@ -13480,126 +14518,6 @@ export interface operations {
             valid: boolean;
             /** @enum {string} */
             validation_status: "missing" | "inactive" | "valid" | "invalid";
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-    };
-  };
-  getAgent: {
-    parameters: {
-      query?: {
-        /** @description Workspace id, name, or path used to resolve a workspace-local agent */
-        workspace?: string;
-      };
-      header?: never;
-      path: {
-        /** @description Agent name */
-        name: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            agent: {
-              category_path?: string[];
-              command?: string;
-              deny_tools?: string[];
-              diagnostics?: {
-                error_kind: string;
-                message: string;
-                path: string;
-              }[];
-              mcp_servers?: {
-                args?: string[];
-                auth?: {
-                  authorization_url?: string;
-                  client_id?: string;
-                  client_secret_ref?: string;
-                  issuer_url?: string;
-                  metadata_url?: string;
-                  revocation_url?: string;
-                  scopes?: string[];
-                  token_url?: string;
-                  type?: string;
-                } | null;
-                command?: string;
-                env?: {
-                  [key: string]: string;
-                };
-                name: string;
-                secret_env?: {
-                  [key: string]: string;
-                };
-                transport?: string;
-                url?: string;
-              }[];
-              model?: string;
-              name: string;
-              permissions?: string;
-              prompt: string;
-              provider: string;
-              /** @enum {string} */
-              reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
-              tools?: string[];
-              toolsets?: string[];
-            };
-          };
-        };
-      };
-      /** @description Agent not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
           };
         };
       };
@@ -61751,6 +62669,7 @@ export interface operations {
             agents?: {
               category_path?: string[];
               command?: string;
+              definition_digest: string;
               deny_tools?: string[];
               diagnostics?: {
                 error_kind: string;
@@ -61783,13 +62702,19 @@ export interface operations {
               }[];
               model?: string;
               name: string;
+              /** @enum {string} */
+              origin: "global" | "workspace";
               permissions?: string;
               prompt: string;
               provider: string;
               /** @enum {string} */
               reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              skills?: {
+                disabled?: string[];
+              } | null;
               tools?: string[];
               toolsets?: string[];
+              workspace_id?: string;
             }[];
             providers?: {
               auth_mode?: string;

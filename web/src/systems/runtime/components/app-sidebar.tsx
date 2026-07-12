@@ -12,22 +12,21 @@ import {
   Repeat2,
   Server,
   Settings,
+  Users2,
   Waypoints,
   Wrench,
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 
-import { Button, Logo, Sidebar, SidebarSectionLabel, cn } from "@agh/ui";
+import { Logo, Sidebar, SidebarSectionLabel, cn } from "@agh/ui";
 
 import {
   ACTIVE_NAV_INDICATOR_CLASS,
   ACTIVE_NAV_ROW_CLASS,
   NAV_ROW_CLASS,
 } from "@/components/sidebar-nav-classes";
-import { AgentCategoryTree, type AgentPayload } from "@/systems/agent";
-import { isSessionRunning, type SessionPayload } from "@/systems/session";
 import {
   splitHomeWorkspace,
   useUserHomeDir,
@@ -37,7 +36,11 @@ import {
 
 import { RuntimeConnectionIndicator } from "./connection-indicator";
 import { RestartDaemonButton } from "./restart-daemon-button";
-import { computeAgentsCount } from "./app-sidebar-counts";
+
+export interface AgentsCount {
+  live: number;
+  total: number;
+}
 
 interface RailSlotProps {
   workspaces: WorkspacePayload[] | undefined;
@@ -139,9 +142,10 @@ interface NavItemProps {
   icon: LucideIcon;
   label: string;
   fuzzy?: boolean;
+  badge?: ReactNode;
 }
 
-function NavItem({ to, icon: Icon, label, fuzzy }: NavItemProps) {
+function NavItem({ to, icon: Icon, label, fuzzy, badge }: NavItemProps) {
   const matchRoute = useMatchRoute();
   const isActive = Boolean(matchRoute({ to, fuzzy }));
   const testKey = label.toLowerCase();
@@ -162,6 +166,7 @@ function NavItem({ to, icon: Icon, label, fuzzy }: NavItemProps) {
       )}
       <Icon aria-hidden="true" className="size-3 shrink-0" />
       <span className="truncate">{label}</span>
+      {badge ? <span className="ml-auto shrink-0">{badge}</span> : null}
     </Link>
   );
 }
@@ -173,6 +178,7 @@ const DASHBOARD_NAV_ITEM: NavItemProps = {
 };
 
 const OPERATE_NAV_ITEMS: NavItemProps[] = [
+  { to: "/agents", icon: Users2, label: "Agents", fuzzy: true },
   { to: "/network", icon: Network, label: "Network" },
   { to: "/tasks", icon: ListChecks, label: "Tasks", fuzzy: true },
   { to: "/loops", icon: Repeat2, label: "Loops", fuzzy: true },
@@ -193,25 +199,22 @@ const SYSTEM_NAV_ITEMS: NavItemProps[] = [
   { to: "/settings", icon: Settings, label: "Settings", fuzzy: true },
 ];
 
-function countActiveSessions(sessions: SessionPayload[] | undefined): number {
-  if (!sessions) return 0;
-  let count = 0;
-  for (const session of sessions) {
-    if (isSessionRunning(session)) count += 1;
-  }
-  return count;
-}
-
 interface NavSlotProps {
-  agents: AgentPayload[] | undefined;
-  agentsLoading: boolean;
-  agentsError: boolean;
-  sessions: SessionPayload[] | undefined;
-  onAddAgent: () => void;
+  agentsCount: AgentsCount | undefined;
 }
 
-function NavSlot({ agents, agentsLoading, agentsError, sessions, onAddAgent }: NavSlotProps) {
-  const agentsCount = computeAgentsCount(agents, sessions);
+function NavSlot({ agentsCount }: NavSlotProps) {
+  const agentsBadge =
+    agentsCount && agentsCount.total > 0 ? (
+      <span className="tabular-nums text-subtle" data-testid="agents-live-count">
+        {agentsCount.live}/{agentsCount.total}
+      </span>
+    ) : null;
+
+  const operateItems = OPERATE_NAV_ITEMS.map(item =>
+    item.to === "/agents" ? { ...item, badge: agentsBadge } : item
+  );
+
   return (
     <div data-testid="sidebar-nav" className="flex flex-col gap-1 px-2 py-3">
       <NavItem
@@ -220,36 +223,8 @@ function NavSlot({ agents, agentsLoading, agentsError, sessions, onAddAgent }: N
         label={DASHBOARD_NAV_ITEM.label}
       />
 
-      <SectionLabel className="mt-4">
-        <span>Agents</span>
-        <span className="ml-auto flex items-center gap-1.5">
-          {agentsCount.total > 0 ? (
-            <span className="tabular-nums text-subtle" data-testid="agents-live-count">
-              {agentsCount.live}/{agentsCount.total} live
-            </span>
-          ) : null}
-          <Button
-            aria-label="Create agent"
-            className="-mr-1 text-muted hover:text-fg"
-            data-testid="sidebar-create-agent"
-            onClick={onAddAgent}
-            size="icon-xs"
-            type="button"
-            variant="ghost"
-          >
-            <Plus aria-hidden="true" className="size-3" />
-          </Button>
-        </span>
-      </SectionLabel>
-      <AgentCategoryTree
-        agents={agents}
-        agentsLoading={agentsLoading}
-        agentsError={agentsError}
-        sessions={sessions}
-      />
-
       <SectionLabel className="mt-4">Operate</SectionLabel>
-      <NavGroup items={OPERATE_NAV_ITEMS} />
+      <NavGroup items={operateItems} />
 
       <SectionLabel className="mt-4">Catalog</SectionLabel>
       <NavGroup items={CATALOG_NAV_ITEMS} />
@@ -270,6 +245,7 @@ function NavGroup({ items }: { items: NavItemProps[] }) {
           icon={item.icon}
           label={item.label}
           fuzzy={item.fuzzy}
+          badge={item.badge}
         />
       ))}
     </div>
@@ -305,11 +281,8 @@ export interface AppSidebarProps {
   activeWorkspace: WorkspacePayload | undefined;
   onSelectWorkspace: (id: string) => void;
   onAddWorkspace: () => void;
-  onAddAgent: () => void;
-  agents: AgentPayload[] | undefined;
-  agentsLoading: boolean;
-  agentsError: boolean;
-  sessions: SessionPayload[] | undefined;
+  agentsCount: AgentsCount | undefined;
+  activeSessionCount: number;
   className?: string;
 }
 
@@ -320,14 +293,10 @@ function AppSidebar({
   activeWorkspaceId,
   onSelectWorkspace,
   onAddWorkspace,
-  onAddAgent,
-  agents,
-  agentsLoading,
-  agentsError,
-  sessions,
+  agentsCount,
+  activeSessionCount,
   className,
 }: AppSidebarProps) {
-  const activeSessionCount = countActiveSessions(sessions);
   const rail = useMemo(
     () => (
       <RailSlot
@@ -350,18 +319,7 @@ function AppSidebar({
     ),
     [activeWorkspaceId, onAddWorkspace, onSelectWorkspace, workspaces]
   );
-  const nav = useMemo(
-    () => (
-      <NavSlot
-        agents={agents}
-        agentsLoading={agentsLoading}
-        agentsError={agentsError}
-        sessions={sessions}
-        onAddAgent={onAddAgent}
-      />
-    ),
-    [agents, agentsError, agentsLoading, onAddAgent, sessions]
-  );
+  const nav = useMemo(() => <NavSlot agentsCount={agentsCount} />, [agentsCount]);
   const footer = useMemo(
     () => <FooterSlot activeSessionCount={activeSessionCount} />,
     [activeSessionCount]

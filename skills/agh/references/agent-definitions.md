@@ -7,6 +7,8 @@
 - Fields
 - Tool grants
 - Providers and MCP
+- Fleet reads
+- Lifecycle reads and mutations
 - Setup workflow
 - Provider aliases and settings apply
 
@@ -15,6 +17,8 @@
 AGH agent definitions live in AGENT.md files with YAML frontmatter and a Markdown prompt body. Global agents live under $AGH_HOME/agents/<name>/AGENT.md; workspace agents live under <workspace>/.agh/agents/<name>/AGENT.md.
 
 Runtime configuration starts from $AGH_HOME/config.toml, then workspace configuration can overlay it with <workspace>/.agh/config.toml. Agent-local skills and MCP sidecars are resolved after the effective agent definition is chosen.
+
+Workspace definitions shadow same-name global definitions; AGH never merges them. Structured reads expose `origin`, `workspace_id`, `skills`, and `definition_digest`, so use the daemon result instead of guessing precedence from paths.
 
 ## Minimal AGENT.md
 
@@ -70,6 +74,30 @@ Built-in provider names include claude, codex, gemini, opencode, copilot, cursor
 Agent `model` and `reasoning_effort` values are applied through active ACP `configOptions` before the first prompt. AGH applies model first, replaces the option snapshot from that response, then applies effort. Empty effort sends no RPC; explicit `none` does when advertised. Exact model IDs are required: unavailable models fail with `model_unavailable`; missing or unsupported reasoning fails with `reasoning_option_missing` or `reasoning_effort_unsupported`. AGH never aliases an unknown model or falls back to the provider default.
 
 Per-agent MCP servers belong in AGENT.md or an agent-local mcp.json sidecar. mcp.json replaces same-name frontmatter servers. Use provider-level MCP when every agent for that provider needs the server; use agent-level MCP when one agent needs it.
+
+## Fleet Reads
+
+Use `GET /api/agents/catalog?workspace=<ref>` over HTTP or UDS when a workspace fleet needs server-owned search, category/status filters, cursor pagination, or exact per-agent session totals. Keep the same `q`, `category`, `status`, and `limit` when following the opaque `page.next_cursor`.
+
+`facets.total` and `facets.categories` describe the complete workspace-visible fleet before filters. `facets.active` and `facets.idle` are exact only when `sessions_available` is true. Otherwise, treat every omitted `sessions` value as unavailable; do not infer idle state or apply a client-side status filter.
+
+## Lifecycle Reads And Mutations
+
+Use structured CLI output for agent lifecycle work:
+
+    agh agent info <name> --workspace <ref> -o json
+    agh agent update <name> --workspace <ref> --expected-digest <digest> [overrides] -o json
+    agh agent duplicate <source> <new-name> --workspace <ref> [--scope global|workspace] [overrides] -o json
+    agh agent delete <name> --workspace <ref> --yes -o json
+
+Create, update, and duplicate accept repeatable `--disable-skill <name>` flags. On update,
+providing the flag replaces `skills.disabled`; pass `--disable-skill ""` to clear the list.
+
+`update` replaces the complete definition and requires the `definition_digest` from the last read. A 409 means the digest is stale: reload, reapply the intended change, and retry with the new digest.
+
+`duplicate` copies the whole authored directory on the daemon side, including soul, heartbeat, MCP, and other sidecars, then applies explicit AGENT.md overrides. The target must not exist. `delete` removes the effective authored directory but preserves session and event history. Deleting a workspace winner can reveal a same-name global definition; inspect `unshadowed_origin` in the response.
+
+The matching daemon endpoints are `PUT /api/agents/:name`, `DELETE /api/agents/:name`, and `POST /api/agents/:name/duplicate`. No native update/delete/duplicate tool exists; use CLI or HTTP/UDS rather than inventing an `agh__agent_*` mutation.
 
 ## Setup Workflow
 

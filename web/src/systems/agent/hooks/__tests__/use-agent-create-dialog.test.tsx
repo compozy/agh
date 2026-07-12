@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockCreateAgent,
+  mockDuplicateAgent,
   mockNavigate,
   mockSettingsProviders,
   mockToastError,
@@ -10,6 +11,7 @@ const {
   mockRefreshCatalog,
 } = vi.hoisted(() => ({
   mockCreateAgent: vi.fn(),
+  mockDuplicateAgent: vi.fn(),
   mockNavigate: vi.fn(),
   mockSettingsProviders: {
     data: {
@@ -76,6 +78,10 @@ vi.mock("../use-agents", () => ({
     mutateAsync: mockCreateAgent,
     isPending: false,
   }),
+  useDuplicateAgent: () => ({
+    mutateAsync: mockDuplicateAgent,
+    isPending: false,
+  }),
 }));
 
 import { useAgentCreateDialog } from "../use-agent-create-dialog";
@@ -121,6 +127,12 @@ describe("useAgentCreateDialog", () => {
     mockCreateAgent.mockReset();
     mockCreateAgent.mockResolvedValue({
       name: "release-captain",
+      provider: "codex",
+      prompt: "Own release readiness.",
+    });
+    mockDuplicateAgent.mockReset();
+    mockDuplicateAgent.mockResolvedValue({
+      name: "release-captain-copy",
       provider: "codex",
       prompt: "Own release readiness.",
     });
@@ -327,5 +339,89 @@ describe("useAgentCreateDialog", () => {
 
     expect(mockCreateAgent).not.toHaveBeenCalled();
     expect(result.current.submitError).toBe("No providers are configured for this scope.");
+  });
+
+  it("Should openForDuplicate with prefilled draft and hard-reset on openDialog", () => {
+    const { result } = renderAgentCreateDialog();
+    const source = {
+      name: "release-captain",
+      provider: "codex",
+      prompt: "Own release readiness.",
+      model: "gpt-5.4",
+      tools: ["agh__skill_view"],
+      origin: "workspace" as const,
+      definition_digest: "d".repeat(64),
+      category_path: ["Engineering", "Release"],
+    };
+
+    act(() => {
+      result.current.openForDuplicate(source);
+    });
+
+    expect(result.current.open).toBe(true);
+    expect(result.current.mode).toBe("duplicate");
+    expect(result.current.duplicateSourceName).toBe("release-captain");
+    expect(result.current.draft.name).toBe("");
+    expect(result.current.draft.provider).toBe("codex");
+    expect(result.current.draft.prompt).toBe("Own release readiness.");
+    expect(result.current.draft.tools).toEqual(["agh__skill_view"]);
+    expect(result.current.draft.categoryPath).toBe("Engineering/Release");
+
+    act(() => {
+      result.current.openDialog();
+    });
+
+    expect(result.current.mode).toBe("create");
+    expect(result.current.duplicateSourceName).toBeNull();
+    expect(result.current.draft.name).toBe("");
+    expect(result.current.draft.provider).toBe("");
+    expect(result.current.draft.prompt).toBe("");
+  });
+
+  it("Should submit duplicate override diff and never call create", async () => {
+    const { result } = renderAgentCreateDialog();
+    const source = {
+      name: "release-captain",
+      provider: "codex",
+      prompt: "Own release readiness.",
+      model: "gpt-5.4",
+      tools: ["agh__skill_view"],
+      origin: "workspace" as const,
+      definition_digest: "d".repeat(64),
+    };
+
+    act(() => {
+      result.current.openForDuplicate(source);
+    });
+
+    act(() => {
+      result.current.onDraftChange({
+        ...result.current.draft,
+        name: "release-captain-copy",
+        prompt: "Own release readiness, carefully.",
+      });
+    });
+
+    await act(async () => {
+      await result.current.onSubmit();
+    });
+
+    expect(result.current.submitError).toBeNull();
+    expect(mockCreateAgent).not.toHaveBeenCalled();
+    expect(mockDuplicateAgent).toHaveBeenCalledWith({
+      sourceName: "release-captain",
+      params: {
+        name: "release-captain-copy",
+        scope: "workspace",
+        workspace: "ws_alpha",
+        overrides: {
+          prompt: "Own release readiness, carefully.",
+        },
+      },
+    });
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: "/agents/$name",
+      params: { name: "release-captain-copy" },
+    });
   });
 });

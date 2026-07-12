@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import { agentDetailOptions, agentsListOptions } from "@/systems/agent";
+import { agentCatalogOptions, agentDetailOptions, agentsListOptions } from "@/systems/agent";
 import { onboardingStatusOptions } from "@/systems/onboarding";
 import { sessionsListOptions } from "@/systems/session";
 import { workspaceDetailOptions } from "@/systems/workspace";
@@ -23,8 +23,11 @@ export async function preloadAppRoute(queryClient: QueryClient): Promise<void> {
 
   await settleRouteQueries([
     queryClient.ensureQueryData(agentsListOptions(workspaceId)),
+    queryClient.ensureInfiniteQueryData(agentCatalogOptions(workspaceId, { limit: 1 })),
     queryClient.ensureQueryData(workspaceDetailOptions(workspaceId)),
-    queryClient.ensureInfiniteQueryData(sessionsListOptions({ workspace: workspaceId })),
+    queryClient.ensureInfiniteQueryData(
+      sessionsListOptions({ workspace: workspaceId, state: "active", limit: 1 })
+    ),
   ]);
 }
 

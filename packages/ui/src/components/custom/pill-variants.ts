@@ -5,7 +5,7 @@ const pillVariants = cva(
   {
     variants: {
       tone: {
-        neutral: "bg-neutral-tint text-muted",
+        neutral: "bg-neutral-tint text-neutral-ink",
         accent: "bg-accent-tint text-accent",
         success: "bg-success-tint text-success",
         warning: "bg-warning-tint text-warning",

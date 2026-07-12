@@ -147,6 +147,9 @@ const (
 	specToolRegistryUnavailableDescription                   = "Tool registry unavailable"
 	specVaultServiceUnavailableDescription                   = "Vault service unavailable"
 	specWorkspaceNotFoundDescription                         = "Workspace not found"
+	specWorkspaceRootMissingDescription                      = "Workspace root missing"
+	specAgentDefinitionServicesUnavailableDescription        = "Workspace resolver or definition sync unavailable"
+	specAPIAgentsNamePath                                    = "/api/agents/{name}"
 	specAgentKey                                             = "agent"
 	specAgentsKey                                            = "agents"
 	specAutomationKey                                        = "automation"
@@ -666,7 +669,7 @@ var operationRegistry = []OperationSpec{
 			{Status: 400, Description: "Invalid agent definition request", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Agent definition already exists", Body: contract.ErrorPayload{}},
-			{Status: 410, Description: "Workspace root missing", Body: contract.ErrorPayload{}},
+			{Status: 410, Description: specWorkspaceRootMissingDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: "Workspace resolver unavailable", Body: contract.ErrorPayload{}},
 		},
@@ -688,7 +691,7 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      httpMethodGet,
-		Path:        "/api/agents/{name}",
+		Path:        specAPIAgentsNamePath,
 		OperationID: "getAgent",
 		Summary:     "Get one agent definition by name, optionally resolved for a workspace",
 		Tags:        []string{specAgentsKey},
@@ -5774,25 +5777,6 @@ func notificationPresetServiceUnavailableResponse() ResponseSpec {
 		Description: specNotificationPresetServiceIsNotConfiguredDescription,
 		Body:        contract.ErrorPayload{},
 	}
-}
-
-func Operations() []OperationSpec {
-	ops := cloneOperationSpecs(operationRegistry)
-	ops = append(ops, sessionTranscriptOperations()...)
-	ops = append(ops, notificationPresetOperations()...)
-	ops = append(ops, authoredContextOperations()...)
-	ops = append(ops, append(loopsOperations(), goalOperations()...)...)
-	ops = applyLoopAutomationContract(ops)
-	ops = append(ops, modelCatalogOperations()...)
-	ops = append(ops, providerOperations()...)
-	sort.SliceStable(ops, func(i, j int) bool {
-		if ops[i].Path == ops[j].Path {
-			return ops[i].Method < ops[j].Method
-		}
-		return ops[i].Path < ops[j].Path
-	})
-
-	return ops
 }
 
 func cloneOperationSpecs(specs []OperationSpec) []OperationSpec {

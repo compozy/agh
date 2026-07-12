@@ -115,7 +115,7 @@ func confirmSupportBundleCreation(cmd *cobra.Command, yes bool) (bool, error) {
 	if yes {
 		return true, nil
 	}
-	mode, err := resolveSupportBundleOutputFormat(cmd)
+	mode, err := resolveInheritedOutputFormat(cmd)
 	if err != nil {
 		return false, err
 	}
@@ -147,7 +147,7 @@ func supportBundleInputIsTerminal(input io.Reader) bool {
 	return ok && term.IsTerminal(int(file.Fd()))
 }
 
-func resolveSupportBundleOutputFormat(cmd *cobra.Command) (OutputFormat, error) {
+func resolveInheritedOutputFormat(cmd *cobra.Command) (OutputFormat, error) {
 	if cmd == nil {
 		return "", errors.New("cli: command is required")
 	}
@@ -363,7 +363,7 @@ func supportBundleResultBundle(result supportBundleResult) outputBundle {
 }
 
 func writeSupportBundleResult(cmd *cobra.Command, result supportBundleResult) error {
-	mode, err := resolveSupportBundleOutputFormat(cmd)
+	mode, err := resolveInheritedOutputFormat(cmd)
 	if err != nil {
 		return err
 	}

@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"slices"
 	"strings"
+	"sync"
 
 	bundlepkg "github.com/compozy/agh/internal/bundles"
 	aghconfig "github.com/compozy/agh/internal/config"
@@ -65,9 +65,11 @@ type agentSkillDesiredResources struct {
 }
 
 type agentSkillSourceSyncer struct {
+	syncMu         sync.Mutex
 	raw            resources.RawStore
 	agentStore     resources.Store[aghconfig.AgentDef]
 	agentCodec     resources.KindCodec[aghconfig.AgentDef]
+	agentProjector resources.TypedProjector[aghconfig.AgentDef]
 	skillStore     resources.Store[skillspkg.SkillResourceSpec]
 	skillCodec     resources.KindCodec[skillspkg.SkillResourceSpec]
 	skillProjector resources.TypedProjector[skillspkg.SkillResourceSpec]
@@ -490,91 +492,11 @@ func sidecarRecordMatchesAgent(
 		owner.Normalize() == agent.Owner.Normalize()
 }
 
-func (c *resourceAgentCatalog) ListAgents(ctx context.Context) ([]aghconfig.AgentDef, error) {
-	if ctx == nil {
-		return nil, errors.New("daemon: list agent catalog context is required")
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	if c == nil || c.catalog == nil {
-		return nil, nil
-	}
-	return c.agentsForWorkspace(nil), nil
-}
-
-func (c *resourceAgentCatalog) GetAgent(ctx context.Context, name string) (aghconfig.AgentDef, error) {
-	if ctx == nil {
-		return aghconfig.AgentDef{}, errors.New("daemon: get agent catalog context is required")
-	}
-	if err := ctx.Err(); err != nil {
-		return aghconfig.AgentDef{}, err
-	}
-	target := strings.TrimSpace(name)
-	if target == "" {
-		return aghconfig.AgentDef{}, errors.New("agent name is required")
-	}
-	if aghconfig.IsInternalManagedAgentName(target) {
-		return aghconfig.AgentDef{}, fmt.Errorf("%w: %s", os.ErrNotExist, target)
-	}
-	for _, agent := range c.agentsForWorkspace(nil) {
-		if strings.TrimSpace(agent.Name) == target {
-			return cloneAgentDef(agent), nil
-		}
-	}
-	return aghconfig.AgentDef{}, fmt.Errorf("%w: %s", os.ErrNotExist, target)
-}
-
-func (c *resourceAgentCatalog) agentsForWorkspace(resolved *workspacepkg.ResolvedWorkspace) []aghconfig.AgentDef {
-	if c == nil || c.catalog == nil {
-		return nil
-	}
-	records := c.catalog.Snapshot()
-	slices.SortFunc(records, func(left, right resources.Record[aghconfig.AgentDef]) int {
-		return strings.Compare(agentRecordSortKey(left), agentRecordSortKey(right))
-	})
-	merged := make(map[string]aghconfig.AgentDef)
-	for _, record := range records {
-		if record.Scope.Kind.Normalize() != resources.ResourceScopeKindGlobal {
-			continue
-		}
-		name := strings.TrimSpace(record.Spec.Name)
-		if name != "" && aghconfig.IsPublicAgentDef(record.Spec) {
-			merged[name] = cloneAgentDef(record.Spec)
-		}
-	}
-	workspaceID := ""
-	if resolved != nil {
-		workspaceID = strings.TrimSpace(resolved.ID)
-	}
-	if workspaceID != "" {
-		for _, record := range records {
-			if record.Scope.Kind.Normalize() != resources.ResourceScopeKindWorkspace ||
-				strings.TrimSpace(record.Scope.ID) != workspaceID {
-				continue
-			}
-			name := strings.TrimSpace(record.Spec.Name)
-			if name != "" && aghconfig.IsPublicAgentDef(record.Spec) {
-				merged[name] = cloneAgentDef(record.Spec)
-			}
-		}
-	}
-	names := make([]string, 0, len(merged))
-	for name := range merged {
-		names = append(names, name)
-	}
-	slices.Sort(names)
-	agents := make([]aghconfig.AgentDef, 0, len(names))
-	for _, name := range names {
-		agents = append(agents, cloneAgentDef(merged[name]))
-	}
-	return agents
-}
-
 func newAgentSkillSourceSyncer(
 	raw resources.RawStore,
 	agentStore resources.Store[aghconfig.AgentDef],
 	agentCodec resources.KindCodec[aghconfig.AgentDef],
+	agentProjector resources.TypedProjector[aghconfig.AgentDef],
 	skillStore resources.Store[skillspkg.SkillResourceSpec],
 	skillCodec resources.KindCodec[skillspkg.SkillResourceSpec],
 	skillProjector resources.TypedProjector[skillspkg.SkillResourceSpec],
@@ -596,6 +518,7 @@ func newAgentSkillSourceSyncer(
 		raw:            raw,
 		agentStore:     agentStore,
 		agentCodec:     agentCodec,
+		agentProjector: agentProjector,
 		skillStore:     skillStore,
 		skillCodec:     skillCodec,
 		skillProjector: skillProjector,
@@ -627,6 +550,8 @@ func (s *agentSkillSourceSyncer) Sync(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("daemon: agent/skill sync context is required")
 	}
+	s.syncMu.Lock()
+	defer s.syncMu.Unlock()
 
 	desired, err := s.desiredResources(ctx)
 	if err != nil {
@@ -635,6 +560,11 @@ func (s *agentSkillSourceSyncer) Sync(ctx context.Context) error {
 	agentChanged, err := s.syncAgents(ctx, desired.agents)
 	if err != nil {
 		return err
+	}
+	if agentChanged {
+		if err := s.projectAgents(ctx); err != nil {
+			return err
+		}
 	}
 	skillChanged, err := s.syncSkills(ctx, desired.skills)
 	if err != nil {
@@ -668,6 +598,24 @@ func (s *agentSkillSourceSyncer) Sync(ctx context.Context) error {
 	return nil
 }
 
+func (s *agentSkillSourceSyncer) projectAgents(ctx context.Context) error {
+	if s == nil || s.agentProjector == nil {
+		return nil
+	}
+	records, err := s.agentStore.List(ctx, resourceReconcileActor(), resources.ResourceFilter{})
+	if err != nil {
+		return fmt.Errorf("daemon: list agent resources for projection: %w", err)
+	}
+	plan, err := s.agentProjector.Build(ctx, records)
+	if err != nil {
+		return fmt.Errorf("daemon: build agent resource projection: %w", err)
+	}
+	if err := s.agentProjector.Apply(ctx, plan); err != nil {
+		return fmt.Errorf("daemon: apply agent resource projection: %w", err)
+	}
+	return nil
+}
+
 func (s *agentSkillSourceSyncer) SyncSkills(ctx context.Context) error {
 	if s == nil {
 		return nil
@@ -675,6 +623,8 @@ func (s *agentSkillSourceSyncer) SyncSkills(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("daemon: skill sync context is required")
 	}
+	s.syncMu.Lock()
+	defer s.syncMu.Unlock()
 	desired, err := s.desiredResources(ctx)
 	if err != nil {
 		return err
@@ -992,6 +942,7 @@ func (d *Daemon) newAgentSkillPublisher(
 		state.resourceKernel,
 		agentStore,
 		agentCodec,
+		newAgentProjector(state.agentCatalog),
 		skillStore,
 		skillCodec,
 		newSkillProjector(state.skillsRegistry),

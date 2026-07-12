@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "@tanstack/react-router";
 
-import { Topbar, TopbarSlotContext, TopbarSlotProvider } from "@agh/ui";
+import { Topbar, TopbarSlotProvider } from "@agh/ui";
 import * as React from "react";
 
 import { useTopbarShellModel } from "@/hooks/routes/use-topbar-shell-model";
@@ -18,9 +18,9 @@ interface TopbarShellProps {
  *   `useNavCounts()` value via `useTopbarShellModel`.
  * - Hosts `<TopbarSlotProvider>` so any descendant route can call
  *   `useTopbarSlot` to push tabs/search/actions.
- * - Subscribes to `router.subscribe("onResolved")` to clear the slot on
- *   path-changing navigation and to move focus to the topbar `h1` for the
- *   screen-reader and keyboard handoff after route resolution.
+ * - Subscribes to `router.subscribe("onResolved")` to move focus to the topbar
+ *   `h1` after path navigation. Route unmount cleanup owns slot removal so a
+ *   newly published destination slot cannot be cleared by a late event.
  */
 export function TopbarShell({ children }: TopbarShellProps) {
   return (
@@ -32,8 +32,6 @@ export function TopbarShell({ children }: TopbarShellProps) {
 
 function TopbarShellInner({ children }: TopbarShellProps) {
   const titleRef = useRef<HTMLHeadingElement | null>(null);
-  const slotContext = React.use(TopbarSlotContext);
-  const setSlot = slotContext?.setSlot;
   const router = useRouter();
   const { route, navCount } = useTopbarShellModel();
 
@@ -43,7 +41,6 @@ function TopbarShellInner({ children }: TopbarShellProps) {
         return;
       }
 
-      setSlot?.(null);
       const node = titleRef.current;
       if (node) {
         try {
@@ -54,7 +51,7 @@ function TopbarShellInner({ children }: TopbarShellProps) {
       }
     });
     return unsubscribe;
-  }, [router, setSlot]);
+  }, [router]);
 
   return (
     <>

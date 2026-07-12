@@ -13,7 +13,7 @@ This skill drives the end-of-feature ritual: detect what changed, document its i
 Two layers exist:
 
 - **Core path (always runs):** explore impact → build PR description → commit → `gh pr create`.
-- **Optional integrations (auto-detected):** `pr-release` for release notes, `skeeper` for spec sync, `qa-report`/`qa-execution` artifacts under `.compozy/tasks/<slug>/qa/`, `compozy reviews watch` for CodeRabbit auto-fix.
+- **Optional integrations (auto-detected):** `pr-release` for release notes, `skeeper` for spec sync, `qa-report`/`qa-execution` artifacts under `docs/qa/`, `compozy reviews watch` for CodeRabbit auto-fix.
 
 Optional steps are **skipped silently** when the supporting tool or artifact is not present — the skill never blocks on missing tooling.
 
@@ -35,7 +35,7 @@ Match the phase to the row. Read the listed file **in full before** acting on th
 - `references/explore-impact.md` — how to fan out parallel Explore subagents to surface every doc/site/README/CHANGELOG that the change touches, and how to aggregate their output.
 - `references/release-notes.md` — two flows: invoke `pr-release add-note` when the CLI is on PATH, otherwise build an inline conventional-commit changelog for the PR body using the same emoji legend pr-release uses.
 - `references/pr-description.md` — PR body template (Summary / Changes / Release Notes / QA / Test plan) and the rules for filling each section honestly.
-- `references/qa-artifacts.md` — how to detect `.compozy/tasks/<slug>/qa/` artifacts, extract bug counts and screenshot paths, and inject them into the PR body.
+- `references/qa-artifacts.md` — how to detect living `docs/qa/` artifacts, extract bug counts and screenshot paths, and inject them into the PR body.
 - `references/commit-conventions.md` — commitlint-config detection priority, how to read `type-enum`/`scope-enum`, and the staging/HEREDOC commit rules.
 - `references/coderabbit-watch.md` — exact `compozy reviews watch` command, task-slug resolution, and the skip-if-missing guard.
 
@@ -57,7 +57,7 @@ It prints a JSON object describing what is available:
   "skeeper_installed": true,
   "skeeper_configured": false,
   "commitlint_config": "commitlint.config.cjs",
-  "qa_output_paths": [".compozy/tasks/my-feature/qa"],
+  "qa_output_paths": ["docs/qa"],
   "task_slug_candidates": ["my-feature"]
 }
 ```

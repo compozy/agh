@@ -16,8 +16,9 @@ phase=E action=done
 ```
 
 The agent runs the printed action (procedures live in `SKILL.md`), records
-the iteration via `update-state.py`, and stops. The next restart re-runs
-detect-phase and resumes from filesystem truth.
+the iteration via `update-state.py`, prints the summary, then **continues**
+at detect unless the outcome is a blocker or Phase E. If the session ends
+mid-loop, the next invocation re-runs detect-phase from filesystem truth.
 
 ## Entry conditions
 
@@ -33,8 +34,8 @@ detect-phase and resumes from filesystem truth.
 
 ## Exit rules
 
-- Phase 0 exits once `init-state.py` has written `state.yaml`; the next run
-  enters B.
+- Phase 0 exits once `init-state.py` has written `state.yaml`; the next
+  iteration enters B (via **continue**, not a restart).
 - Phase B covers exactly one task or slice per iteration. In free mode,
   `--deliverables-complete` (set only when every techspec acceptance
   criterion has a completed checklist entry) moves the loop to C.
@@ -59,4 +60,4 @@ verify FAIL with no fix path, two-touch limit hit):
 3. Print the iteration summary with `outcome=blocked` and stop **without**
    the done-signature.
 
-The next restart re-detects the same blocker until a human resolves it.
+A later invocation re-detects the same blocker until a human resolves it.

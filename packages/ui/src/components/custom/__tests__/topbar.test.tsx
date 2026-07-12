@@ -300,6 +300,47 @@ describe("Topbar", () => {
     expect(screen.getByTestId("inspector")).toHaveTextContent("back:no");
   });
 
+  it("Should preserve the active slot when an older consumer unmounts", () => {
+    function Harness({ showOlder }: { showOlder: boolean }) {
+      return (
+        <>
+          {showOlder ? <ProbeSlot slot={{ title: "Older" }} label="older" /> : null}
+          <ProbeSlot slot={{ title: "Active" }} label="active" />
+          <SlotInspector probeId="inspector" />
+        </>
+      );
+    }
+
+    const { rerender } = render(
+      <TopbarSlotProvider>
+        <Harness showOlder />
+      </TopbarSlotProvider>
+    );
+    expect(screen.getByTestId("inspector")).toHaveTextContent("title:yes");
+
+    act(() => {
+      rerender(
+        <TopbarSlotProvider>
+          <Harness showOlder={false} />
+        </TopbarSlotProvider>
+      );
+    });
+
+    expect(screen.getByTestId("inspector")).toHaveTextContent("title:yes");
+  });
+
+  it("Should not let a non-owning null consumer erase the active slot", () => {
+    render(
+      <TopbarSlotProvider>
+        <ProbeSlot slot={{ title: "Active" }} label="active" />
+        <ProbeSlot slot={null} label="inactive" />
+        <SlotInspector probeId="inspector" />
+      </TopbarSlotProvider>
+    );
+
+    expect(screen.getByTestId("inspector")).toHaveTextContent("title:yes");
+  });
+
   it("Should be a no-op when used outside a TopbarSlotProvider (test ergonomics)", () => {
     function Harness() {
       useTopbarSlot({ actions: <span data-testid="a" /> });

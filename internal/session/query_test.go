@@ -166,6 +166,7 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 			t.Fatalf("Stop(stopped) error = %v", err)
 		}
 		catalog.durable = sessionCatalogInfoFromRuntime(stopped.Info())
+		catalog.agentCounts = []store.SessionAgentCount{{AgentName: "coder", Total: 1}}
 		metaReads := 0
 		h.manager.readSessionMeta = func(path string) (store.SessionMeta, error) {
 			metaReads++
@@ -223,6 +224,21 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 				"workspace resolver calls = %d after catalog pages, want unchanged %d",
 				resolverCallsAfter,
 				resolverCallsBefore,
+			)
+		}
+
+		counts, err := h.manager.CountSessionsByAgent(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("CountSessionsByAgent() error = %v", err)
+		}
+		if counts["coder"].Total != 2 || counts["coder"].Active != 1 {
+			t.Fatalf("CountSessionsByAgent() = %#v, want coder total=2 active=1", counts)
+		}
+		if !slices.Contains(catalog.lastAgentCountQuery.ExcludeIDs, active.ID) {
+			t.Fatalf(
+				"CountSessionsByAgent().ExcludeIDs = %#v, want active id %q",
+				catalog.lastAgentCountQuery.ExcludeIDs,
+				active.ID,
 			)
 		}
 
@@ -414,9 +430,11 @@ func TestNormalizeListQuery(t *testing.T) {
 
 type pagedRecordingSessionCatalog struct {
 	*recordingSessionCatalog
-	durable   store.SessionInfo
-	lastQuery store.SessionCatalogPageQuery
-	calls     int
+	durable             store.SessionInfo
+	agentCounts         []store.SessionAgentCount
+	lastQuery           store.SessionCatalogPageQuery
+	lastAgentCountQuery store.SessionAgentCountQuery
+	calls               int
 }
 
 func (c *pagedRecordingSessionCatalog) PageSessions(
@@ -434,6 +452,14 @@ func (c *pagedRecordingSessionCatalog) PageSessions(
 		page.Sessions = []store.SessionInfo{c.durable}
 	}
 	return page, nil
+}
+
+func (c *pagedRecordingSessionCatalog) CountSessionsByAgent(
+	_ context.Context,
+	query store.SessionAgentCountQuery,
+) ([]store.SessionAgentCount, error) {
+	c.lastAgentCountQuery = query
+	return append([]store.SessionAgentCount(nil), c.agentCounts...), nil
 }
 
 func TestManagerStatusReturnsActiveAndStoredSessions(t *testing.T) {

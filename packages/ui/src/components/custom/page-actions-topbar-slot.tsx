@@ -16,6 +16,13 @@ export interface PageActionsTopbarSlotProps extends React.ComponentProps<"div"> 
   onDiscard: () => void;
   /** Disables both buttons + swaps the save icon for a spinner. */
   saving?: boolean;
+  /**
+   * When dirty and not saving, marks Save as `aria-disabled` (still focusable)
+   * instead of HTML `disabled` — used for client validation blocks.
+   */
+  saveBlocked?: boolean;
+  /** Caption rendered beside the actions when `saveBlocked` is true. */
+  saveBlockedCaption?: React.ReactNode;
   /** Optional override label for the save button. */
   saveLabel?: React.ReactNode;
   /** Optional override label for the discard button. */
@@ -29,27 +36,42 @@ function PageActionsTopbarSlot({
   onSave,
   onDiscard,
   saving = false,
+  saveBlocked = false,
+  saveBlockedCaption,
   saveLabel = "Save changes",
   discardLabel = "Discard",
-  savingLabel = "Saving...",
+  savingLabel = "Saving…",
   className,
   ...props
 }: PageActionsTopbarSlotProps) {
-  const disabled = !dirty || saving;
+  const discardDisabled = !dirty || saving;
+  const saveHtmlDisabled = !dirty || saving;
+  const saveAriaDisabled = dirty && !saving && saveBlocked;
+
   return (
     <div
       data-slot="page-actions-topbar-slot"
       data-dirty={dirty ? "true" : "false"}
       data-saving={saving ? "true" : undefined}
+      data-save-blocked={saveAriaDisabled ? "true" : undefined}
       className={cn("flex flex-wrap items-center justify-end gap-2", className)}
       {...props}
     >
+      {saveAriaDisabled && saveBlockedCaption ? (
+        <span
+          className="text-xs text-subtle"
+          data-slot="page-actions-topbar-slot-blocked-caption"
+          data-testid="page-actions-topbar-slot-blocked-caption"
+        >
+          {saveBlockedCaption}
+        </span>
+      ) : null}
       <Button
         type="button"
         variant="ghost"
         size="sm"
         data-slot="page-actions-topbar-slot-discard"
-        disabled={disabled}
+        disabled={discardDisabled}
         onClick={onDiscard}
       >
         <Undo2Icon className="size-3" />
@@ -60,8 +82,12 @@ function PageActionsTopbarSlot({
         variant="default"
         size="sm"
         data-slot="page-actions-topbar-slot-save"
-        disabled={disabled}
-        onClick={onSave}
+        disabled={saveHtmlDisabled}
+        aria-disabled={saveAriaDisabled || undefined}
+        onClick={() => {
+          if (saveAriaDisabled) return;
+          onSave();
+        }}
       >
         {saving ? (
           <Spinner aria-hidden="true" className="size-3" />

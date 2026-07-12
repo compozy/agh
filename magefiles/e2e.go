@@ -35,18 +35,10 @@ func TestE2ENightly() error {
 }
 
 func ensureWebAssets() error {
-	if _, err := os.Stat(webDistIndex); err != nil {
-		if !errors.Is(err, os.ErrNotExist) {
-			return err
-		}
-		if err := CodegenCheck(); err != nil {
-			return err
-		}
-		if err := WebBuild(); err != nil {
-			return err
-		}
+	if err := CodegenCheck(); err != nil {
+		return err
 	}
-	return ensureWebDist()
+	return WebBuild()
 }
 
 func runE2ELane(lane e2elane.Lane) (runErr error) {

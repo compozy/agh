@@ -580,7 +580,7 @@ func (h *BaseHandlers) automationSchedulerStateByJobIDBestEffort(
 	h.Logger.Warn(
 		"api: automation scheduler state enrichment failed",
 		"transport", h.transportName(),
-		"operation", strings.TrimSpace(operation),
+		handlersOperationKey, strings.TrimSpace(operation),
 		"error", err,
 	)
 	return nil
