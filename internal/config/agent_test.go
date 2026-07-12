@@ -164,8 +164,9 @@ func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
 		writeFile(t, definitionPath, "definition")
 		writeFile(t, sentinelPath, "preserve")
 
-		if err := DeleteAgentDefinition(filepath.Join(parent, AgentsDirName), definitionPath); err == nil {
-			t.Fatal("DeleteAgentDefinition(shallow path) error = nil, want validation error")
+		if err := DeleteAgentDefinition(filepath.Join(parent, AgentsDirName), definitionPath); err == nil ||
+			!strings.Contains(err.Error(), "invalid agent definition delete target") {
+			t.Fatalf("DeleteAgentDefinition(shallow path) error = %v, want invalid delete target", err)
 		}
 		if _, err := os.Stat(parent); err != nil {
 			t.Fatalf("os.Stat(parent after rejected delete) error = %v", err)
@@ -191,8 +192,10 @@ func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
 				t.Fatalf("os.Symlink(agents directory) error = %v", err)
 			}
 			linkedDefinitionPath := filepath.Join(linkedAgentsDir, "coder", AgentDefinitionFileName)
-			if err := DeleteAgentDefinition(linkedAgentsDir, linkedDefinitionPath); err == nil {
-				t.Fatal("DeleteAgentDefinition(symlinked agents directory) error = nil, want validation error")
+			if err := DeleteAgentDefinition(linkedAgentsDir, linkedDefinitionPath); err == nil ||
+				!strings.Contains(err.Error(), "agents root") ||
+				!strings.Contains(err.Error(), "must be a real directory") {
+				t.Fatalf("DeleteAgentDefinition(symlinked agents directory) error = %v", err)
 			}
 			if _, err := os.Stat(sentinelPath); err != nil {
 				t.Fatalf("os.Stat(sentinel after symlinked agents delete) error = %v", err)
@@ -210,8 +213,10 @@ func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
 				t.Fatalf("os.Symlink(agent directory) error = %v", err)
 			}
 			linkedDefinitionPath := filepath.Join(linkedAgentDir, AgentDefinitionFileName)
-			if err := DeleteAgentDefinition(linkedAgentsDir, linkedDefinitionPath); err == nil {
-				t.Fatal("DeleteAgentDefinition(symlinked agent directory) error = nil, want validation error")
+			if err := DeleteAgentDefinition(linkedAgentsDir, linkedDefinitionPath); err == nil ||
+				!strings.Contains(err.Error(), "agent directory") ||
+				!strings.Contains(err.Error(), "must be a real directory") {
+				t.Fatalf("DeleteAgentDefinition(symlinked agent directory) error = %v", err)
 			}
 			if _, err := os.Stat(sentinelPath); err != nil {
 				t.Fatalf("os.Stat(sentinel after symlinked agent delete) error = %v", err)
@@ -222,8 +227,9 @@ func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
 	t.Run("Should reject invalid lifecycle paths before mutation", func(t *testing.T) {
 		t.Parallel()
 		validDraft := AgentDefinitionDraft{Name: "valid", Provider: "codex", Prompt: "Valid."}
-		if _, err := CreateAgentDefFile("", validDraft, false); err == nil {
-			t.Fatal("CreateAgentDefFile(empty path) error = nil, want validation error")
+		if _, err := CreateAgentDefFile("", validDraft, false); err == nil ||
+			!strings.Contains(err.Error(), "agent definition path is required") {
+			t.Fatalf("CreateAgentDefFile(empty path) error = %v, want required path", err)
 		}
 		invalidDraft := validDraft
 		invalidDraft.Name = ""
@@ -231,14 +237,14 @@ func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
 			filepath.Join(t.TempDir(), AgentDefinitionFileName),
 			invalidDraft,
 			false,
-		); err == nil {
-			t.Fatal("CreateAgentDefFile(invalid draft) error = nil, want validation error")
+		); !errors.Is(err, ErrInvalidAgentDefinition) {
+			t.Fatalf("CreateAgentDefFile(invalid draft) error = %v, want ErrInvalidAgentDefinition", err)
 		}
-		if _, _, err := RenderAgentDefinition(invalidDraft); err == nil {
-			t.Fatal("RenderAgentDefinition(invalid draft) error = nil, want validation error")
+		if _, _, err := RenderAgentDefinition(invalidDraft); !errors.Is(err, ErrInvalidAgentDefinition) {
+			t.Fatalf("RenderAgentDefinition(invalid draft) error = %v, want ErrInvalidAgentDefinition", err)
 		}
-		if _, err := AgentDefinitionDigest(AgentDef{}); err == nil {
-			t.Fatal("AgentDefinitionDigest(invalid definition) error = nil, want validation error")
+		if _, err := AgentDefinitionDigest(AgentDef{}); !errors.Is(err, ErrInvalidAgentDefinition) {
+			t.Fatalf("AgentDefinitionDigest(invalid definition) error = %v, want ErrInvalidAgentDefinition", err)
 		}
 		existingPath := filepath.Join(t.TempDir(), AgentDefinitionFileName)
 		if _, err := CreateAgentDefFile(existingPath, validDraft, false); err != nil {
@@ -250,21 +256,25 @@ func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
 		parentFile := filepath.Join(t.TempDir(), "parent-file")
 		writeFile(t, parentFile, "not a directory")
 		parentDefinitionPath := filepath.Join(parentFile, AgentDefinitionFileName)
-		if _, err := CreateAgentDefFile(parentDefinitionPath, validDraft, false); err == nil {
-			t.Fatal("CreateAgentDefFile(non-directory parent) error = nil, want path error")
+		if _, err := CreateAgentDefFile(parentDefinitionPath, validDraft, false); err == nil ||
+			!strings.Contains(err.Error(), "inspect agent definition") {
+			t.Fatalf("CreateAgentDefFile(non-directory parent) error = %v, want inspect path error", err)
 		}
 		if origin, workspace := AgentOriginFor(HomePaths{}, "not-an-agent.md"); origin != "" || workspace != "" {
 			t.Fatalf("AgentOriginFor(invalid path) = (%q, %q), want empty classification", origin, workspace)
 		}
-		if err := DeleteAgentDefinition(filepath.Join(t.TempDir(), AgentsDirName), "not-an-agent.md"); err == nil {
-			t.Fatal("DeleteAgentDefinition(invalid path) error = nil, want validation error")
+		if err := DeleteAgentDefinition(filepath.Join(t.TempDir(), AgentsDirName), "not-an-agent.md"); err == nil ||
+			!strings.Contains(err.Error(), "invalid agent definition source path") {
+			t.Fatalf("DeleteAgentDefinition(invalid path) error = %v, want invalid source path", err)
 		}
-		directoryDefinition := filepath.Join(t.TempDir(), AgentDefinitionFileName)
-		if err := os.Mkdir(directoryDefinition, 0o700); err != nil {
-			t.Fatalf("Mkdir(directory definition) error = %v", err)
+		agentsRoot := filepath.Join(t.TempDir(), AgentsDirName)
+		directoryDefinition := filepath.Join(agentsRoot, "coder", AgentDefinitionFileName)
+		if err := os.MkdirAll(directoryDefinition, 0o700); err != nil {
+			t.Fatalf("MkdirAll(directory definition) error = %v", err)
 		}
-		if err := DeleteAgentDefinition(filepath.Join(t.TempDir(), AgentsDirName), directoryDefinition); err == nil {
-			t.Fatal("DeleteAgentDefinition(directory) error = nil, want regular-file error")
+		if err := DeleteAgentDefinition(agentsRoot, directoryDefinition); err == nil ||
+			!strings.Contains(err.Error(), "must be a regular file") {
+			t.Fatalf("DeleteAgentDefinition(directory) error = %v, want regular-file error", err)
 		}
 
 		sourcePath := filepath.Join(t.TempDir(), "source", AgentDefinitionFileName)
@@ -276,19 +286,22 @@ func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
 		}
 		draft := AgentDefinitionDraftFromDef(source)
 		draft.Name = "target"
-		if _, err := DuplicateAgentDefinition(AgentDef{}, t.TempDir(), draft); err == nil {
-			t.Fatal("DuplicateAgentDefinition(invalid source) error = nil, want validation error")
+		if _, err := DuplicateAgentDefinition(AgentDef{}, t.TempDir(), draft); err == nil ||
+			!strings.Contains(err.Error(), "invalid source agent definition path") {
+			t.Fatalf("DuplicateAgentDefinition(invalid source) error = %v", err)
 		}
-		if _, err := DuplicateAgentDefinition(source, "", draft); err == nil {
-			t.Fatal("DuplicateAgentDefinition(empty target) error = nil, want validation error")
+		if _, err := DuplicateAgentDefinition(source, "", draft); err == nil ||
+			!strings.Contains(err.Error(), "duplicate target directory is required") {
+			t.Fatalf("DuplicateAgentDefinition(empty target) error = %v", err)
 		}
 		symlinkPath := filepath.Join(filepath.Dir(sourcePath), "AGENT.link")
 		if err := os.Symlink(AgentDefinitionFileName, symlinkPath); err != nil {
 			t.Fatalf("Symlink(AGENT.link) error = %v", err)
 		}
 		symlinkTarget := filepath.Join(t.TempDir(), "target")
-		if _, err := DuplicateAgentDefinition(source, symlinkTarget, draft); err == nil {
-			t.Fatal("DuplicateAgentDefinition(symlink sibling) error = nil, want validation error")
+		if _, err := DuplicateAgentDefinition(source, symlinkTarget, draft); err == nil ||
+			!strings.Contains(err.Error(), "must not be a symlink") {
+			t.Fatalf("DuplicateAgentDefinition(symlink sibling) error = %v", err)
 		}
 		if _, err := os.Stat(symlinkTarget); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("os.Stat(failed symlink target) error = %v, want os.ErrNotExist", err)

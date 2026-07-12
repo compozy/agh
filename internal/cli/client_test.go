@@ -142,6 +142,7 @@ func TestUnixSocketClientAgentDefinitionMethods(t *testing.T) {
 		wantMethod string
 		wantPath   string
 		wantQuery  string
+		wantBody   any
 		response   string
 		run        func(t *testing.T, client *unixSocketClient)
 	}{
@@ -149,12 +150,20 @@ func TestUnixSocketClientAgentDefinitionMethods(t *testing.T) {
 			name:       "Should create an agent through the daemon",
 			wantMethod: http.MethodPost,
 			wantPath:   "/api/agents",
-			response:   `{"agent":{"name":"coder","provider":"fake","origin":"global","definition_digest":"digest-1","prompt":"Code."}}`,
+			wantBody: contract.CreateAgentRequest{
+				Scope:     contract.AgentCreateScopeWorkspace,
+				Workspace: "ws-1",
+				Agent: contract.CreateAgentPayload{
+					Name: "coder", Provider: "fake", Prompt: "Code.",
+				},
+			},
+			response: `{"agent":{"name":"coder","provider":"fake","origin":"global","definition_digest":"digest-1","prompt":"Code."}}`,
 			run: func(t *testing.T, client *unixSocketClient) {
 				t.Helper()
 				agent, err := client.CreateAgent(t.Context(), contract.CreateAgentRequest{
-					Scope: contract.AgentCreateScopeGlobal,
-					Agent: contract.CreateAgentPayload{Name: "coder", Provider: "fake", Prompt: "Code."},
+					Scope:     contract.AgentCreateScopeWorkspace,
+					Workspace: "ws-1",
+					Agent:     contract.CreateAgentPayload{Name: "coder", Provider: "fake", Prompt: "Code."},
 				})
 				if err != nil || agent.DefinitionDigest != "digest-1" {
 					t.Fatalf("CreateAgent() = %#v, %v", agent, err)
@@ -165,10 +174,18 @@ func TestUnixSocketClientAgentDefinitionMethods(t *testing.T) {
 			name:       "Should update an agent with a digest request",
 			wantMethod: http.MethodPut,
 			wantPath:   "/api/agents/coder",
-			response:   `{"agent":{"name":"coder","provider":"fake","origin":"global","definition_digest":"digest-2","prompt":"Review."}}`,
+			wantBody: contract.UpdateAgentRequest{
+				Workspace:      "ws-1",
+				ExpectedDigest: "digest-1",
+				Agent: contract.CreateAgentPayload{
+					Name: "coder", Provider: "fake", Prompt: "Review.",
+				},
+			},
+			response: `{"agent":{"name":"coder","provider":"fake","origin":"global","definition_digest":"digest-2","prompt":"Review."}}`,
 			run: func(t *testing.T, client *unixSocketClient) {
 				t.Helper()
 				agent, err := client.UpdateAgent(t.Context(), "coder", contract.UpdateAgentRequest{
+					Workspace:      "ws-1",
 					ExpectedDigest: "digest-1",
 					Agent:          contract.CreateAgentPayload{Name: "coder", Provider: "fake", Prompt: "Review."},
 				})
@@ -195,11 +212,23 @@ func TestUnixSocketClientAgentDefinitionMethods(t *testing.T) {
 			name:       "Should duplicate an agent server side",
 			wantMethod: http.MethodPost,
 			wantPath:   "/api/agents/coder/duplicate",
-			response:   `{"agent":{"name":"reviewer","provider":"fake","origin":"global","definition_digest":"digest-copy","prompt":"Review."}}`,
+			wantBody: contract.DuplicateAgentRequest{
+				Name:      "reviewer",
+				Scope:     contract.AgentCreateScopeWorkspace,
+				Workspace: "ws-1",
+				Overrides: &contract.DuplicateAgentOverrides{
+					Model:  "gpt-5",
+					Prompt: "Review.",
+				},
+			},
+			response: `{"agent":{"name":"reviewer","provider":"fake","origin":"global","definition_digest":"digest-copy","prompt":"Review."}}`,
 			run: func(t *testing.T, client *unixSocketClient) {
 				t.Helper()
 				agent, err := client.DuplicateAgent(t.Context(), "coder", contract.DuplicateAgentRequest{
-					Name: "reviewer",
+					Name:      "reviewer",
+					Scope:     contract.AgentCreateScopeWorkspace,
+					Workspace: "ws-1",
+					Overrides: &contract.DuplicateAgentOverrides{Model: "gpt-5", Prompt: "Review."},
 				})
 				if err != nil || agent.Name != "reviewer" {
 					t.Fatalf("DuplicateAgent() = %#v, %v", agent, err)
@@ -225,6 +254,23 @@ func TestUnixSocketClientAgentDefinitionMethods(t *testing.T) {
 							tt.wantPath,
 							tt.wantQuery,
 						)
+					}
+					if tt.wantBody != nil {
+						var gotBody any
+						if err := json.NewDecoder(req.Body).Decode(&gotBody); err != nil {
+							t.Fatalf("decode request body: %v", err)
+						}
+						wantJSON, err := json.Marshal(tt.wantBody)
+						if err != nil {
+							t.Fatalf("marshal expected request body: %v", err)
+						}
+						var wantBody any
+						if err := json.Unmarshal(wantJSON, &wantBody); err != nil {
+							t.Fatalf("decode expected request body: %v", err)
+						}
+						if !reflect.DeepEqual(gotBody, wantBody) {
+							t.Fatalf("request body = %#v, want %#v", gotBody, wantBody)
+						}
 					}
 					return newHTTPResponse(http.StatusOK, tt.response), nil
 				})},

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -23,7 +24,7 @@ type AgentQuery struct {
 func (c *unixSocketClient) ListAgents(ctx context.Context, query AgentQuery) ([]AgentRecord, error) {
 	var response contract.AgentsResponse
 	if err := c.doJSON(ctx, http.MethodGet, "/api/agents", agentValues(query), nil, &response); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cli: list agents: %w", err)
 	}
 	return response.Agents, nil
 }
@@ -38,7 +39,7 @@ func (c *unixSocketClient) GetAgent(ctx context.Context, name string, query Agen
 		nil,
 		&response,
 	); err != nil {
-		return AgentRecord{}, err
+		return AgentRecord{}, fmt.Errorf("cli: get agent: %w", err)
 	}
 	return response.Agent, nil
 }
@@ -49,7 +50,7 @@ func (c *unixSocketClient) CreateAgent(
 ) (AgentRecord, error) {
 	var response contract.AgentResponse
 	if err := c.doJSON(ctx, http.MethodPost, "/api/agents", nil, request, &response); err != nil {
-		return AgentRecord{}, err
+		return AgentRecord{}, fmt.Errorf("cli: create agent: %w", err)
 	}
 	return response.Agent, nil
 }
@@ -61,7 +62,7 @@ func (c *unixSocketClient) UpdateAgent(
 ) (AgentRecord, error) {
 	var response contract.AgentResponse
 	if err := c.doJSON(ctx, http.MethodPut, agentPath(name), nil, request, &response); err != nil {
-		return AgentRecord{}, err
+		return AgentRecord{}, fmt.Errorf("cli: update agent: %w", err)
 	}
 	return response.Agent, nil
 }
@@ -80,7 +81,7 @@ func (c *unixSocketClient) DeleteAgent(
 		nil,
 		&response,
 	); err != nil {
-		return contract.DeleteAgentResponse{}, err
+		return contract.DeleteAgentResponse{}, fmt.Errorf("cli: delete agent: %w", err)
 	}
 	return response, nil
 }
@@ -99,7 +100,7 @@ func (c *unixSocketClient) DuplicateAgent(
 		request,
 		&response,
 	); err != nil {
-		return AgentRecord{}, err
+		return AgentRecord{}, fmt.Errorf("cli: duplicate agent: %w", err)
 	}
 	return response.Agent, nil
 }

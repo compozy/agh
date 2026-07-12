@@ -76,8 +76,9 @@ func TestManagedSoulAuthoringServicePutValidateAndCAS(t *testing.T) {
 	t.Run("Should reject nil authoring store", func(t *testing.T) {
 		t.Parallel()
 
-		if _, err := soul.NewManagedSoulAuthoringService(nil); err == nil {
-			t.Fatal("NewManagedSoulAuthoringService(nil) error = nil, want non-nil")
+		if _, err := soul.NewManagedSoulAuthoringService(nil); err == nil ||
+			!strings.Contains(err.Error(), "soul: authoring store is required") {
+			t.Fatalf("NewManagedSoulAuthoringService(nil) error = %v", err)
 		}
 	})
 
@@ -85,8 +86,13 @@ func TestManagedSoulAuthoringServicePutValidateAndCAS(t *testing.T) {
 		t.Parallel()
 
 		fixture := newAuthoringFixture(t)
-		if err := fixture.db.DeleteSoulAgentHistory(fixture.ctx, "", "coder", "agents/coder/SOUL.md"); err == nil {
-			t.Fatal("DeleteSoulAgentHistory(empty workspace) error = nil, want validation error")
+		if err := fixture.db.DeleteSoulAgentHistory(
+			fixture.ctx,
+			"",
+			"coder",
+			"agents/coder/SOUL.md",
+		); err == nil || !strings.Contains(err.Error(), "requires workspace id, agent name, and source path") {
+			t.Fatalf("DeleteSoulAgentHistory(empty workspace) error = %v", err)
 		}
 		created, err := fixture.service.Put(fixture.ctx, soul.PutRequest{
 			Target: fixture.target,
@@ -135,31 +141,38 @@ func TestManagedSoulAuthoringServicePutValidateAndCAS(t *testing.T) {
 			workspace  string
 			agentName  string
 			sourcePath string
+			wantError  string
 		}{
 			{
 				name: "nil context", service: fixture.service,
 				workspace: fixture.workspaceID, agentName: "coder", sourcePath: fixture.agentPath,
+				wantError: "context is required",
 			},
 			{
 				name: "nil service", ctx: fixture.ctx,
 				workspace: fixture.workspaceID, agentName: "coder", sourcePath: fixture.agentPath,
+				wantError: "store is required",
 			},
 			{
 				name: "missing workspace", service: fixture.service, ctx: fixture.ctx,
 				agentName: "coder", sourcePath: fixture.agentPath,
+				wantError: "workspace id is required",
 			},
 			{
 				name: "missing agent", service: fixture.service, ctx: fixture.ctx,
 				workspace: fixture.workspaceID, sourcePath: fixture.agentPath,
+				wantError: "agent name is required",
 			},
 			{
 				name: "non-agent source", service: fixture.service, ctx: fixture.ctx,
 				workspace: fixture.workspaceID, agentName: "coder", sourcePath: fixture.soulPath,
+				wantError: "requires an AGENT.md source path",
 			},
 			{
 				name: "outside agents root", service: fixture.service, ctx: fixture.ctx,
 				workspace: fixture.workspaceID, agentName: "coder",
 				sourcePath: filepath.Join(t.TempDir(), "coder", aghconfig.AgentDefinitionFileName),
+				wantError:  "outside an agents root",
 			},
 		}
 		for _, tc := range tests {
@@ -171,8 +184,8 @@ func TestManagedSoulAuthoringServicePutValidateAndCAS(t *testing.T) {
 					tc.agentName,
 					tc.sourcePath,
 				)
-				if err == nil {
-					t.Fatal("PurgeAgentHistory(invalid target) error = nil, want validation error")
+				if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+					t.Fatalf("PurgeAgentHistory(invalid target) error = %v, want %q", err, tc.wantError)
 				}
 			})
 		}

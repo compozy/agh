@@ -309,6 +309,9 @@ export const handlers: HttpHandler[] = [
   }),
   aghApiMock.put("/api/agents/{name}/soul", async ({ params, request }) => {
     const name = String(params.name);
+    if (!agentByName(name)) {
+      return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
+    }
     const body = (await request.json()) as { body: string; expected_digest: string };
     const stored = soulBodies.get(name);
     const currentDigest = stored?.digest ?? FIXTURE_AGENT_DEFINITION_DIGEST;
@@ -325,6 +328,9 @@ export const handlers: HttpHandler[] = [
   }),
   aghApiMock.delete("/api/agents/{name}/soul", async ({ params, request }) => {
     const name = String(params.name);
+    if (!agentByName(name)) {
+      return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
+    }
     const body = (await request.json()) as { expected_digest: string };
     const stored = soulBodies.get(name);
     const currentDigest = stored?.digest ?? FIXTURE_AGENT_DEFINITION_DIGEST;
@@ -339,6 +345,9 @@ export const handlers: HttpHandler[] = [
   }),
   aghApiMock.post("/api/agents/{name}/soul/validate", async ({ params, request }) => {
     const name = String(params.name);
+    if (!agentByName(name)) {
+      return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
+    }
     const body = (await request.json()) as { body: string };
     const valid = body.body.trim().length > 0;
     return HttpResponse.json({
@@ -353,11 +362,18 @@ export const handlers: HttpHandler[] = [
       diagnostics: [],
     });
   }),
-  aghApiMock.get("/api/agents/{name}/soul/history", () => {
+  aghApiMock.get("/api/agents/{name}/soul/history", ({ params }) => {
+    const name = String(params.name);
+    if (!agentByName(name)) {
+      return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
+    }
     return HttpResponse.json({ revisions: [] });
   }),
   aghApiMock.post("/api/agents/{name}/soul/rollback", async ({ params }) => {
     const name = String(params.name);
+    if (!agentByName(name)) {
+      return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
+    }
     const stored = soulBodies.get(name) ?? {
       body: "rolled back",
       digest: nextDigest(`soul-rb:${name}`),
@@ -377,6 +393,9 @@ export const handlers: HttpHandler[] = [
   }),
   aghApiMock.put("/api/agents/{name}/heartbeat", async ({ params, request }) => {
     const name = String(params.name);
+    if (!agentByName(name)) {
+      return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
+    }
     const body = (await request.json()) as { body: string; expected_digest: string };
     const stored = heartbeatBodies.get(name);
     const currentDigest = stored?.digest ?? FIXTURE_AGENT_DEFINITION_DIGEST;
@@ -396,6 +415,9 @@ export const handlers: HttpHandler[] = [
   }),
   aghApiMock.delete("/api/agents/{name}/heartbeat", async ({ params, request }) => {
     const name = String(params.name);
+    if (!agentByName(name)) {
+      return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
+    }
     const body = (await request.json()) as { expected_digest: string };
     const stored = heartbeatBodies.get(name);
     const currentDigest = stored?.digest ?? FIXTURE_AGENT_DEFINITION_DIGEST;
@@ -414,6 +436,9 @@ export const handlers: HttpHandler[] = [
   }),
   aghApiMock.post("/api/agents/{name}/heartbeat/validate", async ({ params, request }) => {
     const name = String(params.name);
+    if (!agentByName(name)) {
+      return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
+    }
     const body = (await request.json()) as { body: string };
     const valid = body.body.trim().length > 0;
     return HttpResponse.json({
@@ -429,11 +454,18 @@ export const handlers: HttpHandler[] = [
       diagnostics: [],
     });
   }),
-  aghApiMock.get("/api/agents/{name}/heartbeat/history", () => {
+  aghApiMock.get("/api/agents/{name}/heartbeat/history", ({ params }) => {
+    const name = String(params.name);
+    if (!agentByName(name)) {
+      return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
+    }
     return HttpResponse.json({ revisions: [] });
   }),
   aghApiMock.post("/api/agents/{name}/heartbeat/rollback", async ({ params }) => {
     const name = String(params.name);
+    if (!agentByName(name)) {
+      return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
+    }
     const stored = heartbeatBodies.get(name) ?? {
       body: "rolled back",
       digest: nextDigest(`hb-rb:${name}`),
@@ -446,6 +478,9 @@ export const handlers: HttpHandler[] = [
   }),
   aghApiMock.get("/api/agents/{name}/heartbeat/status", ({ params }) => {
     const name = String(params.name);
+    if (!agentByName(name)) {
+      return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
+    }
     const stored = heartbeatBodies.get(name);
     return HttpResponse.json({
       agent_name: name,
@@ -457,7 +492,11 @@ export const handlers: HttpHandler[] = [
       preferences: { min_interval: "30m", context: {} },
     });
   }),
-  aghApiMock.post("/api/agents/{name}/heartbeat/wake", async ({ request }) => {
+  aghApiMock.post("/api/agents/{name}/heartbeat/wake", async ({ params, request }) => {
+    const name = String(params.name);
+    if (!agentByName(name)) {
+      return HttpResponse.json({ error: `Agent not found: ${name}` }, { status: 404 });
+    }
     const body = (await request.json()) as { session_id: string };
     return HttpResponse.json({
       decision: {

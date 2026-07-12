@@ -176,4 +176,27 @@ describe("agent MSW handlers", () => {
     });
     expect(wake.status).toBe(200);
   });
+
+  it("Should 404 authored-file mutations for unknown agents", async () => {
+    const missing = "missing-agent";
+    const putSoul = await fetch(`${API}/api/agents/${missing}/soul`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        body: "orphan",
+        expected_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+      }),
+    });
+    expect(putSoul.status).toBe(404);
+
+    const wake = await fetch(`${API}/api/agents/${missing}/heartbeat/wake`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: "sess-1", source: "manual" }),
+    });
+    expect(wake.status).toBe(404);
+
+    const status = await fetch(`${API}/api/agents/${missing}/heartbeat/status`);
+    expect(status.status).toBe(404);
+  });
 });

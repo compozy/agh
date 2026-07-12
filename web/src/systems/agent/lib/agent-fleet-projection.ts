@@ -30,14 +30,21 @@ export function formatCategoryMetaSegment(path: string[] | null | undefined): st
   const label = formatCategoryLabel(path);
   if (label.length <= CATEGORY_ELLIPSIS_LIMIT) return label;
   if (!Array.isArray(path) || path.length <= 2) {
-    if (label.length <= CATEGORY_ELLIPSIS_LIMIT) return label;
     const head = Math.max(8, Math.floor((CATEGORY_ELLIPSIS_LIMIT - 1) / 2));
     const tail = CATEGORY_ELLIPSIS_LIMIT - 1 - head;
     return `${label.slice(0, head)}…${label.slice(-tail)}`;
   }
-  const first = path[0] ?? "";
-  const last = path[path.length - 1] ?? "";
-  return `${first}${AGENT_CATEGORY_LABEL_SEPARATOR}…${AGENT_CATEGORY_LABEL_SEPARATOR}${last}`;
+  const sep = `${AGENT_CATEGORY_LABEL_SEPARATOR}…${AGENT_CATEGORY_LABEL_SEPARATOR}`;
+  const budget = CATEGORY_ELLIPSIS_LIMIT - sep.length;
+  let first = path[0] ?? "";
+  let last = path[path.length - 1] ?? "";
+  if (first.length + last.length > budget) {
+    const headLen = Math.max(1, Math.floor(budget / 2));
+    const tailLen = Math.max(1, budget - headLen);
+    first = first.slice(0, headLen);
+    last = last.slice(-tailLen);
+  }
+  return `${first}${sep}${last}`;
 }
 
 export function formatAgentFleetMeta(agent: AgentPayload): string {

@@ -5,6 +5,7 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	core "github.com/compozy/agh/internal/api/core"
+	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/transcript"
@@ -103,12 +104,16 @@ func (s StubSessionManager) CountSessionsByAgent(
 		if info.Lineage != nil && info.Lineage.SpawnRole == session.SpawnRoleMemoryExtractor {
 			continue
 		}
-		count := counts[info.AgentName]
+		agentName := aghconfig.NormalizeAgentName(info.AgentName)
+		if agentName == "" {
+			continue
+		}
+		count := counts[agentName]
 		count.Total++
 		if info.State == session.StateActive {
 			count.Active++
 		}
-		counts[info.AgentName] = count
+		counts[agentName] = count
 	}
 	return counts, nil
 }

@@ -22,7 +22,8 @@ function SlotInspector({ probeId }: { probeId: string }) {
       tabs:{slot?.tabs ? "yes" : "no"} actions:{slot?.actions ? "yes" : "no"} search:
       {slot?.search ? "yes" : "no"} title:{slot?.title ? "yes" : "no"} meta:
       {slot?.meta ? "yes" : "no"} overflow:{slot?.overflow ? "yes" : "no"} back:
-      {slot?.back ? "yes" : "no"}
+      {slot?.back ? "yes" : "no"} title-value:
+      {typeof slot?.title === "string" ? slot.title : "no"}
     </span>
   );
 }
@@ -316,7 +317,7 @@ describe("Topbar", () => {
         <Harness showOlder />
       </TopbarSlotProvider>
     );
-    expect(screen.getByTestId("inspector")).toHaveTextContent("title:yes");
+    expect(screen.getByTestId("inspector")).toHaveTextContent("title-value:Active");
 
     act(() => {
       rerender(
@@ -326,7 +327,7 @@ describe("Topbar", () => {
       );
     });
 
-    expect(screen.getByTestId("inspector")).toHaveTextContent("title:yes");
+    expect(screen.getByTestId("inspector")).toHaveTextContent("title-value:Active");
   });
 
   it("Should not let a non-owning null consumer erase the active slot", () => {
@@ -339,6 +340,40 @@ describe("Topbar", () => {
     );
 
     expect(screen.getByTestId("inspector")).toHaveTextContent("title:yes");
+  });
+
+  it("Should publish a replaced back handler when only the callback identity changes", () => {
+    const firstBack = vi.fn();
+    const secondBack = vi.fn();
+
+    function Harness({ back }: { back: () => void }) {
+      useTopbarSlot({ title: "Detail", back });
+      return null;
+    }
+
+    const { rerender } = render(
+      <TopbarSlotProvider>
+        <Harness back={firstBack} />
+        <Topbar route={{ title: "Agents" }} />
+      </TopbarSlotProvider>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Go back" }));
+    expect(firstBack).toHaveBeenCalledTimes(1);
+    expect(secondBack).not.toHaveBeenCalled();
+
+    act(() => {
+      rerender(
+        <TopbarSlotProvider>
+          <Harness back={secondBack} />
+          <Topbar route={{ title: "Agents" }} />
+        </TopbarSlotProvider>
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Go back" }));
+    expect(firstBack).toHaveBeenCalledTimes(1);
+    expect(secondBack).toHaveBeenCalledTimes(1);
   });
 
   it("Should be a no-op when used outside a TopbarSlotProvider (test ergonomics)", () => {

@@ -187,6 +187,7 @@ export function AgentAuthoredFileEditor({
         variant="mono"
         value={editor.draft}
         onChange={event => editor.setDraft(event.target.value)}
+        disabled={editor.saving}
         className="min-h-64"
         data-testid={`agent-${kind}-textarea`}
         aria-label={`${editor.fileLabel} body`}

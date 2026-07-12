@@ -44,8 +44,14 @@ export function AgentHeartbeatOps({
   const recentWakes = status?.wake_events ?? [];
   const recentWake = recentWakes[0];
   const health = selectedSessionId ? status?.session_health : null;
+  const hasSelectedActiveSession =
+    selectedSessionId !== null && activeSessions.some(session => session.id === selectedSessionId);
   const canWake = Boolean(
-    selectedSessionId && !statusLoading && health?.eligible_for_wake && !waking
+    hasSelectedActiveSession &&
+    !statusLoading &&
+    !statusError &&
+    health?.eligible_for_wake &&
+    !waking
   );
 
   if (statusError && !status) {
@@ -69,6 +75,19 @@ export function AgentHeartbeatOps({
       className="flex flex-col gap-4 rounded-md border border-line p-4"
       data-testid="agent-heartbeat-ops"
     >
+      {statusError ? (
+        <ActionResultBanner
+          tone="danger"
+          title="Couldn't refresh heartbeat status"
+          description="Cached status may be stale. Retry to refresh wake eligibility."
+          actions={
+            <Button type="button" size="sm" variant="ghost" onClick={onRetryStatus}>
+              Retry
+            </Button>
+          }
+          data-testid="agent-heartbeat-status-stale-error"
+        />
+      ) : null}
       <MetadataList>
         <MetadataList.Row>
           <MetadataList.Term>Enabled</MetadataList.Term>

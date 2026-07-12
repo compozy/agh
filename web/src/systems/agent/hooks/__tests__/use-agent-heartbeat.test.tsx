@@ -146,6 +146,16 @@ describe("use-agent-heartbeat", () => {
     });
     await waitFor(() => expect(status.result.current.isSuccess).toBe(true));
 
+    const putHeartbeat = {
+      ...heartbeat,
+      digest: "c".repeat(64),
+      guidance_markdown: "updated guidance",
+    };
+    mockPutHeartbeat.mockImplementation(async () => {
+      mockFetchHeartbeat.mockResolvedValue(putHeartbeat);
+      return { heartbeat: putHeartbeat, revision: { id: "r1" } };
+    });
+
     const put = renderHook(() => usePutAgentHeartbeat("coder", "ws_alpha"), {
       wrapper: createWrapper(queryClient),
     });
@@ -155,18 +165,39 @@ describe("use-agent-heartbeat", () => {
         expected_digest: "b".repeat(64),
       });
     });
-    expect(queryClient.getQueryData(agentKeys.heartbeat("coder", "ws_alpha"))).toEqual(heartbeat);
+    expect(mockPutHeartbeat).toHaveBeenCalledWith("coder", {
+      body: "---\nenabled: true\n---\n",
+      expected_digest: "b".repeat(64),
+    });
+    await waitFor(() => {
+      expect(queryClient.getQueryData(agentKeys.heartbeat("coder", "ws_alpha"))).toEqual(
+        putHeartbeat
+      );
+    });
   });
 
   it("Should validate, delete, rollback, and wake", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
+    const rolledBackHeartbeat = { ...heartbeat, digest: "d".repeat(64) };
+    mockDeleteHeartbeat.mockResolvedValue({
+      heartbeat: { ...heartbeat, active: false },
+      revision: { id: "r2" },
+    });
+    mockRollbackHeartbeat.mockImplementation(async () => {
+      mockFetchHeartbeat.mockResolvedValue(rolledBackHeartbeat);
+      return { heartbeat: rolledBackHeartbeat, revision: { id: "r3" } };
+    });
+
     const validate = renderHook(() => useValidateAgentHeartbeat("coder"), {
       wrapper: createWrapper(queryClient),
     });
     await act(async () => {
       await validate.result.current.mutateAsync({ body: "---\nenabled: true\n---\n" });
+    });
+    expect(mockValidateHeartbeat).toHaveBeenCalledWith("coder", {
+      body: "---\nenabled: true\n---\n",
     });
 
     const del = renderHook(() => useDeleteAgentHeartbeat("coder", "ws_alpha"), {
@@ -175,12 +206,23 @@ describe("use-agent-heartbeat", () => {
     await act(async () => {
       await del.result.current.mutateAsync({ expected_digest: "b".repeat(64) });
     });
+    expect(mockDeleteHeartbeat).toHaveBeenCalledWith("coder", {
+      expected_digest: "b".repeat(64),
+    });
 
     const rollback = renderHook(() => useRollbackAgentHeartbeat("coder", "ws_alpha"), {
       wrapper: createWrapper(queryClient),
     });
     await act(async () => {
       await rollback.result.current.mutateAsync({ expected_digest: "b".repeat(64) });
+    });
+    expect(mockRollbackHeartbeat).toHaveBeenCalledWith("coder", {
+      expected_digest: "b".repeat(64),
+    });
+    await waitFor(() => {
+      expect(queryClient.getQueryData(agentKeys.heartbeat("coder", "ws_alpha"))).toEqual(
+        rolledBackHeartbeat
+      );
     });
 
     const wake = renderHook(() => useWakeAgentHeartbeat("coder", "ws_alpha"), {

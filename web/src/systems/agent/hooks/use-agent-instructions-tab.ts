@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { SessionPayload } from "@/systems/session";
 
@@ -67,6 +67,15 @@ export function useAgentInstructionsTab({
       return requestedWakeSessionId;
     }
     return null;
+  }, [activeSessions, requestedWakeSessionId]);
+
+  useEffect(() => {
+    if (
+      requestedWakeSessionId &&
+      !activeSessions.some(session => session.id === requestedWakeSessionId)
+    ) {
+      setWakeSessionId(null);
+    }
   }, [activeSessions, requestedWakeSessionId]);
 
   const statusQuery = useAgentHeartbeatStatus(

@@ -1,10 +1,12 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -126,7 +128,10 @@ func (h *BaseHandlers) CreateAgent(c *gin.Context) {
 	}
 	syncStartedAt := time.Now()
 	if err := h.AgentDefinitionSync.Sync(c.Request.Context()); err != nil {
-		syncErr := fmt.Errorf("api: sync created agent definition: %w", err)
+		syncErr := errors.Join(
+			fmt.Errorf("api: sync created agent definition: %w", err),
+			h.rollbackCreatedAgentDefinition(c.Request.Context(), agent.SourcePath),
+		)
 		h.logAgentMutationFailure("create", agent.SourcePath, startedAt, time.Since(syncStartedAt), syncErr)
 		h.respondError(c, http.StatusInternalServerError, syncErr)
 		return
@@ -134,6 +139,17 @@ func (h *BaseHandlers) CreateAgent(c *gin.Context) {
 	entry := h.agentCatalogEntryFromDef(agent, workspaceID)
 	h.logAgentMutation("create", entry, startedAt, time.Since(syncStartedAt))
 	c.JSON(http.StatusCreated, contract.AgentResponse{Agent: AgentPayloadFromEntry(entry)})
+}
+
+func (h *BaseHandlers) rollbackCreatedAgentDefinition(ctx context.Context, sourcePath string) error {
+	agentsRoot := filepath.Dir(filepath.Dir(sourcePath))
+	if err := aghconfig.DeleteAgentDefinition(agentsRoot, sourcePath); err != nil {
+		return fmt.Errorf("api: roll back created agent definition: %w", err)
+	}
+	if err := h.AgentDefinitionSync.Sync(ctx); err != nil {
+		return fmt.Errorf("api: reconcile catalog after create rollback: %w", err)
+	}
+	return nil
 }
 
 // GetAgent returns one agent definition by name.

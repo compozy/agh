@@ -314,11 +314,15 @@ describe("Agents fleet route", () => {
     expect(routeBeforeLoad(Route)()).toMatchObject({ topbar: { title: "Agents" } });
   });
 
-  it("Should ask for a workspace before querying the fleet", () => {
+  it("Should ask for a workspace before querying the fleet", async () => {
     mockActiveWorkspaceId = null;
     render(<AgentsPage />);
-    expect(screen.getByTestId("agents-no-workspace")).toHaveTextContent("No workspace selected");
-    expect(agentsRequestCount).toBe(0);
+    expect(await screen.findByTestId("agents-no-workspace")).toHaveTextContent(
+      "No workspace selected"
+    );
+    await waitFor(() => {
+      expect(agentsRequestCount).toBe(0);
+    });
   });
 
   it("Should render skeleton then loaded rows with sibling new-session action", async () => {

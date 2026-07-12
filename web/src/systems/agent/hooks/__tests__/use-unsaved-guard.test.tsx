@@ -1,4 +1,5 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, render, renderHook, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockUseBlocker, mockProceed, mockReset } = vi.hoisted(() => {
@@ -101,5 +102,28 @@ describe("useUnsavedGuard", () => {
     const secondPredicate = mockUseBlocker.mock.calls.at(-1)?.[0].shouldBlockFn;
     expect(secondPredicate).toBe(firstPredicate);
     expect(secondPredicate?.()).toBe(true);
+  });
+
+  it("Should mount the confirmation dialog and wire confirm/cancel to proceed/reset", async () => {
+    const user = userEvent.setup();
+    mockUseBlocker.mockReturnValue({
+      status: "blocked",
+      proceed: mockProceed,
+      reset: mockReset,
+    });
+
+    const { result } = renderHook(() => useUnsavedGuard({ dirty: true, entityName: "coder" }));
+    render(<>{result.current.confirmDialog}</>);
+
+    expect(screen.getByTestId("unsaved-guard-dialog")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Discard unsaved changes?" })).toBeInTheDocument();
+    expect(screen.getByTestId("unsaved-guard-discard")).toBeInTheDocument();
+    expect(screen.getByTestId("unsaved-guard-keep-editing")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("unsaved-guard-discard"));
+    expect(mockProceed).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByTestId("unsaved-guard-keep-editing"));
+    expect(mockReset).toHaveBeenCalledTimes(1);
   });
 });

@@ -225,10 +225,9 @@ func TestAgentCreateCommand(t *testing.T) {
 		t.Parallel()
 
 		workspaceRoot := t.TempDir()
-		const workspaceRef = "ws-alpha"
 		deps := newTestDeps(t, &stubClient{
 			createAgentFn: func(_ context.Context, request contract.CreateAgentRequest) (AgentRecord, error) {
-				if request.Scope != contract.AgentCreateScopeWorkspace || request.Workspace != workspaceRef {
+				if request.Scope != contract.AgentCreateScopeWorkspace || request.Workspace != workspaceRoot {
 					t.Fatalf("CreateAgent() scope/workspace = %q/%q", request.Scope, request.Workspace)
 				}
 				if request.Agent.Name != "pricing_strategist" || request.Agent.Provider != "claude" ||
@@ -244,7 +243,7 @@ func TestAgentCreateCommand(t *testing.T) {
 					ReasoningEffort:  request.Agent.ReasoningEffort,
 					Prompt:           request.Agent.Prompt,
 					Origin:           contract.AgentOriginWorkspace,
-					WorkspaceID:      workspaceRef,
+					WorkspaceID:      "ws-alpha",
 					DefinitionDigest: "digest-create",
 				}, nil
 			},
@@ -257,7 +256,7 @@ func TestAgentCreateCommand(t *testing.T) {
 			"create",
 			"pricing_strategist",
 			"--workspace",
-			workspaceRef,
+			workspaceRoot,
 			"--provider",
 			"claude",
 			"--model",

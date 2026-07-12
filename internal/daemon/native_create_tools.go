@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/compozy/agh/internal/api/contract"
@@ -162,6 +163,12 @@ func (n *daemonNativeTools) agentCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if n.deps.AgentSkills == nil {
+		return toolspkg.ToolResult{}, nativeAgentCreateToolError(
+			req.ToolID,
+			errors.New("daemon: agent definition sync is unavailable"),
+		)
+	}
 	agent, err := core.CreateAgentFromRequest(
 		ctx,
 		createReq,
@@ -172,16 +179,14 @@ func (n *daemonNativeTools) agentCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAgentCreateToolError(req.ToolID, err)
 	}
-	if n.deps.AgentSkills == nil {
-		return toolspkg.ToolResult{}, nativeAgentCreateToolError(
-			req.ToolID,
-			errors.New("daemon: agent definition sync is unavailable"),
-		)
-	}
 	if err := n.deps.AgentSkills.Sync(ctx); err != nil {
+		syncErr := errors.Join(
+			fmt.Errorf("daemon: sync created agent definition: %w", err),
+			n.rollbackNativeAgentCreate(ctx, agent.SourcePath),
+		)
 		return toolspkg.ToolResult{}, nativeAgentCreateToolError(
 			req.ToolID,
-			fmt.Errorf("daemon: sync created agent definition: %w", err),
+			syncErr,
 		)
 	}
 	entry := core.AgentCatalogEntry{Def: agent, Origin: contract.AgentOriginGlobal}
@@ -191,6 +196,17 @@ func (n *daemonNativeTools) agentCreate(
 	}
 	payload := core.AgentPayloadFromEntry(entry)
 	return structuredResult(map[string]any{daemonAgentField: payload}, "agent "+payload.Name)
+}
+
+func (n *daemonNativeTools) rollbackNativeAgentCreate(ctx context.Context, sourcePath string) error {
+	agentsRoot := filepath.Dir(filepath.Dir(sourcePath))
+	if err := aghconfig.DeleteAgentDefinition(agentsRoot, sourcePath); err != nil {
+		return fmt.Errorf("daemon: roll back created agent definition: %w", err)
+	}
+	if err := n.deps.AgentSkills.Sync(ctx); err != nil {
+		return fmt.Errorf("daemon: reconcile catalog after agent create rollback: %w", err)
+	}
+	return nil
 }
 
 func (n *daemonNativeTools) agentCreateRequest(

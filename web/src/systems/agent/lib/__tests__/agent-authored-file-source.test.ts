@@ -73,4 +73,15 @@ describe("agent-authored-file-source", () => {
     expect(source).toContain('context:\n  include:\n    - "self"');
     expect(source).toContain("---\n# Wake checks\n\nSurface failed sessions.\n");
   });
+
+  it("Should preserve trailing Markdown spaces and blank lines in the body", () => {
+    const payload = {
+      frontmatter: { version: "1" },
+      body: "line with hard break \n\n",
+    } as AgentSoulPayload;
+
+    expect(serializeAgentSoulSource(payload)).toBe(
+      ["---", 'version: "1"', "---", "line with hard break \n\n"].join("\n")
+    );
+  });
 });

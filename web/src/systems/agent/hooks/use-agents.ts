@@ -20,6 +20,20 @@ interface UseAgentsOptions {
   enabled?: boolean;
 }
 
+function invalidateAgentCollectionQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  settledError: unknown,
+  workspace?: string | null
+): void {
+  // Callers attach onError for UX; settlement still refreshes lists after any outcome.
+  queryClient.invalidateQueries({ queryKey: agentKeys.lists() });
+  queryClient.invalidateQueries({ queryKey: agentKeys.catalogs() });
+  if (workspace) {
+    queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(workspace) });
+  }
+  if (settledError) return;
+}
+
 export function useAgents(workspace?: string | null, options: UseAgentsOptions = {}) {
   return useQuery({
     ...agentsListOptions(workspace),
@@ -41,7 +55,7 @@ export function useAgentCatalog(
     ...query,
     agents: flattenAgentCatalogPages(query.data),
     facets: firstPage?.facets,
-    sessionsAvailable: firstPage?.sessions_available ?? true,
+    sessionsAvailable: firstPage?.sessions_available ?? false,
     total: firstPage?.page.total ?? 0,
   };
 }
@@ -59,12 +73,12 @@ export function useCreateAgent() {
       const workspace = params.scope === "workspace" ? params.workspace : null;
       queryClient.setQueryData<AgentPayload>(agentKeys.detail(agent.name, workspace), agent);
     },
-    onSettled: (_agent, _error, params) => {
-      queryClient.invalidateQueries({ queryKey: agentKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: agentKeys.catalogs() });
-      if (params?.scope === "workspace" && params.workspace) {
-        queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(params.workspace) });
-      }
+    onSettled: (_agent, error, params) => {
+      invalidateAgentCollectionQueries(
+        queryClient,
+        error,
+        params?.scope === "workspace" ? params.workspace : null
+      );
     },
   });
 }
@@ -83,14 +97,8 @@ export function useUpdateAgent() {
       const workspace = variables.params.workspace ?? null;
       queryClient.setQueryData<AgentPayload>(agentKeys.detail(agent.name, workspace), agent);
     },
-    onSettled: (_agent, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: agentKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: agentKeys.catalogs() });
-      if (variables?.params.workspace) {
-        queryClient.invalidateQueries({
-          queryKey: workspaceKeys.detail(variables.params.workspace),
-        });
-      }
+    onSettled: (_agent, error, variables) => {
+      invalidateAgentCollectionQueries(queryClient, error, variables?.params.workspace);
     },
   });
 }
@@ -110,12 +118,8 @@ export function useDeleteAgent() {
       queryClient.removeQueries({ queryKey: agentKeys.detail(variables.name, workspace) });
       getNavCountsStore(workspace).getState().refresh();
     },
-    onSettled: (_result, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: agentKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: agentKeys.catalogs() });
-      if (variables?.workspace) {
-        queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(variables.workspace) });
-      }
+    onSettled: (_result, error, variables) => {
+      invalidateAgentCollectionQueries(queryClient, error, variables?.workspace);
     },
   });
 }
@@ -136,14 +140,12 @@ export function useDuplicateAgent() {
         variables.params.scope === "workspace" ? (variables.params.workspace ?? null) : null;
       queryClient.setQueryData<AgentPayload>(agentKeys.detail(agent.name, workspace), agent);
     },
-    onSettled: (_agent, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: agentKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: agentKeys.catalogs() });
-      if (variables?.params.scope === "workspace" && variables.params.workspace) {
-        queryClient.invalidateQueries({
-          queryKey: workspaceKeys.detail(variables.params.workspace),
-        });
-      }
+    onSettled: (_agent, error, variables) => {
+      invalidateAgentCollectionQueries(
+        queryClient,
+        error,
+        variables?.params.scope === "workspace" ? variables.params.workspace : null
+      );
     },
   });
 }

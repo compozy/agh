@@ -561,10 +561,8 @@ func (s *agentSkillSourceSyncer) Sync(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if agentChanged {
-		if err := s.projectAgents(ctx); err != nil {
-			return err
-		}
+	if err := s.projectAgents(ctx); err != nil {
+		return err
 	}
 	skillChanged, err := s.syncSkills(ctx, desired.skills)
 	if err != nil {

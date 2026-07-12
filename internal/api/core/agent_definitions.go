@@ -122,11 +122,16 @@ func (h *BaseHandlers) DeleteAgent(c *gin.Context) {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
 	}
+	if err := h.purgeAgentDefinitionHistory(c.Request.Context(), resolved); err != nil {
+		h.logAgentMutationFailure("delete", resolved.Entry.Def.SourcePath, startedAt, 0, err)
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
 	if err := aghconfig.DeleteAgentDefinition(agentsRoot, resolved.Entry.Def.SourcePath); err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
 	}
-	mutationErr := h.purgeAgentDefinitionHistory(c.Request.Context(), resolved)
+	var mutationErr error
 	syncStartedAt := time.Now()
 	if syncErr := h.AgentDefinitionSync.Sync(c.Request.Context()); syncErr != nil {
 		mutationErr = errors.Join(mutationErr, fmt.Errorf("api: sync deleted agent definition: %w", syncErr))

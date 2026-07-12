@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -31,7 +32,7 @@ func (n *daemonNativeTools) workspaceAgents(
 	if n.deps.AgentCatalog != nil {
 		catalogAgents, err := n.deps.AgentCatalog.ListAgents(ctx)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("daemon: list agent catalog entries: %w", err)
 		}
 		for _, entry := range catalogAgents {
 			agent := entry.Def

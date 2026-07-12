@@ -30,17 +30,20 @@ func newAgentCreateCommand(deps commandDeps) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
-				return err
+				return fmt.Errorf("cli: initialize agent client: %w", err)
 			}
 			request, err := createAgentRequestFromFlags(cmd, args[0], flags)
 			if err != nil {
-				return err
+				return fmt.Errorf("cli: build create-agent request: %w", err)
 			}
 			agent, err := client.CreateAgent(cmd.Context(), request)
 			if err != nil {
-				return err
+				return fmt.Errorf("cli: create agent: %w", err)
 			}
-			return writeCommandOutput(cmd, agentBundle(agent))
+			if err := writeCommandOutput(cmd, agentBundle(agent)); err != nil {
+				return fmt.Errorf("cli: write created agent output: %w", err)
+			}
+			return nil
 		},
 	}
 	cmd.Flags().String("workspace", "", "Workspace id, name, or path to create the agent under")
@@ -58,11 +61,11 @@ func newAgentUpdateCommand(deps commandDeps) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
-				return err
+				return fmt.Errorf("cli: initialize agent client: %w", err)
 			}
 			workspace, err := commandWorkspaceFlag(cmd)
 			if err != nil {
-				return err
+				return fmt.Errorf("cli: resolve update workspace: %w", err)
 			}
 			request, err := updateAgentRequestFromFlags(
 				cmd,
@@ -73,13 +76,16 @@ func newAgentUpdateCommand(deps commandDeps) *cobra.Command {
 				flags,
 			)
 			if err != nil {
-				return err
+				return fmt.Errorf("cli: build update-agent request: %w", err)
 			}
 			agent, err := client.UpdateAgent(cmd.Context(), args[0], request)
 			if err != nil {
-				return err
+				return fmt.Errorf("cli: update agent: %w", err)
 			}
-			return writeCommandOutput(cmd, agentBundle(agent))
+			if err := writeCommandOutput(cmd, agentBundle(agent)); err != nil {
+				return fmt.Errorf("cli: write updated agent output: %w", err)
+			}
+			return nil
 		},
 	}
 	cmd.Flags().String("workspace", "", "Resolve the effective agent from a workspace")
@@ -96,21 +102,24 @@ func newAgentDeleteCommand(deps commandDeps) *cobra.Command {
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := confirmAgentDelete(cmd, args[0], yes, deps.inputIsTerminal); err != nil {
-				return err
+				return fmt.Errorf("cli: confirm agent deletion: %w", err)
 			}
 			workspace, err := commandWorkspaceFlag(cmd)
 			if err != nil {
-				return err
+				return fmt.Errorf("cli: resolve delete workspace: %w", err)
 			}
 			client, err := clientFromDeps(deps)
 			if err != nil {
-				return err
+				return fmt.Errorf("cli: initialize agent client: %w", err)
 			}
 			result, err := client.DeleteAgent(cmd.Context(), args[0], workspace)
 			if err != nil {
-				return err
+				return fmt.Errorf("cli: delete agent: %w", err)
 			}
-			return writeCommandOutput(cmd, agentDeleteBundle(result))
+			if err := writeCommandOutput(cmd, agentDeleteBundle(result)); err != nil {
+				return fmt.Errorf("cli: write deleted agent output: %w", err)
+			}
+			return nil
 		},
 	}
 	cmd.Flags().String("workspace", "", "Resolve the effective agent from a workspace")
@@ -128,17 +137,20 @@ func newAgentDuplicateCommand(deps commandDeps) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
 			if err != nil {
-				return err
+				return fmt.Errorf("cli: initialize agent client: %w", err)
 			}
 			request, err := duplicateAgentRequestFromFlags(cmd, args[1], scope, flags)
 			if err != nil {
-				return err
+				return fmt.Errorf("cli: build duplicate-agent request: %w", err)
 			}
 			agent, err := client.DuplicateAgent(cmd.Context(), args[0], request)
 			if err != nil {
-				return err
+				return fmt.Errorf("cli: duplicate agent: %w", err)
 			}
-			return writeCommandOutput(cmd, agentBundle(agent))
+			if err := writeCommandOutput(cmd, agentBundle(agent)); err != nil {
+				return fmt.Errorf("cli: write duplicated agent output: %w", err)
+			}
+			return nil
 		},
 	}
 	cmd.Flags().String("workspace", "", "Resolve the source or target workspace")

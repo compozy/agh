@@ -117,4 +117,60 @@ describe("AgentHeartbeatOps", () => {
     await user.click(screen.getByRole("button", { name: "Retry" }));
     expect(retry).toHaveBeenCalledTimes(1);
   });
+
+  it("Should disable Wake now when cached status has a statusError", async () => {
+    const user = userEvent.setup();
+    const onWake = vi.fn();
+    const retry = vi.fn();
+    render(
+      <AgentHeartbeatOps
+        status={status(true)}
+        statusLoading={false}
+        statusError
+        onRetryStatus={retry}
+        activeSessions={[activeSession()]}
+        selectedSessionId="sess-1"
+        onSelectSessionId={vi.fn()}
+        onWake={onWake}
+        waking={false}
+        wakeDecision={undefined}
+        wakeError={null}
+        onNewSession={vi.fn()}
+      />
+    );
+
+    const wake = screen.getByTestId("agent-heartbeat-wake");
+    expect(wake).toBeDisabled();
+    await user.click(wake);
+    expect(onWake).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should disable Wake now when the selected session is absent from activeSessions", async () => {
+    const user = userEvent.setup();
+    const onWake = vi.fn();
+    render(
+      <AgentHeartbeatOps
+        status={status(true)}
+        statusLoading={false}
+        statusError={false}
+        onRetryStatus={vi.fn()}
+        activeSessions={[activeSession("sess-other")]}
+        selectedSessionId="sess-1"
+        onSelectSessionId={vi.fn()}
+        onWake={onWake}
+        waking={false}
+        wakeDecision={undefined}
+        wakeError={null}
+        onNewSession={vi.fn()}
+      />
+    );
+
+    const wake = screen.getByTestId("agent-heartbeat-wake");
+    expect(wake).toBeDisabled();
+    await user.click(wake);
+    expect(onWake).not.toHaveBeenCalled();
+  });
 });

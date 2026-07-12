@@ -95,6 +95,7 @@ export function AgentSettingsPanels(props: AgentSettingsPanelsProps) {
           agent={agent}
           onDelete={props.onDelete}
           isDeleting={props.isDeleting}
+          disabled={disabled || fieldsReadOnly}
         />
       ) : null}
     </div>

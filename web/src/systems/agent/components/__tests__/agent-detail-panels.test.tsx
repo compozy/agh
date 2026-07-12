@@ -129,7 +129,7 @@ describe("agent detail panels", () => {
       <AgentOverviewTab
         agent={agent()}
         sessions={[
-          session(),
+          session({ activity: { ...primarySessionFixture.activity!, elapsed_seconds: 59.5 } }),
           session({ id: "sess-2" }),
           session({ id: "sess-3" }),
           session({ id: "sess-4" }),
@@ -147,6 +147,8 @@ describe("agent detail panels", () => {
     expect(screen.getAllByText("Default")).toHaveLength(3);
     expect(screen.getByTestId("agent-overview-skills")).toHaveTextContent("1 skill disabled");
     expect(screen.getAllByTestId(/^agent-overview-live-sess-/)).toHaveLength(3);
+    expect(screen.getByTestId("agent-overview-live-sess-active")).toHaveTextContent("59s");
+    expect(screen.getByTestId("agent-overview-live-sess-active")).not.toHaveTextContent("1m");
     expect(screen.queryByText(String.fromCharCode(0x2014))).toBeNull();
   });
 

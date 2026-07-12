@@ -24,6 +24,15 @@ import (
 func TestDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve lifecycle parity across CLI HTTP and restart", func(t *testing.T) {
+		// not parallel: lifecycle steps share one ordered runtime state.
+		runDaemonE2EAgentDefinitionLifecycleParity(t)
+	})
+}
+
+func runDaemonE2EAgentDefinitionLifecycleParity(t *testing.T) {
+	t.Helper()
+
 	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{})
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
@@ -314,7 +323,6 @@ func agentDefinitionE2EProjection(agent aghcontract.AgentPayload) agentDefinitio
 		Tools:            append([]string(nil), agent.Tools...),
 	}
 }
-
 func agentDefinitionE2EPath(name string, workspace string) string {
 	return "/api/agents/" + url.PathEscape(name) + "?workspace=" + url.QueryEscape(workspace)
 }

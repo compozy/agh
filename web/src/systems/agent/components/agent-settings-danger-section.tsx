@@ -8,12 +8,14 @@ export interface AgentSettingsDangerSectionProps {
   agent: AgentPayload;
   onDelete: () => void;
   isDeleting: boolean;
+  disabled?: boolean;
 }
 
 export function AgentSettingsDangerSection({
   agent,
   onDelete,
   isDeleting,
+  disabled = false,
 }: AgentSettingsDangerSectionProps) {
   const scopeLabel = agent.origin === "workspace" ? "this workspace" : "the global agent home";
   return (
@@ -37,7 +39,7 @@ export function AgentSettingsDangerSection({
           variant="destructive"
           size="sm"
           onClick={onDelete}
-          disabled={isDeleting}
+          disabled={disabled || isDeleting}
           data-testid="agent-settings-delete"
         >
           <Trash2 className="size-3" />

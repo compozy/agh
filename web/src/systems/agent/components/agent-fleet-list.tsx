@@ -28,7 +28,7 @@ export interface AgentFleetListProps {
   onClearFilters: () => void;
   onCreateAgent: () => void;
   onNewSession: (agentName: string) => void;
-  onLoadMore?: () => void;
+  onLoadMore: () => void;
 }
 
 function AgentFleetList({
@@ -52,7 +52,7 @@ function AgentFleetList({
         <div
           aria-busy="true"
           aria-label="Loading agents"
-          className="grid grid-cols-1 gap-2.5 min-[720px]:grid-cols-2 min-[1100px]:grid-cols-3"
+          className="grid grid-cols-1 gap-2.5 md:grid-cols-2 lg:grid-cols-3"
           data-testid="agent-fleet-loading"
         >
           {Array.from({ length: 6 }, (_, index) => (
@@ -70,7 +70,7 @@ function AgentFleetList({
               <Skeleton className="h-px w-full" />
               <div className="flex items-center justify-between">
                 <Skeleton className="h-4 w-16" />
-                <Skeleton className="size-[26px] rounded-md" />
+                <Skeleton className="size-button-icon-default rounded-md" />
               </div>
             </div>
           ))}
@@ -160,7 +160,7 @@ function AgentFleetList({
       ) : null}
       {view === "cards" ? (
         <div
-          className="grid grid-cols-1 gap-2.5 min-[720px]:grid-cols-2 min-[1100px]:grid-cols-3"
+          className="grid grid-cols-1 gap-2.5 md:grid-cols-2 lg:grid-cols-3"
           data-slot="agent-fleet-cards"
           data-testid="agent-fleet-card-grid"
         >

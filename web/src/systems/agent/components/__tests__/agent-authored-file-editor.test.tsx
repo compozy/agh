@@ -96,6 +96,7 @@ describe("AgentAuthoredFileEditor", () => {
     await user.click(screen.getByTestId("agent-soul-validate"));
     expect(onValidate).toHaveBeenCalledWith(expect.stringContaining("New constraint."));
     expect(await screen.findByText("Role is required")).toBeVisible();
+    expect(screen.getByText("invalid")).toBeVisible();
 
     await user.click(screen.getByTestId("agent-soul-save"));
     expect(onSave).toHaveBeenCalledWith(

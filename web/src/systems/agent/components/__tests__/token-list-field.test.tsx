@@ -24,10 +24,6 @@ describe("TokenListField", () => {
     expect(onChange).toHaveBeenCalledWith(["agh__skill_view", "mcp__github__*"]);
 
     onChange.mockClear();
-    await user.type(input, "agh__skill_view{enter}");
-    expect(onChange).toHaveBeenCalledWith(["agh__skill_view"]);
-
-    onChange.mockClear();
     rerender(
       <TokenListField
         description="Tools"
@@ -38,6 +34,10 @@ describe("TokenListField", () => {
         values={["agh__skill_view", "mcp__github__*"]}
       />
     );
+    await user.type(input, "agh__skill_view{enter}");
+    expect(onChange).toHaveBeenCalledWith(["agh__skill_view", "mcp__github__*"]);
+
+    onChange.mockClear();
     await user.click(screen.getByLabelText("Remove mcp__github__*"));
     expect(onChange).toHaveBeenCalledWith(["agh__skill_view"]);
   });

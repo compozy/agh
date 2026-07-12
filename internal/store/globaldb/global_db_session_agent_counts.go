@@ -22,7 +22,7 @@ func (g *GlobalDB) CountSessionsByAgent(
 		return nil, err
 	}
 	if _, err := g.SweepExpiredSessionAttachLocks(ctx, g.now()); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("store: sweep expired session attach locks before counting agents: %w", err)
 	}
 
 	where, args, err := sessionCatalogPageFilters(store.SessionCatalogPageQuery{

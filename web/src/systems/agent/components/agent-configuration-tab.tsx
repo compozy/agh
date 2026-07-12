@@ -28,13 +28,13 @@ export function AgentConfigurationTab({ agent, onEditSection }: AgentConfigurati
           <ConfigField
             label="Model"
             value={formatAbsentOverride(agent.model)}
-            muted={!agent.model}
+            muted={!agent.model?.trim()}
           />
           <ConfigField
             label="Command"
             value={formatAbsentOverride(agent.command)}
-            muted={!agent.command}
-            mono={Boolean(agent.command)}
+            muted={!agent.command?.trim()}
+            mono={Boolean(agent.command?.trim())}
           />
           <ConfigField
             label="Permissions"

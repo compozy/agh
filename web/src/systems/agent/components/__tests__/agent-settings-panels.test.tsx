@@ -192,4 +192,14 @@ describe("AgentSettingsPanels", () => {
     expect(category).not.toHaveAttribute("aria-disabled");
     expect(category).not.toBeDisabled();
   });
+
+  it("Should disable delete when read-only or mutation-denied", () => {
+    const onDelete = vi.fn();
+    const view = render(<AgentSettingsPanels {...props("danger", { onDelete, readOnly: true })} />);
+    expect(screen.getByTestId("agent-settings-delete")).toBeDisabled();
+
+    view.rerender(<AgentSettingsPanels {...props("danger", { onDelete, mutationDenied: true })} />);
+    expect(screen.getByTestId("agent-settings-delete")).toBeDisabled();
+    expect(onDelete).not.toHaveBeenCalled();
+  });
 });

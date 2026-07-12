@@ -182,8 +182,17 @@ describe("useAgentInstructionsTab", () => {
       expected_digest: "soul-digest",
       workspace_id: "ws-test",
     });
+    expect(mocks.validateHeartbeat).toHaveBeenCalledWith({
+      body: "heartbeat-body",
+      workspace_id: "ws-test",
+    });
     expect(mocks.putHeartbeat).toHaveBeenCalledWith({
       body: "heartbeat-body",
+      expected_digest: "heartbeat-digest",
+      workspace_id: "ws-test",
+    });
+    expect(mocks.rollbackHeartbeat).toHaveBeenCalledWith({
+      revision_id: "heartbeat-rev",
       expected_digest: "heartbeat-digest",
       workspace_id: "ws-test",
     });
@@ -192,6 +201,8 @@ describe("useAgentInstructionsTab", () => {
       source: "manual",
     });
     expect(mocks.soulRefetch).toHaveBeenCalled();
+    expect(mocks.soulHistoryRefetch).toHaveBeenCalled();
+    expect(mocks.heartbeatRefetch).toHaveBeenCalled();
     expect(mocks.heartbeatHistoryRefetch).toHaveBeenCalled();
     expect(mocks.statusRefetch).toHaveBeenCalled();
   });
@@ -216,6 +227,9 @@ describe("useAgentInstructionsTab", () => {
     act(() => result.current.heartbeat.setWakeSessionId("sess-first"));
     rerender({ sessions: [second, third] });
 
+    expect(result.current.heartbeat.wakeSessionId).toBeNull();
+
+    rerender({ sessions: [first, second] });
     expect(result.current.heartbeat.wakeSessionId).toBeNull();
   });
 });

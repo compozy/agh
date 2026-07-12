@@ -30,6 +30,14 @@ import (
 )
 
 func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
+	t.Run("Should cover the registered HTTP route contract", func(t *testing.T) {
+		t.Parallel()
+		assertRegisteredRouteContract(t)
+	})
+}
+
+func assertRegisteredRouteContract(t *testing.T) {
+	t.Helper()
 	homePaths := newTestHomePaths(t)
 	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths)
 	engine := newTestRouter(t, handlers)
@@ -76,6 +84,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/agents/:name/heartbeat/status",
 		"GET /api/agents/:name/soul",
 		"GET /api/agents/:name/soul/history",
+		"GET /api/agents/catalog",
 		"GET /api/automation/jobs",
 		"GET /api/automation/jobs/:id",
 		"GET /api/automation/jobs/:id/runs",
@@ -394,7 +403,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		}
 	}
 }
-
 func TestRegisterRoutesRejectsLegacyStatusSurfaces(t *testing.T) {
 	t.Parallel()
 

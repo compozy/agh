@@ -539,6 +539,89 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 	}
 }
 
+func TestAgentSkillSourceSyncerRetriesAgentProjection(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should retry projection after the durable resource write stops changing", func(t *testing.T) {
+		t.Parallel()
+
+		rawStore, agentStore, agentCodec, skillStore, skillCodec, mcpStore, mcpCodec := agentSkillSyncStores(t)
+		projectionErr := errors.New("projection unavailable")
+		projector := &retryingAgentProjector{buildErrors: []error{projectionErr, nil}}
+		syncer := newAgentSkillSourceSyncer(
+			rawStore,
+			agentStore,
+			agentCodec,
+			projector,
+			skillStore,
+			skillCodec,
+			nil,
+			mcpStore,
+			mcpCodec,
+			agentSkillSyncActor(),
+			discardLogger(),
+			nil,
+			func(context.Context) (agentSkillDesiredResources, error) {
+				return agentSkillDesiredResources{agents: []agentPublicationInput{{
+					sourceKey: "test/agent/coder",
+					scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+					spec:      aghconfig.AgentDef{Name: "coder", Provider: "codex", Prompt: "Code."},
+				}}}, nil
+			},
+		)
+
+		if err := syncer.Sync(context.Background()); !errors.Is(err, projectionErr) {
+			t.Fatalf("first Sync() error = %v, want projection failure", err)
+		}
+		if err := syncer.Sync(context.Background()); err != nil {
+			t.Fatalf("second Sync() error = %v", err)
+		}
+		if projector.buildCalls != 2 || projector.applyCalls != 1 {
+			t.Fatalf(
+				"projection calls = build:%d apply:%d, want build:2 apply:1",
+				projector.buildCalls,
+				projector.applyCalls,
+			)
+		}
+	})
+}
+
+type retryingAgentProjector struct {
+	buildErrors []error
+	buildCalls  int
+	applyCalls  int
+}
+
+func (p *retryingAgentProjector) Kind() resources.ResourceKind {
+	return aghconfig.AgentResourceKind
+}
+
+func (p *retryingAgentProjector) DependsOn() []resources.ResourceKind {
+	return nil
+}
+
+func (p *retryingAgentProjector) Build(
+	context.Context,
+	[]resources.Record[aghconfig.AgentDef],
+) (resources.ProjectionPlan, error) {
+	p.buildCalls++
+	if p.buildCalls <= len(p.buildErrors) && p.buildErrors[p.buildCalls-1] != nil {
+		return nil, p.buildErrors[p.buildCalls-1]
+	}
+	return retryAgentProjectionPlan{}, nil
+}
+
+func (p *retryingAgentProjector) Apply(context.Context, resources.ProjectionPlan) error {
+	p.applyCalls++
+	return nil
+}
+
+type retryAgentProjectionPlan struct{}
+
+func (retryAgentProjectionPlan) Kind() resources.ResourceKind { return aghconfig.AgentResourceKind }
+func (retryAgentProjectionPlan) Revision() int64              { return 0 }
+func (retryAgentProjectionPlan) OperationCount() int          { return 0 }
+
 func TestAgentSkillSourceSyncerSyncSkillsProjectsRegistrySynchronously(t *testing.T) {
 	t.Parallel()
 

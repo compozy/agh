@@ -483,7 +483,7 @@ func TestSessionReadsSurviveAgentDefinitionDeletion(t *testing.T) {
 			},
 			assertPayload: func(t *testing.T, payload map[string]any) {
 				t.Helper()
-				if got, want := payload["error"], "heartbeat status unavailable"; got != want {
+				if got, want := payload["error"], "read heartbeat status: heartbeat status unavailable"; got != want {
 					t.Fatalf("error = %#v, want %q", got, want)
 				}
 			},

@@ -27,8 +27,9 @@ function appendHeartbeatWindows(
 }
 
 function finishSource(lines: string[], body: string): string {
-  lines.push("---", body.trimEnd());
-  return `${lines.join("\n")}\n`;
+  const head = `${lines.join("\n")}\n---\n`;
+  const normalizedBody = body.endsWith("\n") ? body : `${body}\n`;
+  return `${head}${normalizedBody}`;
 }
 
 /** Rebuild the managed SOUL.md source from its lossless public read projection. */

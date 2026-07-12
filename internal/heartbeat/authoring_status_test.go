@@ -29,8 +29,8 @@ func TestManagedHeartbeatAuthoringServicePutValidateAndCAS(t *testing.T) {
 		t.Parallel()
 
 		service, err := heartbeat.NewManagedHeartbeatAuthoringService(nil)
-		if err == nil {
-			t.Fatalf("NewManagedHeartbeatAuthoringService(nil) = %#v, want error", service)
+		if err == nil || !strings.Contains(err.Error(), "heartbeat: authoring store is required") {
+			t.Fatalf("NewManagedHeartbeatAuthoringService(nil) = %#v, error = %v", service, err)
 		}
 	})
 
@@ -43,8 +43,8 @@ func TestManagedHeartbeatAuthoringServicePutValidateAndCAS(t *testing.T) {
 			"",
 			"coder",
 			"agents/coder/HEARTBEAT.md",
-		); err == nil {
-			t.Fatal("DeleteHeartbeatAgentHistory(empty workspace) error = nil, want validation error")
+		); err == nil || !strings.Contains(err.Error(), "requires workspace id, agent name, and source path") {
+			t.Fatalf("DeleteHeartbeatAgentHistory(empty workspace) error = %v", err)
 		}
 		created, err := fixture.authoring.Put(fixture.ctx, heartbeat.PutRequest{
 			Target: fixture.target,
@@ -95,31 +95,38 @@ func TestManagedHeartbeatAuthoringServicePutValidateAndCAS(t *testing.T) {
 			workspace  string
 			agentName  string
 			sourcePath string
+			wantError  string
 		}{
 			{
 				name: "nil context", service: fixture.authoring,
 				workspace: fixture.workspaceID, agentName: "coder", sourcePath: fixture.agentPath,
+				wantError: "context is required",
 			},
 			{
 				name: "nil service", ctx: fixture.ctx,
 				workspace: fixture.workspaceID, agentName: "coder", sourcePath: fixture.agentPath,
+				wantError: "store is required",
 			},
 			{
 				name: "missing workspace", service: fixture.authoring, ctx: fixture.ctx,
 				agentName: "coder", sourcePath: fixture.agentPath,
+				wantError: "workspace id is required",
 			},
 			{
 				name: "missing agent", service: fixture.authoring, ctx: fixture.ctx,
 				workspace: fixture.workspaceID, sourcePath: fixture.agentPath,
+				wantError: "agent name is required",
 			},
 			{
 				name: "non-agent source", service: fixture.authoring, ctx: fixture.ctx,
 				workspace: fixture.workspaceID, agentName: "coder", sourcePath: fixture.heartbeatPath,
+				wantError: "requires an AGENT.md source path",
 			},
 			{
 				name: "outside agents root", service: fixture.authoring, ctx: fixture.ctx,
 				workspace: fixture.workspaceID, agentName: "coder",
 				sourcePath: filepath.Join(t.TempDir(), "coder", aghconfig.AgentDefinitionFileName),
+				wantError:  "outside an agents root",
 			},
 		}
 		for _, tc := range tests {
@@ -131,8 +138,8 @@ func TestManagedHeartbeatAuthoringServicePutValidateAndCAS(t *testing.T) {
 					tc.agentName,
 					tc.sourcePath,
 				)
-				if err == nil {
-					t.Fatal("PurgeAgentHistory(invalid target) error = nil, want validation error")
+				if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+					t.Fatalf("PurgeAgentHistory(invalid target) error = %v, want %q", err, tc.wantError)
 				}
 			})
 		}

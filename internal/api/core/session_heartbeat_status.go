@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/heartbeat"
@@ -30,7 +31,7 @@ func (h *BaseHandlers) heartbeatStatusForHealth(
 ) (contract.HeartbeatStatusResponse, error) {
 	target, err := h.resolveAuthoredAgentTarget(ctx, health.WorkspaceID, health.AgentName)
 	if err != nil {
-		return contract.HeartbeatStatusResponse{}, err
+		return contract.HeartbeatStatusResponse{}, fmt.Errorf("resolve authored agent target: %w", err)
 	}
 	result, err := h.HeartbeatStatus.Status(ctx, heartbeat.StatusRequest{
 		Target:               target.heartbeatAuthoringTarget(),
@@ -38,7 +39,7 @@ func (h *BaseHandlers) heartbeatStatusForHealth(
 		IncludeSessionHealth: includeHealth,
 	})
 	if err != nil {
-		return contract.HeartbeatStatusResponse{}, err
+		return contract.HeartbeatStatusResponse{}, fmt.Errorf("read heartbeat status: %w", err)
 	}
 	return contract.HeartbeatStatusResponseFromResult(&result)
 }

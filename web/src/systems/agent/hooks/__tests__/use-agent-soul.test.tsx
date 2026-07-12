@@ -94,22 +94,40 @@ describe("use-agent-soul", () => {
     await waitFor(() => expect(history.result.current.isSuccess).toBe(true));
     expect(mockFetchSoulHistory).toHaveBeenCalled();
 
+    const putSoul = { ...soul, body: "Be sharper.", digest: "c".repeat(64) };
+    mockPutSoul.mockImplementation(async () => {
+      mockFetchSoul.mockResolvedValue(putSoul);
+      return { soul: putSoul, revision: { id: "r1" } };
+    });
+
     const put = renderHook(() => usePutAgentSoul("coder", "ws_alpha"), {
       wrapper: createWrapper(queryClient),
     });
     await act(async () => {
       await put.result.current.mutateAsync({
-        body: "Be helpful.",
+        body: "Be sharper.",
         expected_digest: "a".repeat(64),
       });
     });
-    expect(queryClient.getQueryData(agentKeys.soul("coder", "ws_alpha"))).toEqual(soul);
+    expect(mockPutSoul).toHaveBeenCalledWith("coder", {
+      body: "Be sharper.",
+      expected_digest: "a".repeat(64),
+    });
+    await waitFor(() => {
+      expect(queryClient.getQueryData(agentKeys.soul("coder", "ws_alpha"))).toEqual(putSoul);
+    });
   });
 
   it("Should validate, delete, and rollback through mutation hooks", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
+    const rolledBackSoul = { ...soul, body: "Restored.", digest: "d".repeat(64) };
+    mockRollbackSoul.mockImplementation(async () => {
+      mockFetchSoul.mockResolvedValue(rolledBackSoul);
+      return { soul: rolledBackSoul, revision: { id: "r3" } };
+    });
+
     const validate = renderHook(() => useValidateAgentSoul("coder"), {
       wrapper: createWrapper(queryClient),
     });
@@ -124,7 +142,7 @@ describe("use-agent-soul", () => {
     await act(async () => {
       await del.result.current.mutateAsync({ expected_digest: "a".repeat(64) });
     });
-    expect(mockDeleteSoul).toHaveBeenCalled();
+    expect(mockDeleteSoul).toHaveBeenCalledWith("coder", { expected_digest: "a".repeat(64) });
 
     const rollback = renderHook(() => useRollbackAgentSoul("coder", "ws_alpha"), {
       wrapper: createWrapper(queryClient),
@@ -135,6 +153,12 @@ describe("use-agent-soul", () => {
         expected_digest: "a".repeat(64),
       });
     });
-    expect(queryClient.getQueryData(agentKeys.soul("coder", "ws_alpha"))).toEqual(soul);
+    expect(mockRollbackSoul).toHaveBeenCalledWith("coder", {
+      revision_id: "r1",
+      expected_digest: "a".repeat(64),
+    });
+    await waitFor(() => {
+      expect(queryClient.getQueryData(agentKeys.soul("coder", "ws_alpha"))).toEqual(rolledBackSoul);
+    });
   });
 });

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { Button, DescriptionCard, PillGroup, Skeleton, type PillGroupItem } from "@agh/ui";
+import { Button, DescriptionCard, Eyebrow, PillGroup, Skeleton, type PillGroupItem } from "@agh/ui";
 
 import type { AgentInstructionsTabViewModel } from "../hooks/use-agent-instructions-tab";
 import type { AgentInstructionFile } from "../lib/agent-detail-search";
@@ -29,12 +29,12 @@ export function AgentInstructionsTab({
 }: AgentInstructionsTabProps) {
   const fileItems: PillGroupItem<AgentInstructionFile>[] = useMemo(
     () => [
-      { value: "agent", label: "AGENT.md", testId: "agent-file-tab-agent" },
+      { value: "agent", label: <Eyebrow>AGENT.md</Eyebrow>, testId: "agent-file-tab-agent" },
       {
         value: "soul",
         label: (
           <span className="inline-flex items-center gap-1.5">
-            SOUL.md
+            <Eyebrow>SOUL.md</Eyebrow>
             {page.soulMissing ? (
               <span className="text-warning" data-testid="agent-file-soul-missing-badge">
                 missing
@@ -48,7 +48,7 @@ export function AgentInstructionsTab({
         value: "heartbeat",
         label: (
           <span className="inline-flex items-center gap-1.5">
-            HEARTBEAT.md
+            <Eyebrow>HEARTBEAT.md</Eyebrow>
             {page.heartbeatMissing ? (
               <span className="text-warning" data-testid="agent-file-heartbeat-missing-badge">
                 missing

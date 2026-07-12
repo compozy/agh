@@ -8,7 +8,9 @@ import { cn } from "../../lib/utils";
 import {
   isSameTopbarSlot,
   TopbarSlotContext,
+  TopbarSlotSettersContext,
   type TopbarSlotContextValue,
+  type TopbarSlotSetters,
   type TopbarSlotValue,
   useTopbarSlot,
   useTopbarSlotContext,
@@ -46,11 +48,19 @@ function TopbarSlotProvider({ children }: TopbarSlotProviderProps) {
   const clearSlot = React.useCallback((owner: object) => {
     setActive(prev => (prev?.owner === owner ? null : prev));
   }, []);
+  const setters = React.useMemo<TopbarSlotSetters>(
+    () => ({ setSlot, clearSlot }),
+    [setSlot, clearSlot]
+  );
   const value = React.useMemo<TopbarSlotContextValue>(
     () => ({ slot: active?.slot ?? null, setSlot, clearSlot }),
     [active, setSlot, clearSlot]
   );
-  return <TopbarSlotContext.Provider value={value}>{children}</TopbarSlotContext.Provider>;
+  return (
+    <TopbarSlotSettersContext.Provider value={setters}>
+      <TopbarSlotContext.Provider value={value}>{children}</TopbarSlotContext.Provider>
+    </TopbarSlotSettersContext.Provider>
+  );
 }
 
 export interface TopbarProps extends Omit<React.ComponentProps<"header">, "title"> {

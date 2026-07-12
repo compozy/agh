@@ -157,7 +157,7 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
   }, [agentQuery]);
 
   const onSave = useCallback(() => {
-    if (!draftSafe || !agent || saveBlocked) return;
+    if (!draftSafe || !agent || saveBlocked || updateAgent.isPending) return;
     const params = buildUpdateAgentParams(draftSafe, activeWorkspaceId);
     if (!params) return;
 

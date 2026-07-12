@@ -65,6 +65,7 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   }, []);
 
   useEffect(() => {
+    if (hasChildMatch) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
       if (isEditableTarget(event.target)) return;
@@ -74,7 +75,7 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [hasChildMatch]);
 
   const updateSearch = useCallback(
     (updater: (current: AgentsFleetSearch) => AgentsFleetSearch) => {

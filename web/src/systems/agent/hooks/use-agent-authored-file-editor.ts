@@ -115,6 +115,9 @@ export function useAgentAuthoredFileEditor({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [validationStatus, setValidationStatus] = useState<string | undefined>(
+    payload?.validation_status
+  );
 
   const draftRef = useRef(draft);
   const baselineRef = useRef(baseline);
@@ -128,6 +131,7 @@ export function useAgentAuthoredFileEditor({
       setBaseline(next.baseline);
       setDiagnostics(next.diagnostics);
       setEffectivePayload(authoritative);
+      setValidationStatus(authoritative?.validation_status);
       setConflict(false);
       setSaveError(null);
     },
@@ -176,6 +180,9 @@ export function useAgentAuthoredFileEditor({
     try {
       const result = await onValidate(draft);
       setDiagnostics(result.diagnostics ?? []);
+      if (result.validation_status) {
+        setValidationStatus(result.validation_status);
+      }
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : `Couldn't validate ${fileLabel}`);
     } finally {
@@ -254,7 +261,7 @@ export function useAgentAuthoredFileEditor({
     handleReload,
     payload: effectivePayload,
     isMissing: isAuthoredFileMissing(effectivePayload) && draft === "" && baseline.body === "",
-    status: effectivePayload?.validation_status ?? "valid",
+    status: validationStatus ?? effectivePayload?.validation_status ?? "valid",
     revisions,
   };
 }

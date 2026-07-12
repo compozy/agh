@@ -241,6 +241,13 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			baseAt,
 		)
 		memory.Lineage = &store.SessionLineage{SpawnRole: "memory-extractor"}
+		dream := sessionInfoForWorkspaceStateIndexTest(
+			"sess-dream",
+			workspaceID,
+			globalDBSessionStateActive,
+			baseAt,
+		)
+		dream.SessionType = "dream"
 		foreign := sessionInfoForWorkspaceStateIndexTest(
 			"sess-foreign",
 			foreignWorkspaceID,
@@ -252,6 +259,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			coderStopped,
 			reviewer,
 			memory,
+			dream,
 			foreign,
 		} {
 			if err := globalDB.RegisterSession(ctx, info); err != nil {

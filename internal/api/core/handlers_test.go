@@ -1844,6 +1844,51 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		}
 	})
 
+	t.Run("Should roll back the durable definition when catalog sync fails", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		syncErr := errors.New("sync unavailable")
+		syncer := &recordingAgentDefinitionSync{errs: []error{syncErr, nil}}
+		fixture.Handlers.AgentDefinitionSync = syncer
+		path := filepath.Join(
+			fixture.HomePaths.AgentsDir,
+			"rollback_agent",
+			aghconfig.AgentDefinitionFileName,
+		)
+		body := mustJSON(t, contract.CreateAgentRequest{
+			Scope: contract.AgentCreateScopeGlobal,
+			Agent: contract.CreateAgentPayload{
+				Name:     "rollback_agent",
+				Provider: "codex",
+				Prompt:   "Rollback on sync failure.",
+			},
+		})
+
+		resp := performRequest(t, fixture.Engine, http.MethodPost, "/agents", body)
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf("create status = %d, want %d; body=%s", resp.Code, http.StatusInternalServerError, resp.Body)
+		}
+		var payload contract.ErrorPayload
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if !strings.Contains(payload.Error, syncErr.Error()) {
+			t.Fatalf("create error = %q, want sync cause", payload.Error)
+		}
+		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Stat(rolled back definition) error = %v, want os.ErrNotExist", err)
+		}
+		if syncer.calls != 2 {
+			t.Fatalf("Sync() calls = %d, want initial sync plus reconciliation", syncer.calls)
+		}
+	})
+
 	t.Run("Should reject duplicate AGENT.md definitions", func(t *testing.T) {
 		t.Parallel()
 
@@ -2285,6 +2330,56 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve the workspace definition when history purge fails", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := t.TempDir()
+		workspacePath := filepath.Join(
+			workspaceRoot,
+			aghconfig.DirName,
+			aghconfig.AgentsDirName,
+			"coder",
+			aghconfig.AgentDefinitionFileName,
+		)
+		workspaceAgent, err := aghconfig.CreateAgentDefFile(workspacePath, aghconfig.AgentDefinitionDraft{
+			Name: "coder", Provider: "codex", Prompt: "Workspace.",
+		}, false)
+		if err != nil {
+			t.Fatalf("CreateAgentDefFile(workspace) error = %v", err)
+		}
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{
+				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{ID: "ws-alpha", RootDir: workspaceRoot},
+						Agents:    []aghconfig.AgentDef{workspaceAgent},
+					}, nil
+				},
+			},
+			nil,
+			nil,
+		)
+		purgeErr := errors.New("history unavailable")
+		fixture.Handlers.SoulHistoryPurger = &recordingSoulHistoryPurger{err: purgeErr}
+		fixture.Handlers.HeartbeatHistoryPurger = &recordingHeartbeatHistoryPurger{}
+		syncer := &recordingAgentDefinitionSync{}
+		fixture.Handlers.AgentDefinitionSync = syncer
+
+		resp := performRequest(t, fixture.Engine, http.MethodDelete, "/agents/coder?workspace=alpha", nil)
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf("delete status = %d, want %d; body=%s", resp.Code, http.StatusInternalServerError, resp.Body)
+		}
+		if _, err := os.Stat(workspacePath); err != nil {
+			t.Fatalf("os.Stat(preserved definition) error = %v", err)
+		}
+		if syncer.calls != 0 {
+			t.Fatalf("Sync() calls = %d, want 0 before successful purge", syncer.calls)
+		}
+	})
+
 	t.Run("Should leave unshadowed origin empty when no global twin exists", func(t *testing.T) {
 		t.Parallel()
 		workspaceRoot := t.TempDir()
@@ -2684,10 +2779,14 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 type recordingAgentDefinitionSync struct {
 	calls int
 	err   error
+	errs  []error
 }
 
 func (s *recordingAgentDefinitionSync) Sync(context.Context) error {
 	s.calls++
+	if s.calls <= len(s.errs) {
+		return s.errs[s.calls-1]
+	}
 	return s.err
 }
 
@@ -2695,6 +2794,7 @@ type recordingSoulHistoryPurger struct {
 	workspaceID string
 	name        string
 	sourcePath  string
+	err         error
 }
 
 func (p *recordingSoulHistoryPurger) PurgeAgentHistory(
@@ -2706,13 +2806,14 @@ func (p *recordingSoulHistoryPurger) PurgeAgentHistory(
 	p.workspaceID = ref.WorkspaceID
 	p.name = name
 	p.sourcePath = sourcePath
-	return nil
+	return p.err
 }
 
 type recordingHeartbeatHistoryPurger struct {
 	workspaceID string
 	name        string
 	sourcePath  string
+	err         error
 }
 
 func (p *recordingHeartbeatHistoryPurger) PurgeAgentHistory(
@@ -2724,7 +2825,7 @@ func (p *recordingHeartbeatHistoryPurger) PurgeAgentHistory(
 	p.workspaceID = ref.WorkspaceID
 	p.name = name
 	p.sourcePath = sourcePath
-	return nil
+	return p.err
 }
 
 func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {

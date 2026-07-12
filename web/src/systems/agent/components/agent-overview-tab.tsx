@@ -203,7 +203,8 @@ export function AgentOverviewTab({
 
 function formatElapsed(totalSeconds: number): string {
   if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return "";
-  const total = Math.round(totalSeconds);
+  if (totalSeconds < 1) return "0s";
+  const total = Math.floor(totalSeconds);
   if (total < 60) return `${total}s`;
   const minutes = Math.floor(total / 60);
   if (minutes < 60) return `${minutes}m`;

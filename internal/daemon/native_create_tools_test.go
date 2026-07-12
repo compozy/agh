@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -265,6 +266,65 @@ func TestNativeNetworkChannelUpdate(t *testing.T) {
 
 func TestNativeAgentCreate(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should reject a missing sync dependency before persistence", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			HomePaths:  homePaths,
+			Workspaces: nativeNetworkTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentCreate,
+			Input: json.RawMessage(
+				`{"scope":"global","name":"missing-sync","provider":"claude","prompt":"No write."}`,
+			),
+		})
+		if err == nil {
+			t.Fatal("Registry.Call(agent_create) error = nil, want unavailable sync error")
+		}
+		path := filepath.Join(homePaths.AgentsDir, "missing-sync", aghconfig.AgentDefinitionFileName)
+		if _, statErr := os.Stat(path); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("os.Stat(unwritten agent) error = %v, want os.ErrNotExist", statErr)
+		}
+	})
+
+	t.Run("Should roll back a failed sync and allow a clean retry", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		syncErr := errors.New("catalog unavailable")
+		syncCalls := 0
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			HomePaths:  homePaths,
+			Workspaces: nativeNetworkTestWorkspaceService(t),
+			AgentSkills: agentSkillPublisherFunc(func(context.Context) error {
+				syncCalls++
+				if syncCalls == 1 {
+					return syncErr
+				}
+				return nil
+			}),
+		}, nativeApproveAllPolicyInputs())
+		request := toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentCreate,
+			Input:  json.RawMessage(`{"scope":"global","name":"retryable","provider":"claude","prompt":"Retry."}`),
+		}
+		if _, err := registry.Call(t.Context(), toolspkg.Scope{}, request); !errors.Is(err, syncErr) {
+			t.Fatalf("first Registry.Call(agent_create) error = %v, want sync failure", err)
+		}
+		path := filepath.Join(homePaths.AgentsDir, "retryable", aghconfig.AgentDefinitionFileName)
+		if _, statErr := os.Stat(path); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("os.Stat(rolled back agent) error = %v, want os.ErrNotExist", statErr)
+		}
+		if _, err := registry.Call(t.Context(), toolspkg.Scope{}, request); err != nil {
+			t.Fatalf("second Registry.Call(agent_create) error = %v", err)
+		}
+		if syncCalls != 3 {
+			t.Fatalf("AgentSkills.Sync() calls = %d, want failure, reconciliation, and retry", syncCalls)
+		}
+	})
 
 	homePaths := testHomePaths(t)
 	registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{

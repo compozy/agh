@@ -77,7 +77,11 @@ describe("useAgentDeleteFlow", () => {
   it("Should toast with unshadowed_origin and navigate to /agents on success", async () => {
     const user = userEvent.setup();
     mockMutate.mockImplementation((_vars, opts) => {
-      opts.onSuccess({ deleted: true, unshadowed_origin: "global" });
+      opts.onSuccess({
+        name: primaryAgentFixture.name,
+        origin: "workspace",
+        unshadowed_origin: "global",
+      });
     });
     renderFlow(<Harness />);
     await user.click(screen.getByTestId("open-delete"));

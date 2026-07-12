@@ -142,6 +142,14 @@ describe("agent fleet projection", () => {
 
     expect(
       formatCategoryMetaSegment([
+        "ExtremelyLongFirstSegmentNameThatAloneWouldBlowPastTheLimit",
+        "mid",
+        "ExtremelyLongLastSegmentNameThatAlsoExceedsTheSharedBudgetAlone",
+      ]).length
+    ).toBeLessThanOrEqual(40);
+
+    expect(
+      formatCategoryMetaSegment([
         "ExtremelyLongSingleSegmentCategoryNameThatExceedsTheEllipsisLimitByDesign",
       ])
     ).toMatch(/…/);

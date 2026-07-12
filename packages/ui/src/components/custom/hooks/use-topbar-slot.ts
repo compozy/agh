@@ -31,11 +31,16 @@ export interface TopbarSlotValue {
   overflow?: React.ReactNode;
 }
 
-export interface TopbarSlotContextValue {
-  slot: TopbarSlotValue | null;
+export interface TopbarSlotSetters {
   setSlot: (owner: object, slot: TopbarSlotValue | null) => void;
   clearSlot: (owner: object) => void;
 }
+
+export interface TopbarSlotContextValue extends TopbarSlotSetters {
+  slot: TopbarSlotValue | null;
+}
+
+export const TopbarSlotSettersContext = React.createContext<TopbarSlotSetters | null>(null);
 
 export const TopbarSlotContext = React.createContext<TopbarSlotContextValue | null>(null);
 
@@ -68,8 +73,22 @@ function slotKey(slot: TopbarSlotValue | null): string {
   }
 }
 
+function isSameTopbarBehavior(a: TopbarSlotValue, b: TopbarSlotValue): boolean {
+  return (
+    a.back === b.back &&
+    a.title === b.title &&
+    a.tabs === b.tabs &&
+    a.search === b.search &&
+    a.actions === b.actions &&
+    a.meta === b.meta &&
+    a.overflow === b.overflow
+  );
+}
+
 export function isSameTopbarSlot(a: TopbarSlotValue | null, b: TopbarSlotValue | null): boolean {
   if (a === b) return true;
+  if (a == null || b == null) return false;
+  if (!isSameTopbarBehavior(a, b)) return false;
   return slotKey(a) === slotKey(b);
 }
 
@@ -77,9 +96,9 @@ export function isSameTopbarSlot(a: TopbarSlotValue | null, b: TopbarSlotValue |
  * Pushes a topbar slot for the lifetime of the calling component.
  */
 export function useTopbarSlot(slot: TopbarSlotValue | null): void {
-  const ctx = React.use(TopbarSlotContext);
-  const setSlot = ctx?.setSlot;
-  const clearSlot = ctx?.clearSlot;
+  const setters = React.use(TopbarSlotSettersContext);
+  const setSlot = setters?.setSlot;
+  const clearSlot = setters?.clearSlot;
   const ownerRef = React.useRef<object>({});
   const slotRef = React.useRef(slot);
   slotRef.current = slot;
@@ -91,7 +110,18 @@ export function useTopbarSlot(slot: TopbarSlotValue | null): void {
       return;
     }
     setSlot(ownerRef.current, slotRef.current);
-  }, [setSlot, clearSlot, signature]);
+  }, [
+    setSlot,
+    clearSlot,
+    signature,
+    slot?.back,
+    slot?.title,
+    slot?.tabs,
+    slot?.search,
+    slot?.actions,
+    slot?.meta,
+    slot?.overflow,
+  ]);
   React.useEffect(() => {
     if (!clearSlot) return;
     return () => clearSlot(ownerRef.current);
