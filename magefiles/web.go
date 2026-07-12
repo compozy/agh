@@ -11,21 +11,17 @@ import (
 
 // BunLint runs the monorepo-wide lint script (oxfmt + oxlint over every workspace).
 func BunLint() error {
-	return runCommandInDir(context.Background(), ".", "bun", "run", "bun:lint")
+	return runCommandInDir(context.Background(), ".", "bun", "run", "lint")
 }
 
 // BunTypecheck runs the monorepo-wide typecheck pipeline (turbo run typecheck across every workspace).
 func BunTypecheck() error {
-	return runCommandInDir(context.Background(), ".", "bun", "run", "bun:typecheck")
+	return runCommandInDir(context.Background(), ".", "bun", "run", "typecheck")
 }
 
 // BunTest runs the monorepo-wide vitest projects suite from the repo root.
 func BunTest() error {
-	return runCommandInDir(context.Background(), ".", "bun", "run", "bun:test")
-}
-
-func WebLint() error {
-	return BunLint()
+	return runCommandInDir(context.Background(), ".", "bun", "run", "test")
 }
 
 func WebTypecheck() error {

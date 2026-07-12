@@ -4,7 +4,9 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"io/fs"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
@@ -30,6 +32,13 @@ func Fmt() error {
 }
 
 func Lint() error {
+	if err := goLint(); err != nil {
+		return err
+	}
+	return BunLint()
+}
+
+func goLint() error {
 	if err := runGolangCILint(); err != nil {
 		return err
 	}
@@ -37,6 +46,15 @@ func Lint() error {
 }
 
 func runGolangCILint() error {
+	cacheDir, err := filepath.Abs(filepath.Join(".cache", "golangci-lint"))
+	if err != nil {
+		return fmt.Errorf("resolve golangci-lint cache directory: %w", err)
+	}
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+		return fmt.Errorf("create golangci-lint cache directory: %w", err)
+	}
+	env := map[string]string{"GOLANGCI_LINT_CACHE": cacheDir}
+
 	args := []string{
 		"run",
 		"--allow-parallel-runners",
@@ -45,13 +63,13 @@ func runGolangCILint() error {
 		"./...",
 	}
 	if hasPinnedTool("golangci-lint", golangciLintVersion) {
-		return sh.RunV("golangci-lint", args...)
+		return sh.RunWithV(env, "golangci-lint", args...)
 	}
 	goRunArgs := append(
 		[]string{"run", "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@" + golangciLintVersion},
 		args...,
 	)
-	return sh.RunV("go", goRunArgs...)
+	return sh.RunWithV(env, "go", goRunArgs...)
 }
 
 func hasPinnedTool(name string, wantVersion string) bool {

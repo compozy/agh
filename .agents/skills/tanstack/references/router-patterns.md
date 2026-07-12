@@ -2,12 +2,112 @@
 
 This document contains comprehensive patterns and best practices for using TanStack Router in this project.
 
+## Contents
+
+- Core Principles
+- Router Setup
+  - Register the router type (CRITICAL `declare module`)
+  - Configure router defaults (`defaultPreload`, `scrollRestoration`, etc.)
+  - Use `from` for type narrowing
+- File-Based Routing Structure
+  - File naming conventions
+  - Pathless layouts
+- Common Tasks
+  - Basic route, dynamic params, search params with Zod
+  - Data loading with loaders
+  - Parallel loading (avoid waterfalls)
+  - Deferred (streaming) data
+  - Authentication layout
+  - Type-safe navigation
+  - Error handling, code splitting, pending component
+- Advanced Patterns
+  - Route context, search updates
+  - Route masks (modal-on-route, pretty URLs)
+  - Custom search-param serializer
+  - Global not-found (`notFound()`)
+  - Prefetching
+- Integration with TanStack Query
+- Validation Checklist
+- Common Mistakes to Avoid
+
 ## Core Principles
 
 - **Type-Safe Routing**: Embrace type-safe routing as the primary benefit.
 - **File-Based Routes**: Use file-based routing for scalability.
 - **Generated Route Tree**: Leverage the generated route tree for type safety.
 - **Layouts and Nesting**: Think in terms of layouts and nested routes.
+
+## Router Setup
+
+### Register the router type (CRITICAL)
+
+Without this `declare module`, `useNavigate`, `Link`, `useParams`, and `useSearch` lose route inference and accept any string. This is the single most impactful step for type safety:
+
+```typescript
+// src/router.tsx
+import { createRouter } from '@tanstack/react-router'
+import { routeTree } from './routeTree.gen'
+
+export const router = createRouter({ routeTree })
+
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: typeof router
+  }
+}
+```
+
+### Configure router defaults
+
+`createRouter` accepts global options that prevent boilerplate at the route level:
+
+```typescript
+const router = createRouter({
+  routeTree,
+  context: { queryClient, user: null },
+
+  // Preloading
+  defaultPreload: 'intent',           // preload on hover/focus
+  defaultPreloadStaleTime: 0,         // delegate freshness to TanStack Query
+
+  // Global error / 404 handling
+  defaultErrorComponent: DefaultCatchBoundary,
+  defaultNotFoundComponent: DefaultNotFound,
+
+  // UX
+  scrollRestoration: true,            // restore scroll on back/forward
+  defaultPendingComponent: PendingBar,
+  defaultPendingMs: 1000,             // delay before showing pending UI
+  defaultPendingMinMs: 200,           // min time pending UI is shown
+
+  // Performance
+  defaultStructuralSharing: true,     // re-render less from loader data
+})
+```
+
+Key options:
+
+| Option | When to use |
+|--------|-------------|
+| `defaultPreload: 'intent'` | Always — almost free win on hover/focus |
+| `defaultPreloadStaleTime: 0` | When using TanStack Query; let Query own caching |
+| `scrollRestoration` | Almost always — improves back/forward UX |
+| `defaultErrorComponent` | Replace the built-in white-screen fallback |
+| `defaultNotFoundComponent` | Required for global 404 |
+
+Routes can override any default (`errorComponent: AdminErrorBoundary`, `preload: false`, etc.).
+
+### Use `from` for type narrowing
+
+Hooks accept a `from` parameter that narrows types to that specific route:
+
+```typescript
+const { postId } = useParams({ from: '/posts/$postId' })   // postId: string
+const search    = useSearch({ from: '/posts' })            // typed search shape
+const data      = useLoaderData({ from: '/posts/$postId' })// typed loader return
+```
+
+Without `from`, types collapse to `unknown` or the union of all possibilities. Always use `from` outside of `Route.useX()` (which is already scoped).
 
 ## File-Based Routing Structure
 
@@ -30,10 +130,25 @@ src/routes/
 
 - `index.tsx` - Index route for a directory
 - `$paramName.tsx` - Dynamic route parameter
-- `_layoutName.tsx` - Layout route (underscore prefix)
+- `_layoutName.tsx` - Pathless layout route (underscore prefix — does NOT add a path segment)
 - `_authenticated.tsx` - Protected route layout
 - `__root.tsx` - Root layout (double underscore)
 - `route.lazy.tsx` - Lazy-loaded route component
+- `(group)/` - Route group folder for organization without a path segment
+
+### Pathless layouts
+
+A file prefixed with `_` (e.g. `_authenticated.tsx`) creates a layout without contributing to the URL. Use it to share `beforeLoad`, context, or UI across siblings:
+
+```
+routes/
+├── _authenticated.tsx        # auth check, no URL segment
+├── _authenticated/
+│   ├── dashboard.tsx         # URL: /dashboard
+│   └── settings.tsx          # URL: /settings
+```
+
+This is different from a regular layout like `settings.tsx` + `settings/profile.tsx`, which contributes `/settings` to the URL.
 
 ## Common Tasks
 
@@ -118,6 +233,55 @@ function PostsList() {
 }
 ```
 
+### Parallel loading — avoid waterfalls
+
+Nested route loaders run **in parallel** by default. Inside a single loader, fan out with `Promise.all`:
+
+```typescript
+// GOOD — fans out
+beforeLoad: async () => {
+  const [user, config] = await Promise.all([fetchUser(), fetchAppConfig()])
+  return { user, config }
+}
+
+loader: async ({ context }) => {
+  const [stats, activity] = await Promise.all([
+    queryClient.ensureQueryData(statsQueries.for(context.user.id)),
+    queryClient.ensureQueryData(activityQueries.for(context.user.id)),
+  ])
+  return { stats, activity }
+}
+
+// BAD — serial waterfall
+beforeLoad: async () => {
+  const user = await fetchUser()          // 200ms
+  const perms = await fetchPermissions()  // +200ms
+  return { user, perms }                  // 400ms total
+}
+```
+
+### Deferred (streaming) data
+
+Stream non-critical data without blocking the route render. Critical data is awaited; secondary data starts but is consumed via `useQuery` in the component:
+
+```typescript
+export const Route = createFileRoute('/posts/$postId')({
+  loader: async ({ params, context: { queryClient } }) => {
+    // critical — awaited
+    const post = await queryClient.ensureQueryData(postQueries.detail(params.postId))
+    // non-critical — kicked off, not awaited
+    queryClient.prefetchQuery(commentQueries.forPost(params.postId))
+    return { post }
+  },
+})
+
+function PostPage() {
+  const { postId } = Route.useParams()
+  const { data: comments, isLoading } = useQuery(commentQueries.forPost(postId))
+  return isLoading ? <CommentsSkeleton /> : <Comments data={comments} />
+}
+```
+
 ### Authentication Layout Route
 
 Use layout routes with `beforeLoad` for authentication checks.
@@ -191,16 +355,37 @@ export const Route = createFileRoute('/posts/$postId')({
 
 ### Code Splitting with Lazy Routes
 
-Use `createLazyFileRoute` for route-based code splitting.
+Two complementary mechanisms:
+
+**1. `.lazy.tsx` files** — split the non-critical part (component, errorComponent) while keeping critical config (path, loader, validateSearch) in the main file:
 
 ```typescript
-// routes/admin.lazy.tsx
+// routes/admin.tsx — critical, eagerly loaded
+export const Route = createFileRoute('/admin')({
+  validateSearch: z.object({ tab: z.string().optional() }),
+  loader: ({ context }) => context.queryClient.ensureQueryData(adminQueries.summary()),
+})
+
+// routes/admin.lazy.tsx — lazy, only the component
 import { createLazyFileRoute } from '@tanstack/react-router'
 
 export const Route = createLazyFileRoute('/admin')({
-  component: () => import('@/components/AdminDashboard'),
+  component: AdminDashboard,
 })
 ```
+
+**2. `autoCodeSplitting: true`** in the Vite plugin — splits component/pendingComponent/errorComponent automatically without manual `.lazy.tsx` files:
+
+```typescript
+// vite.config.ts
+import { tanstackRouter } from '@tanstack/router-plugin/vite'
+
+export default defineConfig({
+  plugins: [tanstackRouter({ autoCodeSplitting: true })],
+})
+```
+
+Prefer auto-splitting in new projects. Use `.lazy.tsx` only when you need fine control over which parts are split.
 
 ### Pending Component
 
@@ -282,24 +467,70 @@ function PostsFilter() {
 }
 ```
 
-### Route Masks
+### Route Masks — when and why
 
-Hide implementation details in the URL while maintaining full functionality.
+Masks let the rendered route differ from the URL the user sees. Two main use cases:
+
+1. **Modal-on-route**: open a detail view as a modal overlay on a list page. The list URL stays in history so back-button closes the modal.
+2. **Pretty URLs over implementation details**: hide query params from the user-facing URL.
 
 ```typescript
-export const Route = createFileRoute('/posts/$postId')({
-  validateSearch: z.object({
-    modal: z.boolean().optional(),
-  }),
-})
-
-// Navigate with mask
+// Open product detail as a modal overlaid on /products
 navigate({
-  to: '/posts/$postId',
-  params: { postId: '123' },
-  search: { modal: true },
-  mask: { to: '/posts' }, // URL shows /posts but component receives full params
+  to: '/products/$productId',
+  params: { productId: '123' },
+  mask: { to: '/products', search: { modal: '123' } },
 })
+// User sees /products?modal=123 but renders /products/$productId
+```
+
+Masks are bookmark-safe: visiting the masked URL directly loads the real route too, if you reverse-mask via `routeMasks` on the router.
+
+### Custom search-param serializer
+
+The default JSON serializer produces ugly URLs (`?filters=%7B...%7D`). Override globally on the router when URLs need to be shareable or human-readable:
+
+```typescript
+import qs from 'qs'
+
+const router = createRouter({
+  routeTree,
+  search: {
+    serialize: (search) => qs.stringify(search, { encodeValuesOnly: true, arrayFormat: 'brackets' }),
+    parse: (str) => qs.parse(str, { ignoreQueryPrefix: true }),
+  },
+})
+// /products?filters[category]=electronics&filters[price][min]=100
+```
+
+`validateSearch` (Zod) still runs after parsing. Watch out for URL length limits (~2000 chars) and SEO — base64-encoded params are opaque to crawlers.
+
+### Global not-found
+
+`notFoundComponent` on a route handles 404s for that subtree. Set a router-wide fallback in `createRouter`:
+
+```typescript
+const router = createRouter({
+  routeTree,
+  defaultNotFoundComponent: () => (
+    <div>
+      <h1>404</h1>
+      <Link to="/">Go home</Link>
+    </div>
+  ),
+})
+```
+
+Throw `notFound()` from a loader to trigger it without throwing a generic error:
+
+```typescript
+import { notFound } from '@tanstack/react-router'
+
+loader: async ({ params }) => {
+  const post = await fetchPost(params.postId)
+  if (!post) throw notFound()
+  return post
+}
 ```
 
 ### Prefetching Routes
@@ -354,15 +585,19 @@ function PostDetail() {
 
 Before finishing a task involving TanStack Router:
 
-- [ ] Route path in `createFileRoute` matches file location.
-- [ ] Search params use Zod validation with proper defaults (`.catch()`).
-- [ ] Loader dependencies are correctly specified in `loaderDeps`.
-- [ ] Authentication routes use `beforeLoad` with proper redirects.
-- [ ] Navigation uses typed `Link` or `useNavigate` hooks.
-- [ ] Error boundaries are implemented at route level.
-- [ ] Lazy loading is used for large route components.
-- [ ] Route context is properly typed and passed.
-- [ ] Run type checks (`pnpm run typecheck`) and tests (`pnpm run test`).
+- [ ] Router type registered via `declare module '@tanstack/react-router'`
+- [ ] Router defaults configured: `defaultPreload: 'intent'`, `scrollRestoration`, global error + 404 components
+- [ ] `defaultPreloadStaleTime: 0` when TanStack Query owns caching
+- [ ] Route path in `createFileRoute` matches file location
+- [ ] Search params use Zod validation with `.catch()` defaults
+- [ ] Loader dependencies declared in `loaderDeps`
+- [ ] Loaders fan out with `Promise.all`; non-critical data is streamed via `prefetchQuery`
+- [ ] Auth routes use `beforeLoad` with proper redirects and pathless `_authenticated` layouts
+- [ ] `notFound()` thrown from loaders instead of generic errors
+- [ ] Hooks outside `Route.useX()` pass `from` for type narrowing
+- [ ] Code splitting via `autoCodeSplitting` or `.lazy.tsx`
+- [ ] Route context is typed at the root with `createRootRouteWithContext`
+- [ ] Run type checks (`pnpm run typecheck`) and tests (`pnpm run test`)
 
 ## Common Mistakes to Avoid
 

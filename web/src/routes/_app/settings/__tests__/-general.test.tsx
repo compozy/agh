@@ -161,11 +161,15 @@ const mockMutation: Mutation = {
   data: undefined,
 };
 
-vi.mock("@/systems/settings", () => ({
-  useSettingsGeneral: () => ({ data: envelope, isLoading: false, error: null }),
-  useUpdateSettingsGeneral: () => mockMutation,
-  SettingsApiError: class SettingsApiError extends Error {},
-}));
+vi.mock("@/systems/settings", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/settings")>();
+  return {
+    ...actual,
+    useSettingsGeneral: () => ({ data: envelope, isLoading: false, error: null }),
+    useUpdateSettingsGeneral: () => mockMutation,
+    SettingsApiError: class SettingsApiError extends Error {},
+  };
+});
 
 beforeEach(() => {
   pageState = {

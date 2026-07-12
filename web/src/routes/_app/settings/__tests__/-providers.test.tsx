@@ -1,10 +1,11 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ProviderInspectorState } from "@/hooks/routes/use-settings-providers-page";
-import { renderWithTopbar as render } from "@/test/render-with-topbar";
+import { renderWithTopbar } from "@/test/render-with-topbar";
 import type { ProviderDraft, SettingsProviderEntry } from "@/systems/settings";
 import { settingsProviderFixtures } from "@/systems/settings/mocks/fixtures";
 import {
@@ -284,6 +285,23 @@ import { routeComponent } from "@/test/route-options";
 import { Route } from "../providers";
 
 const ProvidersSettingsPage = routeComponent(Route);
+
+function render(ui: ReactNode) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+  const wrap = (child: ReactNode) => (
+    <QueryClientProvider client={queryClient}>{child}</QueryClientProvider>
+  );
+  const result = renderWithTopbar(wrap(ui));
+  return {
+    ...result,
+    rerender: (next: ReactNode) => result.rerender(wrap(next)),
+  };
+}
 
 const draftFor = (entry: SettingsProviderEntry): ProviderDraft => ({
   name: entry.name,

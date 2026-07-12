@@ -907,7 +907,8 @@
         "tanstack": {
             "source": "pedronauck/skills",
             "sourceType": "github",
-            "computedHash": "073b9d0fb1c92fcbf99eb77c54e1a3265c4f6b2786568e8d9fe162661a10812e"
+            "skillPath": "skills/mine/tanstack/SKILL.md",
+            "computedHash": "6114e1400fdbb9bc9074d4144b304cbdaa1f6e512459990fb8ba9a3dff7bff59"
         },
         "tanstack-query-best-practices": {
             "source": "pedronauck/skills",

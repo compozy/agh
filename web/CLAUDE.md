@@ -4,7 +4,7 @@ React 19 SPA with Vite 8, TanStack Router (file-based) + Query v5, Tailwind v4, 
 
 ## Critical Rules
 
-- **`make web-lint`, `make bun-typecheck`, and `make bun-test` MUST pass** before completing any web task. Zero warnings/errors; oxlint is zero-tolerance.
+- **`make bun-lint`, `make bun-typecheck`, and `make bun-test` MUST pass** before completing any web task. Zero warnings/errors; oxlint is zero-tolerance.
 - **Frontend typecheck/test validation MUST use Turborepo from the repo root.** Never use `make web-typecheck`, `make web-test`, `cd web && bun run test`, `bun run --cwd web test`, or package-local equivalents as evidence — they bypass Turbo's cache/task graph.
 - **Files are kebab-case** (shadcn convention): components `kebab-case.tsx`, hooks `use-kebab-case.ts`, utils `kebab-case.ts`, API services `<domain>-api.ts`.
 - **Native DOM wrappers**: if a component's root is a single native element, its props MUST extend that element's intrinsic type (`React.ComponentProps<"…">`), merge `className`, and spread `{...props}` (use `forwardRef` when refs apply). CVA + `VariantProps` per the `shadcn` skill. Canonical: `.agents/skills/react/SKILL.md` → _Extend native element props_.
@@ -64,7 +64,7 @@ Web-local dev/build only (not validation evidence):
 ```bash
 make web-dev     # Vite dev on :3000 (proxies /api to :2123; for isolated QA export AGH_WEB_API_PROXY_TARGET first)
 make web-build   # Production build (vite build + tsc --noEmit)
-make web-lint    # Repo-root frontend lint gate (web + packages/ui + packages/site)
+make bun-lint    # Repo-root frontend lint gate (web + packages/ui + packages/site)
 make web-fmt     # oxfmt
 ```
 

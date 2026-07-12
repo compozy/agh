@@ -18,7 +18,7 @@ func verifySteps() []mageStep {
 		{name: "BunTest", run: BunTest},
 		{name: "WebBuild", run: WebBuild},
 		{name: "Fmt", run: Fmt},
-		{name: "Lint", run: Lint},
+		{name: "GoLint", run: goLint},
 		{name: "Test", run: Test},
 		{name: "buildGo", run: buildGo},
 		{name: "Boundaries", run: Boundaries},

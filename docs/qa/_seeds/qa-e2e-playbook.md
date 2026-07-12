@@ -127,7 +127,7 @@ make verify
 When the round includes web changes or frontend bug fixes, also keep these available for tighter loops:
 
 ```bash
-make web-lint
+make bun-lint
 make web-typecheck
 make web-test
 ```

@@ -79,16 +79,13 @@ cli-docs:
 	@go run ./cmd/agh doc --output-dir packages/site/content/runtime/cli-reference
 
 # Web UI
-.PHONY: web-dev web-build web-lint web-fmt web-typecheck web-test
+.PHONY: web-dev web-build web-fmt web-typecheck web-test
 
 web-dev:
 	@cd web && bun run dev
 
 web-build:
 	@cd web && bun run build
-
-web-lint:
-	@$(MAGE_RUN) webLint
 
 web-fmt:
 	@cd web && bun run format

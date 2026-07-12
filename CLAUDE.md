@@ -119,7 +119,7 @@ Web-specific dispatch: `web/CLAUDE.md`. Site-specific: `packages/site/CLAUDE.md`
 
 ## Build Commands
 
-`make verify` is the only gate that exercises the entire monorepo — `codegen-check → bun-lint → bun-typecheck → bun-test → web-build → fmt → lint → test → build → boundaries`.
+`make verify` is the only gate that exercises the entire monorepo — `codegen-check → installer-check → Bun lint → Bun typecheck → Bun test → web build → Go fmt → Go lint → Go test → Go build → boundaries`.
 
 **Run the full `make verify` once, as the completion/PR gate — not per micro-task, not twice per commit.** A full run fans one `-race` test binary per package across every core and takes minutes; running it on every small change needlessly saturates the machine. During iteration, gate only the lane you touched; reserve `make verify` for when the task is done. This scopes the dev loop _before_ the final gate — `cy-final-verify` still requires the full pipeline (no subset) at completion.
 
@@ -132,7 +132,7 @@ Web-specific dispatch: `web/CLAUDE.md`. Site-specific: `packages/site/CLAUDE.md`
 
 ```bash
 make bun-lint / bun-typecheck / bun-test   # repo-root Bun gates (oxfmt+oxlint / turbo typecheck / turbo test)
-make lint                                  # strict golangci-lint (zero issues)
+make lint                                  # strict Go + monorepo Bun lint (zero issues)
 make test / test-integration               # Go unit (-race) / +integration tag
 make test-e2e-runtime / test-e2e-web       # daemon-side (Go harness) / browser-side (Playwright)
 make build / codegen                       # compile binary / regen openapi + TS types + DESIGN.md tokens

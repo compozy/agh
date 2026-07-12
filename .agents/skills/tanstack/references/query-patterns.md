@@ -1,212 +1,97 @@
-# TanStack Query and TanStack DB Patterns
+# TanStack Query Patterns (Vanilla)
 
-This document provides comprehensive patterns and best practices for data fetching with TanStack Query and TanStack DB in React applications.
+Patterns for the standard `@tanstack/react-query` client: queries, mutations, caching, prefetching, SSR. For TanStack DB collections and live queries see `db-patterns.md`.
 
-## Core Architecture
+## Contents
 
-TanStack DB extends TanStack Query with collections, live queries, and optimistic mutations. Key principle: load data into typed collections and consume through live queries that auto-update on data changes.
+- Core Principles
+- Query Keys (factories, `queryOptions`)
+- Caching (`staleTime`, `gcTime`, defaults, `placeholderData` vs `initialData`)
+- Mutations (optimistic + rollback, targeted invalidation, `useMutationState`)
+- Error Handling (`useQueryErrorResetBoundary`, retry policy)
+- Prefetching (intent, `ensureQueryData`)
+- Infinite Queries
+- SSR (Dehydrate / Hydrate)
+- Parallel Queries (`useQueries`)
+- Query Cancellation (AbortSignal)
+- Performance (`select`, dependent queries)
+- Offline / Network Mode + cache persistence
+- Testing
+- Validation Checklist
 
-## Critical Rules
+## Core Principles
 
-### 1. Never Use React Query Patterns with Collections
+- **Query keys are the cache identity.** Treat them as canonical, not throwaway strings.
+- **Stale data is good.** Returning stale data instantly while refetching in the background is the default Query optimization — tune `staleTime` instead of forcing fresh fetches.
+- **Server state ≠ client state.** Do not mirror Query state into local state or Zustand; read from the cache.
 
-Collections have built-in mutation handling. Do NOT use `useMutation` + `invalidateQueries`.
+## Query Keys
 
-```typescript
-// WRONG
-const mutation = useMutation({
-  mutationFn: async (data) => api.update(data),
-  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['items'] })
-});
+### Key factories
 
-// CORRECT
-collection.update(itemId, (draft) => {
-  draft.status = newStatus;
-});
-```
-
-### 2. Always Share Collection Instances
-
-Creating new collection instances for mutations causes "key not found" errors.
-
-```typescript
-// WRONG - creates separate instances
-export function useItems() {
-  const collection = useMemo(() => createItemsCollection(), []);
-  return { data: useLiveQuery(collection).data };
-}
-
-export function useUpdateItem() {
-  const collection = createItemsCollection(); // NEW instance - FAILS!
-  return (id, data) => collection.update(id, data);
-}
-
-// CORRECT - share the instance
-export function useItems() {
-  const collection = useMemo(() => createItemsCollection(), []);
-  const { data } = useLiveQuery(collection);
-  return { data, collection }; // Expose collection
-}
-
-export function useUpdateItem(collection: ItemsCollection) {
-  return (id, data) => collection.update(id, data);
-}
-```
-
-### 3. Configure Persistence Handlers
-
-Put server writes in collection handlers, not mutation hooks.
+Centralize keys in factories. Prevents typo bugs, makes invalidation a discoverable API.
 
 ```typescript
-const collection = createCollection(
-  queryCollectionOptions({
-    queryKey: ["items"],
-    queryFn: () => api.items.list(),
-    queryClient,
-    getKey: (item) => item.id,
-    schema: itemSchema,
-
-    onInsert: async ({ transaction }) => {
-      await Promise.all(
-        transaction.mutations.map((m) => api.items.create(m.modified))
-      );
-    },
-
-    onUpdate: async ({ transaction }) => {
-      await Promise.all(
-        transaction.mutations.map((m) =>
-          api.items.update(m.original.id, m.changes)
-        )
-      );
-    },
-
-    onDelete: async ({ transaction }) => {
-      await Promise.all(
-        transaction.mutations.map((m) => api.items.delete(m.original.id))
-      );
-    },
-  })
-);
-```
-
-### 4. Single Canonical Collection Pattern
-
-Create ONE collection per entity type. Use live queries for filtered views.
-
-```typescript
-// WRONG - multiple collections
-const projectItems = createCollection({ queryKey: ["items", { projectId }] });
-const userItems = createCollection({ queryKey: ["items", { userId }] });
-
-// CORRECT - one collection, multiple live queries
-const itemsCollection = createCollection({ queryKey: ["items"] });
-
-function ProjectItems({ projectId }) {
-  const { data } = useLiveQuery((q) =>
-    q.from({ item: itemsCollection })
-      .where(({ item }) => eq(item.projectId, projectId))
-  );
-}
-```
-
-### 5. Check Field Changes Properly in onUpdate
-
-Verify fields actually changed, not just that they exist.
-
-```typescript
-// WRONG
-if (changes.archived !== undefined) { ... }
-
-// CORRECT
-if (changes.archived !== undefined && changes.archived !== original.archived) { ... }
-```
-
-## Collection Setup
-
-```typescript
-import { createCollection } from '@tanstack/react-db';
-import { queryCollectionOptions } from '@tanstack/query-db-collection';
-import { z } from 'zod';
-
-const itemSchema = z.object({
-  id: z.string(),
-  name: z.string().min(1),
-  status: z.enum(['active', 'archived']),
-});
-
-const itemCollection = createCollection(
-  queryCollectionOptions({
-    queryKey: ['items'],
-    queryFn: async () => (await fetch('/api/items')).json(),
-    queryClient,
-    getKey: (item) => item.id,
-    schema: itemSchema,
-  })
-);
-```
-
-## Live Query Patterns
-
-```typescript
-import { useLiveQuery } from '@tanstack/react-db';
-import { eq } from '@tanstack/db';
-
-// Basic query
-const { data } = useLiveQuery((q) =>
-  q.from({ item: itemCollection })
-    .where(({ item }) => eq(item.status, 'active'))
-    .orderBy(({ item }) => item.createdAt, 'desc')
-);
-
-// Query with joins
-const { data } = useLiveQuery((q) =>
-  q.from({ item: itemCollection })
-    .join({ user: userCollection }, ({ item, user }) => eq(item.userId, user.id), 'inner')
-    .select(({ item, user }) => ({
-      id: item.id,
-      name: item.name,
-      userName: user.name
-    }))
-);
-```
-
-## Optimistic Updates
-
-Mutations apply optimistically by default with automatic rollback on errors.
-
-```typescript
-// Optimistic (default)
-collection.update(itemId, (draft) => {
-  draft.status = 'completed';
-});
-
-// Non-optimistic for critical operations
-const tx = collection.delete(itemId, { optimistic: false });
-await tx.isPersisted.promise;
-```
-
-## Query Key Management
-
-Structure keys from generic to specific:
-
-```typescript
-const itemKeys = {
-  all: ['items'] as const,
-  lists: () => [...itemKeys.all, 'list'] as const,
-  list: (filters: string) => [...itemKeys.lists(), { filters }] as const,
-  details: () => [...itemKeys.all, 'detail'] as const,
-  detail: (id: string) => [...itemKeys.details(), id] as const,
+// lib/query-keys.ts
+export const todoKeys = {
+  all: ['todos'] as const,
+  lists: () => [...todoKeys.all, 'list'] as const,
+  list: (filters: TodoFilters) => [...todoKeys.lists(), filters] as const,
+  details: () => [...todoKeys.all, 'detail'] as const,
+  detail: (id: number) => [...todoKeys.details(), id] as const,
+  comments: (id: number) => [...todoKeys.detail(id), 'comments'] as const,
 };
+
+// Targeted invalidation
+queryClient.invalidateQueries({ queryKey: todoKeys.all });          // everything
+queryClient.invalidateQueries({ queryKey: todoKeys.detail(5) });    // one item + nested
 ```
 
-## QueryClient Configuration
+### Pair with `queryOptions` for full type inference
+
+```typescript
+import { queryOptions } from '@tanstack/react-query';
+
+export const todoQueries = {
+  detail: (id: number) =>
+    queryOptions({
+      queryKey: todoKeys.detail(id),
+      queryFn: () => fetchTodo(id),
+      staleTime: 5 * 60 * 1000,
+    }),
+};
+
+// Usage — single source of truth for key + fn + config
+const { data } = useQuery(todoQueries.detail(5));
+await queryClient.prefetchQuery(todoQueries.detail(5));
+```
+
+## Caching
+
+### `staleTime` by data volatility
+
+Default is `0` — every mount triggers a background refetch. Tune per data type:
+
+| Data type | staleTime | Why |
+|-----------|-----------|-----|
+| Real-time (stocks, live) | `0` | Must always refresh |
+| Notifications, feeds | `30s – 1min` | Changes frequently |
+| User-generated content | `1 – 5min` | Changes on user action |
+| Reference data (categories) | `10 – 30min` | Rarely changes |
+| Static content | `Infinity` | Never changes |
+
+### `gcTime` retention
+
+`gcTime` (formerly `cacheTime`) controls how long inactive data stays in memory after all observers unmount. Default `5min`. Raise it for data you want available on navigation back; lower it for memory-heavy queries.
+
+### QueryClient defaults
 
 ```typescript
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5,  // 5 minutes
-      gcTime: 1000 * 60 * 30,    // 30 minutes
+      staleTime: 60 * 1000,      // 1 min — sensible default
+      gcTime: 5 * 60 * 1000,
       refetchOnWindowFocus: false,
       retry: 1,
     },
@@ -214,136 +99,307 @@ const queryClient = new QueryClient({
 });
 ```
 
-## Dependent Queries
+Override per-query when needed via `queryOptions` factory.
+
+### `placeholderData` vs `initialData` — non-obvious gotcha
+
+| | `initialData` | `placeholderData` |
+|--|---------------|-------------------|
+| Persists to cache | yes | no |
+| Considered fresh | yes (subject to `staleTime`) | no — always refetches |
+| Use case | seeded from SSR / known good | optimistic UI while loading |
 
 ```typescript
-const { data: user } = useQuery({
-  queryKey: ['user', userId],
-  queryFn: () => getUser(userId),
+// initialData — treated as canonical, won't refetch unless stale
+useQuery({
+  queryKey: ['user', id],
+  queryFn: fetchUser,
+  initialData: ssrUser,
+  initialDataUpdatedAt: ssrTimestamp, // so staleTime works correctly
 });
+
+// placeholderData — instant UI, always refetches in background
+useQuery({
+  queryKey: ['users', filters],
+  queryFn: () => fetchUsers(filters),
+  placeholderData: (prev) => prev, // keep previous page during pagination
+});
+```
+
+## Mutations
+
+### Optimistic updates with rollback
+
+The full pattern: `onMutate` snapshots and writes optimistically, `onError` rolls back, `onSettled` reconciles.
+
+```typescript
+const updateTodo = useMutation({
+  mutationFn: (next: Todo) => api.update(next),
+
+  onMutate: async (next) => {
+    await queryClient.cancelQueries({ queryKey: todoKeys.detail(next.id) });
+    const previous = queryClient.getQueryData(todoKeys.detail(next.id));
+    queryClient.setQueryData(todoKeys.detail(next.id), next);
+    return { previous }; // rollback context
+  },
+
+  onError: (_err, next, ctx) => {
+    if (ctx?.previous) {
+      queryClient.setQueryData(todoKeys.detail(next.id), ctx.previous);
+    }
+  },
+
+  onSettled: (_data, _err, next) => {
+    queryClient.invalidateQueries({ queryKey: todoKeys.detail(next.id) });
+  },
+});
+```
+
+Always `cancelQueries` first — otherwise an in-flight refetch can overwrite your optimistic write.
+
+### Targeted invalidation
+
+Prefer the narrowest key that covers the affected data. Broad keys waste bandwidth and re-render unrelated components.
+
+```typescript
+// BAD — invalidates every cached query
+queryClient.invalidateQueries();
+
+// GOOD — invalidates only the affected entity tree
+queryClient.invalidateQueries({ queryKey: todoKeys.detail(id) });
+```
+
+### `useMutationState` for cross-component tracking
+
+When several components must react to the same mutation (e.g., a toolbar and a list both want to show "saving…"), avoid prop-drilling the mutation. Use `useMutationState`:
+
+```typescript
+const pending = useMutationState({
+  filters: { mutationKey: ['updateTodo'], status: 'pending' },
+});
+```
+
+## Error Handling
+
+### Error boundaries with `useQueryErrorResetBoundary`
+
+```typescript
+import { useQueryErrorResetBoundary } from '@tanstack/react-query';
+import { ErrorBoundary } from 'react-error-boundary';
+
+function TodosPage() {
+  const { reset } = useQueryErrorResetBoundary();
+  return (
+    <ErrorBoundary onReset={reset} fallbackRender={({ resetErrorBoundary }) => (
+      <button onClick={resetErrorBoundary}>Retry</button>
+    )}>
+      <TodoList />
+    </ErrorBoundary>
+  );
+}
+
+useQuery({ queryKey, queryFn, throwOnError: true }); // forwards errors to boundary
+```
+
+### Retry policy
+
+```typescript
+useQuery({
+  queryKey,
+  queryFn,
+  retry: (failureCount, error) => {
+    if (error instanceof HTTPError && error.status < 500) return false; // never retry 4xx
+    return failureCount < 3;
+  },
+  retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 30_000),
+});
+```
+
+## Prefetching
+
+### Intent-based prefetch (hover / focus)
+
+```typescript
+function TodoLink({ id }: { id: number }) {
+  const queryClient = useQueryClient();
+  const prefetch = () =>
+    queryClient.prefetchQuery({
+      ...todoQueries.detail(id),
+      staleTime: 30_000, // skip prefetch if recently fetched
+    });
+
+  return (
+    <Link
+      to={`/todos/${id}`}
+      onMouseEnter={prefetch}
+      onFocus={prefetch}
+    >
+      Todo #{id}
+    </Link>
+  );
+}
+```
+
+### `ensureQueryData` — read-or-fetch
+
+Returns cached data if present, otherwise fetches and caches. Ideal in route loaders.
+
+```typescript
+loader: ({ context, params }) =>
+  context.queryClient.ensureQueryData(todoQueries.detail(params.id)),
+```
+
+## Infinite Queries
+
+```typescript
+const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+  queryKey: ['todos', 'infinite'],
+  queryFn: ({ pageParam }) => fetchPage(pageParam),
+  initialPageParam: 0,
+  getNextPageParam: (last, _all, lastPageParam) =>
+    last.hasMore ? lastPageParam + 1 : undefined,
+  maxPages: 10, // cap memory in long lists
+});
+
+// Guard before fetching to avoid double-fires
+const onScrollEnd = () => {
+  if (hasNextPage && !isFetchingNextPage) fetchNextPage();
+};
+```
+
+`maxPages` evicts the oldest page when the cap is hit — critical for infinite feeds that would otherwise grow unbounded.
+
+## SSR (Dehydrate / Hydrate)
+
+```typescript
+// server
+const queryClient = new QueryClient();           // one per request
+await queryClient.prefetchQuery(todoQueries.detail(id));
+const dehydratedState = dehydrate(queryClient);
+
+// client
+<QueryClientProvider client={browserClient}>
+  <HydrationBoundary state={dehydratedState}>
+    <App />
+  </HydrationBoundary>
+</QueryClientProvider>
+```
+
+Use higher `staleTime` on the server to prevent an immediate client refetch right after hydration:
+
+```typescript
+new QueryClient({ defaultOptions: { queries: { staleTime: 60 * 1000 } } });
+```
+
+## Parallel Queries
+
+### Dynamic parallelism with `useQueries`
+
+```typescript
+const results = useQueries({
+  queries: userIds.map((id) => ({
+    queryKey: ['user', id],
+    queryFn: () => fetchUser(id),
+  })),
+});
+
+const users = results.map((r) => r.data).filter(Boolean);
+const isLoading = results.some((r) => r.isLoading);
+```
+
+Use this whenever the number of queries is dynamic — never call `useQuery` in a loop.
+
+## Query Cancellation
+
+`queryFn` receives an `AbortSignal`. Forward it to `fetch` so navigating away cancels in-flight requests:
+
+```typescript
+useQuery({
+  queryKey: ['search', term],
+  queryFn: ({ signal }) => fetch(`/api/search?q=${term}`, { signal }).then((r) => r.json()),
+});
+```
+
+## Performance
+
+### `select` for transform / subscription narrowing
+
+`select` runs after data is returned and the component only re-renders when the selected value changes (structural sharing).
+
+```typescript
+const count = useQuery({
+  queryKey: todoKeys.lists(),
+  queryFn: fetchTodos,
+  select: (todos) => todos.length, // re-renders only when count changes
+});
+```
+
+### Dependent queries via `enabled`
+
+```typescript
+const { data: user } = useQuery({ queryKey: ['user', userId], queryFn: () => getUser(userId) });
 
 const { data: projects } = useQuery({
   queryKey: ['projects', user?.id],
   queryFn: () => getProjects(user!.id),
-  enabled: !!user?.id, // Only run when user exists
+  enabled: !!user?.id,
 });
 ```
+
+## Offline / Network Mode
+
+### `networkMode`
+
+- `'online'` (default): pauses queries when offline, refetches on reconnect.
+- `'always'`: runs regardless of network (useful for local-first / mocked offline).
+- `'offlineFirst'`: tries network once, falls back to cache.
+
+```typescript
+new QueryClient({ defaultOptions: { queries: { networkMode: 'offlineFirst' } } });
+```
+
+### Persisting the cache
+
+```typescript
+import { persistQueryClient } from '@tanstack/react-query-persist-client';
+import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
+
+persistQueryClient({
+  queryClient,
+  persister: createSyncStoragePersister({ storage: window.localStorage }),
+  maxAge: 1000 * 60 * 60 * 24, // 1 day
+});
+```
+
+Use cache buster (version key) so deployments invalidate old data.
 
 ## Testing
 
 ```typescript
 const createWrapper = () => {
   const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
+    defaultOptions: { queries: { retry: false } }, // never retry in tests
   });
-  return ({ children }) => (
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
+  return ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
 };
 
-test('fetches items', async () => {
-  const { result } = renderHook(() => useItems(), {
-    wrapper: createWrapper(),
-  });
+test('fetches todos', async () => {
+  const { result } = renderHook(() => useTodos(), { wrapper: createWrapper() });
   await waitFor(() => expect(result.current.isSuccess).toBe(true));
 });
 ```
 
-## Common Anti-Patterns
-
-### Anti-Pattern 1: Creating Collections in Component Scope
-
-```typescript
-// WRONG - new collection on every render
-function ItemList() {
-  const collection = createCollection({ ... }); // BAD!
-  const { data } = useLiveQuery(collection);
-}
-
-// CORRECT - stable collection reference
-function ItemList() {
-  const collection = useMemo(() => createCollection({ ... }), []);
-  const { data } = useLiveQuery(collection);
-}
-```
-
-### Anti-Pattern 2: Mixing Query and Collection Patterns
-
-```typescript
-// WRONG - mixing paradigms
-const { data } = useQuery({ queryKey: ['items'] });
-collection.update(id, changes); // Which source of truth?
-
-// CORRECT - use collections consistently
-const { data } = useLiveQuery(collection);
-collection.update(id, changes);
-```
-
-### Anti-Pattern 3: Not Handling Loading States
-
-```typescript
-// WRONG - assumes data exists
-function ItemList() {
-  const { data } = useLiveQuery(collection);
-  return data.map(item => ...); // Error if data is undefined!
-}
-
-// CORRECT - handle loading
-function ItemList() {
-  const { data, isPending } = useLiveQuery(collection);
-  if (isPending) return <Skeleton />;
-  return data?.map(item => ...) ?? null;
-}
-```
-
-## Advanced Patterns
-
-### Computed Collections
-
-```typescript
-const itemsWithStatus = useLiveQuery((q) =>
-  q.from({ item: itemCollection })
-    .select(({ item }) => ({
-      ...item,
-      isOverdue: item.dueDate < new Date(),
-      priority: calculatePriority(item),
-    }))
-);
-```
-
-### Aggregations
-
-```typescript
-const stats = useLiveQuery((q) =>
-  q.from({ item: itemCollection })
-    .groupBy(({ item }) => item.status)
-    .select(({ item }) => ({
-      status: item.status,
-      count: count(),
-    }))
-);
-```
-
-### Pagination with Collections
-
-```typescript
-const { data, hasMore, loadMore } = useLiveQuery((q) =>
-  q.from({ item: itemCollection })
-    .orderBy(({ item }) => item.createdAt, 'desc')
-    .limit(pageSize)
-    .offset(page * pageSize)
-);
-```
-
 ## Validation Checklist
 
-Before finishing a task involving TanStack Query/DB:
-
-- [ ] Collection instances are shared between data-fetching and mutation hooks
-- [ ] Persistence handlers (`onInsert`, `onUpdate`, `onDelete`) are configured
-- [ ] No `useMutation` + `invalidateQueries` patterns with collections
-- [ ] One canonical collection per entity type
-- [ ] Field changes properly verified in `onUpdate` handlers
-- [ ] Run `pnpm run typecheck` and `pnpm run test`
+- [ ] Query keys flow through a factory, not literal arrays scattered in components
+- [ ] `staleTime` is set per data volatility (not just defaulted to 0)
+- [ ] Optimistic mutations have `cancelQueries` + rollback context
+- [ ] Invalidations target the narrowest key that covers the change
+- [ ] Loaders prefer `ensureQueryData` over `fetchQuery`
+- [ ] Infinite queries declare `getNextPageParam` and a `maxPages` cap when feasible
+- [ ] SSR uses `dehydrate` + `HydrationBoundary` with a per-request `QueryClient`
+- [ ] Long-running searches forward `signal` from `queryFn`
+- [ ] Component-level `select` is used when only a derived slice is consumed
+- [ ] `retry` is `false` in tests
