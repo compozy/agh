@@ -18,6 +18,7 @@ import {
   NAV_ROW_CLASS,
 } from "@/components/sidebar-nav-classes";
 import type { TopbarRouteContext } from "@/types/topbar";
+import { preloadAgentSettingsRoute } from "./-agents-preload";
 
 const SECTION_LABELS: Record<AgentSettingsSection, string> = {
   basics: "Basics",
@@ -36,6 +37,7 @@ export const Route = createFileRoute("/_app/agents/$name/settings")({
     },
   }),
   validateSearch: validateAgentSettingsSearch,
+  loader: ({ context, params }) => preloadAgentSettingsRoute(context.queryClient, params.name),
   component: AgentSettingsPage,
 });
 

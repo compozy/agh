@@ -4,16 +4,13 @@ import { useChildMatches, useNavigate } from "@tanstack/react-router";
 import type { ListingViewMode } from "@agh/ui";
 
 import { useAgentCreateHost } from "@/systems/agent/hooks/use-agent-create-host";
-import { useAgents } from "@/systems/agent/hooks/use-agents";
-import {
-  collectAgentCategoryOptions,
-  projectAgentFleetRows,
-} from "@/systems/agent/lib/agent-fleet-projection";
+import { useAgentCatalog } from "@/systems/agent/hooks/use-agents";
+import { projectAgentFleetRows } from "@/systems/agent/lib/agent-fleet-projection";
 import {
   hasActiveAgentFleetFilters,
   type AgentsFleetSearch,
 } from "@/systems/agent/lib/agent-fleet-search";
-import { useSessionCreate, useSessions } from "@/systems/session";
+import { useSessionCreate } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 import { normalizeListingSearchValue } from "@/lib/listing-search";
 
@@ -39,13 +36,18 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const agentsEnabled = workspaceId !== "" && !hasChildMatch;
-  const agentsQuery = useAgents(workspaceId || null, { enabled: agentsEnabled });
-  const sessionsQuery = useSessions(workspaceId || null, { enabled: agentsEnabled });
-
-  const agents = agentsQuery.data ?? [];
-  const sessionsAvailable = !sessionsQuery.isError;
-  const sessions = sessionsAvailable ? (sessionsQuery.data ?? []) : null;
-  const sessionsPartial = agentsQuery.isSuccess && sessionsQuery.isError;
+  const catalogQuery = useAgentCatalog(
+    workspaceId,
+    {
+      q: search.q,
+      category: search.category,
+      status: search.status,
+      limit: 50,
+    },
+    { enabled: agentsEnabled }
+  );
+  const agents = catalogQuery.agents.map(item => item.agent);
+  const sessionsPartial = catalogQuery.isSuccess && !catalogQuery.sessionsAvailable;
   const view: ListingViewMode = search.view ?? "rows";
 
   useEffect(() => {
@@ -135,34 +137,33 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
     [sessionCreate]
   );
 
-  const categoryOptions = useMemo(() => collectAgentCategoryOptions(agents), [agents]);
   const rows = useMemo(
     () =>
       projectAgentFleetRows({
-        agents,
-        sessions,
-        search,
+        items: catalogQuery.agents,
+        sessionsAvailable: catalogQuery.sessionsAvailable,
       }),
-    [agents, search, sessions]
+    [catalogQuery.agents, catalogQuery.sessionsAvailable]
   );
 
   const filtersActive = hasActiveAgentFleetFilters(search);
-  const isLoading = agentsQuery.isLoading || (agents.length > 0 && sessionsQuery.isLoading);
-  const isFirstRunEmpty = !isLoading && !agentsQuery.isError && agents.length === 0;
+  const isLoading = catalogQuery.isLoading;
+  const overallTotal = catalogQuery.facets?.total ?? 0;
+  const isFirstRunEmpty =
+    !isLoading && !catalogQuery.isError && overallTotal === 0 && !filtersActive;
   const isFilteredEmpty =
-    !isLoading && !agentsQuery.isError && agents.length > 0 && rows.length === 0 && filtersActive;
+    !isLoading && !catalogQuery.isError && catalogQuery.total === 0 && filtersActive;
   const showFacets =
-    !isLoading && !isFirstRunEmpty && !(agentsQuery.isError && agents.length === 0);
+    !isLoading && !isFirstRunEmpty && !(catalogQuery.isError && agents.length === 0);
 
   return {
     hasChildMatch,
     workspaceId,
-    agentsQuery,
-    sessionsQuery,
+    catalogQuery,
     agents,
-    fleetTotal: agents.length,
+    fleetTotal: catalogQuery.total,
     rows,
-    categoryOptions,
+    categoryOptions: catalogQuery.facets?.categories ?? [],
     search,
     draftQuery,
     searchInputRef,
@@ -178,10 +179,15 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
     isFirstRunEmpty,
     isFilteredEmpty,
     sessionsPartial,
+    hasMore: catalogQuery.hasNextPage,
+    isLoadingMore: catalogQuery.isFetchingNextPage,
+    loadMore: () => {
+      void catalogQuery.fetchNextPage();
+    },
     showFacets,
-    agentsError: agentsQuery.error,
+    agentsError: catalogQuery.error,
     retryAgents: () => {
-      void agentsQuery.refetch();
+      void catalogQuery.refetch();
     },
   };
 }

@@ -1,12 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { getNavCountsStore } from "@/systems/runtime";
 import { workspaceKeys } from "@/systems/workspace";
 
 import { createAgent, deleteAgent, duplicateAgent, updateAgent } from "../adapters/agent-api";
-import { agentsListOptions, agentDetailOptions } from "../lib/query-options";
+import { agentCatalogOptions, agentsListOptions, agentDetailOptions } from "../lib/query-options";
 import { agentKeys } from "../lib/query-keys";
+import { agentCatalogPage, flattenAgentCatalogPages } from "../lib/agent-catalog-query";
 import type {
+  AgentCatalogStableFilter,
   AgentPayload,
   CreateAgentParams,
   DeleteAgentResponse,
@@ -25,6 +27,25 @@ export function useAgents(workspace?: string | null, options: UseAgentsOptions =
   });
 }
 
+export function useAgentCatalog(
+  workspace: string,
+  filters: AgentCatalogStableFilter = {},
+  options: UseAgentsOptions = {}
+) {
+  const query = useInfiniteQuery({
+    ...agentCatalogOptions(workspace, filters),
+    enabled: Boolean(workspace) && (options.enabled ?? true),
+  });
+  const firstPage = agentCatalogPage(query.data);
+  return {
+    ...query,
+    agents: flattenAgentCatalogPages(query.data),
+    facets: firstPage?.facets,
+    sessionsAvailable: firstPage?.sessions_available ?? true,
+    total: firstPage?.page.total ?? 0,
+  };
+}
+
 export function useAgent(name: string, workspace?: string | null) {
   return useQuery(agentDetailOptions(name, workspace));
 }
@@ -40,6 +61,7 @@ export function useCreateAgent() {
     },
     onSettled: (_agent, _error, params) => {
       queryClient.invalidateQueries({ queryKey: agentKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: agentKeys.catalogs() });
       if (params?.scope === "workspace" && params.workspace) {
         queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(params.workspace) });
       }
@@ -63,6 +85,7 @@ export function useUpdateAgent() {
     },
     onSettled: (_agent, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: agentKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: agentKeys.catalogs() });
       if (variables?.params.workspace) {
         queryClient.invalidateQueries({
           queryKey: workspaceKeys.detail(variables.params.workspace),
@@ -89,6 +112,7 @@ export function useDeleteAgent() {
     },
     onSettled: (_result, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: agentKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: agentKeys.catalogs() });
       if (variables?.workspace) {
         queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(variables.workspace) });
       }
@@ -114,6 +138,7 @@ export function useDuplicateAgent() {
     },
     onSettled: (_agent, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: agentKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: agentKeys.catalogs() });
       if (variables?.params.scope === "workspace" && variables.params.workspace) {
         queryClient.invalidateQueries({
           queryKey: workspaceKeys.detail(variables.params.workspace),

@@ -2972,6 +2972,127 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 			t.Fatalf("get missing workspace agent body = %s, want not available message", missingResp.Body.String())
 		}
 	})
+
+	t.Run("Should filter and page the fleet with exact backend session totals", func(t *testing.T) {
+		t.Parallel()
+
+		const workspaceRef = "alpha"
+		manager := testutil.StubSessionManager{
+			CountByAgentFn: func(
+				_ context.Context,
+				workspaceID string,
+			) (map[string]session.AgentSessionCount, error) {
+				if workspaceID != "ws-1" {
+					t.Fatalf("CountSessionsByAgent() workspace = %q, want ws-1", workspaceID)
+				}
+				return map[string]session.AgentSessionCount{
+					"alpha": {Total: 2, Active: 1},
+					"beta":  {Total: 1},
+					"gamma": {Total: 3, Active: 2},
+				}, nil
+			},
+		}
+		fixture := newHandlerFixture(
+			t,
+			manager,
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{
+				ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+					if ref != workspaceRef {
+						t.Fatalf("Resolve() ref = %q, want %q", ref, workspaceRef)
+					}
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{ID: "ws-1", Name: workspaceRef},
+						Agents: []aghconfig.AgentDef{
+							{Name: "alpha", Provider: "codex", CategoryPath: []string{"Release", "Backend"}},
+							{Name: "beta", Provider: "codex", CategoryPath: []string{"Release", "Backend"}},
+							{Name: "gamma", Provider: "codex", CategoryPath: []string{"Operations"}},
+						},
+					}, nil
+				},
+			},
+			nil,
+			nil,
+		)
+
+		firstResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/agents/catalog?workspace=alpha&q=a&status=active&limit=1",
+			nil,
+		)
+		if firstResp.Code != http.StatusOK {
+			t.Fatalf("first agent catalog status = %d; body=%s", firstResp.Code, firstResp.Body.String())
+		}
+		var first contract.AgentCatalogResponse
+		decodeJSON(t, firstResp.Body.Bytes(), &first)
+		if len(first.Agents) != 1 || first.Agents[0].Agent.Name != "alpha" ||
+			first.Agents[0].Sessions == nil || first.Agents[0].Sessions.Active != 1 ||
+			first.Agents[0].Sessions.Total != 2 {
+			t.Fatalf("first agent catalog = %#v, want alpha with 1/2 sessions", first)
+		}
+		if first.Page.Total != 2 || !first.Page.HasMore || first.Page.NextCursor == "" ||
+			!first.SessionsAvailable || first.Facets.Total != 3 || first.Facets.Active != 2 ||
+			first.Facets.Idle != 1 || !slices.Equal(
+			first.Facets.Categories,
+			[]string{"Operations", "Release / Backend"},
+		) {
+			t.Fatalf("first agent catalog metadata = %#v", first)
+		}
+
+		secondResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/agents/catalog?workspace=alpha&q=a&status=active&limit=1&cursor="+
+				first.Page.NextCursor,
+			nil,
+		)
+		var second contract.AgentCatalogResponse
+		decodeJSON(t, secondResp.Body.Bytes(), &second)
+		if secondResp.Code != http.StatusOK || len(second.Agents) != 1 ||
+			second.Agents[0].Agent.Name != "gamma" || second.Page.HasMore {
+			t.Fatalf("second agent catalog = status %d payload %#v", secondResp.Code, second)
+		}
+
+		mismatch := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/agents/catalog?workspace=alpha&status=idle&cursor="+first.Page.NextCursor,
+			nil,
+		)
+		if mismatch.Code != http.StatusBadRequest {
+			t.Fatalf("mismatched agent cursor status = %d, want %d", mismatch.Code, http.StatusBadRequest)
+		}
+
+		fixture.Handlers.Sessions = testutil.StubSessionManager{
+			CountByAgentFn: func(context.Context, string) (map[string]session.AgentSessionCount, error) {
+				return nil, errors.New("session catalog unavailable")
+			},
+		}
+		partialResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/agents/catalog?workspace=alpha&status=active",
+			nil,
+		)
+		var partial contract.AgentCatalogResponse
+		decodeJSON(t, partialResp.Body.Bytes(), &partial)
+		if partialResp.Code != http.StatusOK || partial.SessionsAvailable || len(partial.Agents) != 3 {
+			t.Fatalf("partial agent catalog = status %d payload %#v", partialResp.Code, partial)
+		}
+		for _, item := range partial.Agents {
+			if item.Sessions != nil {
+				t.Fatalf("partial agent %q sessions = %#v, want nil", item.Agent.Name, item.Sessions)
+			}
+		}
+		if partial.Facets.Active != 0 || partial.Facets.Idle != 0 {
+			t.Fatalf("partial agent catalog facets = %#v, want no invented session status", partial.Facets)
+		}
+	})
 }
 
 type stubAgentCatalog struct {

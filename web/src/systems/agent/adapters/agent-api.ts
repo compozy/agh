@@ -7,12 +7,31 @@ import {
 } from "@/lib/api-client";
 
 import type {
+  AgentCatalogFilter,
+  AgentCatalogResponse,
   AgentPayload,
   CreateAgentParams,
   DeleteAgentResponse,
   DuplicateAgentParams,
   UpdateAgentParams,
 } from "../types";
+
+export async function fetchAgentCatalog(
+  params: AgentCatalogFilter,
+  signal?: AbortSignal
+): Promise<AgentCatalogResponse> {
+  const { data, error, response } = await apiClient.GET("/api/agents/catalog", {
+    params: { query: params },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw new AgentApiError(
+      defaultApiErrorMessage("Failed to fetch agent catalog", response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, "Failed to fetch agent catalog");
+}
 
 export type AgentApiErrorKind = "digest_conflict" | "target_exists" | "generic";
 

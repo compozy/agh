@@ -22,6 +22,71 @@ function agentByName(name: string): AgentPayload | undefined {
   return agentsState.find(agent => agent.name === name);
 }
 
+interface AgentCatalogMockOptions {
+  activeAgents?: readonly string[];
+  sessionsAvailable?: boolean;
+}
+
+export function agentCatalogMockResponse(
+  request: Request,
+  agents: readonly AgentPayload[] = agentsState,
+  options: AgentCatalogMockOptions = {}
+) {
+  const url = new URL(request.url);
+  const search = url.searchParams.get("q")?.trim().toLowerCase() ?? "";
+  const category = url.searchParams.get("category")?.trim() ?? "";
+  const status = url.searchParams.get("status")?.trim() ?? "";
+  const limit = Number(url.searchParams.get("limit") ?? "50");
+  const start = Number(url.searchParams.get("cursor") ?? "0");
+  const activeAgents = new Set(options.activeAgents ?? []);
+  const sessionsAvailable = options.sessionsAvailable ?? true;
+  const filtered = agents.filter(agent => {
+    const agentCategory = agent.category_path?.join(" / ") ?? "";
+    if (
+      search &&
+      !agent.name.toLowerCase().includes(search) &&
+      !agentCategory.toLowerCase().includes(search)
+    ) {
+      return false;
+    }
+    if (category && agentCategory !== category) return false;
+    if (sessionsAvailable && status === "active" && !activeAgents.has(agent.name)) return false;
+    if (sessionsAvailable && status === "idle" && activeAgents.has(agent.name)) return false;
+    return true;
+  });
+  const pageAgents = filtered.slice(start, start + limit);
+  const next = start + pageAgents.length;
+  const categories = [
+    ...new Set(agents.flatMap(agent => agent.category_path?.join(" / ") ?? [])),
+  ].sort((left, right) => left.localeCompare(right));
+
+  return {
+    agents: pageAgents.map(agent => ({
+      agent,
+      ...(sessionsAvailable
+        ? {
+            sessions: activeAgents.has(agent.name)
+              ? { active: 1, total: 1 }
+              : { active: 0, total: 0 },
+          }
+        : {}),
+    })),
+    facets: {
+      active: sessionsAvailable ? agents.filter(agent => activeAgents.has(agent.name)).length : 0,
+      categories,
+      idle: sessionsAvailable ? agents.filter(agent => !activeAgents.has(agent.name)).length : 0,
+      total: agents.length,
+    },
+    page: {
+      has_more: next < filtered.length,
+      limit,
+      total: filtered.length,
+      ...(next < filtered.length ? { next_cursor: String(next) } : {}),
+    },
+    sessions_available: sessionsAvailable,
+  };
+}
+
 function nextDigest(seed: string): string {
   const hex = Array.from(seed)
     .map(char => char.charCodeAt(0).toString(16).padStart(2, "0"))
@@ -155,6 +220,9 @@ function heartbeatRevision(
 
 export const handlers: HttpHandler[] = [
   aghApiMock.get("/api/agents", () => HttpResponse.json({ agents: agentsState })),
+  aghApiMock.get("/api/agents/catalog", ({ request }) =>
+    HttpResponse.json(agentCatalogMockResponse(request))
+  ),
   aghApiMock.get("/api/agents/{name}", ({ params }) => {
     const name = String(params.name);
     const agent = agentByName(name);

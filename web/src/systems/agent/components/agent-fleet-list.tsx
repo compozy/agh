@@ -7,6 +7,7 @@ import {
   Empty,
   Skeleton,
   SkeletonRows,
+  Spinner,
   type ListingViewMode,
 } from "@agh/ui";
 
@@ -22,9 +23,12 @@ export interface AgentFleetListProps {
   isFirstRunEmpty: boolean;
   isFilteredEmpty: boolean;
   newSessionDisabled?: boolean;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
   onClearFilters: () => void;
   onCreateAgent: () => void;
   onNewSession: (agentName: string) => void;
+  onLoadMore?: () => void;
 }
 
 function AgentFleetList({
@@ -35,9 +39,12 @@ function AgentFleetList({
   isFirstRunEmpty,
   isFilteredEmpty,
   newSessionDisabled = false,
+  hasMore = false,
+  isLoadingMore = false,
   onClearFilters,
   onCreateAgent,
   onNewSession,
+  onLoadMore,
 }: AgentFleetListProps) {
   if (isLoading) {
     if (view === "cards") {
@@ -182,6 +189,22 @@ function AgentFleetList({
           ))}
         </div>
       )}
+      {hasMore || isLoadingMore ? (
+        <div className="flex justify-center py-4">
+          <Button
+            aria-busy={isLoadingMore}
+            data-testid="agent-fleet-load-more"
+            disabled={isLoadingMore}
+            onClick={onLoadMore}
+            size="sm"
+            type="button"
+            variant="neutral"
+          >
+            {isLoadingMore ? <Spinner aria-hidden="true" /> : null}
+            {isLoadingMore ? "Loading more agents" : "Load more agents"}
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

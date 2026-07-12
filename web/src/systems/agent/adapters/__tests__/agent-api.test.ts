@@ -10,11 +10,61 @@ import {
   deleteAgent,
   duplicateAgent,
   fetchAgent,
+  fetchAgentCatalog,
   fetchAgents,
   isAgentDigestConflict,
   isAgentTargetExists,
   updateAgent,
 } from "../agent-api";
+
+describe("fetchAgentCatalog", () => {
+  const validResponse = {
+    agents: [],
+    facets: { active: 1, categories: ["Engineering / Release"], idle: 2, total: 3 },
+    page: { has_more: false, limit: 50, total: 1 },
+    sessions_available: true,
+  };
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("passes workspace filters, cursor, and abort signal to the catalog endpoint", async () => {
+    mockJsonResponse(validResponse);
+    const controller = new AbortController();
+
+    await expect(
+      fetchAgentCatalog(
+        {
+          workspace: "ws_alpha",
+          q: "release",
+          category: "Engineering / Release",
+          status: "active",
+          limit: 50,
+          cursor: "next-page",
+        },
+        controller.signal
+      )
+    ).resolves.toEqual(validResponse);
+
+    await expectFetchRequest({
+      path: "/api/agents/catalog?workspace=ws_alpha&q=release&category=Engineering%20%2F%20Release&status=active&limit=50&cursor=next-page",
+      signal: controller.signal,
+    });
+  });
+
+  it("surfaces a catalog request failure", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 503 }));
+
+    await expect(fetchAgentCatalog({ workspace: "ws_alpha" })).rejects.toThrow(
+      "Failed to fetch agent catalog"
+    );
+  });
+});
 
 describe("fetchAgents", () => {
   const validResponse = {

@@ -15,6 +15,7 @@ const {
   mockOpenAgentCreate,
   mockUseCreateSessionPending,
   mockUseAgents,
+  mockUseAgentCatalog,
   mockUseSessions,
 } = vi.hoisted(() => ({
   mockNavigate: vi.fn<(input: unknown) => Promise<void>>(),
@@ -25,6 +26,7 @@ const {
   mockOpenAgentCreate: vi.fn<() => void>(),
   mockUseCreateSessionPending: { current: false as boolean },
   mockUseAgents: vi.fn(),
+  mockUseAgentCatalog: vi.fn(),
   mockUseSessions: vi.fn(),
 }));
 
@@ -62,6 +64,7 @@ vi.mock("@/systems/status", () => ({
 
 vi.mock("@/systems/agent", () => ({
   useAgents: mockUseAgents,
+  useAgentCatalog: mockUseAgentCatalog,
   useAgentCreateDialog: () => ({
     open: false,
     draft: {
@@ -221,8 +224,13 @@ describe("useAppLayout", () => {
       isLoading: mockAgentsLoading,
       isError: mockAgentsError,
     }));
+    mockUseAgentCatalog.mockReset();
+    mockUseAgentCatalog.mockReturnValue({
+      facets: { active: 1, categories: [], idle: 1, total: 2 },
+      sessionsAvailable: true,
+    });
     mockUseSessions.mockReset();
-    mockUseSessions.mockReturnValue({ data: [] });
+    mockUseSessions.mockReturnValue({ data: [], total: 3 });
     mockNavigate.mockReset();
     mockMutateAsync.mockReset();
     mockSetActiveWorkspaceId.mockReset();
@@ -280,7 +288,7 @@ describe("useAppLayout", () => {
     expect(result.current.sessionCreate.runtimeValue.provider).toBe("codex");
   });
 
-  it("uses the active workspace when querying agents and sessions", () => {
+  it("uses the active workspace for agent definitions and exact shell summaries", () => {
     mockUseAgents.mockImplementation((workspace?: string | null) => ({
       data:
         workspace === "ws_alpha"
@@ -294,7 +302,13 @@ describe("useAppLayout", () => {
 
     expect(result.current.agents?.map(agent => agent.name)).toEqual(["workspace-review"]);
     expect(mockUseAgents).toHaveBeenCalledWith("ws_alpha", { enabled: true });
-    expect(mockUseSessions).toHaveBeenCalledWith("ws_alpha", { enabled: true });
+    expect(mockUseAgentCatalog).toHaveBeenCalledWith("ws_alpha", { limit: 1 }, { enabled: true });
+    expect(mockUseSessions).toHaveBeenCalledWith("ws_alpha", {
+      enabled: true,
+      filters: { state: "active", limit: 1 },
+    });
+    expect(result.current.agentsCount).toEqual({ live: 1, total: 2 });
+    expect(result.current.activeSessionCount).toBe(3);
 
     act(() => {
       result.current.handleNewSession("workspace-review");
@@ -302,6 +316,17 @@ describe("useAppLayout", () => {
 
     expect(result.current.sessionCreate.selectedAgentName).toBe("workspace-review");
     expect(result.current.sessionCreate.runtimeValue.provider).toBe("gemini");
+  });
+
+  it("hides the agent live badge when session facets are unavailable", () => {
+    mockUseAgentCatalog.mockReturnValue({
+      facets: { active: 0, categories: [], idle: 0, total: 2 },
+      sessionsAvailable: false,
+    });
+
+    const { result } = renderHook(() => useAppLayout());
+
+    expect(result.current.agentsCount).toBeUndefined();
   });
 
   it("refreshes the exposed agents when the active workspace changes", () => {
@@ -327,7 +352,11 @@ describe("useAppLayout", () => {
     expect(result.current.agents?.map(agent => agent.name)).not.toContain("alpha-only");
     expect(result.current.agents?.map(agent => agent.name)).not.toContain("global-only");
     expect(mockUseAgents).toHaveBeenCalledWith("ws_beta", { enabled: true });
-    expect(mockUseSessions).toHaveBeenCalledWith("ws_beta", { enabled: true });
+    expect(mockUseAgentCatalog).toHaveBeenCalledWith("ws_beta", { limit: 1 }, { enabled: true });
+    expect(mockUseSessions).toHaveBeenCalledWith("ws_beta", {
+      enabled: true,
+      filters: { state: "active", limit: 1 },
+    });
   });
 
   it("reports loading from the active workspace agents query", () => {

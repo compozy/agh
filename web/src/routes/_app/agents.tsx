@@ -6,12 +6,23 @@ import { Button, Empty, ListingPage, useTopbarSlot } from "@agh/ui";
 import { useAgentsFleetPage } from "@/hooks/routes/use-agents-fleet-page";
 import { AgentFleetList, AgentFleetToolbar, validateAgentsFleetSearch } from "@/systems/agent";
 import type { TopbarRouteContext } from "@/types/topbar";
+import { preloadAgentsRoute } from "./-agents-preload";
 
 export const Route = createFileRoute("/_app/agents")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
     topbar: { title: "Agents", icon: Users2 },
   }),
   validateSearch: validateAgentsFleetSearch,
+  loaderDeps: ({ search }) => ({
+    q: search.q,
+    category: search.category,
+    status: search.status,
+    limit: 50,
+  }),
+  loader: ({ context, deps, location }) =>
+    location.pathname.split("/").filter(Boolean).length === 1
+      ? preloadAgentsRoute(context.queryClient, deps)
+      : Promise.resolve(),
   component: AgentsFleetRoute,
 });
 
@@ -122,6 +133,9 @@ function AgentsFleetRoute() {
           onClearFilters={page.clearFilters}
           onCreateAgent={page.openCreate}
           onNewSession={page.openNewSession}
+          hasMore={page.hasMore}
+          isLoadingMore={page.isLoadingMore}
+          onLoadMore={page.loadMore}
           rows={page.rows}
           sessionsPartial={page.sessionsPartial}
           view={page.view}

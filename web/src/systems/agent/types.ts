@@ -1,4 +1,4 @@
-import type { OperationRequestBody, OperationResponse } from "@/lib/api-contract";
+import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
 export type AgentsResponse = OperationResponse<"listAgents", 200>;
 export type AgentPayload = AgentsResponse["agents"][number];
@@ -8,6 +8,10 @@ export type UpdateAgentParams = OperationRequestBody<"updateAgent">;
 export type DuplicateAgentParams = OperationRequestBody<"duplicateAgent">;
 export type DeleteAgentResponse = OperationResponse<"deleteAgent", 200>;
 export type AgentMCPServer = NonNullable<AgentPayload["mcp_servers"]>[number];
+export type AgentCatalogResponse = OperationResponse<"listAgentCatalog", 200>;
+export type AgentCatalogItem = AgentCatalogResponse["agents"][number];
+export type AgentCatalogFilter = OperationQuery<"listAgentCatalog">;
+export type AgentCatalogStableFilter = Omit<AgentCatalogFilter, "cursor" | "workspace">;
 
 export type AgentSoulPayload = OperationResponse<"getAgentDefinitionSoul", 200>;
 export type PutAgentSoulParams = OperationRequestBody<"putAgentSoul">;

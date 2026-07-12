@@ -126,7 +126,7 @@ describe("use-agent-mutations", () => {
     expect(queryClient.getQueryData(agentKeys.detail("new-agent", "ws_alpha"))).toEqual(created);
   });
 
-  it("Should set detail with fresh digest and invalidate lists on update", async () => {
+  it("Should set detail with fresh digest and invalidate lists plus catalogs on update", async () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
@@ -151,6 +151,7 @@ describe("use-agent-mutations", () => {
 
     expect(queryClient.getQueryData(agentKeys.detail("coder", "ws_alpha"))).toEqual(updated);
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: agentKeys.lists() });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: agentKeys.catalogs() });
   });
 
   it("Should not poison detail cache on digest conflict", async () => {
@@ -214,6 +215,7 @@ describe("use-agent-mutations", () => {
     expect(mockGetNavCountsStore).toHaveBeenCalledWith("ws_alpha");
     expect(mockNavRefresh).toHaveBeenCalledTimes(1);
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: agentKeys.lists() });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: agentKeys.catalogs() });
   });
 
   it("Should cache the duplicated agent detail", async () => {

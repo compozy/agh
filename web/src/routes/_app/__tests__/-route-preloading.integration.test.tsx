@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useAgent, useAgents } from "@/systems/agent";
+import { useAgent, useAgentCatalog, useAgents } from "@/systems/agent";
 import { useAutomationJobs, useAutomationTriggers } from "@/systems/automation";
 import {
   useBridge,
@@ -56,6 +56,7 @@ import { routeLoader } from "@/test/route-options";
 
 const adapterMocks = vi.hoisted(() => ({
   fetchAgent: vi.fn(),
+  fetchAgentCatalog: vi.fn(),
   fetchAgents: vi.fn(),
   fetchOnboardingStatus: vi.fn(),
   fetchStatus: vi.fn(),
@@ -108,6 +109,7 @@ vi.mock("@/systems/workspace/adapters/workspace-api", async importOriginal => ({
 vi.mock("@/systems/agent/adapters/agent-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/agent/adapters/agent-api")>()),
   fetchAgent: adapterMocks.fetchAgent,
+  fetchAgentCatalog: adapterMocks.fetchAgentCatalog,
   fetchAgents: adapterMocks.fetchAgents,
 }));
 
@@ -199,6 +201,8 @@ vi.mock("@/systems/knowledge/adapters/knowledge-api", async importOriginal => ({
 
 import { Route as AppRoute } from "../../_app";
 import { Route as AgentDetailRoute } from "../agents.$name";
+import { Route as AgentSettingsRoute } from "../agents.$name.settings";
+import { Route as AgentsRoute } from "../agents";
 import { Route as BridgeDetailRoute } from "../bridges.$id";
 import { Route as BridgesRoute } from "../bridges";
 import { Route as HomeRoute } from "../index";
@@ -275,20 +279,22 @@ function context(queryClient: QueryClient) {
 
 const cases: PreloadCase[] = [
   {
-    name: "app shell → onboarding/workspace/agent/default-session options",
+    name: "app shell → onboarding/workspace/agent/exact-summary options",
     load: queryClient => invokeLoader(AppRoute, context(queryClient)),
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
         useOnboardingStatus();
         useWorkspaces();
         useAgents(workspace.id);
+        useAgentCatalog(workspace.id, { limit: 1 });
         useWorkspace(workspace.id);
-        useSessions(workspace.id);
+        useSessions(workspace.id, { filters: { state: "active", limit: 1 } });
       }),
     requests: [
       adapterMocks.fetchOnboardingStatus,
       adapterMocks.fetchWorkspaces,
       adapterMocks.fetchAgents,
+      adapterMocks.fetchAgentCatalog,
       adapterMocks.fetchWorkspace,
       adapterMocks.fetchSessions,
     ],
@@ -341,6 +347,31 @@ const cases: PreloadCase[] = [
     ],
   },
   {
+    name: "agents → exact workspace/filter infinite catalog options",
+    load: queryClient =>
+      invokeLoader(AgentsRoute, {
+        ...context(queryClient),
+        deps: {
+          category: "Engineering / Release",
+          limit: 50,
+          q: "review",
+          status: "active" as const,
+        },
+        location: { pathname: "/agents" },
+      }),
+    mountConsumer: queryClient =>
+      mountQueries(queryClient, () => {
+        useWorkspaces();
+        useAgentCatalog(workspace.id, {
+          category: "Engineering / Release",
+          limit: 50,
+          q: "review",
+          status: "active",
+        });
+      }),
+    requests: [adapterMocks.fetchWorkspaces, adapterMocks.fetchAgentCatalog],
+  },
+  {
     name: "agent detail → detail + exact agent session list/count options",
     load: queryClient =>
       invokeLoader(AgentDetailRoute, {
@@ -362,6 +393,27 @@ const cases: PreloadCase[] = [
       }),
     requests: [adapterMocks.fetchWorkspaces, adapterMocks.fetchAgent],
     requestCounts: [{ request: adapterMocks.fetchSessions, times: 3 }],
+  },
+  {
+    name: "agent settings → definition/workspace/provider options",
+    load: queryClient =>
+      invokeLoader(AgentSettingsRoute, {
+        ...context(queryClient),
+        params: { name: "codex" },
+      }),
+    mountConsumer: queryClient =>
+      mountQueries(queryClient, () => {
+        useWorkspaces();
+        useAgent("codex", workspace.id);
+        useWorkspace(workspace.id);
+        useSettingsProviders();
+      }),
+    requests: [
+      adapterMocks.fetchWorkspaces,
+      adapterMocks.fetchAgent,
+      adapterMocks.fetchWorkspace,
+      adapterMocks.listSettingsProviders,
+    ],
   },
   {
     name: "sandbox → settingsSandboxesListOptions",
@@ -741,6 +793,12 @@ describe("route query preloading", () => {
     adapterMocks.fetchOnboardingStatus.mockResolvedValue({ completed: true });
     adapterMocks.fetchStatus.mockResolvedValue({ daemon: { user_home_dir: "/home/operator" } });
     adapterMocks.fetchAgents.mockResolvedValue([]);
+    adapterMocks.fetchAgentCatalog.mockResolvedValue({
+      agents: [],
+      facets: { active: 0, categories: [], idle: 0, total: 0 },
+      page: { has_more: false, limit: 50, total: 0 },
+      sessions_available: true,
+    });
     adapterMocks.fetchAgent.mockResolvedValue({ name: "codex" });
     adapterMocks.fetchSessions.mockResolvedValue({
       sessions: [],

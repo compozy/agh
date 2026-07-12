@@ -27,8 +27,6 @@ import {
   ACTIVE_NAV_ROW_CLASS,
   NAV_ROW_CLASS,
 } from "@/components/sidebar-nav-classes";
-import type { AgentPayload } from "@/systems/agent";
-import { isSessionRunning, type SessionPayload } from "@/systems/session";
 import {
   splitHomeWorkspace,
   useUserHomeDir,
@@ -38,7 +36,11 @@ import {
 
 import { RuntimeConnectionIndicator } from "./connection-indicator";
 import { RestartDaemonButton } from "./restart-daemon-button";
-import { computeAgentsCount } from "./app-sidebar-counts";
+
+export interface AgentsCount {
+  live: number;
+  total: number;
+}
 
 interface RailSlotProps {
   workspaces: WorkspacePayload[] | undefined;
@@ -197,24 +199,13 @@ const SYSTEM_NAV_ITEMS: NavItemProps[] = [
   { to: "/settings", icon: Settings, label: "Settings", fuzzy: true },
 ];
 
-function countActiveSessions(sessions: SessionPayload[] | undefined): number {
-  if (!sessions) return 0;
-  let count = 0;
-  for (const session of sessions) {
-    if (isSessionRunning(session)) count += 1;
-  }
-  return count;
-}
-
 interface NavSlotProps {
-  agents: AgentPayload[] | undefined;
-  sessions: SessionPayload[] | undefined;
+  agentsCount: AgentsCount | undefined;
 }
 
-function NavSlot({ agents, sessions }: NavSlotProps) {
-  const agentsCount = computeAgentsCount(agents, sessions);
+function NavSlot({ agentsCount }: NavSlotProps) {
   const agentsBadge =
-    agentsCount.total > 0 ? (
+    agentsCount && agentsCount.total > 0 ? (
       <span className="tabular-nums text-subtle" data-testid="agents-live-count">
         {agentsCount.live}/{agentsCount.total}
       </span>
@@ -290,8 +281,8 @@ export interface AppSidebarProps {
   activeWorkspace: WorkspacePayload | undefined;
   onSelectWorkspace: (id: string) => void;
   onAddWorkspace: () => void;
-  agents: AgentPayload[] | undefined;
-  sessions: SessionPayload[] | undefined;
+  agentsCount: AgentsCount | undefined;
+  activeSessionCount: number;
   className?: string;
 }
 
@@ -302,11 +293,10 @@ function AppSidebar({
   activeWorkspaceId,
   onSelectWorkspace,
   onAddWorkspace,
-  agents,
-  sessions,
+  agentsCount,
+  activeSessionCount,
   className,
 }: AppSidebarProps) {
-  const activeSessionCount = countActiveSessions(sessions);
   const rail = useMemo(
     () => (
       <RailSlot
@@ -329,7 +319,7 @@ function AppSidebar({
     ),
     [activeWorkspaceId, onAddWorkspace, onSelectWorkspace, workspaces]
   );
-  const nav = useMemo(() => <NavSlot agents={agents} sessions={sessions} />, [agents, sessions]);
+  const nav = useMemo(() => <NavSlot agentsCount={agentsCount} />, [agentsCount]);
   const footer = useMemo(
     () => <FooterSlot activeSessionCount={activeSessionCount} />,
     [activeSessionCount]

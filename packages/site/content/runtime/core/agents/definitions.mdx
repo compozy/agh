@@ -79,6 +79,26 @@ deletes target the effective winner. Deleting the workspace winner can therefore
 definition immediately; the delete response reports that transition in `unshadowed_origin`. AGH
 does not merge either definition before or after the delete.
 
+## Browse a workspace fleet
+
+Use the workspace catalog when a client needs a bounded fleet view instead of the complete
+definition list:
+
+```http
+GET /api/agents/catalog?workspace=ws_alpha&q=release&category=Engineering%20%2F%20Release&status=active&limit=50
+```
+
+The daemon applies `q`, `category`, and `status` before the cursor page is cut. Each result combines
+the effective agent definition with exact visible-session totals. `facets.total` and
+`facets.categories` describe the complete workspace fleet; `facets.active` and `facets.idle` are
+exact when `sessions_available` is true. Follow the opaque `page.next_cursor` with the same filters
+to load another page.
+
+If the session authority is unavailable, the endpoint still returns definitions with
+`sessions_available: false` and no per-agent `sessions` value. Clients must show session state as
+unavailable instead of inferring that those agents are idle. HTTP and UDS expose the same catalog
+contract.
+
 ## Edit with compare-and-swap
 
 Read the current definition before editing and retain its `definition_digest`. A full-definition

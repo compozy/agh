@@ -1,6 +1,6 @@
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
-import { fetchAgent, fetchAgents } from "../adapters/agent-api";
+import { fetchAgent, fetchAgentCatalog, fetchAgents } from "../adapters/agent-api";
 import {
   fetchAgentHeartbeat,
   fetchAgentHeartbeatHistory,
@@ -9,6 +9,20 @@ import {
 } from "../adapters/agent-heartbeat-api";
 import { fetchAgentSoul, fetchAgentSoulHistory } from "../adapters/agent-soul-api";
 import { agentKeys } from "./query-keys";
+import { agentCatalogRequest, normalizeAgentCatalogFilter } from "./agent-catalog-query";
+import type { AgentCatalogStableFilter } from "../types";
+
+export function agentCatalogOptions(workspace: string, filters: AgentCatalogStableFilter = {}) {
+  const normalizedFilters = normalizeAgentCatalogFilter(filters);
+  return infiniteQueryOptions({
+    queryKey: agentKeys.catalog(workspace, normalizedFilters),
+    queryFn: ({ pageParam, signal }) =>
+      fetchAgentCatalog(agentCatalogRequest(workspace, normalizedFilters, pageParam), signal),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
+    staleTime: 5_000,
+  });
+}
 
 export function agentsListOptions(workspace?: string | null) {
   return queryOptions({

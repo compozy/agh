@@ -15,6 +15,7 @@ type StubSessionManager struct {
 	ListFn              func() []*session.Info
 	ListAllFn           func(context.Context) ([]*session.Info, error)
 	ListPageFn          func(context.Context, session.ListQuery) (session.ListPage, error)
+	CountByAgentFn      func(context.Context, string) (map[string]session.AgentSessionCount, error)
 	ListSessionsFn      func(context.Context, store.SessionListQuery) ([]store.SessionInfo, error)
 	StatusFn            func(context.Context, string) (*session.Info, error)
 	EventsFn            func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
@@ -81,6 +82,35 @@ func (s StubSessionManager) ListPage(ctx context.Context, query session.ListQuer
 		return session.ListPage{}, err
 	}
 	return stubSessionListPage(infos, query), nil
+}
+
+func (s StubSessionManager) CountSessionsByAgent(
+	ctx context.Context,
+	workspaceID string,
+) (map[string]session.AgentSessionCount, error) {
+	if s.CountByAgentFn != nil {
+		return s.CountByAgentFn(ctx, workspaceID)
+	}
+	infos, err := s.ListAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	counts := make(map[string]session.AgentSessionCount)
+	for _, info := range infos {
+		if info == nil || info.WorkspaceID != workspaceID || info.Type == session.SessionTypeDream {
+			continue
+		}
+		if info.Lineage != nil && info.Lineage.SpawnRole == session.SpawnRoleMemoryExtractor {
+			continue
+		}
+		count := counts[info.AgentName]
+		count.Total++
+		if info.State == session.StateActive {
+			count.Active++
+		}
+		counts[info.AgentName] = count
+	}
+	return counts, nil
 }
 
 func (s StubSessionManager) ListSessions(
@@ -333,6 +363,7 @@ func (s StubSessionManager) InputQueueSummary(ctx context.Context, id string) (s
 
 var _ core.SessionManager = (*StubSessionManager)(nil)
 var _ core.SessionCatalog = (*StubSessionManager)(nil)
+var _ core.AgentSessionCounter = (*StubSessionManager)(nil)
 
 func storeSessionInfoFromRuntime(info *session.Info) store.SessionInfo {
 	storeInfo := store.SessionInfo{

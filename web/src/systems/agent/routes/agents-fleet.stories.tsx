@@ -3,7 +3,7 @@ import { delay, HttpResponse } from "msw";
 
 import { aghApiMock } from "@/storybook/openapi-msw";
 import { storybookMswParameters } from "@/storybook/msw";
-import { agentFixtures } from "@/systems/agent/mocks";
+import { agentCatalogMockResponse, agentFixtures } from "@/systems/agent/mocks";
 import {
   StorybookRouteCanvas,
   StorybookWorkspaceSetup,
@@ -34,7 +34,13 @@ const fleetStoryAgents = agentFixtures.map((agent, index) => ({
 }));
 
 const loadedAgentHandlers = [
-  aghApiMock.get("/api/agents", () => HttpResponse.json({ agents: fleetStoryAgents })),
+  aghApiMock.get("/api/agents/catalog", ({ request }) =>
+    HttpResponse.json(
+      agentCatalogMockResponse(request, fleetStoryAgents, {
+        activeAgents: [fleetStoryAgents[0]!.name],
+      })
+    )
+  ),
 ];
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
@@ -78,9 +84,9 @@ export const Loading: Story = {
     ...appRouteParameters("/agents"),
     ...storybookMswParameters({
       agent: [
-        aghApiMock.get("/api/agents", async () => {
+        aghApiMock.get("/api/agents/catalog", async ({ request }) => {
           await delay("infinite");
-          return HttpResponse.json({ agents: [] });
+          return HttpResponse.json(agentCatalogMockResponse(request, []));
         }),
       ],
     }),
@@ -93,7 +99,11 @@ export const FirstRunEmpty: Story = {
   parameters: {
     ...appRouteParameters("/agents"),
     ...storybookMswParameters({
-      agent: [aghApiMock.get("/api/agents", () => HttpResponse.json({ agents: [] }))],
+      agent: [
+        aghApiMock.get("/api/agents/catalog", ({ request }) =>
+          HttpResponse.json(agentCatalogMockResponse(request, []))
+        ),
+      ],
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
@@ -114,7 +124,7 @@ export const AgentsError: Story = {
     ...appRouteParameters("/agents"),
     ...storybookMswParameters({
       agent: [
-        aghApiMock.get("/api/agents", () =>
+        aghApiMock.get("/api/agents/catalog", () =>
           HttpResponse.json({ error: "agents unavailable" }, { status: 500 })
         ),
       ],
@@ -128,10 +138,11 @@ export const SessionsPartial: Story = {
   parameters: {
     ...appRouteParameters("/agents"),
     ...storybookMswParameters({
-      agent: loadedAgentHandlers,
-      session: [
-        aghApiMock.get("/api/sessions", () =>
-          HttpResponse.json({ error: "sessions unavailable" }, { status: 500 })
+      agent: [
+        aghApiMock.get("/api/agents/catalog", ({ request }) =>
+          HttpResponse.json(
+            agentCatalogMockResponse(request, fleetStoryAgents, { sessionsAvailable: false })
+          )
         ),
       ],
     }),

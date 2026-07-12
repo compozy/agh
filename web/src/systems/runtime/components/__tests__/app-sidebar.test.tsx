@@ -5,32 +5,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@agh/ui";
 
-import type { AgentPayload } from "@/systems/agent";
-import { FIXTURE_AGENT_DEFINITION_DIGEST } from "@/systems/agent/mocks";
 import {
   resetUserHomeDirStore,
   useUserHomeDirStore,
 } from "@/systems/workspace/hooks/use-user-home-dir-store";
 
 import { AppSidebar, type AppSidebarProps } from "../app-sidebar";
-import { computeAgentsCount } from "../app-sidebar-counts";
 
 const onSelectWorkspace = vi.fn();
 const onCollapseChange = vi.fn();
 const onAddWorkspace = vi.fn();
 let matchedRoute: Record<string, boolean> = {};
 let matchedRouteFuzzy: Record<string, boolean> = {};
-
-function sidebarAgent(
-  overrides: Partial<AgentPayload> & Pick<AgentPayload, "name" | "provider" | "prompt">
-): AgentPayload {
-  return {
-    origin: "workspace",
-    workspace_id: "ws_alpha",
-    definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
-    ...overrides,
-  };
-}
 
 type MatchRouteParams = Record<string, string>;
 
@@ -154,8 +140,8 @@ function makeProps(overrides: Partial<AppSidebarProps> = {}): AppSidebarProps {
     activeWorkspace: workspaces[0],
     onSelectWorkspace,
     onAddWorkspace,
-    agents: [],
-    sessions: [],
+    agentsCount: undefined,
+    activeSessionCount: 0,
     ...overrides,
   };
 }
@@ -336,11 +322,7 @@ describe("AppSidebar", () => {
     });
 
     it("Should not render the deleted agent tree, section label, or sidebar create button", () => {
-      renderSidebar(
-        makeProps({
-          agents: [sidebarAgent({ name: "coder", provider: "claude", prompt: "code" })],
-        })
-      );
+      renderSidebar(makeProps({ agentsCount: { live: 1, total: 3 } }));
       expect(screen.queryByTestId("agent-row-coder")).not.toBeInTheDocument();
       expect(screen.queryByTestId("sidebar-create-agent")).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Create agent" })).not.toBeInTheDocument();
@@ -351,33 +333,9 @@ describe("AppSidebar", () => {
     });
   });
 
-  describe("Should render the Agents Operate badge from computeAgentsCount", () => {
-    it("Should render the live/total badge when agents are present", () => {
-      renderSidebar(
-        makeProps({
-          agents: [
-            sidebarAgent({ name: "coder", provider: "claude", prompt: "code" }),
-            sidebarAgent({ name: "writer", provider: "openai", prompt: "write" }),
-            sidebarAgent({ name: "researcher", provider: "openai", prompt: "research" }),
-          ],
-          sessions: [
-            {
-              id: "s_active_1",
-              name: "Live coder",
-              agent_name: "coder",
-              provider: "claude",
-              workspace_id: "ws_alpha",
-              workspace_path: "/workspace/alpha",
-              state: "active",
-              badge: "running",
-              attachable: true,
-              available_commands: [],
-              updated_at: "2026-04-06T10:00:00Z",
-              created_at: "2026-04-06T10:00:00Z",
-            },
-          ],
-        })
-      );
+  describe("Should render the Agents Operate badge from backend catalog facets", () => {
+    it("Should render the exact live/total badge supplied by the shell", () => {
+      renderSidebar(makeProps({ agentsCount: { live: 1, total: 3 } }));
       expect(screen.getByTestId("agents-live-count")).toHaveTextContent("1/3");
       expect(screen.getByTestId("nav-agents")).toContainElement(
         screen.getByTestId("agents-live-count")
@@ -385,75 +343,17 @@ describe("AppSidebar", () => {
     });
 
     it("Should render 2/2 when every agent has a running session", () => {
-      renderSidebar(
-        makeProps({
-          agents: [
-            sidebarAgent({ name: "coder", provider: "claude", prompt: "code" }),
-            sidebarAgent({ name: "writer", provider: "openai", prompt: "write" }),
-          ],
-          sessions: [
-            {
-              id: "s1",
-              name: "L1",
-              agent_name: "coder",
-              provider: "claude",
-              workspace_id: "ws_alpha",
-              workspace_path: "/workspace/alpha",
-              state: "active",
-              badge: "running",
-              attachable: true,
-              available_commands: [],
-              updated_at: "2026-04-06T10:00:00Z",
-              created_at: "2026-04-06T10:00:00Z",
-            },
-            {
-              id: "s2",
-              name: "L2",
-              agent_name: "writer",
-              provider: "openai",
-              workspace_id: "ws_alpha",
-              workspace_path: "/workspace/alpha",
-              state: "active",
-              badge: "running",
-              attachable: true,
-              available_commands: [],
-              updated_at: "2026-04-06T10:00:00Z",
-              created_at: "2026-04-06T10:00:00Z",
-            },
-          ],
-        })
-      );
+      renderSidebar(makeProps({ agentsCount: { live: 2, total: 2 } }));
       expect(screen.getByTestId("agents-live-count")).toHaveTextContent("2/2");
     });
 
-    it("Should not count idle attachable sessions as live", () => {
-      renderSidebar(
-        makeProps({
-          agents: [sidebarAgent({ name: "coder", provider: "claude", prompt: "code" })],
-          sessions: [
-            {
-              id: "s_idle",
-              name: "Idle coder",
-              agent_name: "coder",
-              provider: "claude",
-              workspace_id: "ws_alpha",
-              workspace_path: "/workspace/alpha",
-              state: "active",
-              badge: "idle",
-              attachable: true,
-              available_commands: [],
-              updated_at: "2026-04-06T10:00:00Z",
-              created_at: "2026-04-06T10:00:00Z",
-            },
-          ],
-        })
-      );
-
+    it("Should render a zero-live catalog total", () => {
+      renderSidebar(makeProps({ agentsCount: { live: 0, total: 1 } }));
       expect(screen.getByTestId("agents-live-count")).toHaveTextContent("0/1");
     });
 
     it("Should not render the count chip when there are no agents", () => {
-      renderSidebar(makeProps({ agents: [] }));
+      renderSidebar(makeProps({ agentsCount: { live: 0, total: 0 } }));
       expect(screen.queryByTestId("agents-live-count")).not.toBeInTheDocument();
     });
   });
@@ -657,40 +557,7 @@ describe("AppSidebar", () => {
     });
 
     it("Should open the confirm dialog with the active-session impact line", () => {
-      renderSidebar(
-        makeProps({
-          sessions: [
-            {
-              id: "s1",
-              name: "L1",
-              agent_name: "coder",
-              provider: "claude",
-              workspace_id: "ws_alpha",
-              workspace_path: "/workspace/alpha",
-              state: "active",
-              badge: "running",
-              attachable: true,
-              available_commands: [],
-              updated_at: "2026-04-06T10:00:00Z",
-              created_at: "2026-04-06T10:00:00Z",
-            },
-            {
-              id: "s2",
-              name: "L2",
-              agent_name: "writer",
-              provider: "openai",
-              workspace_id: "ws_alpha",
-              workspace_path: "/workspace/alpha",
-              state: "active",
-              badge: "running",
-              attachable: true,
-              available_commands: [],
-              updated_at: "2026-04-06T10:00:00Z",
-              created_at: "2026-04-06T10:00:00Z",
-            },
-          ],
-        })
-      );
+      renderSidebar(makeProps({ activeSessionCount: 2 }));
 
       fireEvent.click(screen.getByTestId("sidebar-restart-daemon"));
       expect(screen.getByTestId("sidebar-restart-confirm-detail")).toHaveTextContent(
@@ -730,113 +597,5 @@ describe("AppSidebar", () => {
       fireEvent.click(screen.getByTestId("sidebar-restart-cancel"));
       expect(mockTriggerAsync).not.toHaveBeenCalled();
     });
-  });
-});
-
-describe("computeAgentsCount", () => {
-  it("Should return zero counts for an empty agent list", () => {
-    expect(computeAgentsCount([], [])).toEqual({ live: 0, total: 0 });
-    expect(computeAgentsCount(undefined, undefined)).toEqual({ live: 0, total: 0 });
-  });
-
-  it("Should only count agents whose name has at least one running session", () => {
-    const result = computeAgentsCount(
-      [
-        sidebarAgent({ name: "alpha", provider: "claude", prompt: "" }),
-        sidebarAgent({ name: "beta", provider: "claude", prompt: "" }),
-        sidebarAgent({ name: "gamma", provider: "claude", prompt: "" }),
-      ],
-      [
-        {
-          id: "s1",
-          name: "alpha-live",
-          agent_name: "alpha",
-          provider: "claude",
-          workspace_id: "ws",
-          workspace_path: "/",
-          state: "active",
-          badge: "running",
-          attachable: true,
-          available_commands: [],
-          updated_at: "2026-04-06T10:00:00Z",
-          created_at: "2026-04-06T10:00:00Z",
-        },
-        {
-          id: "s2",
-          name: "beta-stopped",
-          agent_name: "beta",
-          provider: "claude",
-          workspace_id: "ws",
-          workspace_path: "/",
-          state: "stopped",
-          badge: "stopped",
-          attachable: false,
-          available_commands: [],
-          updated_at: "2026-04-06T10:00:00Z",
-          created_at: "2026-04-06T10:00:00Z",
-        },
-      ]
-    );
-    expect(result).toEqual({ live: 1, total: 3 });
-  });
-
-  it("Should de-duplicate by agent name when an agent has multiple running sessions", () => {
-    const result = computeAgentsCount(
-      [sidebarAgent({ name: "alpha", provider: "claude", prompt: "" })],
-      [
-        {
-          id: "s1",
-          name: "alpha-1",
-          agent_name: "alpha",
-          provider: "claude",
-          workspace_id: "ws",
-          workspace_path: "/",
-          state: "active",
-          badge: "running",
-          attachable: true,
-          available_commands: [],
-          updated_at: "2026-04-06T10:00:00Z",
-          created_at: "2026-04-06T10:00:00Z",
-        },
-        {
-          id: "s2",
-          name: "alpha-2",
-          agent_name: "alpha",
-          provider: "claude",
-          workspace_id: "ws",
-          workspace_path: "/",
-          state: "active",
-          badge: "running",
-          attachable: true,
-          available_commands: [],
-          updated_at: "2026-04-06T10:00:00Z",
-          created_at: "2026-04-06T10:00:00Z",
-        },
-      ]
-    );
-    expect(result).toEqual({ live: 1, total: 1 });
-  });
-
-  it("Should ignore sessions whose agent_name is not in the tree", () => {
-    const result = computeAgentsCount(
-      [sidebarAgent({ name: "alpha", provider: "claude", prompt: "" })],
-      [
-        {
-          id: "s1",
-          name: "phantom",
-          agent_name: "ghost",
-          provider: "claude",
-          workspace_id: "ws",
-          workspace_path: "/",
-          state: "active",
-          badge: "idle",
-          attachable: true,
-          available_commands: [],
-          updated_at: "2026-04-06T10:00:00Z",
-          created_at: "2026-04-06T10:00:00Z",
-        },
-      ]
-    );
-    expect(result).toEqual({ live: 0, total: 1 });
   });
 });

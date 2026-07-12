@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { SessionPayload } from "@/systems/session";
-
-import type { AgentPayload } from "../../types";
+import type { AgentCatalogItem, AgentPayload } from "../../types";
 import { FIXTURE_AGENT_DEFINITION_DIGEST } from "../../mocks/fixtures";
 import {
   agentFleetChipsToFilters,
@@ -15,7 +13,6 @@ import {
   formatAgentFleetMeta,
   formatCategoryMetaSegment,
   projectAgentFleetRows,
-  sortAgentsByNameStable,
 } from "../agent-fleet-projection";
 import { hasActiveAgentFleetFilters, validateAgentsFleetSearch } from "../agent-fleet-search";
 
@@ -29,21 +26,11 @@ function agent(overrides: Partial<AgentPayload> & Pick<AgentPayload, "name">): A
   };
 }
 
-function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
-  return {
-    id: "sess-1",
-    agent_name: "coder",
-    provider: "claude",
-    workspace_id: "ws_alpha",
-    workspace_path: "/ws",
-    state: "stopped",
-    badge: "idle",
-    attachable: true,
-    available_commands: [],
-    created_at: "2026-04-01T00:00:00Z",
-    updated_at: "2026-04-01T01:00:00Z",
-    ...overrides,
-  };
+function catalogItem(
+  definition: AgentPayload,
+  sessions: AgentCatalogItem["sessions"] = { active: 0, total: 0 }
+): AgentCatalogItem {
+  return { agent: definition, sessions };
 }
 
 describe("validateAgentsFleetSearch", () => {
@@ -79,84 +66,33 @@ describe("validateAgentsFleetSearch", () => {
 });
 
 describe("agent fleet projection", () => {
-  it("Should sort agents A–Z stably and keep order when sessions flip active", () => {
+  it("Should retain the backend page order and map exact session counts", () => {
     const agents = [agent({ name: "zeta" }), agent({ name: "alpha" }), agent({ name: "Beta" })];
-    const sorted = sortAgentsByNameStable(agents).map(item => item.name);
-    expect(sorted).toEqual(["alpha", "Beta", "zeta"]);
-
-    const idleRows = projectAgentFleetRows({
-      agents,
-      sessions: [
-        session({ id: "1", agent_name: "zeta", state: "stopped" }),
-        session({ id: "2", agent_name: "alpha", state: "stopped" }),
+    const rows = projectAgentFleetRows({
+      items: [
+        catalogItem(agents[1]!, { active: 0, total: 4 }),
+        catalogItem(agents[2]!, { active: 2, total: 6 }),
+        catalogItem(agents[0]!, { active: 0, total: 0 }),
       ],
-      search: {},
+      sessionsAvailable: true,
     });
-    expect(idleRows.map(row => row.agent.name)).toEqual(["alpha", "Beta", "zeta"]);
-
-    const activeRows = projectAgentFleetRows({
-      agents,
-      sessions: [
-        session({ id: "1", agent_name: "zeta", state: "active" }),
-        session({ id: "2", agent_name: "alpha", state: "stopped" }),
-      ],
-      search: {},
-    });
-    expect(activeRows.map(row => row.agent.name)).toEqual(["alpha", "Beta", "zeta"]);
-    expect(activeRows[2]?.signals?.status).toBe("active");
-  });
-
-  it("Should AND-compose q, category, and status filters across name and category segments", () => {
-    const agents = [
-      agent({
-        name: "release-captain",
-        category_path: ["Engineering", "Release"],
-        provider: "anthropic",
-        model: "claude-sonnet-4-5",
-      }),
-      agent({
-        name: "code-reviewer",
-        category_path: ["Engineering"],
-        provider: "openai",
-      }),
-      agent({
-        name: "triage-bot",
-        provider: "openai",
-        origin: "workspace",
-      }),
-    ];
-    const sessions = [
-      session({ id: "a", agent_name: "release-captain", state: "active" }),
-      session({ id: "b", agent_name: "code-reviewer", state: "stopped" }),
-      session({ id: "c", agent_name: "triage-bot", state: "stopped" }),
-    ];
-
-    const byQuery = projectAgentFleetRows({
-      agents,
-      sessions,
-      search: { q: "release" },
-    });
-    expect(byQuery.map(row => row.agent.name)).toEqual(["release-captain"]);
-
-    const byCategoryAndIdle = projectAgentFleetRows({
-      agents,
-      sessions,
-      search: { category: "Engineering", status: "idle" },
-    });
-    expect(byCategoryAndIdle.map(row => row.agent.name)).toEqual(["code-reviewer"]);
+    expect(rows.map(row => row.agent.name)).toEqual(["alpha", "Beta", "zeta"]);
+    expect(rows[0]?.signals).toEqual({ status: "idle", active: 0, total: 4 });
+    expect(rows[1]?.signals).toEqual({ status: "active", active: 2, total: 6 });
   });
 
   it("Should omit invented status when sessions are unavailable", () => {
-    const agents = [
-      agent({
-        name: "coder",
-        diagnostics: [{ error_kind: "parse", message: "bad", path: "AGENT.md" }],
-      }),
-    ];
     const rows = projectAgentFleetRows({
-      agents,
-      sessions: null,
-      search: { status: "active" },
+      items: [
+        catalogItem(
+          agent({
+            name: "coder",
+            diagnostics: [{ error_kind: "parse", message: "bad", path: "AGENT.md" }],
+          }),
+          null
+        ),
+      ],
+      sessionsAvailable: false,
     });
     expect(rows).toHaveLength(1);
     expect(rows[0]?.signals).toBeNull();
@@ -217,9 +153,6 @@ describe("agent fleet projection", () => {
           status: "active",
           active: 2,
           total: 6,
-          failed: 0,
-          runtimeSeconds: 0,
-          lastActivityMs: null,
         },
         true
       )
@@ -228,15 +161,16 @@ describe("agent fleet projection", () => {
 
   it("Should attach shared aria and card meta on projected rows", () => {
     const rows = projectAgentFleetRows({
-      agents: [
-        agent({
-          name: "triage-bot",
-          provider: "openai",
-          origin: "workspace",
-        }),
+      items: [
+        catalogItem(
+          agent({
+            name: "triage-bot",
+            provider: "openai",
+            origin: "workspace",
+          })
+        ),
       ],
-      sessions: [],
-      search: {},
+      sessionsAvailable: true,
     });
     expect(rows[0]?.cardMeta).toBe("openai · Workspace");
     expect(rows[0]?.ariaLabel).toBe("triage-bot, Idle, 0 of 0 sessions active");

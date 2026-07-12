@@ -7,6 +7,7 @@
 - Fields
 - Tool grants
 - Providers and MCP
+- Fleet reads
 - Lifecycle reads and mutations
 - Setup workflow
 - Provider aliases and settings apply
@@ -73,6 +74,12 @@ Built-in provider names include claude, codex, gemini, opencode, copilot, cursor
 Agent `model` and `reasoning_effort` values are applied through active ACP `configOptions` before the first prompt. AGH applies model first, replaces the option snapshot from that response, then applies effort. Empty effort sends no RPC; explicit `none` does when advertised. Exact model IDs are required: unavailable models fail with `model_unavailable`; missing or unsupported reasoning fails with `reasoning_option_missing` or `reasoning_effort_unsupported`. AGH never aliases an unknown model or falls back to the provider default.
 
 Per-agent MCP servers belong in AGENT.md or an agent-local mcp.json sidecar. mcp.json replaces same-name frontmatter servers. Use provider-level MCP when every agent for that provider needs the server; use agent-level MCP when one agent needs it.
+
+## Fleet Reads
+
+Use `GET /api/agents/catalog?workspace=<ref>` over HTTP or UDS when a workspace fleet needs server-owned search, category/status filters, cursor pagination, or exact per-agent session totals. Keep the same `q`, `category`, `status`, and `limit` when following the opaque `page.next_cursor`.
+
+`facets.total` and `facets.categories` describe the complete workspace-visible fleet before filters. `facets.active` and `facets.idle` are exact only when `sessions_available` is true. Otherwise, treat every omitted `sessions` value as unavailable; do not infer idle state or apply a client-side status filter.
 
 ## Lifecycle Reads And Mutations
 

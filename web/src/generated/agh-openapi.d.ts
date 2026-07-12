@@ -277,6 +277,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agents/catalog": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List a filtered workspace agent fleet with exact session totals */
+    get: operations["listAgentCatalog"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agents/{name}": {
     parameters: {
       query?: never;
@@ -9466,6 +9483,234 @@ export interface operations {
       };
       /** @description Agent definition already exists */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace root missing */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace resolver unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  listAgentCatalog: {
+    parameters: {
+      query: {
+        /** @description Workspace id, name, or path */
+        workspace: string;
+        /** @description Case-insensitive agent name or category search */
+        q?: string;
+        /** @description Exact category path joined by slash separators */
+        category?: string;
+        /** @description Agent session status */
+        status?: "active" | "idle";
+        /** @description Opaque cursor bound to workspace and filters */
+        cursor?: string;
+        /** @description Agents per page (1-100; default 50) */
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            agents: {
+              agent: {
+                category_path?: string[];
+                command?: string;
+                definition_digest: string;
+                deny_tools?: string[];
+                diagnostics?: {
+                  error_kind: string;
+                  message: string;
+                  path: string;
+                }[];
+                mcp_servers?: {
+                  args?: string[];
+                  auth?: {
+                    authorization_url?: string;
+                    client_id?: string;
+                    client_secret_ref?: string;
+                    issuer_url?: string;
+                    metadata_url?: string;
+                    revocation_url?: string;
+                    scopes?: string[];
+                    token_url?: string;
+                    type?: string;
+                  } | null;
+                  command?: string;
+                  env?: {
+                    [key: string]: string;
+                  };
+                  name: string;
+                  secret_env?: {
+                    [key: string]: string;
+                  };
+                  transport?: string;
+                  url?: string;
+                }[];
+                model?: string;
+                name: string;
+                /** @enum {string} */
+                origin: "global" | "workspace";
+                permissions?: string;
+                prompt: string;
+                provider: string;
+                /** @enum {string} */
+                reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                skills?: {
+                  disabled?: string[];
+                } | null;
+                tools?: string[];
+                toolsets?: string[];
+                workspace_id?: string;
+              };
+              sessions?: {
+                active: number;
+                total: number;
+              } | null;
+            }[];
+            facets: {
+              active: number;
+              categories: string[];
+              idle: number;
+              total: number;
+            };
+            page: {
+              has_more: boolean;
+              limit: number;
+              next_cursor?: string;
+              total: number;
+            };
+            sessions_available: boolean;
+          };
+        };
+      };
+      /** @description Invalid filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };

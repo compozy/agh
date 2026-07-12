@@ -4,14 +4,9 @@ import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { StorybookUserHomeDirSetup } from "@/storybook/route-story";
 import { storyWorkspacePaths } from "@/storybook/fintech-scenario";
-import { agentFixtures } from "@/systems/agent/mocks";
-import { withStoryAgentCategories } from "@/systems/agent/components/stories/agent-command-select.stories";
-import { sessionFixtures } from "@/systems/session/mocks";
 import { workspaceFixtures } from "@/systems/workspace/mocks";
 
 import { AppSidebar, type AppSidebarProps } from "../app-sidebar";
-
-const categorizedAgentFixtures = withStoryAgentCategories(agentFixtures);
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (
@@ -73,8 +68,8 @@ const meta: Meta<typeof AppSidebarHarness> = {
     workspaces: workspaceFixtures,
     activeWorkspaceId: workspaceFixtures[1].id,
     onAddWorkspace: () => undefined,
-    agents: agentFixtures,
-    sessions: sessionFixtures,
+    agentsCount: { live: 2, total: 6 },
+    activeSessionCount: 2,
   },
 };
 
@@ -115,13 +110,13 @@ export const WithHomeWorkspace: Story = {
 
 export const AgentsOperateBadge: Story = {
   args: {
-    agents: categorizedAgentFixtures,
+    agentsCount: { live: 3, total: 8 },
   },
   parameters: {
     docs: {
       description: {
         story:
-          "Agents is the first Operate nav item. The live/total badge is derived from shell agents+sessions via computeAgentsCount; the per-agent category tree no longer lives in the sidebar.",
+          "Agents is the first Operate nav item. Its live/total badge uses the exact workspace catalog facets supplied by the shell; the per-agent category tree no longer lives in the sidebar.",
       },
     },
   },
@@ -153,8 +148,8 @@ export const NoWorkspaces: Story = {
     workspaces: [],
     activeWorkspaceId: null,
     defaultWorkspaceId: null,
-    agents: [],
-    sessions: [],
+    agentsCount: { live: 0, total: 0 },
+    activeSessionCount: 0,
   },
   parameters: {
     docs: {

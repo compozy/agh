@@ -106,6 +106,10 @@ vi.mock("@/systems/status", () => ({
 }));
 
 vi.mock("@/systems/agent", () => ({
+  useAgentCatalog: () => ({
+    facets: { active: 0, categories: [], idle: 0, total: 0 },
+    sessionsAvailable: true,
+  }),
   useAgents: () => ({
     data: [],
     isLoading: false,
@@ -174,6 +178,7 @@ vi.mock("@/systems/session", () => ({
   }),
   useSessions: () => ({
     data: [],
+    total: 0,
   }),
   useSessionCreateDialog: () => ({
     open: false,

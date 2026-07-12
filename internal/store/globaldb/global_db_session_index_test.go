@@ -196,6 +196,83 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			t.Fatalf("PageSessions(resumable).Total = %d, want 1", page.Total)
 		}
 	})
+
+	t.Run("Should group exact visible counts while excluding the live overlay", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"workspace-agent-counts",
+			filepath.Join(t.TempDir(), "workspace-agent-counts"),
+		)
+		foreignWorkspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"workspace-agent-counts-foreign",
+			filepath.Join(t.TempDir(), "workspace-agent-counts-foreign"),
+		)
+		baseAt := time.Date(2026, 7, 11, 16, 0, 0, 0, time.UTC)
+		coderActive := sessionInfoForWorkspaceStateIndexTest(
+			"sess-coder-active",
+			workspaceID,
+			globalDBSessionStateActive,
+			baseAt,
+		)
+		coderStopped := sessionInfoForWorkspaceStateIndexTest(
+			"sess-coder-stopped",
+			workspaceID,
+			globalDBSessionStateStopped,
+			baseAt,
+		)
+		reviewer := sessionInfoForWorkspaceStateIndexTest(
+			"sess-reviewer",
+			workspaceID,
+			globalDBSessionStateActive,
+			baseAt,
+		)
+		reviewer.AgentName = "reviewer"
+		memory := sessionInfoForWorkspaceStateIndexTest(
+			"sess-memory",
+			workspaceID,
+			globalDBSessionStateActive,
+			baseAt,
+		)
+		memory.Lineage = &store.SessionLineage{SpawnRole: "memory-extractor"}
+		foreign := sessionInfoForWorkspaceStateIndexTest(
+			"sess-foreign",
+			foreignWorkspaceID,
+			globalDBSessionStateActive,
+			baseAt,
+		)
+		for _, info := range []store.SessionInfo{
+			coderActive,
+			coderStopped,
+			reviewer,
+			memory,
+			foreign,
+		} {
+			if err := globalDB.RegisterSession(ctx, info); err != nil {
+				t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
+			}
+		}
+
+		counts, err := globalDB.CountSessionsByAgent(ctx, store.SessionAgentCountQuery{
+			WorkspaceID:         workspaceID,
+			ExcludeIDs:          []string{reviewer.ID},
+			ExcludeSessionTypes: []string{"dream"},
+			ExcludeSpawnRoles:   []string{"memory-extractor"},
+		})
+		if err != nil {
+			t.Fatalf("CountSessionsByAgent() error = %v", err)
+		}
+		if len(counts) != 1 || counts[0].AgentName != "coder" ||
+			counts[0].Total != 2 || counts[0].Active != 1 {
+			t.Fatalf("CountSessionsByAgent() = %#v, want coder total=2 active=1", counts)
+		}
+	})
 }
 
 func TestPageSessionsStableKeyset(t *testing.T) {

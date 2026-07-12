@@ -108,8 +108,8 @@ function AppShell() {
             activeWorkspaceId={page.activeWorkspaceId}
             onSelectWorkspace={page.setActiveWorkspaceId}
             onAddWorkspace={page.openWorkspaceSetup}
-            agents={page.agents}
-            sessions={page.sessions}
+            agentsCount={page.agentsCount}
+            activeSessionCount={page.activeSessionCount}
             activeWorkspace={page.activeWorkspace}
           />
           <TopbarShell>

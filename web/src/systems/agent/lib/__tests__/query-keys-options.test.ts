@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { agentKeys } from "../query-keys";
 import {
+  agentCatalogOptions,
   agentDetailOptions,
   agentHeartbeatHistoryOptions,
   agentHeartbeatOptions,
@@ -12,6 +13,29 @@ import {
 } from "../query-options";
 
 describe("agent query keys/options", () => {
+  it("Should normalize catalog filters into a workspace-stable infinite key", () => {
+    const options = agentCatalogOptions(" ws_alpha ", {
+      q: "  release ",
+      category: " Engineering / Release ",
+      status: "active",
+      limit: 50,
+    });
+
+    expect(options.queryKey).toEqual([
+      "agents",
+      "catalog",
+      "ws_alpha",
+      {
+        q: "release",
+        category: "Engineering / Release",
+        status: "active",
+        limit: 50,
+      },
+    ]);
+    expect(options.initialPageParam).toBeUndefined();
+    expect(options.staleTime).toBe(5_000);
+  });
+
   it("Should nest soul/heartbeat keys under workspace-scoped detail", () => {
     expect(agentKeys.soul("coder", "ws_alpha")).toEqual([
       "agents",

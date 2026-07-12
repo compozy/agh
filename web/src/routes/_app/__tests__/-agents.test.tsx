@@ -8,7 +8,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { aghApiMock } from "@/storybook/openapi-msw";
 import { FIXTURE_AGENT_DEFINITION_DIGEST } from "@/systems/agent/mocks";
 import type { AgentPayload } from "@/systems/agent/types";
-import type { SessionPayload } from "@/systems/session";
 import { createMswFetch } from "@/test/msw-fetch";
 import { renderWithTopbar } from "@/test/render-with-topbar";
 import { routeBeforeLoad, routeComponent } from "@/test/route-options";
@@ -35,19 +34,15 @@ function agent(overrides: Partial<AgentPayload> & Pick<AgentPayload, "name">): A
   };
 }
 
-function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
+interface CatalogSession {
+  agent_name: string;
+  state: "active" | "stopped";
+}
+
+function session(overrides: Partial<CatalogSession> = {}): CatalogSession {
   return {
-    id: "sess-1",
     agent_name: "coder",
-    provider: "claude",
-    workspace_id: "ws_test",
-    workspace_path: "/workspace",
     state: "stopped",
-    badge: "idle",
-    attachable: true,
-    available_commands: [],
-    created_at: "2026-04-01T00:00:00Z",
-    updated_at: "2026-04-01T01:00:00Z",
     ...overrides,
   };
 }
@@ -57,32 +52,73 @@ let agentsDelayMs = 0;
 let agentsShouldError = false;
 let agentsRequestCount = 0;
 
-let mockSessions: SessionPayload[] = [];
-let sessionsDelayMs = 0;
-let sessionsShouldError = false;
-let sessionsRequestCount = 0;
+let mockSessions: CatalogSession[] = [];
+let sessionsAvailable = true;
 
 const mockOpenCreate = vi.fn();
 let mockActiveWorkspaceId: string | null = "ws_test";
 
 const handlers: HttpHandler[] = [
-  aghApiMock.get("/api/agents", async () => {
+  aghApiMock.get("/api/agents/catalog", async ({ request }) => {
     agentsRequestCount += 1;
     if (agentsDelayMs > 0) await delay(agentsDelayMs);
     if (agentsShouldError) {
       return HttpResponse.json({ error: "agents unavailable" }, { status: 500 });
     }
-    return HttpResponse.json({ agents: mockAgents });
-  }),
-  aghApiMock.get("/api/sessions", async () => {
-    sessionsRequestCount += 1;
-    if (sessionsDelayMs > 0) await delay(sessionsDelayMs);
-    if (sessionsShouldError) {
-      return HttpResponse.json({ error: "sessions unavailable" }, { status: 500 });
+    const url = new URL(request.url);
+    const query = url.searchParams.get("q")?.trim().toLowerCase() ?? "";
+    const category = url.searchParams.get("category")?.trim() ?? "";
+    const status = url.searchParams.get("status")?.trim() ?? "";
+    const requestedLimit = Number(url.searchParams.get("limit") ?? "50");
+    const start = Number(url.searchParams.get("cursor") ?? "0");
+    const counts = new Map<string, { active: number; total: number }>();
+    for (const item of mockSessions) {
+      const current = counts.get(item.agent_name) ?? { active: 0, total: 0 };
+      current.total += 1;
+      if (item.state === "active") current.active += 1;
+      counts.set(item.agent_name, current);
     }
+    const filtered = mockAgents.filter(item => {
+      const itemCategory = item.category_path?.join(" / ") ?? "";
+      const itemCounts = counts.get(item.name) ?? { active: 0, total: 0 };
+      if (
+        query &&
+        !item.name.toLowerCase().includes(query) &&
+        !itemCategory.toLowerCase().includes(query)
+      ) {
+        return false;
+      }
+      if (category && itemCategory !== category) return false;
+      if (sessionsAvailable && status === "active" && itemCounts.active === 0) return false;
+      if (sessionsAvailable && status === "idle" && itemCounts.active > 0) return false;
+      return true;
+    });
+    const pageAgents = filtered.slice(start, start + requestedLimit);
+    const next = start + pageAgents.length;
     return HttpResponse.json({
-      sessions: mockSessions,
-      page: { has_more: false, limit: 50, total: mockSessions.length },
+      agents: pageAgents.map(item => ({
+        agent: item,
+        ...(sessionsAvailable
+          ? { sessions: counts.get(item.name) ?? { active: 0, total: 0 } }
+          : {}),
+      })),
+      facets: {
+        categories: [...new Set(mockAgents.flatMap(item => item.category_path?.join(" / ") ?? []))],
+        total: mockAgents.length,
+        active: sessionsAvailable
+          ? mockAgents.filter(item => (counts.get(item.name)?.active ?? 0) > 0).length
+          : 0,
+        idle: sessionsAvailable
+          ? mockAgents.filter(item => (counts.get(item.name)?.active ?? 0) === 0).length
+          : 0,
+      },
+      page: {
+        has_more: next < filtered.length,
+        limit: requestedLimit,
+        total: filtered.length,
+        ...(next < filtered.length ? { next_cursor: String(next) } : {}),
+      },
+      sessions_available: sessionsAvailable,
     });
   }),
 ];
@@ -252,13 +288,11 @@ describe("Agents fleet route", () => {
     agentsShouldError = false;
     agentsRequestCount = 0;
     mockSessions = [
-      session({ id: "a", agent_name: "release-captain", state: "active", badge: "running" }),
-      session({ id: "b", agent_name: "release-captain", state: "stopped" }),
-      session({ id: "c", agent_name: "code-reviewer", state: "stopped" }),
+      session({ agent_name: "release-captain", state: "active" }),
+      session({ agent_name: "release-captain", state: "stopped" }),
+      session({ agent_name: "code-reviewer", state: "stopped" }),
     ];
-    sessionsDelayMs = 0;
-    sessionsShouldError = false;
-    sessionsRequestCount = 0;
+    sessionsAvailable = true;
     mockActiveWorkspaceId = "ws_test";
     mockOpenCreate.mockReset();
     mockOpenNewSession.mockReset();
@@ -285,7 +319,6 @@ describe("Agents fleet route", () => {
     render(<AgentsPage />);
     expect(screen.getByTestId("agents-no-workspace")).toHaveTextContent("No workspace selected");
     expect(agentsRequestCount).toBe(0);
-    expect(sessionsRequestCount).toBe(0);
   });
 
   it("Should render skeleton then loaded rows with sibling new-session action", async () => {
@@ -367,6 +400,7 @@ describe("Agents fleet route", () => {
     await waitFor(() => {
       expect(getValidatedSearch()).toMatchObject({ q: "release" });
     });
+    await waitFor(() => expect(screen.getByTestId("topbar-count")).toHaveTextContent("1"));
 
     routerState.searchParams = { q: "release", category: "Engineering / Release", status: "idle" };
     act(() => {
@@ -379,11 +413,11 @@ describe("Agents fleet route", () => {
       expect(screen.queryByTestId("agent-fleet-row-release-captain")).not.toBeInTheDocument();
       expect(screen.getByTestId("agent-fleet-filtered-empty")).toBeInTheDocument();
     });
-    expect(screen.getByTestId("topbar-count")).toHaveTextContent("3");
+    expect(screen.getByTestId("topbar-count")).toHaveTextContent("0");
   });
 
   it("Should keep rows and omit status when sessions fail, including with a status URL filter", async () => {
-    sessionsShouldError = true;
+    sessionsAvailable = false;
     routerState.searchParams = { status: "active" };
     render(<AgentsPage />);
 
@@ -398,15 +432,31 @@ describe("Agents fleet route", () => {
       "release-captain, session status unavailable"
     );
     expect(screen.getAllByTestId(/agent-fleet-row-link-/)).toHaveLength(3);
-    expect(sessionsRequestCount).toBe(1);
+    expect(agentsRequestCount).toBe(1);
   });
 
-  it("Should keep skeleton geometry until session-derived signals load", async () => {
-    sessionsDelayMs = 30;
+  it("Should keep skeleton geometry until catalog counts load", async () => {
+    agentsDelayMs = 30;
     render(<AgentsPage />);
     expect(await screen.findByTestId("agent-fleet-loading")).toBeInTheDocument();
     expect(screen.queryByTestId("agent-fleet-status-code-reviewer")).not.toBeInTheDocument();
     expect(await screen.findByTestId("agent-fleet-list")).toBeInTheDocument();
+  });
+
+  it("Should load the next backend page without recomputing the catalog in the client", async () => {
+    const user = userEvent.setup();
+    mockAgents = Array.from({ length: 51 }, (_, index) =>
+      agent({ name: `agent-${String(index + 1).padStart(2, "0")}` })
+    );
+    mockSessions = [];
+
+    render(<AgentsPage />);
+    await screen.findByTestId("agent-fleet-row-agent-50");
+    expect(screen.queryByTestId("agent-fleet-row-agent-51")).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("agent-fleet-load-more"));
+    expect(await screen.findByTestId("agent-fleet-row-agent-51")).toBeInTheDocument();
+    expect(agentsRequestCount).toBe(2);
   });
 
   it("Should distinguish first-run empty from filtered empty", async () => {
@@ -513,7 +563,9 @@ describe("Agents fleet route", () => {
     });
 
     await waitFor(() => expect(search).toHaveValue("release"));
-    await new Promise(resolve => setTimeout(resolve, 250));
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 250));
+    });
     expect(getValidatedSearch()).toEqual({
       q: "release",
       category: undefined,

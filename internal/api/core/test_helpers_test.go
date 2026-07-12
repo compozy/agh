@@ -297,6 +297,7 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.GET("/workspaces/:workspace_id/sessions/:session_id/transcript", handlers.SessionTranscript)
 	engine.GET("/workspaces/:workspace_id/sessions/:session_id/stream", handlers.StreamSession)
 	engine.GET("/agents", handlers.ListAgents)
+	engine.GET("/agents/catalog", handlers.ListAgentCatalog)
 	engine.POST("/agents", handlers.CreateAgent)
 	engine.PUT("/agents/:name", handlers.UpdateAgent)
 	engine.DELETE("/agents/:name", handlers.DeleteAgent)

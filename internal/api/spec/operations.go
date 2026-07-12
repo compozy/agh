@@ -6,6 +6,7 @@ import "sort"
 func Operations() []OperationSpec {
 	ops := cloneOperationSpecs(operationRegistry)
 	ops = append(ops, agentDefinitionMutationOperations()...)
+	ops = append(ops, agentCatalogOperations()...)
 	ops = append(ops, sessionTranscriptOperations()...)
 	ops = append(ops, notificationPresetOperations()...)
 	ops = append(ops, authoredContextOperations()...)

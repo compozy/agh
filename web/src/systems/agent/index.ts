@@ -1,5 +1,9 @@
 // Types
 export type {
+  AgentCatalogFilter,
+  AgentCatalogItem,
+  AgentCatalogResponse,
+  AgentCatalogStableFilter,
   AgentHeartbeatHistoryResponse,
   AgentHeartbeatPayload,
   AgentHeartbeatStatusPayload,
@@ -42,6 +46,7 @@ export {
   deleteAgent,
   duplicateAgent,
   fetchAgent,
+  fetchAgentCatalog,
   fetchAgents,
   isAgentDigestConflict,
   isAgentTargetExists,
@@ -70,6 +75,7 @@ export {
 // Query infrastructure
 export { agentKeys } from "./lib/query-keys";
 export {
+  agentCatalogOptions,
   agentDetailOptions,
   agentHeartbeatHistoryOptions,
   agentHeartbeatOptions,
@@ -169,17 +175,14 @@ export {
   formatSkillsPolicyLine,
 } from "./lib/agent-absent-value";
 export {
-  collectAgentCategoryOptions,
-  compareAgentNamesStable,
   formatAgentFleetAriaLabel,
   formatAgentFleetCardMeta,
   formatAgentFleetMeta,
   formatAgentOriginLabel,
   formatCategoryMetaSegment,
-  indexSessionsByAgent,
   projectAgentFleetRows,
-  sortAgentsByNameStable,
   type AgentFleetRowModel,
+  type AgentFleetSessionSignals,
 } from "./lib/agent-fleet-projection";
 export {
   agentFleetFiltersToChips,
@@ -191,6 +194,7 @@ export {
 
 // Hooks
 export {
+  useAgentCatalog,
   useAgent,
   useAgents,
   useCreateAgent,
