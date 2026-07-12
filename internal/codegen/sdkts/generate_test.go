@@ -51,7 +51,9 @@ func TestGenerateDeterministicAndStructured(t *testing.T) {
 
 		requiredSnippets := []string{
 			generatedHeader,
+			`export type DeliveryEventType = "start" | "delta" | "final" | "error" | "resume" | "delete" | "progress";`,
 			`export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";`,
+			`export type ToolProgressPhase = "started" | "completed" | "failed";`,
 			"reasoning_effort?: ReasoningEffort;",
 			"reasoning_efforts?: ReasoningEffort[];",
 			"export interface HookPayloadByEvent {\n",

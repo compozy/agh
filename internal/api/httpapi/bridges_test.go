@@ -102,7 +102,7 @@ func TestBridgeHandlersShouldHandleBridgeRoutes(t *testing.T) {
 					}
 					if got, want := string(
 						req.DeliveryDefaults,
-					), `{"peer_id":"peer-default","mode":"reply"}`; got != want {
+					), `{"mode":"reply","peer_id":"peer-default"}`; got != want {
 						t.Fatalf("CreateInstance().DeliveryDefaults = %s, want %s", got, want)
 					}
 					return &bridgepkg.BridgeInstance{

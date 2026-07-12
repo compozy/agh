@@ -38,12 +38,16 @@ export type BridgeProviderConfig = NonNullable<CreateBridgeRequest["provider_con
 export type BridgeProviderSecretSlot = NonNullable<BridgeProvider["secret_slots"]>[number];
 export type BridgeProviderConfigSchemaHint = NonNullable<BridgeProvider["config_schema"]>;
 
-export interface BridgeDeliveryDefaults {
-  group_id?: string;
-  mode?: BridgeDeliveryMode;
-  peer_id?: string;
-  thread_id?: string;
-}
+type GeneratedBridgeDeliveryDefaults = NonNullable<CreateBridgeRequest["delivery_defaults"]>;
+
+export type BridgeProgressConfig = NonNullable<GeneratedBridgeDeliveryDefaults["progress"]>;
+export type BridgeProgressMode = BridgeProgressConfig["tool_progress"];
+export type BridgeProgressGrouping = BridgeProgressConfig["grouping"];
+export type BridgeDeliveryTargetDefaults = Omit<
+  TestBridgeDeliveryRequest["target"],
+  "bridge_instance_id"
+>;
+export type BridgeDeliveryDefaults = GeneratedBridgeDeliveryDefaults;
 
 export interface BridgeCreateDraft {
   deliveryDefaults: BridgeDeliveryDefaults;
@@ -57,7 +61,7 @@ export interface BridgeCreateDraft {
 
 export interface BridgeTestDeliveryDraft {
   message: string;
-  target: BridgeDeliveryDefaults;
+  target: BridgeDeliveryTargetDefaults;
 }
 
 export interface BridgeUpdateDraft {

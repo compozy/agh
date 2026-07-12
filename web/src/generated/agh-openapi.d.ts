@@ -17412,13 +17412,36 @@ export interface operations {
                   | "provider_timeout"
                   | "tenant_config_invalid";
               } | null;
-              delivery_defaults?: {
-                group_id?: string;
-                /** @enum {string} */
-                mode?: "direct-send" | "reply";
-                peer_id?: string;
-                thread_id?: string;
-              } | null;
+              delivery_defaults?:
+                | ({
+                    group_id?: string;
+                    /** @enum {string} */
+                    mode?: "direct-send" | "reply";
+                    peer_id?: string;
+                    progress?: {
+                      /** @enum {string} */
+                      grouping: "accumulate" | "separate";
+                      reactions?: boolean;
+                      /** @enum {string} */
+                      tool_progress: "off" | "new" | "all" | "verbose";
+                      typing?: boolean;
+                    };
+                    thread_id?: string;
+                  } & {
+                    [key: string]:
+                      | string
+                      | ("direct-send" | "reply")
+                      | {
+                          /** @enum {string} */
+                          grouping: "accumulate" | "separate";
+                          reactions?: boolean;
+                          /** @enum {string} */
+                          tool_progress: "off" | "new" | "all" | "verbose";
+                          typing?: boolean;
+                        }
+                      | undefined;
+                  })
+                | null;
               display_name: string;
               /** @enum {string} */
               dm_policy?: "open" | "allowlist" | "pairing";
@@ -17605,13 +17628,36 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          delivery_defaults?: {
-            group_id?: string;
-            /** @enum {string} */
-            mode?: "direct-send" | "reply";
-            peer_id?: string;
-            thread_id?: string;
-          } | null;
+          delivery_defaults?:
+            | ({
+                group_id?: string;
+                /** @enum {string} */
+                mode?: "direct-send" | "reply";
+                peer_id?: string;
+                progress?: {
+                  /** @enum {string} */
+                  grouping: "accumulate" | "separate";
+                  reactions?: boolean;
+                  /** @enum {string} */
+                  tool_progress: "off" | "new" | "all" | "verbose";
+                  typing?: boolean;
+                };
+                thread_id?: string;
+              } & {
+                [key: string]:
+                  | string
+                  | ("direct-send" | "reply")
+                  | {
+                      /** @enum {string} */
+                      grouping: "accumulate" | "separate";
+                      reactions?: boolean;
+                      /** @enum {string} */
+                      tool_progress: "off" | "new" | "all" | "verbose";
+                      typing?: boolean;
+                    }
+                  | undefined;
+              })
+            | null;
           display_name: string;
           /** @enum {string} */
           dm_policy?: "open" | "allowlist" | "pairing";
@@ -17654,13 +17700,36 @@ export interface operations {
                   | "provider_timeout"
                   | "tenant_config_invalid";
               } | null;
-              delivery_defaults?: {
-                group_id?: string;
-                /** @enum {string} */
-                mode?: "direct-send" | "reply";
-                peer_id?: string;
-                thread_id?: string;
-              } | null;
+              delivery_defaults?:
+                | ({
+                    group_id?: string;
+                    /** @enum {string} */
+                    mode?: "direct-send" | "reply";
+                    peer_id?: string;
+                    progress?: {
+                      /** @enum {string} */
+                      grouping: "accumulate" | "separate";
+                      reactions?: boolean;
+                      /** @enum {string} */
+                      tool_progress: "off" | "new" | "all" | "verbose";
+                      typing?: boolean;
+                    };
+                    thread_id?: string;
+                  } & {
+                    [key: string]:
+                      | string
+                      | ("direct-send" | "reply")
+                      | {
+                          /** @enum {string} */
+                          grouping: "accumulate" | "separate";
+                          reactions?: boolean;
+                          /** @enum {string} */
+                          tool_progress: "off" | "new" | "all" | "verbose";
+                          typing?: boolean;
+                        }
+                      | undefined;
+                  })
+                | null;
               display_name: string;
               /** @enum {string} */
               dm_policy?: "open" | "allowlist" | "pairing";
@@ -18185,13 +18254,36 @@ export interface operations {
                   | "provider_timeout"
                   | "tenant_config_invalid";
               } | null;
-              delivery_defaults?: {
-                group_id?: string;
-                /** @enum {string} */
-                mode?: "direct-send" | "reply";
-                peer_id?: string;
-                thread_id?: string;
-              } | null;
+              delivery_defaults?:
+                | ({
+                    group_id?: string;
+                    /** @enum {string} */
+                    mode?: "direct-send" | "reply";
+                    peer_id?: string;
+                    progress?: {
+                      /** @enum {string} */
+                      grouping: "accumulate" | "separate";
+                      reactions?: boolean;
+                      /** @enum {string} */
+                      tool_progress: "off" | "new" | "all" | "verbose";
+                      typing?: boolean;
+                    };
+                    thread_id?: string;
+                  } & {
+                    [key: string]:
+                      | string
+                      | ("direct-send" | "reply")
+                      | {
+                          /** @enum {string} */
+                          grouping: "accumulate" | "separate";
+                          reactions?: boolean;
+                          /** @enum {string} */
+                          tool_progress: "off" | "new" | "all" | "verbose";
+                          typing?: boolean;
+                        }
+                      | undefined;
+                  })
+                | null;
               display_name: string;
               /** @enum {string} */
               dm_policy?: "open" | "allowlist" | "pairing";
@@ -18376,13 +18468,36 @@ export interface operations {
               | "provider_timeout"
               | "tenant_config_invalid";
           } | null;
-          delivery_defaults?: {
-            group_id?: string;
-            /** @enum {string} */
-            mode?: "direct-send" | "reply";
-            peer_id?: string;
-            thread_id?: string;
-          } | null;
+          delivery_defaults?:
+            | ({
+                group_id?: string;
+                /** @enum {string} */
+                mode?: "direct-send" | "reply";
+                peer_id?: string;
+                progress?: {
+                  /** @enum {string} */
+                  grouping: "accumulate" | "separate";
+                  reactions?: boolean;
+                  /** @enum {string} */
+                  tool_progress: "off" | "new" | "all" | "verbose";
+                  typing?: boolean;
+                };
+                thread_id?: string;
+              } & {
+                [key: string]:
+                  | string
+                  | ("direct-send" | "reply")
+                  | {
+                      /** @enum {string} */
+                      grouping: "accumulate" | "separate";
+                      reactions?: boolean;
+                      /** @enum {string} */
+                      tool_progress: "off" | "new" | "all" | "verbose";
+                      typing?: boolean;
+                    }
+                  | undefined;
+              })
+            | null;
           display_name?: string | null;
           /** @enum {string|null} */
           dm_policy?: "open" | "allowlist" | "pairing" | null;
@@ -18419,13 +18534,36 @@ export interface operations {
                   | "provider_timeout"
                   | "tenant_config_invalid";
               } | null;
-              delivery_defaults?: {
-                group_id?: string;
-                /** @enum {string} */
-                mode?: "direct-send" | "reply";
-                peer_id?: string;
-                thread_id?: string;
-              } | null;
+              delivery_defaults?:
+                | ({
+                    group_id?: string;
+                    /** @enum {string} */
+                    mode?: "direct-send" | "reply";
+                    peer_id?: string;
+                    progress?: {
+                      /** @enum {string} */
+                      grouping: "accumulate" | "separate";
+                      reactions?: boolean;
+                      /** @enum {string} */
+                      tool_progress: "off" | "new" | "all" | "verbose";
+                      typing?: boolean;
+                    };
+                    thread_id?: string;
+                  } & {
+                    [key: string]:
+                      | string
+                      | ("direct-send" | "reply")
+                      | {
+                          /** @enum {string} */
+                          grouping: "accumulate" | "separate";
+                          reactions?: boolean;
+                          /** @enum {string} */
+                          tool_progress: "off" | "new" | "all" | "verbose";
+                          typing?: boolean;
+                        }
+                      | undefined;
+                  })
+                | null;
               display_name: string;
               /** @enum {string} */
               dm_policy?: "open" | "allowlist" | "pairing";
@@ -18642,13 +18780,36 @@ export interface operations {
                   | "provider_timeout"
                   | "tenant_config_invalid";
               } | null;
-              delivery_defaults?: {
-                group_id?: string;
-                /** @enum {string} */
-                mode?: "direct-send" | "reply";
-                peer_id?: string;
-                thread_id?: string;
-              } | null;
+              delivery_defaults?:
+                | ({
+                    group_id?: string;
+                    /** @enum {string} */
+                    mode?: "direct-send" | "reply";
+                    peer_id?: string;
+                    progress?: {
+                      /** @enum {string} */
+                      grouping: "accumulate" | "separate";
+                      reactions?: boolean;
+                      /** @enum {string} */
+                      tool_progress: "off" | "new" | "all" | "verbose";
+                      typing?: boolean;
+                    };
+                    thread_id?: string;
+                  } & {
+                    [key: string]:
+                      | string
+                      | ("direct-send" | "reply")
+                      | {
+                          /** @enum {string} */
+                          grouping: "accumulate" | "separate";
+                          reactions?: boolean;
+                          /** @enum {string} */
+                          tool_progress: "off" | "new" | "all" | "verbose";
+                          typing?: boolean;
+                        }
+                      | undefined;
+                  })
+                | null;
               display_name: string;
               /** @enum {string} */
               dm_policy?: "open" | "allowlist" | "pairing";
@@ -18865,13 +19026,36 @@ export interface operations {
                   | "provider_timeout"
                   | "tenant_config_invalid";
               } | null;
-              delivery_defaults?: {
-                group_id?: string;
-                /** @enum {string} */
-                mode?: "direct-send" | "reply";
-                peer_id?: string;
-                thread_id?: string;
-              } | null;
+              delivery_defaults?:
+                | ({
+                    group_id?: string;
+                    /** @enum {string} */
+                    mode?: "direct-send" | "reply";
+                    peer_id?: string;
+                    progress?: {
+                      /** @enum {string} */
+                      grouping: "accumulate" | "separate";
+                      reactions?: boolean;
+                      /** @enum {string} */
+                      tool_progress: "off" | "new" | "all" | "verbose";
+                      typing?: boolean;
+                    };
+                    thread_id?: string;
+                  } & {
+                    [key: string]:
+                      | string
+                      | ("direct-send" | "reply")
+                      | {
+                          /** @enum {string} */
+                          grouping: "accumulate" | "separate";
+                          reactions?: boolean;
+                          /** @enum {string} */
+                          tool_progress: "off" | "new" | "all" | "verbose";
+                          typing?: boolean;
+                        }
+                      | undefined;
+                  })
+                | null;
               display_name: string;
               /** @enum {string} */
               dm_policy?: "open" | "allowlist" | "pairing";
@@ -19346,13 +19530,36 @@ export interface operations {
                   | "provider_timeout"
                   | "tenant_config_invalid";
               } | null;
-              delivery_defaults?: {
-                group_id?: string;
-                /** @enum {string} */
-                mode?: "direct-send" | "reply";
-                peer_id?: string;
-                thread_id?: string;
-              } | null;
+              delivery_defaults?:
+                | ({
+                    group_id?: string;
+                    /** @enum {string} */
+                    mode?: "direct-send" | "reply";
+                    peer_id?: string;
+                    progress?: {
+                      /** @enum {string} */
+                      grouping: "accumulate" | "separate";
+                      reactions?: boolean;
+                      /** @enum {string} */
+                      tool_progress: "off" | "new" | "all" | "verbose";
+                      typing?: boolean;
+                    };
+                    thread_id?: string;
+                  } & {
+                    [key: string]:
+                      | string
+                      | ("direct-send" | "reply")
+                      | {
+                          /** @enum {string} */
+                          grouping: "accumulate" | "separate";
+                          reactions?: boolean;
+                          /** @enum {string} */
+                          tool_progress: "off" | "new" | "all" | "verbose";
+                          typing?: boolean;
+                        }
+                      | undefined;
+                  })
+                | null;
               display_name: string;
               /** @enum {string} */
               dm_policy?: "open" | "allowlist" | "pairing";
@@ -58669,6 +58876,7 @@ export interface operations {
                 description: string;
                 destructive: boolean;
                 display_title?: string;
+                friendly_verb?: string;
                 input_schema: unknown;
                 input_schema_digest: string;
                 /** Format: int64 */
@@ -58676,6 +58884,7 @@ export interface operations {
                 open_world: boolean;
                 output_schema?: unknown;
                 output_schema_digest?: string;
+                preview?: string;
                 read_only: boolean;
                 requires_interaction: boolean;
                 /** @enum {string} */
@@ -58963,6 +59172,7 @@ export interface operations {
                 description: string;
                 destructive: boolean;
                 display_title?: string;
+                friendly_verb?: string;
                 input_schema: unknown;
                 input_schema_digest: string;
                 /** Format: int64 */
@@ -58970,6 +59180,7 @@ export interface operations {
                 open_world: boolean;
                 output_schema?: unknown;
                 output_schema_digest?: string;
+                preview?: string;
                 read_only: boolean;
                 requires_interaction: boolean;
                 /** @enum {string} */
@@ -59336,6 +59547,7 @@ export interface operations {
                 description: string;
                 destructive: boolean;
                 display_title?: string;
+                friendly_verb?: string;
                 input_schema: unknown;
                 input_schema_digest: string;
                 /** Format: int64 */
@@ -59343,6 +59555,7 @@ export interface operations {
                 open_world: boolean;
                 output_schema?: unknown;
                 output_schema_digest?: string;
+                preview?: string;
                 read_only: boolean;
                 requires_interaction: boolean;
                 /** @enum {string} */
@@ -77097,6 +77310,7 @@ export interface operations {
                 description: string;
                 destructive: boolean;
                 display_title?: string;
+                friendly_verb?: string;
                 input_schema: unknown;
                 input_schema_digest: string;
                 /** Format: int64 */
@@ -77104,6 +77318,7 @@ export interface operations {
                 open_world: boolean;
                 output_schema?: unknown;
                 output_schema_digest?: string;
+                preview?: string;
                 read_only: boolean;
                 requires_interaction: boolean;
                 /** @enum {string} */
@@ -77396,6 +77611,7 @@ export interface operations {
                 description: string;
                 destructive: boolean;
                 display_title?: string;
+                friendly_verb?: string;
                 input_schema: unknown;
                 input_schema_digest: string;
                 /** Format: int64 */
@@ -77403,6 +77619,7 @@ export interface operations {
                 open_world: boolean;
                 output_schema?: unknown;
                 output_schema_digest?: string;
+                preview?: string;
                 read_only: boolean;
                 requires_interaction: boolean;
                 /** @enum {string} */

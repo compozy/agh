@@ -160,7 +160,7 @@ func serveGitHubPingWebhook(
 }
 
 func testGitHubIssueDeliveryRequest(
-	eventType string,
+	eventType bridgepkg.DeliveryEventType,
 	seq int64,
 	final bool,
 ) bridgepkg.DeliveryRequest {

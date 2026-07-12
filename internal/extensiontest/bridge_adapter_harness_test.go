@@ -496,7 +496,12 @@ func testBridgeInstanceWithID(instanceID string) bridgepkg.BridgeInstance {
 	}
 }
 
-func testDeliveryRequest(deliveryID string, seq int64, eventType string, final bool) bridgepkg.DeliveryRequest {
+func testDeliveryRequest(
+	deliveryID string,
+	seq int64,
+	eventType bridgepkg.DeliveryEventType,
+	final bool,
+) bridgepkg.DeliveryRequest {
 	return bridgepkg.DeliveryRequest{
 		Event: bridgepkg.DeliveryEvent{
 			DeliveryID:       deliveryID,

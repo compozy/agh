@@ -80,6 +80,8 @@ func runtimeDescriptorMatches(
 ) bool {
 	return manifest.ID == runtime.ID &&
 		strings.TrimSpace(manifest.Handler) == strings.TrimSpace(runtime.Handler) &&
+		strings.TrimSpace(manifest.FriendlyVerb) == strings.TrimSpace(runtime.FriendlyVerb) &&
+		strings.TrimSpace(manifest.Preview) == strings.TrimSpace(runtime.Preview) &&
 		strings.TrimSpace(manifest.InputSchemaDigest) == strings.TrimSpace(runtime.InputSchemaDigest) &&
 		strings.TrimSpace(manifest.OutputSchemaDigest) == strings.TrimSpace(runtime.OutputSchemaDigest) &&
 		manifest.ReadOnly == runtime.ReadOnly &&

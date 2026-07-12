@@ -29,6 +29,11 @@ type InitializeHandler func(context.Context, *Session) error
 // DeliveryHandler handles one daemon-originated `bridges/deliver` request.
 type DeliveryHandler func(context.Context, *Session, bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error)
 
+// ProgressHandler handles presentation-only tool progress and the empty final
+// that closes a progress-only turn. When omitted, the runtime acknowledges
+// both without invoking the provider's text handler.
+type ProgressHandler func(context.Context, *Session, bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error)
+
 // TargetSnapshotHandler handles one daemon-originated bridge target discovery request.
 type TargetSnapshotHandler func(
 	context.Context,
@@ -47,6 +52,7 @@ type RuntimeConfig struct {
 	ExtensionInfo   subprocess.InitializeExtensionInfo
 	Initialize      InitializeHandler
 	Deliver         DeliveryHandler
+	Progress        ProgressHandler
 	TargetSnapshots TargetSnapshotHandler
 	HealthCheck     HealthHandler
 	Shutdown        ShutdownHandler
@@ -314,32 +320,6 @@ func (r *Runtime) handleInitialize(ctx context.Context, raw json.RawMessage) (an
 	r.session = session
 	r.initializing = false
 	return response, nil
-}
-
-func (r *Runtime) handleDeliver(ctx context.Context, raw json.RawMessage) (any, error) {
-	session, err := r.requireSession()
-	if err != nil {
-		return nil, err
-	}
-
-	var request bridgepkg.DeliveryRequest
-	if err := decodeParams(raw, &request); err != nil {
-		return nil, err
-	}
-	if err := request.Validate(); err != nil {
-		return nil, subprocess.NewRPCError(bridgeSDKRPCCodeInvalidParams, "Invalid params", map[string]string{
-			runtimeErrorKey: err.Error(),
-		})
-	}
-
-	ack, err := r.config.Deliver(ctx, session, request)
-	if err != nil {
-		return nil, err
-	}
-	if err := ack.ValidateFor(request.Event); err != nil {
-		return nil, err
-	}
-	return ack, nil
 }
 
 func (r *Runtime) handleTargetSnapshots(ctx context.Context, raw json.RawMessage) (any, error) {

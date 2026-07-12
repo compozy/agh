@@ -33,7 +33,7 @@ func TestCreateBridgeHandlerReturnsPersistedPayload(t *testing.T) {
 				if got, want := string(req.ProviderConfig), `{"mode":"bot","tenant":"acme"}`; got != want {
 					t.Fatalf("CreateInstance().ProviderConfig = %s, want %s", got, want)
 				}
-				if got, want := string(req.DeliveryDefaults), `{"peer_id":"peer-default","mode":"reply"}`; got != want {
+				if got, want := string(req.DeliveryDefaults), `{"mode":"reply","peer_id":"peer-default"}`; got != want {
 					t.Fatalf("CreateInstance().DeliveryDefaults = %s, want %s", got, want)
 				}
 				return &bridgepkg.BridgeInstance{

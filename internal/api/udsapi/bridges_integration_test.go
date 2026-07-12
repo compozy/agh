@@ -3,6 +3,7 @@
 package udsapi
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"testing"
@@ -13,7 +14,185 @@ import (
 	"github.com/compozy/agh/internal/testutil"
 )
 
+func TestUDSBridgeProgressContract(t *testing.T) {
+	t.Run("Should round trip typed progress across create and update", func(t *testing.T) {
+		// not parallel: newIntegrationRuntime temporarily mutates Gin's process-global mode.
+		runtime := newIntegrationRuntime(t)
+		createResp := mustUnixRequest(
+			t,
+			runtime.client,
+			http.MethodPost,
+			"http://unix/api/bridges",
+			[]byte(`{
+				"scope":"global",
+				"platform":"telegram",
+				"extension_name":"ext-telegram",
+				"display_name":"Support",
+				"enabled":false,
+				"routing_policy":{"include_peer":true},
+				"delivery_defaults":{
+					"peer_id":"peer-create",
+					"mode":"reply",
+					"parse_mode":"MarkdownV2",
+					"progress":{
+						"tool_progress":"all",
+						"grouping":"separate",
+						"typing":true,
+						"reactions":false
+					}
+				}
+			}`),
+			nil,
+		)
+		if createResp.StatusCode != http.StatusCreated {
+			body := mustReadAll(t, createResp.Body)
+			t.Fatalf("create bridge status = %d, want %d; body=%s", createResp.StatusCode, http.StatusCreated, body)
+		}
+
+		var created contract.BridgeResponse
+		decodeHTTPJSON(t, createResp, &created)
+		if created.Bridge.ID == "" {
+			t.Fatal("created bridge id is empty")
+		}
+		assertUDSBridgeProgressDefaults(t, created.Bridge.DeliveryDefaults, udsBridgeProgressDefaults{
+			PeerID:    "peer-create",
+			Mode:      bridgepkg.DeliveryModeReply,
+			ParseMode: "MarkdownV2",
+			Progress: contract.BridgeProgressConfigPayload{
+				ToolProgress: bridgepkg.ProgressModeAll,
+				Grouping:     bridgepkg.ProgressGroupingSeparate,
+				Typing:       true,
+				Reactions:    false,
+			},
+		})
+
+		updateResp := mustUnixRequest(
+			t,
+			runtime.client,
+			http.MethodPatch,
+			"http://unix/api/bridges/"+created.Bridge.ID,
+			[]byte(`{
+				"delivery_defaults":{
+					"group_id":"ops",
+					"mode":"direct-send",
+					"parse_mode":"HTML",
+					"progress":{
+						"tool_progress":"new",
+						"grouping":"accumulate",
+						"typing":false,
+						"reactions":true
+					}
+				}
+			}`),
+			nil,
+		)
+		if updateResp.StatusCode != http.StatusOK {
+			body := mustReadAll(t, updateResp.Body)
+			t.Fatalf("update bridge status = %d, want %d; body=%s", updateResp.StatusCode, http.StatusOK, body)
+		}
+
+		var updated contract.BridgeResponse
+		decodeHTTPJSON(t, updateResp, &updated)
+		wantUpdatedDefaults := udsBridgeProgressDefaults{
+			GroupID:   "ops",
+			Mode:      bridgepkg.DeliveryModeDirectSend,
+			ParseMode: "HTML",
+			Progress: contract.BridgeProgressConfigPayload{
+				ToolProgress: bridgepkg.ProgressModeNew,
+				Grouping:     bridgepkg.ProgressGroupingAccumulate,
+				Typing:       false,
+				Reactions:    true,
+			},
+		}
+		assertUDSBridgeProgressDefaults(t, updated.Bridge.DeliveryDefaults, wantUpdatedDefaults)
+
+		getResp := mustUnixRequest(
+			t,
+			runtime.client,
+			http.MethodGet,
+			"http://unix/api/bridges/"+created.Bridge.ID,
+			nil,
+			nil,
+		)
+		if getResp.StatusCode != http.StatusOK {
+			body := mustReadAll(t, getResp.Body)
+			t.Fatalf("get updated bridge status = %d, want %d; body=%s", getResp.StatusCode, http.StatusOK, body)
+		}
+
+		var fetched contract.BridgeResponse
+		decodeHTTPJSON(t, getResp, &fetched)
+		assertUDSBridgeProgressDefaults(t, fetched.Bridge.DeliveryDefaults, wantUpdatedDefaults)
+	})
+
+	t.Run("Should reject invalid typed progress deterministically", func(t *testing.T) {
+		// not parallel: newIntegrationRuntime temporarily mutates Gin's process-global mode.
+		runtime := newIntegrationRuntime(t)
+		resp := mustUnixRequest(
+			t,
+			runtime.client,
+			http.MethodPost,
+			"http://unix/api/bridges",
+			[]byte(`{
+				"scope":"global",
+				"platform":"telegram",
+				"extension_name":"ext-telegram",
+				"display_name":"Support",
+				"enabled":false,
+				"routing_policy":{"include_peer":true},
+				"delivery_defaults":{
+					"progress":{
+						"tool_progress":"sometimes",
+						"grouping":"accumulate",
+						"typing":true,
+						"reactions":true
+					}
+				}
+			}`),
+			nil,
+		)
+		if resp.StatusCode != http.StatusBadRequest {
+			body := mustReadAll(t, resp.Body)
+			t.Fatalf("create bridge status = %d, want %d; body=%s", resp.StatusCode, http.StatusBadRequest, body)
+		}
+
+		var payload contract.ErrorPayload
+		decodeHTTPJSON(t, resp, &payload)
+		if got, want := payload.Error, `udsapi: decode create bridge request: bridges: unsupported progress tool_progress "sometimes"`; got != want {
+			t.Fatalf("error = %q, want %q", got, want)
+		}
+	})
+}
+
+type udsBridgeProgressDefaults struct {
+	PeerID    string                               `json:"peer_id"`
+	GroupID   string                               `json:"group_id"`
+	Mode      bridgepkg.DeliveryMode               `json:"mode"`
+	ParseMode string                               `json:"parse_mode"`
+	Progress  contract.BridgeProgressConfigPayload `json:"progress"`
+}
+
+func assertUDSBridgeProgressDefaults(
+	t *testing.T,
+	raw contract.BridgeDeliveryDefaultsPayload,
+	want udsBridgeProgressDefaults,
+) {
+	t.Helper()
+
+	var got udsBridgeProgressDefaults
+	if err := json.Unmarshal(json.RawMessage(raw), &got); err != nil {
+		t.Fatalf("json.Unmarshal(delivery defaults) error = %v", err)
+	}
+	if got != want {
+		t.Fatalf("delivery defaults = %#v, want %#v", got, want)
+	}
+}
+
 func TestUDSBridgeCreateGetAndRoutesMirrorHTTP(t *testing.T) {
+	t.Run("Should create fetch and list routes through UDS", testUDSBridgeCreateGetAndRoutes)
+}
+
+func testUDSBridgeCreateGetAndRoutes(t *testing.T) {
+	// not parallel: newIntegrationRuntime temporarily mutates Gin's process-global mode.
 	runtime := newIntegrationRuntime(t)
 
 	createResp := mustUnixRequest(
@@ -42,7 +221,7 @@ func TestUDSBridgeCreateGetAndRoutesMirrorHTTP(t *testing.T) {
 	if got, want := string(created.Bridge.ProviderConfig), `{"mode":"bot","tenant":"acme"}`; got != want {
 		t.Fatalf("created.Bridge.ProviderConfig = %s, want %s", got, want)
 	}
-	if got, want := string(created.Bridge.DeliveryDefaults), `{"peer_id":"peer-default","mode":"reply"}`; got != want {
+	if got, want := string(created.Bridge.DeliveryDefaults), `{"mode":"reply","peer_id":"peer-default"}`; got != want {
 		t.Fatalf("created.Bridge.DeliveryDefaults = %s, want %s", got, want)
 	}
 
@@ -67,7 +246,7 @@ func TestUDSBridgeCreateGetAndRoutesMirrorHTTP(t *testing.T) {
 	if got, want := string(fetched.Bridge.ProviderConfig), `{"mode":"bot","tenant":"acme"}`; got != want {
 		t.Fatalf("fetched.Bridge.ProviderConfig = %s, want %s", got, want)
 	}
-	if got, want := string(fetched.Bridge.DeliveryDefaults), `{"peer_id":"peer-default","mode":"reply"}`; got != want {
+	if got, want := string(fetched.Bridge.DeliveryDefaults), `{"mode":"reply","peer_id":"peer-default"}`; got != want {
 		t.Fatalf("fetched.Bridge.DeliveryDefaults = %s, want %s", got, want)
 	}
 
@@ -113,6 +292,11 @@ func TestUDSBridgeCreateGetAndRoutesMirrorHTTP(t *testing.T) {
 }
 
 func TestUDSBridgeProvidersExposeOperatorMetadata(t *testing.T) {
+	t.Run("Should expose provider operator metadata through UDS", testUDSBridgeProvidersExposeOperatorMetadata)
+}
+
+func testUDSBridgeProvidersExposeOperatorMetadata(t *testing.T) {
+	// not parallel: newIntegrationRuntime temporarily mutates Gin's process-global mode.
 	runtime := newIntegrationRuntime(t)
 	runtime.bridges.providers = []bridgepkg.BridgeProvider{{
 		Platform:      "telegram",

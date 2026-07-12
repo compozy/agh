@@ -21,6 +21,17 @@
                     },
                     "steps": [
                         {
+                            "kind": "tool_call",
+                            "tool_call_id": "bridge-runtime-terminal-1",
+                            "title": "agh__terminal",
+                            "tool_kind": "read",
+                            "raw_input": {
+                                "command": "echo sk-e2e-progress-secret"
+                            },
+                            "status": "completed",
+                            "content_text": "terminal command completed"
+                        },
+                        {
                             "kind": "assistant",
                             "chunks": ["Bridge summary: ", "initial route handled."]
                         }

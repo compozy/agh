@@ -300,6 +300,51 @@ func TestMCPCallExecutor(t *testing.T) {
 	})
 }
 
+func TestCallExecutorDescriptorFromToolPreservesPresentationMetadata(t *testing.T) {
+	t.Run("Should preserve valid presentation metadata", func(t *testing.T) {
+		t.Parallel()
+
+		executor := &CallExecutor{}
+		descriptor, err := executor.descriptorFromTool(
+			toolspkg.SourceRef{Kind: toolspkg.SourceMCP, Owner: "github"},
+			aghconfig.MCPServer{Name: "github"},
+			mcpsdk.Tool{
+				Name:        "lookup",
+				Description: "Look up an issue",
+				RawInputSchema: json.RawMessage(
+					`{"type":"object","properties":{"query":{"type":"string"}}}`,
+				),
+				Meta: &mcpsdk.Meta{AdditionalFields: map[string]any{
+					mcpFriendlyVerbMetadataKey: "Looking up",
+					mcpPreviewMetadataKey:      "arg:query",
+				}},
+			},
+		)
+		if err != nil {
+			t.Fatalf("descriptorFromTool() error = %v", err)
+		}
+		if got, want := descriptor.FriendlyVerb, "Looking up"; got != want {
+			t.Fatalf("descriptor.FriendlyVerb = %q, want %q", got, want)
+		}
+		if got, want := descriptor.Preview, "arg:query"; got != want {
+			t.Fatalf("descriptor.Preview = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should reject non-string presentation metadata", func(t *testing.T) {
+		t.Parallel()
+
+		_, _, err := mcpToolPresentationMetadata(mcpsdk.Tool{
+			Meta: &mcpsdk.Meta{AdditionalFields: map[string]any{
+				mcpFriendlyVerbMetadataKey: true,
+			}},
+		})
+		if err == nil {
+			t.Fatal("mcpToolPresentationMetadata() error = nil, want invalid type failure")
+		}
+	})
+}
+
 func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
 	t.Run("Should exclude ambient daemon secrets from stdio MCP processes", func(t *testing.T) {
 		setMCPTestEnv(t, stdioParentSecretEnv, "ambient-secret")

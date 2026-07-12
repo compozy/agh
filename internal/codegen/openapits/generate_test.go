@@ -43,6 +43,13 @@ func TestGenerate(t *testing.T) {
 		if !strings.Contains(generated, "getExample") {
 			t.Fatalf("generated output missing expected operation id: %s", generated)
 		}
+		compact := strings.Join(strings.Fields(generated), " ")
+		if !strings.Contains(
+			compact,
+			"[key: string]: | string | { enabled?: boolean; } | undefined;",
+		) {
+			t.Fatalf("generated mixed-shape index is not assignable: %s", generated)
+		}
 	})
 
 	t.Run("Should reject invalid artifacts before running generators", func(t *testing.T) {
@@ -405,6 +412,26 @@ func writeTestSpec(t *testing.T, path string) {
                   "properties": {
                     "status": {
                       "type": "string"
+					},
+					"defaults": {
+					  "type": "object",
+					  "x-agh-typescript-widen-additional-properties": true,
+					  "properties": {
+					    "label": {
+					      "type": "string"
+					    },
+					    "progress": {
+					      "type": "object",
+					      "properties": {
+					        "enabled": {
+					          "type": "boolean"
+					        }
+					      }
+					    }
+					  },
+					  "additionalProperties": {
+					    "type": "string"
+					  }
                     }
                   }
                 }

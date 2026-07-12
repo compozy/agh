@@ -119,6 +119,8 @@ func TestShouldExposeMCPProviderDescriptorsAndPreserveOutputSchema(t *testing.T)
 		executor := newFakeMCPExecutor([]MCPToolDescriptor{{
 			RawName:      "lookup",
 			Title:        "Lookup",
+			FriendlyVerb: "Looking up",
+			Preview:      "arg:query",
 			Description:  "Lookup data",
 			InputSchema:  json.RawMessage(`{"type":"object","properties":{}}`),
 			OutputSchema: outputSchema,
@@ -146,6 +148,13 @@ func TestShouldExposeMCPProviderDescriptorsAndPreserveOutputSchema(t *testing.T)
 		}
 		if got, want := descriptor.Source.RawToolName, "lookup"; got != want {
 			t.Fatalf("descriptor.Source.RawToolName = %q, want %q", got, want)
+		}
+		presentation := descriptor.Presentation()
+		if got, want := presentation.FriendlyVerb, "Looking up"; got != want {
+			t.Fatalf("descriptor presentation friendly verb = %q, want %q", got, want)
+		}
+		if got, want := presentation.Preview, "arg:query"; got != want {
+			t.Fatalf("descriptor presentation preview = %q, want %q", got, want)
 		}
 		if !descriptor.ReadOnly || descriptor.Risk != RiskRead || descriptor.OpenWorld {
 			t.Fatalf("descriptor risk flags = %#v, want read-only local-safe flags", descriptor)

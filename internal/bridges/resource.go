@@ -364,47 +364,6 @@ func normalizeOptionalJSONObject(raw json.RawMessage, label string) (json.RawMes
 	return normalizeJSONObject(raw, label)
 }
 
-// NormalizeDeliveryDefaultsJSON validates and canonicalizes bridge delivery default JSON.
-func NormalizeDeliveryDefaultsJSON(raw json.RawMessage) (json.RawMessage, error) {
-	normalized, err := normalizeRawJSON(raw, "bridge instance delivery defaults")
-	if err != nil {
-		return nil, err
-	}
-	if len(normalized) == 0 || bytes.Equal(normalized, []byte("null")) {
-		return nil, nil
-	}
-
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(normalized, &fields); err != nil {
-		return nil, fmt.Errorf("bridges: bridge instance delivery defaults must be a JSON object or null: %w", err)
-	}
-
-	for key, value := range fields {
-		text, fieldErr := requireDeliveryDefaultStringField(value, key)
-		if fieldErr != nil {
-			return nil, fieldErr
-		}
-		if key == "mode" {
-			if err := DeliveryMode(text).Normalize().Validate(); err != nil {
-				return nil, err
-			}
-		}
-	}
-	return normalized, nil
-}
-
-func requireDeliveryDefaultStringField(raw json.RawMessage, field string) (string, error) {
-	var decoded any
-	if err := json.Unmarshal(raw, &decoded); err != nil {
-		return "", fmt.Errorf("bridges: bridge instance delivery defaults field %q must be valid JSON: %w", field, err)
-	}
-	text, ok := decoded.(string)
-	if !ok {
-		return "", fmt.Errorf("bridges: bridge instance delivery defaults field %q must be a string", field)
-	}
-	return text, nil
-}
-
 func bridgeInstanceFromResourceRecord(
 	record resources.Record[BridgeInstanceSpec],
 	existing *BridgeInstance,

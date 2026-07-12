@@ -813,7 +813,7 @@ func TestRegistryUpdateInstanceMutatesBridgeConfigAndDefaults(t *testing.T) {
 	if got := string(updated.ProviderConfig); got != `{"mode":"bot","tenant":"ws-alpha"}` {
 		t.Fatalf("UpdateInstance().ProviderConfig = %s, want compact JSON", got)
 	}
-	if got := string(updated.DeliveryDefaults); got != `{"peer_id":"peer-default","mode":"reply"}` {
+	if got := string(updated.DeliveryDefaults); got != `{"mode":"reply","peer_id":"peer-default"}` {
 		t.Fatalf("UpdateInstance().DeliveryDefaults = %s, want compact JSON", got)
 	}
 }

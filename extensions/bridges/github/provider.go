@@ -1991,8 +1991,8 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func normalizeDeliveryEventType(value string) string {
-	return strings.ToLower(strings.TrimSpace(value))
+func normalizeDeliveryEventType(value bridgepkg.DeliveryEventType) bridgepkg.DeliveryEventType {
+	return bridgepkg.DeliveryEventType(strings.ToLower(strings.TrimSpace(string(value))))
 }
 
 func isTerminalGitHubDeliveryEvent(event bridgepkg.DeliveryEvent) bool {

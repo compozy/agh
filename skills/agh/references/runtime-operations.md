@@ -64,6 +64,21 @@ The web first-run wizard blocks the dashboard until this flag is set. Resetting 
 
 Native session tools are read-oriented. Recap, repair, approval, session inspect, and Soul refresh are CLI/HTTP management flows unless the live registry exposes a scoped native tool.
 
+## Messaging Bridge Progress
+
+Bridge instances own their delivery behavior. Manage them through `agh bridge`, `/api/bridges`, or the equivalent UDS endpoints; do not edit extension state or storage directly. Tool progress is presentation-only bridge delivery data and never becomes session transcript or ACP history.
+
+Configure the typed `delivery_defaults.progress` block with `tool_progress` (`off`, `new`, `all`, or `verbose`), `grouping` (`accumulate` or `separate`), `typing`, and `reactions`. Slack, Telegram, and Discord default to `new` plus `accumulate` with typing and reactions enabled; other platforms default to `off` plus `accumulate` with both affordances disabled unless the instance overrides them. `new` deduplicates consecutive starts but still emits completed and failed phases.
+
+The CLI exposes the same fields on `bridge create` and `bridge update`:
+
+    --delivery-progress <off|new|all|verbose>
+    --delivery-progress-grouping <accumulate|separate>
+    --delivery-progress-typing[=true|false]
+    --delivery-progress-reactions[=true|false]
+
+Use structured output to inspect the saved resource after mutation. An adapter that has not registered a progress handler acknowledges these events without a provider-side effect; final answer delivery remains independent. Progress previews are daemon-rendered and redacted before they cross the extension boundary.
+
 ## Diagnostics Order
 
 When a session behaves unexpectedly:

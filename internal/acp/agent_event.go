@@ -40,6 +40,7 @@ type AgentEvent struct {
 	Text              string
 	Title             string
 	ToolCallID        string
+	tool              *agentToolPayload
 	StopReason        string
 	PromptStopReason  PromptStopReason
 	Action            string

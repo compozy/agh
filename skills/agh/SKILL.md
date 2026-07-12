@@ -20,6 +20,7 @@ Match the task to the row. Read the listed files in full before producing output
 | Task                                                                                                                       | MUST read                                                               |
 | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | Start, inspect, prompt, stop, resume, or debug AGH sessions and daemon state                                               | references/runtime-operations.md                                        |
+| Create, update, inspect, or troubleshoot messaging bridges and bridge-delivered tool progress                              | references/runtime-operations.md                                        |
 | Create or review AGH agent definitions, provider defaults, permissions, or MCP sidecars                                    | references/agent-definitions.md + references/tools-and-skills.md        |
 | Discover or call AGH-native tools, inspect native tool IDs, view skills, or choose tools vs CLI                            | references/tools-and-skills.md + references/native-tools.md             |
 | Participate in an AGH Network channel, thread, direct room, work item, receipt, trace, or capability exchange              | references/network.md                                                   |
@@ -33,7 +34,7 @@ Match the task to the row. Read the listed files in full before producing output
 
 ## Reference Index
 
-- references/runtime-operations.md - daemon and session operating model, session CLI, lifecycle diagnostics, and runtime troubleshooting.
+- references/runtime-operations.md - daemon, session, and messaging-bridge operations, lifecycle diagnostics, and runtime troubleshooting.
 - references/agent-definitions.md - AGENT.md structure, provider defaults, permissions, category paths, MCP sidecars, and safe setup workflow.
 - references/tools-and-skills.md - AGH-native tool discovery, skill view/search, bundled resources, management-surface exceptions, and skill authoring rules.
 - references/native-tools.md - daemon-native toolsets, stable AGH tool IDs, when to inspect descriptors, and CLI fallbacks for agents running inside AGH.

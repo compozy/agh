@@ -293,6 +293,59 @@ func TestBridgeCreateBuildsSharedRequestAndDerivesDisabledStatus(t *testing.T) {
 	}
 }
 
+func TestBridgeCreateBuildsTypedProgressSettings(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should merge typed progress flags with delivery target defaults", func(t *testing.T) {
+		t.Parallel()
+
+		var captured CreateBridgeRequest
+		deps := newTestDeps(t, &stubClient{
+			createBridgeFn: func(_ context.Context, request CreateBridgeRequest) (BridgeRecord, error) {
+				captured = request
+				record := testBridgeRecord(t)
+				record.DeliveryDefaults = json.RawMessage(request.DeliveryDefaults)
+				return record, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"bridge", "create",
+			"--platform", "telegram",
+			"--extension", "ext-telegram",
+			"--display-name", "Support",
+			"--delivery-defaults", `{"mode":"reply","peer_id":"peer-default"}`,
+			"--delivery-progress", "all",
+			"--delivery-progress-grouping", "separate",
+			"--delivery-progress-typing=true",
+			"--delivery-progress-reactions=true",
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("bridge create error = %v", err)
+		}
+
+		var defaults struct {
+			Mode     bridgepkg.DeliveryMode               `json:"mode"`
+			PeerID   string                               `json:"peer_id"`
+			Progress contract.BridgeProgressConfigPayload `json:"progress"`
+		}
+		if err := json.Unmarshal(captured.DeliveryDefaults, &defaults); err != nil {
+			t.Fatalf("json.Unmarshal(delivery defaults) error = %v", err)
+		}
+		if defaults.Mode != bridgepkg.DeliveryModeReply || defaults.PeerID != "peer-default" {
+			t.Fatalf("target defaults = %#v", defaults)
+		}
+		if defaults.Progress.ToolProgress != bridgepkg.ProgressModeAll ||
+			defaults.Progress.Grouping != bridgepkg.ProgressGroupingSeparate ||
+			!defaults.Progress.Typing || !defaults.Progress.Reactions {
+			t.Fatalf("progress defaults = %#v", defaults.Progress)
+		}
+	})
+}
+
 func TestBridgeCreateRejectsWorkspaceScopeWithoutWorkspaceID(t *testing.T) {
 	t.Parallel()
 
@@ -392,7 +445,7 @@ func TestBridgeUpdateMergesRoutingPolicyAndAllowsNullDeliveryDefaults(t *testing
 		"--display-name", "Support Ops",
 		"--include-thread",
 		"--provider-config", `{"api_base_url":"https://slack.test/api"}`,
-		"--delivery-defaults", "null",
+		"--delivery-defaults", bridgeJSONNull,
 		"-o", "json",
 	)
 	if err != nil {
@@ -410,7 +463,7 @@ func TestBridgeUpdateMergesRoutingPolicyAndAllowsNullDeliveryDefaults(t *testing
 		!captured.RoutingPolicy.IncludeGroup {
 		t.Fatalf("captured routing policy = %#v", captured.RoutingPolicy)
 	}
-	if captured.DeliveryDefaults == nil || string(*captured.DeliveryDefaults) != "null" {
+	if captured.DeliveryDefaults == nil || string(*captured.DeliveryDefaults) != bridgeJSONNull {
 		t.Fatalf("captured delivery defaults = %#v", captured.DeliveryDefaults)
 	}
 	if captured.ProviderConfig == nil ||
@@ -425,6 +478,100 @@ func TestBridgeUpdateMergesRoutingPolicyAndAllowsNullDeliveryDefaults(t *testing
 	if decoded.DisplayName != "Support Ops" || !decoded.RoutingPolicy.IncludeThread {
 		t.Fatalf("decoded = %#v, want updated display name and thread routing", decoded)
 	}
+}
+
+func TestBridgeUpdateMergesTypedProgressWithCurrentDeliveryDefaults(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve current target fields and explicit false progress flags", func(t *testing.T) {
+		t.Parallel()
+
+		current := testBridgeRecord(t)
+		current.DeliveryDefaults = json.RawMessage(
+			`{"mode":"reply","peer_id":"peer-default","progress":{"tool_progress":"all","grouping":"accumulate","typing":true,"reactions":true}}`,
+		)
+		var (
+			getCalls int
+			captured UpdateBridgeRequest
+		)
+		deps := newTestDeps(t, &stubClient{
+			getBridgeFn: func(_ context.Context, id string) (BridgeRecord, error) {
+				getCalls++
+				if id != current.ID {
+					t.Fatalf("GetBridge() id = %q, want %q", id, current.ID)
+				}
+				return current, nil
+			},
+			updateBridgeFn: func(_ context.Context, id string, request UpdateBridgeRequest) (BridgeRecord, error) {
+				if id != current.ID {
+					t.Fatalf("UpdateBridge() id = %q, want %q", id, current.ID)
+				}
+				captured = request
+				updated := current
+				updated.DeliveryDefaults = json.RawMessage(*request.DeliveryDefaults)
+				return updated, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"bridge", "update", current.ID,
+			"--delivery-progress-grouping", "separate",
+			"--delivery-progress-typing=false",
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("bridge update error = %v", err)
+		}
+		if getCalls != 1 {
+			t.Fatalf("GetBridge() calls = %d, want 1", getCalls)
+		}
+		if captured.DeliveryDefaults == nil {
+			t.Fatal("captured delivery defaults = nil")
+		}
+
+		var defaults struct {
+			Mode     bridgepkg.DeliveryMode               `json:"mode"`
+			PeerID   string                               `json:"peer_id"`
+			Progress contract.BridgeProgressConfigPayload `json:"progress"`
+		}
+		if err := json.Unmarshal(*captured.DeliveryDefaults, &defaults); err != nil {
+			t.Fatalf("json.Unmarshal(delivery defaults) error = %v", err)
+		}
+		if defaults.Mode != bridgepkg.DeliveryModeReply || defaults.PeerID != "peer-default" {
+			t.Fatalf("target defaults = %#v", defaults)
+		}
+		if defaults.Progress.ToolProgress != bridgepkg.ProgressModeAll ||
+			defaults.Progress.Grouping != bridgepkg.ProgressGroupingSeparate ||
+			defaults.Progress.Typing || !defaults.Progress.Reactions {
+			t.Fatalf("progress defaults = %#v", defaults.Progress)
+		}
+	})
+
+	t.Run("Should reject an unsupported progress mode before calling the daemon", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			createBridgeFn: func(context.Context, CreateBridgeRequest) (BridgeRecord, error) {
+				t.Fatal("CreateBridge() should not be called for invalid progress")
+				return BridgeRecord{}, nil
+			},
+		})
+
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"bridge", "create",
+			"--platform", "telegram",
+			"--extension", "ext-telegram",
+			"--display-name", "Support",
+			"--delivery-progress", "sometimes",
+		)
+		if err == nil || !strings.Contains(err.Error(), `unsupported progress tool_progress "sometimes"`) {
+			t.Fatalf("bridge create error = %v, want progress validation error", err)
+		}
+	})
 }
 
 func TestBridgeLifecycleCommandsUseDaemonClient(t *testing.T) {
@@ -750,7 +897,7 @@ func TestParseRequiredBridgeJSONEnforcesObjectOrNull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseRequiredBridgeJSON(null) error = %v", err)
 	}
-	if string(*validNull) != "null" {
+	if string(*validNull) != bridgeJSONNull {
 		t.Fatalf("parseRequiredBridgeJSON(null) = %s, want null", string(*validNull))
 	}
 

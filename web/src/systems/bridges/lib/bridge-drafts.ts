@@ -8,6 +8,7 @@ import {
 
 import type {
   BridgeCreateDraft,
+  BridgeDeliveryDefaults,
   BridgeDmPolicy,
   BridgeSecretBinding,
   BridgeProviderConfig,
@@ -20,6 +21,16 @@ import type {
   UpdateBridgeRequest,
 } from "@/systems/bridges/types";
 
+type BridgeUpdateDraftSource = Omit<
+  Pick<
+    BridgeSummary,
+    "delivery_defaults" | "display_name" | "dm_policy" | "provider_config" | "routing_policy"
+  >,
+  "delivery_defaults"
+> & {
+  delivery_defaults?: BridgeDeliveryDefaults | null;
+};
+
 export const DEFAULT_BRIDGE_ROUTING_POLICY = {
   include_group: true,
   include_peer: true,
@@ -29,6 +40,10 @@ export const DEFAULT_BRIDGE_ROUTING_POLICY = {
 interface BridgeCreateRequestProviderRef {
   extension_name: string;
   platform: string;
+}
+
+interface BridgeTestDeliveryDraftSource {
+  delivery_defaults?: BridgeDeliveryDefaults | null;
 }
 
 type BuildBridgeCreateRequestResult =
@@ -82,20 +97,21 @@ export function createBridgeCreateDraft(
 }
 
 export function createBridgeTestDeliveryDraft(
-  bridge?: Pick<BridgeSummary, "delivery_defaults">
+  bridge?: BridgeTestDeliveryDraftSource
 ): BridgeTestDeliveryDraft {
+  const defaults = normalizeBridgeDeliveryDefaults(bridge?.delivery_defaults);
   return {
     message: "",
-    target: normalizeBridgeDeliveryDefaults(bridge?.delivery_defaults),
+    target: {
+      group_id: defaults.group_id,
+      mode: defaults.mode,
+      peer_id: defaults.peer_id,
+      thread_id: defaults.thread_id,
+    },
   };
 }
 
-export function createBridgeUpdateDraft(
-  bridge?: Pick<
-    BridgeSummary,
-    "delivery_defaults" | "display_name" | "dm_policy" | "provider_config" | "routing_policy"
-  >
-): BridgeUpdateDraft {
+export function createBridgeUpdateDraft(bridge?: BridgeUpdateDraftSource): BridgeUpdateDraft {
   return {
     deliveryDefaults: normalizeBridgeDeliveryDefaults(bridge?.delivery_defaults),
     dmPolicy: bridge?.dm_policy ?? "",

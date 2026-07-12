@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 // Boundaries verifies that package import rules are not violated.
@@ -147,11 +148,86 @@ func Boundaries() error {
 		}
 	}
 
+	leafRules := []struct {
+		importer string
+		allowed  map[string]struct{}
+	}{
+		{importer: "internal/redact", allowed: map[string]struct{}{}},
+		{
+			importer: "internal/toolmeta",
+			allowed: map[string]struct{}{
+				"github.com/compozy/agh/internal/redact": {},
+			},
+		},
+	}
+	for _, rule := range leafRules {
+		files, err := productionFilesImportingInternalExcept(rule.importer, rule.allowed)
+		if err != nil {
+			return fmt.Errorf("inspect leaf boundary importer %q: %w", rule.importer, err)
+		}
+		if len(files) == 0 {
+			continue
+		}
+		fmt.Printf("VIOLATION: %s imports a forbidden internal package\n", rule.importer)
+		for _, file := range files {
+			fmt.Printf("  %s\n", file)
+		}
+		violations++
+	}
+
 	if violations > 0 {
 		return fmt.Errorf("found %d boundary violations", violations)
 	}
 	fmt.Println("OK: all package boundaries respected")
 	return nil
+}
+
+func productionFilesImportingInternalExcept(
+	root string,
+	allowed map[string]struct{},
+) ([]string, error) {
+	if _, err := os.Stat(root); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	const internalPrefix = "github.com/compozy/agh/internal/"
+	fset := token.NewFileSet()
+	files := make([]string, 0)
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		parsed, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+		if err != nil {
+			return fmt.Errorf("parse Go imports in %q: %w", path, err)
+		}
+		for _, spec := range parsed.Imports {
+			importPath, err := strconv.Unquote(spec.Path.Value)
+			if err != nil {
+				return fmt.Errorf("decode Go import in %q: %w", path, err)
+			}
+			if !strings.HasPrefix(importPath, internalPrefix) {
+				continue
+			}
+			if _, ok := allowed[importPath]; ok {
+				continue
+			}
+			files = append(files, path)
+			break
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(files)
+	return files, nil
 }
 
 func filesImporting(root string, target string) ([]string, error) {

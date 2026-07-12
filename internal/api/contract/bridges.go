@@ -1,74 +1,13 @@
 package contract
 
 import (
-	"bytes"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
-
-// ErrUnsafeBridgeProviderConfigPayload reports raw credentials in bridge provider config JSON.
-var ErrUnsafeBridgeProviderConfigPayload = bridgeContractError(
-	"bridge provider config contains unsafe token or secret data",
-)
-
-// BridgeProviderConfigPayload carries provider-owned runtime configuration
-// without accepting raw secret material in the transport contract.
-type BridgeProviderConfigPayload json.RawMessage
-
-// MarshalJSON preserves the compact raw JSON representation of provider config.
-func (p BridgeProviderConfigPayload) MarshalJSON() ([]byte, error) {
-	normalized, err := normalizeBridgeJSONPayload(
-		json.RawMessage(p),
-		"bridge provider config",
-		validateBridgeProviderConfigPayload,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if len(normalized) == 0 {
-		return []byte("null"), nil
-	}
-	return normalized, nil
-}
-
-// UnmarshalJSON validates that provider config is an object-shaped JSON payload
-// or null before storing the compact raw representation.
-func (p *BridgeProviderConfigPayload) UnmarshalJSON(data []byte) error {
-	normalized, err := normalizeBridgeJSONPayload(data, "bridge provider config", validateBridgeProviderConfigPayload)
-	if err != nil {
-		return err
-	}
-	*p = BridgeProviderConfigPayload(normalized)
-	return nil
-}
-
-// BridgeDeliveryDefaultsPayload carries only typed delivery-target defaults.
-type BridgeDeliveryDefaultsPayload json.RawMessage
-
-// MarshalJSON preserves the compact raw JSON representation of delivery defaults.
-func (p BridgeDeliveryDefaultsPayload) MarshalJSON() ([]byte, error) {
-	return marshalBridgeJSONPayload(json.RawMessage(p), "bridge delivery defaults")
-}
-
-// UnmarshalJSON validates that delivery defaults remain scoped to the approved
-// delivery-target fields or null.
-func (p *BridgeDeliveryDefaultsPayload) UnmarshalJSON(data []byte) error {
-	normalized, err := normalizeBridgeJSONPayload(
-		data,
-		"bridge delivery defaults",
-		validateBridgeDeliveryDefaultsPayload,
-	)
-	if err != nil {
-		return err
-	}
-	*p = BridgeDeliveryDefaultsPayload(normalized)
-	return nil
-}
 
 // CreateBridgeRequest is the shared bridge-instance creation payload.
 type CreateBridgeRequest struct {
@@ -96,11 +35,7 @@ func (r CreateBridgeRequest) ToCreateInstanceRequest() (bridgepkg.CreateInstance
 	if err != nil {
 		return bridgepkg.CreateInstanceRequest{}, err
 	}
-	deliveryDefaults, err := normalizeBridgeJSONPayload(
-		json.RawMessage(r.DeliveryDefaults),
-		"bridge delivery defaults",
-		validateBridgeDeliveryDefaultsPayload,
-	)
+	deliveryDefaults, err := normalizeBridgeDeliveryDefaultsPayload(json.RawMessage(r.DeliveryDefaults))
 	if err != nil {
 		return bridgepkg.CreateInstanceRequest{}, err
 	}
@@ -185,11 +120,7 @@ func (r UpdateBridgeRequest) ToUpdateInstanceRequest(id string) (bridgepkg.Updat
 		req.ProviderConfig = &value
 	}
 	if r.DeliveryDefaults != nil {
-		value, err := normalizeBridgeJSONPayload(
-			json.RawMessage(*r.DeliveryDefaults),
-			"bridge delivery defaults",
-			validateBridgeDeliveryDefaultsPayload,
-		)
+		value, err := normalizeBridgeDeliveryDefaultsPayload(json.RawMessage(*r.DeliveryDefaults))
 		if err != nil {
 			return bridgepkg.UpdateInstanceRequest{}, err
 		}
@@ -464,131 +395,4 @@ func cloneBridgeDegradation(value *bridgepkg.BridgeDegradation) *bridgepkg.Bridg
 	}
 	cloned := *value
 	return &cloned
-}
-
-func marshalBridgeJSONPayload(value json.RawMessage, label string) ([]byte, error) {
-	normalized, err := normalizeBridgeJSONPayload(value, label, nil)
-	if err != nil {
-		return nil, err
-	}
-	if len(normalized) == 0 {
-		return []byte("null"), nil
-	}
-	return normalized, nil
-}
-
-func normalizeBridgeJSONPayload(
-	value json.RawMessage,
-	label string,
-	validate func(json.RawMessage) error,
-) (json.RawMessage, error) {
-	trimmed := bytes.TrimSpace(value)
-	if len(trimmed) == 0 {
-		return nil, nil
-	}
-	if !json.Valid(trimmed) {
-		return nil, fmt.Errorf("%s must be valid JSON", label)
-	}
-
-	var compacted bytes.Buffer
-	if err := json.Compact(&compacted, trimmed); err != nil {
-		return nil, fmt.Errorf("compact %s: %w", label, err)
-	}
-	normalized := compacted.Bytes()
-	if validate != nil {
-		if err := validate(normalized); err != nil {
-			return nil, err
-		}
-	}
-	return normalized, nil
-}
-
-func validateBridgeProviderConfigPayload(value json.RawMessage) error {
-	if isJSONNull(value) {
-		return nil
-	}
-
-	var decoded any
-	if err := json.Unmarshal(value, &decoded); err != nil {
-		return fmt.Errorf("bridge provider config must decode as JSON object or null: %w", err)
-	}
-	if _, ok := decoded.(map[string]any); !ok {
-		return fmt.Errorf("bridge provider config must be a JSON object or null")
-	}
-	if containsUnsafePublicContractJSON(value) {
-		return ErrUnsafeBridgeProviderConfigPayload
-	}
-	return nil
-}
-
-func validateBridgeDeliveryDefaultsPayload(value json.RawMessage) error {
-	if isJSONNull(value) {
-		return nil
-	}
-
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(value, &fields); err != nil {
-		return fmt.Errorf("bridge delivery defaults must be a JSON object or null: %w", err)
-	}
-
-	var (
-		peerID  string
-		groupID string
-		thread  string
-	)
-
-	for key, raw := range fields {
-		switch key {
-		case "peer_id":
-			text, err := requireJSONStringField(raw, key)
-			if err != nil {
-				return err
-			}
-			peerID = strings.TrimSpace(text)
-		case "thread_id":
-			text, err := requireJSONStringField(raw, key)
-			if err != nil {
-				return err
-			}
-			thread = strings.TrimSpace(text)
-		case "group_id":
-			text, err := requireJSONStringField(raw, key)
-			if err != nil {
-				return err
-			}
-			groupID = strings.TrimSpace(text)
-		case "mode":
-			text, err := requireJSONStringField(raw, key)
-			if err != nil {
-				return err
-			}
-			if err := bridgepkg.DeliveryMode(text).Validate(); err != nil {
-				return err
-			}
-		default:
-			return fmt.Errorf("bridge delivery defaults field %q is not supported", key)
-		}
-	}
-
-	if thread != "" && peerID == "" && groupID == "" {
-		return fmt.Errorf("bridge delivery defaults thread_id requires peer_id or group_id")
-	}
-
-	return nil
-}
-
-func requireJSONStringField(raw json.RawMessage, field string) (string, error) {
-	var decoded any
-	if err := json.Unmarshal(raw, &decoded); err != nil {
-		return "", fmt.Errorf("bridge delivery defaults field %q must be valid JSON: %w", field, err)
-	}
-	text, ok := decoded.(string)
-	if !ok {
-		return "", fmt.Errorf("bridge delivery defaults field %q must be a string", field)
-	}
-	return text, nil
-}
-
-func isJSONNull(value json.RawMessage) bool {
-	return bytes.Equal(bytes.TrimSpace(value), []byte("null"))
 }

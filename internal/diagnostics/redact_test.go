@@ -272,7 +272,7 @@ func TestRedactHandlesRuntimeRegisteredSecrets(t *testing.T) {
 	t.Run("Should redact dynamic provider secret values", func(t *testing.T) {
 		t.Parallel()
 
-		secret := "sk-dynamic-provider-secret-123456"
+		secret := "runtime-dynamic-provider-secret-123456"
 		cleanup := RegisterDynamicSecret(secret)
 		t.Cleanup(cleanup)
 
@@ -288,7 +288,7 @@ func TestRedactHandlesRuntimeRegisteredSecrets(t *testing.T) {
 	t.Run("Should unregister dynamic provider secret values", func(t *testing.T) {
 		t.Parallel()
 
-		secret := "sk-dynamic-provider-secret-cleanup-123456"
+		secret := "runtime-dynamic-provider-secret-cleanup-123456"
 		cleanup := RegisterDynamicSecret(secret)
 		cleanup()
 
@@ -301,7 +301,7 @@ func TestRedactHandlesRuntimeRegisteredSecrets(t *testing.T) {
 	t.Run("Should keep duplicate dynamic secrets registered until final cleanup", func(t *testing.T) {
 		t.Parallel()
 
-		secret := "sk-dynamic-provider-secret-refcount-123456"
+		secret := "runtime-dynamic-provider-secret-refcount-123456"
 		firstCleanup := RegisterDynamicSecret(secret)
 		secondCleanup := RegisterDynamicSecret(secret)
 		firstCleanup()
@@ -321,7 +321,7 @@ func TestRedactHandlesRuntimeRegisteredSecrets(t *testing.T) {
 	t.Run("Should redact longer dynamic secrets before prefix secrets", func(t *testing.T) {
 		t.Parallel()
 
-		shortSecret := "sk-dynamic-prefix-secret"
+		shortSecret := "runtime-dynamic-prefix-material"
 		longSecret := shortSecret + "-with-long-tail"
 		shortCleanup := RegisterDynamicSecret(shortSecret)
 		longCleanup := RegisterDynamicSecret(longSecret)

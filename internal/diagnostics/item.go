@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	contract "github.com/compozy/agh/internal/diagnosticcontract"
+	redactpkg "github.com/compozy/agh/internal/redact"
 )
 
 // ItemOption customizes a DiagnosticItem built by NewItem.
@@ -186,7 +187,7 @@ func RedactEvidence(evidence map[string]any) map[string]any {
 }
 
 func redactValueForKey(key string, value any) any {
-	if sensitiveEvidenceKeyPattern.MatchString(key) {
+	if redactpkg.IsSensitiveKey(key) {
 		return redactedValue
 	}
 	return RedactValue(value)

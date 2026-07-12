@@ -119,6 +119,8 @@ func TestResolveManifestToolDescriptorsIncludesDigestAndMetadata(t *testing.T) {
 					"lookup": {
 						ID:             "ext__linear__lookup",
 						DisplayTitle:   "Linear Lookup",
+						FriendlyVerb:   "Looking up",
+						Preview:        "arg:query",
 						Description:    "Search workspace",
 						Backend:        ToolBackendConfig{Kind: "extension_host", Handler: "lookup.run"},
 						InputSchema:    inputSchema,
@@ -157,6 +159,13 @@ func TestResolveManifestToolDescriptorsIncludesDigestAndMetadata(t *testing.T) {
 		}
 		if got, want := descriptor.Tool.MaxResultBytes, int64(4096); got != want {
 			t.Fatalf("Tool.MaxResultBytes = %d, want %d", got, want)
+		}
+		presentation := descriptor.Tool.Presentation()
+		if got, want := presentation.FriendlyVerb, "Looking up"; got != want {
+			t.Fatalf("Tool presentation friendly verb = %q, want %q", got, want)
+		}
+		if got, want := presentation.Preview, "arg:query"; got != want {
+			t.Fatalf("Tool presentation preview = %q, want %q", got, want)
 		}
 		if got, want := descriptor.Tool.Toolsets, []toolspkg.ToolsetID{"ext__linear__read"}; !slices.Equal(got, want) {
 			t.Fatalf("Tool.Toolsets = %#v, want %#v", got, want)

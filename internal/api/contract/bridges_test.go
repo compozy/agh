@@ -399,7 +399,7 @@ func TestBridgeRequestsKeepProviderConfigDistinctFromDeliveryDefaults(t *testing
 		}
 		if got, want := string(
 			createMapped.DeliveryDefaults,
-		), `{"peer_id":"peer-default","mode":"reply"}`; got != want {
+		), `{"mode":"reply","peer_id":"peer-default"}`; got != want {
 			t.Fatalf("createMapped.DeliveryDefaults = %s, want %s", got, want)
 		}
 
@@ -444,14 +444,25 @@ func TestBridgeRequestsRejectUnsupportedProviderConfigAndDeliveryDefaultsShapes(
 		}
 	})
 
-	t.Run("Should reject unsupported delivery defaults fields", func(t *testing.T) {
+	t.Run("Should preserve provider-specific delivery defaults fields", func(t *testing.T) {
 		t.Parallel()
 
-		badDefaults := contract.UpdateBridgeRequest{
-			DeliveryDefaults: new(contract.BridgeDeliveryDefaultsPayload(`{"mode":"reply","parse_mode":"markdown"}`)),
+		providerDefaults := contract.UpdateBridgeRequest{
+			DeliveryDefaults: new(contract.BridgeDeliveryDefaultsPayload(
+				`{"mode":"reply","parse_mode":"markdown","thread_id":"thread-marketing"}`,
+			)),
 		}
-		if _, err := badDefaults.ToUpdateInstanceRequest("brg-1"); err == nil {
-			t.Fatal("ToUpdateInstanceRequest(delivery defaults extra field) error = nil, want non-nil")
+		mapped, err := providerDefaults.ToUpdateInstanceRequest("brg-1")
+		if err != nil {
+			t.Fatalf("ToUpdateInstanceRequest(provider delivery defaults) error = %v", err)
+		}
+		if mapped.DeliveryDefaults == nil ||
+			string(*mapped.DeliveryDefaults) !=
+				`{"mode":"reply","parse_mode":"markdown","thread_id":"thread-marketing"}` {
+			t.Fatalf(
+				"mapped.DeliveryDefaults = %s, want provider field preserved",
+				stringValue(mapped.DeliveryDefaults),
+			)
 		}
 	})
 }
@@ -581,10 +592,12 @@ func TestBridgeJSONPayloadsMarshalAndUnmarshal(t *testing.T) {
 		},
 		{
 			name: "delivery defaults object round-trips compactly",
-			raw:  "{\n  \"peer_id\": \"peer-1\",\n  \"mode\": \"reply\"\n}",
+			raw:  "{\n  \"peer_id\": \"peer-1\",\n  \"mode\": \"reply\",\n  \"parse_mode\": \"markdown\"\n}",
 			validate: func(t *testing.T, encoded []byte) {
 				t.Helper()
-				if got, want := string(encoded), `{"peer_id":"peer-1","mode":"reply"}`; got != want {
+				got := string(encoded)
+				want := `{"mode":"reply","parse_mode":"markdown","peer_id":"peer-1"}`
+				if got != want {
 					t.Fatalf("delivery defaults encoded = %s, want %s", got, want)
 				}
 			},
@@ -654,22 +667,40 @@ func TestBridgeJSONPayloadsRejectInvalidShapes(t *testing.T) {
 			wantErr: "bridge provider config must be valid JSON",
 		},
 		{
-			name:    "delivery defaults rejects unsupported field",
-			target:  "delivery",
-			raw:     `{"mode":"reply","parse_mode":"markdown"}`,
-			wantErr: `bridge delivery defaults field "parse_mode" is not supported`,
-		},
-		{
-			name:    "delivery defaults rejects thread without peer or group",
-			target:  "delivery",
-			raw:     `{"thread_id":"thr-1"}`,
-			wantErr: "bridge delivery defaults thread_id requires peer_id or group_id",
-		},
-		{
 			name:    "delivery defaults rejects non-string field",
 			target:  "delivery",
 			raw:     `{"peer_id":7}`,
-			wantErr: `bridge delivery defaults field "peer_id" must be a string`,
+			wantErr: `bridge instance delivery defaults field "peer_id" must be a string`,
+		},
+		{
+			name:    "Should reject unsupported progress mode",
+			target:  "delivery",
+			raw:     `{"progress":{"tool_progress":"sometimes","grouping":"accumulate","typing":true,"reactions":true}}`,
+			wantErr: `unsupported progress tool_progress "sometimes"`,
+		},
+		{
+			name:    "Should reject unsupported progress grouping",
+			target:  "delivery",
+			raw:     `{"progress":{"tool_progress":"all","grouping":"threaded","typing":true,"reactions":true}}`,
+			wantErr: `unsupported progress grouping "threaded"`,
+		},
+		{
+			name:    "Should reject non-boolean progress typing",
+			target:  "delivery",
+			raw:     `{"progress":{"tool_progress":"all","grouping":"accumulate","typing":"yes","reactions":true}}`,
+			wantErr: `cannot unmarshal string into Go struct field ProgressConfig.typing of type bool`,
+		},
+		{
+			name:    "Should reject non-boolean progress reactions",
+			target:  "delivery",
+			raw:     `{"progress":{"tool_progress":"all","grouping":"accumulate","typing":true,"reactions":1}}`,
+			wantErr: `cannot unmarshal number into Go struct field ProgressConfig.reactions of type bool`,
+		},
+		{
+			name:    "Should reject unknown progress fields",
+			target:  "delivery",
+			raw:     `{"progress":{"tool_progress":"all","grouping":"accumulate","typing":true,"reactions":true,"style":"compact"}}`,
+			wantErr: `unknown field "style"`,
 		},
 	}
 
@@ -699,6 +730,45 @@ func TestBridgeJSONPayloadsRejectInvalidShapes(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBridgeDeliveryDefaultsExposeTypedProgress(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should round-trip typed progress with existing target defaults", func(t *testing.T) {
+		t.Parallel()
+
+		var payload contract.BridgeDeliveryDefaultsPayload
+		if err := payload.UnmarshalJSON([]byte(
+			`{"peer_id":"peer-1","parse_mode":"MarkdownV2","mode":" REPLY_SEND ","progress":{"tool_progress":" ALL ","grouping":" Separate ","typing":true,"reactions":false}}`,
+		)); err != nil {
+			t.Fatalf("UnmarshalJSON() error = %v", err)
+		}
+
+		encoded, err := payload.MarshalJSON()
+		if err != nil {
+			t.Fatalf("MarshalJSON() error = %v", err)
+		}
+
+		var decoded struct {
+			PeerID    string                               `json:"peer_id"`
+			ParseMode string                               `json:"parse_mode"`
+			Mode      bridgepkg.DeliveryMode               `json:"mode"`
+			Progress  contract.BridgeProgressConfigPayload `json:"progress"`
+		}
+		if err := json.Unmarshal(encoded, &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if decoded.PeerID != "peer-1" || decoded.ParseMode != "MarkdownV2" ||
+			decoded.Mode != bridgepkg.DeliveryModeReply {
+			t.Fatalf("decoded target defaults = %#v", decoded)
+		}
+		if decoded.Progress.ToolProgress != bridgepkg.ProgressModeAll ||
+			decoded.Progress.Grouping != bridgepkg.ProgressGroupingSeparate ||
+			!decoded.Progress.Typing || decoded.Progress.Reactions {
+			t.Fatalf("decoded progress = %#v", decoded.Progress)
+		}
+	})
 }
 
 func TestPutBridgeSecretBindingRequestValidation(t *testing.T) {

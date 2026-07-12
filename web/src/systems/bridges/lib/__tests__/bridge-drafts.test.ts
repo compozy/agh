@@ -8,6 +8,7 @@ import {
   buildBridgeSecretBindingRequest,
   buildBridgeUpdateRequest,
   createBridgeCreateDraft,
+  createBridgeTestDeliveryDraft,
   createBridgeUpdateDraft,
   parseBridgeDmPolicy,
   parseBridgeProviderConfig,
@@ -55,6 +56,27 @@ describe("createBridgeCreateDraft", () => {
       displayName: "Telegram",
       providerConfigText: "",
       scope: "workspace",
+    });
+  });
+});
+
+describe("createBridgeTestDeliveryDraft", () => {
+  it("keeps instance progress and provider defaults out of delivery target overrides", () => {
+    const draft = createBridgeTestDeliveryDraft({
+      delivery_defaults: {
+        parse_mode: "MarkdownV2",
+        peer_id: "peer_123",
+        progress: {
+          grouping: "accumulate",
+          reactions: false,
+          tool_progress: "off",
+          typing: false,
+        },
+      },
+    });
+
+    expect(draft.target).toEqual({
+      peer_id: "peer_123",
     });
   });
 });
@@ -175,6 +197,70 @@ describe("createBridgeUpdateDraft", () => {
 });
 
 describe("buildBridgeUpdateRequest", () => {
+  it("preserves provider-specific defaults through an unchanged editor round trip", () => {
+    const existingBridge: NonNullable<Parameters<typeof createBridgeUpdateDraft>[0]> = {
+      delivery_defaults: {
+        parse_mode: "MarkdownV2",
+      },
+      display_name: "Support",
+      dm_policy: "allowlist",
+      provider_config: null,
+      routing_policy: {
+        include_group: true,
+        include_peer: true,
+        include_thread: true,
+      },
+    };
+
+    const result = buildBridgeUpdateRequest(createBridgeUpdateDraft(existingBridge));
+
+    expect(result).toMatchObject({
+      data: {
+        delivery_defaults: {
+          parse_mode: "MarkdownV2",
+        },
+      },
+      ok: true,
+    });
+  });
+
+  it("preserves progress overrides through an unchanged editor round trip", () => {
+    const existingBridge: NonNullable<Parameters<typeof createBridgeUpdateDraft>[0]> = {
+      delivery_defaults: {
+        progress: {
+          grouping: "accumulate",
+          reactions: false,
+          tool_progress: "off",
+          typing: false,
+        },
+      },
+      display_name: "Support",
+      dm_policy: "allowlist",
+      provider_config: null,
+      routing_policy: {
+        include_group: true,
+        include_peer: true,
+        include_thread: true,
+      },
+    };
+
+    const result = buildBridgeUpdateRequest(createBridgeUpdateDraft(existingBridge));
+
+    expect(result).toMatchObject({
+      data: {
+        delivery_defaults: {
+          progress: {
+            grouping: "accumulate",
+            reactions: false,
+            tool_progress: "off",
+            typing: false,
+          },
+        },
+      },
+      ok: true,
+    });
+  });
+
   it("preserves nullable fields for clearing provider config and delivery defaults", () => {
     const result = buildBridgeUpdateRequest({
       deliveryDefaults: {},

@@ -3,6 +3,7 @@ package openapits
 import (
 	"bytes"
 	"context"
+	_ "embed"
 	"errors"
 	"fmt"
 	"os"
@@ -34,10 +35,17 @@ type execRunner struct{}
 
 var _ commandRunner = execRunner{}
 
-// Run resolves the JS tool to the workspace-pinned node_modules/.bin shim
-// (bunx fallback) before executing, so codegen never depends on the global
-// bunx cache when the workspace install is present.
+//go:embed generate.mjs
+var openAPITSTypeGenerator string
+
+// Run resolves JS tools to workspace-pinned binaries. OpenAPI generation uses
+// an embedded Bun wrapper so marked mixed-shape maps remain assignable in the
+// generated TypeScript without weakening the source OpenAPI schema.
 func (execRunner) Run(ctx context.Context, tool string, args ...string) error {
+	if tool == "openapi-typescript" {
+		argv := append([]string{"--eval", openAPITSTypeGenerator, "--"}, args...)
+		return runCommand(ctx, "bun", argv...)
+	}
 	argv := jsbin.Argv(".", tool, args...)
 	return runCommand(ctx, argv[0], argv[1:]...)
 }

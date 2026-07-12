@@ -33245,7 +33245,9 @@
                                                         "type": "object"
                                                     },
                                                     "delivery_defaults": {
-                                                        "additionalProperties": false,
+                                                        "additionalProperties": {
+                                                            "type": "string"
+                                                        },
                                                         "nullable": true,
                                                         "properties": {
                                                             "group_id": {
@@ -33258,11 +33260,44 @@
                                                             "peer_id": {
                                                                 "type": "string"
                                                             },
+                                                            "progress": {
+                                                                "additionalProperties": false,
+                                                                "properties": {
+                                                                    "grouping": {
+                                                                        "enum": [
+                                                                            "accumulate",
+                                                                            "separate"
+                                                                        ],
+                                                                        "type": "string"
+                                                                    },
+                                                                    "reactions": {
+                                                                        "type": "boolean"
+                                                                    },
+                                                                    "tool_progress": {
+                                                                        "enum": [
+                                                                            "off",
+                                                                            "new",
+                                                                            "all",
+                                                                            "verbose"
+                                                                        ],
+                                                                        "type": "string"
+                                                                    },
+                                                                    "typing": {
+                                                                        "type": "boolean"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "tool_progress",
+                                                                    "grouping"
+                                                                ],
+                                                                "type": "object"
+                                                            },
                                                             "thread_id": {
                                                                 "type": "string"
                                                             }
                                                         },
-                                                        "type": "object"
+                                                        "type": "object",
+                                                        "x-agh-typescript-widen-additional-properties": true
                                                     },
                                                     "display_name": {
                                                         "type": "string"
@@ -33746,7 +33781,9 @@
                             "schema": {
                                 "properties": {
                                     "delivery_defaults": {
-                                        "additionalProperties": false,
+                                        "additionalProperties": {
+                                            "type": "string"
+                                        },
                                         "nullable": true,
                                         "properties": {
                                             "group_id": {
@@ -33759,11 +33796,33 @@
                                             "peer_id": {
                                                 "type": "string"
                                             },
+                                            "progress": {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "grouping": {
+                                                        "enum": ["accumulate", "separate"],
+                                                        "type": "string"
+                                                    },
+                                                    "reactions": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "tool_progress": {
+                                                        "enum": ["off", "new", "all", "verbose"],
+                                                        "type": "string"
+                                                    },
+                                                    "typing": {
+                                                        "type": "boolean"
+                                                    }
+                                                },
+                                                "required": ["tool_progress", "grouping"],
+                                                "type": "object"
+                                            },
                                             "thread_id": {
                                                 "type": "string"
                                             }
                                         },
-                                        "type": "object"
+                                        "type": "object",
+                                        "x-agh-typescript-widen-additional-properties": true
                                     },
                                     "display_name": {
                                         "type": "string"
@@ -33864,7 +33923,9 @@
                                                     "type": "object"
                                                 },
                                                 "delivery_defaults": {
-                                                    "additionalProperties": false,
+                                                    "additionalProperties": {
+                                                        "type": "string"
+                                                    },
                                                     "nullable": true,
                                                     "properties": {
                                                         "group_id": {
@@ -33877,11 +33938,44 @@
                                                         "peer_id": {
                                                             "type": "string"
                                                         },
+                                                        "progress": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "grouping": {
+                                                                    "enum": [
+                                                                        "accumulate",
+                                                                        "separate"
+                                                                    ],
+                                                                    "type": "string"
+                                                                },
+                                                                "reactions": {
+                                                                    "type": "boolean"
+                                                                },
+                                                                "tool_progress": {
+                                                                    "enum": [
+                                                                        "off",
+                                                                        "new",
+                                                                        "all",
+                                                                        "verbose"
+                                                                    ],
+                                                                    "type": "string"
+                                                                },
+                                                                "typing": {
+                                                                    "type": "boolean"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "tool_progress",
+                                                                "grouping"
+                                                            ],
+                                                            "type": "object"
+                                                        },
                                                         "thread_id": {
                                                             "type": "string"
                                                         }
                                                     },
-                                                    "type": "object"
+                                                    "type": "object",
+                                                    "x-agh-typescript-widen-additional-properties": true
                                                 },
                                                 "display_name": {
                                                     "type": "string"
@@ -35173,7 +35267,9 @@
                                                     "type": "object"
                                                 },
                                                 "delivery_defaults": {
-                                                    "additionalProperties": false,
+                                                    "additionalProperties": {
+                                                        "type": "string"
+                                                    },
                                                     "nullable": true,
                                                     "properties": {
                                                         "group_id": {
@@ -35186,11 +35282,44 @@
                                                         "peer_id": {
                                                             "type": "string"
                                                         },
+                                                        "progress": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "grouping": {
+                                                                    "enum": [
+                                                                        "accumulate",
+                                                                        "separate"
+                                                                    ],
+                                                                    "type": "string"
+                                                                },
+                                                                "reactions": {
+                                                                    "type": "boolean"
+                                                                },
+                                                                "tool_progress": {
+                                                                    "enum": [
+                                                                        "off",
+                                                                        "new",
+                                                                        "all",
+                                                                        "verbose"
+                                                                    ],
+                                                                    "type": "string"
+                                                                },
+                                                                "typing": {
+                                                                    "type": "boolean"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "tool_progress",
+                                                                "grouping"
+                                                            ],
+                                                            "type": "object"
+                                                        },
                                                         "thread_id": {
                                                             "type": "string"
                                                         }
                                                     },
-                                                    "type": "object"
+                                                    "type": "object",
+                                                    "x-agh-typescript-widen-additional-properties": true
                                                 },
                                                 "display_name": {
                                                     "type": "string"
@@ -35671,7 +35800,9 @@
                                         "type": "object"
                                     },
                                     "delivery_defaults": {
-                                        "additionalProperties": false,
+                                        "additionalProperties": {
+                                            "type": "string"
+                                        },
                                         "nullable": true,
                                         "properties": {
                                             "group_id": {
@@ -35684,11 +35815,33 @@
                                             "peer_id": {
                                                 "type": "string"
                                             },
+                                            "progress": {
+                                                "additionalProperties": false,
+                                                "properties": {
+                                                    "grouping": {
+                                                        "enum": ["accumulate", "separate"],
+                                                        "type": "string"
+                                                    },
+                                                    "reactions": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "tool_progress": {
+                                                        "enum": ["off", "new", "all", "verbose"],
+                                                        "type": "string"
+                                                    },
+                                                    "typing": {
+                                                        "type": "boolean"
+                                                    }
+                                                },
+                                                "required": ["tool_progress", "grouping"],
+                                                "type": "object"
+                                            },
                                             "thread_id": {
                                                 "type": "string"
                                             }
                                         },
-                                        "type": "object"
+                                        "type": "object",
+                                        "x-agh-typescript-widen-additional-properties": true
                                     },
                                     "display_name": {
                                         "nullable": true,
@@ -35769,7 +35922,9 @@
                                                     "type": "object"
                                                 },
                                                 "delivery_defaults": {
-                                                    "additionalProperties": false,
+                                                    "additionalProperties": {
+                                                        "type": "string"
+                                                    },
                                                     "nullable": true,
                                                     "properties": {
                                                         "group_id": {
@@ -35782,11 +35937,44 @@
                                                         "peer_id": {
                                                             "type": "string"
                                                         },
+                                                        "progress": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "grouping": {
+                                                                    "enum": [
+                                                                        "accumulate",
+                                                                        "separate"
+                                                                    ],
+                                                                    "type": "string"
+                                                                },
+                                                                "reactions": {
+                                                                    "type": "boolean"
+                                                                },
+                                                                "tool_progress": {
+                                                                    "enum": [
+                                                                        "off",
+                                                                        "new",
+                                                                        "all",
+                                                                        "verbose"
+                                                                    ],
+                                                                    "type": "string"
+                                                                },
+                                                                "typing": {
+                                                                    "type": "boolean"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "tool_progress",
+                                                                "grouping"
+                                                            ],
+                                                            "type": "object"
+                                                        },
                                                         "thread_id": {
                                                             "type": "string"
                                                         }
                                                     },
-                                                    "type": "object"
+                                                    "type": "object",
+                                                    "x-agh-typescript-widen-additional-properties": true
                                                 },
                                                 "display_name": {
                                                     "type": "string"
@@ -36335,7 +36523,9 @@
                                                     "type": "object"
                                                 },
                                                 "delivery_defaults": {
-                                                    "additionalProperties": false,
+                                                    "additionalProperties": {
+                                                        "type": "string"
+                                                    },
                                                     "nullable": true,
                                                     "properties": {
                                                         "group_id": {
@@ -36348,11 +36538,44 @@
                                                         "peer_id": {
                                                             "type": "string"
                                                         },
+                                                        "progress": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "grouping": {
+                                                                    "enum": [
+                                                                        "accumulate",
+                                                                        "separate"
+                                                                    ],
+                                                                    "type": "string"
+                                                                },
+                                                                "reactions": {
+                                                                    "type": "boolean"
+                                                                },
+                                                                "tool_progress": {
+                                                                    "enum": [
+                                                                        "off",
+                                                                        "new",
+                                                                        "all",
+                                                                        "verbose"
+                                                                    ],
+                                                                    "type": "string"
+                                                                },
+                                                                "typing": {
+                                                                    "type": "boolean"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "tool_progress",
+                                                                "grouping"
+                                                            ],
+                                                            "type": "object"
+                                                        },
                                                         "thread_id": {
                                                             "type": "string"
                                                         }
                                                     },
-                                                    "type": "object"
+                                                    "type": "object",
+                                                    "x-agh-typescript-widen-additional-properties": true
                                                 },
                                                 "display_name": {
                                                     "type": "string"
@@ -36901,7 +37124,9 @@
                                                     "type": "object"
                                                 },
                                                 "delivery_defaults": {
-                                                    "additionalProperties": false,
+                                                    "additionalProperties": {
+                                                        "type": "string"
+                                                    },
                                                     "nullable": true,
                                                     "properties": {
                                                         "group_id": {
@@ -36914,11 +37139,44 @@
                                                         "peer_id": {
                                                             "type": "string"
                                                         },
+                                                        "progress": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "grouping": {
+                                                                    "enum": [
+                                                                        "accumulate",
+                                                                        "separate"
+                                                                    ],
+                                                                    "type": "string"
+                                                                },
+                                                                "reactions": {
+                                                                    "type": "boolean"
+                                                                },
+                                                                "tool_progress": {
+                                                                    "enum": [
+                                                                        "off",
+                                                                        "new",
+                                                                        "all",
+                                                                        "verbose"
+                                                                    ],
+                                                                    "type": "string"
+                                                                },
+                                                                "typing": {
+                                                                    "type": "boolean"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "tool_progress",
+                                                                "grouping"
+                                                            ],
+                                                            "type": "object"
+                                                        },
                                                         "thread_id": {
                                                             "type": "string"
                                                         }
                                                     },
-                                                    "type": "object"
+                                                    "type": "object",
+                                                    "x-agh-typescript-widen-additional-properties": true
                                                 },
                                                 "display_name": {
                                                     "type": "string"
@@ -38198,7 +38456,9 @@
                                                     "type": "object"
                                                 },
                                                 "delivery_defaults": {
-                                                    "additionalProperties": false,
+                                                    "additionalProperties": {
+                                                        "type": "string"
+                                                    },
                                                     "nullable": true,
                                                     "properties": {
                                                         "group_id": {
@@ -38211,11 +38471,44 @@
                                                         "peer_id": {
                                                             "type": "string"
                                                         },
+                                                        "progress": {
+                                                            "additionalProperties": false,
+                                                            "properties": {
+                                                                "grouping": {
+                                                                    "enum": [
+                                                                        "accumulate",
+                                                                        "separate"
+                                                                    ],
+                                                                    "type": "string"
+                                                                },
+                                                                "reactions": {
+                                                                    "type": "boolean"
+                                                                },
+                                                                "tool_progress": {
+                                                                    "enum": [
+                                                                        "off",
+                                                                        "new",
+                                                                        "all",
+                                                                        "verbose"
+                                                                    ],
+                                                                    "type": "string"
+                                                                },
+                                                                "typing": {
+                                                                    "type": "boolean"
+                                                                }
+                                                            },
+                                                            "required": [
+                                                                "tool_progress",
+                                                                "grouping"
+                                                            ],
+                                                            "type": "object"
+                                                        },
                                                         "thread_id": {
                                                             "type": "string"
                                                         }
                                                     },
-                                                    "type": "object"
+                                                    "type": "object",
+                                                    "x-agh-typescript-widen-additional-properties": true
                                                 },
                                                 "display_name": {
                                                     "type": "string"
@@ -134054,6 +134347,9 @@
                                                             "display_title": {
                                                                 "type": "string"
                                                             },
+                                                            "friendly_verb": {
+                                                                "type": "string"
+                                                            },
                                                             "input_schema": {},
                                                             "input_schema_digest": {
                                                                 "type": "string"
@@ -134067,6 +134363,9 @@
                                                             },
                                                             "output_schema": {},
                                                             "output_schema_digest": {
+                                                                "type": "string"
+                                                            },
+                                                            "preview": {
                                                                 "type": "string"
                                                             },
                                                             "read_only": {
@@ -134625,6 +134924,9 @@
                                                             "display_title": {
                                                                 "type": "string"
                                                             },
+                                                            "friendly_verb": {
+                                                                "type": "string"
+                                                            },
                                                             "input_schema": {},
                                                             "input_schema_digest": {
                                                                 "type": "string"
@@ -134638,6 +134940,9 @@
                                                             },
                                                             "output_schema": {},
                                                             "output_schema_digest": {
+                                                                "type": "string"
+                                                            },
+                                                            "preview": {
                                                                 "type": "string"
                                                             },
                                                             "read_only": {
@@ -135310,6 +135615,9 @@
                                                         "display_title": {
                                                             "type": "string"
                                                         },
+                                                        "friendly_verb": {
+                                                            "type": "string"
+                                                        },
                                                         "input_schema": {},
                                                         "input_schema_digest": {
                                                             "type": "string"
@@ -135323,6 +135631,9 @@
                                                         },
                                                         "output_schema": {},
                                                         "output_schema_digest": {
+                                                            "type": "string"
+                                                        },
+                                                        "preview": {
                                                             "type": "string"
                                                         },
                                                         "read_only": {
@@ -176948,6 +177259,9 @@
                                                             "display_title": {
                                                                 "type": "string"
                                                             },
+                                                            "friendly_verb": {
+                                                                "type": "string"
+                                                            },
                                                             "input_schema": {},
                                                             "input_schema_digest": {
                                                                 "type": "string"
@@ -176961,6 +177275,9 @@
                                                             },
                                                             "output_schema": {},
                                                             "output_schema_digest": {
+                                                                "type": "string"
+                                                            },
+                                                            "preview": {
                                                                 "type": "string"
                                                             },
                                                             "read_only": {
@@ -177539,6 +177856,9 @@
                                                             "display_title": {
                                                                 "type": "string"
                                                             },
+                                                            "friendly_verb": {
+                                                                "type": "string"
+                                                            },
                                                             "input_schema": {},
                                                             "input_schema_digest": {
                                                                 "type": "string"
@@ -177552,6 +177872,9 @@
                                                             },
                                                             "output_schema": {},
                                                             "output_schema_digest": {
+                                                                "type": "string"
+                                                            },
+                                                            "preview": {
                                                                 "type": "string"
                                                             },
                                                             "read_only": {

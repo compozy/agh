@@ -1729,7 +1729,7 @@ func testDeliveryRequest(
 	instanceID string,
 	deliveryID string,
 	seq int64,
-	eventType string,
+	eventType bridgepkg.DeliveryEventType,
 	final bool,
 	text string,
 ) bridgepkg.DeliveryRequest {

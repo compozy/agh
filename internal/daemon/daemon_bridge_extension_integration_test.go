@@ -26,6 +26,8 @@ import (
 
 const bridgeIngressFixtureAgentName = "mock-bridge-runner"
 
+const bridgeIngressFixtureSecret = "sk-e2e-progress-secret"
+
 func TestDaemonE2EBridgeIngressCreatesAndReusesRouteThroughTelegramExtension(t *testing.T) {
 	acpmock.RequireDriver(t)
 
@@ -209,6 +211,31 @@ func TestDaemonE2EBridgeIngressCreatesAndReusesRouteThroughTelegramExtension(t *
 	)
 	if !hasDeliveryEventType(firstDeliveries, bridgepkg.DeliveryEventTypeStart) {
 		t.Fatalf("first deliveries = %#v, want start event", firstDeliveries)
+	}
+	progressDelivery := findDeliveryEvent(firstDeliveries, bridgepkg.DeliveryEventTypeProgress)
+	if progressDelivery == nil || progressDelivery.Request.Event.Progress == nil {
+		t.Fatalf("first deliveries = %#v, want typed progress event", firstDeliveries)
+	}
+	if got, want := progressDelivery.Request.Event.Progress.ToolID, "agh__terminal"; got != want {
+		t.Fatalf("progress tool_id = %q, want %q", got, want)
+	}
+	if got, want := progressDelivery.Request.Event.Progress.Phase, bridgepkg.ToolProgressPhaseStarted; got != want {
+		t.Fatalf("progress phase = %q, want %q", got, want)
+	}
+	if got, want := progressDelivery.Request.Event.Progress.Emoji, "⚙️"; got != want {
+		t.Fatalf("progress emoji = %q, want %q", got, want)
+	}
+	if got, want := progressDelivery.Request.Event.Progress.Label, "agh__terminal:"; got != want {
+		t.Fatalf("progress label = %q, want %q", got, want)
+	}
+	if got, want := progressDelivery.Request.Event.Progress.Preview, `"echo [REDACTED]"`; got != want {
+		t.Fatalf("progress preview = %q, want %q", got, want)
+	}
+	if strings.Contains(progressDelivery.Request.Event.Progress.Preview, bridgeIngressFixtureSecret) {
+		t.Fatalf("progress preview = %q, contains raw fixture secret", progressDelivery.Request.Event.Progress.Preview)
+	}
+	if progressDelivery.Ack.RemoteMessageID != "" || progressDelivery.Ack.ReplaceRemoteMessageID != "" {
+		t.Fatalf("progress ack = %#v, want explicit no-op acknowledgement", progressDelivery.Ack)
 	}
 
 	waitForRuntimeCondition(t, "first bridge transcript", 15*time.Second, func() bool {
@@ -571,7 +598,7 @@ func telegramRuntimeInboundUpdate(now time.Time, updateID int64, messageID int64
 	}
 }
 
-func countDeliveryEvents(records []extensiontest.DeliveryRecord, want string) int {
+func countDeliveryEvents(records []extensiontest.DeliveryRecord, want bridgepkg.DeliveryEventType) int {
 	total := 0
 	for _, record := range records {
 		if normalizeBridgeDeliveryEventType(record.Request.Event.EventType) == normalizeBridgeDeliveryEventType(want) {
@@ -581,8 +608,21 @@ func countDeliveryEvents(records []extensiontest.DeliveryRecord, want string) in
 	return total
 }
 
-func hasDeliveryEventType(records []extensiontest.DeliveryRecord, want string) bool {
+func hasDeliveryEventType(records []extensiontest.DeliveryRecord, want bridgepkg.DeliveryEventType) bool {
 	return countDeliveryEvents(records, want) > 0
+}
+
+func findDeliveryEvent(
+	records []extensiontest.DeliveryRecord,
+	want bridgepkg.DeliveryEventType,
+) *extensiontest.DeliveryRecord {
+	for i := range records {
+		if normalizeBridgeDeliveryEventType(records[i].Request.Event.EventType) ==
+			normalizeBridgeDeliveryEventType(want) {
+			return &records[i]
+		}
+	}
+	return nil
 }
 
 func uniqueDeliveryCount(records []extensiontest.DeliveryRecord) int {
@@ -597,8 +637,8 @@ func uniqueDeliveryCount(records []extensiontest.DeliveryRecord) int {
 	return len(ids)
 }
 
-func normalizeBridgeDeliveryEventType(value string) string {
-	return strings.ToLower(strings.TrimSpace(value))
+func normalizeBridgeDeliveryEventType(value bridgepkg.DeliveryEventType) bridgepkg.DeliveryEventType {
+	return bridgepkg.DeliveryEventType(strings.ToLower(strings.TrimSpace(string(value))))
 }
 
 func derefStringValue(value *string) string {

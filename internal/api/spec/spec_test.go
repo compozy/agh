@@ -876,8 +876,37 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 
 				deliveryDefaultsSchema := propertySchema(t, createBridgeSchema, "delivery_defaults")
 				assertSchemaIncludesType(t, deliveryDefaultsSchema, openapi3.TypeObject)
-				assertSchemaHasAdditionalProperties(t, deliveryDefaultsSchema, false)
+				assertSchemaHasAdditionalProperties(t, deliveryDefaultsSchema, true)
+				assertAdditionalPropertiesSchemaIncludesType(t, deliveryDefaultsSchema, openapi3.TypeString)
+				if got := deliveryDefaultsSchema.Extensions[openapiTSWidenAdditionalPropertiesExtension]; got != true {
+					t.Fatalf(
+						"delivery defaults %s = %#v, want true",
+						openapiTSWidenAdditionalPropertiesExtension,
+						got,
+					)
+				}
 				assertEnumValues(t, propertySchema(t, deliveryDefaultsSchema, "mode"), "direct-send", "reply")
+
+				progressSchema := propertySchema(t, deliveryDefaultsSchema, "progress")
+				assertRequired(t, progressSchema, "tool_progress", "grouping")
+				assertNotRequired(t, progressSchema, "typing", "reactions")
+				assertSchemaHasAdditionalProperties(t, progressSchema, false)
+				assertEnumValues(t, propertySchema(t, progressSchema, "tool_progress"), "off", "new", "all", "verbose")
+				assertEnumValues(t, propertySchema(t, progressSchema, "grouping"), "accumulate", "separate")
+				assertSchemaIncludesType(t, propertySchema(t, progressSchema, "typing"), openapi3.TypeBoolean)
+				assertSchemaIncludesType(t, propertySchema(t, progressSchema, "reactions"), openapi3.TypeBoolean)
+
+				updateBridge := operationFor(t, doc, "/api/bridges/{id}", "PATCH")
+				updateDefaultsSchema := propertySchema(t, jsonRequestSchema(t, updateBridge), "delivery_defaults")
+				updateProgressSchema := propertySchema(t, updateDefaultsSchema, "progress")
+				assertEnumValues(
+					t,
+					propertySchema(t, updateProgressSchema, "tool_progress"),
+					"off",
+					"new",
+					"all",
+					"verbose",
+				)
 			},
 		},
 		{
@@ -947,7 +976,9 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertSchemaIncludesType(t, propertySchema(t, bridgeSchema, "provider_config"), openapi3.TypeObject)
 				assertSchemaHasAdditionalProperties(t, propertySchema(t, bridgeSchema, "provider_config"), true)
 				assertSchemaIncludesType(t, propertySchema(t, bridgeSchema, "delivery_defaults"), openapi3.TypeObject)
-				assertSchemaHasAdditionalProperties(t, propertySchema(t, bridgeSchema, "delivery_defaults"), false)
+				bridgeDefaultsSchema := propertySchema(t, bridgeSchema, "delivery_defaults")
+				assertSchemaHasAdditionalProperties(t, bridgeDefaultsSchema, true)
+				assertAdditionalPropertiesSchemaIncludesType(t, bridgeDefaultsSchema, openapi3.TypeString)
 
 				healthSchema := propertySchema(t, getBridgeSchema, "health")
 				assertNotRequired(t, healthSchema, "last_success_at", "last_error", "last_error_at", "degradation")
@@ -2453,6 +2484,16 @@ func assertSchemaHasAdditionalProperties(t *testing.T, schema *openapi3.Schema, 
 	if got := *schema.AdditionalProperties.Has; got != want {
 		t.Fatalf("expected additionalProperties=%v, got %v", want, got)
 	}
+}
+
+func assertAdditionalPropertiesSchemaIncludesType(t *testing.T, schema *openapi3.Schema, want string) {
+	t.Helper()
+
+	additional := schema.AdditionalProperties.Schema
+	if additional == nil || additional.Value == nil {
+		t.Fatalf("expected typed additionalProperties schema, got %#v", schema.AdditionalProperties)
+	}
+	assertSchemaIncludesType(t, additional.Value, want)
 }
 
 func assertObjectPropertyKeys(t *testing.T, schema *openapi3.Schema, names ...string) {

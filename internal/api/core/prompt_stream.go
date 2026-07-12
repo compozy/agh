@@ -382,42 +382,6 @@ func (e *PromptStreamEncoder) ensureToolInputAvailable(
 	})
 }
 
-func (e *PromptStreamEncoder) toolNameByID(toolCallID string) string {
-	toolName := strings.TrimSpace(e.toolNames[toolCallID])
-	if toolName == "" {
-		return "tool"
-	}
-	return toolName
-}
-
-func (e *PromptStreamEncoder) toolName(event acp.AgentEvent) string {
-	rawPayload := promptRawEventMap(event.Raw)
-	if toolName := promptMetaToolName(rawPayload); toolName != "" {
-		return toolName
-	}
-	if toolName := strings.TrimSpace(promptStringValue(rawPayload["tool_name"])); toolName != "" {
-		return toolName
-	}
-	return strings.TrimSpace(event.Title)
-}
-
-func promptMetaToolName(rawPayload map[string]any) string {
-	meta := promptMapValue(rawPayload["_meta"])
-	if meta == nil {
-		return ""
-	}
-	for _, value := range meta {
-		nested, ok := value.(map[string]any)
-		if !ok {
-			continue
-		}
-		if toolName := strings.TrimSpace(promptStringValue(nested["toolName"])); toolName != "" {
-			return toolName
-		}
-	}
-	return ""
-}
-
 func (e *PromptStreamEncoder) errorText(event acp.AgentEvent) string {
 	errorText := strings.TrimSpace(event.Error)
 	if errorText == "" {
@@ -609,35 +573,6 @@ func promptTokenUsagePayloadFromUsage(usage *acp.TokenUsage) *promptTokenUsagePa
 	}
 	if !base.Timestamp.IsZero() {
 		payload.Timestamp = base.Timestamp.UTC().Format(time.RFC3339Nano)
-	}
-	return payload
-}
-
-func promptNormalizedToolInput(event acp.AgentEvent) (any, bool) {
-	rawPayload := promptRawEventMap(event.Raw)
-	if len(rawPayload) == 0 {
-		return nil, false
-	}
-
-	input, ok := promptFirstNonNil(
-		rawPayload["tool_input"],
-		rawPayload["rawInput"],
-	)
-	if !ok || input == nil {
-		return nil, false
-	}
-
-	return promptRedactValue(input), true
-}
-
-func promptRawEventMap(raw json.RawMessage) map[string]any {
-	if len(raw) == 0 || !json.Valid(raw) {
-		return nil
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return nil
 	}
 	return payload
 }

@@ -47,7 +47,7 @@ func TestHTTPBridgeCreateReturnsPersistedPayload(t *testing.T) {
 		http.MethodPost,
 		mustURL(runtime.host, runtime.port, "/api/bridges"),
 		[]byte(
-			`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"dm_policy":"pairing","routing_policy":{"include_peer":true},"provider_config":{"mode":"bot","tenant":"acme"},"delivery_defaults":{"peer_id":"peer-default","mode":"reply"}}`,
+			`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"dm_policy":"pairing","routing_policy":{"include_peer":true},"provider_config":{"mode":"bot","tenant":"acme"},"delivery_defaults":{"peer_id":"peer-default","mode":"reply","parse_mode":"MarkdownV2","progress":{"tool_progress":"all","grouping":"accumulate","typing":true,"reactions":false}}}`,
 		),
 		nil,
 	)
@@ -68,7 +68,7 @@ func TestHTTPBridgeCreateReturnsPersistedPayload(t *testing.T) {
 	if got, want := string(payload.Bridge.ProviderConfig), `{"mode":"bot","tenant":"acme"}`; got != want {
 		t.Fatalf("payload.Bridge.ProviderConfig = %s, want %s", got, want)
 	}
-	if got, want := string(payload.Bridge.DeliveryDefaults), `{"peer_id":"peer-default","mode":"reply"}`; got != want {
+	if got, want := string(payload.Bridge.DeliveryDefaults), `{"mode":"reply","parse_mode":"MarkdownV2","peer_id":"peer-default","progress":{"tool_progress":"all","grouping":"accumulate","typing":true,"reactions":false}}`; got != want {
 		t.Fatalf("payload.Bridge.DeliveryDefaults = %s, want %s", got, want)
 	}
 
@@ -82,7 +82,7 @@ func TestHTTPBridgeCreateReturnsPersistedPayload(t *testing.T) {
 	if got, want := string(stored.ProviderConfig), `{"mode":"bot","tenant":"acme"}`; got != want {
 		t.Fatalf("stored.ProviderConfig = %s, want %s", got, want)
 	}
-	if got, want := string(stored.DeliveryDefaults), `{"peer_id":"peer-default","mode":"reply"}`; got != want {
+	if got, want := string(stored.DeliveryDefaults), `{"mode":"reply","parse_mode":"MarkdownV2","peer_id":"peer-default","progress":{"tool_progress":"all","grouping":"accumulate","typing":true,"reactions":false}}`; got != want {
 		t.Fatalf("stored.DeliveryDefaults = %s, want %s", got, want)
 	}
 
@@ -90,7 +90,7 @@ func TestHTTPBridgeCreateReturnsPersistedPayload(t *testing.T) {
 	if got, want := string(detail.Bridge.ProviderConfig), `{"mode":"bot","tenant":"acme"}`; got != want {
 		t.Fatalf("detail.Bridge.ProviderConfig = %s, want %s", got, want)
 	}
-	if got, want := string(detail.Bridge.DeliveryDefaults), `{"peer_id":"peer-default","mode":"reply"}`; got != want {
+	if got, want := string(detail.Bridge.DeliveryDefaults), `{"mode":"reply","parse_mode":"MarkdownV2","peer_id":"peer-default","progress":{"tool_progress":"all","grouping":"accumulate","typing":true,"reactions":false}}`; got != want {
 		t.Fatalf("detail.Bridge.DeliveryDefaults = %s, want %s", got, want)
 	}
 }
@@ -499,7 +499,7 @@ func registerIntegrationDelivery(
 func integrationDeliveryEvent(
 	snapshot bridgepkg.DeliverySnapshot,
 	seq int64,
-	eventType string,
+	eventType bridgepkg.DeliveryEventType,
 	text string,
 	final bool,
 ) bridgepkg.DeliveryEvent {

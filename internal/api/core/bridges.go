@@ -184,7 +184,7 @@ func (h *BaseHandlers) UpdateBridge(c *gin.Context) {
 	}
 
 	var req contract.UpdateBridgeRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictBridgeJSON(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,

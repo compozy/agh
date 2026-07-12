@@ -103,8 +103,12 @@ func resolveManifestToolDescriptor(
 		concurrencySafe = true
 	}
 	tool := toolspkg.Tool{
-		ID:                  id,
-		DisplayTitle:        manifestToolDisplayTitle(trimmedName, cfg.DisplayTitle),
+		ID:           id,
+		DisplayTitle: manifestToolDisplayTitle(trimmedName, cfg.DisplayTitle),
+		ToolPresentation: toolspkg.NewToolPresentation(
+			strings.TrimSpace(cfg.FriendlyVerb),
+			strings.TrimSpace(cfg.Preview),
+		),
 		Description:         strings.TrimSpace(cfg.Description),
 		Backend:             backend,
 		InputSchema:         inputSchema,
@@ -362,6 +366,7 @@ func manifestToolDisplayTitle(name string, value string) string {
 }
 
 func manifestRuntimeDescriptor(tool toolspkg.Tool) (toolspkg.ExtensionToolRuntimeDescriptor, error) {
+	presentation := tool.Presentation()
 	inputDigest, err := toolspkg.SchemaDigest(tool.InputSchema)
 	if err != nil {
 		return toolspkg.ExtensionToolRuntimeDescriptor{}, fmt.Errorf(
@@ -384,6 +389,8 @@ func manifestRuntimeDescriptor(tool toolspkg.Tool) (toolspkg.ExtensionToolRuntim
 	descriptor := toolspkg.ExtensionToolRuntimeDescriptor{
 		ID:                 tool.ID,
 		Handler:            tool.Backend.Handler,
+		FriendlyVerb:       presentation.FriendlyVerb,
+		Preview:            presentation.Preview,
 		InputSchemaDigest:  inputDigest,
 		OutputSchemaDigest: outputDigest,
 		ReadOnly:           tool.ReadOnly,

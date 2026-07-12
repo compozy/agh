@@ -6897,22 +6897,6 @@ func stopReasonValues() []string {
 	}
 }
 
-func bridgeProviderConfigSchema() *openapi3.Schema {
-	return openapi3.NewObjectSchema().
-		WithNullable().
-		WithAdditionalProperties(openapi3.NewSchema())
-}
-
-func bridgeDeliveryDefaultsSchema() *openapi3.Schema {
-	return openapi3.NewObjectSchema().
-		WithNullable().
-		WithProperty("peer_id", openapi3.NewStringSchema()).
-		WithProperty("thread_id", openapi3.NewStringSchema()).
-		WithProperty("group_id", openapi3.NewStringSchema()).
-		WithProperty("mode", openapi3.NewStringSchema().WithEnum(enumAsAny(deliveryModeValues())...)).
-		WithoutAdditionalProperties()
-}
-
 func toolSourceValues() []string {
 	return []string{"builtin", "mcp", specExtensionKey, "dynamic"}
 }

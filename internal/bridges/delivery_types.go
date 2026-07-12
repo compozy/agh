@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/compozy/agh/internal/toolmeta"
 )
 
 var (
@@ -21,20 +23,38 @@ var (
 	ErrDeliveryTransportUnavailable = errors.New("bridges: delivery transport unavailable")
 )
 
+// DeliveryEventType is one closed daemon-to-adapter delivery lifecycle event.
+type DeliveryEventType string
+
 const (
 	// DeliveryEventTypeStart starts one progressive outbound delivery for a prompt turn.
-	DeliveryEventTypeStart = "start"
+	DeliveryEventTypeStart DeliveryEventType = "start"
 	// DeliveryEventTypeDelta updates one progressive outbound delivery with newer full text.
-	DeliveryEventTypeDelta = "delta"
+	DeliveryEventTypeDelta DeliveryEventType = "delta"
 	// DeliveryEventTypeFinal reports the terminal successful state for one delivery.
-	DeliveryEventTypeFinal = "final"
+	DeliveryEventTypeFinal DeliveryEventType = "final"
 	// DeliveryEventTypeError reports the terminal failed state for one delivery.
-	DeliveryEventTypeError = "error"
+	DeliveryEventTypeError DeliveryEventType = "error"
 	// DeliveryEventTypeResume rehydrates the latest delivery snapshot after adapter recovery.
-	DeliveryEventTypeResume = "resume"
+	DeliveryEventTypeResume DeliveryEventType = "resume"
 	// DeliveryEventTypeDelete removes one previously delivered message.
-	DeliveryEventTypeDelete = "delete"
+	DeliveryEventTypeDelete DeliveryEventType = "delete"
+	// DeliveryEventTypeProgress carries presentation-only tool lifecycle chrome.
+	DeliveryEventTypeProgress DeliveryEventType = "progress"
 )
+
+// DeliveryEventTypeValues returns the closed wire values in stable order.
+func DeliveryEventTypeValues() []string {
+	return []string{
+		string(DeliveryEventTypeStart),
+		string(DeliveryEventTypeDelta),
+		string(DeliveryEventTypeFinal),
+		string(DeliveryEventTypeError),
+		string(DeliveryEventTypeResume),
+		string(DeliveryEventTypeDelete),
+		string(DeliveryEventTypeProgress),
+	}
+}
 
 const (
 	defaultDeliveryQueueCapacity  = 4
@@ -53,12 +73,15 @@ type DeliveryTransport interface {
 // to project prompt output into delivery-oriented bridge events. It remains
 // ACP-agnostic so `internal/bridges` does not depend on runtime transport packages.
 type DeliveryProjectionEvent struct {
-	Type        string    `json:"type"`
-	TurnID      string    `json:"turn_id"`
-	Timestamp   time.Time `json:"timestamp"`
-	Text        string    `json:"text,omitempty"`
-	Error       string    `json:"error,omitempty"`
-	Fingerprint string    `json:"fingerprint,omitempty"`
+	Type         string                      `json:"type"`
+	TurnID       string                      `json:"turn_id"`
+	Timestamp    time.Time                   `json:"timestamp"`
+	Text         string                      `json:"text,omitempty"`
+	Error        string                      `json:"error,omitempty"`
+	Fingerprint  string                      `json:"fingerprint,omitempty"`
+	Tool         *ToolProgress               `json:"tool,omitempty"`
+	ToolInput    json.RawMessage             `json:"-"`
+	ToolMetadata toolmeta.DescriptorMetadata `json:"-"`
 }
 
 // DeliveryRequest is the negotiated daemon->extension request payload for
@@ -133,7 +156,7 @@ type DeliverySnapshot struct {
 	RoutingKey             RoutingKey                `json:"routing_key"`
 	DeliveryTarget         DeliveryTarget            `json:"delivery_target"`
 	LatestSeq              int64                     `json:"latest_seq"`
-	LatestEventType        string                    `json:"latest_event_type"`
+	LatestEventType        DeliveryEventType         `json:"latest_event_type"`
 	CurrentContent         MessageContent            `json:"current_content"`
 	Operation              DeliveryOperation         `json:"operation,omitempty"`
 	Reference              *DeliveryMessageReference `json:"reference,omitempty"`
@@ -251,6 +274,7 @@ type PromptDeliveryRegistration struct {
 	DeliveryID     string                    `json:"delivery_id,omitempty"`
 	RoutingKey     RoutingKey                `json:"routing_key"`
 	DeliveryTarget DeliveryTarget            `json:"delivery_target"`
+	Progress       ProgressConfig            `json:"progress"`
 	SeedEvents     []DeliveryProjectionEvent `json:"seed_events,omitempty"`
 }
 
@@ -276,11 +300,21 @@ func (r PromptDeliveryRegistration) Validate() error {
 	if normalized.DeliveryTarget.BridgeInstanceID != normalized.RoutingKey.BridgeInstanceID {
 		return errors.New("bridges: prompt delivery registration target must match routing key bridge instance")
 	}
+	if err := normalized.Progress.Validate(); err != nil {
+		return err
+	}
 	return nil
 }
 
 // DeliveryBrokerOption customizes delivery-broker construction.
 type DeliveryBrokerOption func(*Broker)
+
+// WithDeliveryBrokerDescriptorLookup resolves registry-owned tool presentation metadata.
+func WithDeliveryBrokerDescriptorLookup(lookup toolmeta.DescriptorLookup) DeliveryBrokerOption {
+	return func(b *Broker) {
+		b.descriptors = lookup
+	}
+}
 
 // WithDeliveryBrokerNow overrides the broker clock, mainly for tests.
 func WithDeliveryBrokerNow(now func() time.Time) DeliveryBrokerOption {
@@ -333,11 +367,11 @@ func WithDeliveryBrokerLifecycleContext(ctx context.Context) DeliveryBrokerOptio
 	}
 }
 
-func normalizeDeliveryEventType(value string) string {
-	return strings.ToLower(strings.TrimSpace(value))
+func normalizeDeliveryEventType(value DeliveryEventType) DeliveryEventType {
+	return DeliveryEventType(strings.ToLower(strings.TrimSpace(string(value))))
 }
 
-func isTerminalDeliveryEventType(value string) bool {
+func isTerminalDeliveryEventType(value DeliveryEventType) bool {
 	switch normalizeDeliveryEventType(value) {
 	case DeliveryEventTypeFinal, DeliveryEventTypeError, DeliveryEventTypeDelete:
 		return true
@@ -346,7 +380,7 @@ func isTerminalDeliveryEventType(value string) bool {
 	}
 }
 
-func validateDeliveryEventType(value string, final bool) error {
+func validateDeliveryEventType(value DeliveryEventType, final bool) error {
 	switch normalizeDeliveryEventType(value) {
 	case DeliveryEventTypeStart:
 		if final {
@@ -356,6 +390,11 @@ func validateDeliveryEventType(value string, final bool) error {
 	case DeliveryEventTypeDelta:
 		if final {
 			return errors.New("bridges: delivery delta event cannot be final")
+		}
+		return nil
+	case DeliveryEventTypeProgress:
+		if final {
+			return errors.New("bridges: delivery progress event cannot be final")
 		}
 		return nil
 	case DeliveryEventTypeFinal:
@@ -378,7 +417,7 @@ func validateDeliveryEventType(value string, final bool) error {
 	case "":
 		return errors.New("bridges: delivery event type is required")
 	default:
-		return fmt.Errorf("bridges: unsupported delivery event type %q", strings.TrimSpace(value))
+		return fmt.Errorf("bridges: unsupported delivery event type %q", strings.TrimSpace(string(value)))
 	}
 }
 
@@ -422,6 +461,11 @@ func (r PromptDeliveryRegistration) normalize() PromptDeliveryRegistration {
 	normalized.DeliveryID = strings.TrimSpace(normalized.DeliveryID)
 	normalized.RoutingKey = normalized.RoutingKey.normalize()
 	normalized.DeliveryTarget = normalized.DeliveryTarget.normalize()
+	if normalized.Progress.ToolProgress == "" || normalized.Progress.Grouping == "" {
+		normalized.Progress = ResolveProgressConfig(nil, "")
+	} else {
+		normalized.Progress = normalized.Progress.effective()
+	}
 	if len(normalized.SeedEvents) > 0 {
 		normalized.SeedEvents = append([]DeliveryProjectionEvent(nil), normalized.SeedEvents...)
 		for idx := range normalized.SeedEvents {
@@ -437,46 +481,7 @@ func (e DeliveryProjectionEvent) normalize() DeliveryProjectionEvent {
 	normalized.TurnID = strings.TrimSpace(normalized.TurnID)
 	normalized.Error = strings.TrimSpace(normalized.Error)
 	normalized.Fingerprint = strings.TrimSpace(normalized.Fingerprint)
+	normalized.Tool = cloneToolProgress(normalized.Tool)
+	normalized.ToolInput = cloneRawJSON(normalized.ToolInput)
 	return normalized
-}
-
-func cloneDeliveryEvent(event DeliveryEvent) DeliveryEvent {
-	cloned := event.normalize()
-	cloned.ProviderMetadata = cloneRawJSON(cloned.ProviderMetadata)
-	if cloned.Reference != nil {
-		reference := cloned.Reference.normalize()
-		cloned.Reference = &reference
-	}
-	if cloned.Error != nil {
-		errorDetail := cloned.Error.normalize()
-		cloned.Error = &errorDetail
-	}
-	if cloned.Resume != nil {
-		resume := cloned.Resume.normalize()
-		cloned.Resume = &resume
-	}
-	return cloned
-}
-
-func cloneDeliverySnapshot(snapshot DeliverySnapshot) DeliverySnapshot {
-	cloned := snapshot.normalize()
-	return cloned
-}
-
-func cloneDeliveryRequest(req DeliveryRequest) DeliveryRequest {
-	cloned := DeliveryRequest{
-		Event: cloneDeliveryEvent(req.Event),
-	}
-	if req.Snapshot != nil {
-		snapshot := cloneDeliverySnapshot(*req.Snapshot)
-		cloned.Snapshot = &snapshot
-	}
-	return cloned
-}
-
-func cloneRawJSON(raw json.RawMessage) json.RawMessage {
-	if len(raw) == 0 {
-		return nil
-	}
-	return append(json.RawMessage(nil), raw...)
 }

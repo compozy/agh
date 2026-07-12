@@ -683,7 +683,7 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 	}
 	var inbox apicontract.TaskInboxPayload
 	decodeResult(t, inboxResult, &inbox)
-	if inbox.Total < 1 || len(inbox.Groups) == 0 {
+	if inbox.Page.Total < 1 || len(inbox.Groups) == 0 {
 		t.Fatalf("tasks/inbox = %#v, want approval item", inbox)
 	}
 	if !taskInboxContainsTask(inbox.Groups, approvalTask.ID) {

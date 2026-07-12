@@ -745,6 +745,7 @@ func (h *HostAPIHandler) registerPromptDelivery(
 		ExtensionName:  strings.TrimSpace(instance.ExtensionName),
 		RoutingKey:     routingKey,
 		DeliveryTarget: target,
+		Progress:       bridgepkg.ResolveProgressConfig(&instance, instance.Platform),
 		SeedEvents:     submission.SeedEvents,
 	}); err != nil {
 		return fmt.Errorf("extension: register prompt delivery: %w", err)
@@ -783,11 +784,6 @@ func (h *HostAPIHandler) replayPromptDeliveryEvents(ctx context.Context, session
 			projected, err := promptProjectionEventFromStoredEvent(storedEvent)
 			if err != nil {
 				return err
-			}
-			switch projected.Type {
-			case acp.EventTypeAgentMessage, acp.EventTypeDone, acp.EventTypeError:
-			default:
-				continue
 			}
 			if err := h.deliveryBroker.ProjectEvent(ctx, sessionID, projected); err != nil {
 				return err

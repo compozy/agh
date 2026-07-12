@@ -223,13 +223,12 @@ func newTelegramReferenceRuntime(stderr io.Writer) (*telegramReferenceRuntime, e
 		},
 		Initialize: runtime.handleInitialize,
 		Deliver:    runtime.handleBridgesDeliver,
+		Progress:   runtime.handleBridgesProgress,
 		HealthCheck: func(context.Context, *bridgesdk.Session) error {
 			return runtime.healthCheck()
 		},
 		Shutdown: runtime.handleShutdown,
-		Now: func() time.Time {
-			return runtime.now()
-		},
+		Now:      runtime.now,
 	})
 	if err != nil {
 		return nil, err
@@ -315,49 +314,6 @@ func (r *telegramReferenceRuntime) afterInitialize(
 	if ownershipErr == nil {
 		r.clearLastError()
 	}
-}
-
-func (r *telegramReferenceRuntime) handleBridgesDeliver(
-	_ context.Context,
-	session *bridgesdk.Session,
-	request bridgepkg.DeliveryRequest,
-) (bridgepkg.DeliveryAck, error) {
-	marker := deliveryMarker{
-		PID:     os.Getpid(),
-		Request: request,
-	}
-
-	instanceID := strings.TrimSpace(request.Event.BridgeInstanceID)
-	if _, ok := session.Cache().Get(instanceID); !ok {
-		err := fmt.Errorf("telegram-reference: delivery targeted unmanaged instance %q", instanceID)
-		marker.Error = err.Error()
-		r.reportSideEffectError("write failed delivery marker", appendJSONLine(r.env.deliveryPath, marker))
-		r.setLastError(err)
-		return bridgepkg.DeliveryAck{}, err
-	}
-
-	if shouldCrashOnce(r.env.crashOncePath) {
-		r.reportSideEffectError("write pre-crash delivery marker", appendJSONLine(r.env.deliveryPath, marker))
-		r.reportSideEffectError("write crash marker", writeJSONFile(r.env.crashOncePath, map[string]any{
-			"crashed":            true,
-			"pid":                os.Getpid(),
-			"delivery_id":        strings.TrimSpace(request.Event.DeliveryID),
-			"bridge_instance_id": instanceID,
-		}))
-		os.Exit(23)
-	}
-
-	ack, err := r.ackDelivery(request)
-	if err != nil {
-		r.setLastError(err)
-		marker.Error = err.Error()
-		r.reportSideEffectError("write failed delivery marker", appendJSONLine(r.env.deliveryPath, marker))
-		return bridgepkg.DeliveryAck{}, err
-	}
-	marker.Ack = &ack
-	r.reportSideEffectError("write delivery marker", appendJSONLine(r.env.deliveryPath, marker))
-	r.clearLastError()
-	return ack, nil
 }
 
 func (r *telegramReferenceRuntime) healthCheck() error {
@@ -823,8 +779,8 @@ func optionalTelegramID(value int64) string {
 	return strconv.FormatInt(value, 10)
 }
 
-func normalizeDeliveryEventType(eventType string) string {
-	return strings.ToLower(strings.TrimSpace(eventType))
+func normalizeDeliveryEventType(eventType bridgepkg.DeliveryEventType) bridgepkg.DeliveryEventType {
+	return bridgepkg.DeliveryEventType(strings.ToLower(strings.TrimSpace(string(eventType))))
 }
 
 func isNotInitializedRPCError(err error) bool {

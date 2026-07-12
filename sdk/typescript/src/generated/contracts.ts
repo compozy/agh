@@ -1378,6 +1378,15 @@ export interface DeliveryTarget {
   mode?: DeliveryMode;
 }
 
+export type DeliveryEventType =
+  | "start"
+  | "delta"
+  | "final"
+  | "error"
+  | "resume"
+  | "delete"
+  | "progress";
+
 export interface MessageContent {
   text?: string;
 }
@@ -1390,7 +1399,21 @@ export interface DeliveryMessageReference {
 }
 
 export interface DeliveryResumeState {
-  latest_event_type: string;
+  latest_event_type: DeliveryEventType;
+}
+
+export type ToolProgressPhase = "started" | "completed" | "failed";
+
+export interface ToolProgress {
+  tool_call_id: string;
+  tool_id: string;
+  phase: ToolProgressPhase;
+  label: string;
+  preview?: string;
+  emoji?: string;
+  duration_ms?: number;
+  error?: string;
+  index: number;
 }
 
 export interface DeliveryEvent {
@@ -1399,13 +1422,14 @@ export interface DeliveryEvent {
   routing_key: RoutingKey;
   delivery_target: DeliveryTarget;
   seq: number;
-  event_type: string;
+  event_type: DeliveryEventType;
   content: MessageContent;
   final: boolean;
   operation?: DeliveryOperation;
   reference?: DeliveryMessageReference;
   error?: DeliveryErrorDetail;
   resume?: DeliveryResumeState;
+  progress?: ToolProgress;
   provider_metadata?: JSONValue;
 }
 
@@ -1417,7 +1441,7 @@ export interface DeliverySnapshot {
   routing_key: RoutingKey;
   delivery_target: DeliveryTarget;
   latest_seq: number;
-  latest_event_type: string;
+  latest_event_type: DeliveryEventType;
   current_content: MessageContent;
   operation?: DeliveryOperation;
   reference?: DeliveryMessageReference;
@@ -1520,6 +1544,8 @@ export type RiskClass = string;
 export interface ExtensionToolRuntimeDescriptor {
   id: ToolID;
   handler: string;
+  friendly_verb?: string;
+  preview?: string;
   input_schema_digest: string;
   output_schema_digest?: string;
   read_only: boolean;
@@ -5687,6 +5713,8 @@ export interface Tool {
   id: ToolID;
   backend: BackendRef;
   display_title?: string;
+  friendly_verb?: string;
+  preview?: string;
   description: string;
   input_schema: JSONValue;
   output_schema?: JSONValue;

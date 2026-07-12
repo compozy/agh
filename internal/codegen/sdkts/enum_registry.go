@@ -4,6 +4,7 @@ import (
 	"reflect"
 
 	apicontract "github.com/compozy/agh/internal/api/contract"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
 	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
 	"github.com/compozy/agh/internal/hooks"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
@@ -25,6 +26,8 @@ var enumValuesRegistry = map[reflect.Type][]string{
 	reflect.TypeFor[apicontract.HeartbeatWakeSource]():              apicontract.HeartbeatWakeSourceValues(),
 	reflect.TypeFor[apicontract.HeartbeatWakeResult]():              apicontract.HeartbeatWakeResultValues(),
 	reflect.TypeFor[apicontract.HeartbeatWakeReason]():              apicontract.HeartbeatWakeReasonValues(),
+	reflect.TypeFor[bridgepkg.DeliveryEventType]():                  bridgepkg.DeliveryEventTypeValues(),
+	reflect.TypeFor[bridgepkg.ToolProgressPhase]():                  bridgepkg.ToolProgressPhaseValues(),
 	reflect.TypeFor[extensionprotocol.HostAPIMethod]():              hostAPIMethodValues(),
 	reflect.TypeFor[hooks.HookEvent]():                              hookEventValues(),
 	reflect.TypeFor[hooks.HookEventFamily]():                        hookEventFamilyValues(),

@@ -750,8 +750,12 @@ func TestTranscriptRedactsSecretsAcrossDisplaySurfaces(t *testing.T) {
 			"failure-secret",
 			"runtime-secret",
 			"raw-secret",
+			"raw-private-camel",
+			"tool-name-secret",
+			"tool-input-secret",
+			"tool-credential-secret",
 		}
-		event := acp.AgentEvent{
+		event := (acp.AgentEvent{
 			Type:      acp.EventTypeAgentMessage,
 			SessionID: "sess-redact",
 			TurnID:    "turn-redact",
@@ -765,8 +769,16 @@ func TestTranscriptRedactsSecretsAcrossDisplaySurfaces(t *testing.T) {
 			Runtime: &acp.RuntimeActivity{
 				LastActivityDetail: "token=runtime-secret",
 			},
-			Raw: json.RawMessage(`{"access_token":"raw-secret","note":"` + runtimeSecret + `"}`),
-		}
+			Raw: json.RawMessage(
+				`{"access_token":"raw-secret","privateKey":"raw-private-camel","note":"` + runtimeSecret + `"}`,
+			),
+		}).WithTool(
+			"token=tool-name-secret",
+			json.RawMessage(
+				`{"apiKey":"tool-input-secret","credential":"tool-credential-secret","command":"echo ok"}`,
+			),
+			false,
+		)
 
 		assertNoDisplayLeaks(t, RedactAgentEvent(event), leaks)
 		assertNoDisplayLeaks(t, UIAgentEventPayloadFromEvent(event), leaks)
@@ -1424,6 +1436,157 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 		}
 		if len(event.Raw) != 0 {
 			t.Fatalf("Raw = %s, want empty canonical raw payload", string(event.Raw))
+		}
+	})
+
+	t.Run("Should round-trip typed tool metadata ahead of conflicting legacy raw metadata", func(t *testing.T) {
+		t.Parallel()
+
+		payload, err := MarshalAgentEvent((acp.AgentEvent{
+			Type:       acp.EventTypeToolResult,
+			Timestamp:  time.Date(2026, 6, 11, 2, 0, 0, 0, time.UTC),
+			ToolCallID: "call-typed",
+			Raw: json.RawMessage(`{
+				"_meta":{"claudeCode":{"toolName":"legacy__shell"}},
+				"rawInput":{"command":"legacy"},
+				"status":"completed"
+			}`),
+		}).WithTool("typed__shell", json.RawMessage(`{"command":"typed"}`), true))
+		if err != nil {
+			t.Fatalf("MarshalAgentEvent() error = %v", err)
+		}
+
+		event, err := UnmarshalAgentEvent(payload)
+		if err != nil {
+			t.Fatalf("UnmarshalAgentEvent() error = %v", err)
+		}
+		if got, want := event.ToolName(), "typed__shell"; got != want {
+			t.Fatalf("ToolName = %q, want %q", got, want)
+		}
+		if got, want := string(event.ToolInput()), `{"command":"typed"}`; got != want {
+			t.Fatalf("ToolInput = %s, want %s", got, want)
+		}
+		if !event.ToolError() {
+			t.Fatal("ToolError = false, want true")
+		}
+	})
+
+	t.Run("Should round-trip a redacted tool failure detail for presentation consumers", func(t *testing.T) {
+		t.Parallel()
+
+		payload, err := MarshalAgentEvent(acp.AgentEvent{
+			Type:       acp.EventTypeToolResult,
+			Timestamp:  time.Date(2026, 6, 11, 2, 0, 0, 0, time.UTC),
+			ToolCallID: "call-failure-detail",
+			Raw: json.RawMessage(`{
+				"_meta":{"claudeCode":{"toolName":"Bash"}},
+				"status":"failed",
+				"content":"command failed: password=hunter2"
+			}`),
+		})
+		if err != nil {
+			t.Fatalf("MarshalAgentEvent() error = %v", err)
+		}
+
+		event, err := UnmarshalAgentEvent(payload)
+		if err != nil {
+			t.Fatalf("UnmarshalAgentEvent() error = %v", err)
+		}
+		if !event.ToolError() {
+			t.Fatal("ToolError = false, want true")
+		}
+		if got := event.ToolErrorDetail(); strings.Contains(got, "hunter2") || !strings.Contains(got, "[REDACTED]") {
+			t.Fatalf("ToolErrorDetail = %q, want redacted failure detail", got)
+		}
+	})
+
+	t.Run("Should preserve typed tool success ahead of stale legacy failure", func(t *testing.T) {
+		t.Parallel()
+
+		payload, err := MarshalAgentEvent((acp.AgentEvent{
+			Type:       acp.EventTypeToolResult,
+			Timestamp:  time.Date(2026, 6, 11, 2, 0, 0, 0, time.UTC),
+			ToolCallID: "call-typed-success",
+			Raw: json.RawMessage(`{
+				"_meta":{"claudeCode":{"toolName":"legacy__shell"}},
+				"rawInput":{"command":"legacy"},
+				"status":"failed",
+				"content":"stale legacy failure"
+			}`),
+		}).WithTool("typed__shell", json.RawMessage(`{"command":"typed"}`), false))
+		if err != nil {
+			t.Fatalf("MarshalAgentEvent() error = %v", err)
+		}
+
+		event, err := UnmarshalAgentEvent(payload)
+		if err != nil {
+			t.Fatalf("UnmarshalAgentEvent() error = %v", err)
+		}
+		if got, want := event.ToolName(), "typed__shell"; got != want {
+			t.Fatalf("ToolName = %q, want %q", got, want)
+		}
+		if event.ToolError() {
+			t.Fatal("ToolError = true, want typed success")
+		}
+	})
+
+	t.Run("Should backfill absent typed tool metadata from legacy raw fields", func(t *testing.T) {
+		t.Parallel()
+
+		payload, err := MarshalAgentEvent(acp.AgentEvent{
+			Type:       acp.EventTypeToolResult,
+			Timestamp:  time.Date(2026, 6, 11, 2, 0, 1, 0, time.UTC),
+			ToolCallID: "call-legacy",
+			Raw: json.RawMessage(`{
+				"_meta":{"claudeCode":{"toolName":"legacy__read"}},
+				"rawInput":{"path":"README.md"},
+				"status":"failed"
+			}`),
+		})
+		if err != nil {
+			t.Fatalf("MarshalAgentEvent() error = %v", err)
+		}
+
+		event, err := UnmarshalAgentEvent(payload)
+		if err != nil {
+			t.Fatalf("UnmarshalAgentEvent() error = %v", err)
+		}
+		if got, want := event.ToolName(), "legacy__read"; got != want {
+			t.Fatalf("ToolName = %q, want %q", got, want)
+		}
+		if got, want := string(event.ToolInput()), `{"path":"README.md"}`; got != want {
+			t.Fatalf("ToolInput = %s, want %s", got, want)
+		}
+		if !event.ToolError() {
+			t.Fatal("ToolError = false, want true")
+		}
+	})
+
+	t.Run("Should preserve typed tool metadata when legacy raw is malformed", func(t *testing.T) {
+		t.Parallel()
+
+		payload, err := MarshalAgentEvent((acp.AgentEvent{
+			Type:       acp.EventTypeToolCall,
+			Timestamp:  time.Date(2026, 6, 11, 2, 0, 2, 0, time.UTC),
+			ToolCallID: "call-malformed",
+			Raw:        json.RawMessage(`{"rawInput":`),
+		}).WithTool("typed__search", json.RawMessage(`{"query":"typed metadata"}`), false))
+		if err != nil {
+			t.Fatalf("MarshalAgentEvent() error = %v", err)
+		}
+
+		event, err := UnmarshalAgentEvent(payload)
+		if err != nil {
+			t.Fatalf("UnmarshalAgentEvent() error = %v", err)
+		}
+		if got, want := event.ToolName(), "typed__search"; got != want {
+			t.Fatalf("ToolName = %q, want %q", got, want)
+		}
+		if got, want := string(event.ToolInput()), `{"query":"typed metadata"}`; got != want {
+			t.Fatalf("ToolInput = %s, want %s", got, want)
+		}
+		if event.ToolError() {
+			t.Fatal("ToolError = true, want false")
 		}
 	})
 }

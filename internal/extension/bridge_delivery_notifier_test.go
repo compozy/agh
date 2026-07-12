@@ -2,6 +2,7 @@ package extensionpkg
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
@@ -15,6 +16,149 @@ import (
 	"github.com/compozy/agh/internal/subprocess"
 	"github.com/compozy/agh/internal/testutil"
 )
+
+func TestBridgeDeliveryProjectionUsesOneCanonicalPath(t *testing.T) {
+	t.Run("Should deduplicate equivalent replay and live tool events", func(t *testing.T) {
+		t.Parallel()
+
+		event := (acp.AgentEvent{
+			Type:       acp.EventTypeToolCall,
+			TurnID:     "turn-tool-projection",
+			Timestamp:  time.Date(2026, time.April, 11, 12, 8, 0, 0, time.UTC),
+			ToolCallID: "call-tool-projection",
+		}).WithTool(
+			"agh__terminal",
+			json.RawMessage(`{"command":"echo sk-live-replay-secret"}`),
+			false,
+		)
+
+		live, err := projectionEventFromAgentEvent(&event)
+		if err != nil {
+			t.Fatalf("projectionEventFromAgentEvent() error = %v", err)
+		}
+		stored := mustStoredPromptEvent(t, "ev-tool-projection", 1, event)
+		replayed, err := promptProjectionEventFromStoredEvent(stored)
+		if err != nil {
+			t.Fatalf("promptProjectionEventFromStoredEvent() error = %v", err)
+		}
+
+		if live.Fingerprint == "" || replayed.Fingerprint == "" {
+			t.Fatalf(
+				"projection fingerprints = (%q, %q), want canonical values",
+				live.Fingerprint,
+				replayed.Fingerprint,
+			)
+		}
+		if got, want := replayed.Fingerprint, live.Fingerprint; got != want {
+			t.Fatalf("replay fingerprint differs from live\nreplay: %s\nlive:   %s", got, want)
+		}
+		storedFingerprint, err := canonicalProjectionFingerprint(stored.Content)
+		if err != nil {
+			t.Fatalf("canonicalProjectionFingerprint(stored event) error = %v", err)
+		}
+		if got, want := live.Fingerprint, storedFingerprint; got != want {
+			t.Fatalf("live fingerprint differs from persisted semantic payload\nlive:   %s\nstored: %s", got, want)
+		}
+		if live.Tool == nil || replayed.Tool == nil {
+			t.Fatalf("tool projections = (%#v, %#v), want typed progress", live.Tool, replayed.Tool)
+		}
+		if got, want := replayed.Tool.ToolCallID, live.Tool.ToolCallID; got != want {
+			t.Fatalf("replay tool call id = %q, want live %q", got, want)
+		}
+		if got, want := replayed.Tool.ToolID, live.Tool.ToolID; got != want {
+			t.Fatalf("replay tool id = %q, want live %q", got, want)
+		}
+		if got, want := replayed.Tool.Phase, bridgepkg.ToolProgressPhaseStarted; got != want {
+			t.Fatalf("replay tool phase = %q, want %q", got, want)
+		}
+		if got, want := string(replayed.ToolInput), string(live.ToolInput); got != want {
+			t.Fatalf("replay tool input = %s, want live %s", got, want)
+		}
+		if strings.Contains(string(live.ToolInput), "sk-live-replay-secret") ||
+			!strings.Contains(string(live.ToolInput), "[REDACTED]") {
+			t.Fatalf("canonical tool input = %s, want redacted", live.ToolInput)
+		}
+
+		transport := &recordingDeliveryTransport{}
+		broker := bridgepkg.NewBroker(transport)
+		t.Cleanup(broker.Close)
+		registration, err := broker.RegisterPromptDelivery(testutil.Context(t), bridgepkg.PromptDeliveryRegistration{
+			SessionID:     "sess-tool-projection",
+			TurnID:        event.TurnID,
+			ExtensionName: "ext-slack",
+			RoutingKey: bridgepkg.RoutingKey{
+				Scope:            bridgepkg.ScopeWorkspace,
+				WorkspaceID:      "ws-tool-projection",
+				BridgeInstanceID: "brg-tool-projection",
+				PeerID:           "peer-tool-projection",
+			},
+			DeliveryTarget: bridgepkg.DeliveryTarget{
+				BridgeInstanceID: "brg-tool-projection",
+				PeerID:           "peer-tool-projection",
+				Mode:             bridgepkg.DeliveryModeReply,
+			},
+			Progress: bridgepkg.ProgressConfig{
+				ToolProgress: bridgepkg.ProgressModeAll,
+				Grouping:     bridgepkg.ProgressGroupingAccumulate,
+			},
+			SeedEvents: []bridgepkg.DeliveryProjectionEvent{replayed},
+		})
+		if err != nil {
+			t.Fatalf("RegisterPromptDelivery(seed tool event) error = %v", err)
+		}
+		waitForExtensionDeliveryCalls(t, transport, 1)
+
+		notifier := NewBridgeDeliveryNotifier(broker, nil)
+		notifier.OnAgentEvent(testutil.Context(t), registration.SessionID, event)
+		assertExtensionDeliveryCallCountStable(t, transport, 1, 50*time.Millisecond)
+		calls := transport.snapshotCalls()
+		if got, want := calls[0].Event.EventType, bridgepkg.DeliveryEventTypeProgress; got != want {
+			t.Fatalf("seeded delivery event type = %q, want %q", got, want)
+		}
+		if calls[0].Event.Progress == nil {
+			t.Fatal("seeded delivery progress = nil, want typed progress")
+		}
+		if got := calls[0].Event.Progress.Preview; strings.Contains(got, "sk-live-replay-secret") ||
+			!strings.Contains(got, "[REDACTED]") {
+			t.Fatalf("seeded delivery preview = %q, want redacted", got)
+		}
+	})
+
+	t.Run("Should deduplicate semantically identical stored JSON with reordered fields", func(t *testing.T) {
+		t.Parallel()
+
+		event := acp.AgentEvent{
+			Type:      acp.EventTypeAgentMessage,
+			SessionID: "acp-canonical-order",
+			TurnID:    "turn-canonical-order",
+			Timestamp: time.Date(2026, time.April, 11, 12, 9, 0, 0, time.UTC),
+			Text:      "working",
+		}
+		live, err := projectionEventFromAgentEvent(&event)
+		if err != nil {
+			t.Fatalf("projectionEventFromAgentEvent() error = %v", err)
+		}
+
+		stored := mustStoredPromptEvent(t, "ev-canonical-order", 1, event)
+		var decoded map[string]any
+		if err := json.Unmarshal([]byte(stored.Content), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(stored event) error = %v", err)
+		}
+		reordered, err := json.Marshal(decoded)
+		if err != nil {
+			t.Fatalf("json.Marshal(reordered stored event) error = %v", err)
+		}
+		stored.Content = string(reordered)
+
+		replayed, err := promptProjectionEventFromStoredEvent(stored)
+		if err != nil {
+			t.Fatalf("promptProjectionEventFromStoredEvent() error = %v", err)
+		}
+		if got, want := replayed.Fingerprint, live.Fingerprint; got != want {
+			t.Fatalf("replay fingerprint differs from live after key reordering\nreplay: %s\nlive:   %s", got, want)
+		}
+	})
+}
 
 type recordingDeliveryTransport struct {
 	mu     sync.Mutex
@@ -181,7 +325,10 @@ func TestBridgeDeliveryNotifierProjectsEventsAndForwardsLifecycle(t *testing.T) 
 		Timestamp: time.Date(2026, time.April, 11, 12, 3, 0, 0, time.UTC),
 		Text:      "hello",
 	}
-	projected := projectionEventFromAgentEvent(messageEvent)
+	projected, err := projectionEventFromAgentEvent(&messageEvent)
+	if err != nil {
+		t.Fatalf("projectionEventFromAgentEvent() error = %v", err)
+	}
 	if projected.Fingerprint == "" {
 		t.Fatal("projectionEventFromAgentEvent() fingerprint = empty, want stable fingerprint")
 	}
@@ -512,6 +659,32 @@ func waitForExtensionDeliveryCalls(t *testing.T, transport *recordingDeliveryTra
 				want,
 				len(transport.snapshotCalls()),
 			)
+		}
+	}
+}
+
+func assertExtensionDeliveryCallCountStable(
+	t *testing.T,
+	transport *recordingDeliveryTransport,
+	want int,
+	duration time.Duration,
+) {
+	t.Helper()
+
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	notify := transport.notifyChan()
+	for {
+		select {
+		case <-notify:
+			if got := len(transport.snapshotCalls()); got > want {
+				t.Fatalf("delivery call count = %d, want stable %d", got, want)
+			}
+		case <-timer.C:
+			if got := len(transport.snapshotCalls()); got != want {
+				t.Fatalf("delivery call count = %d, want stable %d", got, want)
+			}
+			return
 		}
 	}
 }

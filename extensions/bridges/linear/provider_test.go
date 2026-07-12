@@ -977,7 +977,7 @@ func linearTestDeliveryRequest(
 	instanceID string,
 	deliveryID string,
 	seq int64,
-	eventType string,
+	eventType bridgepkg.DeliveryEventType,
 	thread linearThreadRef,
 	text string,
 	_ string,

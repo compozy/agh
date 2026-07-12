@@ -1744,8 +1744,8 @@ func linearSignature(secret string, body []byte) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-func normalizeDeliveryEventType(value string) string {
-	return strings.ToLower(strings.TrimSpace(value))
+func normalizeDeliveryEventType(value bridgepkg.DeliveryEventType) bridgepkg.DeliveryEventType {
+	return bridgepkg.DeliveryEventType(strings.ToLower(strings.TrimSpace(string(value))))
 }
 
 func resolveLinearRemoteMessageID(

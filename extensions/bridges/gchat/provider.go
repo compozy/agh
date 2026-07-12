@@ -3144,8 +3144,8 @@ func deliveryStateKey(instanceID string, deliveryID string) string {
 	return strings.TrimSpace(instanceID) + ":" + strings.TrimSpace(deliveryID)
 }
 
-func normalizeDeliveryEventType(value string) string {
-	return strings.ToLower(strings.TrimSpace(value))
+func normalizeDeliveryEventType(value bridgepkg.DeliveryEventType) bridgepkg.DeliveryEventType {
+	return bridgepkg.DeliveryEventType(strings.ToLower(strings.TrimSpace(string(value))))
 }
 
 func isNotInitializedRPCError(err error) bool {

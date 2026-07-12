@@ -22,12 +22,14 @@ describe("bridge-formatters", () => {
       normalizeBridgeDeliveryDefaults({
         group_id: "  group_123  ",
         mode: "reply",
+        parse_mode: " MarkdownV2 ",
         peer_id: " peer_123 ",
         thread_id: "",
       })
     ).toEqual({
       group_id: "group_123",
       mode: "reply",
+      parse_mode: " MarkdownV2 ",
       peer_id: "peer_123",
       thread_id: undefined,
     });
@@ -46,6 +48,9 @@ describe("bridge-formatters", () => {
       thread_id: undefined,
     });
     expect(compactBridgeDeliveryDefaults({})).toBeUndefined();
+    expect(compactBridgeDeliveryDefaults({ parse_mode: "MarkdownV2" })).toEqual({
+      parse_mode: "MarkdownV2",
+    });
   });
 
   it("describes dm policy, provider config schema, and secret slots", () => {
@@ -110,6 +115,27 @@ describe("bridge-formatters", () => {
       })
     ).toBe("reply · peer:peer_123 · group:group_123 · thread:thread_123");
     expect(describeBridgeTestTarget({})).toBe("Bridge defaults");
+  });
+
+  it.each([
+    {
+      expected: "progress:all · grouping:separate · typing:false · reactions:true",
+      progress: {
+        grouping: "separate" as const,
+        reactions: true,
+        tool_progress: "all" as const,
+        typing: false,
+      },
+    },
+    {
+      expected: "progress:new · grouping:accumulate · typing:false · reactions:false",
+      progress: {
+        grouping: "accumulate" as const,
+        tool_progress: "new" as const,
+      },
+    },
+  ])("describes progress-only delivery defaults as $expected", ({ expected, progress }) => {
+    expect(describeBridgeDeliveryDefaults({ progress })).toBe(expected);
   });
 
   it("Should map every bridge status to a PillTone with no violet emitters", () => {

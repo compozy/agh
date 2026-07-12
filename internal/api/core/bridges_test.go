@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -43,7 +44,7 @@ func TestBridgeHandlersCreateListGetAndUpdate(t *testing.T) {
 				if got, want := string(req.ProviderConfig), `{"mode":"bot","tenant":"acme"}`; got != want {
 					t.Fatalf("CreateInstance().ProviderConfig = %s, want %s", got, want)
 				}
-				if got, want := string(req.DeliveryDefaults), `{"peer_id":"peer-default","mode":"reply"}`; got != want {
+				if got, want := string(req.DeliveryDefaults), `{"mode":"reply","peer_id":"peer-default"}`; got != want {
 					t.Fatalf("CreateInstance().DeliveryDefaults = %s, want %s", got, want)
 				}
 				return &bridgepkg.BridgeInstance{
@@ -162,7 +163,7 @@ func TestBridgeHandlersCreateListGetAndUpdate(t *testing.T) {
 		}
 		if got, want := string(
 			listPayload.Bridges[0].DeliveryDefaults,
-		), `{"peer_id":"peer-default","mode":"reply"}`; got != want {
+		), `{"mode":"reply","peer_id":"peer-default"}`; got != want {
 			t.Fatalf("list delivery_defaults = %s, want %s", got, want)
 		}
 
@@ -198,6 +199,195 @@ func TestBridgeHandlersCreateListGetAndUpdate(t *testing.T) {
 			)
 		}
 	})
+}
+
+func TestBridgeHandlersValidateTypedProgressSettings(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept typed progress and return it in the created bridge", func(t *testing.T) {
+		t.Parallel()
+
+		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			CreateInstanceFn: func(
+				_ context.Context,
+				req bridgepkg.CreateInstanceRequest,
+			) (*bridgepkg.BridgeInstance, error) {
+				var defaults struct {
+					Mode      bridgepkg.DeliveryMode               `json:"mode"`
+					ParseMode string                               `json:"parse_mode"`
+					Progress  contract.BridgeProgressConfigPayload `json:"progress"`
+				}
+				if err := json.Unmarshal(req.DeliveryDefaults, &defaults); err != nil {
+					t.Fatalf("json.Unmarshal(delivery defaults) error = %v", err)
+				}
+				if defaults.Mode != bridgepkg.DeliveryModeReply || defaults.ParseMode != "MarkdownV2" ||
+					defaults.Progress.ToolProgress != bridgepkg.ProgressModeAll ||
+					defaults.Progress.Grouping != bridgepkg.ProgressGroupingSeparate ||
+					!defaults.Progress.Typing || defaults.Progress.Reactions {
+					t.Fatalf("delivery defaults = %#v", defaults)
+				}
+				return &bridgepkg.BridgeInstance{
+					ID:               "brg-progress",
+					Scope:            req.Scope,
+					Platform:         req.Platform,
+					ExtensionName:    req.ExtensionName,
+					DisplayName:      req.DisplayName,
+					Enabled:          req.Enabled,
+					Status:           req.Status,
+					RoutingPolicy:    req.RoutingPolicy,
+					DeliveryDefaults: req.DeliveryDefaults,
+				}, nil
+			},
+		})
+
+		resp := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/bridges",
+			[]byte(`{
+				"scope":"global",
+				"platform":"telegram",
+				"extension_name":"ext-telegram",
+				"display_name":"Support",
+				"enabled":true,
+				"routing_policy":{"include_peer":true},
+				"delivery_defaults":{
+					"mode":"reply",
+					"parse_mode":"MarkdownV2",
+					"progress":{
+						"tool_progress":"all",
+						"grouping":"separate",
+						"typing":true,
+						"reactions":false
+					}
+				}
+			}`),
+		)
+		if resp.Code != http.StatusCreated {
+			t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusCreated, resp.Body.String())
+		}
+
+		var payload contract.BridgeResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		defaults := decodeBridgeProgressDefaults(t, json.RawMessage(payload.Bridge.DeliveryDefaults))
+		if defaults.ParseMode != "MarkdownV2" || defaults.Progress.ToolProgress != bridgepkg.ProgressModeAll {
+			t.Fatalf("response progress = %#v", defaults.Progress)
+		}
+	})
+
+	t.Run("Should reject invalid progress before calling update service", func(t *testing.T) {
+		t.Parallel()
+
+		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			UpdateInstanceFn: func(
+				context.Context,
+				bridgepkg.UpdateInstanceRequest,
+			) (*bridgepkg.BridgeInstance, error) {
+				t.Fatal("UpdateInstance() should not be called for invalid progress")
+				return nil, nil
+			},
+		})
+
+		resp := performRequest(
+			t,
+			engine,
+			http.MethodPatch,
+			"/bridges/brg-progress",
+			[]byte(`{
+				"delivery_defaults":{
+					"progress":{
+						"tool_progress":"sometimes",
+						"grouping":"accumulate",
+						"typing":true,
+						"reactions":true
+					}
+				}
+			}`),
+		)
+		if resp.Code != http.StatusBadRequest ||
+			!strings.Contains(resp.Body.String(), `unsupported progress tool_progress`) {
+			t.Fatalf("status = %d body=%s, want typed progress validation error", resp.Code, resp.Body.String())
+		}
+	})
+
+	t.Run("Should accept typed progress in an update response", func(t *testing.T) {
+		t.Parallel()
+
+		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			UpdateInstanceFn: func(
+				_ context.Context,
+				req bridgepkg.UpdateInstanceRequest,
+			) (*bridgepkg.BridgeInstance, error) {
+				if req.DeliveryDefaults == nil {
+					t.Fatalf("UpdateInstance().DeliveryDefaults = %v", req.DeliveryDefaults)
+				}
+				defaults := decodeBridgeProgressDefaults(t, *req.DeliveryDefaults)
+				if defaults.Progress.Grouping != bridgepkg.ProgressGroupingAccumulate {
+					t.Fatalf("request progress = %#v", defaults.Progress)
+				}
+				return &bridgepkg.BridgeInstance{
+					ID:               req.ID,
+					Scope:            bridgepkg.ScopeGlobal,
+					Platform:         "slack",
+					ExtensionName:    "ext-slack",
+					DisplayName:      "Support",
+					Enabled:          true,
+					Status:           bridgepkg.BridgeStatusReady,
+					RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true},
+					DeliveryDefaults: *req.DeliveryDefaults,
+				}, nil
+			},
+		})
+
+		resp := performRequest(
+			t,
+			engine,
+			http.MethodPatch,
+			"/bridges/brg-progress",
+			[]byte(`{
+				"delivery_defaults":{
+					"peer_id":"peer-1",
+					"mode":"reply",
+					"progress":{
+						"tool_progress":"new",
+						"grouping":"accumulate",
+						"typing":false,
+						"reactions":true
+					}
+				}
+			}`),
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		var payload contract.BridgeResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		defaults := decodeBridgeProgressDefaults(t, json.RawMessage(payload.Bridge.DeliveryDefaults))
+		if !defaults.Progress.Reactions {
+			t.Fatalf("response progress = %#v", defaults.Progress)
+		}
+	})
+}
+
+type bridgeProgressDefaultsTestPayload struct {
+	Mode      bridgepkg.DeliveryMode               `json:"mode"`
+	PeerID    string                               `json:"peer_id"`
+	ParseMode string                               `json:"parse_mode"`
+	Progress  contract.BridgeProgressConfigPayload `json:"progress"`
+}
+
+func decodeBridgeProgressDefaults(
+	t *testing.T,
+	raw json.RawMessage,
+) bridgeProgressDefaultsTestPayload {
+	t.Helper()
+
+	var defaults bridgeProgressDefaultsTestPayload
+	if err := json.Unmarshal(raw, &defaults); err != nil {
+		t.Fatalf("json.Unmarshal(delivery defaults) error = %v", err)
+	}
+	return defaults
 }
 
 func TestBridgeHandlersListFiltersActiveWorkspaceScope(t *testing.T) {

@@ -2,9 +2,83 @@ package bridges
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestDeliveryEventTypeValues(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose the closed delivery event contract in stable order", func(t *testing.T) {
+		t.Parallel()
+
+		got := DeliveryEventTypeValues()
+		want := []string{
+			"start",
+			"delta",
+			"final",
+			"error",
+			"resume",
+			"delete",
+			"progress",
+		}
+		if len(got) != len(want) {
+			t.Fatalf("DeliveryEventTypeValues() length = %d, want %d", len(got), len(want))
+		}
+		for index := range want {
+			if got[index] != want[index] {
+				t.Fatalf("DeliveryEventTypeValues()[%d] = %q, want %q", index, got[index], want[index])
+			}
+		}
+	})
+}
+
+func TestDeliveryEventClassifiesLifecycleOnlyFinal(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		event DeliveryEvent
+		want  bool
+	}{
+		{
+			name:  "Should accept an empty final post",
+			event: DeliveryEvent{EventType: DeliveryEventTypeFinal, Operation: DeliveryOperationPost},
+			want:  true,
+		},
+		{
+			name:  "Should normalize an omitted operation to post",
+			event: DeliveryEvent{EventType: DeliveryEventTypeFinal},
+			want:  true,
+		},
+		{
+			name: "Should reject a materialized final",
+			event: DeliveryEvent{
+				EventType: DeliveryEventTypeFinal,
+				Operation: DeliveryOperationPost,
+				Content:   MessageContent{Text: "answer"},
+			},
+		},
+		{
+			name:  "Should reject an empty final edit",
+			event: DeliveryEvent{EventType: DeliveryEventTypeFinal, Operation: DeliveryOperationEdit},
+		},
+		{
+			name:  "Should reject a progress event",
+			event: DeliveryEvent{EventType: DeliveryEventTypeProgress, Operation: DeliveryOperationPost},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := test.event.IsLifecycleOnlyFinal(); got != test.want {
+				t.Fatalf("IsLifecycleOnlyFinal() = %t, want %t", got, test.want)
+			}
+		})
+	}
+}
 
 func TestValidateScopeWorkspaceID(t *testing.T) {
 	t.Parallel()
@@ -674,6 +748,123 @@ func TestDeliveryEventRejectsInvalidTypedPayloadCombinations(t *testing.T) {
 			t.Fatal("Validate() error = nil, want delete operation validation")
 		}
 	})
+
+	t.Run("Should accept a presentation only progress payload with empty chrome", func(t *testing.T) {
+		t.Parallel()
+
+		event := base
+		event.EventType = DeliveryEventTypeProgress
+		event.Final = false
+		event.Progress = &ToolProgress{
+			ToolCallID: "call-1",
+			ToolID:     "agh__task_read",
+			Phase:      ToolProgressPhaseStarted,
+			Index:      1,
+		}
+		if err := event.Validate(); err != nil {
+			t.Fatalf("Validate(progress) error = %v", err)
+		}
+		if event.Progress.Label != "" || event.Progress.Preview != "" || event.Progress.Emoji != "" {
+			t.Fatalf("progress chrome = %#v, want empty contract before rendering", event.Progress)
+		}
+	})
+
+	invalidProgress := []struct {
+		name   string
+		mutate func(*DeliveryEvent)
+	}{
+		{
+			name: "Should require a progress payload",
+			mutate: func(event *DeliveryEvent) {
+				event.Progress = nil
+			},
+		},
+		{
+			name: "Should require a progress tool call id",
+			mutate: func(event *DeliveryEvent) {
+				event.Progress.ToolCallID = ""
+			},
+		},
+		{
+			name: "Should require a progress tool id",
+			mutate: func(event *DeliveryEvent) {
+				event.Progress.ToolID = ""
+			},
+		},
+		{
+			name: "Should reject unsupported progress phases",
+			mutate: func(event *DeliveryEvent) {
+				event.Progress.Phase = "waiting"
+			},
+		},
+		{
+			name: "Should require a positive progress index",
+			mutate: func(event *DeliveryEvent) {
+				event.Progress.Index = 0
+			},
+		},
+		{
+			name: "Should reject a negative progress duration",
+			mutate: func(event *DeliveryEvent) {
+				event.Progress.DurationMS = -1
+			},
+		},
+		{
+			name: "Should reject multiline progress chrome",
+			mutate: func(event *DeliveryEvent) {
+				event.Progress.Label = "Running\ncommand"
+			},
+		},
+		{
+			name: "Should reject unredacted progress chrome",
+			mutate: func(event *DeliveryEvent) {
+				event.Progress.Preview = "api_key=sk-contract-secret"
+			},
+		},
+		{
+			name: "Should reject multiline progress errors",
+			mutate: func(event *DeliveryEvent) {
+				event.Progress.Error = "command failed\nretry"
+			},
+		},
+		{
+			name: "Should reject unredacted progress errors",
+			mutate: func(event *DeliveryEvent) {
+				event.Progress.Error = "password=hunter2"
+			},
+		},
+		{
+			name: "Should reject oversized progress errors",
+			mutate: func(event *DeliveryEvent) {
+				event.Progress.Error = strings.Repeat("x", maxToolProgressErrorRunes+1)
+			},
+		},
+		{
+			name: "Should reject content on progress events",
+			mutate: func(event *DeliveryEvent) {
+				event.Content = MessageContent{Text: "raw arguments"}
+			},
+		},
+	}
+	for _, tc := range invalidProgress {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			event := base
+			event.EventType = DeliveryEventTypeProgress
+			event.Final = false
+			event.Progress = &ToolProgress{
+				ToolCallID: "call-1",
+				ToolID:     "agh__task_read",
+				Phase:      ToolProgressPhaseStarted,
+				Index:      1,
+			}
+			tc.mutate(&event)
+			if err := event.Validate(); err == nil {
+				t.Fatal("Validate(progress) error = nil, want typed validation failure")
+			}
+		})
+	}
 }
 
 func TestBridgeRouteValidateHashMismatch(t *testing.T) {
