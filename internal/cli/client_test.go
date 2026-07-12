@@ -37,10 +37,10 @@ func TestUnixSocketClientSessionPromptShouldDecodeStructuredGoalJSON(t *testing.
 		t.Helper()
 		transport := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 			switch {
-			case req.Method == http.MethodGet && req.URL.Path == "/api/sessions":
+			case req.Method == http.MethodGet && req.URL.Path == "/api/sessions/sess-1":
 				return newHTTPResponse(
 					http.StatusOK,
-					`{"sessions":[{"id":"sess-1","workspace_id":"ws-1","state":"active","available_commands":[],"created_at":"2026-07-10T20:00:00Z","updated_at":"2026-07-10T20:00:00Z"}]}`,
+					`{"session":{"id":"sess-1","workspace_id":"ws-1","state":"active","available_commands":[],"created_at":"2026-07-10T20:00:00Z","updated_at":"2026-07-10T20:00:00Z"}}`,
 				), nil
 			case req.Method == http.MethodPost &&
 				req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/prompt":
