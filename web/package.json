@@ -57,7 +57,9 @@
         "zustand": "^5.0.14"
     },
     "devDependencies": {
+        "@babel/plugin-syntax-jsx": "^8.0.1",
         "@playwright/test": "^1.61.1",
+        "@rolldown/plugin-babel": "^0.2.3",
         "@storybook/addon-a11y": "^10.4.6",
         "@storybook/addon-docs": "^10.4.6",
         "@storybook/addon-themes": "^10.4.6",
@@ -70,6 +72,7 @@
         "@types/react": "^19.2.17",
         "@types/react-dom": "^19.2.0",
         "@vitejs/plugin-react": "^6.0.3",
+        "babel-plugin-react-compiler": "^1.0.0",
         "jsdom": "^29.1.1",
         "msw": "^2.15.0",
         "msw-storybook-addon": "^2",

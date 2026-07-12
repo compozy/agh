@@ -1,42 +1,6 @@
 {
     "ignore": {
-        "rules": [
-            "deslop/unused-export",
-            "react-doctor/only-export-components",
-            "react-doctor/no-multi-comp",
-            "react-doctor/prefer-tag-over-role",
-            "react-doctor/jsx-no-jsx-as-prop",
-            "react-doctor/prefer-module-scope-static-value",
-            "react-doctor/no-many-boolean-props",
-            "react-doctor/control-has-associated-label",
-            "react-doctor/jsx-no-constructed-context-values",
-            "react-doctor/design-no-redundant-size-axes",
-            "react-doctor/use-lazy-motion",
-            "react-doctor/no-event-handler",
-            "react-doctor/exhaustive-deps",
-            "react-doctor/design-no-em-dash-in-jsx-text",
-            "react-doctor/no-array-index-as-key",
-            "react-doctor/rerender-memo-with-default-value",
-            "react-doctor/anchor-has-content",
-            "react-doctor/label-has-associated-control",
-            "react-doctor/design-no-three-period-ellipsis",
-            "react-doctor/design-no-redundant-padding-axes",
-            "react-doctor/button-has-type",
-            "react-doctor/no-giant-component",
-            "react-doctor/no-redundant-roles",
-            "react-doctor/no-noninteractive-tabindex",
-            "react-doctor/jsx-pascal-case",
-            "react-doctor/prefer-module-scope-pure-function",
-            "react-doctor/no-static-element-interactions",
-            "react-doctor/js-flatmap-filter",
-            "react-doctor/no-barrel-import",
-            "react-doctor/interactive-supports-focus",
-            "react-doctor/no-scale-from-zero",
-            "react-doctor/no-render-in-render",
-            "react-doctor/no-react19-deprecated-apis",
-            "react-doctor/no-prevent-default",
-            "react-doctor/no-array-index-key"
-        ],
+        "rules": ["deslop/unused-export", "no-multi-comp"],
         "files": [
             "**/*.test.ts",
             "**/*.test.tsx",
@@ -125,6 +89,6 @@
     },
     "lint": true,
     "deadCode": true,
-    "diff": false,
-    "failOn": "warning"
+    "scope": "full",
+    "blocking": "warning"
 }
