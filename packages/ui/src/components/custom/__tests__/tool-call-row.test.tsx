@@ -127,6 +127,18 @@ describe("ToolCallRow", () => {
     expect(container.querySelector('[data-slot="tool-call-row-body"]')).not.toBeNull();
   });
 
+  it("Should derive the trigger name from a rendered non-string tool name", () => {
+    render(
+      <ToolCallRow toolName={<span>Read workspace file</span>} status="success">
+        <ToolCallRow.Output source="ok" format="code" />
+      </ToolCallRow>
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Read workspace file Toggle tool call (success)" })
+    ).toBeInTheDocument();
+  });
+
   it("Should hover with the neutral glaze and never render an accent class in the row DOM", () => {
     const { container } = render(
       <ToolCallRow toolName="Edit" status="success" icon={FileEditIcon}>

@@ -71,7 +71,9 @@ export function useRuntimeModelCatalog(
   const payloadsByProvider: Record<string, ProviderModelPayload[]> = {};
   for (const model of payloads ?? []) {
     if (!allowed.has(model.provider_id)) continue;
-    (payloadsByProvider[model.provider_id] ??= []).push(model);
+    const providerPayloads = payloadsByProvider[model.provider_id] ?? [];
+    providerPayloads.push(model);
+    payloadsByProvider[model.provider_id] = providerPayloads;
   }
 
   const models: RuntimeModelOption[] = [];

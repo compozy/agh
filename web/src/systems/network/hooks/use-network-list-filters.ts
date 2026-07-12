@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useState } from "react";
+import { useDeferredValue, useState } from "react";
 
 import { createFilter, type Filter as ReuiFilter } from "@agh/ui";
 
@@ -68,13 +68,10 @@ export function useNetworkListFilters({
   const session = useActiveNetworkSession(channel, { workspaceId });
   const selfPeerId = session.session?.peerId ?? null;
   const canFilterBySelf = Boolean(selfPeerId);
-  const selected = activeKeys(filters);
-
-  useEffect(() => {
-    if (!canFilterBySelf) {
-      setFilterState(current => current.filter(filter => filter.field !== "includes_me"));
-    }
-  }, [canFilterBySelf]);
+  const effectiveFilters = canFilterBySelf
+    ? filters
+    : filters.filter(filter => filter.field !== "includes_me");
+  const selected = activeKeys(effectiveFilters);
 
   const setFilters = (next: NetworkChipFilter[]) => {
     setFilterState(
@@ -129,10 +126,10 @@ export function useNetworkListFilters({
     isUnread({ channel, surface: "direct", containerId: direct.direct_id }, direct.last_activity_at)
   );
   const isMarkLoadedReadDisabled = !hasUnreadThread && !hasUnreadDirect;
-  const isFiltered = filters.length > 0 || searchQuery.trim().length > 0;
+  const isFiltered = effectiveFilters.length > 0 || searchQuery.trim().length > 0;
 
   return {
-    filters,
+    filters: effectiveFilters,
     sort,
     searchQuery,
     canFilterBySelf,

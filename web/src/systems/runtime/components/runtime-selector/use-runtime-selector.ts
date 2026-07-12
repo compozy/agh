@@ -123,6 +123,10 @@ export function useRuntimeSelector({
   };
 
   const close = () => setOpen(false);
+  const setFocusIntent = (intent: "provider" | "model" | "reasoning") => {
+    focusIntentRef.current = intent;
+  };
+  const getFocusIntent = () => focusIntentRef.current;
 
   const changeRail = (target: RailFilter) => {
     // The rail is a local list filter only — `all`, `fav`, and provider IDs
@@ -263,7 +267,8 @@ export function useRuntimeSelector({
     open,
     openWith,
     close,
-    focusIntent: focusIntentRef,
+    setFocusIntent,
+    getFocusIntent,
     railFilter,
     changeRail,
     query,

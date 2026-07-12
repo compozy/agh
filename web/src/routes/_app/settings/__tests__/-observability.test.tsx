@@ -180,6 +180,32 @@ describe("ObservabilitySettingsPage", () => {
     expect(link).toHaveAttribute("href", "/api/settings/observability/log-tail");
   });
 
+  it("omits unsafe log-tail stream URLs", () => {
+    pageState.envelope = {
+      ...envelope,
+      log_tail: { ...envelope.log_tail, stream_url: "javascript:alert('unsafe')" },
+    };
+    render(<ObservabilitySettingsPage />);
+
+    expect(
+      screen.queryByTestId("settings-page-observability-log-tail-link")
+    ).not.toBeInTheDocument();
+  });
+
+  it("clears local validation errors when the draft is reset", async () => {
+    const user = userEvent.setup();
+    pageState.isDirty = true;
+    render(<ObservabilitySettingsPage />);
+
+    await user.clear(screen.getByTestId("settings-page-observability-retention-days"));
+    expect(screen.getByText("Enter a value.")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("settings-page-observability-reset"));
+
+    expect(pageState.handleReset).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Enter a value.")).not.toBeInTheDocument();
+  });
+
   it("renders support bundle consent before daemon download", () => {
     render(<ObservabilitySettingsPage />);
 

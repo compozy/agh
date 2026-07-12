@@ -269,10 +269,9 @@ export function useSessionCreateDialog({
       const message = describeError("Failed to create session.", error);
       setSubmitError(message);
       toast.error(message);
-    } finally {
-      setPendingAgentName(null);
-      setPendingWorkspaceId(null);
     }
+    setPendingAgentName(null);
+    setPendingWorkspaceId(null);
   };
 
   const providersError = workspaceDetailError ? describeWorkspaceError(workspaceDetailError) : null;

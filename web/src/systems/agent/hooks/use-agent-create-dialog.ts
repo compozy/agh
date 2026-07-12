@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -104,7 +104,7 @@ export function useAgentCreateDialog({
   const [open, setOpenState] = useState(false);
   const [mode, setMode] = useState<"create" | "duplicate">("create");
   const [duplicateSource, setDuplicateSource] = useState<AgentPayload | null>(null);
-  const [draft, setDraft] = useState<AgentCreateDialogDraft>(() =>
+  const [storedDraft, setDraft] = useState<AgentCreateDialogDraft>(() =>
     createDefaultAgentCreateDraft(Boolean(activeWorkspace))
   );
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -116,6 +116,17 @@ export function useAgentCreateDialog({
   const workspaceProviderOptions: RuntimeProviderOption[] =
     workspaceProviders.map(workspaceProviderToOption);
 
+  const scopedDraft: AgentCreateDialogDraft =
+    storedDraft.scope === "workspace" && !activeWorkspace
+      ? updateAgentCreateScope(storedDraft, "global")
+      : storedDraft;
+  const sourceProviders =
+    scopedDraft.scope === "workspace" ? workspaceProviders : (globalProviderEntries ?? []);
+  const draft: AgentCreateDialogDraft =
+    scopedDraft.provider.length > 0 &&
+    !sourceProviders.some(provider => provider.name === scopedDraft.provider)
+      ? { ...scopedDraft, provider: "", model: "", reasoningEffort: "" as const }
+      : scopedDraft;
   const providerOptions: RuntimeProviderOption[] =
     draft.scope === "workspace" ? workspaceProviderOptions : globalProviders;
 
@@ -129,23 +140,6 @@ export function useAgentCreateDialog({
       : settingsProviders.error
         ? describeError("Unable to load global provider settings.", settingsProviders.error)
         : null;
-
-  useEffect(() => {
-    setDraft(current => {
-      if (current.scope !== "workspace" || activeWorkspace) return current;
-      return updateAgentCreateScope(current, "global");
-    });
-  }, [activeWorkspace]);
-
-  useEffect(() => {
-    setDraft(current => {
-      if (current.provider.length === 0) return current;
-      const sourceProviders =
-        current.scope === "workspace" ? workspaceProviders : (globalProviderEntries ?? []);
-      if (sourceProviders.some(provider => provider.name === current.provider)) return current;
-      return { ...current, provider: "", model: "", reasoningEffort: "" };
-    });
-  }, [globalProviderEntries, workspaceProviders]);
 
   const catalogProviders: RuntimeCatalogProvider[] = providerOptions.map(option => ({
     id: option.id,

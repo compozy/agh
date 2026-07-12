@@ -131,9 +131,8 @@ export function useAutomationJobsPage(
       );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save automation job");
-    } finally {
-      jobSubmitInFlightRef.current = false;
     }
+    jobSubmitInFlightRef.current = false;
   };
 
   const handleDelete = async () => {

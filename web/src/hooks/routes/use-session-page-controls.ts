@@ -1,4 +1,4 @@
-import { useState, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type SetStateAction } from "react";
 import { useAui, useAuiState } from "@assistant-ui/react";
 import { toast } from "sonner";
 
@@ -88,10 +88,7 @@ function restoreQueuedPrompt(
   return restored;
 }
 
-interface QueuedPromptScopeState {
-  scope: string;
-  prompts: QueuedPrompt[];
-}
+type QueuedPromptsByScope = Record<string, QueuedPrompt[] | undefined>;
 
 export function useSessionPageControls(
   sessionId: string,
@@ -122,18 +119,21 @@ export function useSessionPageControls(
   const promptControlsAvailable = effectiveRunning && userControllable;
   const canPrompt = session.state === "active" && userControllable;
   const queueScope = effectiveRunning ? `running:${activeTurnId}` : "settled";
-  const [queuedPromptState, setQueuedPromptState] = useState<QueuedPromptScopeState>(() => ({
-    scope: queueScope,
-    prompts: [],
-  }));
-  const queuedPrompts =
-    effectiveRunning && queuedPromptState.scope === queueScope ? queuedPromptState.prompts : [];
+  const [queuedPromptsByScope, setQueuedPromptsByScope] = useState<QueuedPromptsByScope>({});
+  const activeQueueScopeRef = useRef(queueScope);
+  useEffect(() => {
+    activeQueueScopeRef.current = queueScope;
+  }, [queueScope]);
+  const queuedPrompts = effectiveRunning ? (queuedPromptsByScope[queueScope] ?? []) : [];
   const setQueuedPrompts = (update: SetStateAction<QueuedPrompt[]>) => {
-    setQueuedPromptState(current => {
-      const scopedPrompts = current.scope === queueScope ? current.prompts : [];
+    const updateScope = queueScope;
+    setQueuedPromptsByScope(current => {
+      if (activeQueueScopeRef.current !== updateScope) {
+        return current;
+      }
+      const scopedPrompts = current[updateScope] ?? [];
       return {
-        scope: queueScope,
-        prompts: typeof update === "function" ? update(scopedPrompts) : update,
+        [updateScope]: typeof update === "function" ? update(scopedPrompts) : update,
       };
     });
   };

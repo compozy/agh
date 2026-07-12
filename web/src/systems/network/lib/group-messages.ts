@@ -1,9 +1,5 @@
 import type { NetworkConversationMessage } from "../types";
-import {
-  TIMELINE_GROUP_WINDOW_SECONDS,
-  isSameCalendarDay,
-  isWithinSeconds,
-} from "./format-timestamp";
+import { TIMELINE_GROUP_WINDOW_SECONDS, isWithinSeconds } from "./format-timestamp";
 
 export type TimelineRowVariant = "full" | "collapsed" | "system";
 
@@ -154,11 +150,4 @@ export function buildTimelineEntries({
 
 export function isSystemKind(kind: string): boolean {
   return SYSTEM_KINDS.has(kind);
-}
-
-export function isSameDayMessage(
-  current: NetworkConversationMessage,
-  previous: NetworkConversationMessage
-): boolean {
-  return isSameCalendarDay(current.timestamp, previous.timestamp);
 }

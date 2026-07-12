@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { LOOP_RUN_EVENT_KINDS, LOOP_RUN_LIFECYCLE_EVENT_KINDS } from "@/generated/loop-enums";
@@ -51,6 +51,29 @@ function defaultEventSourceFactory(url: string): LoopStreamEventSource {
   return new EventSource(url);
 }
 
+function attachLoopStreamSource(
+  source: LoopStreamEventSource,
+  handleFrame: (event: MessageEvent) => void,
+  handleError: (event: Event) => void
+): () => void {
+  source.onmessage = handleFrame;
+  source.onerror = handleError;
+  const namedListener = handleFrame as EventListener;
+  for (const type of LOOP_STREAM_EVENT_TYPES) {
+    source.addEventListener(type, namedListener);
+  }
+  return () => {
+    if (source.removeEventListener) {
+      for (const type of LOOP_STREAM_EVENT_TYPES) {
+        source.removeEventListener(type, namedListener);
+      }
+    }
+    source.onmessage = null;
+    source.onerror = null;
+    source.close();
+  };
+}
+
 type QueryClient = ReturnType<typeof useQueryClient>;
 
 function invalidateLoopRunQueries(
@@ -71,27 +94,35 @@ function invalidateLoopRunQueries(
  * listeners for every enumerated kind, `onEvent` on each frame, `afterSequence`
  * resume, and query invalidation on the lifecycle kinds (`token_tick`/`channel_msg`
  * are display-only, applied via `onEvent`, never invalidating). `onEvent`/`onError`
- * are stabilized through refs so an inline (non-memoized) callback never tears down
+ * are stabilized through Effect Events so an inline callback never tears down
  * and reopens the EventSource; only the workspace, run, resume seed, or factory
  * identity reopen the stream.
  */
 export function useLoopStream(
   workspaceId: string,
   runId: string,
-  options: UseLoopStreamOptions = {}
+  {
+    enabled = true,
+    afterSequence,
+    eventSourceFactory: customEventSourceFactory,
+    onEvent,
+    onError,
+  }: UseLoopStreamOptions = {}
 ) {
-  const enabled = options.enabled ?? true;
-  const eventSourceFactory = options.eventSourceFactory ?? defaultEventSourceFactory;
-  const hasCustomFactory = Boolean(options.eventSourceFactory);
-  const afterSequence = options.afterSequence;
   const queryClient = useQueryClient();
   const trimmedWorkspace = workspaceId.trim();
   const trimmedRun = runId.trim();
 
-  const onEventRef = useRef(options.onEvent);
-  const onErrorRef = useRef(options.onError);
-  onEventRef.current = options.onEvent;
-  onErrorRef.current = options.onError;
+  const notifyEvent = useEffectEvent((payload: LoopRunEventFrame) => {
+    onEvent?.(payload);
+  });
+  const notifyError = useEffectEvent((error: unknown, fallback: string) => {
+    if (onError) {
+      onError(error);
+      return;
+    }
+    console.error(fallback, error);
+  });
 
   useEffect(() => {
     if (
@@ -99,7 +130,7 @@ export function useLoopStream(
       trimmedWorkspace === "" ||
       trimmedRun === "" ||
       typeof window === "undefined" ||
-      (!hasCustomFactory && typeof EventSource === "undefined")
+      (!customEventSourceFactory && typeof EventSource === "undefined")
     ) {
       return undefined;
     }
@@ -107,7 +138,7 @@ export function useLoopStream(
     const url = buildLoopStreamUrl(trimmedWorkspace, trimmedRun, {
       after_sequence: afterSequence === undefined ? undefined : String(afterSequence),
     });
-    const source = eventSourceFactory(url);
+    const source = (customEventSourceFactory ?? defaultEventSourceFactory)(url);
 
     const handleFrame = (event: MessageEvent) => {
       if (typeof event.data !== "string") {
@@ -119,11 +150,7 @@ export function useLoopStream(
       try {
         payload = JSON.parse(event.data) as LoopRunEventFrame;
       } catch (error) {
-        if (onErrorRef.current) {
-          onErrorRef.current(error);
-        } else {
-          console.error("Failed to parse loop stream payload", error);
-        }
+        notifyError(error, "Failed to parse loop stream payload");
         return;
       }
       // Named frames carry the kind as event.type; the defensive onmessage frame
@@ -137,44 +164,15 @@ export function useLoopStream(
           kind === "status_changed"
         );
       }
-      onEventRef.current?.(payload);
+      notifyEvent(payload);
     };
 
     const handleError = (event: Event) => {
-      if (onErrorRef.current) {
-        onErrorRef.current(event);
-      } else {
-        console.error("Loop stream failed", event);
-      }
+      notifyError(event, "Loop stream failed");
     };
 
-    source.onmessage = handleFrame;
-    source.onerror = handleError;
-
-    const namedListener = handleFrame as EventListener;
-    for (const type of LOOP_STREAM_EVENT_TYPES) {
-      source.addEventListener(type, namedListener);
-    }
-
-    return () => {
-      if (source.removeEventListener) {
-        for (const type of LOOP_STREAM_EVENT_TYPES) {
-          source.removeEventListener(type, namedListener);
-        }
-      }
-      source.onmessage = null;
-      source.onerror = null;
-      source.close();
-    };
-  }, [
-    enabled,
-    trimmedWorkspace,
-    trimmedRun,
-    afterSequence,
-    eventSourceFactory,
-    hasCustomFactory,
-    queryClient,
-  ]);
+    return attachLoopStreamSource(source, handleFrame, handleError);
+  }, [enabled, trimmedWorkspace, trimmedRun, afterSequence, customEventSourceFactory, queryClient]);
 }
 
 export type { LoopStreamEventSource, LoopStreamEventSourceFactory, UseLoopStreamOptions };

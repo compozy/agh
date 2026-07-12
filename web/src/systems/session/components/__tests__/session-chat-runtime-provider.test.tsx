@@ -1183,7 +1183,7 @@ describe("SessionChatRuntimeProvider", () => {
     expect(state.getAttribute("data-error-message")).toContain("recorder temporarily unavailable");
   }, 10_000);
 
-  it("virtualizes large transcript histories while preserving visible message order", async () => {
+  it("Should render large transcript histories in message order", async () => {
     transcriptMessages = Array.from({ length: 80 }, (_, index) => ({
       id: `transcript_large_${index}`,
       role: index % 2 === 0 ? "user" : "assistant",
@@ -1193,13 +1193,14 @@ describe("SessionChatRuntimeProvider", () => {
     renderSessionThread();
 
     await waitFor(() => {
-      expect(screen.getByTestId("virtualized-thread-messages")).toBeInTheDocument();
+      expect(screen.getAllByTestId("thread-message-row")).toHaveLength(80);
     });
 
     const rowIndexes = screen
-      .getAllByTestId("virtualized-thread-row")
-      .map(row => Number(row.getAttribute("data-index")));
-    expect(rowIndexes.length).toBeGreaterThan(0);
-    expect(rowIndexes).toEqual([...rowIndexes].sort((left, right) => left - right));
+      .getAllByTestId("thread-message-row")
+      .map(row => Number(row.getAttribute("data-message-index")));
+    expect(rowIndexes).toEqual(Array.from({ length: 80 }, (_, index) => index));
+    expect(screen.getByText("Large transcript message 0")).toBeInTheDocument();
+    expect(screen.getByText("Large transcript message 79")).toBeInTheDocument();
   }, 10_000);
 });

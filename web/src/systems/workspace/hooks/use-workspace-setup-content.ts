@@ -71,9 +71,8 @@ export function useWorkspaceSetupContent({
         setManualError(message);
       }
       toast.error(message);
-    } finally {
-      setSubmissionMode(null);
     }
+    setSubmissionMode(null);
   };
 
   const handleManualSubmit = async (event: FormEvent<HTMLFormElement>) => {

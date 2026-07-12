@@ -1,4 +1,4 @@
-export const WIRE_KINDS = ["greet", "whois", "say", "capability", "receipt", "trace"] as const;
+const WIRE_KINDS = ["greet", "whois", "say", "capability", "receipt", "trace"] as const;
 
 export type WireKind = (typeof WIRE_KINDS)[number];
 

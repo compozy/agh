@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent } from "react";
 
 import { registerCommandK, triggerVisible } from "./command-k-registry";
 
@@ -13,21 +13,23 @@ export interface UseCommandKOwnershipArgs {
 
 /**
  * Register this selector with the global `⌘K` owner registry for its lifetime.
- * The entry closures read the latest props through a ref, so a single mount-time
+ * The entry closures read the latest props through Effect Events, so one registration
  * registration always reflects current open/disabled state without re-subscribing.
  */
 export function useCommandKOwnership(args: UseCommandKOwnershipArgs): void {
-  const latest = useRef(args);
-  latest.current = args;
+  const isEligible = useEffectEvent(() => !args.disabled);
+  const isVisible = useEffectEvent(() => triggerVisible(args.triggerRef.current));
+  const isOpen = useEffectEvent(() => args.open);
+  const open = useEffectEvent(() => args.onOpen());
+  const close = useEffectEvent(() => args.onClose());
   useEffect(() => {
     return registerCommandK({
-      id: latest.current.id,
-      isEligible: () => !latest.current.disabled,
-      isVisible: () => triggerVisible(latest.current.triggerRef.current),
-      isOpen: () => latest.current.open,
-      open: () => latest.current.onOpen(),
-      close: () => latest.current.onClose(),
+      id: args.id,
+      isEligible,
+      isVisible,
+      isOpen,
+      open,
+      close,
     });
-    // Registered once for the component's lifetime; live state is read via `latest`.
-  }, []);
+  }, [args.id]);
 }

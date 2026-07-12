@@ -1,6 +1,5 @@
 import { useAuiState } from "@assistant-ui/react";
-import { useRef, useState } from "react";
-import { flushSync } from "react-dom";
+import { useState } from "react";
 
 import {
   computeStableSessionRows,
@@ -132,21 +131,6 @@ function goalPromptMeta(content: unknown): GoalPromptMeta | null {
   return null;
 }
 
-/**
- * Toggles a disclosure while preserving the reader's viewport anchor: it measures
- * the scroll container before the synchronous state flush, then corrects
- * `scrollTop` by the height delta so newly revealed rows never jump the view.
- */
-function anchorPreservingToggle(button: HTMLElement | null, update: () => void): void {
-  const viewport = button?.closest<HTMLElement>('[data-testid="chat-view"]');
-  const previousHeight = viewport?.scrollHeight ?? 0;
-  const previousTop = viewport?.scrollTop ?? 0;
-  flushSync(update);
-  if (!viewport) return;
-  const delta = viewport.scrollHeight - previousHeight;
-  viewport.scrollTop = previousTop + delta;
-}
-
 export function useAssistantMessageTimeline() {
   const message = useAuiState(
     state => state.message as { id?: string; content?: unknown; status?: unknown }
@@ -162,7 +146,7 @@ export function useAssistantMessageTimeline() {
   const [expandedWorkGroups, setExpandedWorkGroups] = useState<Set<string>>(() => new Set());
   const [expandedTurns, setExpandedTurns] = useState<Set<string>>(() => new Set());
   const [expandedChangedFiles, setExpandedChangedFiles] = useState<Set<string>>(() => new Set());
-  const stableRef = useRef<StableSessionRowsState>(EMPTY_STABLE_SESSION_ROWS);
+  const [stableRows, setStableRows] = useState<StableSessionRowsState>(EMPTY_STABLE_SESSION_ROWS);
 
   const derivedRows = deriveSessionRows(parts, {
     foldSettledTurns: true,
@@ -171,58 +155,27 @@ export function useAssistantMessageTimeline() {
     expandedTurnIds: expandedTurns,
     expandedChangedFilesIds: expandedChangedFiles,
   });
-  const stableRows = computeStableSessionRows(derivedRows, stableRef.current);
-  stableRef.current = stableRows;
-  const rows = stableRows.result;
-
-  const toggleWorkGroup = (groupId: string, button: HTMLElement | null) => {
-    anchorPreservingToggle(button, () => {
-      setExpandedWorkGroups(previous => {
-        const next = new Set(previous);
-        if (next.has(groupId)) next.delete(groupId);
-        else next.add(groupId);
-        return next;
-      });
-    });
-  };
-
-  const toggleTurn = (turnId: string, button: HTMLElement | null) => {
-    anchorPreservingToggle(button, () => {
-      setExpandedTurns(previous => {
-        const next = new Set(previous);
-        if (next.has(turnId)) next.delete(turnId);
-        else next.add(turnId);
-        return next;
-      });
-    });
-  };
-
-  const toggleChangedFiles = (rowId: string, button: HTMLElement | null) => {
-    anchorPreservingToggle(button, () => {
-      setExpandedChangedFiles(previous => {
-        const next = new Set(previous);
-        if (next.has(rowId)) next.delete(rowId);
-        else next.add(rowId);
-        return next;
-      });
-    });
-  };
+  const nextStableRows = computeStableSessionRows(derivedRows, stableRows);
+  if (nextStableRows !== stableRows) {
+    setStableRows(nextStableRows);
+  }
+  const rows = nextStableRows.result;
 
   return {
     expandedTurns,
     expandedWorkGroups,
     rows,
     goal,
-    toggleChangedFiles,
-    toggleTurn,
-    toggleWorkGroup,
+    setExpandedChangedFiles,
+    setExpandedTurns,
+    setExpandedWorkGroups,
   } satisfies {
     expandedTurns: ReadonlySet<string>;
     expandedWorkGroups: ReadonlySet<string>;
     rows: SessionRow[];
     goal: GoalPromptMeta | null;
-    toggleChangedFiles: (rowId: string, button: HTMLElement | null) => void;
-    toggleTurn: (turnId: string, button: HTMLElement | null) => void;
-    toggleWorkGroup: (groupId: string, button: HTMLElement | null) => void;
+    setExpandedChangedFiles: typeof setExpandedChangedFiles;
+    setExpandedTurns: typeof setExpandedTurns;
+    setExpandedWorkGroups: typeof setExpandedWorkGroups;
   };
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { buildTaskStreamUrl } from "../adapters/tasks-api";
@@ -89,14 +89,27 @@ function defaultEventSourceFactory(url: string): TaskStreamEventSource {
   return new EventSource(url);
 }
 
-function resolveFilters(options: UseTaskStreamOptions): TaskStreamFilter {
-  if (options.filters !== undefined) {
-    return options.filters;
+function attachTaskStreamSource(
+  source: TaskStreamEventSource,
+  handleMessage: (event: MessageEvent) => void,
+  handleError: (event: Event) => void
+): () => void {
+  source.onmessage = handleMessage;
+  source.onerror = handleError;
+  const namedListener = handleMessage as EventListener;
+  for (const type of TASK_STREAM_EVENT_TYPES) {
+    source.addEventListener(type, namedListener);
   }
-  if (options.afterSequence !== undefined) {
-    return { after_sequence: options.afterSequence };
-  }
-  return {};
+  return () => {
+    if (source.removeEventListener) {
+      for (const type of TASK_STREAM_EVENT_TYPES) {
+        source.removeEventListener(type, namedListener);
+      }
+    }
+    source.onmessage = null;
+    source.onerror = null;
+    source.close();
+  };
 }
 
 type QueryClient = ReturnType<typeof useQueryClient>;
@@ -133,17 +146,30 @@ function reconcileActiveTaskCatalogs(queryClient: QueryClient) {
   void queryClient.refetchQueries({ queryKey: [...tasksKeys.all, "inbox"], type: "active" });
 }
 
-export function useTaskStream(taskId: string, options: UseTaskStreamOptions = {}) {
-  const enabled = options.enabled ?? true;
-  const eventSourceFactory = options.eventSourceFactory ?? defaultEventSourceFactory;
-  const hasCustomFactory = Boolean(options.eventSourceFactory);
-  const filters = resolveFilters(options);
-  const afterSequence = filters.after_sequence;
-  const onEvent = options.onEvent;
-  const onError = options.onError;
+export function useTaskStream(
+  taskId: string,
+  {
+    enabled = true,
+    afterSequence: fallbackAfterSequence,
+    filters: { after_sequence: filteredAfterSequence = fallbackAfterSequence } = {},
+    eventSourceFactory: customEventSourceFactory,
+    onEvent,
+    onError,
+  }: UseTaskStreamOptions = {}
+) {
   const queryClient = useQueryClient();
   const trimmedId = taskId.trim();
   const catalogsDirty = useRef(false);
+  const notifyEvent = useEffectEvent((payload: TaskStreamPayload) => {
+    onEvent?.(payload);
+  });
+  const notifyError = useEffectEvent((error: unknown, fallback: string) => {
+    if (onError) {
+      onError(error);
+      return;
+    }
+    console.error(fallback, error);
+  });
 
   useEffect(() => {
     if (!enabled || trimmedId === "") {
@@ -163,13 +189,13 @@ export function useTaskStream(taskId: string, options: UseTaskStreamOptions = {}
       !enabled ||
       trimmedId === "" ||
       typeof window === "undefined" ||
-      (!hasCustomFactory && typeof EventSource === "undefined")
+      (!customEventSourceFactory && typeof EventSource === "undefined")
     ) {
       return undefined;
     }
 
-    const url = buildTaskStreamUrl(trimmedId, { after_sequence: afterSequence });
-    const source = eventSourceFactory(url);
+    const url = buildTaskStreamUrl(trimmedId, { after_sequence: filteredAfterSequence });
+    const source = (customEventSourceFactory ?? defaultEventSourceFactory)(url);
 
     const handleMessage = (event: MessageEvent) => {
       if (typeof event.data !== "string") {
@@ -182,54 +208,18 @@ export function useTaskStream(taskId: string, options: UseTaskStreamOptions = {}
           catalogsDirty.current = true;
           markTaskCatalogsStale(queryClient);
         }
-        if (onEvent) {
-          onEvent(payload);
-        }
+        notifyEvent(payload);
       } catch (error) {
-        if (onError) {
-          onError(error);
-        } else {
-          console.error("Failed to parse task stream payload", error);
-        }
+        notifyError(error, "Failed to parse task stream payload");
       }
     };
 
     const handleError = (event: Event) => {
-      if (onError) {
-        onError(event);
-      } else {
-        console.error("Task stream failed", event);
-      }
+      notifyError(event, "Task stream failed");
     };
 
-    source.onmessage = handleMessage;
-    source.onerror = handleError;
-
-    const namedListener = handleMessage as EventListener;
-    for (const type of TASK_STREAM_EVENT_TYPES) {
-      source.addEventListener(type, namedListener);
-    }
-
-    return () => {
-      if (source.removeEventListener) {
-        for (const type of TASK_STREAM_EVENT_TYPES) {
-          source.removeEventListener(type, namedListener);
-        }
-      }
-      source.onmessage = null;
-      source.onerror = null;
-      source.close();
-    };
-  }, [
-    enabled,
-    trimmedId,
-    afterSequence,
-    eventSourceFactory,
-    hasCustomFactory,
-    onEvent,
-    onError,
-    queryClient,
-  ]);
+    return attachTaskStreamSource(source, handleMessage, handleError);
+  }, [customEventSourceFactory, enabled, filteredAfterSequence, queryClient, trimmedId]);
 }
 
 export type { TaskStreamEventSource, TaskStreamEventSourceFactory, UseTaskStreamOptions };

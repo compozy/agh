@@ -27,7 +27,7 @@ function byURL(left: { url: string }, right: { url: string }): number {
 }
 
 function sortedByURL<T extends { url: string }>(items: T[]): T[] {
-  return [...items].sort(byURL);
+  return items.toSorted(byURL);
 }
 
 function joinContent(...parts: Array<string | undefined>): string {
@@ -151,5 +151,5 @@ export function buildPublicSearchIndexes(): AdvancedIndex[] {
     ...buildDocIndexes(protocolDocs.getPages(), "AGH Network"),
     ...buildPostIndexes(allPosts()),
     ...buildReleaseIndexes(allReleases()),
-  ].sort(byURL);
+  ].toSorted(byURL);
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 /**
  * Live ticker shared across work chips and other duration displays. A single
@@ -56,17 +56,13 @@ export interface UseElapsedOptions {
  */
 export function useElapsedSeconds(
   start: string | Date | null | undefined,
-  options: UseElapsedOptions = {}
+  { enabled = true }: UseElapsedOptions = {}
 ): number | null {
-  const enabled = options.enabled ?? true;
-  const [now, setNow] = useState<number>(() => cachedNow);
-
-  useEffect(() => {
-    if (!enabled) {
-      return undefined;
-    }
-    return subscribe(() => setNow(cachedNow));
-  }, [enabled]);
+  const now = useSyncExternalStore(
+    enabled ? subscribe : () => () => undefined,
+    () => cachedNow,
+    () => cachedNow
+  );
 
   if (start == null) {
     return null;

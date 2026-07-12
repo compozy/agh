@@ -158,16 +158,7 @@ export type SessionTranscriptPage = NormalizedSessionTranscriptResponse & {
   cursor: number;
 };
 
-export const uiMessageRoles = [
-  "user",
-  "assistant",
-  "tool_call",
-  "tool_result",
-  "system",
-  "diff",
-] as const;
-
-export type UIMessageRole = (typeof uiMessageRoles)[number];
+export type UIMessageRole = "user" | "assistant" | "tool_call" | "tool_result" | "system" | "diff";
 
 export interface UIMessageDiff {
   language?: string;

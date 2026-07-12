@@ -13,6 +13,7 @@ export { ProviderModelCatalogStatus } from "./provider-model-catalog-status";
 export { ProvidersGrid } from "./providers-grid";
 export { ProvidersListFilters } from "./providers-list-filters";
 export { SettingsDecimalInput } from "./settings-decimal-input";
+export { SettingsDisabledSkillsSection } from "./settings-disabled-skills-section";
 export { SettingsFieldRow } from "./settings-field-row";
 export type { SettingsFieldRowVariant } from "./settings-field-row";
 export { SettingsNumberInput } from "./settings-number-input";

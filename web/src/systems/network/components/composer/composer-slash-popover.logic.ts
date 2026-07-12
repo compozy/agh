@@ -23,10 +23,6 @@ const SLASH_COMMANDS: ReadonlyArray<SlashCommandEntry> = [
   },
 ];
 
-export function getSlashCommandEntries(): ReadonlyArray<SlashCommandEntry> {
-  return SLASH_COMMANDS;
-}
-
 export function filterSlashCommandEntries(filterValue: string): ReadonlyArray<SlashCommandEntry> {
   const trimmed = filterValue.trim().toLowerCase();
   if (trimmed === "") {

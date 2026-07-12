@@ -32,7 +32,9 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   const { openDialog } = useAgentCreateHost();
   const sessionCreate = useSessionCreate();
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const [draftQuery, setDraftQuery] = useState(search.q ?? "");
+  const routeQuery = search.q ?? "";
+  const [draftQueryState, setDraftQueryState] = useState({ routeQuery, value: routeQuery });
+  const draftQuery = draftQueryState.routeQuery === routeQuery ? draftQueryState.value : routeQuery;
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const agentsEnabled = workspaceId !== "" && !hasChildMatch;
@@ -51,18 +53,10 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   const view: ListingViewMode = search.view ?? "rows";
 
   useEffect(() => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-      debounceRef.current = null;
-    }
-    setDraftQuery(search.q ?? "");
-  }, [search.q]);
-
-  useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, []);
+  }, [routeQuery]);
 
   useEffect(() => {
     if (hasChildMatch) return;
@@ -82,7 +76,7 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   };
 
   const setDraftQueryAndDebounce = (nextQuery: string) => {
-    setDraftQuery(nextQuery);
+    setDraftQueryState({ routeQuery, value: nextQuery });
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       debounceRef.current = null;
@@ -103,7 +97,7 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
 
   const clearFilters = () => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    setDraftQuery("");
+    setDraftQueryState({ routeQuery, value: "" });
     updateSearch(current => ({
       view: current.view,
     }));

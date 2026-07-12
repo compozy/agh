@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState, type SetStateAction } from "react";
 
 import { useSettingsPage } from "@/hooks/routes/use-settings-page";
 import {
@@ -49,32 +49,35 @@ export function useSettingsGeneralPage() {
   const envelope = query.data ?? null;
   const workspaceContextKey = activeWorkspaceId ?? "__none__";
 
-  const [draft, setDraft] = useState<GeneralConfig | null>(null);
-  const [lastAppliedLabel, setLastAppliedLabel] = useState<string | null>(null);
-  const draftWorkspaceContext = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (envelope && draft === null) {
-      setDraft(envelope.config);
-      draftWorkspaceContext.current = workspaceContextKey;
-      return;
-    }
-
-    if (!envelope || draft === null) {
-      return;
-    }
-
-    if (draftWorkspaceContext.current === null) {
-      draftWorkspaceContext.current = workspaceContextKey;
-      return;
-    }
-
-    if (draftWorkspaceContext.current !== workspaceContextKey) {
-      setDraft(envelope.config);
-      setLastAppliedLabel(null);
-      draftWorkspaceContext.current = workspaceContextKey;
-    }
-  }, [envelope, draft, workspaceContextKey]);
+  const [draftState, setDraftState] = useState<{
+    draft: GeneralConfig | null;
+    workspaceKey: string;
+  }>({ draft: null, workspaceKey: workspaceContextKey });
+  const draft =
+    draftState.workspaceKey === workspaceContextKey
+      ? (draftState.draft ?? envelope?.config ?? null)
+      : (envelope?.config ?? null);
+  const setDraft = (update: SetStateAction<GeneralConfig | null>) => {
+    setDraftState(current => {
+      const currentDraft =
+        current.workspaceKey === workspaceContextKey
+          ? (current.draft ?? envelope?.config ?? null)
+          : (envelope?.config ?? null);
+      return {
+        draft: typeof update === "function" ? update(currentDraft) : update,
+        workspaceKey: workspaceContextKey,
+      };
+    });
+  };
+  const [lastAppliedState, setLastAppliedState] = useState<{
+    label: string | null;
+    workspaceKey: string;
+  }>({ label: null, workspaceKey: workspaceContextKey });
+  const lastAppliedLabel =
+    lastAppliedState.workspaceKey === workspaceContextKey ? lastAppliedState.label : null;
+  const setLastAppliedLabel = (label: string | null) => {
+    setLastAppliedState({ label, workspaceKey: workspaceContextKey });
+  };
 
   const isDirty =
     envelope && draft ? JSON.stringify(envelope.config) !== JSON.stringify(draft) : false;

@@ -5,6 +5,7 @@ import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { RootProvider } from "fumadocs-ui/provider/next";
+import { UIProvider } from "@agh/ui";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteSearchDialog, SiteSearchProvider } from "@/components/site/site-search";
 import { siteConfig } from "@/lib/site-config";
@@ -92,20 +93,22 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         >
           Skip to content
         </a>
-        <SiteSearchProvider>
-          <RootProvider
-            search={{
-              SearchDialog: SiteSearchDialog,
-              options: {
-                api: "/api/search",
-              },
-            }}
-            theme={{ enabled: false }}
-          >
-            {children}
-            <SiteFooter />
-          </RootProvider>
-        </SiteSearchProvider>
+        <UIProvider>
+          <SiteSearchProvider>
+            <RootProvider
+              search={{
+                SearchDialog: SiteSearchDialog,
+                options: {
+                  api: "/api/search",
+                },
+              }}
+              theme={{ enabled: false }}
+            >
+              {children}
+              <SiteFooter />
+            </RootProvider>
+          </SiteSearchProvider>
+        </UIProvider>
         <Analytics />
         <SpeedInsights />
       </body>

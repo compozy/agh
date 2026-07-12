@@ -249,7 +249,7 @@ describe("SessionThread transcript states", () => {
     renderThreadState({ status: "success", messages });
 
     expect(await screen.findByText("Launch readiness snapshot")).toBeInTheDocument();
-    expect(screen.getByTestId("virtualized-thread-messages")).toBeInTheDocument();
+    expect(screen.getByTestId("thread-messages")).toBeInTheDocument();
     expect(screen.queryByText(/Start a conversation/i)).not.toBeInTheDocument();
   });
 
@@ -384,7 +384,7 @@ describe("SessionThread transcript states", () => {
 
     expect(await screen.findByText("Continue delegated task run")).toBeInTheDocument();
     expect(await screen.findByText("Continuing after reconnect.")).toBeInTheDocument();
-    expect(screen.getByTestId("virtualized-thread-messages")).toBeInTheDocument();
+    expect(screen.getByTestId("thread-messages")).toBeInTheDocument();
   });
 
   it("Should render grouped tool clusters behind a previous-calls toggle", async () => {

@@ -81,6 +81,7 @@ export function useNetworkRouteShell(): NetworkRouteShellResult {
       to: "/network/$workspaceId/$channel/threads",
     });
   }, [
+    activeWorkspaceId,
     routeWorkspaceId,
     childParams.channel,
     childParams.workspaceId,

@@ -1,66 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
-
-import { useActiveWorkspace } from "@/systems/workspace";
-
-import { networkWorkOptions } from "../lib/query-options";
 import { isTerminalNetworkWorkState } from "../lib/network-formatters";
-import type { NetworkConversationMessage, NetworkSurface, NetworkWorkDetail } from "../types";
+import type { NetworkConversationMessage, NetworkSurface } from "../types";
 import { useNetworkMessages } from "./use-messages";
-
-export interface UseNetworkWorkArgs {
-  workspaceId?: string | null;
-  workId: string | null | undefined;
-  /** Inspector mounted? When false, polling drops back to the on-focus default. */
-  inspectorOpen?: boolean;
-  enabled?: boolean;
-}
-
-export interface UseNetworkWorkResult {
-  work: NetworkWorkDetail | null;
-  isLoading: boolean;
-  error: Error | null;
-}
-
-/**
- * Detail fetch for a single `work_id`. The 3s polling interval is only active
- * when the inspector is open AND the state is non-terminal per `_design.md`
- * §9.1. When the inspector is closed, the query falls back to refetch-on-focus
- * (the staleTime + refetchOnWindowFocus from `networkWorkOptions`).
- */
-export function useNetworkWork({
-  workspaceId: requestedWorkspaceId,
-  workId,
-  inspectorOpen = false,
-  enabled = true,
-}: UseNetworkWorkArgs): UseNetworkWorkResult {
-  const { activeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = requestedWorkspaceId ?? activeWorkspaceId ?? "";
-  const isReady = enabled && Boolean(workId) && Boolean(workspaceId);
-  const baseOptions = networkWorkOptions(workspaceId, workId ?? "", isReady);
-  const query = useQuery({
-    ...baseOptions,
-    refetchInterval: query => {
-      if (!inspectorOpen) {
-        return false;
-      }
-      const data = query.state.data as NetworkWorkDetail | undefined;
-      if (data && isTerminalNetworkWorkState(data.state)) {
-        return false;
-      }
-      const fallback = baseOptions.refetchInterval;
-      if (typeof fallback === "number") {
-        return fallback;
-      }
-      return 3_000;
-    },
-  });
-
-  return {
-    work: query.data ?? null,
-    isLoading: isReady && query.isLoading,
-    error: query.error ?? null,
-  };
-}
 
 export interface OpenWorkEntry {
   workId: string;

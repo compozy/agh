@@ -1,14 +1,3 @@
-import {
-  getToolName,
-  isDataUIPart,
-  isReasoningUIPart,
-  isTextUIPart,
-  isToolUIPart,
-  type DataUIPart,
-  type DynamicToolUIPart,
-  type ToolUIPart,
-} from "ai";
-
 import type { ToolCallStatus } from "@agh/ui";
 
 import type {
@@ -16,79 +5,11 @@ import type {
   AgentEventPayload,
   PermissionDecision,
   PermissionRequest,
-  SessionMessage,
   ToolUseResult,
 } from "../types";
 
-export type SessionToolPart = ToolUIPart | DynamicToolUIPart;
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-export function getMessageText(message: SessionMessage): string {
-  const text: string[] = [];
-  for (const part of message.parts) {
-    if (isTextUIPart(part)) text.push(part.text);
-  }
-  return text.join("");
-}
-
-export function getMessageReasoning(message: SessionMessage): string {
-  const reasoning: string[] = [];
-  for (const part of message.parts) {
-    if (isReasoningUIPart(part)) reasoning.push(part.text);
-  }
-  return reasoning.join("");
-}
-
-export function getMessageToolParts(message: SessionMessage): SessionToolPart[] {
-  return message.parts.filter(isToolUIPart);
-}
-
-export function getMessagePermissionParts(
-  message: SessionMessage
-): DataUIPart<{ "agh-permission": AghPermissionData }>[] {
-  return message.parts.filter(
-    (part): part is DataUIPart<{ "agh-permission": AghPermissionData }> =>
-      isDataUIPart(part) && part.type === "data-agh-permission"
-  );
-}
-
-export function getToolPartName(part: SessionToolPart): string {
-  return getToolName(part);
-}
-
-export function getToolPartInput(part: SessionToolPart): Record<string, unknown> {
-  return isRecord(part.input) ? part.input : {};
-}
-
-export function getToolPartResult(part: SessionToolPart): ToolUseResult | null {
-  if (part.state !== "output-available" && part.state !== "output-error") {
-    return null;
-  }
-
-  const payload = part.state === "output-available" ? part.output : undefined;
-  const output = isAgentEventPayload(payload) ? payload : undefined;
-
-  if (!output) {
-    if (part.state === "output-error") {
-      return {
-        error: part.errorText,
-      };
-    }
-    return isRecord(payload)
-      ? {
-          rawOutput: payload,
-        }
-      : null;
-  }
-
-  return parseToolUseResult(output);
-}
-
-export function isPermissionRequestData(value: unknown): value is AghPermissionData {
-  return isRecord(value) && typeof value.request_id === "string";
 }
 
 function normalizePermissionDecision(value: unknown): PermissionDecision | null {

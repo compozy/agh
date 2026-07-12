@@ -1,23 +1,19 @@
 import { startTransition } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRemoteThreadListRuntime } from "@assistant-ui/react";
 import { AssistantChatTransport, useChatRuntime } from "@assistant-ui/react-ai-sdk";
 
 import { loopsKeys } from "@/systems/loops";
 import { sessionKeys } from "../lib/query-keys";
 import { createGoalAwareFetch } from "../lib/session-goal-chat-transport";
-import { createSessionThreadListAdapter } from "../lib/session-thread-list-adapter";
 import { useSessionStore } from "./use-session-store";
 
-export function useSessionChatRuntime({
-  sessionId,
-  workspaceId,
-}: {
-  sessionId: string;
-  workspaceId: string;
-}) {
-  const queryClient = useQueryClient();
-  const threadListAdapter = createSessionThreadListAdapter({ queryClient, workspaceId });
+type QueryClient = ReturnType<typeof useQueryClient>;
+
+function buildSessionRuntimeConfig(
+  queryClient: QueryClient,
+  workspaceId: string,
+  sessionId: string
+) {
   const goalAwareFetch = createGoalAwareFetch({
     onResult: (result, requestText) => {
       useSessionStore.getState().setGoalResult(sessionId, result, requestText ?? undefined);
@@ -37,29 +33,37 @@ export function useSessionChatRuntime({
       });
     },
   });
-  const transport = new AssistantChatTransport({
-    api: `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(sessionId)}/prompt`,
-    fetch: goalAwareFetch,
-  });
-
-  return useRemoteThreadListRuntime({
-    threadId: sessionId,
-    adapter: threadListAdapter,
-    runtimeHook: function SessionRuntimeHook() {
-      return useChatRuntime({
-        transport,
-        onFinish: () => {
-          startTransition(() => {
-            void queryClient.invalidateQueries({
-              queryKey: sessionKeys.detail(workspaceId, sessionId),
-            });
-            void queryClient.invalidateQueries({
-              queryKey: sessionKeys.history(workspaceId, sessionId),
-            });
-            void queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
-          });
-        },
+  return {
+    transport: new AssistantChatTransport({
+      api: `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(sessionId)}/prompt`,
+      fetch: goalAwareFetch,
+    }),
+    onFinish: () => {
+      startTransition(() => {
+        void queryClient.invalidateQueries({
+          queryKey: sessionKeys.detail(workspaceId, sessionId),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: sessionKeys.history(workspaceId, sessionId),
+        });
+        void queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
       });
     },
+  };
+}
+
+export function useSessionChatRuntime({
+  sessionId,
+  workspaceId,
+}: {
+  sessionId: string;
+  workspaceId: string;
+}) {
+  const queryClient = useQueryClient();
+  const runtimeConfig = buildSessionRuntimeConfig(queryClient, workspaceId, sessionId);
+
+  return useChatRuntime({
+    transport: runtimeConfig.transport,
+    onFinish: runtimeConfig.onFinish,
   });
 }

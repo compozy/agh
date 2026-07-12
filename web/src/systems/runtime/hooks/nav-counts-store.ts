@@ -417,11 +417,3 @@ export function getNavCountsStore(workspaceId?: string | null): NavCountsStore {
   processSingletons.set(key, store);
   return store;
 }
-
-/** Test helper: replace the singleton (or reset it) before mounting consumers. */
-export function setNavCountsStoreForTests(store: NavCountsStore | null): void {
-  processSingletons.clear();
-  if (store) {
-    processSingletons.set("", store);
-  }
-}

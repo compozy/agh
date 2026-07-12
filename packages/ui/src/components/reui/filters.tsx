@@ -706,7 +706,7 @@ interface FiltersContentProps<T = unknown> {
   focusFilterId?: string | null;
 }
 
-export const FiltersContent = <T = unknown,>({
+const FiltersContent = <T = unknown,>({
   filters,
   fields,
   onChange,

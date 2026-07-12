@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -74,23 +74,23 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
   });
 
   const agent = agentQuery.data;
-  const [draft, setDraftState] = useState<AgentSettingsDraft | null>(null);
-  const [baselineAgent, setBaselineAgent] = useState<AgentPayload | null>(null);
+  const agentKey = agent?.definition_digest ?? "pending";
+  const [editorState, setEditorState] = useState<{
+    baseline: AgentPayload | null;
+    draft: AgentSettingsDraft | null;
+    key: string;
+  }>({ baseline: null, draft: null, key: agentKey });
+  const baselineAgent =
+    editorState.key === agentKey ? (editorState.baseline ?? agent ?? null) : (agent ?? null);
+  const draft =
+    editorState.key === agentKey
+      ? (editorState.draft ?? (agent ? buildSettingsDraftFromAgent(agent) : null))
+      : agent
+        ? buildSettingsDraftFromAgent(agent)
+        : null;
   const [conflictBanner, setConflictBanner] = useState<string | null>(null);
   const [mutationDenied, setMutationDenied] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!agent) return;
-    setBaselineAgent(current =>
-      current?.definition_digest === agent.definition_digest ? current : agent
-    );
-    setDraftState(current => {
-      if (current === null) return buildSettingsDraftFromAgent(agent);
-      if (current.definitionDigest === agent.definition_digest) return current;
-      return buildSettingsDraftFromAgent(agent);
-    });
-  }, [agent]);
 
   const draftSafe = draft;
   const dirty = Boolean(
@@ -119,20 +119,28 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
   const catalog = useRuntimeModelCatalog(catalogProviders, { enabled: Boolean(agent) });
 
   const setDraft = (next: AgentSettingsDraft) => {
-    setDraftState(next);
+    setEditorState({ baseline: baselineAgent, draft: next, key: agentKey });
     setSaveError(null);
     setConflictBanner(null);
   };
 
   const patchDraft = (patch: Partial<AgentSettingsDraft>) => {
-    setDraftState(current => (current ? { ...current, ...patch } : current));
+    setEditorState({
+      baseline: baselineAgent,
+      draft: draftSafe ? { ...draftSafe, ...patch } : null,
+      key: agentKey,
+    });
     setSaveError(null);
     setConflictBanner(null);
   };
 
   const onDiscard = () => {
     if (!baselineAgent) return;
-    setDraftState(buildSettingsDraftFromAgent(baselineAgent));
+    setEditorState({
+      baseline: baselineAgent,
+      draft: buildSettingsDraftFromAgent(baselineAgent),
+      key: baselineAgent.definition_digest,
+    });
     setSaveError(null);
     setConflictBanner(null);
   };
@@ -142,8 +150,11 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
     setSaveError(null);
     const result = await agentQuery.refetch();
     if (result.data) {
-      setBaselineAgent(result.data);
-      setDraftState(buildSettingsDraftFromAgent(result.data));
+      setEditorState({
+        baseline: result.data,
+        draft: buildSettingsDraftFromAgent(result.data),
+        key: result.data.definition_digest,
+      });
     }
   };
 
@@ -160,8 +171,11 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
       { name: agent.name, params },
       {
         onSuccess: updated => {
-          setBaselineAgent(updated);
-          setDraftState(buildSettingsDraftFromAgent(updated));
+          setEditorState({
+            baseline: updated,
+            draft: buildSettingsDraftFromAgent(updated),
+            key: updated.definition_digest,
+          });
           toast.success("Changes saved");
         },
         onError: error => {

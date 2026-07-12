@@ -330,9 +330,11 @@ function useKnowledgePage() {
       });
       const filename = decision.target_filename ?? decision.frontmatter.filename;
       setSelectedMemoryKey(`${decision.scope}:${filename}`);
-    } finally {
+    } catch (error) {
       setRevertingDecisionId(prev => (prev === decision.id ? null : prev));
+      throw error;
     }
+    setRevertingDecisionId(prev => (prev === decision.id ? null : prev));
   };
 
   const selectedTargetMatches = selectedMemory

@@ -1,5 +1,5 @@
 import type { FormEvent } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { LoopTargetDraft } from "@/systems/loops";
 
@@ -114,6 +114,11 @@ export function useAutomationJobForm({
   const output: JobOutputMode = jobOutputMode(draft);
   const retry = retryDraftForStrategy(draft.retry?.strategy ?? "none", draft.retry ?? undefined);
   const [cronFrequencyOverride, setCronFrequencyOverride] = useState<CronFrequency | null>(null);
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const decodedCronModel = decodeCron(scheduleExpr(draft)) ?? { frequency: "custom" as const };
   const cronModel: CronModel = fullCronModel({
@@ -132,7 +137,7 @@ export function useAutomationJobForm({
         : [];
 
   const preview = buildJobPreview(draft);
-  const canSubmit = computeCanSubmit(draft, Date.now());
+  const canSubmit = computeCanSubmit(draft, now);
 
   const patch = (next: Partial<CreateAutomationJobRequest>) => onChange({ ...draft, ...next });
 

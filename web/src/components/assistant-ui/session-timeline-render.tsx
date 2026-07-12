@@ -18,6 +18,7 @@ import { useAssistantMessageTimeline } from "./hooks/use-assistant-message-timel
 import {
   TimelineRowContext,
   type TimelineRowSharedState,
+  toggleTimelineExpansion,
   useTimelineRowContext,
 } from "./hooks/use-timeline-row-context";
 import { SessionDataEventCard, SessionMessageText } from "./session-message-parts";
@@ -177,19 +178,27 @@ function SessionWorkRowView({ row }: { row: SessionWorkRow }) {
 }
 
 function SessionWorkToggleRowView({ row }: { row: SessionWorkToggleRow }) {
-  const { toggleWorkGroup } = useTimelineRowContext();
-  return <WorkToggleButton row={row} onToggle={button => toggleWorkGroup(row.groupId, button)} />;
+  const { setExpandedWorkGroups } = useTimelineRowContext();
+  return (
+    <WorkToggleButton
+      row={row}
+      onToggle={button => toggleTimelineExpansion(setExpandedWorkGroups, row.groupId, button)}
+    />
+  );
 }
 
 function SessionChangedFilesRowContent({ row }: { row: SessionChangedFilesRow }) {
-  const { toggleChangedFiles } = useTimelineRowContext();
+  const { setExpandedChangedFiles } = useTimelineRowContext();
   return (
-    <SessionChangedFilesRowView row={row} onToggle={button => toggleChangedFiles(row.id, button)} />
+    <SessionChangedFilesRowView
+      row={row}
+      onToggle={button => toggleTimelineExpansion(setExpandedChangedFiles, row.id, button)}
+    />
   );
 }
 
 function SessionTurnFoldRowView({ row }: { row: SessionTurnFoldRow }) {
-  const { expandedTurns, toggleTurn } = useTimelineRowContext();
+  const { expandedTurns, setExpandedTurns } = useTimelineRowContext();
   // An interrupted turn keeps its work expanded so the operator keeps their
   // place; the fold row becomes a danger-toned interruption label above the
   // always-visible work (never a collapsing disclosure).
@@ -213,7 +222,7 @@ function SessionTurnFoldRowView({ row }: { row: SessionTurnFoldRow }) {
       <TurnFoldButton
         row={row}
         expanded={expanded}
-        onToggle={button => toggleTurn(row.turnId ?? row.id, button)}
+        onToggle={button => toggleTimelineExpansion(setExpandedTurns, row.turnId ?? row.id, button)}
       />
       {expanded ? (
         <div className="ml-4 flex min-w-0 flex-col gap-1">{renderTimelineRows(row.rows)}</div>
@@ -284,16 +293,22 @@ function GoalPromptNotice({ goal }: { goal: GoalPromptMeta }) {
 }
 
 export function AssistantMessageTimeline() {
-  const { expandedTurns, goal, rows, toggleChangedFiles, toggleTurn, toggleWorkGroup } =
-    useAssistantMessageTimeline();
+  const {
+    expandedTurns,
+    goal,
+    rows,
+    setExpandedChangedFiles,
+    setExpandedTurns,
+    setExpandedWorkGroups,
+  } = useAssistantMessageTimeline();
   // The React Compiler stabilizes this context value and its callbacks while
   // their inputs remain unchanged, so steady-state streaming does not invalidate
   // interactive row consumers.
   const sharedState: TimelineRowSharedState = {
     expandedTurns,
-    toggleWorkGroup,
-    toggleTurn,
-    toggleChangedFiles,
+    setExpandedWorkGroups,
+    setExpandedTurns,
+    setExpandedChangedFiles,
   };
 
   return (

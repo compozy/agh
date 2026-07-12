@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -50,32 +50,36 @@ function useTaskDetailOrchestrationTab(
   const createSubscriptionMutation = useCreateTaskBridgeNotificationSubscription();
   const deleteSubscriptionMutation = useDeleteTaskBridgeNotificationSubscription();
 
-  const [streamState, setStreamState] = useState<StreamConnectionState>(
-    streamEnabled ? "idle" : "disabled"
-  );
-  const [streamErrorMessage, setStreamErrorMessage] = useState<string | null>(null);
-
-  // useTaskStream below resubscribes whenever streamEnabled flips, so reset the
-  // UI status and drop stale error text until the new EventSource emits.
-  useEffect(() => {
-    setStreamState(streamEnabled ? "idle" : "disabled");
-    setStreamErrorMessage(null);
-  }, [streamEnabled]);
+  const streamKey = streamEnabled ? `${taskId}:${seedSequence}` : "disabled";
+  const [streamStatus, setStreamStatus] = useState<{
+    error: string | null;
+    key: string;
+    state: StreamConnectionState;
+  }>(() => ({ error: null, key: streamKey, state: streamEnabled ? "idle" : "disabled" }));
+  const currentStreamStatus =
+    streamStatus.key === streamKey
+      ? streamStatus
+      : {
+          error: null,
+          key: streamKey,
+          state: streamEnabled ? ("idle" as const) : ("disabled" as const),
+        };
 
   const handleStreamEvent = () => {
-    setStreamState("connected");
-    setStreamErrorMessage(null);
+    setStreamStatus({ error: null, key: streamKey, state: "connected" });
   };
 
   const handleStreamError = (error: unknown) => {
-    setStreamState("error");
-    setStreamErrorMessage(
-      error instanceof Error
-        ? error.message
-        : typeof error === "string"
-          ? error
-          : "Stream connection failed"
-    );
+    setStreamStatus({
+      error:
+        error instanceof Error
+          ? error.message
+          : typeof error === "string"
+            ? error
+            : "Stream connection failed",
+      key: streamKey,
+      state: "error",
+    });
   };
 
   useTaskStream(taskId, {
@@ -170,8 +174,8 @@ function useTaskDetailOrchestrationTab(
     handleFanOutRuns,
     handleCreateSubscription,
     handleDeleteSubscription,
-    streamState,
-    streamErrorMessage,
+    streamState: currentStreamStatus.state,
+    streamErrorMessage: currentStreamStatus.error,
     streamSeedSequence: seedSequence,
     hasLatestEventSeq,
   };

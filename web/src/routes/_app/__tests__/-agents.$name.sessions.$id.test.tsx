@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TopbarSlotProvider, useTopbarSlotValue, type TopbarSlotValue } from "@agh/ui";
@@ -287,9 +287,11 @@ import { toast } from "sonner";
 
 const SessionPage = Route.options.component!;
 
-function TopbarSlotProbe({ slotRef }: { slotRef: { current: TopbarSlotValue | null } }) {
+function TopbarSlotProbe({ onSlot }: { onSlot: (slot: TopbarSlotValue | null) => void }) {
   const slot = useTopbarSlotValue();
-  slotRef.current = slot;
+  useEffect(() => {
+    onSlot(slot);
+  }, [onSlot, slot]);
   return (
     <div data-testid="topbar-probe">
       <span data-testid="topbar-probe-title">
@@ -302,7 +304,7 @@ function TopbarSlotProbe({ slotRef }: { slotRef: { current: TopbarSlotValue | nu
 }
 
 function renderSessionPage() {
-  const slotRef: { current: TopbarSlotValue | null } = { current: null };
+  let slotValue: TopbarSlotValue | null = null;
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -310,11 +312,11 @@ function renderSessionPage() {
     <QueryClientProvider client={queryClient}>
       <TopbarSlotProvider>
         <SessionPage />
-        <TopbarSlotProbe slotRef={slotRef} />
+        <TopbarSlotProbe onSlot={slot => (slotValue = slot)} />
       </TopbarSlotProvider>
     </QueryClientProvider>
   );
-  return { ...utils, slotRef };
+  return { ...utils, getSlot: () => slotValue };
 }
 
 function makeWorkspace(overrides: Partial<WorkspacePayload> = {}): WorkspacePayload {
@@ -396,8 +398,8 @@ describe("Nested agent session route — Topbar slot migration", () => {
   });
 
   it("Should push the agent name into the Topbar title slot", () => {
-    const { slotRef } = renderSessionPage();
-    expect(slotRef.current?.title).toBe("claude-agent");
+    const { getSlot } = renderSessionPage();
+    expect(getSlot()?.title).toBe("claude-agent");
   });
 
   it("Should render the daemon badge + provider as bare mono identifiers in the Topbar meta slot", () => {

@@ -1,4 +1,4 @@
-import { useReducer, useRef } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -31,29 +31,28 @@ export function useTasksPageActions() {
   const markReadMutation = useMarkTaskRead();
   const archiveMutation = useArchiveTask();
   const dismissMutation = useDismissTask();
-  const pendingIdsRef = useRef<PendingActionIds | null>(null);
-  if (pendingIdsRef.current === null) {
-    pendingIdsRef.current = createPendingActionIds();
-  }
-  const pendingIds = pendingIdsRef.current;
-  const [, renderPendingState] = useReducer((version: number) => version + 1, 0);
+  const [pendingGuards] = useState(createPendingActionIds);
+  const [pendingIds, setPendingIds] = useState(createPendingActionIds);
 
   const runOnce = async (
     kind: PendingActionKind,
     id: string,
     operation: () => Promise<unknown>
   ) => {
-    const pending = pendingIds[kind];
+    const pending = pendingGuards[kind];
     if (pending.has(id)) return false;
     pending.add(id);
-    renderPendingState();
+    setPendingIds(current => ({ ...current, [kind]: new Set(pending) }));
     try {
       await operation();
-      return true;
-    } finally {
+    } catch (error) {
       pending.delete(id);
-      renderPendingState();
+      setPendingIds(current => ({ ...current, [kind]: new Set(pending) }));
+      throw error;
     }
+    pending.delete(id);
+    setPendingIds(current => ({ ...current, [kind]: new Set(pending) }));
+    return true;
   };
 
   const handleApproveTask = async (taskId: string) => {

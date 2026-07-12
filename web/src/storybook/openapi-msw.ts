@@ -1,4 +1,3 @@
-import { HttpResponse, delay, http } from "msw";
 import {
   createOpenApiHttp,
   type PathsFor,
@@ -10,10 +9,6 @@ import {
 import type { paths as aghPaths } from "@/generated/agh-openapi";
 
 export const aghApiMock = createOpenApiHttp<aghPaths>({ baseUrl: "*" });
-
-export const externalMockHttp = http;
-export const externalMockResponse = HttpResponse;
-export const storybookDelay = delay;
 
 export type AghApiMockMethod = "delete" | "get" | "patch" | "post" | "put";
 

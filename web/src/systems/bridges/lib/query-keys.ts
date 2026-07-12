@@ -28,10 +28,10 @@ export const bridgeKeys = {
   routesRoot: () => [...bridgeKeys.all, "routes"] as const,
   routes: (id: string) => [...bridgeKeys.routesRoot(), normalizeKeyValue(id)] as const,
   targetsRoot: () => [...bridgeKeys.all, "targets"] as const,
+  targetsForBridge: (id: string) => [...bridgeKeys.targetsRoot(), normalizeKeyValue(id)] as const,
   targets: (id: string, query: BridgeTargetsQuery = {}) =>
     [
-      ...bridgeKeys.targetsRoot(),
-      normalizeKeyValue(id),
+      ...bridgeKeys.targetsForBridge(id),
       normalizeKeyValue(query.q),
       normalizeKeyValue(query.limit),
     ] as const,

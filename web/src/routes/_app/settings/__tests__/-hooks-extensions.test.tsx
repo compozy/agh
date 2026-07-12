@@ -514,9 +514,11 @@ describe("HooksExtensionsSettingsPage", () => {
 
   it("renders marketplace entries and routes install through the daemon action", () => {
     render(<HooksExtensionsSettingsPage />);
-    expect(
-      screen.getByTestId("settings-page-hooks-extensions-marketplace-row-daytona/daytona-extension")
-    ).toHaveTextContent("Workspace sandbox");
+    const row = screen.getByTestId(
+      "settings-page-hooks-extensions-marketplace-row-daytona/daytona-extension"
+    );
+    expect(row).toHaveTextContent("Workspace sandbox");
+    expect(row).toHaveTextContent("1.2.4");
 
     fireEvent.click(screen.getByTestId("settings-page-hooks-extensions-marketplace-search"));
     fireEvent.click(
@@ -527,6 +529,27 @@ describe("HooksExtensionsSettingsPage", () => {
 
     expect(pageState.searchMarketplace).toHaveBeenCalledTimes(1);
     expect(pageState.installMarketplaceExtension).toHaveBeenCalledWith(marketplaceEntry);
+  });
+
+  it("guards keyboard searches while loading and omits an unknown marketplace version", () => {
+    pageState = makeState({
+      marketplaceEntries: [{ ...marketplaceEntry, version: undefined }],
+      marketplaceLoading: true,
+    });
+    render(<HooksExtensionsSettingsPage />);
+
+    fireEvent.keyDown(
+      screen.getByTestId("settings-page-hooks-extensions-marketplace-search-input"),
+      {
+        key: "Enter",
+      }
+    );
+
+    expect(pageState.searchMarketplace).not.toHaveBeenCalled();
+    const row = screen.getByTestId(
+      "settings-page-hooks-extensions-marketplace-row-daytona/daytona-extension"
+    );
+    expect(row).not.toHaveTextContent("latest");
   });
 
   it("surfaces the allow_unverified marketplace toggle", () => {
@@ -695,7 +718,9 @@ describe("HooksExtensionsSettingsPage", () => {
       "settings-page-hooks-extensions-policy-allowed-kinds-session"
     );
     expect(snapshotChip).toHaveAttribute("data-active", "true");
+    expect(snapshotChip).toHaveAttribute("aria-pressed", "true");
     expect(sessionChip).toHaveAttribute("data-active", "false");
+    expect(sessionChip).toHaveAttribute("aria-pressed", "false");
 
     fireEvent.click(sessionChip);
     expect(pageState.toggleAllowedKind).toHaveBeenCalledWith("session");

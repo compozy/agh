@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useReducer, useRef, type SetStateAction } from "react";
 import {
   addEdge,
   applyEdgeChanges,
@@ -82,6 +82,47 @@ function nextDropPosition(nodes: readonly EditorNode[]): { x: number; y: number 
   return { x: rightmost.position.x + 200, y: rightmost.position.y };
 }
 
+interface LoopEditorState {
+  baseDefinition: LoopDefinition | null;
+  edges: EditorEdge[];
+  isDirty: boolean;
+  lint: LoopLintState;
+  nodes: EditorNode[];
+  positionsDirty: boolean;
+  publishError: string | null;
+  selectedNodeId: string | null;
+  selectionSeq: number;
+  validateFailed: boolean;
+  view: LoopEditorView;
+}
+
+interface LoopEditorStateAction {
+  update: (current: LoopEditorState) => LoopEditorState;
+}
+
+function createLoopEditorState(): LoopEditorState {
+  return {
+    baseDefinition: null,
+    edges: [],
+    isDirty: false,
+    lint: emptyLintState(),
+    nodes: [],
+    positionsDirty: false,
+    publishError: null,
+    selectedNodeId: null,
+    selectionSeq: 0,
+    validateFailed: false,
+    view: "graph",
+  };
+}
+
+function updateLoopEditorState(
+  current: LoopEditorState,
+  action: LoopEditorStateAction
+): LoopEditorState {
+  return action.update(current);
+}
+
 /**
  * The fork-and-edit editor view-model: it loads the one canonical definition + its
  * position sidecar, holds the draft as editor-session state (no server draft store,
@@ -97,18 +138,56 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
   const patchMutation = usePatchLoop();
   const annotationsMutation = usePutLoopAnnotations();
 
-  const [nodes, setNodes] = useState<EditorNode[]>([]);
-  const [edges, setEdges] = useState<EditorEdge[]>([]);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [selectionSeq, setSelectionSeq] = useState(0);
-  const [view, setView] = useState<LoopEditorView>("graph");
-  const [isDirty, setDirty] = useState(false);
-  const [positionsDirty, setPositionsDirty] = useState(false);
-  const [lint, setLint] = useState<LoopLintState>(emptyLintState);
-  const [publishError, setPublishError] = useState<string | null>(null);
-  const [validateFailed, setValidateFailed] = useState(false);
+  const [editorState, dispatchEditorState] = useReducer(
+    updateLoopEditorState,
+    undefined,
+    createLoopEditorState
+  );
+  const {
+    baseDefinition,
+    edges,
+    isDirty,
+    lint,
+    nodes,
+    positionsDirty,
+    publishError,
+    selectedNodeId,
+    selectionSeq,
+    validateFailed,
+    view,
+  } = editorState;
+  const setEditorField = <Field extends keyof LoopEditorState>(
+    field: Field,
+    value: SetStateAction<LoopEditorState[Field]>
+  ) => {
+    dispatchEditorState({
+      update: current => {
+        const currentValue = current[field];
+        const nextValue =
+          typeof value === "function"
+            ? (value as (previous: LoopEditorState[Field]) => LoopEditorState[Field])(currentValue)
+            : value;
+        return { ...current, [field]: nextValue };
+      },
+    });
+  };
+  const setBaseDefinition = (value: SetStateAction<LoopDefinition | null>) =>
+    setEditorField("baseDefinition", value);
+  const setEdges = (value: SetStateAction<EditorEdge[]>) => setEditorField("edges", value);
+  const setDirty = (value: SetStateAction<boolean>) => setEditorField("isDirty", value);
+  const setLint = (value: SetStateAction<LoopLintState>) => setEditorField("lint", value);
+  const setNodes = (value: SetStateAction<EditorNode[]>) => setEditorField("nodes", value);
+  const setPositionsDirty = (value: SetStateAction<boolean>) =>
+    setEditorField("positionsDirty", value);
+  const setPublishError = (value: SetStateAction<string | null>) =>
+    setEditorField("publishError", value);
+  const setSelectedNodeId = (value: SetStateAction<string | null>) =>
+    setEditorField("selectedNodeId", value);
+  const setSelectionSeq = (value: SetStateAction<number>) => setEditorField("selectionSeq", value);
+  const setValidateFailed = (value: SetStateAction<boolean>) =>
+    setEditorField("validateFailed", value);
+  const setView = (value: SetStateAction<LoopEditorView>) => setEditorField("view", value);
 
-  const baseDefRef = useRef<LoopDefinition | null>(null);
   const initedKeyRef = useRef<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Monotonic token so an out-of-order debounced validate never overwrites a newer verdict.
@@ -123,15 +202,17 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
     const key = `${workspaceId}:${name}`;
     if (initedKeyRef.current === key) return;
     initedKeyRef.current = key;
-    baseDefRef.current = definition;
     const graph = definitionToGraph(definition);
     const laid = layoutEditorGraph(graph.nodes, graph.edges, annotationsQuery.data ?? []);
-    setNodes(laid);
-    setEdges(graph.edges);
-    setSelectedNodeId(laid[0]?.id ?? null);
-    setDirty(false);
-    setPositionsDirty(false);
-    setLint(emptyLintState());
+    dispatchEditorState({
+      update: () => ({
+        ...createLoopEditorState(),
+        baseDefinition: definition,
+        edges: graph.edges,
+        nodes: laid,
+        selectedNodeId: laid[0]?.id ?? null,
+      }),
+    });
   }, [loopQuery.data, annotationsQuery.data, annotationsQuery.isLoading, workspaceId, name]);
 
   // Positions are cosmetic (auto-layout is the fallback), but a broken sidecar should be
@@ -145,7 +226,7 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
   }, [annotationsQuery.isError]);
 
   const runValidation = async (options: { notify?: boolean } = {}) => {
-    const base = baseDefRef.current;
+    const base = baseDefinition;
     if (!base) return;
     const definition = graphToDefinition(base, nodes, edges);
     const seq = ++validateSeqRef.current;
@@ -174,19 +255,18 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
     }
   };
 
-  // Live re-lint after structural edits so the chips + Publish gate stay truthful. The
-  // validator is held in a ref so only the structural signature retriggers it.
-  const runValidationRef = useRef(runValidation);
-  runValidationRef.current = runValidation;
+  // Live re-lint after structural edits so the chips + Publish gate stay truthful.
+  // The Effect Event reads the latest draft without making the debounce depend on
+  // the render-local validation function identity.
+  const runAutoValidation = useEffectEvent(() => runValidation());
   const structuralKey = JSON.stringify({
     n: nodes.map(node => node.data.raw),
     e: edges.map(edge => edge.data?.raw),
   });
   useEffect(() => {
-    if (!baseDefRef.current) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      void runValidationRef.current();
+      void runAutoValidation();
     }, AUTO_VALIDATE_DEBOUNCE_MS);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -256,25 +336,30 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
   };
 
   const addNode = (item: PaletteItem) => {
-    setNodes(current => {
-      const existing = new Set(current.map(node => node.id));
-      const id = uniqueNodeId(item.idBase, existing);
-      const raw = item.buildRaw(id);
-      const node: EditorNode = {
-        id,
-        type: "loopNode",
-        position: nextDropPosition(current),
-        data: { raw, nodeClass: item.nodeClass, kind: nodeKind(raw), hasError: false },
-      };
-      setSelectedNodeId(id);
-      setSelectionSeq(seq => seq + 1);
-      return [...current, node];
+    dispatchEditorState({
+      update: current => {
+        const existing = new Set(current.nodes.map(node => node.id));
+        const id = uniqueNodeId(item.idBase, existing);
+        const raw = item.buildRaw(id);
+        const node: EditorNode = {
+          id,
+          type: "loopNode",
+          position: nextDropPosition(current.nodes),
+          data: { raw, nodeClass: item.nodeClass, kind: nodeKind(raw), hasError: false },
+        };
+        return {
+          ...current,
+          isDirty: true,
+          nodes: [...current.nodes, node],
+          selectedNodeId: id,
+          selectionSeq: current.selectionSeq + 1,
+        };
+      },
     });
-    setDirty(true);
   };
 
   const publish = async (): Promise<LoopDetail | null> => {
-    const base = baseDefRef.current;
+    const base = baseDefinition;
     if (!base) return null;
     setPublishError(null);
     const definition = graphToDefinition(base, nodes, edges);
@@ -284,7 +369,7 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
         name,
         data: { definition, expected_version: base.meta.version ?? null },
       });
-      baseDefRef.current = updated.definition;
+      setBaseDefinition(updated.definition);
       setDirty(false);
       // A successful publish means the daemon accepted the definition — a validated-clean
       // state, not the pre-validation neutral state.
@@ -332,9 +417,9 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
 
   const selectedNode = nodes.find(node => node.id === selectedNodeId) ?? null;
   const selectedFields = selectedNode
-    ? buildNodeFields(selectedNode.data.raw, baseDefRef.current ?? undefined)
+    ? buildNodeFields(selectedNode.data.raw, baseDefinition ?? undefined)
     : [];
-  const dslBase = baseDefRef.current;
+  const dslBase = baseDefinition;
   // Only serialize when the DSL panel is visible — skip graph conversion + YAML
   // emission entirely while editing on the Graph canvas.
   const dslLines =
@@ -361,7 +446,7 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
     status,
     loop: loopQuery.data,
     errorMessage: loopQuery.error?.message,
-    version: baseDefRef.current?.meta.version ?? loopQuery.data?.version,
+    version: baseDefinition?.meta.version ?? loopQuery.data?.version,
     nodes,
     edges,
     selectedNode,

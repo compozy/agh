@@ -13,11 +13,11 @@ const FEATURED_COVER_BY_SLUG: Record<string, BlogCover> = {
   },
 };
 
-const sortedPostsCache = [...posts].sort(
+const sortedPostsCache = posts.toSorted(
   (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
 );
 
-const sortedReleasesCache = [...releases].sort(
+const sortedReleasesCache = releases.toSorted(
   (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
 );
 
@@ -73,11 +73,13 @@ export function relatedPosts(post: Post, limit = 3): Post[] {
     }
     return { candidate, score };
   });
-  scored.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    return new Date(b.candidate.date).getTime() - new Date(a.candidate.date).getTime();
-  });
-  return scored.slice(0, limit).map(entry => entry.candidate);
+  return scored
+    .toSorted((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return new Date(b.candidate.date).getTime() - new Date(a.candidate.date).getTime();
+    })
+    .slice(0, limit)
+    .map(entry => entry.candidate);
 }
 
 export function authorByHandle(handle: string): Author | undefined {

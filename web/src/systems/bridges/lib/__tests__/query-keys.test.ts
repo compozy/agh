@@ -47,6 +47,11 @@ describe("bridgeKeys", () => {
       "launch",
       "25",
     ]);
+    expect(bridgeKeys.targetsForBridge("brg_support")).toEqual([
+      "bridges",
+      "targets",
+      "brg_support",
+    ]);
     expect(bridgeKeys.secretBindings("brg_support")).toEqual([
       "bridges",
       "secret-bindings",

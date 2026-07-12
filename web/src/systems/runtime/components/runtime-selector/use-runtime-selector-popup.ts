@@ -108,7 +108,7 @@ export function useRuntimeSelectorPopup({
 
   const handleSegment = (focus: TriggerFocus) => {
     if (disabled) return;
-    controller.focusIntent.current = focus;
+    controller.setFocusIntent(focus);
     if (!open) {
       openWith(focus);
       return;
@@ -119,7 +119,7 @@ export function useRuntimeSelectorPopup({
     focusRegion(focus)?.focus();
   };
 
-  const resolveInitialFocus = (): HTMLElement | null => focusRegion(controller.focusIntent.current);
+  const resolveInitialFocus = (): HTMLElement | null => focusRegion(controller.getFocusIntent());
 
   const anchor = () => triggerRef.current;
 
@@ -128,7 +128,7 @@ export function useRuntimeSelectorPopup({
   const finalFocus = () => {
     const trigger = triggerRef.current;
     if (!trigger) return null;
-    const intent = controller.focusIntent.current;
+    const intent = controller.getFocusIntent();
     return (
       trigger.querySelector<HTMLElement>(`[data-focus="${intent}"]`) ??
       trigger.querySelector<HTMLElement>('[data-focus="provider"]') ??

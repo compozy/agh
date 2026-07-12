@@ -135,14 +135,27 @@ export function applyBridgeHealthSnapshot(
   }
 }
 
-export function useBridgeHealthStream(options?: UseBridgeHealthStreamOptions) {
-  const enabled = options?.enabled ?? true;
-  const eventSourceFactory = options?.eventSourceFactory ?? defaultEventSourceFactory;
-  const hasCustomFactory = Boolean(options?.eventSourceFactory);
-  const scope = options?.filters?.scope;
-  const workspaceId = options?.filters?.workspace_id;
-  const workspace = options?.filters?.workspace;
-  const bridgeIdsKey = [...new Set(options?.bridgeIds ?? [])]
+function attachBridgeHealthSource(
+  source: BridgeHealthEventSource,
+  handleSnapshot: (event: Event) => void,
+  handleError: (event: Event) => void
+): () => void {
+  source.addEventListener("snapshot", handleSnapshot);
+  source.onerror = handleError;
+  return () => {
+    source.removeEventListener?.("snapshot", handleSnapshot);
+    source.onerror = null;
+    source.close();
+  };
+}
+
+export function useBridgeHealthStream({
+  bridgeIds = [],
+  enabled = true,
+  eventSourceFactory: customEventSourceFactory,
+  filters: { scope, workspace_id: workspaceId, workspace } = {},
+}: UseBridgeHealthStreamOptions = {}) {
+  const bridgeIdsKey = [...new Set(bridgeIds)]
     .flatMap(bridgeId => {
       const id = bridgeId.trim();
       return id ? [id] : [];
@@ -155,13 +168,13 @@ export function useBridgeHealthStream(options?: UseBridgeHealthStreamOptions) {
       !enabled ||
       bridgeIdsKey === "" ||
       typeof window === "undefined" ||
-      (!hasCustomFactory && typeof EventSource === "undefined")
+      (!customEventSourceFactory && typeof EventSource === "undefined")
     ) {
       return undefined;
     }
 
     const bridgeIds = bridgeIdsKey.split(",");
-    const sources: BridgeHealthEventSource[] = [];
+    const detachSources: Array<() => void> = [];
     const handleSnapshot = (event: Event) => {
       if (!(event instanceof MessageEvent) || typeof event.data !== "string") {
         return;
@@ -181,29 +194,14 @@ export function useBridgeHealthStream(options?: UseBridgeHealthStreamOptions) {
 
     for (let index = 0; index < bridgeIds.length; index += MAX_BRIDGE_IDS_PER_STREAM) {
       const chunk = bridgeIds.slice(index, index + MAX_BRIDGE_IDS_PER_STREAM);
-      const source = eventSourceFactory(
+      const source = (customEventSourceFactory ?? defaultEventSourceFactory)(
         buildBridgeHealthStreamUrl(chunk, { scope, workspace_id: workspaceId, workspace })
       );
-      source.addEventListener("snapshot", handleSnapshot);
-      source.onerror = handleError;
-      sources.push(source);
+      detachSources.push(attachBridgeHealthSource(source, handleSnapshot, handleError));
     }
 
     return () => {
-      for (const source of sources) {
-        source.removeEventListener?.("snapshot", handleSnapshot);
-        source.onerror = null;
-        source.close();
-      }
+      for (const detach of detachSources) detach();
     };
-  }, [
-    bridgeIdsKey,
-    enabled,
-    eventSourceFactory,
-    hasCustomFactory,
-    queryClient,
-    scope,
-    workspaceId,
-    workspace,
-  ]);
+  }, [bridgeIdsKey, customEventSourceFactory, enabled, queryClient, scope, workspaceId, workspace]);
 }

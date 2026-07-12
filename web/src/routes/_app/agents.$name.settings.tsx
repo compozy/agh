@@ -4,7 +4,6 @@ import { AlertCircle, Settings2 } from "lucide-react";
 import { Button, Empty, PageActionsTopbarSlot, Pill, Skeleton, useTopbarSlot, cn } from "@agh/ui";
 
 import { useAgentSettingsPage } from "@/systems/agent/hooks/use-agent-settings-page";
-import { useLatestAgentSettingsActions } from "@/systems/agent/hooks/use-latest-agent-settings-actions";
 import { AgentSettingsPanels } from "@/systems/agent/components/agent-settings-panels";
 import {
   AGENT_SETTINGS_SECTIONS,
@@ -46,8 +45,6 @@ function AgentSettingsPage() {
   const rawSearch = Route.useSearch();
   const search = resolveAgentSettingsSearch(rawSearch);
   const page = useAgentSettingsPage({ name, section: search.section });
-  const topbarActions = useLatestAgentSettingsActions(page.onSave, page.onDiscard);
-
   useTopbarSlot({
     back: page.onBackToDetail,
     backLabel: name,
@@ -64,8 +61,8 @@ function AgentSettingsPage() {
           saving={page.isSaving}
           saveBlocked={page.saveBlocked}
           saveBlockedCaption={page.saveBlockedCaption}
-          onSave={topbarActions.onSave}
-          onDiscard={topbarActions.onDiscard}
+          onSave={page.onSave}
+          onDiscard={page.onDiscard}
           data-testid="agent-settings-page-actions"
         />
       ) : undefined,

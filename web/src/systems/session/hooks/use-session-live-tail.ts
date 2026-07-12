@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   type QueryClient,
   useInfiniteQuery,
@@ -80,6 +80,38 @@ function defaultEventSourceFactory(url: string): SessionStreamEventSource {
   return new EventSource(url);
 }
 
+interface SessionStreamListeners {
+  delta: EventListener;
+  error: EventListener;
+  goalSnapshot: EventListener;
+  snapshot: EventListener;
+  terminal: EventListener;
+}
+
+function attachSessionStreamSource(
+  source: SessionStreamEventSource,
+  handleError: (event: Event) => void,
+  listeners: SessionStreamListeners
+): () => void {
+  source.onmessage = null;
+  source.onerror = handleError;
+  source.addEventListener(TRANSCRIPT_SNAPSHOT_EVENT, listeners.snapshot);
+  source.addEventListener(TRANSCRIPT_DELTA_EVENT, listeners.delta);
+  source.addEventListener(GOAL_SNAPSHOT_CHANGED_EVENT, listeners.goalSnapshot);
+  source.addEventListener(SESSION_STOPPED_EVENT, listeners.terminal);
+  source.addEventListener(SESSION_DONE_EVENT, listeners.terminal);
+  source.addEventListener(STREAM_ERROR_EVENT, listeners.error);
+  return () => {
+    if (!source.removeEventListener) return;
+    source.removeEventListener(TRANSCRIPT_SNAPSHOT_EVENT, listeners.snapshot);
+    source.removeEventListener(TRANSCRIPT_DELTA_EVENT, listeners.delta);
+    source.removeEventListener(GOAL_SNAPSHOT_CHANGED_EVENT, listeners.goalSnapshot);
+    source.removeEventListener(SESSION_STOPPED_EVENT, listeners.terminal);
+    source.removeEventListener(SESSION_DONE_EVENT, listeners.terminal);
+    source.removeEventListener(STREAM_ERROR_EVENT, listeners.error);
+  };
+}
+
 async function normalizeEntries(
   entries: TranscriptSnapshotPayload["entries"] | TranscriptDeltaPayload["entries"]
 ): Promise<NormalizedSessionTranscriptEntry[]> {
@@ -106,7 +138,9 @@ export function useSessionLiveTail({
   eventSourceFactory,
 }: UseSessionLiveTailOptions) {
   const queryClient = useQueryClient();
-  const stableMessagesRef = useRef<StableThreadMessagesState>(EMPTY_STABLE_THREAD_MESSAGES);
+  const [stableMessages, setStableMessages] = useState<StableThreadMessagesState>(
+    EMPTY_STABLE_THREAD_MESSAGES
+  );
   const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTranscriptErrorRef = useRef<unknown>(null);
   const sourceFactory = eventSourceFactory ?? defaultEventSourceFactory;
@@ -120,9 +154,11 @@ export function useSessionLiveTail({
     : transcriptQuery.isError
       ? "error"
       : "success";
-  const stableMessages = computeStableThreadMessages(transcriptMessages, stableMessagesRef.current);
-  stableMessagesRef.current = stableMessages;
-  const readonlyMessages = stableMessages.result;
+  const nextStableMessages = computeStableThreadMessages(transcriptMessages, stableMessages);
+  if (nextStableMessages !== stableMessages) {
+    setStableMessages(nextStableMessages);
+  }
+  const readonlyMessages = nextStableMessages.result;
 
   useEffect(() => {
     return () => {
@@ -403,23 +439,13 @@ export function useSessionLiveTail({
         session_id: sessionId,
         workspace_id: workspaceId,
       });
-      nextSource.onmessage = null;
-      nextSource.onerror = handleError;
-      nextSource.addEventListener(TRANSCRIPT_SNAPSHOT_EVENT, snapshotListener);
-      nextSource.addEventListener(TRANSCRIPT_DELTA_EVENT, deltaListener);
-      nextSource.addEventListener(GOAL_SNAPSHOT_CHANGED_EVENT, goalSnapshotListener);
-      nextSource.addEventListener(SESSION_STOPPED_EVENT, terminalListener);
-      nextSource.addEventListener(SESSION_DONE_EVENT, terminalListener);
-      nextSource.addEventListener(STREAM_ERROR_EVENT, streamErrorListener);
-      detachSourceListeners = () => {
-        if (!nextSource.removeEventListener) return;
-        nextSource.removeEventListener(TRANSCRIPT_SNAPSHOT_EVENT, snapshotListener);
-        nextSource.removeEventListener(TRANSCRIPT_DELTA_EVENT, deltaListener);
-        nextSource.removeEventListener(GOAL_SNAPSHOT_CHANGED_EVENT, goalSnapshotListener);
-        nextSource.removeEventListener(SESSION_STOPPED_EVENT, terminalListener);
-        nextSource.removeEventListener(SESSION_DONE_EVENT, terminalListener);
-        nextSource.removeEventListener(STREAM_ERROR_EVENT, streamErrorListener);
-      };
+      detachSourceListeners = attachSessionStreamSource(nextSource, handleError, {
+        delta: deltaListener,
+        error: streamErrorListener,
+        goalSnapshot: goalSnapshotListener,
+        snapshot: snapshotListener,
+        terminal: terminalListener,
+      });
     }
 
     openSource();
@@ -428,7 +454,15 @@ export function useSessionLiveTail({
       clearReconnectTimer();
       closeCurrentSource("cleanup");
     };
-  }, [hasCustomFactory, queryClient, sessionId, sourceFactory, streamShouldOpen, workspaceId]);
+  }, [
+    eventSourceFactory,
+    hasCustomFactory,
+    queryClient,
+    sessionId,
+    sourceFactory,
+    streamShouldOpen,
+    workspaceId,
+  ]);
 
   return {
     messages: readonlyMessages,

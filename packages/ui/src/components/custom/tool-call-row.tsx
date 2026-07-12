@@ -4,20 +4,10 @@ import { ChevronRight, TerminalIcon } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
-import { CodeBlock } from "./code-block";
-import { Eyebrow } from "./eyebrow";
-import { Markdown } from "./markdown";
 import { ToolCallStatusIcon } from "./tool-call-status-icon";
+import { ToolCallRowSection, type ToolCallRowSectionProps } from "./tool-call-row-section";
 
 export type ToolCallStatus = "pending" | "running" | "failed" | "success" | "empty";
-
-export interface ToolCallRowSectionProps {
-  children?: React.ReactNode;
-  source?: string;
-  format?: "markdown" | "code";
-  /** Shiki language hint for `format="code"`. Ignored for markdown / children. */
-  language?: string;
-}
 
 type ToolCallIconComponent = React.ComponentType<{
   className?: string;
@@ -82,51 +72,6 @@ function renderToolCallIcon(icon: ToolCallRowProps["icon"]): React.ReactNode {
   return icon;
 }
 
-function ToolCallSectionBody({
-  children,
-  source,
-  format,
-  language,
-}: Pick<ToolCallRowSectionProps, "children" | "source" | "format" | "language">) {
-  if (children !== undefined && children !== null && children !== false) {
-    return <>{children}</>;
-  }
-  const content = source ?? "";
-  if (format === "code") {
-    return (
-      <CodeBlock code={content} language={language} showPrompt={false} copyable density="compact" />
-    );
-  }
-  return (
-    <Markdown compact className="max-w-none rounded-sm bg-canvas p-2 text-small-body text-muted">
-      {content}
-    </Markdown>
-  );
-}
-
-function ToolCallRowSection({
-  slot,
-  label,
-  children,
-  source,
-  format,
-  language,
-}: {
-  slot: "input" | "output";
-  label: string;
-} & ToolCallRowSectionProps) {
-  return (
-    <div data-slot={`tool-call-row-${slot}`} className="flex min-w-0 flex-col gap-1.5">
-      <Eyebrow className="text-subtle">{label}</Eyebrow>
-      <div data-slot={`tool-call-row-${slot}-body`} className="min-w-0">
-        <ToolCallSectionBody source={source} format={format} language={language}>
-          {children}
-        </ToolCallSectionBody>
-      </div>
-    </div>
-  );
-}
-
 function ToolCallRowInput(props: ToolCallRowSectionProps) {
   return <ToolCallRowSection slot="input" label="Input" {...props} />;
 }
@@ -158,6 +103,8 @@ function ToolCallRowInner({
   ...props
 }: ToolCallRowProps) {
   const [localExpanded, setLocalExpanded] = React.useState(defaultExpanded);
+  const toolNameId = React.useId();
+  const triggerDescriptionId = React.useId();
   const isExpanded = expanded ?? localExpanded;
   const expandable = Boolean(errorMessage) || React.Children.toArray(children).length > 0;
   const iconContent = renderToolCallIcon(icon);
@@ -191,6 +138,7 @@ function ToolCallRowInner({
       </span>
       <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
         <span
+          id={toolNameId}
           data-slot="tool-call-row-tool"
           className={cn(
             "min-w-0 shrink truncate font-medium transition-colors",
@@ -259,10 +207,13 @@ function ToolCallRowInner({
             type="button"
             data-slot="tool-call-row-trigger"
             aria-expanded={isExpanded}
-            aria-label={`Toggle ${toolName} tool call (${status})`}
+            aria-labelledby={`${toolNameId} ${triggerDescriptionId}`}
             className="absolute inset-0 rounded-sm outline-none transition-colors duration-base ease-out hover:bg-hover focus-visible:ring-2 focus-visible:ring-line-strong"
             onClick={toggle}
           />
+          <span id={triggerDescriptionId} className="sr-only">
+            Toggle tool call ({status})
+          </span>
           {rowContent}
         </div>
       ) : (
@@ -298,3 +249,4 @@ const ToolCallRow = Object.assign(ToolCallRowInner, {
 });
 
 export { ToolCallRow };
+export type { ToolCallRowSectionProps } from "./tool-call-row-section";

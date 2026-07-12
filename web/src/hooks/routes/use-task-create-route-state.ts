@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState, type SetStateAction } from "react";
 import { toast } from "sonner";
 
 import { useCreateChildTask, useCreateTask, useEnqueueTaskRun } from "@/systems/tasks";
@@ -34,13 +34,27 @@ export function useTaskCreateRouteState(search: { template?: TaskTemplateId }) {
   const activeTaskScope = taskScopeForActiveWorkspace(activeWorkspace, userHomeDir);
   const createDraftWorkspaceId =
     activeTaskScope?.scope === "workspace" ? activeTaskScope.workspace : undefined;
-  const [draft, setDraft] = useState<TaskEditorDraft>(() =>
-    createTaskEditorDraft(templateId, createDraftWorkspaceId)
-  );
-
-  useEffect(() => {
-    setDraft(createTaskEditorDraft(templateId, createDraftWorkspaceId));
-  }, [createDraftWorkspaceId, templateId]);
+  const draftKey = `${templateId}:${createDraftWorkspaceId ?? "global"}`;
+  const [draftState, setDraftState] = useState(() => ({
+    draft: createTaskEditorDraft(templateId, createDraftWorkspaceId),
+    key: draftKey,
+  }));
+  const draft =
+    draftState.key === draftKey
+      ? draftState.draft
+      : createTaskEditorDraft(templateId, createDraftWorkspaceId);
+  const setDraft = (update: SetStateAction<TaskEditorDraft>) => {
+    setDraftState(current => {
+      const currentDraft =
+        current.key === draftKey
+          ? current.draft
+          : createTaskEditorDraft(templateId, createDraftWorkspaceId);
+      return {
+        draft: typeof update === "function" ? update(currentDraft) : update,
+        key: draftKey,
+      };
+    });
+  };
 
   const handleTemplateChange = (nextTemplateId: TaskTemplateId) => {
     void navigate({
@@ -107,12 +121,12 @@ export function useTaskCreateRouteState(search: { template?: TaskTemplateId }) {
         await navigate({ to: "/tasks/$id", params: { id: created.id } });
       }
 
+      submitInFlightRef.current = false;
       return created;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to create task");
-      return null;
-    } finally {
       submitInFlightRef.current = false;
+      return null;
     }
   };
 

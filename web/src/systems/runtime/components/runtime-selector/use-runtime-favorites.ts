@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 
 import {
   dedupeFavorites,
@@ -44,43 +44,39 @@ export function useRuntimeFavorites(
     dedupeFavorites(readFavoritesList(RECENTS_STORAGE_KEY)).slice(0, RECENTS_LIMIT)
   );
 
-  // Once the catalog is loaded, drop every stored entry that is not an exact
-  // current compound tuple and re-persist the pruned list so ghosts never return.
-  // A loaded-empty catalog purges everything; a still-loading catalog purges
-  // nothing.
+  const effectiveFavorites = loaded
+    ? dedupeFavorites(rawFavorites.filter(key => validKeys.has(key)))
+    : rawFavorites;
+  const effectiveRecents = loaded
+    ? dedupeFavorites(rawRecents.filter(key => validKeys.has(key))).slice(0, RECENTS_LIMIT)
+    : rawRecents;
+  const favoritesSignature = effectiveFavorites.join("\u0000");
+  const recentsSignature = effectiveRecents.join("\u0000");
+  const persistEffectiveLists = useEffectEvent(() => {
+    writeFavoritesList(FAVORITES_STORAGE_KEY, effectiveFavorites);
+    writeFavoritesList(RECENTS_STORAGE_KEY, effectiveRecents);
+  });
+
+  // Persistence is the external side effect; the render model is derived directly
+  // from the current catalog, so catalog changes never require a state-sync effect.
   useEffect(() => {
     if (!loaded) return;
-    setRawFavorites(current => {
-      const kept = dedupeFavorites(current.filter(key => validKeys.has(key)));
-      writeFavoritesList(FAVORITES_STORAGE_KEY, kept);
-      return kept.length === current.length && kept.every((key, index) => key === current[index])
-        ? current
-        : kept;
-    });
-    setRawRecents(current => {
-      const kept = dedupeFavorites(current.filter(key => validKeys.has(key))).slice(
-        0,
-        RECENTS_LIMIT
-      );
-      writeFavoritesList(RECENTS_STORAGE_KEY, kept);
-      return kept.length === current.length && kept.every((key, index) => key === current[index])
-        ? current
-        : kept;
-    });
-  }, [validKeys, loaded]);
+    persistEffectiveLists();
+  }, [favoritesSignature, loaded, recentsSignature]);
 
   // Effective sets exclude anything outside the current allow-list, so a stale
   // entry never renders even in the window before the reconcile pass persists.
-  const favorites = new Set(rawFavorites.filter(key => validKeys.has(key)));
-  const recents = rawRecents.filter(key => validKeys.has(key));
+  const favorites = new Set(effectiveFavorites);
+  const recents = effectiveRecents;
 
   const toggleFavorite = (id: string) => {
     const trimmed = id.trim();
     if (!validKeys.has(trimmed)) return;
     setRawFavorites(current => {
-      const next = current.includes(trimmed)
-        ? current.filter(key => key !== trimmed)
-        : [...current, trimmed];
+      const validCurrent = current.filter(key => validKeys.has(key));
+      const next = validCurrent.includes(trimmed)
+        ? validCurrent.filter(key => key !== trimmed)
+        : [...validCurrent, trimmed];
       writeFavoritesList(FAVORITES_STORAGE_KEY, next);
       return next;
     });
@@ -90,7 +86,8 @@ export function useRuntimeFavorites(
     const trimmed = id.trim();
     if (!validKeys.has(trimmed)) return;
     setRawRecents(current => {
-      const next = dedupeFavorites([trimmed, ...current]).slice(0, RECENTS_LIMIT);
+      const validCurrent = current.filter(key => validKeys.has(key));
+      const next = dedupeFavorites([trimmed, ...validCurrent]).slice(0, RECENTS_LIMIT);
       writeFavoritesList(RECENTS_STORAGE_KEY, next);
       return next;
     });

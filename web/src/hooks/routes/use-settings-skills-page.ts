@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState, type SetStateAction } from "react";
 
 import { useSettingsPage } from "@/hooks/routes/use-settings-page";
 import { useAgents, type AgentPayload } from "@/systems/agent";
@@ -92,53 +92,58 @@ export function useSettingsSkillsPage() {
   const agents = sortAgents(agentsQuery.data ?? []);
   const workspaces: WorkspacePayload[] = workspaceQuery.data ?? [];
 
-  const [selection, setSelection] = useState<SkillsScopeSelection>({ scope: "global" });
+  const [storedSelection, setSelection] = useState<SkillsScopeSelection>({ scope: "global" });
+  const selection: SkillsScopeSelection =
+    storedSelection.scope !== "agent"
+      ? storedSelection
+      : agents.length === 0
+        ? { scope: "global" }
+        : agents.some(agent => agent.name === storedSelection.agentName)
+          ? storedSelection
+          : {
+              scope: "agent",
+              agentName: pickDefaultAgentName(agents),
+              workspaceId: storedSelection.workspaceId,
+            };
   const filter = selectionToFilter(selection);
   const query = useSettingsSkills(filter);
   const envelope = query.data ?? null;
 
-  const [draft, setDraft] = useState<SkillsConfig | null>(null);
-  const [lastDisabledLabel, setLastDisabledLabel] = useState<string | null>(null);
-  const [lastPolicyLabel, setLastPolicyLabel] = useState<string | null>(null);
-  const lastEnvelopeKeyRef = useRef("");
-
-  useEffect(() => {
-    if (selection.scope !== "agent") {
-      return;
-    }
-
-    const currentAgents = sortAgents(agentsQuery.data ?? []);
-    if (currentAgents.length === 0) {
-      setSelection({ scope: "global" });
-      return;
-    }
-
-    if (currentAgents.some(agent => agent.name === selection.agentName)) {
-      return;
-    }
-
-    setSelection({
-      scope: "agent",
-      agentName: pickDefaultAgentName(currentAgents),
-      workspaceId: selection.workspaceId,
+  const envelopeKey = envelope ? envelopeScopeKey(envelope) : "pending";
+  const [draftState, setDraftState] = useState<{ draft: SkillsConfig | null; key: string }>({
+    draft: null,
+    key: envelopeKey,
+  });
+  const draft =
+    draftState.key === envelopeKey
+      ? (draftState.draft ?? envelope?.config ?? null)
+      : (envelope?.config ?? null);
+  const setDraft = (update: SetStateAction<SkillsConfig | null>) => {
+    setDraftState(current => {
+      const currentDraft =
+        current.key === envelopeKey
+          ? (current.draft ?? envelope?.config ?? null)
+          : (envelope?.config ?? null);
+      return {
+        draft: typeof update === "function" ? update(currentDraft) : update,
+        key: envelopeKey,
+      };
     });
-  }, [agentsQuery.data, selection]);
-
-  useEffect(() => {
-    if (!envelope) {
-      return;
-    }
-
-    const nextKey = envelopeScopeKey(envelope);
-    if (lastEnvelopeKeyRef.current === nextKey && draft !== null) {
-      return;
-    }
-
-    lastEnvelopeKeyRef.current = nextKey;
-    setDraft(envelope.config);
-    setLastDisabledLabel(null);
-    setLastPolicyLabel(null);
-  }, [draft, envelope]);
+  };
+  const [lastDisabledState, setLastDisabledState] = useState({
+    key: envelopeKey,
+    label: null as string | null,
+  });
+  const [lastPolicyState, setLastPolicyState] = useState({
+    key: envelopeKey,
+    label: null as string | null,
+  });
+  const lastDisabledLabel = lastDisabledState.key === envelopeKey ? lastDisabledState.label : null;
+  const lastPolicyLabel = lastPolicyState.key === envelopeKey ? lastPolicyState.label : null;
+  const setLastDisabledLabel = (label: string | null) =>
+    setLastDisabledState({ key: envelopeKey, label });
+  const setLastPolicyLabel = (label: string | null) =>
+    setLastPolicyState({ key: envelopeKey, label });
 
   const availableScopes = envelope?.available_scopes ?? ["global"];
   const selectedAgent =

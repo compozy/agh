@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { type ThreadMessage, useAuiState } from "@assistant-ui/react";
 
 import { mergeSessionThreadReadModel } from "../lib/session-thread-read-model";
@@ -31,43 +31,32 @@ export function useMergedSessionRuntimeTranscript({
     hasLocalRuntimeTail: false,
   });
 
-  useEffect(() => {
-    setRuntimeTailState(previous => {
-      const transcriptMessagesChanged = previous.transcriptMessages !== transcript.messages;
-      const runtimeMessagesChanged = previous.runtimeMessages !== runtimeMessages;
-      let hasLocalRuntimeTail = previous.hasLocalRuntimeTail;
-      if (transcriptMessagesChanged) {
-        hasLocalRuntimeTail = runtimeIsRunning;
-      } else if (runtimeIsRunning || (runtimeMessagesChanged && hasOptimisticRuntimeMessage)) {
-        hasLocalRuntimeTail = true;
-      }
-      if (runtimeMessages.length === 0) {
-        hasLocalRuntimeTail = false;
-      }
-      if (
-        previous.transcriptMessages === transcript.messages &&
-        previous.runtimeMessages === runtimeMessages &&
-        previous.hasLocalRuntimeTail === hasLocalRuntimeTail
-      ) {
-        return previous;
-      }
-      return { transcriptMessages: transcript.messages, runtimeMessages, hasLocalRuntimeTail };
-    });
-  }, [
-    hasOptimisticRuntimeMessage,
-    runtimeIsRunning,
-    runtimeMessages,
-    runtimeMessages.length,
-    transcript.messages,
-  ]);
-
   const transcriptMessagesChanged = runtimeTailState.transcriptMessages !== transcript.messages;
   const runtimeMessagesChanged = runtimeTailState.runtimeMessages !== runtimeMessages;
+  let hasLocalRuntimeTail = runtimeTailState.hasLocalRuntimeTail;
+  if (transcriptMessagesChanged) {
+    hasLocalRuntimeTail = runtimeIsRunning;
+  } else if (runtimeIsRunning || (runtimeMessagesChanged && hasOptimisticRuntimeMessage)) {
+    hasLocalRuntimeTail = true;
+  }
+  if (runtimeMessages.length === 0) {
+    hasLocalRuntimeTail = false;
+  }
+  const nextRuntimeTailState =
+    transcriptMessagesChanged ||
+    runtimeMessagesChanged ||
+    runtimeTailState.hasLocalRuntimeTail !== hasLocalRuntimeTail
+      ? { transcriptMessages: transcript.messages, runtimeMessages, hasLocalRuntimeTail }
+      : runtimeTailState;
+  if (nextRuntimeTailState !== runtimeTailState) {
+    setRuntimeTailState(nextRuntimeTailState);
+  }
+
   const includeRuntimeTail =
     runtimeIsRunning ||
     (runtimeMessages.length > 0 &&
       !transcriptMessagesChanged &&
-      (runtimeTailState.hasLocalRuntimeTail ||
+      (nextRuntimeTailState.hasLocalRuntimeTail ||
         (runtimeMessagesChanged && hasOptimisticRuntimeMessage)));
   const messages = mergeSessionThreadReadModel({
     transcriptMessages: transcript.messages,

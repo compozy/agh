@@ -119,6 +119,7 @@ export function useOnboardingChat(): OnboardingChatApi {
       if (workspaceId.length === 0) {
         setError("The onboarding session was created without a workspace.");
         clearPersistedOnboardingSession();
+        creatingRef.current = false;
         return;
       }
       setLocalSession({
@@ -137,9 +138,8 @@ export function useOnboardingChat(): OnboardingChatApi {
       setError(
         err instanceof Error ? err.message : "Failed to start the onboarding agent session."
       );
-    } finally {
-      creatingRef.current = false;
     }
+    creatingRef.current = false;
   };
 
   const ensureSession = async () => {
@@ -163,20 +163,23 @@ export function useOnboardingChat(): OnboardingChatApi {
             canRestart: true,
           })
         );
+        validatingRef.current = false;
+        setIsValidating(false);
         return;
       } catch (err) {
         if (!isMissingPersistedSession(err)) {
           setError(
             err instanceof Error ? err.message : "Failed to verify the onboarding agent session."
           );
+          validatingRef.current = false;
+          setIsValidating(false);
           return;
         }
         setLocalSession(null);
         clearPersistedOnboardingSession();
-      } finally {
-        validatingRef.current = false;
-        setIsValidating(false);
       }
+      validatingRef.current = false;
+      setIsValidating(false);
     }
     await startSession();
   };

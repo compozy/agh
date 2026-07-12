@@ -120,9 +120,8 @@ export function useAutomationTriggersPage(
       );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save automation trigger");
-    } finally {
-      triggerSubmitInFlightRef.current = false;
     }
+    triggerSubmitInFlightRef.current = false;
   };
 
   const handleDelete = async () => {

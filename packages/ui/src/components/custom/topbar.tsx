@@ -9,10 +9,8 @@ import {
   createTopbarSlotStore,
   TopbarSlotContext,
   TopbarSlotSettersContext,
-  type TopbarSlotContextValue,
   type TopbarSlotValue,
   useTopbarSlot,
-  useTopbarSlotContext,
   useTopbarSlotValue,
 } from "./hooks/use-topbar-slot";
 
@@ -167,13 +165,5 @@ function Topbar({ route, navCount, className, titleRef, ...props }: TopbarProps)
 
 const TopbarOverflowIcon = MoreHorizontal;
 
-export {
-  Topbar,
-  TopbarOverflowIcon,
-  TopbarSlotContext,
-  TopbarSlotProvider,
-  useTopbarSlot,
-  useTopbarSlotContext,
-  useTopbarSlotValue,
-};
-export type { TopbarSlotContextValue, TopbarSlotValue };
+export { Topbar, TopbarOverflowIcon, TopbarSlotProvider, useTopbarSlot, useTopbarSlotValue };
+export type { TopbarSlotValue };

@@ -85,13 +85,7 @@ export function useReferenceAutocomplete(
     }
   }, [fieldRef, pendingCaret]);
 
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [query]);
-
-  useEffect(() => {
-    setActiveIndex(index => (matches.length === 0 ? 0 : Math.min(index, matches.length - 1)));
-  }, [matches.length]);
+  const visibleActiveIndex = matches.length === 0 ? 0 : Math.min(activeIndex, matches.length - 1);
 
   useEffect(() => {
     if (query === null) return;
@@ -102,7 +96,8 @@ export function useReferenceAutocomplete(
     return () => window.removeEventListener("keydown", onEscape);
   }, [query]);
 
-  const refresh = (element: FieldElement) =>
+  const refresh = (element: FieldElement) => {
+    setActiveIndex(0);
     setQuery(
       activeReferenceQuery(
         element.value,
@@ -110,6 +105,7 @@ export function useReferenceAutocomplete(
         cel ? "cel" : "template"
       )
     );
+  };
 
   const select = (path: string) => {
     const element = fieldRef.current;
@@ -125,7 +121,7 @@ export function useReferenceAutocomplete(
 
   return {
     matches,
-    activeIndex,
+    activeIndex: visibleActiveIndex,
     onChange: event => {
       onValueChange(event.target.value);
       refresh(event.target);
@@ -134,16 +130,16 @@ export function useReferenceAutocomplete(
       if (matches.length === 0) return;
       if (event.key === "ArrowDown") {
         event.preventDefault();
-        setActiveIndex(index => (index + 1) % matches.length);
+        setActiveIndex((visibleActiveIndex + 1) % matches.length);
         return;
       }
       if (event.key === "ArrowUp") {
         event.preventDefault();
-        setActiveIndex(index => (index - 1 + matches.length) % matches.length);
+        setActiveIndex((visibleActiveIndex - 1 + matches.length) % matches.length);
         return;
       }
       if (event.key === "Enter") {
-        const match = matches[activeIndex];
+        const match = matches[visibleActiveIndex];
         if (!match) return;
         event.preventDefault();
         select(match.path);

@@ -27,17 +27,15 @@ export function useSiteSearchDialogState({
 }: SiteSearchDialogStateOptions) {
   const { locale } = useI18n();
   const { seed, setQuery } = useSiteSearch();
-  const [tag, setTag] = useState(defaultTag);
+  const [tagState, setTagState] = useState({ defaultTag, value: defaultTag });
+  const tag = tagState.defaultTag === defaultTag ? tagState.value : defaultTag;
+  const setTag = (value: string | undefined) => setTagState({ defaultTag, value });
   const appliedSeedVersion = useRef(-1);
   const client =
     type === "fetch"
       ? fetchClient({ api, locale, tag })
       : oramaStaticClient({ from: api, locale, tag });
   const { search, setSearch, query } = useDocsSearch({ client, delayMs }, [type, api, locale, tag]);
-
-  useEffect(() => {
-    setTag(defaultTag);
-  }, [defaultTag]);
 
   useEffect(() => {
     if (appliedSeedVersion.current === seed.version) return;

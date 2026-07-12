@@ -1,5 +1,4 @@
 import {
-  Activity,
   AlertTriangle,
   CheckCircle2,
   CircleDot,
@@ -145,7 +144,3 @@ export function resolveEventTone(eventType: string, isLive: boolean): PillTone {
   if (isLive && isLiveEvent(eventType)) return "info";
   return visualFor(eventType).tone;
 }
-
-// Re-export Activity icon for callers that need a generic event surface icon
-// (overview panel "Events" section header).
-export { Activity };
