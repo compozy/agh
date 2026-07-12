@@ -113,6 +113,7 @@ var schemaEnumValues = withGoalSchemaEnumValues(map[reflect.Type][]string{
 	reflect.TypeFor[bridgepkg.BridgeDegradationReason]():         bridgeDegradationReasonValues(),
 	reflect.TypeFor[bridgepkg.BridgeDiagnosticKind]():            bridgeDiagnosticKindValues(),
 	reflect.TypeFor[bridgepkg.BridgeDiagnosticSeverity]():        bridgeDiagnosticSeverityValues(),
+	reflect.TypeFor[bridgepkg.BridgeCheckStatus]():               bridgeCheckStatusValues(),
 	reflect.TypeFor[bridgepkg.DeliveryMode]():                    deliveryModeValues(),
 	reflect.TypeFor[modelcatalog.ReasoningEffort]():              modelcatalog.ReasoningEffortValues(),
 	reflect.TypeFor[modelcatalog.ReasoningSource]():              modelcatalog.ReasoningSourceValues(),

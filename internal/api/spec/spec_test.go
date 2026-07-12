@@ -3,6 +3,7 @@ package spec
 import (
 	"bytes"
 	"encoding/json"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -1003,6 +1004,102 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"transient_delivery_failure",
 				)
 				assertEnumValues(t, propertySchema(t, diagnosticSchema, "severity"), "info", "warning", "error")
+			},
+		},
+		{
+			name: "Should describe the Slack manifest route and typed artifact",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				operation := operationFor(t, doc, "/api/bridges/providers/slack/manifest", "GET")
+				assertParameter(t, operation, "instance", openapi3.ParameterInQuery, true)
+				responseSchema := jsonResponseSchema(t, operation, 200)
+				assertRequired(t, responseSchema, "manifest")
+				manifestSchema := propertySchema(t, responseSchema, "manifest")
+				assertRequired(
+					t,
+					manifestSchema,
+					"_metadata",
+					"display_information",
+					"features",
+					"oauth_config",
+					"settings",
+				)
+				settingsSchema := propertySchema(t, manifestSchema, "settings")
+				assertRequired(
+					t,
+					settingsSchema,
+					"event_subscriptions",
+					"interactivity",
+					"org_deploy_enabled",
+					"socket_mode_enabled",
+					"token_rotation_enabled",
+				)
+				assertSchemaIncludesType(
+					t,
+					propertySchema(t, settingsSchema, "socket_mode_enabled"),
+					openapi3.TypeBoolean,
+				)
+			},
+		},
+		{
+			name: "ShouldDescribeTypedBridgeControlRoutesAndResponses",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				verify := operationFor(t, doc, "/api/bridges/{id}/verify", "POST")
+				verifySchema := jsonResponseSchema(t, verify, http.StatusOK)
+				assertRequired(t, verifySchema, "bridge_instance_id", "checks")
+				checksSchema := propertySchema(t, verifySchema, "checks")
+				if checksSchema.Items == nil || checksSchema.Items.Value == nil {
+					t.Fatal("expected verify checks to define an items schema")
+				}
+				checkSchema := checksSchema.Items.Value
+				assertRequired(t, checkSchema, "check", "status", "remediation")
+				assertEnumValues(
+					t,
+					propertySchema(t, checkSchema, "status"),
+					"pass",
+					"warn",
+					"fail",
+					"skipped",
+				)
+				assertRequired(t, jsonResponseSchema(t, verify, http.StatusServiceUnavailable), "error")
+
+				sendTest := operationFor(t, doc, "/api/bridges/{id}/send-test", "POST")
+				sendTestRequest := jsonRequestSchema(t, sendTest)
+				assertRequired(t, sendTestRequest, "message", "target")
+				targetSchema := propertySchema(t, sendTestRequest, "target")
+				assertNotRequired(t, targetSchema, "peer_id", "thread_id", "group_id", "mode")
+				assertEnumValues(t, propertySchema(t, targetSchema, "mode"), "direct-send", "reply")
+				sendTestResponse := jsonResponseSchema(t, sendTest, http.StatusOK)
+				assertRequired(
+					t,
+					sendTestResponse,
+					"status",
+					"bridge_instance_id",
+					"delivery_id",
+					"delivery_target",
+				)
+				assertNotRequired(t, sendTestResponse, "remote_message_id")
+				assertRequired(t, jsonResponseSchema(t, sendTest, http.StatusBadRequest), "error")
+
+				registerWebhook := operationFor(t, doc, "/api/bridges/{id}/webhook/register", "POST")
+				registerSchema := jsonResponseSchema(t, registerWebhook, http.StatusOK)
+				assertRequired(t, registerSchema, "bridge_instance_id", "status", "remediation")
+				assertEnumValues(
+					t,
+					propertySchema(t, registerSchema, "status"),
+					"pass",
+					"warn",
+					"fail",
+					"skipped",
+				)
+				assertRequired(
+					t,
+					jsonResponseSchema(t, registerWebhook, http.StatusServiceUnavailable),
+					"error",
+				)
 			},
 		},
 		{

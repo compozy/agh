@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -62,8 +61,7 @@ type telegramProvider struct {
 }
 
 type telegramProviderConfig struct {
-	APIBaseURL string `json:"api_base_url,omitempty"`
-	Webhook    struct {
+	Webhook struct {
 		ListenAddr string `json:"listen_addr,omitempty"`
 		Path       string `json:"path,omitempty"`
 	} `json:"webhook"`
@@ -219,12 +217,14 @@ func newTelegramProvider(stderr io.Writer) (*telegramProvider, error) {
 			Version: "0.1.0",
 			SDKName: "bridgesdk",
 		},
-		Initialize:  provider.handleInitialize,
-		Deliver:     provider.handleBridgesDeliver,
-		Progress:    provider.handleBridgesProgress,
-		HealthCheck: func(context.Context, *bridgesdk.Session) error { return provider.healthCheck() },
-		Shutdown:    provider.handleShutdown,
-		Now:         func() time.Time { return provider.now() },
+		Initialize:      provider.handleInitialize,
+		Deliver:         provider.handleBridgesDeliver,
+		Progress:        provider.handleBridgesProgress,
+		Check:           provider.handleBridgeCheck,
+		RegisterWebhook: provider.handleBridgeWebhookRegistration,
+		HealthCheck:     func(context.Context, *bridgesdk.Session) error { return provider.healthCheck() },
+		Shutdown:        provider.handleShutdown,
+		Now:             func() time.Time { return provider.now() },
 	})
 	if err != nil {
 		return nil, err
@@ -394,15 +394,6 @@ func (p *telegramProvider) handleBridgesDeliver(
 	marker.Ack = &ack
 	p.reportSideEffectError("write delivery marker", appendJSONLine(p.env.deliveryPath, marker))
 	return ack, nil
-}
-
-func (p *telegramProvider) healthCheck() error {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if strings.TrimSpace(p.lastError) == "" {
-		return nil
-	}
-	return errors.New(strings.TrimSpace(p.lastError))
 }
 
 func (p *telegramProvider) handleShutdown(
@@ -720,7 +711,6 @@ func buildTelegramResolvedInstance(
 		),
 		apiBaseURL: normalizeURL(
 			firstNonEmpty(
-				cfg.APIBaseURL,
 				strings.TrimSpace(os.Getenv(telegramAPIBaseEnv)),
 				telegramDefaultAPIBaseURL,
 			),
@@ -1446,71 +1436,7 @@ func (c *telegramBotClient) call(
 	payload any,
 	result any,
 ) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if c == nil {
-		return errors.New("telegram: bot api client is required")
-	}
-	if c.httpClient == nil {
-		c.httpClient = &http.Client{Timeout: 10 * time.Second}
-	}
-
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("telegram: marshal %s payload: %w", method, err)
-	}
-	endpoint := strings.TrimRight(
-		strings.TrimSpace(c.baseURL),
-		"/",
-	) + "/bot" + strings.TrimSpace(
-		c.botToken,
-	) + "/" + strings.TrimSpace(
-		method,
-	)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("telegram: build %s request: %w", method, err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	raw, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("telegram: read %s response: %w", method, err)
-	}
-
-	if result == nil {
-		result = &json.RawMessage{}
-	}
-	response := telegramAPIEnvelope[json.RawMessage]{}
-	if err := json.Unmarshal(raw, &response); err != nil {
-		return &bridgesdk.HTTPError{
-			StatusCode: resp.StatusCode,
-			Message: fmt.Sprintf(
-				"telegram %s returned invalid JSON: %s",
-				method,
-				strings.TrimSpace(string(raw)),
-			),
-		}
-	}
-	if resp.StatusCode >= 400 || !response.OK {
-		return classifyTelegramHTTPError(resp.StatusCode, response)
-	}
-	if result == nil {
-		return nil
-	}
-	if err := json.Unmarshal(response.Result, result); err != nil {
-		return fmt.Errorf("telegram: decode %s result: %w", method, err)
-	}
-	return nil
+	return c.callTelegram(ctx, method, payload, result)
 }
 
 func classifyTelegramHTTPError(

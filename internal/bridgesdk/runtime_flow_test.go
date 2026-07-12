@@ -34,6 +34,7 @@ func TestRuntimeServeInitializeDeliverHealthShutdownAndSync(t *testing.T) {
 			SDKName:    "bridgesdk",
 			SDKVersion: "test",
 		},
+		Check: testCheckHandler,
 		Initialize: func(_ context.Context, session *Session) error {
 			if session.BridgeRuntime() == nil {
 				t.Fatal("session.BridgeRuntime() = nil, want non-nil")
@@ -200,6 +201,7 @@ func TestRuntimeServeRejectsDeliveryBeforeInitialize(t *testing.T) {
 			Name:    "telegram-adapter",
 			Version: "1.0.0",
 		},
+		Check: testCheckHandler,
 		Deliver: func(_ context.Context, session *Session, request bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error) {
 			return session.AckDelivery(request, "remote-1", "")
 		},
@@ -240,6 +242,7 @@ func TestRuntimeServeRejectsInvalidInitializePayload(t *testing.T) {
 			Name:    "telegram-adapter",
 			Version: "1.0.0",
 		},
+		Check: testCheckHandler,
 		Deliver: func(_ context.Context, session *Session, request bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error) {
 			return session.AckDelivery(request, "remote-1", "")
 		},

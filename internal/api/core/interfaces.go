@@ -160,6 +160,8 @@ type BridgeService interface {
 	bridgepkg.TargetDirectory
 	bridgepkg.BridgeTaskSubscriptionStore
 	bridgepkg.TargetResolver
+	bridgepkg.BridgeControlTransport
+	bridgepkg.DeliveryTransport
 	ListProviders(ctx context.Context) ([]bridgepkg.BridgeProvider, error)
 	CountBridgeRoutes(ctx context.Context, bridgeInstanceIDs []string) (map[string]int, error)
 	ListSecretBindings(ctx context.Context, bridgeInstanceID string) ([]bridgepkg.BridgeSecretBinding, error)

@@ -1027,6 +1027,22 @@ export interface AutonomyObservationPatch {
   labels?: Record<string, string>;
 }
 
+export type BridgeCheckStatus = "pass" | "warn" | "fail" | "skipped";
+
+export interface BridgeCheckRecord {
+  check: string;
+  status: BridgeCheckStatus;
+  remediation: string;
+}
+
+export interface BridgeCheckRequest {
+  bridge_instance_id: string;
+}
+
+export interface BridgeCheckResponse {
+  checks: BridgeCheckRecord[];
+}
+
 export type BridgeScope = string;
 
 export type BridgeInstanceSource = string;
@@ -1072,6 +1088,8 @@ export interface BridgeInstanceTargetParams {
   bridge_instance_id: string;
 }
 
+export type BridgeRuntimePurpose = "service" | "control";
+
 export type BridgeTargetType = string;
 
 export interface BridgeTargetSnapshot {
@@ -1089,6 +1107,15 @@ export interface BridgeTargetSnapshotRequest {
 
 export interface BridgeTargetSnapshotResponse {
   targets: BridgeTargetSnapshot[];
+}
+
+export interface BridgeWebhookRegistrationRequest {
+  bridge_instance_id: string;
+}
+
+export interface BridgeWebhookRegistrationResponse {
+  status: BridgeCheckStatus;
+  remediation: string;
 }
 
 export interface BridgesInstancesReportStateParams {
@@ -1213,6 +1240,8 @@ export interface ContextPreCompactPayload {
   summary?: string;
   context_blocks?: ContextBlock[];
 }
+
+export type ControlMethod = "bridges/check" | "bridges/webhook/register";
 
 export interface ControlPatch {
   deny?: boolean;
@@ -2038,8 +2067,10 @@ export interface InitializeBridgeManagedInstance {
 
 export interface InitializeBridgeRuntime {
   runtime_version: string;
+  purpose: BridgeRuntimePurpose;
   provider: string;
   platform: string;
+  allowed_methods?: string[];
   managed_instances?: InitializeBridgeManagedInstance[];
 }
 

@@ -221,7 +221,8 @@ func TestMarkerHelpersReadStandaloneMarkerSet(t *testing.T) {
 		Request: subprocess.InitializeRequest{
 			Runtime: subprocess.InitializeRuntime{
 				Bridge: &subprocess.InitializeBridgeRuntime{
-					RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
+					RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion2,
+					Purpose:        subprocess.BridgeRuntimePurposeService,
 					Provider:       "telegram-reference",
 					Platform:       "telegram",
 				},
@@ -434,7 +435,8 @@ func validConformanceReport() ConformanceReport {
 					ShutdownTimeoutMS:     10_000,
 					DefaultHookTimeoutMS:  5_000,
 					Bridge: &subprocess.InitializeBridgeRuntime{
-						RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
+						RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion2,
+						Purpose:        subprocess.BridgeRuntimePurposeService,
 						Provider:       "telegram-reference",
 						Platform:       "telegram",
 						ManagedInstances: []subprocess.InitializeBridgeManagedInstance{{

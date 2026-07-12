@@ -41,6 +41,7 @@ const (
 
 const (
 	teamsListenAddrEnv            = "AGH_BRIDGE_TEAMS_LISTEN_ADDR"
+	teamsServiceURLEnv            = "AGH_BRIDGE_TEAMS_SERVICE_URL"
 	teamsOpenIDMetadataURLEnv     = "AGH_BRIDGE_TEAMS_OPENID_METADATA_URL"
 	teamsTestLoopbackAuthEnv      = "AGH_BRIDGE_TEAMS_ALLOW_LOOPBACK_AUTH_FOR_TESTING"
 	teamsDefaultOpenIDMetadata    = "https://login.botframework.com/v1/.well-known/openidconfiguration"
@@ -105,15 +106,10 @@ var teamsAuthCache = struct {
 }
 
 type teamsProviderConfig struct {
-	ServiceURL string `json:"service_url,omitempty"`
-	Webhook    struct {
+	Webhook struct {
 		ListenAddr string `json:"listen_addr,omitempty"`
 		Path       string `json:"path,omitempty"`
 	} `json:"webhook"`
-	Auth struct {
-		OpenIDMetadataURL string `json:"openid_metadata_url,omitempty"`
-		TokenURL          string `json:"token_url,omitempty"`
-	} `json:"auth"`
 	Batching struct {
 		DelayMS        int `json:"delay_ms,omitempty"`
 		SplitDelayMS   int `json:"split_delay_ms,omitempty"`
@@ -361,6 +357,7 @@ func newTeamsProvider(stderr io.Writer) (*teamsProvider, error) {
 		Initialize:  provider.handleInitialize,
 		Deliver:     provider.handleBridgesDeliver,
 		Progress:    provider.handleBridgesProgress,
+		Check:       provider.handleBridgeCheck,
 		HealthCheck: func(context.Context, *bridgesdk.Session) error { return provider.healthCheck() },
 		Shutdown:    provider.handleShutdown,
 		Now:         func() time.Time { return provider.now() },
@@ -451,26 +448,6 @@ func (p *teamsProvider) afterInitialize(session *bridgesdk.Session) {
 	} else {
 		p.clearLastError()
 	}
-}
-
-func (p *teamsProvider) healthCheck() error {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	for instanceID, status := range p.reportedStatus {
-		normalized := status.Normalize()
-		if normalized == "" || normalized == bridgepkg.BridgeStatusReady {
-			continue
-		}
-		message := strings.TrimSpace(p.reportedHealth[instanceID])
-		if message != "" {
-			return fmt.Errorf("teams: bridge instance %s is %s: %s", instanceID, normalized, message)
-		}
-		return fmt.Errorf("teams: bridge instance %s is %s", instanceID, normalized)
-	}
-	if strings.TrimSpace(p.lastError) == "" {
-		return nil
-	}
-	return errors.New(strings.TrimSpace(p.lastError))
 }
 
 func (p *teamsProvider) handleShutdown(
@@ -1441,17 +1418,18 @@ func buildTeamsResolvedInstance(
 		webhookPath: normalizeWebhookPath(
 			firstNonEmpty(cfg.Webhook.Path, "/teams/"+strings.TrimSpace(managed.Instance.ID)),
 		),
-		serviceURL: normalizeURL(firstNonEmpty(cfg.ServiceURL, teamsDefaultServiceURL)),
+		serviceURL: normalizeURL(firstNonEmpty(
+			strings.TrimSpace(os.Getenv(teamsServiceURLEnv)),
+			teamsDefaultServiceURL,
+		)),
 		openIDMetadataURL: normalizeURL(
 			firstNonEmpty(
-				cfg.Auth.OpenIDMetadataURL,
 				strings.TrimSpace(os.Getenv(teamsOpenIDMetadataURLEnv)),
 				teamsDefaultOpenIDMetadata,
 			),
 		),
 		tokenURL: normalizeURL(
 			firstNonEmpty(
-				cfg.Auth.TokenURL,
 				strings.TrimSpace(os.Getenv(teamsOAuthTokenURLEnvName())),
 				defaultTeamsTokenURL(strings.TrimSpace(appTenantID)),
 			),
@@ -1482,10 +1460,10 @@ func validateTeamsResolvedConfig(resolved *resolvedInstanceConfig) {
 	case resolved.webhookPath == "":
 		resolved.configError = errors.New("teams: webhook path is required")
 	case resolved.serviceURL == "":
-		resolved.configError = errors.New("teams: provider_config.service_url is required")
+		resolved.configError = errors.New("teams: service url is required")
 	case !validTeamsServiceURL(resolved.serviceURL):
 		resolved.configError = fmt.Errorf(
-			"teams: provider_config.service_url %q is invalid",
+			"teams: service url %q is invalid",
 			resolved.serviceURL,
 		)
 	case resolved.openIDMetadataURL == "":

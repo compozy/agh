@@ -26,6 +26,7 @@ func TestRuntimeRefacs(t *testing.T) {
 				Name:    "telegram-adapter",
 				Version: "1.0.0",
 			},
+			Check: testCheckHandler,
 			Initialize: func(context.Context, *Session) error {
 				if got := runtime.Session(); got != nil {
 					return errors.New("runtime session visible before initialize commit")
@@ -75,6 +76,7 @@ func TestRuntimeRefacs(t *testing.T) {
 				Name:    "telegram-adapter",
 				Version: "1.0.0",
 			},
+			Check: testCheckHandler,
 			Deliver: func(_ context.Context, session *Session, request bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error) {
 				return session.AckDelivery(request, "remote-1", "")
 			},
@@ -132,6 +134,7 @@ func TestRuntimeRefacs(t *testing.T) {
 					Name:    "telegram-adapter",
 					Version: "1.0.0",
 				},
+				Check: testCheckHandler,
 				Deliver: func(_ context.Context, session *Session, request bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error) {
 					return session.AckDelivery(request, "remote-1", "")
 				},
@@ -217,6 +220,7 @@ func TestRuntimeRefacs(t *testing.T) {
 				Name:    "telegram-adapter",
 				Version: "1.0.0",
 			},
+			Check: testCheckHandler,
 			Initialize: func(context.Context, *Session) error {
 				cancel()
 				return nil

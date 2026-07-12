@@ -1662,9 +1662,7 @@ func TestAfterInitializeSuccessAndParsingBranches(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateKey() error = %v", err)
 	}
-	cfg := discordProviderConfig{
-		APIBaseURL: "https://discord.test/api/",
-	}
+	cfg := discordProviderConfig{}
 	cfg.Webhook.ListenAddr = "127.0.0.1:0"
 	cfg.Webhook.Path = "/discord/brg-discord"
 	rawConfig, err := json.Marshal(cfg)
@@ -1704,7 +1702,8 @@ func TestAfterInitializeSuccessAndParsingBranches(t *testing.T) {
 			return nil
 		}),
 		bridgesdk.NewInstanceCache(&subprocess.InitializeBridgeRuntime{
-			RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
+			RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion2,
+			Purpose:        subprocess.BridgeRuntimePurposeService,
 			Provider:       "discord",
 			Platform:       "discord",
 			ManagedInstances: []subprocess.InitializeBridgeManagedInstance{
@@ -1951,7 +1950,8 @@ func TestHandleDiscordEventWebhookUsesRequestContext(t *testing.T) {
 
 	managed := testDiscordManagedInstance("brg-discord")
 	runtime := &subprocess.InitializeBridgeRuntime{
-		RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
+		RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion2,
+		Purpose:        subprocess.BridgeRuntimePurposeService,
 		Provider:       "discord",
 		Platform:       "discord",
 		ManagedInstances: []subprocess.InitializeBridgeManagedInstance{
@@ -2027,10 +2027,7 @@ func TestReconcileConfigMarkerAndFileHelpers(t *testing.T) {
 		return &discordAPIFake{postedMessageID: "msg-1"}
 	}
 
-	cfg := discordProviderConfig{
-		APIBaseURL:    "https://tenant.example.invalid/api/",
-		ApplicationID: "bot-1",
-	}
+	cfg := discordProviderConfig{ApplicationID: "bot-1"}
 	cfg.Webhook.ListenAddr = "127.0.0.1:0"
 	cfg.Webhook.Path = "/discord/brg-discord"
 	rawConfig, err := json.Marshal(cfg)
@@ -2105,10 +2102,7 @@ func TestProviderHostAPIFlowWithInjectedSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateKey() error = %v", err)
 	}
-	cfg := discordProviderConfig{
-		APIBaseURL:    "https://discord.test/api/",
-		ApplicationID: "bot-1",
-	}
+	cfg := discordProviderConfig{ApplicationID: "bot-1"}
 	cfg.Webhook.ListenAddr = "127.0.0.1:0"
 	cfg.Webhook.Path = "/discord/brg-discord"
 	cfg.Batching.DelayMS = 1
@@ -2133,7 +2127,8 @@ func TestProviderHostAPIFlowWithInjectedSession(t *testing.T) {
 		},
 	}
 	runtime := &subprocess.InitializeBridgeRuntime{
-		RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
+		RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion2,
+		Purpose:        subprocess.BridgeRuntimePurposeService,
 		Provider:       "discord",
 		Platform:       "discord",
 		ManagedInstances: []subprocess.InitializeBridgeManagedInstance{

@@ -1095,6 +1095,7 @@ func TestResolveInstanceConfigAndDetermineInitialState(t *testing.T) {
 	_ = env
 	listenAddr := reserveListenAddr(t)
 	t.Setenv(teamsListenAddrEnv, listenAddr)
+	t.Setenv(teamsServiceURLEnv, mock.ServiceURL())
 	t.Setenv(teamsOpenIDMetadataURLEnv, mock.MetadataURL())
 	t.Setenv(teamsOAuthTokenURLEnvName(), mock.TokenURL())
 
@@ -1103,14 +1104,9 @@ func TestResolveInstanceConfigAndDetermineInitialState(t *testing.T) {
 
 	now := time.Date(2026, 4, 15, 18, 0, 0, 0, time.UTC)
 	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{
-		"service_url": mock.ServiceURL(),
 		"webhook": map[string]any{
 			"listen_addr": listenAddr,
 			"path":        "teams",
-		},
-		"auth": map[string]any{
-			"openid_metadata_url": mock.MetadataURL(),
-			"token_url":           mock.TokenURL(),
 		},
 		"batching": map[string]any{
 			"delay_ms":        5,
@@ -1264,6 +1260,7 @@ func TestRuntimeInitializeStartsServerAndWritesMarkers(t *testing.T) {
 	listenAddr := reserveListenAddr(t)
 	mock := newTeamsProviderServer(t, teamsProviderServerConfig{})
 	t.Setenv(teamsListenAddrEnv, listenAddr)
+	t.Setenv(teamsServiceURLEnv, mock.ServiceURL())
 	t.Setenv(teamsOpenIDMetadataURLEnv, mock.MetadataURL())
 	t.Setenv(teamsOAuthTokenURLEnvName(), mock.TokenURL())
 
@@ -1276,25 +1273,13 @@ func TestRuntimeInitializeStartsServerAndWritesMarkers(t *testing.T) {
 			t,
 			now,
 			"brg-1",
-			map[string]any{
-				"service_url": mock.ServiceURL(),
-				"auth": map[string]any{
-					"openid_metadata_url": mock.MetadataURL(),
-					"token_url":           mock.TokenURL(),
-				},
-			},
+			map[string]any{},
 		),
 		testTeamsManagedInstance(
 			t,
 			now,
 			"brg-2",
-			map[string]any{
-				"service_url": mock.ServiceURL(),
-				"auth": map[string]any{
-					"openid_metadata_url": mock.MetadataURL(),
-					"token_url":           mock.TokenURL(),
-				},
-			},
+			map[string]any{},
 		),
 	}
 	mustHandleLifecycle(t, hostPeer, managed...)
@@ -1336,6 +1321,7 @@ func TestWebhookAuthorizationRejectsInvalidTokenAndIngestsActivities(t *testing.
 	listenAddr := reserveListenAddr(t)
 	mock := newTeamsProviderServer(t, teamsProviderServerConfig{})
 	t.Setenv(teamsListenAddrEnv, listenAddr)
+	t.Setenv(teamsServiceURLEnv, mock.ServiceURL())
 	t.Setenv(teamsOpenIDMetadataURLEnv, mock.MetadataURL())
 	t.Setenv(teamsOAuthTokenURLEnvName(), mock.TokenURL())
 
@@ -1343,13 +1329,7 @@ func TestWebhookAuthorizationRejectsInvalidTokenAndIngestsActivities(t *testing.
 	defer cleanup()
 
 	now := time.Date(2026, 4, 15, 18, 25, 0, 0, time.UTC)
-	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{
-		"service_url": mock.ServiceURL(),
-		"auth": map[string]any{
-			"openid_metadata_url": mock.MetadataURL(),
-			"token_url":           mock.TokenURL(),
-		},
-	})
+	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{})
 	mustHandleLifecycle(t, hostPeer, managed)
 
 	var ingested []bridgepkg.InboundMessageEnvelope
@@ -1567,6 +1547,7 @@ func TestRuntimeDeliveriesCallTeamsAPI(t *testing.T) {
 	listenAddr := reserveListenAddr(t)
 	mock := newTeamsProviderServer(t, teamsProviderServerConfig{})
 	t.Setenv(teamsListenAddrEnv, listenAddr)
+	t.Setenv(teamsServiceURLEnv, mock.ServiceURL())
 	t.Setenv(teamsOpenIDMetadataURLEnv, mock.MetadataURL())
 	t.Setenv(teamsOAuthTokenURLEnvName(), mock.TokenURL())
 
@@ -1574,13 +1555,7 @@ func TestRuntimeDeliveriesCallTeamsAPI(t *testing.T) {
 	defer cleanup()
 
 	now := time.Date(2026, 4, 15, 18, 30, 0, 0, time.UTC)
-	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{
-		"service_url": mock.ServiceURL(),
-		"auth": map[string]any{
-			"openid_metadata_url": mock.MetadataURL(),
-			"token_url":           mock.TokenURL(),
-		},
-	})
+	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{})
 	mustHandleLifecycle(t, hostPeer, managed)
 
 	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, managed), nil); err != nil {
@@ -1835,6 +1810,7 @@ func TestDispatchInboundBatchAndEnvelopeCoverage(t *testing.T) {
 	listenAddr := reserveListenAddr(t)
 	mock := newTeamsProviderServer(t, teamsProviderServerConfig{})
 	t.Setenv(teamsListenAddrEnv, listenAddr)
+	t.Setenv(teamsServiceURLEnv, mock.ServiceURL())
 	t.Setenv(teamsOpenIDMetadataURLEnv, mock.MetadataURL())
 	t.Setenv(teamsOAuthTokenURLEnvName(), mock.TokenURL())
 
@@ -1842,13 +1818,7 @@ func TestDispatchInboundBatchAndEnvelopeCoverage(t *testing.T) {
 	defer cleanup()
 
 	now := time.Date(2026, 4, 15, 19, 20, 0, 0, time.UTC)
-	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{
-		"service_url": mock.ServiceURL(),
-		"auth": map[string]any{
-			"openid_metadata_url": mock.MetadataURL(),
-			"token_url":           mock.TokenURL(),
-		},
-	})
+	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{})
 	mustHandleLifecycle(t, hostPeer, managed)
 
 	var ingested []bridgepkg.InboundMessageEnvelope
@@ -1962,6 +1932,7 @@ func TestBotClientCoverageAndWebhookGuards(t *testing.T) {
 	listenAddr := reserveListenAddr(t)
 	mock := newTeamsProviderServer(t, teamsProviderServerConfig{})
 	t.Setenv(teamsListenAddrEnv, listenAddr)
+	t.Setenv(teamsServiceURLEnv, mock.ServiceURL())
 	t.Setenv(teamsOpenIDMetadataURLEnv, mock.MetadataURL())
 	t.Setenv(teamsOAuthTokenURLEnvName(), mock.TokenURL())
 
@@ -1969,13 +1940,7 @@ func TestBotClientCoverageAndWebhookGuards(t *testing.T) {
 	defer cleanup()
 
 	now := time.Date(2026, 4, 15, 19, 30, 0, 0, time.UTC)
-	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{
-		"service_url": mock.ServiceURL(),
-		"auth": map[string]any{
-			"openid_metadata_url": mock.MetadataURL(),
-			"token_url":           mock.TokenURL(),
-		},
-	})
+	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{})
 	mustHandleLifecycle(t, hostPeer, managed)
 	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, managed), nil); err != nil {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
@@ -2082,6 +2047,7 @@ func TestHandleBridgesDeliverCoverageAndRunCommand(t *testing.T) {
 	listenAddr := reserveListenAddr(t)
 	mock := newTeamsProviderServer(t, teamsProviderServerConfig{})
 	t.Setenv(teamsListenAddrEnv, listenAddr)
+	t.Setenv(teamsServiceURLEnv, mock.ServiceURL())
 	t.Setenv(teamsOpenIDMetadataURLEnv, mock.MetadataURL())
 	t.Setenv(teamsOAuthTokenURLEnvName(), mock.TokenURL())
 
@@ -2089,13 +2055,7 @@ func TestHandleBridgesDeliverCoverageAndRunCommand(t *testing.T) {
 	defer cleanup()
 
 	now := time.Date(2026, 4, 15, 19, 40, 0, 0, time.UTC)
-	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{
-		"service_url": mock.ServiceURL(),
-		"auth": map[string]any{
-			"openid_metadata_url": mock.MetadataURL(),
-			"token_url":           mock.TokenURL(),
-		},
-	})
+	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{})
 	mustHandleLifecycle(t, hostPeer, managed)
 	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, managed), nil); err != nil {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
@@ -2301,13 +2261,11 @@ func TestReconcileInstanceConfigCoverage(t *testing.T) {
 
 	now := time.Date(2026, 4, 15, 19, 50, 0, 0, time.UTC)
 	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{
-		"service_url": teamsDefaultServiceURL,
 		"webhook": map[string]any{
 			"path": "shared",
 		},
 	})
 	managed2 := testTeamsManagedInstance(t, now, "brg-2", map[string]any{
-		"service_url": teamsDefaultServiceURL,
 		"webhook": map[string]any{
 			"path": "shared",
 		},
@@ -2430,13 +2388,11 @@ func TestWebhookRejectsDuplicateSharedPath(t *testing.T) {
 
 		now := time.Date(2026, 4, 15, 19, 55, 0, 0, time.UTC)
 		managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{
-			"service_url": teamsDefaultServiceURL,
 			"webhook": map[string]any{
 				"path": "shared",
 			},
 		})
 		managed2 := testTeamsManagedInstance(t, now, "brg-2", map[string]any{
-			"service_url": teamsDefaultServiceURL,
 			"webhook": map[string]any{
 				"path": "shared",
 			},
@@ -3151,7 +3107,8 @@ func testInitializeRequest(
 			ShutdownTimeoutMS:     5_000,
 			DefaultHookTimeoutMS:  5_000,
 			Bridge: &subprocess.InitializeBridgeRuntime{
-				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion1,
+				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion2,
+				Purpose:          subprocess.BridgeRuntimePurposeService,
 				Provider:         "teams",
 				Platform:         "teams",
 				ManagedInstances: managed,

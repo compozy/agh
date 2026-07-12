@@ -114,7 +114,8 @@ func TestTelegramReferenceAuthStatus(t *testing.T) {
 		}
 		session := runtime.sdk.Session()
 		session.Cache().Reset(&subprocess.InitializeBridgeRuntime{
-			RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion1,
+			RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion2,
+			Purpose:          subprocess.BridgeRuntimePurposeService,
 			Provider:         "telegram-reference",
 			Platform:         "telegram",
 			ManagedInstances: []subprocess.InitializeBridgeManagedInstance{managed},

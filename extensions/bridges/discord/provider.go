@@ -86,7 +86,6 @@ type discordProvider struct {
 }
 
 type discordProviderConfig struct {
-	APIBaseURL    string `json:"api_base_url,omitempty"`
 	ApplicationID string `json:"application_id,omitempty"`
 	Webhook       struct {
 		ListenAddr string `json:"listen_addr,omitempty"`
@@ -279,6 +278,7 @@ func newDiscordProvider(stderr io.Writer) (*discordProvider, error) {
 		Initialize:  provider.handleInitialize,
 		Deliver:     provider.handleBridgesDeliver,
 		Progress:    provider.handleBridgesProgress,
+		Check:       provider.handleBridgeCheck,
 		HealthCheck: func(context.Context, *bridgesdk.Session) error { return provider.healthCheck() },
 		Shutdown:    provider.handleShutdown,
 		Now:         func() time.Time { return provider.now() },
@@ -453,15 +453,6 @@ func (p *discordProvider) handleBridgesDeliver(
 		p.clearLastError()
 	}
 	return ack, nil
-}
-
-func (p *discordProvider) healthCheck() error {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if strings.TrimSpace(p.lastError) == "" {
-		return nil
-	}
-	return errors.New(strings.TrimSpace(p.lastError))
 }
 
 func (p *discordProvider) handleShutdown(
@@ -842,7 +833,10 @@ func (p *discordProvider) resolveInstanceConfig(
 	webhookPath := normalizeWebhookPath(
 		firstNonEmpty(cfg.Webhook.Path, "/discord/"+strings.TrimSpace(managed.Instance.ID)),
 	)
-	apiBaseURL := normalizeURL(firstNonEmpty(strings.TrimSpace(os.Getenv(discordAPIBaseEnv)), discordDefaultAPIBaseURL))
+	apiBaseURL := normalizeURL(firstNonEmpty(
+		strings.TrimSpace(os.Getenv(discordAPIBaseEnv)),
+		discordDefaultAPIBaseURL,
+	))
 
 	resolved := resolvedInstanceConfig{
 		managed:         managed,

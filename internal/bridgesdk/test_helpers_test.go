@@ -1,12 +1,23 @@
 package bridgesdk
 
 import (
+	"context"
 	"time"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
 	"github.com/compozy/agh/internal/subprocess"
 )
+
+func testCheckHandler(
+	context.Context,
+	*Session,
+	bridgepkg.BridgeCheckRequest,
+) (bridgepkg.BridgeCheckResponse, error) {
+	return bridgepkg.BridgeCheckResponse{
+		Checks: []bridgepkg.BridgeCheckRecord{bridgepkg.PassCheck("provider.identity")},
+	}, nil
+}
 
 func testBridgeInstance(id string) bridgepkg.BridgeInstance {
 	return bridgepkg.BridgeInstance{
@@ -38,8 +49,9 @@ func testManagedRuntime(instanceIDs ...string) *subprocess.InitializeBridgeRunti
 		})
 	}
 	return &subprocess.InitializeBridgeRuntime{
-		RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion1,
-		Provider:         "telegram",
+		RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion2,
+		Purpose:          subprocess.BridgeRuntimePurposeService,
+		Provider:         "telegram-adapter",
 		Platform:         "telegram",
 		ManagedInstances: managed,
 	}

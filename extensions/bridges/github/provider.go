@@ -93,7 +93,6 @@ type deliveryState struct {
 }
 
 type githubProviderConfig struct {
-	APIBaseURL     string `json:"api_base_url,omitempty"`
 	Mode           string `json:"mode,omitempty"`
 	InstallationID int64  `json:"installation_id,omitempty"`
 	BotLogin       string `json:"bot_login,omitempty"`
@@ -254,6 +253,7 @@ func newGitHubProvider(stderr io.Writer) (*githubProvider, error) {
 		},
 		Initialize:  provider.handleInitialize,
 		Deliver:     provider.handleBridgesDeliver,
+		Check:       provider.handleBridgeCheck,
 		HealthCheck: func(context.Context, *bridgesdk.Session) error { return provider.healthCheck() },
 		Shutdown:    provider.handleShutdown,
 		Now:         func() time.Time { return provider.now() },
@@ -416,15 +416,6 @@ func (p *githubProvider) handleBridgesDeliver(
 	p.reportSideEffectError("write delivery marker", appendJSONLine(p.env.deliveryPath, marker))
 	p.clearLastError()
 	return ack, nil
-}
-
-func (p *githubProvider) healthCheck() error {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if strings.TrimSpace(p.lastError) == "" {
-		return nil
-	}
-	return errors.New(strings.TrimSpace(p.lastError))
 }
 
 func (p *githubProvider) handleShutdown(
@@ -779,7 +770,7 @@ func (p *githubProvider) resolveInstanceConfig(
 	listenAddr := firstNonEmpty(cfg.Webhook.ListenAddr, strings.TrimSpace(os.Getenv(githubListenAddrEnv)))
 	webhookPath := normalizeWebhookPath(firstNonEmpty(cfg.Webhook.Path, "/github"))
 	apiBaseURL := normalizeURL(
-		firstNonEmpty(cfg.APIBaseURL, strings.TrimSpace(os.Getenv(githubAPIBaseEnv)), githubDefaultAPIBaseURL),
+		firstNonEmpty(strings.TrimSpace(os.Getenv(githubAPIBaseEnv)), githubDefaultAPIBaseURL),
 	)
 	mode := strings.ToLower(strings.TrimSpace(cfg.Mode))
 	if mode == "" {

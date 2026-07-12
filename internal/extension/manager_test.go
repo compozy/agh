@@ -2530,7 +2530,8 @@ func testScopedBridgeRuntimeForInstance(
 	boundSecrets []subprocess.InitializeBridgeBoundSecret,
 ) *subprocess.InitializeBridgeRuntime {
 	return &subprocess.InitializeBridgeRuntime{
-		RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
+		RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion2,
+		Purpose:        subprocess.BridgeRuntimePurposeService,
 		Provider:       instance.ExtensionName,
 		Platform:       instance.Platform,
 		ManagedInstances: []subprocess.InitializeBridgeManagedInstance{{

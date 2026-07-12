@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -76,8 +75,7 @@ type slackProvider struct {
 }
 
 type slackProviderConfig struct {
-	APIBaseURL string `json:"api_base_url,omitempty"`
-	Webhook    struct {
+	Webhook struct {
 		ListenAddr string `json:"listen_addr,omitempty"`
 		Path       string `json:"path,omitempty"`
 	} `json:"webhook"`
@@ -235,8 +233,9 @@ type slackDeliveryReconciler interface {
 }
 
 type slackAuthIdentity struct {
-	BotID  string `json:"bot_id,omitempty"`
-	UserID string `json:"user_id,omitempty"`
+	BotID         string   `json:"bot_id,omitempty"`
+	UserID        string   `json:"user_id,omitempty"`
+	GrantedScopes []string `json:"-"`
 }
 
 type slackPostedMessage struct {
@@ -362,6 +361,7 @@ func newSlackProvider(stderr io.Writer) (*slackProvider, error) {
 		Initialize:  provider.handleInitialize,
 		Deliver:     provider.handleBridgesDeliver,
 		Progress:    provider.handleBridgesProgress,
+		Check:       provider.handleBridgeCheck,
 		HealthCheck: func(context.Context, *bridgesdk.Session) error { return provider.healthCheck() },
 		Shutdown:    provider.handleShutdown,
 		Now:         func() time.Time { return provider.now() },
@@ -512,15 +512,6 @@ func (p *slackProvider) handleBridgesDeliver(
 		p.recordProgressCleanupError("clear progress after text delivery", progressCleanupErr)
 	}
 	return ack, nil
-}
-
-func (p *slackProvider) healthCheck() error {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if strings.TrimSpace(p.lastError) == "" {
-		return nil
-	}
-	return errors.New(strings.TrimSpace(p.lastError))
 }
 
 func (p *slackProvider) handleShutdown(
@@ -919,7 +910,7 @@ func (p *slackProvider) resolveInstanceConfig(
 		firstNonEmpty(cfg.Webhook.Path, "/slack/"+strings.TrimSpace(managed.Instance.ID)),
 	)
 	apiBaseURL := normalizeURL(
-		firstNonEmpty(cfg.APIBaseURL, strings.TrimSpace(os.Getenv(slackAPIBaseEnv)), slackDefaultAPIBaseURL),
+		firstNonEmpty(strings.TrimSpace(os.Getenv(slackAPIBaseEnv)), slackDefaultAPIBaseURL),
 	)
 
 	resolved := resolvedInstanceConfig{
@@ -1908,9 +1899,11 @@ func verifySlackSignature(_ context.Context, req *http.Request, body []byte, sec
 
 func (c *slackBotClient) AuthTest(ctx context.Context) (*slackAuthIdentity, error) {
 	var result slackAuthIdentity
-	if err := c.call(ctx, "auth.test", map[string]any{}, &result); err != nil {
+	var headers http.Header
+	if err := c.callSlack(ctx, "auth.test", map[string]any{}, &result, &headers); err != nil {
 		return nil, err
 	}
+	result.GrantedScopes = splitSlackScopes(headers.Get("X-OAuth-Scopes"))
 	return &result, nil
 }
 
@@ -1988,68 +1981,7 @@ func slackMetadataMatchesDelivery(
 }
 
 func (c *slackBotClient) call(ctx context.Context, method string, payload any, result any) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if c == nil {
-		return errors.New("slack: api client is required")
-	}
-	if c.httpClient == nil {
-		c.httpClient = &http.Client{Timeout: 10 * time.Second}
-	}
-
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("slack: marshal %s payload: %w", method, err)
-	}
-	endpoint := strings.TrimRight(strings.TrimSpace(c.baseURL), "/") + "/" + strings.TrimSpace(method)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("slack: build %s request: %w", method, err)
-	}
-	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(c.botToken))
-	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	responseBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("slack: read %s response: %w", method, err)
-	}
-
-	var envelope slackAPIEnvelope
-	if len(bytes.TrimSpace(responseBody)) > 0 {
-		if err := json.Unmarshal(responseBody, &envelope); err != nil {
-			return fmt.Errorf("slack: decode %s response: %w", method, err)
-		}
-	}
-
-	retryAfter := parseRetryAfter(resp.Header.Get("Retry-After"))
-	if resp.StatusCode == http.StatusTooManyRequests ||
-		strings.EqualFold(strings.TrimSpace(envelope.Error), "ratelimited") {
-		return &bridgesdk.RateLimitError{
-			Err:        fmt.Errorf("slack api %s rate limited", strings.TrimSpace(method)),
-			RetryAfter: retryAfter,
-		}
-	}
-	if resp.StatusCode >= http.StatusBadRequest {
-		return classifySlackAPIError(resp.StatusCode, envelope.Error, retryAfter)
-	}
-	if !envelope.OK {
-		return classifySlackAPIError(resp.StatusCode, envelope.Error, retryAfter)
-	}
-	if result != nil && len(bytes.TrimSpace(responseBody)) > 0 {
-		if err := json.Unmarshal(responseBody, result); err != nil {
-			return fmt.Errorf("slack: decode %s result: %w", method, err)
-		}
-	}
-	return nil
+	return c.callSlack(ctx, method, payload, result, nil)
 }
 
 func classifySlackAPIError(status int, errorText string, retryAfter time.Duration) error {

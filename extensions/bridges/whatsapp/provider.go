@@ -14,7 +14,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -83,7 +82,6 @@ type whatsappProvider struct {
 }
 
 type whatsappProviderConfig struct {
-	APIBaseURL    string `json:"api_base_url,omitempty"`
 	APIVersion    string `json:"api_version,omitempty"`
 	PhoneNumberID string `json:"phone_number_id,omitempty"`
 	Webhook       struct {
@@ -289,6 +287,7 @@ func newWhatsAppProvider(stderr io.Writer) (*whatsappProvider, error) {
 		Initialize:  provider.handleInitialize,
 		Deliver:     provider.handleBridgesDeliver,
 		Progress:    provider.handleBridgesProgress,
+		Check:       provider.handleBridgeCheck,
 		HealthCheck: func(context.Context, *bridgesdk.Session) error { return provider.healthCheck() },
 		Shutdown:    provider.handleShutdown,
 		Now:         func() time.Time { return provider.now() },
@@ -382,31 +381,6 @@ func (p *whatsappProvider) afterInitialize(session *bridgesdk.Session, globalErr
 	} else {
 		p.clearGlobalErrorIfUnchanged(globalErrorSeq)
 	}
-}
-
-func (p *whatsappProvider) healthCheck() error {
-	p.mu.RLock()
-	globalError := strings.TrimSpace(p.lastError)
-	instanceErrors := make(map[string]string, len(p.instanceErrors))
-	for instanceID, message := range p.instanceErrors {
-		if strings.TrimSpace(message) == "" {
-			continue
-		}
-		instanceErrors[instanceID] = strings.TrimSpace(message)
-	}
-	p.mu.RUnlock()
-	if globalError != "" {
-		return errors.New(globalError)
-	}
-	if len(instanceErrors) == 0 {
-		return nil
-	}
-	instanceIDs := make([]string, 0, len(instanceErrors))
-	for instanceID := range instanceErrors {
-		instanceIDs = append(instanceIDs, instanceID)
-	}
-	sort.Strings(instanceIDs)
-	return fmt.Errorf("%s: %s", instanceIDs[0], instanceErrors[instanceIDs[0]])
 }
 
 func (p *whatsappProvider) handleShutdown(
@@ -1625,7 +1599,6 @@ func buildWhatsAppResolvedInstance(
 		),
 		apiBaseURL: normalizeURL(
 			firstNonEmpty(
-				cfg.APIBaseURL,
 				strings.TrimSpace(os.Getenv(whatsappAPIBaseEnv)),
 				whatsappDefaultAPIBaseURL,
 			),

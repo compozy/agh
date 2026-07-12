@@ -16,7 +16,8 @@ func TestInitializeBridgeRuntimeValidateContract(t *testing.T) {
 
 		now := time.Date(2026, 4, 15, 12, 20, 0, 0, time.UTC)
 		runtime := InitializeBridgeRuntime{
-			RuntimeVersion: InitializeBridgeRuntimeVersion1,
+			RuntimeVersion: InitializeBridgeRuntimeVersion2,
+			Purpose:        BridgeRuntimePurposeService,
 			Provider:       "telegram-reference",
 			Platform:       "telegram",
 			ManagedInstances: []InitializeBridgeManagedInstance{

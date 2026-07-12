@@ -55,7 +55,6 @@ The bridge instance `provider_config` JSON object currently supports:
 
 ```json
 {
-  "api_base_url": "https://graph.facebook.com",
   "api_version": "v21.0",
   "phone_number_id": "1234567890",
   "webhook": {
@@ -80,6 +79,7 @@ Notes:
 
 - `access_token`, `app_secret`, and `verify_token` are required through bridge secret bindings.
 - `provider_config.phone_number_id` is required per bridge instance because the runtime multiplexes multiple business numbers behind one provider process.
-- `AGH_BRIDGE_WHATSAPP_LISTEN_ADDR` and `AGH_BRIDGE_WHATSAPP_API_BASE_URL` can provide process-level defaults for local development and integration tests.
+- `AGH_BRIDGE_WHATSAPP_LISTEN_ADDR` configures the process-level listener default.
+- `AGH_BRIDGE_WHATSAPP_API_BASE_URL` is an operator-owned process override for local development and integration tests. Bridge config cannot change the credential-bearing API destination.
 - Direct-message enforcement uses the bridge instance `dm_policy` plus the provider-config allowlist or paired-user fields.
 - WhatsApp Cloud API does not support bridge-level delete semantics and the provider reports those requests as permanent unsupported operations.

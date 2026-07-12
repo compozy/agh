@@ -347,11 +347,6 @@ var sdkRootTypes = []NamedType{
 	{Name: "HookDecl", Value: hooks.HookDecl{}},
 }
 
-// SDKRootTypes returns the canonical generated SDK contract roots.
-func SDKRootTypes() []NamedType {
-	return append([]NamedType(nil), sdkRootTypes...)
-}
-
 // BuildHookContracts returns the canonical hook payload/patch registry in event order.
 func BuildHookContracts() ([]HookContractSpec, error) {
 	descriptors := hooks.AllEventDescriptors()

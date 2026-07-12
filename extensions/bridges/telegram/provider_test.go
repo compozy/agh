@@ -1456,6 +1456,7 @@ func TestResolveInstanceConfigAndHelperNormalization(t *testing.T) {
 	listenAddr := reserveListenAddr(t)
 	mockAPI := newTelegramAPIServer(t)
 	apiBaseURL := mockAPI.URL() + "/"
+	t.Setenv(telegramAPIBaseEnv, apiBaseURL)
 
 	runtime, hostPeer, cleanup := newRuntimePeerPair(t)
 	defer cleanup()
@@ -1464,11 +1465,10 @@ func TestResolveInstanceConfigAndHelperNormalization(t *testing.T) {
 	managed := testBridgeRuntime(now, "brg-1")
 	managed.Instance.DMPolicy = bridgepkg.BridgeDMPolicyPairing
 	managed.Instance.ProviderConfig = fmt.Appendf(nil, `{
-		"api_base_url":%q,
 		"webhook":{"listen_addr":%q,"path":"telegram"},
 		"batching":{"delay_ms":5,"split_delay_ms":7,"split_threshold":2},
 		"dm":{"allow_user_ids":[" 42 "],"allow_usernames":["@Alice"],"paired_usernames":["Bob"]}
-	}`, apiBaseURL, listenAddr)
+	}`, listenAddr)
 	managed.BoundSecrets = []subprocess.InitializeBridgeBoundSecret{
 		{BindingName: "bot_token", Kind: "token", Value: "telegram-token"},
 		{BindingName: "webhook_secret", Kind: "token", Value: "top-secret"},
@@ -2411,7 +2411,8 @@ func testInitializeRequest(
 			ShutdownTimeoutMS:     5_000,
 			DefaultHookTimeoutMS:  5_000,
 			Bridge: &subprocess.InitializeBridgeRuntime{
-				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion1,
+				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion2,
+				Purpose:          subprocess.BridgeRuntimePurposeService,
 				Provider:         "telegram",
 				Platform:         "telegram",
 				ManagedInstances: managed,

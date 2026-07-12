@@ -81,6 +81,11 @@ func TestStatusForBridgeError(t *testing.T) {
 			want: http.StatusServiceUnavailable,
 		},
 		{
+			name: "Should return service unavailable for bridge control transport outage",
+			err:  bridgepkg.ErrBridgeControlTransportUnavailable,
+			want: http.StatusServiceUnavailable,
+		},
+		{
 			name: "Should return internal server error for unknown failures",
 			err:  errors.New("boom"),
 			want: http.StatusInternalServerError,

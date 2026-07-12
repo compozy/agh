@@ -31,8 +31,11 @@ import (
 )
 
 const (
-	teamsProviderListenAddrEnv   = "AGH_BRIDGE_TEAMS_LISTEN_ADDR"
-	teamsProviderLoopbackAuthEnv = "AGH_BRIDGE_TEAMS_ALLOW_LOOPBACK_AUTH_FOR_TESTING"
+	teamsProviderListenAddrEnv     = "AGH_BRIDGE_TEAMS_LISTEN_ADDR"
+	teamsProviderServiceURLEnv     = "AGH_BRIDGE_TEAMS_SERVICE_URL"
+	teamsProviderOpenIDMetadataEnv = "AGH_BRIDGE_TEAMS_OPENID_METADATA_URL"
+	teamsProviderTokenURLEnv       = "AGH_BRIDGE_TEAMS_TOKEN_URL"
+	teamsProviderLoopbackAuthEnv   = "AGH_BRIDGE_TEAMS_ALLOW_LOOPBACK_AUTH_FOR_TESTING"
 )
 
 var (
@@ -54,19 +57,20 @@ func TestTeamsProviderLaunchNegotiatesBridgeRuntime(t *testing.T) {
 			teamsManagedInstanceConfig(
 				"brg-teams-a",
 				"11111111-2222-3333-4444-555555555555",
-				mockAPI,
 				bridgepkg.RoutingPolicy{IncludeGroup: true, IncludeThread: true},
 			),
 			teamsManagedInstanceConfig(
 				"brg-teams-b",
 				"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
-				mockAPI,
 				bridgepkg.RoutingPolicy{IncludePeer: true, IncludeThread: true},
 			),
 		},
 		ExtraEnv: map[string]string{
-			teamsProviderListenAddrEnv:   listenAddr,
-			teamsProviderLoopbackAuthEnv: "1",
+			teamsProviderListenAddrEnv:     listenAddr,
+			teamsProviderServiceURLEnv:     mockAPI.ServiceURL(),
+			teamsProviderOpenIDMetadataEnv: mockAPI.MetadataURL(),
+			teamsProviderTokenURLEnv:       mockAPI.TokenURL(),
+			teamsProviderLoopbackAuthEnv:   "1",
 		},
 		StartTime: time.Date(2026, 4, 15, 19, 0, 0, 0, time.UTC),
 	})
@@ -149,7 +153,6 @@ func TestTeamsProviderIngressAndDeliveryConformance(t *testing.T) {
 		ManagedInstances: []extensiontest.ManagedInstanceConfig{teamsManagedInstanceConfig(
 			"brg-teams",
 			"11111111-2222-3333-4444-555555555555",
-			mockAPI,
 			bridgepkg.RoutingPolicy{IncludeGroup: true, IncludeThread: true},
 		)},
 		Driver: extensiontest.NewScriptedPromptDriver(startTime, []extensiontest.ScriptedPromptEvent{
@@ -158,8 +161,11 @@ func TestTeamsProviderIngressAndDeliveryConformance(t *testing.T) {
 			{Type: acp.EventTypeDone},
 		}),
 		ExtraEnv: map[string]string{
-			teamsProviderListenAddrEnv:   listenAddr,
-			teamsProviderLoopbackAuthEnv: "1",
+			teamsProviderListenAddrEnv:     listenAddr,
+			teamsProviderServiceURLEnv:     mockAPI.ServiceURL(),
+			teamsProviderOpenIDMetadataEnv: mockAPI.MetadataURL(),
+			teamsProviderTokenURLEnv:       mockAPI.TokenURL(),
+			teamsProviderLoopbackAuthEnv:   "1",
 		},
 		StartTime: startTime,
 	})
@@ -288,12 +294,10 @@ func TestTeamsProviderInvalidTenantConfigReportsDegradedState(t *testing.T) {
 	buildTeamsProvider(t, repoRoot)
 
 	listenAddr := reserveIntegrationListenAddr(t)
-	mockAPI := newTeamsProviderAPIServer(t)
 
 	instanceConfig := teamsManagedInstanceConfig(
 		"brg-teams-bad",
 		"not-a-tenant",
-		mockAPI,
 		bridgepkg.RoutingPolicy{IncludePeer: true},
 	)
 	harness := extensiontest.NewHarness(t, extensiontest.HarnessConfig{
@@ -381,20 +385,12 @@ func buildTeamsProvider(t *testing.T, repoRoot string) {
 func teamsManagedInstanceConfig(
 	instanceID string,
 	tenantID string,
-	mockAPI *teamsProviderAPIServer,
 	routing bridgepkg.RoutingPolicy,
 ) extensiontest.ManagedInstanceConfig {
 	return extensiontest.ManagedInstanceConfig{
 		ID:            instanceID,
 		DisplayName:   "Teams",
 		RoutingPolicy: routing,
-		ProviderConfig: map[string]any{
-			"service_url": mockAPI.ServiceURL(),
-			"auth": map[string]any{
-				"openid_metadata_url": mockAPI.MetadataURL(),
-				"token_url":           mockAPI.TokenURL(),
-			},
-		},
 		BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
 			{BindingName: "app_id", Kind: "token", Value: "app-id"},
 			{BindingName: "app_password", Kind: "token", Value: "app-password"},

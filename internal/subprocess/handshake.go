@@ -78,17 +78,32 @@ type InitializeRuntime struct {
 }
 
 const (
-	// InitializeBridgeRuntimeVersion1 is the provider-scoped bridge runtime
+	// InitializeBridgeRuntimeVersion2 is the purpose-scoped bridge runtime
 	// handshake version negotiated by bridge-capable extensions.
-	InitializeBridgeRuntimeVersion1 = "1"
+	InitializeBridgeRuntimeVersion2 = "2"
 )
+
+// BridgeRuntimePurpose separates supervised service runtimes from isolated control calls.
+type BridgeRuntimePurpose string
+
+const (
+	BridgeRuntimePurposeService BridgeRuntimePurpose = "service"
+	BridgeRuntimePurposeControl BridgeRuntimePurpose = "control"
+)
+
+// BridgeRuntimePurposeValues returns the closed launch-purpose family in stable order.
+func BridgeRuntimePurposeValues() []string {
+	return []string{string(BridgeRuntimePurposeService), string(BridgeRuntimePurposeControl)}
+}
 
 // InitializeBridgeRuntime carries the provider-scoped bridge launch material
 // granted to one bridge-capable extension session.
 type InitializeBridgeRuntime struct {
 	RuntimeVersion   string                            `json:"runtime_version"`
+	Purpose          BridgeRuntimePurpose              `json:"purpose"`
 	Provider         string                            `json:"provider"`
 	Platform         string                            `json:"platform"`
+	AllowedMethods   []string                          `json:"allowed_methods,omitempty"`
 	ManagedInstances []InitializeBridgeManagedInstance `json:"managed_instances,omitempty"`
 }
 
@@ -208,6 +223,9 @@ func (r InitializeRequest) Validate() error {
 		if err := r.Runtime.Bridge.Validate(); err != nil {
 			return err
 		}
+		if err := validateBridgeInitializeRequest(r); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -215,6 +233,9 @@ func (r InitializeRequest) Validate() error {
 func validateInitializeResponse(request InitializeRequest, response InitializeResponse) error {
 	if !slices.Contains(request.SupportedProtocolVersion, response.ProtocolVersion) {
 		return fmt.Errorf("subprocess: initialize selected unsupported protocol version %q", response.ProtocolVersion)
+	}
+	if request.Runtime.Bridge != nil && request.Runtime.Bridge.Purpose == BridgeRuntimePurposeControl {
+		return validateControlInitializeResponse(request, response)
 	}
 	if err := validateSubset(
 		"accepted actions",
@@ -248,42 +269,6 @@ func validateInitializeResponse(request InitializeRequest, response InitializeRe
 		if !slices.Contains(response.ImplementedMethods, method) {
 			return fmt.Errorf("subprocess: initialize response missing required capability service method %q", method)
 		}
-	}
-
-	return nil
-}
-
-// Validate checks that the granted bridge launch payload is internally consistent.
-func (r InitializeBridgeRuntime) Validate() error {
-	normalized := r.normalize()
-	if strings.TrimSpace(normalized.RuntimeVersion) == "" {
-		return errors.New("subprocess: initialize bridge runtime runtime_version is required")
-	}
-	if strings.TrimSpace(normalized.Provider) == "" {
-		return errors.New("subprocess: initialize bridge runtime provider is required")
-	}
-	if strings.TrimSpace(normalized.Platform) == "" {
-		return errors.New("subprocess: initialize bridge runtime platform is required")
-	}
-
-	seen := make(map[string]struct{}, len(normalized.ManagedInstances))
-	for _, managed := range normalized.ManagedInstances {
-		if err := managed.Validate(); err != nil {
-			return fmt.Errorf("subprocess: initialize bridge managed instance: %w", err)
-		}
-		if strings.TrimSpace(managed.Instance.Platform) != normalized.Platform {
-			return fmt.Errorf(
-				"subprocess: initialize bridge managed instance %q platform %q does not match runtime platform %q",
-				managed.Instance.ID,
-				managed.Instance.Platform,
-				normalized.Platform,
-			)
-		}
-		instanceID := strings.TrimSpace(managed.Instance.ID)
-		if _, ok := seen[instanceID]; ok {
-			return fmt.Errorf("subprocess: initialize bridge managed instance %q is duplicated", instanceID)
-		}
-		seen[instanceID] = struct{}{}
 	}
 
 	return nil
@@ -329,8 +314,10 @@ func (s InitializeBridgeBoundSecret) Validate() error {
 func (r InitializeBridgeRuntime) normalize() InitializeBridgeRuntime {
 	normalized := r
 	normalized.RuntimeVersion = strings.TrimSpace(normalized.RuntimeVersion)
+	normalized.Purpose = BridgeRuntimePurpose(strings.TrimSpace(string(normalized.Purpose)))
 	normalized.Provider = strings.TrimSpace(normalized.Provider)
 	normalized.Platform = strings.TrimSpace(normalized.Platform)
+	normalized.AllowedMethods = normalizeUniqueHandshakeStrings(normalized.AllowedMethods)
 	if len(normalized.ManagedInstances) == 0 {
 		normalized.ManagedInstances = nil
 		return normalized

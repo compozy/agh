@@ -478,7 +478,8 @@ func TestManagerIntegrationBridgeAdapterRestartPreservesNegotiatedSurface(t *tes
 		WithBridgeRuntimeResolver(&stubBridgeRuntimeResolver{
 			runtimes: map[string]*subprocess.InitializeBridgeRuntime{
 				"ext-bridge-restart": {
-					RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
+					RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion2,
+					Purpose:        subprocess.BridgeRuntimePurposeService,
 					Provider:       "ext-bridge-restart",
 					Platform:       "telegram",
 					ManagedInstances: []subprocess.InitializeBridgeManagedInstance{

@@ -32,7 +32,6 @@ The bridge instance `provider_config` JSON object currently supports:
 
 ```json
 {
-  "api_base_url": "https://slack.com/api",
   "webhook": {
     "listen_addr": "127.0.0.1:8080",
     "path": "/slack/brg-main"
@@ -54,7 +53,8 @@ The bridge instance `provider_config` JSON object currently supports:
 Notes:
 
 - `bot_token` and `signing_secret` are required through bridge secret bindings.
-- `AGH_BRIDGE_SLACK_LISTEN_ADDR` and `AGH_BRIDGE_SLACK_API_BASE_URL` can provide process-level defaults for local development and integration tests.
+- `AGH_BRIDGE_SLACK_LISTEN_ADDR` configures the process-level listener default.
+- `AGH_BRIDGE_SLACK_API_BASE_URL` is an operator-owned process override for local development and integration tests. Bridge config cannot change the credential-bearing API destination.
 - Direct-message enforcement uses the bridge instance `dm_policy` plus the provider-config allowlist or paired-user fields.
 
 ## Outbound text

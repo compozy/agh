@@ -128,7 +128,8 @@ func benchmarkBridgeRuntime(instances int, secretsPerInstance int) *InitializeBr
 	}
 
 	return &InitializeBridgeRuntime{
-		RuntimeVersion:   InitializeBridgeRuntimeVersion1,
+		RuntimeVersion:   InitializeBridgeRuntimeVersion2,
+		Purpose:          BridgeRuntimePurposeService,
 		Provider:         "telegram-reference",
 		Platform:         "telegram",
 		ManagedInstances: managed,

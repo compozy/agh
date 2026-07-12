@@ -231,6 +231,8 @@ func StatusForBridgeError(err error) int {
 		return http.StatusServiceUnavailable
 	case errors.Is(err, bridgepkg.ErrDeliveryTransportUnavailable):
 		return http.StatusServiceUnavailable
+	case errors.Is(err, bridgepkg.ErrBridgeControlTransportUnavailable):
+		return http.StatusServiceUnavailable
 	case errors.Is(err, bridgepkg.ErrBridgeTargetDirectoryUnavailable):
 		return http.StatusServiceUnavailable
 	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound):

@@ -50,6 +50,6 @@ agh extension install ./extensions/bridges/gchat
 
 ## Configuration
 
-Bind `credentials_json` to Google service-account credentials. `project_number` is optional and enables direct-webhook audience verification. Provider config selects `direct`, `pubsub`, or `hybrid` ingress and can override webhook, certificate, OAuth token, batching, and direct-message policy settings.
+Bind `credentials_json` to Google service-account credentials. `project_number` is optional and enables direct-webhook audience verification. Provider config selects `direct`, `pubsub`, or `hybrid` ingress and can configure webhook, certificate, batching, and direct-message policy settings.
 
-`AGH_BRIDGE_GCHAT_LISTEN_ADDR`, `AGH_BRIDGE_GCHAT_API_BASE_URL`, `AGH_BRIDGE_GCHAT_TOKEN_URL`, `AGH_BRIDGE_GCHAT_DIRECT_CERTS_URL`, and `AGH_BRIDGE_GCHAT_PUBSUB_CERTS_URL` provide process-level overrides for local development and integration tests.
+`AGH_BRIDGE_GCHAT_LISTEN_ADDR`, `AGH_BRIDGE_GCHAT_DIRECT_CERTS_URL`, and `AGH_BRIDGE_GCHAT_PUBSUB_CERTS_URL` provide process-level listener and certificate overrides. `AGH_BRIDGE_GCHAT_API_BASE_URL` and `AGH_BRIDGE_GCHAT_TOKEN_URL` are operator-owned process overrides for credential-bearing destinations. Bridge config and `credentials_json.token_uri` cannot change those destinations.

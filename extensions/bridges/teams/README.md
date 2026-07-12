@@ -14,14 +14,9 @@ Provider config is stored per bridge instance in `provider_config`:
 
 ```json
 {
-  "service_url": "https://smba.trafficmanager.net/teams/",
   "webhook": {
     "listen_addr": "127.0.0.1:0",
     "path": "/teams/brg-example"
-  },
-  "auth": {
-    "openid_metadata_url": "https://login.botframework.com/v1/.well-known/openidconfiguration",
-    "token_url": "https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token"
   },
   "batching": {
     "delay_ms": 50,
@@ -35,7 +30,7 @@ Provider config is stored per bridge instance in `provider_config`:
 }
 ```
 
-`service_url` should usually be learned from inbound activities. Configure it only as a fallback for proactive delivery or tests.
+Teams learns the service URL from authenticated inbound activities and uses the Bot Framework default as the proactive-delivery fallback. `AGH_BRIDGE_TEAMS_SERVICE_URL`, `AGH_BRIDGE_TEAMS_OPENID_METADATA_URL`, and `AGH_BRIDGE_TEAMS_TOKEN_URL` are operator-owned process overrides for local development and integration tests. Bridge config cannot change these credential-bearing destinations.
 
 ## Scope
 

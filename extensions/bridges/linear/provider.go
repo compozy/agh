@@ -103,8 +103,6 @@ type deliveryState struct {
 }
 
 type linearProviderConfig struct {
-	APIBaseURL     string `json:"api_base_url,omitempty"`
-	OAuthTokenURL  string `json:"oauth_token_url,omitempty"`
 	OrganizationID string `json:"organization_id,omitempty"`
 	Mode           string `json:"mode,omitempty"`
 	AuthMode       string `json:"auth_mode,omitempty"`
@@ -260,6 +258,7 @@ func newLinearProvider(stderr io.Writer) (*linearProvider, error) {
 		},
 		Initialize:  provider.handleInitialize,
 		Deliver:     provider.handleBridgesDeliver,
+		Check:       provider.handleBridgeCheck,
 		HealthCheck: func(context.Context, *bridgesdk.Session) error { return provider.healthCheck() },
 		Shutdown:    provider.handleShutdown,
 		Now:         func() time.Time { return provider.now() },
@@ -413,15 +412,6 @@ func (p *linearProvider) handleBridgesDeliver(
 	marker.Ack = &ack
 	p.reportSideEffectError("write delivery marker", appendJSONLine(p.env.deliveryPath, marker))
 	return ack, nil
-}
-
-func (p *linearProvider) healthCheck() error {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if strings.TrimSpace(p.lastError) == "" {
-		return nil
-	}
-	return errors.New(strings.TrimSpace(p.lastError))
 }
 
 func (p *linearProvider) handleShutdown(
@@ -768,8 +758,8 @@ func resolveLinearInstanceConfig(
 		authMode:        normalizeLinearAuthMode(cfg.AuthMode),
 		listenAddr:      firstNonEmpty(cfg.Webhook.ListenAddr, env.listenAddr),
 		webhookPath:     normalizeWebhookPath(firstNonEmpty(cfg.Webhook.Path, linearDefaultWebhookPath)),
-		apiBaseURL:      normalizeURL(firstNonEmpty(cfg.APIBaseURL, env.apiBaseURL, linearDefaultAPIBaseURL)),
-		oauthTokenURL:   normalizeURL(firstNonEmpty(cfg.OAuthTokenURL, env.tokenURL, linearDefaultOAuthTokenURL())),
+		apiBaseURL:      normalizeURL(firstNonEmpty(env.apiBaseURL, linearDefaultAPIBaseURL)),
+		oauthTokenURL:   normalizeURL(firstNonEmpty(env.tokenURL, linearDefaultOAuthTokenURL())),
 		webhookSecret:   strings.TrimSpace(secrets.webhookSecret),
 		apiKey:          strings.TrimSpace(secrets.apiKey),
 		clientID:        strings.TrimSpace(secrets.clientID),

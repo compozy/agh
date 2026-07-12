@@ -977,10 +977,6 @@ func normalizeJSONObject(value json.RawMessage, label string) (json.RawMessage, 
 	return normalized, nil
 }
 
-func normalizeProviderConfigJSON(value json.RawMessage) (json.RawMessage, error) {
-	return normalizeJSONObject(value, "bridge instance provider config")
-}
-
 func (c InboundCommand) normalize() InboundCommand {
 	return InboundCommand{
 		Command:   strings.TrimSpace(c.Command),

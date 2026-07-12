@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -224,6 +225,14 @@ func TestBridgeGetReturnsStructuredJSONOutput(t *testing.T) {
 
 func TestBridgeCreateBuildsSharedRequestAndDerivesDisabledStatus(t *testing.T) {
 	t.Parallel()
+	t.Run("Should build the shared request and derive disabled status", func(t *testing.T) {
+		t.Parallel()
+		testBridgeCreateBuildsSharedRequestAndDerivesDisabledStatus(t)
+	})
+}
+
+func testBridgeCreateBuildsSharedRequestAndDerivesDisabledStatus(t *testing.T) {
+	t.Helper()
 
 	var captured CreateBridgeRequest
 	deps := newTestDeps(t, &stubClient{
@@ -259,7 +268,7 @@ func TestBridgeCreateBuildsSharedRequestAndDerivesDisabledStatus(t *testing.T) {
 		"--enabled=false",
 		"--include-peer",
 		"--include-group",
-		"--provider-config", `{"api_base_url":"https://slack.test/api"}`,
+		"--provider-config", `{"mode":"bot"}`,
 		"--delivery-defaults", `{"mode":"reply","group_id":"group-1"}`,
 		"-o", "json",
 	)
@@ -277,10 +286,17 @@ func TestBridgeCreateBuildsSharedRequestAndDerivesDisabledStatus(t *testing.T) {
 		captured.RoutingPolicy.IncludeThread {
 		t.Fatalf("captured routing policy = %#v", captured.RoutingPolicy)
 	}
-	if string(captured.DeliveryDefaults) != `{"mode":"reply","group_id":"group-1"}` {
-		t.Fatalf("captured delivery defaults = %s", string(captured.DeliveryDefaults))
+	var defaults struct {
+		Mode    string `json:"mode"`
+		GroupID string `json:"group_id"`
 	}
-	if string(captured.ProviderConfig) != `{"api_base_url":"https://slack.test/api"}` {
+	if err := json.Unmarshal(captured.DeliveryDefaults, &defaults); err != nil {
+		t.Fatalf("json.Unmarshal(captured delivery defaults) error = %v", err)
+	}
+	if defaults.Mode != "reply" || defaults.GroupID != "group-1" {
+		t.Fatalf("captured delivery defaults = %#v", defaults)
+	}
+	if string(captured.ProviderConfig) != `{"mode":"bot"}` {
 		t.Fatalf("captured provider config = %s", string(captured.ProviderConfig))
 	}
 
@@ -405,6 +421,14 @@ func TestBridgeCreateRejectsOperationalStatusFlag(t *testing.T) {
 
 func TestBridgeUpdateMergesRoutingPolicyAndAllowsNullDeliveryDefaults(t *testing.T) {
 	t.Parallel()
+	t.Run("Should merge routing policy and preserve an explicit null clear", func(t *testing.T) {
+		t.Parallel()
+		testBridgeUpdateMergesRoutingPolicyAndAllowsNullDeliveryDefaults(t)
+	})
+}
+
+func testBridgeUpdateMergesRoutingPolicyAndAllowsNullDeliveryDefaults(t *testing.T) {
+	t.Helper()
 
 	current := testBridgeRecord(t)
 	current.RoutingPolicy = bridgepkg.RoutingPolicy{
@@ -444,7 +468,7 @@ func TestBridgeUpdateMergesRoutingPolicyAndAllowsNullDeliveryDefaults(t *testing
 		"bridge", "update", current.ID,
 		"--display-name", "Support Ops",
 		"--include-thread",
-		"--provider-config", `{"api_base_url":"https://slack.test/api"}`,
+		"--provider-config", `{"mode":"bot"}`,
 		"--delivery-defaults", bridgeJSONNull,
 		"-o", "json",
 	)
@@ -463,11 +487,17 @@ func TestBridgeUpdateMergesRoutingPolicyAndAllowsNullDeliveryDefaults(t *testing
 		!captured.RoutingPolicy.IncludeGroup {
 		t.Fatalf("captured routing policy = %#v", captured.RoutingPolicy)
 	}
-	if captured.DeliveryDefaults == nil || string(*captured.DeliveryDefaults) != bridgeJSONNull {
+	if captured.DeliveryDefaults == nil {
 		t.Fatalf("captured delivery defaults = %#v", captured.DeliveryDefaults)
 	}
-	if captured.ProviderConfig == nil ||
-		string(*captured.ProviderConfig) != `{"api_base_url":"https://slack.test/api"}` {
+	encodedDefaults, err := json.Marshal(captured.DeliveryDefaults)
+	if err != nil {
+		t.Fatalf("json.Marshal(captured delivery defaults) error = %v", err)
+	}
+	if string(encodedDefaults) != bridgeJSONNull {
+		t.Fatalf("captured delivery defaults wire JSON = %s, want null", encodedDefaults)
+	}
+	if captured.ProviderConfig == nil || string(*captured.ProviderConfig) != `{"mode":"bot"}` {
 		t.Fatalf("captured provider config = %#v", captured.ProviderConfig)
 	}
 
@@ -840,6 +870,134 @@ func TestBridgeTestDeliveryUsesTypedTargetPayload(t *testing.T) {
 		decoded.DeliveryTarget.Mode != bridgepkg.DeliveryModeReply {
 		t.Fatalf("decoded = %#v, want typed delivery target", decoded)
 	}
+}
+
+func TestBridgeVerifyRendersStructuredResultsAndFailsOnProviderCheck(t *testing.T) {
+	t.Run("Should preserve check records on stdout and return a failing command status", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			verifyBridgeFn: func(_ context.Context, id string) (BridgeVerifyRecord, error) {
+				if id != "brg-slack" {
+					t.Fatalf("VerifyBridge() id = %q, want brg-slack", id)
+				}
+				return BridgeVerifyRecord{
+					BridgeInstanceID: id,
+					Checks: []bridgepkg.BridgeCheckRecord{
+						bridgepkg.PassCheck("webhook.configuration"),
+						{
+							Check:       "provider.identity",
+							Status:      bridgepkg.BridgeCheckStatusFail,
+							Remediation: "Replace the bot_token binding and retry.",
+						},
+					},
+				}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(t, deps, "bridge", "verify", "brg-slack", "--json")
+		if !errors.Is(err, errBridgeVerificationFailed) {
+			t.Fatalf("bridge verify error = %v, want errBridgeVerificationFailed", err)
+		}
+
+		var result BridgeVerifyRecord
+		if err := json.Unmarshal([]byte(stdout), &result); err != nil {
+			t.Fatalf("json.Unmarshal(bridge verify) error = %v; output=%s", err, stdout)
+		}
+		if result.BridgeInstanceID != "brg-slack" || len(result.Checks) != 2 {
+			t.Fatalf("bridge verify result = %#v", result)
+		}
+		failed := result.Checks[1]
+		if failed.Check != "provider.identity" || failed.Status != bridgepkg.BridgeCheckStatusFail ||
+			!strings.Contains(failed.Remediation, "bot_token") {
+			t.Fatalf("failed check = %#v, want structured secret remediation", failed)
+		}
+	})
+}
+
+func TestBridgeSendTestUsesRealClientOperationWhileDryRunStaysSeparate(t *testing.T) {
+	t.Run("Should call real send only for send-test and preserve the typed target", func(t *testing.T) {
+		t.Parallel()
+
+		platformSends := 0
+		dryRuns := 0
+		deps := newTestDeps(t, &stubClient{
+			sendBridgeTestFn: func(
+				_ context.Context,
+				id string,
+				request BridgeSendTestRequest,
+			) (BridgeSendTestRecord, error) {
+				platformSends++
+				if id != "brg-telegram" || request.Message != "Connection check" ||
+					request.Target.PeerID != "peer-1" || request.Target.Mode != bridgepkg.DeliveryModeDirectSend {
+					t.Fatalf("SendBridgeTest() id=%q request=%#v", id, request)
+				}
+				return BridgeSendTestRecord{
+					Status:           "delivered",
+					BridgeInstanceID: id,
+					DeliveryID:       "del-1",
+					RemoteMessageID:  "remote-1",
+					DeliveryTarget: bridgepkg.DeliveryTarget{
+						BridgeInstanceID: id,
+						PeerID:           request.Target.PeerID,
+						Mode:             request.Target.Mode,
+					},
+				}, nil
+			},
+			testBridgeDeliveryFn: func(
+				_ context.Context,
+				id string,
+				request BridgeTestDeliveryRequest,
+			) (BridgeTestDeliveryRecord, error) {
+				dryRuns++
+				return BridgeTestDeliveryRecord{
+					Status:  "resolved",
+					Message: request.Message,
+					DeliveryTarget: bridgepkg.DeliveryTarget{
+						BridgeInstanceID: id,
+						PeerID:           request.Target.PeerID,
+						Mode:             request.Target.Mode,
+					},
+				}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"bridge", "send-test", "brg-telegram",
+			"--message", " Connection check ",
+			"--peer-id", "peer-1",
+			"--mode", "direct-send",
+			"--json",
+		)
+		if err != nil {
+			t.Fatalf("bridge send-test error = %v", err)
+		}
+		var sent BridgeSendTestRecord
+		if err := json.Unmarshal([]byte(stdout), &sent); err != nil {
+			t.Fatalf("json.Unmarshal(bridge send-test) error = %v", err)
+		}
+		if sent.DeliveryID != "del-1" || sent.RemoteMessageID != "remote-1" {
+			t.Fatalf("bridge send-test result = %#v", sent)
+		}
+
+		_, _, err = executeRootCommand(
+			t,
+			deps,
+			"bridge", "test-delivery", "brg-telegram",
+			"--message", "Connection check",
+			"--peer-id", "peer-1",
+			"--mode", "direct-send",
+			"--json",
+		)
+		if err != nil {
+			t.Fatalf("bridge test-delivery error = %v", err)
+		}
+		if platformSends != 1 || dryRuns != 1 {
+			t.Fatalf("platform sends=%d dry runs=%d, want 1/1", platformSends, dryRuns)
+		}
+	})
 }
 
 func TestBridgeBundleAndHelpers(t *testing.T) {

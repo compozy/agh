@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -41,6 +40,20 @@ type TargetSnapshotHandler func(
 	bridgepkg.BridgeTargetSnapshotRequest,
 ) ([]bridgepkg.BridgeTargetSnapshot, error)
 
+// CheckHandler runs one read-only provider-owned bridge check operation.
+type CheckHandler func(
+	context.Context,
+	*Session,
+	bridgepkg.BridgeCheckRequest,
+) (bridgepkg.BridgeCheckResponse, error)
+
+// WebhookRegistrationHandler registers the configured provider webhook.
+type WebhookRegistrationHandler func(
+	context.Context,
+	*Session,
+	bridgepkg.BridgeWebhookRegistrationRequest,
+) (bridgepkg.BridgeWebhookRegistrationResponse, error)
+
 // HealthHandler handles one daemon health-check probe.
 type HealthHandler func(context.Context, *Session) error
 
@@ -54,6 +67,8 @@ type RuntimeConfig struct {
 	Deliver         DeliveryHandler
 	Progress        ProgressHandler
 	TargetSnapshots TargetSnapshotHandler
+	Check           CheckHandler
+	RegisterWebhook WebhookRegistrationHandler
 	HealthCheck     HealthHandler
 	Shutdown        ShutdownHandler
 	Now             func() time.Time
@@ -99,6 +114,9 @@ func NewRuntime(config RuntimeConfig) (*Runtime, error) {
 	if config.Deliver == nil {
 		return nil, errors.New("bridgesdk: runtime deliver handler is required")
 	}
+	if config.Check == nil {
+		return nil, errors.New("bridgesdk: runtime check handler is required")
+	}
 	if config.TargetSnapshots == nil {
 		config.TargetSnapshots = TargetSnapshotsFromManagedInstances
 	}
@@ -127,6 +145,12 @@ func (r *Runtime) Serve(ctx context.Context, stdin io.Reader, stdout io.Writer) 
 		return err
 	}
 	if err := peer.Handle("bridges/targets/snapshot", r.handleTargetSnapshots); err != nil {
+		return err
+	}
+	if err := peer.Handle(string(bridgepkg.ControlMethodCheck), r.handleCheck); err != nil {
+		return err
+	}
+	if err := peer.Handle(string(bridgepkg.ControlMethodWebhookRegister), r.handleRegisterWebhook); err != nil {
 		return err
 	}
 	if err := peer.Handle("health_check", r.handleHealthCheck); err != nil {
@@ -291,7 +315,19 @@ func (r *Runtime) handleInitialize(ctx context.Context, raw json.RawMessage) (an
 	r.initializing = true
 	r.mu.Unlock()
 
-	host := NewHostAPIClient(peer)
+	control := request.Runtime.Bridge.Purpose == subprocess.BridgeRuntimePurposeControl
+	if control {
+		if err := r.validateControlHandler(request.Runtime.Bridge); err != nil {
+			r.mu.Lock()
+			r.initializing = false
+			r.mu.Unlock()
+			return nil, err
+		}
+	}
+	var host *HostAPIClient
+	if !control {
+		host = NewHostAPIClient(peer)
+	}
 	cache := NewInstanceCache(request.Runtime.Bridge)
 	response := r.initializeResponse(request)
 	session := &Session{
@@ -302,7 +338,7 @@ func (r *Runtime) handleInitialize(ctx context.Context, raw json.RawMessage) (an
 		now:      r.config.Now,
 	}
 
-	if r.config.Initialize != nil {
+	if !control && r.config.Initialize != nil {
 		if err := r.config.Initialize(ctx, session); err != nil {
 			r.mu.Lock()
 			r.initializing = false
@@ -323,7 +359,7 @@ func (r *Runtime) handleInitialize(ctx context.Context, raw json.RawMessage) (an
 }
 
 func (r *Runtime) handleTargetSnapshots(ctx context.Context, raw json.RawMessage) (any, error) {
-	session, err := r.requireSession()
+	session, err := r.requireServiceSession("bridge target snapshots")
 	if err != nil {
 		return nil, err
 	}
@@ -354,7 +390,7 @@ func (r *Runtime) handleTargetSnapshots(ctx context.Context, raw json.RawMessage
 }
 
 func (r *Runtime) handleHealthCheck(ctx context.Context, _ json.RawMessage) (any, error) {
-	session, err := r.requireSession()
+	session, err := r.requireServiceSession("health check")
 	if err != nil {
 		return nil, err
 	}
@@ -388,7 +424,7 @@ func (r *Runtime) handleShutdown(ctx context.Context, raw json.RawMessage) (any,
 	}
 	if shouldRun {
 		var shutdownErr error
-		if r.config.Shutdown != nil {
+		if !sessionIsControl(session) && r.config.Shutdown != nil {
 			shutdownErr = r.config.Shutdown(ctx, session, request)
 		}
 		r.completeShutdown(shutdownErr)
@@ -434,30 +470,6 @@ func (r *Runtime) requireSession() (*Session, error) {
 		return nil, subprocess.NewRPCError(bridgeSDKRPCCodeNotInitialized, "Not initialized", nil)
 	}
 	return r.session, nil
-}
-
-func (r *Runtime) initializeResponse(request subprocess.InitializeRequest) subprocess.InitializeResponse {
-	implemented := []string{
-		string(extensionprotocol.ExtensionServiceMethodBridgesDeliver),
-		string(extensionprotocol.ExtensionServiceMethodBridgeTargets),
-		"health_check",
-		"shutdown",
-	}
-	slices.Sort(implemented)
-
-	return subprocess.InitializeResponse{
-		ProtocolVersion: request.ProtocolVersion,
-		ExtensionInfo:   r.config.ExtensionInfo,
-		AcceptedCapabilities: subprocess.AcceptedCapabilities{
-			Provides: append([]string(nil), request.Capabilities.Provides...),
-			Actions:  append([]extensionprotocol.HostAPIMethod(nil), request.Capabilities.GrantedActions...),
-			Security: append([]string(nil), request.Capabilities.GrantedSecurity...),
-		},
-		ImplementedMethods: implemented,
-		Supports: subprocess.InitializeSupports{
-			HealthCheck: true,
-		},
-	}
 }
 
 func decodeParams(raw json.RawMessage, dest any) error {

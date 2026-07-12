@@ -2005,6 +2005,7 @@ func TestStopClosesBatchersWithoutProviderLockDeadlock(t *testing.T) {
 func TestResolveInstanceConfigAndHelperNormalization(t *testing.T) {
 	env := setProviderTestEnv(t)
 	_ = env
+	t.Setenv(slackAPIBaseEnv, "https://slack-gov.example/api/")
 
 	runtime, hostPeer, cleanup := newRuntimePeerPair(t)
 	defer cleanup()
@@ -2014,7 +2015,6 @@ func TestResolveInstanceConfigAndHelperNormalization(t *testing.T) {
 	managed.Instance.DMPolicy = bridgepkg.BridgeDMPolicyPairing
 	configured := managed
 	configured.Instance.ProviderConfig = []byte(`{
-		"api_base_url":"https://slack-gov.example/api/",
 		"webhook":{"listen_addr":"127.0.0.1:9999","path":"slack"},
 		"batching":{"delay_ms":5,"split_delay_ms":7,"split_threshold":2},
 		"dm":{"allow_user_ids":[" u123 "],"allow_usernames":["@Alice"],"paired_usernames":["Bob"]}
@@ -2840,7 +2840,8 @@ func testInitializeRequest(
 			ShutdownTimeoutMS:     5_000,
 			DefaultHookTimeoutMS:  5_000,
 			Bridge: &subprocess.InitializeBridgeRuntime{
-				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion1,
+				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion2,
+				Purpose:          subprocess.BridgeRuntimePurposeService,
 				Provider:         "slack",
 				Platform:         "slack",
 				ManagedInstances: managed,

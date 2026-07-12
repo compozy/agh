@@ -2114,7 +2114,8 @@ func newGitHubTestSession(
 		},
 		Runtime: subprocess.InitializeRuntime{
 			Bridge: &subprocess.InitializeBridgeRuntime{
-				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion1,
+				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion2,
+				Purpose:          subprocess.BridgeRuntimePurposeService,
 				Provider:         "github",
 				Platform:         "github",
 				ManagedInstances: managed,

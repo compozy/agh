@@ -1570,9 +1570,7 @@ func TestResolveInstanceConfigAndInitialState(t *testing.T) {
 	now := time.Date(2026, 4, 15, 20, 20, 0, 0, time.UTC)
 	managed := testBridgeRuntime(t, now, "brg-gchat")
 	managed.Instance.ProviderConfig = mustJSON(t, map[string]any{
-		"api_base_url":    "https://tenant.example.invalid",
-		"oauth_token_url": "https://tenant.example.invalid/oauth2/token",
-		"mode":            "hybrid",
+		"mode": "hybrid",
 		"webhook": map[string]any{
 			"path": "/custom/gchat",
 		},
@@ -3155,7 +3153,8 @@ func testInitializeRequest(
 			ShutdownTimeoutMS:     5_000,
 			DefaultHookTimeoutMS:  5_000,
 			Bridge: &subprocess.InitializeBridgeRuntime{
-				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion1,
+				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion2,
+				Purpose:          subprocess.BridgeRuntimePurposeService,
 				Provider:         "gchat",
 				Platform:         "gchat",
 				ManagedInstances: managed,

@@ -265,7 +265,7 @@ func validateHandshakeRuntime(
 	expectedByID map[string]ManagedInstanceExpectation,
 ) []ConformanceIssue {
 	issues := make([]ConformanceIssue, 0)
-	if got, want := strings.TrimSpace(runtime.RuntimeVersion), subprocess.InitializeBridgeRuntimeVersion1; got != want {
+	if got, want := strings.TrimSpace(runtime.RuntimeVersion), subprocess.InitializeBridgeRuntimeVersion2; got != want {
 		issues = append(issues, ConformanceIssue{
 			Code:    "wrong_runtime_version",
 			Message: fmt.Sprintf("initialize runtime bridge version = %q, want %q", got, want),
@@ -1104,7 +1104,8 @@ func buildHarnessRuntime(
 		extensionpkg.WithBridgeRuntimeResolver(&stubBridgeRuntimeResolver{
 			runtimes: map[string]*subprocess.InitializeBridgeRuntime{
 				extensionName: {
-					RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion1,
+					RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion2,
+					Purpose:          subprocess.BridgeRuntimePurposeService,
 					Provider:         extensionName,
 					Platform:         instances[0].Platform,
 					ManagedInstances: cloneManagedRuntime(managedRuntime),

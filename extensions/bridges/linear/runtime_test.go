@@ -567,7 +567,17 @@ func TestRuntimeProgressDeliveryAcknowledgesWithoutPlatformSideEffects(t *testin
 		if err := hostPeer.Call(
 			context.Background(),
 			"initialize",
-			linearInitializeRequest(time.Date(2026, 4, 15, 13, 20, 0, 0, time.UTC)),
+			linearInitializeRequest(
+				time.Date(2026, 4, 15, 13, 20, 0, 0, time.UTC),
+				linearRuntimeManagedInstance(
+					time.Date(2026, 4, 15, 13, 20, 0, 0, time.UTC),
+					"brg-linear-progress-noop",
+					"org-progress",
+					linearModeComments,
+					linearAuthModeAPIKey,
+					"127.0.0.1:0",
+				),
+			),
 			nil,
 		); err != nil {
 			t.Fatalf("hostPeer.Call(initialize) error = %v", err)
@@ -1585,7 +1595,8 @@ func linearInitializeRequest(
 			ShutdownTimeoutMS:     5_000,
 			DefaultHookTimeoutMS:  5_000,
 			Bridge: &subprocess.InitializeBridgeRuntime{
-				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion1,
+				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion2,
+				Purpose:          subprocess.BridgeRuntimePurposeService,
 				Provider:         "linear",
 				Platform:         "linear",
 				ManagedInstances: managed,

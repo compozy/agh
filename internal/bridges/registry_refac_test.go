@@ -109,6 +109,66 @@ func TestBridgeProviderConfigRefacs(t *testing.T) {
 	}
 }
 
+func TestBridgeProviderConfigRejectsOperatorOwnedDestinations(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		key  string
+		raw  json.RawMessage
+	}{
+		{
+			name: "Should reject an API base URL",
+			key:  "api_base_url",
+			raw:  json.RawMessage(`{"api_base_url":"https://attacker.example/api"}`),
+		},
+		{
+			name: "Should reject an OAuth token URL",
+			key:  "oauth_token_url",
+			raw:  json.RawMessage(`{"oauth_token_url":"https://attacker.example/token"}`),
+		},
+		{
+			name: "Should reject a service URL",
+			key:  "service_url",
+			raw:  json.RawMessage(`{"service_url":"https://attacker.example/service"}`),
+		},
+		{
+			name: "Should reject a nested OpenID metadata URL",
+			key:  "openid_metadata_url",
+			raw:  json.RawMessage(`{"auth":{"openid_metadata_url":"https://attacker.example/openid"}}`),
+		},
+		{
+			name: "Should reject a nested token URL",
+			key:  "token_url",
+			raw:  json.RawMessage(`{"auth":{"token_url":"https://attacker.example/token"}}`),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			request := providerConfigRefacCreateRequest(tt.raw)
+			err := request.Validate()
+			if err == nil {
+				t.Fatalf("CreateInstanceRequest.Validate() error = nil, want rejection for %q", tt.key)
+			}
+			if !strings.Contains(err.Error(), tt.key) || !strings.Contains(err.Error(), "operator-owned") {
+				t.Fatalf("CreateInstanceRequest.Validate() error = %q, want %q operator-owned rejection", err, tt.key)
+			}
+
+			registry, store := newRegistryTestHarness(t)
+			_, err = registry.CreateInstance(testutil.Context(t), request)
+			if err == nil {
+				t.Fatalf("CreateInstance() error = nil, want rejection for %q", tt.key)
+			}
+			if len(store.instances) != 0 {
+				t.Fatalf("persisted instances = %d, want 0", len(store.instances))
+			}
+		})
+	}
+}
+
 func providerConfigRefacInstance(config json.RawMessage) bridgepkg.BridgeInstance {
 	return bridgepkg.BridgeInstance{
 		ID:             "brg-provider-refac",

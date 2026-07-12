@@ -67,6 +67,7 @@ func TestRuntimeProgressDeliveryDefaultsToContractNoop(t *testing.T) {
 		deliverCalls := 0
 		runtime, err := NewRuntime(RuntimeConfig{
 			ExtensionInfo: subprocess.InitializeExtensionInfo{Name: "progress-noop", Version: "1.0.0"},
+			Check:         testCheckHandler,
 			Deliver: func(
 				context.Context,
 				*Session,
@@ -153,6 +154,7 @@ func TestRuntimeProgressDeliveryUsesDedicatedHandler(t *testing.T) {
 		progressCalls := 0
 		runtime, err := NewRuntime(RuntimeConfig{
 			ExtensionInfo: subprocess.InitializeExtensionInfo{Name: "progress-handler", Version: "1.0.0"},
+			Check:         testCheckHandler,
 			Deliver: func(
 				context.Context,
 				*Session,
@@ -203,6 +205,7 @@ func TestRuntimeProgressDeliveryUsesDedicatedHandler(t *testing.T) {
 		wantErr := errors.New("provider progress failed")
 		runtime, err := NewRuntime(RuntimeConfig{
 			ExtensionInfo: subprocess.InitializeExtensionInfo{Name: "progress-error", Version: "1.0.0"},
+			Check:         testCheckHandler,
 			Deliver: func(
 				context.Context,
 				*Session,
@@ -237,6 +240,7 @@ func TestRuntimeProgressDeliveryUsesDedicatedHandler(t *testing.T) {
 
 		runtime, err := NewRuntime(RuntimeConfig{
 			ExtensionInfo: subprocess.InitializeExtensionInfo{Name: "progress-invalid-ack", Version: "1.0.0"},
+			Check:         testCheckHandler,
 			Deliver: func(
 				context.Context,
 				*Session,
@@ -309,6 +313,7 @@ func TestRuntimeFinalDeliveryRouting(t *testing.T) {
 			progressHandlerCalls := 0
 			config := RuntimeConfig{
 				ExtensionInfo: subprocess.InitializeExtensionInfo{Name: "final-routing", Version: "1.0.0"},
+				Check:         testCheckHandler,
 				Deliver: func(
 					_ context.Context,
 					session *Session,

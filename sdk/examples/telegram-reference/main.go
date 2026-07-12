@@ -224,6 +224,7 @@ func newTelegramReferenceRuntime(stderr io.Writer) (*telegramReferenceRuntime, e
 		Initialize: runtime.handleInitialize,
 		Deliver:    runtime.handleBridgesDeliver,
 		Progress:   runtime.handleBridgesProgress,
+		Check:      runtime.handleBridgeCheck,
 		HealthCheck: func(context.Context, *bridgesdk.Session) error {
 			return runtime.healthCheck()
 		},
@@ -314,15 +315,6 @@ func (r *telegramReferenceRuntime) afterInitialize(
 	if ownershipErr == nil {
 		r.clearLastError()
 	}
-}
-
-func (r *telegramReferenceRuntime) healthCheck() error {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	if strings.TrimSpace(r.lastError) == "" {
-		return nil
-	}
-	return errors.New(strings.TrimSpace(r.lastError))
 }
 
 func (r *telegramReferenceRuntime) handleShutdown(

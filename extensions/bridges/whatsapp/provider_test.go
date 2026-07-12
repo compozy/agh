@@ -1121,6 +1121,7 @@ func TestResolveInstanceConfigAndDetermineInitialState(t *testing.T) {
 	env := setProviderTestEnv(t)
 	_ = env
 	listenAddr := reserveListenAddr(t)
+	t.Setenv(whatsappAPIBaseEnv, "http://api.example/")
 
 	runtime, hostPeer, cleanup := newRuntimePeerPair(t)
 	defer cleanup()
@@ -1129,7 +1130,6 @@ func TestResolveInstanceConfigAndDetermineInitialState(t *testing.T) {
 	managed := testBridgeRuntime(now, "brg-1")
 	managed.Instance.DMPolicy = bridgepkg.BridgeDMPolicyPairing
 	managed.Instance.ProviderConfig = fmt.Appendf(nil, `{
-		"api_base_url":"http://api.example/",
 		"api_version":"v99.0",
 		"phone_number_id":"123456789",
 		"webhook":{"listen_addr":%q,"path":"whatsapp"},
@@ -2522,7 +2522,8 @@ func testInitializeRequest(
 			ShutdownTimeoutMS:     5_000,
 			DefaultHookTimeoutMS:  5_000,
 			Bridge: &subprocess.InitializeBridgeRuntime{
-				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion1,
+				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion2,
+				Purpose:          subprocess.BridgeRuntimePurposeService,
 				Provider:         "whatsapp",
 				Platform:         "whatsapp",
 				ManagedInstances: managed,

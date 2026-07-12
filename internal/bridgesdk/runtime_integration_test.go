@@ -36,6 +36,7 @@ func TestRuntimeIntegrationBootsAndIngestsThroughHostAPI(t *testing.T) {
 			SDKName:    "bridgesdk",
 			SDKVersion: "test",
 		},
+		Check: testCheckHandler,
 		Deliver: func(_ context.Context, session *Session, request bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error) {
 			return session.AckDelivery(request, "remote-1", "")
 		},
@@ -169,6 +170,7 @@ func TestRuntimeIntegrationReportsAuthAndRateLimitRecovery(t *testing.T) {
 			SDKName:    "bridgesdk",
 			SDKVersion: "test",
 		},
+		Check: testCheckHandler,
 		Deliver: func(_ context.Context, session *Session, request bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error) {
 			return session.AckDelivery(request, "remote-1", "")
 		},

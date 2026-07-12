@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/subprocess"
 	"github.com/compozy/agh/internal/tools"
 )
 
@@ -28,6 +29,9 @@ var enumValuesRegistry = map[reflect.Type][]string{
 	reflect.TypeFor[apicontract.HeartbeatWakeReason]():              apicontract.HeartbeatWakeReasonValues(),
 	reflect.TypeFor[bridgepkg.DeliveryEventType]():                  bridgepkg.DeliveryEventTypeValues(),
 	reflect.TypeFor[bridgepkg.ToolProgressPhase]():                  bridgepkg.ToolProgressPhaseValues(),
+	reflect.TypeFor[bridgepkg.ControlMethod]():                      bridgepkg.ControlMethodValues(),
+	reflect.TypeFor[bridgepkg.BridgeCheckStatus]():                  bridgepkg.BridgeCheckStatusValues(),
+	reflect.TypeFor[subprocess.BridgeRuntimePurpose]():              subprocess.BridgeRuntimePurposeValues(),
 	reflect.TypeFor[extensionprotocol.HostAPIMethod]():              hostAPIMethodValues(),
 	reflect.TypeFor[hooks.HookEvent]():                              hookEventValues(),
 	reflect.TypeFor[hooks.HookEventFamily]():                        hookEventFamilyValues(),

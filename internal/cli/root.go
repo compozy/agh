@@ -57,6 +57,8 @@ type commandDeps struct {
 	resolveHomeForWorkspace     func(workspaceRoot string) (aghconfig.HomePaths, error)
 	ensureHome                  func(aghconfig.HomePaths) error
 	runInstallWizard            installWizardRunner
+	runBridgeSetupWizard        bridgeSetupWizardRunner
+	generateBridgeSetupSecret   bridgeSetupSecretGenerator
 	newClient                   func(socketPath string) (DaemonClient, error)
 	newDaemon                   func() (daemonRunner, error)
 	runRelaunchHelper           func(context.Context, aghdaemon.RelaunchHelperConfig) error
@@ -337,6 +339,12 @@ func (d commandDeps) withRegistryDefaults() commandDeps {
 func (d commandDeps) withRuntimeDefaults() commandDeps {
 	if d.runInstallWizard == nil {
 		d.runInstallWizard = runInstallWizard
+	}
+	if d.runBridgeSetupWizard == nil {
+		d.runBridgeSetupWizard = runBridgeSetupWizard
+	}
+	if d.generateBridgeSetupSecret == nil {
+		d.generateBridgeSetupSecret = generateBridgeSetupSecret
 	}
 	if d.newClient == nil {
 		d.newClient = NewClient

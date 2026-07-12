@@ -16,27 +16,24 @@ import (
 
 func TestGChatProviderContracts(t *testing.T) {
 	// not parallel: these regressions pin process-level GChat endpoint env precedence.
-	t.Run("Should resolve provider config API and token URLs when env overrides are unset", func(t *testing.T) {
-		t.Setenv(gchatAPIBaseEnv, "")
-		t.Setenv(gchatTokenURLEnv, "")
+	t.Run("Should resolve operator API and token URLs instead of credential metadata", func(t *testing.T) {
+		t.Setenv(gchatAPIBaseEnv, "https://operator.example.invalid/chat")
+		t.Setenv(gchatTokenURLEnv, "https://operator.example.invalid/oauth2/token")
 
 		provider := newGChatContractProvider(t)
 		managed := testBridgeRuntime(t, provider.now(), "brg-gchat")
 		credentials := mustCredentials(t)
 		credentials.TokenURI = "https://credentials.example.invalid/oauth2/token"
-		cfg := gchatProviderConfig{
-			APIBaseURL: "https://tenant.example.invalid/chat",
-			TokenURL:   "https://tenant.example.invalid/oauth2/token",
-		}
+		cfg := gchatProviderConfig{}
 
 		resolved, err := provider.newResolvedGChatConfig(managed, cfg, credentials, nil)
 		if err != nil {
 			t.Fatalf("newResolvedGChatConfig() error = %v", err)
 		}
-		if got, want := resolved.apiBaseURL, "https://tenant.example.invalid/chat"; got != want {
+		if got, want := resolved.apiBaseURL, "https://operator.example.invalid/chat"; got != want {
 			t.Fatalf("resolved.apiBaseURL = %q, want %q", got, want)
 		}
-		if got, want := resolved.tokenURL, "https://tenant.example.invalid/oauth2/token"; got != want {
+		if got, want := resolved.tokenURL, "https://operator.example.invalid/oauth2/token"; got != want {
 			t.Fatalf("resolved.tokenURL = %q, want %q", got, want)
 		}
 	})

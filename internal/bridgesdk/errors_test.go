@@ -6,11 +6,80 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 )
+
+// Invariant: public control diagnostics preserve provider error taxonomy without exposing provider error text.
+// Owning layer: bridge SDK error classification. Canonical suite: errors_test.go.
+func TestProviderIdentityCheckRecordPreservesSafeErrorTaxonomy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		err        error
+		wantStatus bridgepkg.BridgeCheckStatus
+		wantText   string
+	}{
+		{name: "success", wantStatus: bridgepkg.BridgeCheckStatusPass},
+		{
+			name:       "auth",
+			err:        &AuthError{Err: errors.New("invalid sk-provider-secret")},
+			wantStatus: bridgepkg.BridgeCheckStatusFail,
+			wantText:   "bot_token",
+		},
+		{
+			name:       "permanent",
+			err:        &PermanentError{Err: errors.New("bad sk-provider-secret configuration")},
+			wantStatus: bridgepkg.BridgeCheckStatusFail,
+			wantText:   "provider configuration",
+		},
+		{
+			name:       "rate limit",
+			err:        &RateLimitError{Err: errors.New("sk-provider-secret rate limited")},
+			wantStatus: bridgepkg.BridgeCheckStatusWarn,
+			wantText:   "rate-limited",
+		},
+		{
+			name:       "timeout",
+			err:        context.DeadlineExceeded,
+			wantStatus: bridgepkg.BridgeCheckStatusWarn,
+			wantText:   "timed out",
+		},
+		{
+			name:       "transient",
+			err:        &TransientError{Err: errors.New("sk-provider-secret unavailable")},
+			wantStatus: bridgepkg.BridgeCheckStatusWarn,
+			wantText:   "temporarily unavailable",
+		},
+		{
+			name:       "canceled",
+			err:        context.Canceled,
+			wantStatus: bridgepkg.BridgeCheckStatusWarn,
+			wantText:   "canceled",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			record := ProviderIdentityCheckRecord(tt.err, "bot_token", "bot_token")
+			if record.Check != "provider.identity" || record.Status != tt.wantStatus {
+				t.Fatalf("ProviderIdentityCheckRecord() = %#v, want status %q", record, tt.wantStatus)
+			}
+			if tt.wantText != "" && !strings.Contains(record.Remediation, tt.wantText) {
+				t.Fatalf("remediation = %q, want %q", record.Remediation, tt.wantText)
+			}
+			if strings.Contains(record.Remediation, "sk-provider-secret") {
+				t.Fatalf("remediation leaked provider error text: %q", record.Remediation)
+			}
+		})
+	}
+}
 
 func TestClassifyErrorMapsRepresentativeProviderFailures(t *testing.T) {
 	t.Parallel()

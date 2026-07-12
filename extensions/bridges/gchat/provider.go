@@ -111,10 +111,8 @@ type cachedGChatAPIClient struct {
 }
 
 type gchatProviderConfig struct {
-	APIBaseURL string `json:"api_base_url,omitempty"`
-	TokenURL   string `json:"oauth_token_url,omitempty"`
-	Mode       string `json:"mode,omitempty"`
-	Webhook    struct {
+	Mode    string `json:"mode,omitempty"`
+	Webhook struct {
 		ListenAddr string `json:"listen_addr,omitempty"`
 		Path       string `json:"path,omitempty"`
 	} `json:"webhook"`
@@ -408,6 +406,7 @@ func newGChatProvider(stderr io.Writer) (*gchatProvider, error) {
 		Initialize:  provider.handleInitialize,
 		Deliver:     provider.handleBridgesDeliver,
 		Progress:    provider.handleBridgesProgress,
+		Check:       provider.handleBridgeCheck,
 		HealthCheck: func(context.Context, *bridgesdk.Session) error { return provider.healthCheck() },
 		Shutdown:    provider.handleShutdown,
 		Now:         func() time.Time { return provider.now() },
@@ -534,15 +533,6 @@ func (p *gchatProvider) afterInitialize(session *bridgesdk.Session) {
 	} else {
 		p.clearLastError()
 	}
-}
-
-func (p *gchatProvider) healthCheck() error {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if strings.TrimSpace(p.lastError) == "" {
-		return nil
-	}
-	return errors.New(strings.TrimSpace(p.lastError))
 }
 
 func (p *gchatProvider) handleShutdown(
@@ -1005,15 +995,12 @@ func (p *gchatProvider) newResolvedGChatConfig(
 		apiBaseURL: normalizeURL(
 			firstNonEmpty(
 				strings.TrimSpace(os.Getenv(gchatAPIBaseEnv)),
-				cfg.APIBaseURL,
 				gchatDefaultAPIBaseURL,
 			),
 		),
 		tokenURL: normalizeURL(
 			firstNonEmpty(
 				strings.TrimSpace(os.Getenv(gchatTokenURLEnv)),
-				cfg.TokenURL,
-				strings.TrimSpace(credentials.TokenURI),
 				gchatDefaultAuthEndpointURL,
 			),
 		),

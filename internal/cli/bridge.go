@@ -61,18 +61,7 @@ func newBridgeCommand(deps commandDeps) *cobra.Command {
 		Short: "Manage bridge instances",
 	}
 
-	cmd.AddCommand(newBridgeListCommand(deps))
-	cmd.AddCommand(newBridgeGetCommand(deps))
-	cmd.AddCommand(newBridgeCreateCommand(deps))
-	cmd.AddCommand(newBridgeUpdateCommand(deps))
-	cmd.AddCommand(newBridgeEnableCommand(deps))
-	cmd.AddCommand(newBridgeDisableCommand(deps))
-	cmd.AddCommand(newBridgeRestartCommand(deps))
-	cmd.AddCommand(newBridgeRoutesCommand(deps))
-	cmd.AddCommand(newBridgeTargetsCommand(deps))
-	cmd.AddCommand(newBridgeResolveCommand(deps))
-	cmd.AddCommand(newBridgeSecretBindingsCommand(deps))
-	cmd.AddCommand(newBridgeTestDeliveryCommand(deps))
+	registerBridgeCommands(cmd, deps)
 	return cmd
 }
 

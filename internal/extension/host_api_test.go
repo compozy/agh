@@ -1533,7 +1533,8 @@ func TestHostAPIHandlerBridgesInstancesListAllowsZeroManagedInstances(t *testing
 	env.grant("telegram-adapter", []string{"bridges/instances/list"}, []string{"bridge.read"})
 
 	ctx := withHostAPIBridgeRuntime(testutil.Context(t), &subprocess.InitializeBridgeRuntime{
-		RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
+		RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion2,
+		Purpose:        subprocess.BridgeRuntimePurposeService,
 		Provider:       "telegram-adapter",
 		Platform:       "telegram",
 	})
@@ -5343,7 +5344,8 @@ func (e *hostAPITestEnv) bridgeContextForInstances(
 	}
 
 	return withHostAPIBridgeRuntime(testutil.Context(t), &subprocess.InitializeBridgeRuntime{
-		RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion1,
+		RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion2,
+		Purpose:          subprocess.BridgeRuntimePurposeService,
 		Provider:         instances[0].ExtensionName,
 		Platform:         instances[0].Platform,
 		ManagedInstances: managed,

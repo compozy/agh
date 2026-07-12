@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	"github.com/compozy/agh/internal/bridgesdk"
@@ -38,7 +39,7 @@ func TestGitHubRuntimeProgressDeliveryAcknowledgesWithoutPlatformSideEffects(t *
 		if err := hostPeer.Call(
 			context.Background(),
 			"initialize",
-			githubRuntimeInitializeRequest(),
+			githubRuntimeInitializeRequest(githubProgressManagedInstance()),
 			nil,
 		); err != nil {
 			t.Fatalf("hostPeer.Call(initialize) error = %v", err)
@@ -103,7 +104,9 @@ func newGitHubRuntimePeerPair(t *testing.T) (*githubProvider, *bridgesdk.Peer, f
 	return provider, hostPeer, cleanup
 }
 
-func githubRuntimeInitializeRequest() subprocess.InitializeRequest {
+func githubRuntimeInitializeRequest(
+	managed ...subprocess.InitializeBridgeManagedInstance,
+) subprocess.InitializeRequest {
 	return subprocess.InitializeRequest{
 		ProtocolVersion:          "1",
 		SupportedProtocolVersion: []string{"1"},
@@ -130,12 +133,32 @@ func githubRuntimeInitializeRequest() subprocess.InitializeRequest {
 			ShutdownTimeoutMS:     5_000,
 			DefaultHookTimeoutMS:  5_000,
 			Bridge: &subprocess.InitializeBridgeRuntime{
-				RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
-				Provider:       "github",
-				Platform:       "github",
+				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion2,
+				Purpose:          subprocess.BridgeRuntimePurposeService,
+				Provider:         "github",
+				Platform:         "github",
+				ManagedInstances: managed,
 			},
 		},
 	}
+}
+
+func githubProgressManagedInstance() subprocess.InitializeBridgeManagedInstance {
+	now := time.Date(2026, 7, 12, 12, 0, 0, 0, time.UTC)
+	return subprocess.InitializeBridgeManagedInstance{Instance: bridgepkg.BridgeInstance{
+		ID:            "brg-github-progress-noop",
+		Scope:         bridgepkg.ScopeWorkspace,
+		WorkspaceID:   "ws-github",
+		Platform:      "github",
+		ExtensionName: "github",
+		DisplayName:   "GitHub",
+		Source:        bridgepkg.BridgeInstanceSourceDynamic,
+		Enabled:       true,
+		Status:        bridgepkg.BridgeStatusReady,
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludeThread: true, IncludeGroup: true},
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}}
 }
 
 func githubProgressNoopRequest() bridgepkg.DeliveryRequest {

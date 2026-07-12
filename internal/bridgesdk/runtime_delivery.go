@@ -9,7 +9,7 @@ import (
 )
 
 func (r *Runtime) handleDeliver(ctx context.Context, raw json.RawMessage) (any, error) {
-	session, err := r.requireSession()
+	session, err := r.requireServiceSession("bridge delivery")
 	if err != nil {
 		return nil, err
 	}
