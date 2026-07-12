@@ -104,7 +104,7 @@ function toRequest(draft: ProviderDraft): SettingsProviderRequest {
 
   const secrets: SettingsProviderRequest["secrets"] = [];
   for (const [index, credential] of credentialSlots.entries()) {
-    const value = index === 0 ? draft.secret_value : (draft.credential_secret_values[index] ?? "");
+    const value = credentialSecretValue(draft, index);
     if (!value.trim() || !credential.secret_ref.startsWith("vault:")) {
       continue;
     }
@@ -117,6 +117,10 @@ function toRequest(draft: ProviderDraft): SettingsProviderRequest {
   }
 
   return secrets.length > 0 ? { settings, secrets } : { settings };
+}
+
+function credentialSecretValue(draft: ProviderDraft, index: number): string {
+  return index === 0 ? draft.secret_value : (draft.credential_secret_values[index] ?? "");
 }
 
 function envSecretRef(apiKeyEnv?: string): string {
@@ -241,8 +245,11 @@ function isProviderInspectorValid(
     return false;
   }
   if (
-    inspector.draft.secret_value.trim() &&
-    !inspector.draft.secret_ref.trim().startsWith("vault:")
+    buildCredentialSlots(inspector.draft).some(
+      (slot, index) =>
+        credentialSecretValue(inspector.draft, index).trim().length > 0 &&
+        !slot.secret_ref.startsWith("vault:")
+    )
   ) {
     return false;
   }
@@ -346,8 +353,8 @@ export function useSettingsProvidersPage() {
 
   const saveInspector = () => {
     if (inspector.mode !== "edit" && inspector.mode !== "create") return;
+    if (!inspectorIsValid) return;
     const name = inspector.draft.name.trim();
-    if (!name) return;
     const body = toRequest(inspector.draft);
     putMutation.mutate(
       { name, body },

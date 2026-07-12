@@ -107,21 +107,22 @@ export function useSettingsSkillsPage() {
       return;
     }
 
-    if (agents.length === 0) {
+    const currentAgents = sortAgents(agentsQuery.data ?? []);
+    if (currentAgents.length === 0) {
       setSelection({ scope: "global" });
       return;
     }
 
-    if (agents.some(agent => agent.name === selection.agentName)) {
+    if (currentAgents.some(agent => agent.name === selection.agentName)) {
       return;
     }
 
     setSelection({
       scope: "agent",
-      agentName: pickDefaultAgentName(agents),
+      agentName: pickDefaultAgentName(currentAgents),
       workspaceId: selection.workspaceId,
     });
-  }, [agents, selection]);
+  }, [agentsQuery.data, selection]);
 
   useEffect(() => {
     if (!envelope) {

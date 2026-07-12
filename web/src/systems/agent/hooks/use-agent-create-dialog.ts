@@ -109,8 +109,9 @@ export function useAgentCreateDialog({
   );
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  const globalProviderEntries = settingsProviders.data?.providers;
   const globalProviders: RuntimeProviderOption[] =
-    settingsProviders.data?.providers.map(settingsProviderToOption) ?? [];
+    globalProviderEntries?.map(settingsProviderToOption) ?? [];
 
   const workspaceProviderOptions: RuntimeProviderOption[] =
     workspaceProviders.map(workspaceProviderToOption);
@@ -139,10 +140,12 @@ export function useAgentCreateDialog({
   useEffect(() => {
     setDraft(current => {
       if (current.provider.length === 0) return current;
-      if (providerOptions.some(option => option.id === current.provider)) return current;
+      const sourceProviders =
+        current.scope === "workspace" ? workspaceProviders : (globalProviderEntries ?? []);
+      if (sourceProviders.some(provider => provider.name === current.provider)) return current;
       return { ...current, provider: "", model: "", reasoningEffort: "" };
     });
-  }, [providerOptions]);
+  }, [globalProviderEntries, workspaceProviders]);
 
   const catalogProviders: RuntimeCatalogProvider[] = providerOptions.map(option => ({
     id: option.id,

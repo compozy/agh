@@ -1016,10 +1016,7 @@ describe("SessionThread streaming render-count", () => {
     if (!settledElement || !liveElement) {
       throw new Error("Expected settled and live timeline rows to render");
     }
-    let settledMarkup = settledElement.innerHTML;
-    let liveMarkup = liveElement.innerHTML;
-    let settledVersions = 1;
-    let liveVersions = 1;
+    const settledSubtreeAtMount = settledElement.firstElementChild;
 
     for (const chunk of [
       "chunk 1 chunk 2",
@@ -1027,18 +1024,15 @@ describe("SessionThread streaming render-count", () => {
       "chunk 1 chunk 2 chunk 3 chunk 4",
     ]) {
       rerender(<StableTimeline liveText={chunk} stateRef={stateRef} />);
-      const nextSettledMarkup = settledElement.innerHTML;
-      const nextLiveMarkup = liveElement.innerHTML;
-      if (nextSettledMarkup !== settledMarkup) settledVersions += 1;
-      if (nextLiveMarkup !== liveMarkup) liveVersions += 1;
-      settledMarkup = nextSettledMarkup;
-      liveMarkup = nextLiveMarkup;
+      const nextSettledElement = container.querySelector('[data-session-row-id="text:settled"]');
+      const nextLiveElement = container.querySelector('[data-session-row-id="text:live"]');
+
+      expect(nextSettledElement).toBe(settledElement);
+      expect(nextSettledElement?.firstElementChild).toBe(settledSubtreeAtMount);
+      expect(nextLiveElement).toHaveTextContent(chunk);
     }
 
     expect(stateRef.current.result[0]).toBe(settledRowAtMount);
-    expect(container.querySelector('[data-session-row-id="text:settled"]')).toBe(settledElement);
-    expect(settledVersions).toBe(1);
-    expect(liveVersions).toBe(4);
   });
 });
 

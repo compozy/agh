@@ -298,12 +298,17 @@ describe("LoopWatchEventsPanel", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const subscription = { kind: "loop.terminal" as const };
 
-    render(
-      <LoopWatchEventsPanel state={{ subscriptions: [subscription, subscription], cursors: {} }} />
-    );
+    try {
+      render(
+        <LoopWatchEventsPanel
+          state={{ subscriptions: [subscription, subscription], cursors: {} }}
+        />
+      );
 
-    expect(screen.getAllByTestId("loop-watch-events-subscription")).toHaveLength(2);
-    expect(consoleError).not.toHaveBeenCalled();
-    consoleError.mockRestore();
+      expect(screen.getAllByTestId("loop-watch-events-subscription")).toHaveLength(2);
+      expect(consoleError).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 });

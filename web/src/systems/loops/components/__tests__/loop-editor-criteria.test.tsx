@@ -59,6 +59,7 @@ describe("LoopEditorCriteria", () => {
 
     fireEvent.change(checkInput, { target: { value: "make verify" } });
 
+    expect(screen.getByTestId("json")).toHaveTextContent('"check":"make verify"');
     expect(screen.getByLabelText("Command check")).toBe(checkInput);
     expect(checkInput).toHaveFocus();
   });
