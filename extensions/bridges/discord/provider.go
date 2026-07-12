@@ -69,15 +69,16 @@ type discordProvider struct {
 	now     func() time.Time
 	session *bridgesdk.Session
 
-	mu             sync.RWMutex
-	lastError      string
-	server         *http.Server
-	serverAddr     string
-	listenAddr     string
-	routes         map[string]resolvedInstanceConfig
-	deliveries     map[string]deliveryState
-	reportedStatus map[string]bridgepkg.BridgeStatus
-	apiFactory     func(resolvedInstanceConfig) discordAPI
+	mu                        sync.RWMutex
+	lastError                 string
+	server                    *http.Server
+	serverAddr                string
+	listenAddr                string
+	routes                    map[string]resolvedInstanceConfig
+	deliveries                map[string]deliveryState
+	reportedStatus            map[string]bridgepkg.BridgeStatus
+	apiFactory                func(resolvedInstanceConfig) discordAPI
+	progressDispatcherOptions []bridgesdk.ProgressDispatcherOption
 
 	stopCh   chan struct{}
 	stopOnce sync.Once
@@ -245,44 +246,6 @@ type discordUserIdentity struct {
 	DisplayName string
 }
 
-type discordAPI interface {
-	GetBotUser(context.Context) (*discordBotIdentity, error)
-	PostMessage(context.Context, discordPostMessageRequest) (*discordPostedMessage, error)
-	UpdateMessage(context.Context, discordUpdateMessageRequest) error
-	DeleteMessage(context.Context, discordDeleteMessageRequest) error
-}
-
-type discordBotIdentity struct {
-	ID       string `json:"id,omitempty"`
-	Username string `json:"username,omitempty"`
-}
-
-type discordPostedMessage struct {
-	ID string `json:"id,omitempty"`
-}
-
-type discordPostMessageRequest struct {
-	ChannelID string `json:"-"`
-	Content   string `json:"content"`
-}
-
-type discordUpdateMessageRequest struct {
-	ChannelID string `json:"-"`
-	MessageID string `json:"-"`
-	Content   string `json:"content"`
-}
-
-type discordDeleteMessageRequest struct {
-	ChannelID string `json:"-"`
-	MessageID string `json:"-"`
-}
-
-type discordBotClient struct {
-	baseURL    string
-	botToken   string
-	httpClient *http.Client
-}
-
 func newDiscordProvider(stderr io.Writer) (*discordProvider, error) {
 	if stderr == nil {
 		stderr = io.Discard
@@ -315,6 +278,7 @@ func newDiscordProvider(stderr io.Writer) (*discordProvider, error) {
 		},
 		Initialize:  provider.handleInitialize,
 		Deliver:     provider.handleBridgesDeliver,
+		Progress:    provider.handleBridgesProgress,
 		HealthCheck: func(context.Context, *bridgesdk.Session) error { return provider.healthCheck() },
 		Shutdown:    provider.handleShutdown,
 		Now:         func() time.Time { return provider.now() },
@@ -439,32 +403,55 @@ func (p *discordProvider) handleBridgesDeliver(
 		os.Exit(23)
 	}
 
+	state := p.deliveryState(cfg.instanceID, request.Event.DeliveryID)
+	progress := state.Progress
+	if progress != nil {
+		if err := progress.Flush(ctx); err != nil {
+			marker.Error = err.Error()
+			p.reportSideEffectError("write failed delivery marker", appendJSONLine(p.env.deliveryPath, marker))
+			p.reportDiscordDeliveryError(ctx, session, cfg.instanceID, err)
+			return bridgepkg.DeliveryAck{}, err
+		}
+	}
+
 	api := p.apiFactory(cfg)
 	ack, state, err := executeDiscordDelivery(
 		ctx,
 		api,
 		request,
-		p.deliveryState(cfg.instanceID, request.Event.DeliveryID),
+		state,
 	)
 	if err != nil {
 		marker.Error = err.Error()
 		p.reportSideEffectError("write failed delivery marker", appendJSONLine(p.env.deliveryPath, marker))
-		classified := bridgesdk.ClassifyError(err)
-		_, _, reportErr := session.ReportClassifiedError(ctx, cfg.instanceID, classified)
-		if reportErr != nil {
-			p.setLastError(reportErr)
-		} else {
-			p.setLastError(err)
-		}
+		p.reportDiscordDeliveryError(ctx, session, cfg.instanceID, err)
 		return bridgepkg.DeliveryAck{}, err
 	}
 
 	p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, state)
 	p.reportReadyIfNeeded(ctx, session, cfg.instanceID)
+	var cleanupErr error
+	if progress != nil {
+		cleanupErr = progress.OnContent(ctx)
+		if request.Event.Final {
+			detached := p.detachDiscordProgressDispatcher(
+				cfg.instanceID,
+				request.Event.DeliveryID,
+				progress,
+			)
+			if detached != nil {
+				detached.Close()
+			}
+		}
+	}
 
 	marker.Ack = &ack
 	p.reportSideEffectError("write delivery marker", appendJSONLine(p.env.deliveryPath, marker))
-	p.clearLastError()
+	if cleanupErr != nil {
+		p.reportDiscordProgressError("clean up progress after text delivery", cleanupErr)
+	} else {
+		p.clearLastError()
+	}
 	return ack, nil
 }
 
@@ -525,6 +512,7 @@ func (p *discordProvider) handleShutdown(
 func (p *discordProvider) stop() {
 	p.stopOnce.Do(func() {
 		close(p.stopCh)
+		progressToClose := p.takeDiscordProgressDispatchers()
 		batchersToClose := make(map[*bridgesdk.InboundBatcher]struct{})
 		p.mu.Lock()
 		for instanceID := range p.routes {
@@ -537,6 +525,7 @@ func (p *discordProvider) stop() {
 		}
 		p.mu.Unlock()
 		closeDiscordInboundBatchers(batchersToClose)
+		closeDiscordProgressDispatchers(progressToClose)
 	})
 }
 

@@ -82,6 +82,7 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 		now              time.Time
 		script           []scriptedPromptEvent
 		extensionName    string
+		platform         string
 		scenario         string
 		instanceID       string
 		markerFile       string
@@ -141,6 +142,7 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 				{Type: acp.EventTypeDone},
 			},
 			extensionName: "ext-bridge-progress",
+			platform:      "teams",
 			scenario:      "record_deliveries",
 			instanceID:    "brg-progress",
 			markerFile:    "progress-deliveries.jsonl",
@@ -390,9 +392,13 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 			instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
 				ID:               tc.instanceID,
 				ExtensionName:    env.extensionName,
+				Platform:         tc.platform,
 				RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true},
 				DeliveryDefaults: tc.deliveryDefaults,
 			})
+			if tc.platform != "" && instance.Platform != tc.platform {
+				t.Fatalf("bridge platform = %q, want low-tier platform %q", instance.Platform, tc.platform)
+			}
 			messageText := tc.messageText
 			if strings.TrimSpace(messageText) == "" {
 				messageText = "hello"

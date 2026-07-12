@@ -15,6 +15,23 @@ Google Chat accepts messages up to 32,000 UTF-8 bytes. AGH measures the final te
 
 A non-terminal reply that grows past the limit keeps one bounded preview message. On the terminal update, AGH edits that message with the first chunk, posts the remaining chunks in order, and acknowledges the last Google Chat message name.
 
+## Tool progress
+
+Tool progress is off by default. Enable accumulated progress for a bridge instance through `delivery_defaults`:
+
+```json
+{
+  "progress": {
+    "tool_progress": "all",
+    "grouping": "accumulate",
+    "typing": false,
+    "reactions": false
+  }
+}
+```
+
+The provider creates one plain-text progress message in the triggering space and thread, then patches that message as progress arrives. Progress does not use CardV2, typing, or reaction affordances.
+
 ## Build
 
 From the repository root:

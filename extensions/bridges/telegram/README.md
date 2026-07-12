@@ -61,3 +61,9 @@ Notes:
 ## Outbound text
 
 The provider converts common Markdown constructs to Telegram MarkdownV2 before measuring the 4,096 UTF-16 code-unit wire limit. Long text is split on natural boundaries with numbered, fence-balanced continuations in the original topic. Streaming previews keep one mutable message; terminal delivery posts the complete continuation set and acknowledges its last message. A MarkdownV2 parse rejection retries that chunk once as plain text without `parse_mode`.
+
+## Tool progress
+
+Telegram instances default to `tool_progress: new` with accumulated updates, typing actions, and reactions enabled. The provider posts one progress bubble in the inbound topic, schedules edits on the shared 1.5-second interval, and sends the answer as a separate message in that topic. Progress text uses the same MarkdownV2 formatter, plain-text fallback, and 4,096 UTF-16 code-unit limit as regular delivery.
+
+Progress uses `sendMessage`, `editMessageText`, `sendChatAction`, and `setMessageReaction`. Reactions apply to the progress bubble. Sending the answer clears Telegram's typing indicator; Telegram has no explicit clear-typing method. Rate-limited edits honor the Bot API `retry_after` value before retrying. Set `delivery_defaults.progress.tool_progress` to `off` to acknowledge progress without Telegram API calls.

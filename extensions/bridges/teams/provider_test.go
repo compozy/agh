@@ -34,6 +34,405 @@ func enableTeamsLoopbackCredentialedURLsForTesting(t *testing.T) {
 	t.Setenv(teamsTestLoopbackAuthEnv, "1")
 }
 
+func TestTeamsProgressRendering(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should acknowledge default-off progress without calling the Teams API", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newTeamsProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newTeamsProvider() error = %v", err)
+		}
+		t.Cleanup(provider.stop)
+		managed := testTeamsManagedInstance(t, time.Unix(8_000, 0).UTC(), "brg-progress-off", map[string]any{
+			"service_url": "https://service.test",
+		})
+		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+			managed:    &managed,
+			instanceID: managed.Instance.ID,
+			appID:      "app-id",
+			serviceURL: "https://service.test",
+		}
+		provider.reportedStatus[managed.Instance.ID] = bridgepkg.BridgeStatusReady
+		apiCalls := 0
+		provider.apiFactory = func(resolvedInstanceConfig) teamsAPI {
+			apiCalls++
+			return &fakeTeamsAPI{}
+		}
+
+		request := testTeamsProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-off",
+			1,
+			"call-off",
+			"agh__terminal",
+			"Inspecting",
+		)
+		ack, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			request,
+		)
+		if err != nil {
+			t.Fatalf("handleBridgesProgress() error = %v", err)
+		}
+		if ack.DeliveryID != request.Event.DeliveryID || ack.Seq != request.Event.Seq {
+			t.Fatalf("progress ack = %#v, want delivery id %q seq %d", ack, request.Event.DeliveryID, request.Event.Seq)
+		}
+		if ack.RemoteMessageID != "" || ack.ReplaceRemoteMessageID != "" {
+			t.Fatalf("progress ack remote ids = (%q, %q), want empty", ack.RemoteMessageID, ack.ReplaceRemoteMessageID)
+		}
+		if apiCalls != 0 {
+			t.Fatalf("Teams API factory calls = %d, want zero", apiCalls)
+		}
+
+		provider.storeDeliveryState(managed.Instance.ID, request.Event.DeliveryID, deliveryState{
+			RemoteMessageID: "stale-message",
+		})
+		final := request
+		final.Event.Seq = 2
+		final.Event.EventType = bridgepkg.DeliveryEventTypeFinal
+		final.Event.Progress = nil
+		final.Event.Final = true
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			final,
+		); err != nil {
+			t.Fatalf("handleBridgesProgress(default-off lifecycle final) error = %v", err)
+		}
+		provider.mu.RLock()
+		_, deliveryExists := provider.deliveries[deliveryStateKey(managed.Instance.ID, request.Event.DeliveryID)]
+		provider.mu.RUnlock()
+		if deliveryExists {
+			t.Fatal("default-off lifecycle-only delivery state still exists, want terminal removal")
+		}
+	})
+
+	t.Run("Should retain failed progress for retry and report unhealthy", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newTeamsProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newTeamsProvider() error = %v", err)
+		}
+		t.Cleanup(provider.stop)
+		managed := testTeamsManagedInstance(t, time.Unix(8_025, 0).UTC(), "brg-progress-failure", map[string]any{
+			"service_url": "https://service.test",
+		})
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"all","grouping":"separate","typing":false,"reactions":false}}`,
+		)
+		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+			managed:    &managed,
+			instanceID: managed.Instance.ID,
+			appID:      "app-id",
+			serviceURL: "https://service.test",
+		}
+		api := &fakeTeamsAPI{sendErr: errors.New("activity unavailable")}
+		provider.apiFactory = func(resolvedInstanceConfig) teamsAPI { return api }
+
+		request := testTeamsProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-failure",
+			1,
+			"call-failure",
+			"agh__terminal",
+			"Inspecting",
+		)
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			request,
+		); err == nil {
+			t.Fatal("handleBridgesProgress() error = nil, want failed activity error")
+		}
+		if provider.deliveryState(managed.Instance.ID, request.Event.DeliveryID).Progress == nil {
+			t.Fatal("failed progress dispatcher = nil, want retained dispatcher for retry")
+		}
+		if err := provider.healthCheck(); err == nil {
+			t.Fatal("healthCheck() error = nil, want reported progress failure")
+		}
+	})
+
+	t.Run("Should detach pending progress when the instance switches to off", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newTeamsProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newTeamsProvider() error = %v", err)
+		}
+		t.Cleanup(provider.stop)
+		managed := testTeamsManagedInstance(t, time.Unix(8_050, 0).UTC(), "brg-progress-disabled", map[string]any{
+			"service_url": "https://service.test",
+		})
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":false,"reactions":false}}`,
+		)
+		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+			managed:    &managed,
+			instanceID: managed.Instance.ID,
+			appID:      "app-id",
+			serviceURL: "https://service.test",
+		}
+		api := &fakeTeamsAPI{nextActivityID: 10}
+		provider.apiFactory = func(resolvedInstanceConfig) teamsAPI { return api }
+
+		first := testTeamsProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-disabled",
+			1,
+			"call-1",
+			"agh__terminal",
+			"Inspecting",
+		)
+		second := testTeamsProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-disabled",
+			2,
+			"call-2",
+			"agh__task_list",
+			"Reading tasks",
+		)
+		for _, request := range []bridgepkg.DeliveryRequest{first, second} {
+			if _, err := provider.handleBridgesProgress(
+				context.Background(),
+				&bridgesdk.Session{},
+				request,
+			); err != nil {
+				t.Fatalf("handleBridgesProgress(seq=%d) error = %v", request.Event.Seq, err)
+			}
+		}
+		if provider.deliveryState(managed.Instance.ID, first.Event.DeliveryID).Progress == nil {
+			t.Fatal("progress dispatcher before disabling = nil, want active dispatcher")
+		}
+
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"off","grouping":"accumulate","typing":false,"reactions":false}}`,
+		)
+		disabled := second
+		disabled.Event.Seq = 3
+		disabled.Event.Progress.ToolCallID = "call-3"
+		disabled.Event.Progress.Index = 3
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			disabled,
+		); err != nil {
+			t.Fatalf("handleBridgesProgress(disabled) error = %v", err)
+		}
+
+		if provider.deliveryState(managed.Instance.ID, first.Event.DeliveryID).Progress != nil {
+			t.Fatal("progress dispatcher after disabling != nil, want detached dispatcher")
+		}
+		if got := len(api.updateCalls); got != 0 {
+			t.Fatalf("Teams progress updates after disabling = %d, want zero", got)
+		}
+	})
+
+	t.Run("Should flush an opted-in markdown progress activity before the final answer", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newTeamsProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newTeamsProvider() error = %v", err)
+		}
+		t.Cleanup(provider.stop)
+		managed := testTeamsManagedInstance(t, time.Unix(8_100, 0).UTC(), "brg-progress-on", map[string]any{
+			"service_url": "https://service.test",
+		})
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":true,"reactions":true}}`,
+		)
+		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+			managed:    &managed,
+			instanceID: managed.Instance.ID,
+			appID:      "app-id",
+			serviceURL: "https://service.test",
+		}
+		provider.reportedStatus[managed.Instance.ID] = bridgepkg.BridgeStatusReady
+		api := &fakeTeamsAPI{nextActivityID: 20}
+		provider.apiFactory = func(resolvedInstanceConfig) teamsAPI { return api }
+
+		first := testTeamsProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-on",
+			1,
+			"call-1",
+			"agh__terminal",
+			"Inspecting",
+		)
+		second := testTeamsProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-on",
+			2,
+			"call-2",
+			"agh__task_list",
+			"Reading tasks",
+		)
+		for _, request := range []bridgepkg.DeliveryRequest{first, second} {
+			if _, err := provider.handleBridgesProgress(
+				context.Background(),
+				&bridgesdk.Session{},
+				request,
+			); err != nil {
+				t.Fatalf("handleBridgesProgress(seq=%d) error = %v", request.Event.Seq, err)
+			}
+		}
+
+		final := first
+		final.Event.Seq = 3
+		final.Event.EventType = bridgepkg.DeliveryEventTypeFinal
+		final.Event.Progress = nil
+		final.Event.Content = bridgepkg.MessageContent{Text: "Final answer"}
+		final.Event.Final = true
+		if _, err := provider.handleBridgesDeliver(
+			context.Background(),
+			&bridgesdk.Session{},
+			final,
+		); err != nil {
+			t.Fatalf("handleBridgesDeliver(final) error = %v", err)
+		}
+
+		var messageCalls []teamsSendCall
+		for _, call := range api.sendCalls {
+			if call.Activity.Type == providerMessageKey {
+				messageCalls = append(messageCalls, call)
+			}
+		}
+		if got, want := len(messageCalls), 2; got != want {
+			t.Fatalf("Teams message activity calls = %d, want %d", got, want)
+		}
+		if got, want := messageCalls[0].Activity.Text, "Inspecting"; got != want {
+			t.Fatalf("progress activity text = %q, want %q", got, want)
+		}
+		if got, want := messageCalls[0].Activity.TextFormat, "markdown"; got != want {
+			t.Fatalf("progress activity text format = %q, want %q", got, want)
+		}
+		if got, want := messageCalls[0].ReplyToID, "activity-parent"; got != want {
+			t.Fatalf("progress activity reply id = %q, want %q", got, want)
+		}
+		if got, want := len(api.updateCalls), 1; got != want {
+			t.Fatalf("Teams progress update calls = %d, want %d", got, want)
+		}
+		if got, want := api.updateCalls[0].Activity.Text, "Inspecting\nReading tasks"; got != want {
+			t.Fatalf("progress update text = %q, want %q", got, want)
+		}
+		if got, want := api.updateCalls[0].Activity.TextFormat, "markdown"; got != want {
+			t.Fatalf("progress update text format = %q, want %q", got, want)
+		}
+		if got, want := messageCalls[1].Activity.Text, "Final answer"; got != want {
+			t.Fatalf("final activity text = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should reuse one proactive conversation for typing and progress", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newTeamsProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newTeamsProvider() error = %v", err)
+		}
+		t.Cleanup(provider.stop)
+		managed := testTeamsManagedInstance(t, time.Unix(8_200, 0).UTC(), "brg-progress-dm", map[string]any{
+			"service_url": "https://service.test",
+		})
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":true,"reactions":false}}`,
+		)
+		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+			managed:     &managed,
+			instanceID:  managed.Instance.ID,
+			appID:       "app-id",
+			appTenantID: "tenant-id",
+			serviceURL:  "https://service.test",
+		}
+		api := &fakeTeamsAPI{createConversationID: "conversation-dm", nextActivityID: 30}
+		provider.apiFactory = func(resolvedInstanceConfig) teamsAPI { return api }
+
+		request := testTeamsProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-dm",
+			1,
+			"call-dm",
+			"agh__terminal",
+			"Inspecting",
+		)
+		request.Event.RoutingKey.GroupID = ""
+		request.Event.RoutingKey.ThreadID = ""
+		request.Event.RoutingKey.PeerID = "29:user"
+		request.Event.DeliveryTarget.GroupID = ""
+		request.Event.DeliveryTarget.ThreadID = ""
+		request.Event.DeliveryTarget.PeerID = "29:user"
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			request,
+		); err != nil {
+			t.Fatalf("handleBridgesProgress() error = %v", err)
+		}
+
+		if got, want := len(api.createCalls), 1; got != want {
+			t.Fatalf("Teams proactive conversation calls = %d, want %d", got, want)
+		}
+		if got, want := len(api.sendCalls), 2; got != want {
+			t.Fatalf("Teams typing and progress calls = %d, want %d", got, want)
+		}
+		if got, want := api.sendCalls[0].Activity.Type, teamsTypingActivityType; got != want {
+			t.Fatalf("Teams first progress activity type = %q, want %q", got, want)
+		}
+		if got, want := api.sendCalls[1].Activity.Type, providerMessageKey; got != want {
+			t.Fatalf("Teams second progress activity type = %q, want %q", got, want)
+		}
+		for index, call := range api.sendCalls {
+			if got, want := call.ConversationID, "conversation-dm"; got != want {
+				t.Fatalf("Teams send call %d conversation id = %q, want %q", index, got, want)
+			}
+		}
+
+		final := request
+		final.Event.Seq = 2
+		final.Event.EventType = bridgepkg.DeliveryEventTypeFinal
+		final.Event.Progress = nil
+		final.Event.Final = true
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			final,
+		); err != nil {
+			t.Fatalf("handleBridgesProgress(lifecycle final) error = %v", err)
+		}
+		provider.mu.RLock()
+		_, deliveryExists := provider.deliveries[deliveryStateKey(managed.Instance.ID, request.Event.DeliveryID)]
+		provider.mu.RUnlock()
+		if deliveryExists {
+			t.Fatal("lifecycle-only delivery state still exists, want terminal removal")
+		}
+
+		staleDeliveryID := "delivery-progress-dm-stale"
+		provider.storeDeliveryState(managed.Instance.ID, staleDeliveryID, deliveryState{
+			RemoteMessageID: "stale-message",
+		})
+		staleFinal := final
+		staleFinal.Event.DeliveryID = staleDeliveryID
+		staleFinal.Event.Seq = 3
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			staleFinal,
+		); err != nil {
+			t.Fatalf("handleBridgesProgress(stale lifecycle final) error = %v", err)
+		}
+		provider.mu.RLock()
+		_, staleExists := provider.deliveries[deliveryStateKey(managed.Instance.ID, staleDeliveryID)]
+		provider.mu.RUnlock()
+		if staleExists {
+			t.Fatal("dispatcher-free lifecycle-only state still exists, want terminal removal")
+		}
+	})
+}
+
 func TestMapTeamsActivityFamiliesAndDMPolicy(t *testing.T) {
 	t.Parallel()
 
@@ -2677,6 +3076,46 @@ func testTeamsManagedInstance(
 			},
 		},
 	}
+}
+
+func testTeamsProgressRequest(
+	instanceID string,
+	deliveryID string,
+	seq int64,
+	toolCallID string,
+	toolID string,
+	label string,
+) bridgepkg.DeliveryRequest {
+	threadID := encodeTeamsThreadID(teamsThreadRef{
+		ConversationID: "19:channel@thread.tacv2;messageid=activity-parent",
+		ServiceURL:     "https://service.test",
+	})
+	return bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+		DeliveryID:       deliveryID,
+		BridgeInstanceID: instanceID,
+		RoutingKey: bridgepkg.RoutingKey{
+			Scope:            bridgepkg.ScopeWorkspace,
+			WorkspaceID:      "ws-teams",
+			BridgeInstanceID: instanceID,
+			GroupID:          "19:channel@thread.tacv2",
+			ThreadID:         threadID,
+		},
+		DeliveryTarget: bridgepkg.DeliveryTarget{
+			BridgeInstanceID: instanceID,
+			GroupID:          "19:channel@thread.tacv2",
+			ThreadID:         threadID,
+			Mode:             bridgepkg.DeliveryModeReply,
+		},
+		Seq:       seq,
+		EventType: bridgepkg.DeliveryEventTypeProgress,
+		Progress: &bridgepkg.ToolProgress{
+			ToolCallID: toolCallID,
+			ToolID:     toolID,
+			Phase:      bridgepkg.ToolProgressPhaseStarted,
+			Label:      label,
+			Index:      int(seq),
+		},
+	}}
 }
 
 func testInitializeRequest(

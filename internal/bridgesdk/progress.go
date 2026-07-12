@@ -96,23 +96,26 @@ func (a *ProgressAccumulator) OnProgress(ctx context.Context, event bridgepkg.To
 	if err := event.Validate(); err != nil {
 		return fmt.Errorf("bridgesdk: validate progress event: %w", err)
 	}
-	affordanceErr := a.applyPhaseAffordancesLocked(ctx, event.Phase)
-
+	typingErr := a.applyTypingAffordanceLocked(ctx, event.Phase)
 	line := renderProgressLine(event)
-	if a.config.Grouping == bridgepkg.ProgressGroupingSeparate {
-		return errors.Join(a.postSeparateLineLocked(ctx, line), affordanceErr)
+	var progressErr error
+	switch {
+	case a.config.Grouping == bridgepkg.ProgressGroupingSeparate:
+		progressErr = a.postSeparateLineLocked(ctx, line)
+	case line == a.lastLine && a.repeatCount > 0:
+		progressErr = a.applyRepeatLocked(ctx)
+	default:
+		progressErr = a.appendLineLocked(ctx, line)
+		if progressErr == nil {
+			a.lastLine = line
+			a.repeatCount = 1
+		}
 	}
-
-	if line == a.lastLine && a.repeatCount > 0 {
-		return errors.Join(a.applyRepeatLocked(ctx), affordanceErr)
+	if progressErr != nil {
+		return errors.Join(progressErr, typingErr)
 	}
-
-	if err := a.appendLineLocked(ctx, line); err != nil {
-		return errors.Join(err, affordanceErr)
-	}
-	a.lastLine = line
-	a.repeatCount = 1
-	return affordanceErr
+	reactionErr := a.applyReactionAffordanceLocked(ctx, event.Phase)
+	return errors.Join(typingErr, reactionErr)
 }
 
 // OnContent flushes pending progress, stops typing, and closes the current editable bubble.
@@ -135,11 +138,10 @@ func (a *ProgressAccumulator) OnContent(ctx context.Context) error {
 	}
 	flushErr := a.flushLocked(ctx, true)
 	typingErr := a.closeTypingLocked(ctx)
-	if err := errors.Join(flushErr, typingErr); err != nil {
-		return err
+	if flushErr == nil {
+		a.resetBubbleLocked()
 	}
-	a.resetBubbleLocked()
-	return nil
+	return errors.Join(flushErr, typingErr)
 }
 
 // Flush writes pending accumulated progress immediately.
@@ -160,6 +162,25 @@ func (a *ProgressAccumulator) Flush(ctx context.Context) error {
 		return err
 	}
 	return a.flushLocked(ctx, true)
+}
+
+func (a *ProgressAccumulator) flushDue(ctx context.Context) error {
+	if a == nil {
+		return errors.New("bridgesdk: progress accumulator is required")
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	if a.configErr != nil {
+		return a.configErr
+	}
+	if a.config.ToolProgress == bridgepkg.ProgressModeOff {
+		return nil
+	}
+	if err := validateProgressContext(ctx); err != nil {
+		return err
+	}
+	return a.flushLocked(ctx, false)
 }
 
 func normalizeProgressAccumulatorConfig(cfg ProgressConfig) (ProgressConfig, error) {
@@ -203,21 +224,47 @@ func validateProgressContext(ctx context.Context) error {
 	return nil
 }
 
-func (a *ProgressAccumulator) applyPhaseAffordancesLocked(
+// PendingFlushDelay reports when a throttled accumulated edit is due.
+func (a *ProgressAccumulator) PendingFlushDelay() (time.Duration, bool) {
+	if a == nil {
+		return 0, false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.configErr != nil ||
+		a.config.ToolProgress == bridgepkg.ProgressModeOff ||
+		!a.dirty ||
+		a.currentBubbleID == "" {
+		return 0, false
+	}
+	delay := a.config.EditInterval - a.now().Sub(a.lastEditAt)
+	if delay < 0 {
+		delay = 0
+	}
+	return delay, true
+}
+
+func (a *ProgressAccumulator) applyTypingAffordanceLocked(
 	ctx context.Context,
 	phase bridgepkg.ToolProgressPhase,
 ) error {
 	active := phase == bridgepkg.ToolProgressPhaseStarted
-	var typingErr error
-	if a.config.Typing {
-		if err := a.sink.Typing(ctx, a.config.Target, active); err != nil {
-			typingErr = fmt.Errorf("bridgesdk: set progress typing state: %w", err)
-		} else {
-			a.typingActive = active
-		}
+	if !a.config.Typing {
+		return nil
 	}
+	if err := a.sink.Typing(ctx, a.config.Target, active); err != nil {
+		return fmt.Errorf("bridgesdk: set progress typing state: %w", err)
+	}
+	a.typingActive = active
+	return nil
+}
+
+func (a *ProgressAccumulator) applyReactionAffordanceLocked(
+	ctx context.Context,
+	phase bridgepkg.ToolProgressPhase,
+) error {
 	if !a.config.Reactions {
-		return typingErr
+		return nil
 	}
 	reaction := "👀"
 	switch phase {
@@ -226,11 +273,10 @@ func (a *ProgressAccumulator) applyPhaseAffordancesLocked(
 	case bridgepkg.ToolProgressPhaseFailed:
 		reaction = "❌"
 	}
-	var reactionErr error
 	if err := a.sink.React(ctx, a.config.Target, reaction); err != nil {
-		reactionErr = fmt.Errorf("bridgesdk: apply progress reaction: %w", err)
+		return fmt.Errorf("bridgesdk: apply progress reaction: %w", err)
 	}
-	return errors.Join(typingErr, reactionErr)
+	return nil
 }
 
 func (a *ProgressAccumulator) closeTypingLocked(ctx context.Context) error {

@@ -14,10 +14,28 @@ import (
 
 const whatsappMaxMessageRunes = 4_096
 
+type whatsappSendMessageRequest struct {
+	MessagingProduct string `json:"messaging_product"`
+	RecipientType    string `json:"recipient_type,omitempty"`
+	To               string `json:"to"`
+	Type             string `json:"type"`
+	Text             struct {
+		Body       string `json:"body"`
+		PreviewURL bool   `json:"preview_url"`
+	} `json:"text"`
+}
+
+type whatsappSendMessageResponse struct {
+	Messages []struct {
+		ID string `json:"id,omitempty"`
+	} `json:"messages,omitempty"`
+}
+
 type deliveryState struct {
 	LastSeq                int64
 	RemoteMessageID        string
 	ReplaceRemoteMessageID string
+	Progress               *bridgesdk.ProgressDispatcher
 }
 
 func (p *whatsappProvider) handleBridgesDeliver(
@@ -61,40 +79,97 @@ func (p *whatsappProvider) handleBridgesDeliver(
 		os.Exit(23)
 	}
 
+	state := p.deliveryState(cfg.instanceID, request.Event.DeliveryID)
+	if state.Progress != nil {
+		if err := state.Progress.Flush(ctx); err != nil {
+			return p.failWhatsAppDelivery(ctx, session, cfg, marker, err)
+		}
+	}
+
 	api := p.apiFactory(cfg)
 	ack, state, err := executeWhatsAppDelivery(
 		ctx,
 		api,
 		cfg,
 		request,
-		p.deliveryState(cfg.instanceID, request.Event.DeliveryID),
+		state,
 	)
 	if err != nil {
-		marker.Error = err.Error()
-		p.reportSideEffectError(
-			"write failed delivery marker",
-			appendJSONLine(p.env.deliveryPath, marker),
-		)
-		classified := bridgesdk.ClassifyError(err)
-		_, _, reportErr := session.ReportClassifiedError(ctx, cfg.instanceID, classified)
-		if reportErr != nil {
-			p.setInstanceError(cfg.instanceID, reportErr)
-		} else {
-			p.setInstanceError(cfg.instanceID, err)
-		}
-		return bridgepkg.DeliveryAck{}, err
+		return p.failWhatsAppDelivery(ctx, session, cfg, marker, err)
 	}
+	return p.completeWhatsAppDelivery(ctx, session, cfg, request, marker, ack, state)
+}
 
+func (p *whatsappProvider) completeWhatsAppDelivery(
+	ctx context.Context,
+	session *bridgesdk.Session,
+	cfg resolvedInstanceConfig,
+	request bridgepkg.DeliveryRequest,
+	marker deliveryMarker,
+	ack bridgepkg.DeliveryAck,
+	state deliveryState,
+) (bridgepkg.DeliveryAck, error) {
+	dispatcher := state.Progress
+	var cleanupErr error
+	if dispatcher != nil {
+		cleanupErr = dispatcher.OnContent(ctx)
+		if isTerminalWhatsAppDeliveryEvent(request.Event) {
+			state.Progress = nil
+		}
+	}
 	p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, state)
-	if err := p.reportReadyIfNeeded(ctx, session, cfg.instanceID); err != nil {
-		p.setInstanceError(cfg.instanceID, err)
-	} else {
+	if dispatcher != nil && state.Progress == nil {
+		dispatcher.Close()
+	}
+	readyErr := p.reportReadyIfNeeded(ctx, session, cfg.instanceID)
+	switch {
+	case readyErr != nil:
+		p.setInstanceError(cfg.instanceID, readyErr)
+	case cleanupErr != nil:
+		p.recordWhatsAppProgressCleanupError(cfg.instanceID, cleanupErr)
+	default:
 		p.clearInstanceError(cfg.instanceID)
 	}
 
 	marker.Ack = &ack
 	p.reportSideEffectError("write delivery marker", appendJSONLine(p.env.deliveryPath, marker))
 	return ack, nil
+}
+
+func (p *whatsappProvider) failWhatsAppDelivery(
+	ctx context.Context,
+	session *bridgesdk.Session,
+	cfg resolvedInstanceConfig,
+	marker deliveryMarker,
+	err error,
+) (bridgepkg.DeliveryAck, error) {
+	marker.Error = err.Error()
+	p.reportSideEffectError(
+		"write failed delivery marker",
+		appendJSONLine(p.env.deliveryPath, marker),
+	)
+	classified := bridgesdk.ClassifyError(err)
+	_, _, reportErr := session.ReportClassifiedError(ctx, cfg.instanceID, classified)
+	if reportErr != nil {
+		p.setInstanceError(cfg.instanceID, reportErr)
+	} else {
+		p.setInstanceError(cfg.instanceID, err)
+	}
+	return bridgepkg.DeliveryAck{}, err
+}
+
+func isTerminalWhatsAppDeliveryEvent(event bridgepkg.DeliveryEvent) bool {
+	if event.Operation.Normalize() == bridgepkg.DeliveryOperationDelete {
+		return true
+	}
+	switch normalizeDeliveryEventType(event.EventType) {
+	case bridgepkg.DeliveryEventTypeFinal,
+		bridgepkg.DeliveryEventTypeError,
+		bridgepkg.DeliveryEventTypeDelete:
+		return true
+	default:
+		return false
+	}
 }
 
 func (p *whatsappProvider) deliveryState(instanceID string, deliveryID string) deliveryState {

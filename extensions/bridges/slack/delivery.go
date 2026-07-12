@@ -12,6 +12,73 @@ import (
 
 const slackMaxMessageLen = 40_000
 
+type deliveryState struct {
+	LastSeq                int64
+	RemoteMessageID        string
+	ReplaceRemoteMessageID string
+	Progress               *bridgesdk.ProgressDispatcher
+}
+
+func (p *slackProvider) deliveryState(instanceID string, deliveryID string) deliveryState {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.deliveries[deliveryStateKey(instanceID, deliveryID)]
+}
+
+func (p *slackProvider) storeDeliveryState(
+	instanceID string,
+	deliveryID string,
+	event bridgepkg.DeliveryEvent,
+	state deliveryState,
+) *bridgesdk.ProgressDispatcher {
+	key := deliveryStateKey(instanceID, deliveryID)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if isTerminalSlackDeliveryEvent(event) {
+		delete(p.deliveries, key)
+		return state.Progress
+	}
+	p.deliveries[key] = state
+	return nil
+}
+
+func (p *slackProvider) detachProgressDispatcher(
+	instanceID string,
+	deliveryID string,
+	removeState bool,
+) *bridgesdk.ProgressDispatcher {
+	key := deliveryStateKey(instanceID, deliveryID)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	state, ok := p.deliveries[key]
+	if !ok {
+		return nil
+	}
+	dispatcher := state.Progress
+	if removeState {
+		delete(p.deliveries, key)
+	} else {
+		state.Progress = nil
+		p.deliveries[key] = state
+	}
+	return dispatcher
+}
+
+func (p *slackProvider) takeAllProgressDispatchers() []*bridgesdk.ProgressDispatcher {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	dispatchers := make([]*bridgesdk.ProgressDispatcher, 0)
+	for key, state := range p.deliveries {
+		if state.Progress == nil {
+			continue
+		}
+		dispatchers = append(dispatchers, state.Progress)
+		state.Progress = nil
+		p.deliveries[key] = state
+	}
+	return dispatchers
+}
+
 func executeDelivery(
 	ctx context.Context,
 	api slackAPI,
@@ -54,6 +121,18 @@ func executeDelivery(
 func isSlackDeleteEvent(event bridgepkg.DeliveryEvent) bool {
 	return event.Operation.Normalize() == bridgepkg.DeliveryOperationDelete ||
 		normalizeDeliveryEventType(event.EventType) == bridgepkg.DeliveryEventTypeDelete
+}
+
+func isTerminalSlackDeliveryEvent(event bridgepkg.DeliveryEvent) bool {
+	if event.Operation.Normalize() == bridgepkg.DeliveryOperationDelete {
+		return true
+	}
+	switch normalizeDeliveryEventType(event.EventType) {
+	case bridgepkg.DeliveryEventTypeFinal, bridgepkg.DeliveryEventTypeError, bridgepkg.DeliveryEventTypeDelete:
+		return true
+	default:
+		return false
+	}
 }
 
 func executeSlackDelete(

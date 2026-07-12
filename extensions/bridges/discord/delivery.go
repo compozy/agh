@@ -17,6 +17,7 @@ type deliveryState struct {
 	RemoteMessageID        string
 	ReplaceRemoteMessageID string
 	LastContent            string
+	Progress               *bridgesdk.ProgressDispatcher
 }
 
 func (p *discordProvider) deliveryState(instanceID string, deliveryID string) deliveryState {

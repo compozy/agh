@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
+	"time"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	"github.com/compozy/agh/internal/bridgesdk"
@@ -17,6 +19,7 @@ type deliveryState struct {
 	RemoteMessageID        string
 	ReplaceRemoteMessageID string
 	LastContent            string
+	Progress               *bridgesdk.ProgressDispatcher
 }
 
 type teamsDeliveryStateLookup func(deliveryID string) (deliveryState, bool)
@@ -35,6 +38,128 @@ func (p *teamsProvider) storeDeliveryState(
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.deliveries[deliveryStateKey(instanceID, deliveryID)] = state
+}
+
+func (p *teamsProvider) handleBridgesDeliver(
+	ctx context.Context,
+	session *bridgesdk.Session,
+	request bridgepkg.DeliveryRequest,
+) (bridgepkg.DeliveryAck, error) {
+	marker := deliveryMarker{PID: os.Getpid(), Request: request}
+	cfg, err := p.waitForInstanceConfig(
+		strings.TrimSpace(request.Event.BridgeInstanceID),
+		500*time.Millisecond,
+	)
+	if err != nil {
+		return p.failTeamsDelivery(ctx, session, resolvedInstanceConfig{}, marker, err)
+	}
+
+	if shouldCrashOnce(p.env.crashOncePath) {
+		p.reportSideEffectError(
+			"write pre-crash delivery marker",
+			appendJSONLine(p.env.deliveryPath, marker),
+		)
+		p.reportSideEffectError(
+			"write crash marker",
+			writeJSONFile(p.env.crashOncePath, map[string]any{
+				"crashed":            true,
+				"pid":                os.Getpid(),
+				"delivery_id":        strings.TrimSpace(request.Event.DeliveryID),
+				"bridge_instance_id": cfg.instanceID,
+			}),
+		)
+		os.Exit(23)
+	}
+
+	state := p.deliveryState(cfg.instanceID, request.Event.DeliveryID)
+	if state.Progress != nil {
+		if err := state.Progress.Flush(ctx); err != nil {
+			return p.failTeamsDelivery(ctx, session, cfg, marker, err)
+		}
+	}
+
+	ack, state, err := executeTeamsDelivery(
+		ctx,
+		p.apiFactory(cfg),
+		cfg,
+		request,
+		state,
+		func(deliveryID string) (deliveryState, bool) {
+			referencedState := p.deliveryState(cfg.instanceID, deliveryID)
+			return referencedState, strings.TrimSpace(referencedState.RemoteMessageID) != ""
+		},
+		p.userContext,
+	)
+	if err != nil {
+		return p.failTeamsDelivery(ctx, session, cfg, marker, err)
+	}
+
+	dispatcher := state.Progress
+	var cleanupErr error
+	if dispatcher != nil {
+		cleanupErr = dispatcher.OnContent(ctx)
+		if isTerminalTeamsDeliveryEvent(request.Event) {
+			state.Progress = nil
+		}
+	}
+	p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, state)
+	if dispatcher != nil && state.Progress == nil {
+		dispatcher.Close()
+	}
+
+	readyErr := p.reportReadyIfNeeded(ctx, session, cfg.instanceID)
+	switch {
+	case readyErr != nil:
+		p.setLastError(readyErr)
+	case cleanupErr != nil:
+		p.recordTeamsProgressCleanupError(cleanupErr)
+	default:
+		p.clearLastError()
+	}
+
+	marker.Ack = &ack
+	p.reportSideEffectError("write delivery marker", appendJSONLine(p.env.deliveryPath, marker))
+	return ack, nil
+}
+
+func (p *teamsProvider) failTeamsDelivery(
+	ctx context.Context,
+	session *bridgesdk.Session,
+	cfg resolvedInstanceConfig,
+	marker deliveryMarker,
+	err error,
+) (bridgepkg.DeliveryAck, error) {
+	marker.Error = err.Error()
+	p.reportSideEffectError(
+		"write failed delivery marker",
+		appendJSONLine(p.env.deliveryPath, marker),
+	)
+	if strings.TrimSpace(cfg.instanceID) == "" {
+		p.setLastError(err)
+		return bridgepkg.DeliveryAck{}, err
+	}
+	classified := bridgesdk.ClassifyError(err)
+	_, _, reportErr := session.ReportClassifiedError(ctx, cfg.instanceID, classified)
+	if reportErr != nil {
+		p.setLastError(reportErr)
+	} else {
+		p.setLastError(err)
+	}
+	return bridgepkg.DeliveryAck{}, err
+}
+
+func isTerminalTeamsDeliveryEvent(event bridgepkg.DeliveryEvent) bool {
+	if event.Operation.Normalize() == bridgepkg.DeliveryOperationDelete {
+		return true
+	}
+	switch normalizeDeliveryEventType(event.EventType) {
+	case bridgepkg.DeliveryEventTypeFinal,
+		bridgepkg.DeliveryEventTypeError,
+		bridgepkg.DeliveryEventTypeDelete:
+		return true
+	default:
+		return false
+	}
 }
 
 func executeTeamsDelivery(
@@ -129,33 +254,13 @@ func executeTeamsPostDelivery(
 	if err != nil {
 		return bridgepkg.DeliveryAck{}, state, err
 	}
-
-	conversationID := target.ConversationID
-	serviceURL := target.ServiceURL
-	if conversationID == "" {
-		createReq := teamsCreateConversationRequest{
-			Bot:      teamsChannelAccount{ID: cfg.appID},
-			Members:  []teamsChannelAccount{{ID: target.UserID}},
-			IsGroup:  false,
-			TenantID: target.TenantID,
-			ChannelData: map[string]any{
-				"tenant": map[string]any{"id": target.TenantID},
-			},
-		}
-		created, createErr := api.CreateConversation(ctx, serviceURL, createReq)
-		if createErr != nil {
-			return bridgepkg.DeliveryAck{}, state, fmt.Errorf("teams: create conversation: %w", createErr)
-		}
-		if created == nil || strings.TrimSpace(created.ID) == "" {
-			return bridgepkg.DeliveryAck{}, state, &bridgesdk.TransientError{
-				Err: errors.New("teams: create conversation response omitted id"),
-			}
-		}
-		conversationID = strings.TrimSpace(created.ID)
+	target, err = ensureTeamsConversation(ctx, api, cfg, target)
+	if err != nil {
+		return bridgepkg.DeliveryAck{}, state, err
 	}
 
 	baseConversationID, replyToID := splitTeamsConversationTarget(
-		firstNonEmpty(conversationID, target.ConversationID),
+		target.ConversationID,
 	)
 	if target.ReplyToID != "" {
 		replyToID = target.ReplyToID
@@ -166,7 +271,7 @@ func executeTeamsPostDelivery(
 	for index, chunk := range chunks {
 		sent, sendErr := api.SendActivity(
 			ctx,
-			serviceURL,
+			target.ServiceURL,
 			baseConversationID,
 			replyToID,
 			teamsOutboundActivity{
@@ -185,7 +290,7 @@ func executeTeamsPostDelivery(
 		}
 		remoteID = encodeRemoteMessageID(teamsRemoteMessageRef{
 			ConversationID: baseConversationID,
-			ServiceURL:     serviceURL,
+			ServiceURL:     target.ServiceURL,
 			ActivityID:     strings.TrimSpace(sent.ID),
 		})
 	}
@@ -196,6 +301,36 @@ func executeTeamsPostDelivery(
 	state.RemoteMessageID = remoteID
 	state.LastContent = chunks[len(chunks)-1]
 	return ack, state, ack.ValidateFor(event)
+}
+
+func ensureTeamsConversation(
+	ctx context.Context,
+	api teamsAPI,
+	cfg resolvedInstanceConfig,
+	target teamsResolvedTarget,
+) (teamsResolvedTarget, error) {
+	if strings.TrimSpace(target.ConversationID) != "" {
+		return target, nil
+	}
+	created, err := api.CreateConversation(ctx, target.ServiceURL, teamsCreateConversationRequest{
+		Bot:      teamsChannelAccount{ID: cfg.appID},
+		Members:  []teamsChannelAccount{{ID: target.UserID}},
+		IsGroup:  false,
+		TenantID: target.TenantID,
+		ChannelData: map[string]any{
+			"tenant": map[string]any{"id": target.TenantID},
+		},
+	})
+	if err != nil {
+		return teamsResolvedTarget{}, fmt.Errorf("teams: create conversation: %w", err)
+	}
+	if created == nil || strings.TrimSpace(created.ID) == "" {
+		return teamsResolvedTarget{}, &bridgesdk.TransientError{
+			Err: errors.New("teams: create conversation response omitted id"),
+		}
+	}
+	target.ConversationID = strings.TrimSpace(created.ID)
+	return target, nil
 }
 
 func executeTeamsEditDelivery(

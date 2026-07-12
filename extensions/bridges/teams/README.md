@@ -54,3 +54,20 @@ Task modules, modal lifecycle flows, and richer Teams UI parity stay out of scop
 Teams accepts up to 28,000 Unicode code points per activity. The provider splits longer terminal replies into ordered activities and adds `(N/M)` on a separate line. It preserves the conversation and reply reference for every continuation.
 
 While an agent response is still streaming, an overflowing preview stays in one editable activity. On the terminal update, the provider edits that activity, posts the remaining chunks as replies, and acknowledges the final activity ID.
+
+## Tool progress
+
+Tool progress is off by default. Enable accumulated progress for a bridge instance through `delivery_defaults`:
+
+```json
+{
+  "progress": {
+    "tool_progress": "all",
+    "grouping": "accumulate",
+    "typing": true,
+    "reactions": false
+  }
+}
+```
+
+The provider posts one markdown activity in the triggering conversation and updates that activity as progress arrives. It sends a Teams `typing` activity before active work. The bridge does not send an explicit typing-clear activity or outbound progress reactions because those operations are not exposed by its Bot Framework API surface.

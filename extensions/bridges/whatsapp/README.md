@@ -16,6 +16,23 @@ WhatsApp text messages are limited to 4,096 Unicode code points. AGH splits larg
 
 The Cloud API does not expose text-message editing. When an accumulated delivery changes, AGH posts a new chunk sequence and keeps the prior remote message ID as the replacement reference.
 
+## Tool progress
+
+Tool progress is off by default. Enable sparse progress posts for a bridge instance through `delivery_defaults`:
+
+```json
+{
+  "progress": {
+    "tool_progress": "new",
+    "grouping": "separate",
+    "typing": false,
+    "reactions": false
+  }
+}
+```
+
+The provider sends each projected status as a separate text message. The daemon applies `new`-mode tool projection before the provider receives an event. WhatsApp progress does not use edit, typing, or reaction operations. If an instance selects `grouping: "accumulate"`, updates append only the newest status line as another text message because the Cloud API cannot edit an existing text message.
+
 ## Build
 
 From the repository root:

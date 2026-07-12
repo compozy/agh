@@ -377,11 +377,6 @@ type googleOIDCClaims struct {
 	EmailVerified bool   `json:"email_verified,omitempty"`
 }
 
-type gchatResolvedTarget struct {
-	SpaceName  string
-	ThreadName string
-}
-
 type gchatThreadRef struct {
 	SpaceName  string
 	ThreadName string
@@ -404,7 +399,6 @@ func newGChatProvider(stderr io.Writer) (*gchatProvider, error) {
 		stopCh:         make(chan struct{}),
 	}
 	provider.apiFactory = provider.apiForConfig
-
 	sdkRuntime, err := bridgesdk.NewRuntime(bridgesdk.RuntimeConfig{
 		ExtensionInfo: subprocess.InitializeExtensionInfo{
 			Name:    providerGchatKey,
@@ -413,6 +407,7 @@ func newGChatProvider(stderr io.Writer) (*gchatProvider, error) {
 		},
 		Initialize:  provider.handleInitialize,
 		Deliver:     provider.handleBridgesDeliver,
+		Progress:    provider.handleBridgesProgress,
 		HealthCheck: func(context.Context, *bridgesdk.Session) error { return provider.healthCheck() },
 		Shutdown:    provider.handleShutdown,
 		Now:         func() time.Time { return provider.now() },
@@ -610,6 +605,7 @@ func (p *gchatProvider) stop() {
 		}
 		p.mu.Unlock()
 		closeGChatInboundBatchers(batchersToClose)
+		p.closeAllGChatProgressDispatchers()
 	})
 }
 
@@ -2451,7 +2447,7 @@ func (c *gchatBotClient) UpdateMessage(ctx context.Context, req gchatUpdateMessa
 	var out gchatSentMessage
 	if err := c.callJSON(
 		ctx,
-		http.MethodPut,
+		http.MethodPatch,
 		"/v1/"+strings.TrimPrefix(strings.TrimSpace(req.MessageName), "/"),
 		query,
 		map[string]any{

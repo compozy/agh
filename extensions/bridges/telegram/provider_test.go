@@ -408,6 +408,239 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 	})
 }
 
+func TestTelegramProgressDelivery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should post a formatted progress bubble in the inbound topic before reacting", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 12, 10, 0, 0, 0, time.UTC)
+		api := &fakeTelegramAPI{nextMessageID: 900}
+		provider := newTelegramProgressTestProvider(t, func() time.Time { return now }, api)
+		request := testProgressRequest(
+			"brg-progress",
+			"delivery-progress",
+			1,
+			bridgepkg.ToolProgressPhaseStarted,
+			"**Reading**",
+		)
+		request.Event.Progress.Preview = "a.b!"
+		request.Event.RoutingKey.ThreadID = "42"
+		request.Event.DeliveryTarget.ThreadID = "42"
+
+		ack, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, request)
+		if err != nil {
+			t.Fatalf("handleBridgesProgress() error = %v", err)
+		}
+		if got := ack.RemoteMessageID; got != "" {
+			t.Fatalf("ack.RemoteMessageID = %q, want empty progress ACK", got)
+		}
+		if got, want := len(api.sendRequests), 1; got != want {
+			t.Fatalf("send calls = %d, want %d", got, want)
+		}
+		if got, want := api.sendRequests[0].MessageThreadID, int64(42); got != want {
+			t.Fatalf("message_thread_id = %d, want %d", got, want)
+		}
+		if got, want := api.sendRequests[0].Text, "\U0001f527 *Reading* a\\.b\\!"; got != want {
+			t.Fatalf("send text = %q, want %q", got, want)
+		}
+		if got, want := api.sendRequests[0].ParseMode, telegramMarkdownV2; got != want {
+			t.Fatalf("parse mode = %q, want %q", got, want)
+		}
+		if got, want := len(api.chatActions), 1; got != want {
+			t.Fatalf("chat action calls = %d, want %d", got, want)
+		}
+		if got, want := api.chatActions[0].Action, "typing"; got != want {
+			t.Fatalf("chat action = %q, want %q", got, want)
+		}
+		if got, want := len(api.reactions), 1; got != want {
+			t.Fatalf("reaction calls = %d, want %d", got, want)
+		}
+		if got, want := api.reactions[0].MessageID, int64(900); got != want {
+			t.Fatalf("reaction message id = %d, want progress bubble %d", got, want)
+		}
+		if got, want := api.reactions[0].Reaction[0].Emoji, "\U0001f440"; got != want {
+			t.Fatalf("reaction emoji = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should retry a rate limited edit without dropping accumulated lines", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 12, 10, 5, 0, 0, time.UTC)
+		api := &fakeTelegramAPI{
+			nextMessageID: 905,
+			editErrors: []error{
+				&bridgesdk.RateLimitError{Err: errors.New("rate limited"), RetryAfter: time.Nanosecond},
+				nil,
+			},
+		}
+		provider := newTelegramProgressTestProvider(t, func() time.Time { return now }, api)
+		for seq, label := range []string{"Inspecting", "Reading"} {
+			request := testProgressRequest(
+				"brg-progress",
+				"delivery-retry",
+				int64(seq+1),
+				bridgepkg.ToolProgressPhaseStarted,
+				label,
+			)
+			_, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, request)
+			if err != nil {
+				t.Fatalf("handleBridgesProgress(%q) error = %v", label, err)
+			}
+		}
+		final := testLifecycleOnlyFinalRequest("brg-progress", "delivery-retry", 3)
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, final); err != nil {
+			t.Fatalf("handleBridgesProgress(final) error = %v", err)
+		}
+
+		if got, want := len(api.editRequests), 2; got != want {
+			t.Fatalf("edit attempts = %d, want %d", got, want)
+		}
+		wantText := "\U0001f527 Inspecting\n\U0001f527 Reading"
+		for index, edit := range api.editRequests {
+			if got := edit.Text; got != wantText {
+				t.Fatalf("edit[%d].Text = %q, want %q", index, got, wantText)
+			}
+			if got, want := edit.MessageID, int64(905); got != want {
+				t.Fatalf("edit[%d].MessageID = %d, want %d", index, got, want)
+			}
+		}
+	})
+
+	t.Run("Should deliver completed duration and failed detail through the progress bubble", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 12, 10, 7, 0, 0, time.UTC)
+		api := &fakeTelegramAPI{nextMessageID: 907}
+		provider := newTelegramProgressTestProvider(t, func() time.Time { return now }, api)
+		started := testProgressRequest(
+			"brg-progress",
+			"delivery-terminal-lines",
+			1,
+			bridgepkg.ToolProgressPhaseStarted,
+			"Inspecting",
+		)
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, started); err != nil {
+			t.Fatalf("handleBridgesProgress(started) error = %v", err)
+		}
+		now = now.Add(2 * time.Second)
+		completed := testProgressRequest(
+			"brg-progress",
+			"delivery-terminal-lines",
+			2,
+			bridgepkg.ToolProgressPhaseCompleted,
+			"Inspecting",
+		)
+		completed.Event.Progress.DurationMS = 31_000
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, completed); err != nil {
+			t.Fatalf("handleBridgesProgress(completed) error = %v", err)
+		}
+		now = now.Add(2 * time.Second)
+		failed := testProgressRequest(
+			"brg-progress",
+			"delivery-terminal-lines",
+			3,
+			bridgepkg.ToolProgressPhaseFailed,
+			"Writing",
+		)
+		failed.Event.Progress.Error = "permission denied"
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, failed); err != nil {
+			t.Fatalf("handleBridgesProgress(failed) error = %v", err)
+		}
+
+		if got, want := len(api.editRequests), 2; got != want {
+			t.Fatalf("progress edits = %d, want %d", got, want)
+		}
+		body := api.editRequests[len(api.editRequests)-1].Text
+		if !strings.Contains(body, "\u2705 Inspecting \u00b7 31s") ||
+			!strings.Contains(body, "\u274c Writing \u2014 permission denied") {
+			t.Fatalf("progress body = %q, want completed duration and failed detail", body)
+		}
+		if got, want := api.reactions[len(api.reactions)-1].Reaction[0].Emoji, "\u274c"; got != want {
+			t.Fatalf("failed reaction = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should detach an existing dispatcher when progress mode changes to off", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 12, 10, 8, 0, 0, time.UTC)
+		api := &fakeTelegramAPI{nextMessageID: 908}
+		provider := newTelegramProgressTestProvider(t, func() time.Time { return now }, api)
+		started := testProgressRequest(
+			"brg-progress",
+			"delivery-mode-change",
+			1,
+			bridgepkg.ToolProgressPhaseStarted,
+			"Inspecting",
+		)
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, started); err != nil {
+			t.Fatalf("handleBridgesProgress(started) error = %v", err)
+		}
+		callsBeforeOff := len(api.methods)
+		provider.mu.Lock()
+		cfg := provider.routes["brg-progress"]
+		cfg.managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"off","grouping":"accumulate","typing":false,"reactions":false}}`,
+		)
+		provider.routes["brg-progress"] = cfg
+		provider.mu.Unlock()
+
+		off := testProgressRequest(
+			"brg-progress",
+			"delivery-mode-change",
+			2,
+			bridgepkg.ToolProgressPhaseStarted,
+			"Reading",
+		)
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, off); err != nil {
+			t.Fatalf("handleBridgesProgress(off) error = %v", err)
+		}
+		if got := len(api.methods); got != callsBeforeOff {
+			t.Fatalf("platform calls after mode off = %d, want unchanged %d", got, callsBeforeOff)
+		}
+		if state := provider.deliveryState("brg-progress", "delivery-mode-change"); state.Progress != nil {
+			t.Fatal("mode-off delivery retained a progress dispatcher")
+		}
+	})
+
+	t.Run("Should make zero platform calls when progress mode is off", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 12, 10, 10, 0, 0, time.UTC)
+		api := &fakeTelegramAPI{nextMessageID: 910}
+		provider := newTelegramProgressTestProvider(t, func() time.Time { return now }, api)
+		cfg := provider.routes["brg-progress"]
+		cfg.managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"off","grouping":"accumulate","typing":false,"reactions":false}}`,
+		)
+		provider.routes["brg-progress"] = cfg
+		factoryCalls := 0
+		provider.apiFactory = func(*resolvedInstanceConfig) telegramAPI {
+			factoryCalls++
+			return api
+		}
+
+		request := testProgressRequest(
+			"brg-progress",
+			"delivery-off",
+			1,
+			bridgepkg.ToolProgressPhaseStarted,
+			"Inspecting",
+		)
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, request); err != nil {
+			t.Fatalf("handleBridgesProgress() error = %v", err)
+		}
+		if factoryCalls != 0 {
+			t.Fatalf("api factory calls = %d, want zero", factoryCalls)
+		}
+		if got := len(api.methods); got != 0 {
+			t.Fatalf("platform calls = %d, want zero", got)
+		}
+	})
+}
+
 func TestExecuteDeliveryFormatsAndChunksCumulativeText(t *testing.T) {
 	t.Parallel()
 
@@ -1883,6 +2116,8 @@ type fakeTelegramAPI struct {
 	nextMessageID int64
 	sendRequests  []telegramSendMessageRequest
 	editRequests  []telegramEditMessageTextRequest
+	chatActions   []telegramSendChatActionRequest
+	reactions     []telegramSetMessageReactionRequest
 	sendErrors    []error
 	editErrors    []error
 	sendResults   []*telegramSentMessage
@@ -1929,6 +2164,21 @@ func (f *fakeTelegramAPI) DeleteMessage(_ context.Context, _ telegramDeleteMessa
 	return nil
 }
 
+func (f *fakeTelegramAPI) SendChatAction(_ context.Context, request telegramSendChatActionRequest) error {
+	f.methods = append(f.methods, "sendChatAction")
+	f.chatActions = append(f.chatActions, request)
+	return nil
+}
+
+func (f *fakeTelegramAPI) SetMessageReaction(
+	_ context.Context,
+	request telegramSetMessageReactionRequest,
+) error {
+	f.methods = append(f.methods, "setMessageReaction")
+	f.reactions = append(f.reactions, request)
+	return nil
+}
+
 type fakeTelegramAPIError struct {
 	err error
 }
@@ -1952,6 +2202,14 @@ func (f fakeTelegramAPIError) EditMessageText(
 }
 
 func (f fakeTelegramAPIError) DeleteMessage(context.Context, telegramDeleteMessageRequest) error {
+	return f.err
+}
+
+func (f fakeTelegramAPIError) SendChatAction(context.Context, telegramSendChatActionRequest) error {
+	return f.err
+}
+
+func (f fakeTelegramAPIError) SetMessageReaction(context.Context, telegramSetMessageReactionRequest) error {
 	return f.err
 }
 
@@ -1990,7 +2248,7 @@ func newTelegramAPIServer(t *testing.T) *telegramAPIServer {
 			srv.nextMessageID++
 			srv.mu.Unlock()
 			writeTelegramAPIResponse(t, w, map[string]any{"message_id": messageID})
-		case "editMessageText", "deleteMessage":
+		case "editMessageText", "deleteMessage", "sendChatAction", "setMessageReaction":
 			writeTelegramAPIResponse(t, w, true)
 		default:
 			w.WriteHeader(http.StatusNotFound)
@@ -2190,6 +2448,72 @@ func testDeliveryRequest(
 			Final:     final,
 		},
 	}
+}
+
+func testProgressRequest(
+	instanceID string,
+	deliveryID string,
+	seq int64,
+	phase bridgepkg.ToolProgressPhase,
+	label string,
+) bridgepkg.DeliveryRequest {
+	request := testDeliveryRequest(
+		instanceID,
+		deliveryID,
+		seq,
+		bridgepkg.DeliveryEventTypeProgress,
+		false,
+	)
+	request.Event.Content = bridgepkg.MessageContent{}
+	request.Event.Progress = &bridgepkg.ToolProgress{
+		ToolCallID: fmt.Sprintf("call-%d", seq),
+		ToolID:     "agh__terminal",
+		Phase:      phase,
+		Label:      label,
+		Emoji:      "\U0001f527",
+		Index:      int(seq),
+	}
+	return request
+}
+
+func testLifecycleOnlyFinalRequest(instanceID string, deliveryID string, seq int64) bridgepkg.DeliveryRequest {
+	request := testDeliveryRequest(
+		instanceID,
+		deliveryID,
+		seq,
+		bridgepkg.DeliveryEventTypeFinal,
+		true,
+	)
+	request.Event.Content = bridgepkg.MessageContent{}
+	return request
+}
+
+func newTelegramProgressTestProvider(
+	t *testing.T,
+	now func() time.Time,
+	api telegramAPI,
+) *telegramProvider {
+	t.Helper()
+
+	provider, err := newTelegramProvider(io.Discard)
+	if err != nil {
+		t.Fatalf("newTelegramProvider() error = %v", err)
+	}
+	managed := testBridgeRuntime(now(), "brg-progress")
+	provider.now = now
+	provider.routes = map[string]resolvedInstanceConfig{
+		"brg-progress": {
+			managed:    &managed,
+			instanceID: "brg-progress",
+		},
+	}
+	provider.deliveries = make(map[string]deliveryState)
+	provider.reportedStatus = map[string]bridgepkg.BridgeStatus{
+		"brg-progress": bridgepkg.BridgeStatusReady,
+	}
+	provider.apiFactory = func(*resolvedInstanceConfig) telegramAPI { return api }
+	t.Cleanup(provider.stop)
+	return provider
 }
 
 func testDeleteRequest(

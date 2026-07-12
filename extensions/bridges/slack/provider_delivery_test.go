@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -172,6 +173,84 @@ func TestSlackContractDeliveryRecovery(t *testing.T) {
 	})
 }
 
+func TestSlackContractProgressDelivery(t *testing.T) {
+	t.Parallel()
+
+	t.Run(
+		"Should render a full progress turn and post the final answer separately in the same thread",
+		func(t *testing.T) {
+			t.Parallel()
+
+			now := time.Date(2026, 7, 12, 11, 0, 0, 0, time.UTC)
+			api := &recordingSlackAPI{}
+			provider := newSlackProgressTestProvider(t, func() time.Time { return now }, api)
+			session := &bridgesdk.Session{}
+			phases := []struct {
+				phase bridgepkg.ToolProgressPhase
+				label string
+			}{
+				{phase: bridgepkg.ToolProgressPhaseStarted, label: "Inspecting"},
+				{phase: bridgepkg.ToolProgressPhaseCompleted, label: "Inspecting"},
+				{phase: bridgepkg.ToolProgressPhaseStarted, label: "Summarizing"},
+			}
+			for index, phase := range phases {
+				request := testProgressRequest(
+					"brg-progress",
+					"delivery-full-turn",
+					int64(index+1),
+					phase.phase,
+					phase.label,
+				)
+				if phase.phase == bridgepkg.ToolProgressPhaseCompleted {
+					request.Event.Progress.DurationMS = 31_000
+				}
+				if _, err := provider.handleBridgesProgress(context.Background(), session, request); err != nil {
+					t.Fatalf("handleBridgesProgress(%d) error = %v", index, err)
+				}
+				now = now.Add(2 * time.Second)
+			}
+
+			final := testDeliveryRequest(
+				"brg-progress",
+				"delivery-full-turn",
+				4,
+				bridgepkg.DeliveryEventTypeFinal,
+				true,
+			)
+			final.Event.Content.Text = "Final **answer**"
+			if _, err := provider.handleBridgesDeliver(context.Background(), session, final); err != nil {
+				t.Fatalf("handleBridgesDeliver(final) error = %v", err)
+			}
+
+			if got, want := len(api.posts), 2; got != want {
+				t.Fatalf("post calls = %d, want progress bubble plus final answer (%d)", got, want)
+			}
+			if got, want := len(api.updates), 2; got != want {
+				t.Fatalf("progress edits = %d, want %d", got, want)
+			}
+			if got, want := api.posts[0].ThreadTS, final.Event.DeliveryTarget.ThreadID; got != want {
+				t.Fatalf("progress thread_ts = %q, want %q", got, want)
+			}
+			if got, want := api.posts[1].ThreadTS, final.Event.DeliveryTarget.ThreadID; got != want {
+				t.Fatalf("final thread_ts = %q, want %q", got, want)
+			}
+			if got, want := api.posts[1].Text, "Final *answer*"; got != want {
+				t.Fatalf("final text = %q, want %q", got, want)
+			}
+			if got := api.updates[1].Text; !strings.Contains(got, "\u2705 Inspecting \u00b7 31s") ||
+				!strings.Contains(got, "\U0001f527 Summarizing") {
+				t.Fatalf("final progress bubble = %q, want completed duration and next tool", got)
+			}
+			if got, want := api.statuses[len(api.statuses)-1].Status, ""; got != want {
+				t.Fatalf("final status = %q, want cleared status", got)
+			}
+			if state := provider.deliveryState("brg-progress", "delivery-full-turn"); state.Progress != nil {
+				t.Fatal("terminal delivery retained a progress dispatcher")
+			}
+		},
+	)
+}
+
 func assertSlackRoutableDirectEnvelope(
 	t *testing.T,
 	instance bridgepkg.BridgeInstance,
@@ -194,6 +273,9 @@ func assertSlackRoutableDirectEnvelope(
 
 type recordingSlackAPI struct {
 	posts               []slackPostMessageRequest
+	updates             []slackUpdateMessageRequest
+	statuses            []slackSetThreadStatusRequest
+	reactions           []slackAddReactionRequest
 	messages            []slackConversationMessage
 	forcedFindResult    *slackPostedMessage
 	hasForcedFindResult bool
@@ -238,10 +320,24 @@ func (a *recordingSlackAPI) FindDeliveryMessage(
 	return nil, nil
 }
 
-func (a *recordingSlackAPI) UpdateMessage(context.Context, slackUpdateMessageRequest) error {
+func (a *recordingSlackAPI) UpdateMessage(_ context.Context, request slackUpdateMessageRequest) error {
+	a.updates = append(a.updates, request)
 	return nil
 }
 
 func (a *recordingSlackAPI) DeleteMessage(context.Context, slackDeleteMessageRequest) error {
+	return nil
+}
+
+func (a *recordingSlackAPI) SetThreadStatus(
+	_ context.Context,
+	request slackSetThreadStatusRequest,
+) error {
+	a.statuses = append(a.statuses, request)
+	return nil
+}
+
+func (a *recordingSlackAPI) AddReaction(_ context.Context, request slackAddReactionRequest) error {
+	a.reactions = append(a.reactions, request)
 	return nil
 }

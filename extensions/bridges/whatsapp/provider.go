@@ -239,23 +239,6 @@ type whatsappGraphAPIError struct {
 
 type whatsappVerifyChallenge string
 
-type whatsappSendMessageRequest struct {
-	MessagingProduct string `json:"messaging_product"`
-	RecipientType    string `json:"recipient_type,omitempty"`
-	To               string `json:"to"`
-	Type             string `json:"type"`
-	Text             struct {
-		Body       string `json:"body"`
-		PreviewURL bool   `json:"preview_url"`
-	} `json:"text"`
-}
-
-type whatsappSendMessageResponse struct {
-	Messages []struct {
-		ID string `json:"id,omitempty"`
-	} `json:"messages,omitempty"`
-}
-
 type whatsappAPI interface {
 	GetPhoneNumber(context.Context, string) (*whatsappPhoneNumber, error)
 	SendTextMessage(
@@ -297,7 +280,6 @@ func newWhatsAppProvider(stderr io.Writer) (*whatsappProvider, error) {
 			},
 		}
 	}
-
 	sdkRuntime, err := bridgesdk.NewRuntime(bridgesdk.RuntimeConfig{
 		ExtensionInfo: subprocess.InitializeExtensionInfo{
 			Name:    providerWhatsappKey,
@@ -306,6 +288,7 @@ func newWhatsAppProvider(stderr io.Writer) (*whatsappProvider, error) {
 		},
 		Initialize:  provider.handleInitialize,
 		Deliver:     provider.handleBridgesDeliver,
+		Progress:    provider.handleBridgesProgress,
 		HealthCheck: func(context.Context, *bridgesdk.Session) error { return provider.healthCheck() },
 		Shutdown:    provider.handleShutdown,
 		Now:         func() time.Time { return provider.now() },
@@ -477,7 +460,6 @@ func (p *whatsappProvider) stop() {
 	p.stopOnce.Do(func() {
 		close(p.stopCh)
 		p.mu.Lock()
-		defer p.mu.Unlock()
 		for id, cfg := range p.routes {
 			if cfg.batcher != nil {
 				cfg.batcher.Close()
@@ -485,6 +467,8 @@ func (p *whatsappProvider) stop() {
 				p.routes[id] = cfg
 			}
 		}
+		p.mu.Unlock()
+		p.closeAllWhatsAppProgressDispatchers()
 	})
 }
 
@@ -1025,7 +1009,7 @@ func (p *whatsappProvider) configForInstance(instanceID string) (resolvedInstanc
 		)
 	}
 	if cfg.configError != nil {
-		return resolvedInstanceConfig{}, fmt.Errorf(
+		return cfg, fmt.Errorf(
 			"%w: %q: %w",
 			errWhatsAppInstanceConfigInvalid,
 			trimmedInstanceID,
@@ -1050,7 +1034,7 @@ func (p *whatsappProvider) waitForInstanceConfig(
 			return cfg, nil
 		}
 		if !errors.Is(err, errWhatsAppInstanceConfigUnavailable) {
-			return resolvedInstanceConfig{}, err
+			return cfg, err
 		}
 		if time.Now().After(deadline) {
 			return resolvedInstanceConfig{}, err

@@ -498,6 +498,257 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 	})
 }
 
+func TestSlackProgressDelivery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should post a formatted progress bubble in the inbound thread before reacting", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 12, 10, 0, 0, 0, time.UTC)
+		api := &fakeSlackAPI{nextTS: "1775866900.100000"}
+		provider := newSlackProgressTestProvider(t, func() time.Time { return now }, api)
+		request := testProgressRequest(
+			"brg-progress",
+			"delivery-progress",
+			1,
+			bridgepkg.ToolProgressPhaseStarted,
+			"**Reading**",
+		)
+		request.Event.Progress.Preview = "A & <B>"
+
+		ack, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, request)
+		if err != nil {
+			t.Fatalf("handleBridgesProgress() error = %v", err)
+		}
+		if got := ack.RemoteMessageID; got != "" {
+			t.Fatalf("ack.RemoteMessageID = %q, want empty progress ACK", got)
+		}
+		if got, want := len(api.posts), 1; got != want {
+			t.Fatalf("post calls = %d, want %d", got, want)
+		}
+		if got, want := api.posts[0].ThreadTS, request.Event.DeliveryTarget.ThreadID; got != want {
+			t.Fatalf("post thread_ts = %q, want %q", got, want)
+		}
+		if got, want := api.posts[0].Text, "\U0001f527 *Reading* A &amp; &lt;B&gt;"; got != want {
+			t.Fatalf("post text = %q, want %q", got, want)
+		}
+		if got, want := len(api.statuses), 1; got != want {
+			t.Fatalf("status calls = %d, want %d", got, want)
+		}
+		if got, want := api.statuses[0].Status, "is thinking..."; got != want {
+			t.Fatalf("status = %q, want %q", got, want)
+		}
+		if got, want := len(api.reactions), 1; got != want {
+			t.Fatalf("reaction calls = %d, want %d", got, want)
+		}
+		if got, want := api.reactions[0].Timestamp, "1775866900.100000"; got != want {
+			t.Fatalf("reaction timestamp = %q, want progress bubble %q", got, want)
+		}
+		if got, want := api.reactions[0].Name, "eyes"; got != want {
+			t.Fatalf("reaction name = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should retry a rate limited edit without dropping accumulated lines", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 12, 10, 5, 0, 0, time.UTC)
+		api := &fakeSlackAPI{
+			nextTS: "1775866905.100000",
+			updateErrors: []error{
+				&bridgesdk.RateLimitError{Err: errors.New("rate limited"), RetryAfter: time.Nanosecond},
+				nil,
+			},
+		}
+		provider := newSlackProgressTestProvider(t, func() time.Time { return now }, api)
+		for seq, label := range []string{"Inspecting", "Reading"} {
+			request := testProgressRequest(
+				"brg-progress",
+				"delivery-retry",
+				int64(seq+1),
+				bridgepkg.ToolProgressPhaseStarted,
+				label,
+			)
+			_, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, request)
+			if err != nil {
+				t.Fatalf("handleBridgesProgress(%q) error = %v", label, err)
+			}
+		}
+		final := testLifecycleOnlyFinalRequest("brg-progress", "delivery-retry", 3)
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, final); err != nil {
+			t.Fatalf("handleBridgesProgress(final) error = %v", err)
+		}
+
+		if got, want := len(api.updates), 2; got != want {
+			t.Fatalf("update attempts = %d, want %d", got, want)
+		}
+		wantText := "\U0001f527 Inspecting\n\U0001f527 Reading"
+		for index, update := range api.updates {
+			if got := update.Text; got != wantText {
+				t.Fatalf("update[%d].Text = %q, want %q", index, got, wantText)
+			}
+			if got, want := update.TS, "1775866905.100000"; got != want {
+				t.Fatalf("update[%d].TS = %q, want %q", index, got, want)
+			}
+		}
+	})
+
+	t.Run("Should deliver completed duration and failed detail through the progress bubble", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 12, 10, 7, 0, 0, time.UTC)
+		api := &fakeSlackAPI{nextTS: "1775866907.100000"}
+		provider := newSlackProgressTestProvider(t, func() time.Time { return now }, api)
+		started := testProgressRequest(
+			"brg-progress",
+			"delivery-terminal-lines",
+			1,
+			bridgepkg.ToolProgressPhaseStarted,
+			"Inspecting",
+		)
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, started); err != nil {
+			t.Fatalf("handleBridgesProgress(started) error = %v", err)
+		}
+		now = now.Add(2 * time.Second)
+		completed := testProgressRequest(
+			"brg-progress",
+			"delivery-terminal-lines",
+			2,
+			bridgepkg.ToolProgressPhaseCompleted,
+			"Inspecting",
+		)
+		completed.Event.Progress.DurationMS = 31_000
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, completed); err != nil {
+			t.Fatalf("handleBridgesProgress(completed) error = %v", err)
+		}
+		now = now.Add(2 * time.Second)
+		failed := testProgressRequest(
+			"brg-progress",
+			"delivery-terminal-lines",
+			3,
+			bridgepkg.ToolProgressPhaseFailed,
+			"Writing",
+		)
+		failed.Event.Progress.Error = "permission denied"
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, failed); err != nil {
+			t.Fatalf("handleBridgesProgress(failed) error = %v", err)
+		}
+
+		if got, want := len(api.updates), 2; got != want {
+			t.Fatalf("progress edits = %d, want %d", got, want)
+		}
+		body := api.updates[len(api.updates)-1].Text
+		if !strings.Contains(body, "\u2705 Inspecting \u00b7 31s") ||
+			!strings.Contains(body, "\u274c Writing \u2014 permission denied") {
+			t.Fatalf("progress body = %q, want completed duration and failed detail", body)
+		}
+		if got, want := api.reactions[len(api.reactions)-1].Name, "x"; got != want {
+			t.Fatalf("failed reaction = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should detach an existing dispatcher when progress mode changes to off", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 12, 10, 8, 0, 0, time.UTC)
+		api := &fakeSlackAPI{nextTS: "1775866908.100000"}
+		provider := newSlackProgressTestProvider(t, func() time.Time { return now }, api)
+		started := testProgressRequest(
+			"brg-progress",
+			"delivery-mode-change",
+			1,
+			bridgepkg.ToolProgressPhaseStarted,
+			"Inspecting",
+		)
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, started); err != nil {
+			t.Fatalf("handleBridgesProgress(started) error = %v", err)
+		}
+		callsBeforeOff := len(api.methods)
+		provider.mu.Lock()
+		cfg := provider.routes["brg-progress"]
+		cfg.managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"off","grouping":"accumulate","typing":false,"reactions":false}}`,
+		)
+		provider.routes["brg-progress"] = cfg
+		provider.mu.Unlock()
+
+		off := testProgressRequest(
+			"brg-progress",
+			"delivery-mode-change",
+			2,
+			bridgepkg.ToolProgressPhaseStarted,
+			"Reading",
+		)
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, off); err != nil {
+			t.Fatalf("handleBridgesProgress(off) error = %v", err)
+		}
+		if got := len(api.methods); got != callsBeforeOff {
+			t.Fatalf("platform calls after mode off = %d, want unchanged %d", got, callsBeforeOff)
+		}
+		if state := provider.deliveryState("brg-progress", "delivery-mode-change"); state.Progress != nil {
+			t.Fatal("mode-off delivery retained a progress dispatcher")
+		}
+	})
+
+	t.Run("Should make zero platform calls when progress mode is off", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 12, 10, 10, 0, 0, time.UTC)
+		api := &fakeSlackAPI{nextTS: "unused"}
+		provider := newSlackProgressTestProvider(t, func() time.Time { return now }, api)
+		cfg := provider.routes["brg-progress"]
+		cfg.managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"off","grouping":"accumulate","typing":false,"reactions":false}}`,
+		)
+		provider.routes["brg-progress"] = cfg
+		factoryCalls := 0
+		provider.apiFactory = func(*resolvedInstanceConfig) slackAPI {
+			factoryCalls++
+			return api
+		}
+
+		request := testProgressRequest(
+			"brg-progress",
+			"delivery-off",
+			1,
+			bridgepkg.ToolProgressPhaseStarted,
+			"Inspecting",
+		)
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, request); err != nil {
+			t.Fatalf("handleBridgesProgress() error = %v", err)
+		}
+		if factoryCalls != 0 {
+			t.Fatalf("api factory calls = %d, want zero", factoryCalls)
+		}
+		if got := len(api.methods); got != 0 {
+			t.Fatalf("platform calls = %d, want zero", got)
+		}
+	})
+}
+
+func TestSlackDeleteDeliveryPayload(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should delete the exact referenced Slack message", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeSlackAPI{}
+		request := testDeleteRequest("brg-slack", "delivery-delete", 1, "C456:1775866999.100000")
+		if _, _, err := executeDelivery(context.Background(), api, request, deliveryState{}); err != nil {
+			t.Fatalf("executeDelivery(delete) error = %v", err)
+		}
+		if got, want := len(api.deletes), 1; got != want {
+			t.Fatalf("delete calls = %d, want %d", got, want)
+		}
+		if got, want := api.deletes[0].Channel, "C456"; got != want {
+			t.Fatalf("delete channel = %q, want %q", got, want)
+		}
+		if got, want := api.deletes[0].TS, "1775866999.100000"; got != want {
+			t.Fatalf("delete ts = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestExecuteDeliveryFormatsAndChunksCumulativeText(t *testing.T) {
 	t.Parallel()
 
@@ -2301,11 +2552,15 @@ func TestRunRejectsUnsupportedCommand(t *testing.T) {
 }
 
 type fakeSlackAPI struct {
-	methods     []string
-	nextTS      string
-	postResults []*slackPostedMessage
-	posts       []slackPostMessageRequest
-	updates     []slackUpdateMessageRequest
+	methods      []string
+	nextTS       string
+	postResults  []*slackPostedMessage
+	updateErrors []error
+	posts        []slackPostMessageRequest
+	updates      []slackUpdateMessageRequest
+	deletes      []slackDeleteMessageRequest
+	statuses     []slackSetThreadStatusRequest
+	reactions    []slackAddReactionRequest
 }
 
 func (f fakeSlackAPI) AuthTest(context.Context) (*slackAuthIdentity, error) {
@@ -2335,11 +2590,28 @@ func (f *fakeSlackAPI) PostMessage(
 func (f *fakeSlackAPI) UpdateMessage(_ context.Context, request slackUpdateMessageRequest) error {
 	f.methods = append(f.methods, "chat.update")
 	f.updates = append(f.updates, request)
+	callIndex := len(f.updates) - 1
+	if callIndex < len(f.updateErrors) {
+		return f.updateErrors[callIndex]
+	}
 	return nil
 }
 
-func (f *fakeSlackAPI) DeleteMessage(context.Context, slackDeleteMessageRequest) error {
+func (f *fakeSlackAPI) DeleteMessage(_ context.Context, request slackDeleteMessageRequest) error {
 	f.methods = append(f.methods, "chat.delete")
+	f.deletes = append(f.deletes, request)
+	return nil
+}
+
+func (f *fakeSlackAPI) SetThreadStatus(_ context.Context, request slackSetThreadStatusRequest) error {
+	f.methods = append(f.methods, "assistant.threads.setStatus")
+	f.statuses = append(f.statuses, request)
+	return nil
+}
+
+func (f *fakeSlackAPI) AddReaction(_ context.Context, request slackAddReactionRequest) error {
+	f.methods = append(f.methods, "reactions.add")
+	f.reactions = append(f.reactions, request)
 	return nil
 }
 
@@ -2360,6 +2632,14 @@ func (f fakeSlackAPIError) UpdateMessage(context.Context, slackUpdateMessageRequ
 }
 
 func (f fakeSlackAPIError) DeleteMessage(context.Context, slackDeleteMessageRequest) error {
+	return f.err
+}
+
+func (f fakeSlackAPIError) SetThreadStatus(context.Context, slackSetThreadStatusRequest) error {
+	return f.err
+}
+
+func (f fakeSlackAPIError) AddReaction(context.Context, slackAddReactionRequest) error {
 	return f.err
 }
 
@@ -2397,6 +2677,8 @@ func newSlackAPIServer(t *testing.T) *slackAPIServer {
 		case "chat.update":
 			writeSlackAPIResponse(t, w, map[string]any{"ts": body["ts"]})
 		case "chat.delete":
+			writeSlackAPIResponse(t, w, map[string]any{})
+		case "assistant.threads.setStatus", "reactions.add":
 			writeSlackAPIResponse(t, w, map[string]any{})
 		default:
 			w.WriteHeader(http.StatusNotFound)
@@ -2597,6 +2879,72 @@ func testDeliveryRequest(
 			Final:     final,
 		},
 	}
+}
+
+func testProgressRequest(
+	instanceID string,
+	deliveryID string,
+	seq int64,
+	phase bridgepkg.ToolProgressPhase,
+	label string,
+) bridgepkg.DeliveryRequest {
+	request := testDeliveryRequest(
+		instanceID,
+		deliveryID,
+		seq,
+		bridgepkg.DeliveryEventTypeProgress,
+		false,
+	)
+	request.Event.Content = bridgepkg.MessageContent{}
+	request.Event.Progress = &bridgepkg.ToolProgress{
+		ToolCallID: "call-" + strconv.FormatInt(seq, 10),
+		ToolID:     "agh__terminal",
+		Phase:      phase,
+		Label:      label,
+		Emoji:      "\U0001f527",
+		Index:      int(seq),
+	}
+	return request
+}
+
+func testLifecycleOnlyFinalRequest(instanceID string, deliveryID string, seq int64) bridgepkg.DeliveryRequest {
+	request := testDeliveryRequest(
+		instanceID,
+		deliveryID,
+		seq,
+		bridgepkg.DeliveryEventTypeFinal,
+		true,
+	)
+	request.Event.Content = bridgepkg.MessageContent{}
+	return request
+}
+
+func newSlackProgressTestProvider(
+	t *testing.T,
+	now func() time.Time,
+	api slackAPI,
+) *slackProvider {
+	t.Helper()
+
+	provider, err := newSlackProvider(io.Discard)
+	if err != nil {
+		t.Fatalf("newSlackProvider() error = %v", err)
+	}
+	managed := testBridgeRuntime(now(), "brg-progress")
+	provider.now = now
+	provider.routes = map[string]resolvedInstanceConfig{
+		"brg-progress": {
+			managed:    &managed,
+			instanceID: "brg-progress",
+		},
+	}
+	provider.deliveries = make(map[string]deliveryState)
+	provider.reportedStatus = map[string]bridgepkg.BridgeStatus{
+		"brg-progress": bridgepkg.BridgeStatusReady,
+	}
+	provider.apiFactory = func(*resolvedInstanceConfig) slackAPI { return api }
+	t.Cleanup(provider.stop)
+	return provider
 }
 
 func testDeleteRequest(

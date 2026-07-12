@@ -32,6 +32,24 @@
                             "content_text": "terminal command completed"
                         },
                         {
+                            "kind": "tool_call",
+                            "tool_call_id": "bridge-runtime-tools-2",
+                            "title": "agh__tool_list",
+                            "tool_kind": "read",
+                            "raw_input": {},
+                            "status": "completed",
+                            "content_text": "tool catalog listed"
+                        },
+                        {
+                            "kind": "tool_call",
+                            "tool_call_id": "bridge-runtime-skills-3",
+                            "title": "agh__skill_list",
+                            "tool_kind": "read",
+                            "raw_input": {},
+                            "status": "failed",
+                            "content_text": "fixture permission denied"
+                        },
+                        {
                             "kind": "assistant",
                             "chunks": ["Bridge summary: ", "initial route handled."]
                         }

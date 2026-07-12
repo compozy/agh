@@ -424,6 +424,28 @@ func TestProgressAccumulatorGroupingAndThrottle(t *testing.T) {
 func TestProgressAccumulatorDrivesPhaseAffordances(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should apply a reaction only after the progress bubble exists", func(t *testing.T) {
+		t.Parallel()
+
+		sink := &progressRecordingSink{}
+		config := progressTestConfig()
+		config.Typing = true
+		config.Reactions = true
+		accumulator := NewProgressAccumulator(config, sink, nil)
+
+		if err := accumulator.OnProgress(
+			testutil.Context(t),
+			progressTestEventWithPhase(1, bridgepkg.ToolProgressPhaseStarted),
+		); err != nil {
+			t.Fatalf("OnProgress(started) error = %v", err)
+		}
+
+		want := []string{"typing:true", "post", "reaction:👀"}
+		if got := sink.SequenceCalls(); fmt.Sprint(got) != fmt.Sprint(want) {
+			t.Fatalf("progress affordance sequence = %v, want %v", got, want)
+		}
+	})
+
 	t.Run("Should drive typing and reaction hooks from progress phases", func(t *testing.T) {
 		t.Parallel()
 
@@ -525,6 +547,318 @@ func TestProgressAccumulatorDrivesPhaseAffordances(t *testing.T) {
 		}
 		if calls := sink.TotalCalls(); calls != 0 {
 			t.Fatalf("platform calls = %d, want 0", calls)
+		}
+	})
+}
+
+func TestProgressDispatcherSchedulesPendingEdit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should flush all pending lines when the throttle window expires", func(t *testing.T) {
+		t.Parallel()
+
+		clock := progressTestClock{current: time.Unix(7_250, 0)}
+		scheduler := &progressTestScheduler{}
+		sink := &progressRecordingSink{}
+		accumulator := NewProgressAccumulator(progressTestConfig(), sink, clock.Now)
+		dispatcher := NewProgressDispatcher(
+			accumulator,
+			WithProgressSchedule(scheduler.Schedule),
+		)
+		t.Cleanup(dispatcher.Close)
+		ctx := testutil.Context(t)
+
+		if err := dispatcher.OnProgress(ctx, progressTestEvent(1, "Inspecting")); err != nil {
+			t.Fatalf("OnProgress(first) error = %v", err)
+		}
+		clock.Advance(500 * time.Millisecond)
+		if err := dispatcher.OnProgress(ctx, progressTestEvent(2, "Reading")); err != nil {
+			t.Fatalf("OnProgress(second) error = %v", err)
+		}
+		if got := sink.EditCalls(); len(got) != 0 {
+			t.Fatalf("Edit calls before scheduled flush = %v, want none", got)
+		}
+		if got, want := scheduler.Delay(), time.Second; got != want {
+			t.Fatalf("scheduled delay = %s, want %s", got, want)
+		}
+
+		clock.Advance(time.Second)
+		scheduler.Run()
+
+		edits := sink.EditCalls()
+		if got, want := len(edits), 1; got != want {
+			t.Fatalf("Edit calls after scheduled flush = %d, want %d", got, want)
+		}
+		if got, want := edits[0].text, "🔧 Inspecting item-1\n🔧 Reading item-2"; got != want {
+			t.Fatalf("scheduled edit text = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should cancel a scheduled edit when content closes the bubble", func(t *testing.T) {
+		t.Parallel()
+
+		clock := progressTestClock{current: time.Unix(7_300, 0)}
+		scheduler := &progressTestScheduler{}
+		sink := &progressRecordingSink{}
+		accumulator := NewProgressAccumulator(progressTestConfig(), sink, clock.Now)
+		dispatcher := NewProgressDispatcher(
+			accumulator,
+			WithProgressSchedule(scheduler.Schedule),
+		)
+		t.Cleanup(dispatcher.Close)
+		ctx := testutil.Context(t)
+
+		if err := dispatcher.OnProgress(ctx, progressTestEvent(1, "Inspecting")); err != nil {
+			t.Fatalf("OnProgress(first) error = %v", err)
+		}
+		if err := dispatcher.OnProgress(ctx, progressTestEvent(2, "Reading")); err != nil {
+			t.Fatalf("OnProgress(second) error = %v", err)
+		}
+		if err := dispatcher.OnContent(ctx); err != nil {
+			t.Fatalf("OnContent() error = %v", err)
+		}
+		if !scheduler.Canceled() {
+			t.Fatal("scheduled flush canceled = false, want true")
+		}
+
+		clock.Advance(defaultProgressEditInterval)
+		scheduler.Run()
+		if got, want := len(sink.EditCalls()), 1; got != want {
+			t.Fatalf("Edit calls after content and canceled timer = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should retain and expose an asynchronous edit failure for retry", func(t *testing.T) {
+		t.Parallel()
+
+		clock := progressTestClock{current: time.Unix(7_350, 0)}
+		scheduler := &progressTestScheduler{}
+		sink := newProgressFailingSink()
+		wantErr := errors.New("scheduled edit unavailable")
+		var observedErr error
+		accumulator := NewProgressAccumulator(progressTestConfig(), sink, clock.Now)
+		dispatcher := NewProgressDispatcher(
+			accumulator,
+			WithProgressSchedule(scheduler.Schedule),
+			WithProgressAsyncErrorHandler(func(err error) {
+				observedErr = err
+			}),
+		)
+		t.Cleanup(dispatcher.Close)
+		ctx := testutil.Context(t)
+
+		if err := dispatcher.OnProgress(ctx, progressTestEvent(1, "Inspecting")); err != nil {
+			t.Fatalf("OnProgress(first) error = %v", err)
+		}
+		if err := dispatcher.OnProgress(ctx, progressTestEvent(2, "Reading")); err != nil {
+			t.Fatalf("OnProgress(second) error = %v", err)
+		}
+		sink.editError = wantErr
+		clock.Advance(defaultProgressEditInterval)
+		scheduler.Run()
+
+		if !errors.Is(observedErr, wantErr) {
+			t.Fatalf("observed async error = %v, want wrapping %v", observedErr, wantErr)
+		}
+		if !errors.Is(dispatcher.LastAsyncError(), wantErr) {
+			t.Fatalf("LastAsyncError() = %v, want wrapping %v", dispatcher.LastAsyncError(), wantErr)
+		}
+
+		sink.editError = nil
+		if err := dispatcher.Flush(ctx); err != nil {
+			t.Fatalf("Flush(retry) error = %v", err)
+		}
+		if got, want := len(sink.recording.EditCalls()), 1; got != want {
+			t.Fatalf("successful edit calls after retry = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should cancel pending work and reject events after close", func(t *testing.T) {
+		t.Parallel()
+
+		clock := progressTestClock{current: time.Unix(7_400, 0)}
+		scheduler := &progressTestScheduler{}
+		sink := &progressRecordingSink{}
+		accumulator := NewProgressAccumulator(progressTestConfig(), sink, clock.Now)
+		dispatcher := NewProgressDispatcher(
+			accumulator,
+			WithProgressSchedule(scheduler.Schedule),
+		)
+		ctx := testutil.Context(t)
+
+		if err := dispatcher.OnProgress(ctx, progressTestEvent(1, "Inspecting")); err != nil {
+			t.Fatalf("OnProgress(first) error = %v", err)
+		}
+		if err := dispatcher.OnProgress(ctx, progressTestEvent(2, "Reading")); err != nil {
+			t.Fatalf("OnProgress(second) error = %v", err)
+		}
+		dispatcher.Close()
+		if !scheduler.Canceled() {
+			t.Fatal("scheduled flush canceled by Close = false, want true")
+		}
+		if err := dispatcher.OnProgress(ctx, progressTestEvent(3, "Summarizing")); err == nil ||
+			!strings.Contains(err.Error(), "closed") {
+			t.Fatalf("OnProgress(after Close) error = %v, want closed dispatcher", err)
+		}
+		scheduler.Run()
+		if got := sink.EditCalls(); len(got) != 0 {
+			t.Fatalf("Edit calls after Close = %v, want none", got)
+		}
+	})
+
+	t.Run("Should cancel an active scheduled flush before close returns", func(t *testing.T) {
+		t.Parallel()
+
+		clock := progressTestClock{current: time.Unix(7_450, 0)}
+		scheduler := &progressTestScheduler{}
+		sink := newProgressCancelAwareSink()
+		asyncErrors := make(chan error, 1)
+		accumulator := NewProgressAccumulator(progressTestConfig(), sink, clock.Now)
+		dispatcher := NewProgressDispatcher(
+			accumulator,
+			WithProgressSchedule(scheduler.Schedule),
+			WithProgressAsyncTimeout(time.Second),
+			WithProgressAsyncErrorHandler(func(err error) {
+				asyncErrors <- err
+			}),
+		)
+		t.Cleanup(dispatcher.Close)
+		ctx := testutil.Context(t)
+
+		if err := dispatcher.OnProgress(ctx, progressTestEvent(1, "Inspecting")); err != nil {
+			t.Fatalf("OnProgress(first) error = %v", err)
+		}
+		clock.Advance(500 * time.Millisecond)
+		if err := dispatcher.OnProgress(ctx, progressTestEvent(2, "Reading")); err != nil {
+			t.Fatalf("OnProgress(second) error = %v", err)
+		}
+		clock.Advance(time.Second)
+
+		runDone := make(chan struct{})
+		go func() {
+			defer close(runDone)
+			scheduler.Run()
+		}()
+		select {
+		case <-sink.editStarted:
+		case <-time.After(time.Second):
+			t.Fatal("scheduled edit did not start")
+		}
+
+		closeDone := make(chan struct{})
+		go func() {
+			defer close(closeDone)
+			dispatcher.Close()
+		}()
+		select {
+		case <-closeDone:
+		case <-time.After(250 * time.Millisecond):
+			t.Fatal("Close() did not cancel the active scheduled edit")
+		}
+		select {
+		case <-sink.editCanceled:
+		case <-time.After(time.Second):
+			t.Fatal("active scheduled edit context was not canceled")
+		}
+		select {
+		case <-runDone:
+		case <-time.After(time.Second):
+			t.Fatal("scheduled callback did not finish after Close()")
+		}
+		select {
+		case err := <-asyncErrors:
+			t.Fatalf("intentional shutdown cancellation reported as async error: %v", err)
+		default:
+		}
+	})
+
+	t.Run("Should keep a fired callback registered until it finishes", func(t *testing.T) {
+		t.Parallel()
+
+		clock := progressTestClock{current: time.Unix(7_475, 0)}
+		scheduler := &progressTestScheduler{}
+		sink := &progressRecordingSink{}
+		accumulator := NewProgressAccumulator(progressTestConfig(), sink, clock.Now)
+		dispatcher := NewProgressDispatcher(
+			accumulator,
+			WithProgressSchedule(scheduler.Schedule),
+		)
+		ctx := testutil.Context(t)
+
+		if err := dispatcher.OnProgress(ctx, progressTestEvent(1, "Inspecting")); err != nil {
+			t.Fatalf("OnProgress(first) error = %v", err)
+		}
+		clock.Advance(500 * time.Millisecond)
+		if err := dispatcher.OnProgress(ctx, progressTestEvent(2, "Reading")); err != nil {
+			t.Fatalf("OnProgress(second) error = %v", err)
+		}
+		firedCallback := scheduler.Claim()
+		if firedCallback == nil {
+			t.Fatal("scheduled callback claim = nil, want fired callback")
+		}
+
+		if err := dispatcher.Flush(ctx); err != nil {
+			t.Fatalf("Flush() after timer fired error = %v", err)
+		}
+		if err := dispatcher.OnProgress(ctx, progressTestEvent(3, "Summarizing")); err != nil {
+			t.Fatalf("OnProgress(third) error = %v", err)
+		}
+
+		scheduleCountWhileFired := scheduler.ScheduleCount()
+		firedCallback()
+		scheduleCountAfterCallback := scheduler.ScheduleCount()
+		dispatcher.Close()
+		if got, want := scheduleCountWhileFired, 1; got != want {
+			t.Fatalf("scheduled callback generations = %d, want %d while fired callback remains active", got, want)
+		}
+		if got, want := scheduleCountAfterCallback, 2; got != want {
+			t.Fatalf("scheduled callback generations = %d, want %d after dirty content is requeued", got, want)
+		}
+	})
+
+	t.Run("Should revalidate throttle when a fired callback follows a synchronous edit", func(t *testing.T) {
+		t.Parallel()
+
+		clock := progressTestClock{current: time.Unix(7_490, 0)}
+		scheduler := &progressTestScheduler{}
+		sink := &progressRecordingSink{}
+		accumulator := NewProgressAccumulator(progressTestConfig(), sink, clock.Now)
+		dispatcher := NewProgressDispatcher(
+			accumulator,
+			WithProgressSchedule(scheduler.Schedule),
+		)
+		t.Cleanup(dispatcher.Close)
+		ctx := testutil.Context(t)
+
+		if err := dispatcher.OnProgress(ctx, progressTestEvent(1, "Inspecting")); err != nil {
+			t.Fatalf("OnProgress(first) error = %v", err)
+		}
+		clock.Advance(500 * time.Millisecond)
+		if err := dispatcher.OnProgress(ctx, progressTestEvent(2, "Reading")); err != nil {
+			t.Fatalf("OnProgress(second) error = %v", err)
+		}
+		firedCallback := scheduler.Claim()
+		if firedCallback == nil {
+			t.Fatal("scheduled callback claim = nil, want fired callback")
+		}
+
+		clock.Advance(time.Second)
+		if err := dispatcher.OnProgress(ctx, progressTestEvent(3, "Summarizing")); err != nil {
+			t.Fatalf("OnProgress(third) error = %v", err)
+		}
+		if got, want := len(sink.EditCalls()), 1; got != want {
+			t.Fatalf("synchronous edits = %d, want %d after interval elapsed", got, want)
+		}
+		if err := dispatcher.OnProgress(ctx, progressTestEvent(4, "Finalizing")); err != nil {
+			t.Fatalf("OnProgress(fourth) error = %v", err)
+		}
+
+		firedCallback()
+		if got, want := len(sink.EditCalls()), 1; got != want {
+			t.Fatalf("edits after stale callback = %d, want %d before next interval", got, want)
+		}
+		if got, want := scheduler.ScheduleCount(), 2; got != want {
+			t.Fatalf("scheduled callback generations = %d, want %d with dirty content requeued", got, want)
 		}
 	})
 }
@@ -968,6 +1302,37 @@ func TestProgressAccumulatorPropagatesSinkFailures(t *testing.T) {
 		}
 	})
 
+	t.Run("Should close the old bubble when only typing cleanup fails", func(t *testing.T) {
+		t.Parallel()
+
+		wantErr := errors.New("typing stop unavailable")
+		sink := newProgressFailingSink()
+		sink.typingStopError = wantErr
+		config := progressTestConfig()
+		config.ToolProgress = bridgepkg.ProgressModeNew
+		config.Typing = true
+		accumulator := NewProgressAccumulator(config, sink, nil)
+		ctx := testutil.Context(t)
+		if err := accumulator.OnProgress(ctx, progressTestEvent(1, "Inspecting")); err != nil {
+			t.Fatalf("OnProgress(first) error = %v", err)
+		}
+
+		err := accumulator.OnContent(ctx)
+		assertProgressOperationError(t, err, wantErr, "set progress typing state")
+		sink.typingStopError = nil
+		if err := accumulator.OnProgress(ctx, progressTestEvent(2, "Reading")); err != nil {
+			t.Fatalf("OnProgress(after content cleanup failure) error = %v", err)
+		}
+
+		posts := sink.recording.PostCalls()
+		if got, want := len(posts), 2; got != want {
+			t.Fatalf("Post calls = %d, want %d fresh bubbles", got, want)
+		}
+		if posts[0].remoteID == posts[1].remoteID {
+			t.Fatalf("post remote IDs = %q and %q, want distinct bubbles", posts[0].remoteID, posts[1].remoteID)
+		}
+	})
+
 	t.Run("Should preserve the current bubble when an overflow flush edit fails", func(t *testing.T) {
 		t.Parallel()
 
@@ -1103,6 +1468,71 @@ type progressRecordingSink struct {
 	edits     []progressEditCall
 	typing    []bool
 	reactions []string
+	sequence  []string
+}
+
+type progressTestScheduler struct {
+	mu            sync.Mutex
+	delay         time.Duration
+	callback      func()
+	canceled      bool
+	ran           bool
+	scheduleCount int
+}
+
+func (s *progressTestScheduler) Schedule(delay time.Duration, callback func()) ProgressCancel {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.delay = delay
+	s.callback = callback
+	s.canceled = false
+	s.ran = false
+	s.scheduleCount++
+	return func() bool {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.ran || s.canceled {
+			return false
+		}
+		s.canceled = true
+		return true
+	}
+}
+
+func (s *progressTestScheduler) ScheduleCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.scheduleCount
+}
+
+func (s *progressTestScheduler) Delay() time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.delay
+}
+
+func (s *progressTestScheduler) Canceled() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.canceled
+}
+
+func (s *progressTestScheduler) Run() {
+	callback := s.Claim()
+	if callback != nil {
+		callback()
+	}
+}
+
+func (s *progressTestScheduler) Claim() func() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.canceled || s.ran || s.callback == nil {
+		return nil
+	}
+	callback := s.callback
+	s.ran = true
+	return callback
 }
 
 type progressFailingSink struct {
@@ -1113,6 +1543,38 @@ type progressFailingSink struct {
 	typingStopError error
 	reactionError   error
 	emptyRemoteID   bool
+}
+
+type progressCancelAwareSink struct {
+	*progressRecordingSink
+	editStarted  chan struct{}
+	editCanceled chan struct{}
+	startOnce    sync.Once
+	cancelOnce   sync.Once
+}
+
+func newProgressCancelAwareSink() *progressCancelAwareSink {
+	return &progressCancelAwareSink{
+		progressRecordingSink: &progressRecordingSink{},
+		editStarted:           make(chan struct{}),
+		editCanceled:          make(chan struct{}),
+	}
+}
+
+func (s *progressCancelAwareSink) Edit(
+	ctx context.Context,
+	_ bridgepkg.DeliveryTarget,
+	_ string,
+	_ string,
+) error {
+	s.startOnce.Do(func() {
+		close(s.editStarted)
+	})
+	<-ctx.Done()
+	s.cancelOnce.Do(func() {
+		close(s.editCanceled)
+	})
+	return ctx.Err()
 }
 
 func newProgressFailingSink() *progressFailingSink {
@@ -1187,6 +1649,7 @@ func (s *progressRecordingSink) Post(
 	defer s.mu.Unlock()
 	remoteID := fmt.Sprintf("progress-%d", len(s.posts)+1)
 	s.posts = append(s.posts, progressPostCall{target: target, text: text, remoteID: remoteID})
+	s.sequence = append(s.sequence, "post")
 	return remoteID, nil
 }
 
@@ -1199,6 +1662,7 @@ func (s *progressRecordingSink) Edit(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.edits = append(s.edits, progressEditCall{target: target, remoteID: remoteID, text: text})
+	s.sequence = append(s.sequence, "edit")
 	return nil
 }
 
@@ -1210,6 +1674,7 @@ func (s *progressRecordingSink) Typing(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.typing = append(s.typing, active)
+	s.sequence = append(s.sequence, fmt.Sprintf("typing:%t", active))
 	return nil
 }
 
@@ -1221,6 +1686,7 @@ func (s *progressRecordingSink) React(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.reactions = append(s.reactions, reaction)
+	s.sequence = append(s.sequence, "reaction:"+reaction)
 	return nil
 }
 
@@ -1246,6 +1712,12 @@ func (s *progressRecordingSink) ReactionCalls() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]string(nil), s.reactions...)
+}
+
+func (s *progressRecordingSink) SequenceCalls() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.sequence...)
 }
 
 func (s *progressRecordingSink) TotalCalls() int {

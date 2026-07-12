@@ -28,11 +28,21 @@ const bridgeIngressFixtureAgentName = "mock-bridge-runner"
 
 const bridgeIngressFixtureSecret = "sk-e2e-progress-secret"
 
-func TestDaemonE2EBridgeIngressCreatesAndReusesRouteThroughTelegramExtension(t *testing.T) {
+func TestDaemonE2EBridgeIngressCreatesAndReusesRouteThroughOptedInLowTierContractMock(t *testing.T) {
+	t.Run(
+		"Should round-trip ordered progress through an opted-in low-tier contract mock",
+		testDaemonE2EBridgeIngressCreatesAndReusesRouteThroughOptedInLowTierContractMock,
+	)
+}
+
+func testDaemonE2EBridgeIngressCreatesAndReusesRouteThroughOptedInLowTierContractMock(t *testing.T) {
+	t.Helper()
+
 	acpmock.RequireDriver(t)
 
 	repoRoot := daemonBridgeRuntimeRepoRoot(t)
 	extensionDir := prepareDaemonTelegramReferenceExtension(t, repoRoot)
+	rewriteDaemonBridgeContractPlatform(t, extensionDir, "telegram", "teams")
 
 	markers := extensiontest.NewTempMarkerPaths(t)
 	env := markers.Env()
@@ -91,14 +101,17 @@ func TestDaemonE2EBridgeIngressCreatesAndReusesRouteThroughTelegramExtension(t *
 	createdBridge, err := harness.CreateBridge(ctx, aghcontract.CreateBridgeRequest{
 		Scope:         bridgepkg.ScopeWorkspace,
 		WorkspaceID:   harness.WorkspaceID,
-		Platform:      "telegram",
+		Platform:      "teams",
 		ExtensionName: "telegram-reference",
-		DisplayName:   "Telegram Runtime E2E",
+		DisplayName:   "Teams Contract Mock Runtime E2E",
 		Enabled:       false,
 		RoutingPolicy: bridgepkg.RoutingPolicy{
 			IncludePeer:   true,
 			IncludeThread: true,
 		},
+		DeliveryDefaults: aghcontract.BridgeDeliveryDefaultsPayload(
+			`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":false,"reactions":false}}`,
+		),
 	})
 	if err != nil {
 		t.Fatalf("CreateBridge() error = %v", err)
@@ -138,12 +151,31 @@ func TestDaemonE2EBridgeIngressCreatesAndReusesRouteThroughTelegramExtension(t *
 	if handshake.Request.Runtime.Bridge == nil {
 		t.Fatal("initialize runtime.bridge = nil, want bridge runtime metadata")
 	}
+	if got, want := handshake.Request.Runtime.Bridge.Platform, "teams"; got != want {
+		t.Fatalf("initialize runtime.bridge.platform = %q, want %q", got, want)
+	}
 	managed, ok := handshake.Request.Runtime.Bridge.ManagedInstance(bridgeID)
 	if !ok || managed == nil {
 		t.Fatalf("initialize runtime missing managed instance %q", bridgeID)
 	}
 	if got, want := managed.Instance.ExtensionName, "telegram-reference"; got != want {
 		t.Fatalf("managed.Instance.ExtensionName = %q, want %q", got, want)
+	}
+	if got, want := managed.Instance.Platform, "teams"; got != want {
+		t.Fatalf("managed.Instance.Platform = %q, want %q", got, want)
+	}
+	baseline := managed.Instance
+	baseline.DeliveryDefaults = nil
+	if got, want := bridgepkg.ResolveProgressConfig(&baseline, baseline.Platform).ToolProgress,
+		bridgepkg.ProgressModeOff; got != want {
+		t.Fatalf("default low-tier progress mode = %q, want %q", got, want)
+	}
+	effectiveProgress := bridgepkg.ResolveProgressConfig(&managed.Instance, managed.Instance.Platform)
+	if got, want := effectiveProgress.ToolProgress, bridgepkg.ProgressModeAll; got != want {
+		t.Fatalf("managed progress mode = %q, want %q", got, want)
+	}
+	if got, want := effectiveProgress.Grouping, bridgepkg.ProgressGroupingAccumulate; got != want {
+		t.Fatalf("managed progress grouping = %q, want %q", got, want)
 	}
 	if len(managed.BoundSecrets) == 0 {
 		t.Fatal("managed.BoundSecrets = empty, want resolved bot_token binding")
@@ -236,6 +268,51 @@ func TestDaemonE2EBridgeIngressCreatesAndReusesRouteThroughTelegramExtension(t *
 	}
 	if progressDelivery.Ack.RemoteMessageID != "" || progressDelivery.Ack.ReplaceRemoteMessageID != "" {
 		t.Fatalf("progress ack = %#v, want explicit no-op acknowledgement", progressDelivery.Ack)
+	}
+	progressRecords := deliveryEvents(firstDeliveries, bridgepkg.DeliveryEventTypeProgress)
+	wantProgressLifecycle := []struct {
+		toolID string
+		phase  bridgepkg.ToolProgressPhase
+	}{
+		{toolID: "agh__terminal", phase: bridgepkg.ToolProgressPhaseStarted},
+		{toolID: "agh__terminal", phase: bridgepkg.ToolProgressPhaseCompleted},
+		{toolID: "agh__tool_list", phase: bridgepkg.ToolProgressPhaseStarted},
+		{toolID: "agh__tool_list", phase: bridgepkg.ToolProgressPhaseCompleted},
+		{toolID: "agh__skill_list", phase: bridgepkg.ToolProgressPhaseStarted},
+		{toolID: "agh__skill_list", phase: bridgepkg.ToolProgressPhaseFailed},
+	}
+	if got, want := len(progressRecords), len(wantProgressLifecycle); got != want {
+		t.Fatalf("progress delivery count = %d, want %d: %#v", got, want, progressRecords)
+	}
+	lastProgressIndex := 0
+	for index, want := range wantProgressLifecycle {
+		record := progressRecords[index]
+		progress := record.Request.Event.Progress
+		if progress == nil {
+			t.Fatalf("progress[%d] payload = nil", index)
+		}
+		if progress.ToolID != want.toolID || progress.Phase != want.phase {
+			t.Fatalf(
+				"progress[%d] lifecycle = %s/%s, want %s/%s",
+				index,
+				progress.ToolID,
+				progress.Phase,
+				want.toolID,
+				want.phase,
+			)
+		}
+		if progress.Index <= lastProgressIndex {
+			t.Fatalf(
+				"progress[%d] index = %d, want greater than %d",
+				index,
+				progress.Index,
+				lastProgressIndex,
+			)
+		}
+		lastProgressIndex = progress.Index
+		if record.Ack.RemoteMessageID != "" || record.Ack.ReplaceRemoteMessageID != "" {
+			t.Fatalf("progress[%d] ack = %#v, want lifecycle-only ids", index, record.Ack)
+		}
 	}
 
 	waitForRuntimeCondition(t, "first bridge transcript", 15*time.Second, func() bool {
@@ -354,7 +431,7 @@ func TestDaemonE2EBridgeIngressCreatesAndReusesRouteThroughTelegramExtension(t *
 	report := extensiontest.ReportFromMarkers(t, markers)
 	if err := extensiontest.ValidateConformance(report, extensiontest.ConformanceExpectation{
 		Provider:                  "telegram-reference",
-		Platform:                  "telegram",
+		Platform:                  "teams",
 		RequireOwnedInstanceList:  true,
 		RequireOwnedInstanceFetch: true,
 		RequireStateReport:        true,
@@ -514,6 +591,30 @@ func relaxDaemonTelegramReferenceMinVersion(t *testing.T, extensionDir string) {
 	}
 }
 
+func rewriteDaemonBridgeContractPlatform(
+	t *testing.T,
+	extensionDir string,
+	from string,
+	to string,
+) {
+	t.Helper()
+
+	manifestPath := filepath.Join(extensionDir, "extension.toml")
+	contents, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatalf("read bridge contract manifest %q error = %v", manifestPath, err)
+	}
+	source := `platform = "` + strings.TrimSpace(from) + `"`
+	if got, want := strings.Count(string(contents), source), 1; got != want {
+		t.Fatalf("bridge contract manifest %q platform assignments = %d, want %d for %q", manifestPath, got, want, source)
+	}
+	target := `platform = "` + strings.TrimSpace(to) + `"`
+	updated := strings.Replace(string(contents), source, target, 1)
+	if err := os.WriteFile(manifestPath, []byte(updated), 0o644); err != nil {
+		t.Fatalf("write bridge contract manifest %q error = %v", manifestPath, err)
+	}
+}
+
 func buildDaemonTelegramReferenceAdapter(t *testing.T, repoRoot string, extensionDir string) {
 	t.Helper()
 
@@ -606,6 +707,20 @@ func countDeliveryEvents(records []extensiontest.DeliveryRecord, want bridgepkg.
 		}
 	}
 	return total
+}
+
+func deliveryEvents(
+	records []extensiontest.DeliveryRecord,
+	want bridgepkg.DeliveryEventType,
+) []extensiontest.DeliveryRecord {
+	filtered := make([]extensiontest.DeliveryRecord, 0, len(records))
+	for _, record := range records {
+		if normalizeBridgeDeliveryEventType(record.Request.Event.EventType) ==
+			normalizeBridgeDeliveryEventType(want) {
+			filtered = append(filtered, record)
+		}
+	}
+	return filtered
 }
 
 func hasDeliveryEventType(records []extensiontest.DeliveryRecord, want bridgepkg.DeliveryEventType) bool {

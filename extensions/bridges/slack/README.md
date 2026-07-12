@@ -60,3 +60,9 @@ Notes:
 ## Outbound text
 
 The provider converts common Markdown constructs to Slack mrkdwn before measuring the wire payload. Text over 40,000 Unicode code points is split on natural boundaries with numbered, fence-balanced continuations in the original thread. Streaming previews keep one mutable message; the terminal delivery posts the complete continuation set and acknowledges its last message.
+
+## Tool progress
+
+Slack instances default to `tool_progress: new` with accumulated updates, typing status, and reactions enabled. The provider posts one progress bubble under the inbound `thread_ts`, schedules edits on the shared 1.5-second interval, and posts the answer separately in the same thread. Progress text uses the same mrkdwn formatter and 40,000-code-point limit as regular delivery.
+
+Progress uses `chat.postMessage`, `chat.update`, `assistant.threads.setStatus`, and `reactions.add`. Reactions apply to the progress bubble. Rate-limited edits honor Slack's `Retry-After` response before retrying. Set `delivery_defaults.progress.tool_progress` to `off` to acknowledge progress without Slack API calls. `chat.delete` is available for explicit delivery deletes; automatic progress cleanup is not enabled.

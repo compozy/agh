@@ -75,12 +75,6 @@ type slackProvider struct {
 	wg       sync.WaitGroup
 }
 
-type deliveryState struct {
-	LastSeq                int64
-	RemoteMessageID        string
-	ReplaceRemoteMessageID string
-}
-
 type slackProviderConfig struct {
 	APIBaseURL string `json:"api_base_url,omitempty"`
 	Webhook    struct {
@@ -232,6 +226,8 @@ type slackAPI interface {
 	PostMessage(context.Context, slackPostMessageRequest) (*slackPostedMessage, error)
 	UpdateMessage(context.Context, slackUpdateMessageRequest) error
 	DeleteMessage(context.Context, slackDeleteMessageRequest) error
+	SetThreadStatus(context.Context, slackSetThreadStatusRequest) error
+	AddReaction(context.Context, slackAddReactionRequest) error
 }
 
 type slackDeliveryReconciler interface {
@@ -365,6 +361,7 @@ func newSlackProvider(stderr io.Writer) (*slackProvider, error) {
 		},
 		Initialize:  provider.handleInitialize,
 		Deliver:     provider.handleBridgesDeliver,
+		Progress:    provider.handleBridgesProgress,
 		HealthCheck: func(context.Context, *bridgesdk.Session) error { return provider.healthCheck() },
 		Shutdown:    provider.handleShutdown,
 		Now:         func() time.Time { return provider.now() },
@@ -489,8 +486,7 @@ func (p *slackProvider) handleBridgesDeliver(
 		os.Exit(23)
 	}
 
-	api := p.apiFactory(&cfg)
-	ack, state, err := executeDelivery(ctx, api, request, p.deliveryState(cfg.instanceID, request.Event.DeliveryID))
+	ack, state, err := p.executeTextDeliveryWithProgress(ctx, &cfg, request)
 	if err != nil {
 		marker.Error = err.Error()
 		p.reportSideEffectError("write failed delivery marker", appendJSONLine(p.env.deliveryPath, marker))
@@ -504,12 +500,17 @@ func (p *slackProvider) handleBridgesDeliver(
 		return bridgepkg.DeliveryAck{}, err
 	}
 
-	p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, state)
+	progressCleanupErr := p.completeTextDeliveryProgress(ctx, cfg.instanceID, request, state)
+	if progressCleanupErr == nil {
+		p.clearLastError()
+	}
 	p.reportReadyIfNeeded(ctx, session, cfg.instanceID)
 
 	marker.Ack = &ack
 	p.reportSideEffectError("write delivery marker", appendJSONLine(p.env.deliveryPath, marker))
-	p.clearLastError()
+	if progressCleanupErr != nil {
+		p.recordProgressCleanupError("clear progress after text delivery", progressCleanupErr)
+	}
 	return ack, nil
 }
 
@@ -576,6 +577,7 @@ func (p *slackProvider) handleShutdown(
 func (p *slackProvider) stop() {
 	p.stopOnce.Do(func() {
 		close(p.stopCh)
+		p.closeAllProgressDispatchers()
 		batchersToClose := make(map[*bridgesdk.InboundBatcher]struct{})
 		p.mu.Lock()
 		for id := range p.routes {
@@ -1398,18 +1400,6 @@ func (p *slackProvider) currentSession() *bridgesdk.Session {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.session
-}
-
-func (p *slackProvider) deliveryState(instanceID string, deliveryID string) deliveryState {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.deliveries[deliveryStateKey(instanceID, deliveryID)]
-}
-
-func (p *slackProvider) storeDeliveryState(instanceID string, deliveryID string, state deliveryState) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.deliveries[deliveryStateKey(instanceID, deliveryID)] = state
 }
 
 func closeInboundBatchers(batchers map[*bridgesdk.InboundBatcher]struct{}) {

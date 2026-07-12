@@ -61,14 +61,6 @@ type telegramProvider struct {
 	wg       sync.WaitGroup
 }
 
-type deliveryState struct {
-	LastSeq                int64
-	LastContent            string
-	RemoteMessageID        string
-	ReplaceRemoteMessageID string
-	PreviewOnly            bool
-}
-
 type telegramProviderConfig struct {
 	APIBaseURL string `json:"api_base_url,omitempty"`
 	Webhook    struct {
@@ -187,6 +179,8 @@ type telegramAPI interface {
 	SendMessage(context.Context, telegramSendMessageRequest) (*telegramSentMessage, error)
 	EditMessageText(context.Context, telegramEditMessageTextRequest) error
 	DeleteMessage(context.Context, telegramDeleteMessageRequest) error
+	SendChatAction(context.Context, telegramSendChatActionRequest) error
+	SetMessageReaction(context.Context, telegramSetMessageReactionRequest) error
 }
 
 type telegramBotClient struct {
@@ -227,6 +221,7 @@ func newTelegramProvider(stderr io.Writer) (*telegramProvider, error) {
 		},
 		Initialize:  provider.handleInitialize,
 		Deliver:     provider.handleBridgesDeliver,
+		Progress:    provider.handleBridgesProgress,
 		HealthCheck: func(context.Context, *bridgesdk.Session) error { return provider.healthCheck() },
 		Shutdown:    provider.handleShutdown,
 		Now:         func() time.Time { return provider.now() },
@@ -370,13 +365,7 @@ func (p *telegramProvider) handleBridgesDeliver(
 		os.Exit(23)
 	}
 
-	api := p.apiFactory(&cfg)
-	ack, state, err := executeDelivery(
-		ctx,
-		api,
-		request,
-		p.deliveryState(cfg.instanceID, request.Event.DeliveryID),
-	)
+	ack, state, err := p.executeTextDeliveryWithProgress(ctx, &cfg, request)
 	if err != nil {
 		marker.Error = err.Error()
 		p.reportSideEffectError(
@@ -393,9 +382,11 @@ func (p *telegramProvider) handleBridgesDeliver(
 		return bridgepkg.DeliveryAck{}, err
 	}
 
-	p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, request.Event, state)
+	progressCleanupErr := p.completeTextDeliveryProgress(ctx, cfg.instanceID, request, state)
 	if err := p.reportReadyIfNeeded(ctx, session, cfg.instanceID); err != nil {
 		p.setLastError(err)
+	} else if progressCleanupErr != nil {
+		p.recordProgressCleanupError("clear progress after text delivery", progressCleanupErr)
 	} else {
 		p.clearLastError()
 	}
@@ -470,8 +461,8 @@ func (p *telegramProvider) handleShutdown(
 func (p *telegramProvider) stop() {
 	p.stopOnce.Do(func() {
 		close(p.stopCh)
+		p.closeAllProgressDispatchers()
 		p.mu.Lock()
-		defer p.mu.Unlock()
 		for id := range p.routes {
 			cfg := p.routes[id]
 			if cfg.batcher != nil {
@@ -480,6 +471,7 @@ func (p *telegramProvider) stop() {
 				p.routes[id] = cfg
 			}
 		}
+		p.mu.Unlock()
 	})
 }
 
@@ -1095,28 +1087,6 @@ func (p *telegramProvider) currentSession() *bridgesdk.Session {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.session
-}
-
-func (p *telegramProvider) deliveryState(instanceID string, deliveryID string) deliveryState {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.deliveries[deliveryStateKey(instanceID, deliveryID)]
-}
-
-func (p *telegramProvider) storeDeliveryState(
-	instanceID string,
-	deliveryID string,
-	event bridgepkg.DeliveryEvent,
-	state deliveryState,
-) {
-	key := deliveryStateKey(instanceID, deliveryID)
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if isTerminalTelegramDeliveryEvent(event) {
-		delete(p.deliveries, key)
-		return
-	}
-	p.deliveries[key] = state
 }
 
 func (p *telegramProvider) setLastError(err error) {

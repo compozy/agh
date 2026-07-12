@@ -360,6 +360,7 @@ func newTeamsProvider(stderr io.Writer) (*teamsProvider, error) {
 		},
 		Initialize:  provider.handleInitialize,
 		Deliver:     provider.handleBridgesDeliver,
+		Progress:    provider.handleBridgesProgress,
 		HealthCheck: func(context.Context, *bridgesdk.Session) error { return provider.healthCheck() },
 		Shutdown:    provider.handleShutdown,
 		Now:         func() time.Time { return provider.now() },
@@ -452,88 +453,6 @@ func (p *teamsProvider) afterInitialize(session *bridgesdk.Session) {
 	}
 }
 
-func (p *teamsProvider) handleBridgesDeliver(
-	ctx context.Context,
-	session *bridgesdk.Session,
-	request bridgepkg.DeliveryRequest,
-) (bridgepkg.DeliveryAck, error) {
-	marker := deliveryMarker{
-		PID:     os.Getpid(),
-		Request: request,
-	}
-
-	cfg, err := p.waitForInstanceConfig(
-		strings.TrimSpace(request.Event.BridgeInstanceID),
-		500*time.Millisecond,
-	)
-	if err != nil {
-		marker.Error = err.Error()
-		p.reportSideEffectError(
-			"write failed delivery marker",
-			appendJSONLine(p.env.deliveryPath, marker),
-		)
-		p.setLastError(err)
-		return bridgepkg.DeliveryAck{}, err
-	}
-
-	if shouldCrashOnce(p.env.crashOncePath) {
-		p.reportSideEffectError(
-			"write pre-crash delivery marker",
-			appendJSONLine(p.env.deliveryPath, marker),
-		)
-		p.reportSideEffectError(
-			"write crash marker",
-			writeJSONFile(p.env.crashOncePath, map[string]any{
-				"crashed":            true,
-				"pid":                os.Getpid(),
-				"delivery_id":        strings.TrimSpace(request.Event.DeliveryID),
-				"bridge_instance_id": cfg.instanceID,
-			}),
-		)
-		os.Exit(23)
-	}
-
-	api := p.apiFactory(cfg)
-	ack, state, err := executeTeamsDelivery(
-		ctx,
-		api,
-		cfg,
-		request,
-		p.deliveryState(cfg.instanceID, request.Event.DeliveryID),
-		func(deliveryID string) (deliveryState, bool) {
-			state := p.deliveryState(cfg.instanceID, deliveryID)
-			return state, strings.TrimSpace(state.RemoteMessageID) != ""
-		},
-		p.userContext,
-	)
-	if err != nil {
-		marker.Error = err.Error()
-		p.reportSideEffectError(
-			"write failed delivery marker",
-			appendJSONLine(p.env.deliveryPath, marker),
-		)
-		classified := bridgesdk.ClassifyError(err)
-		_, _, reportErr := session.ReportClassifiedError(ctx, cfg.instanceID, classified)
-		if reportErr != nil {
-			p.setLastError(reportErr)
-		} else {
-			p.setLastError(err)
-		}
-		return bridgepkg.DeliveryAck{}, err
-	}
-
-	p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, state)
-	if err := p.reportReadyIfNeeded(ctx, session, cfg.instanceID); err != nil {
-		p.setLastError(err)
-	} else {
-		p.clearLastError()
-	}
-
-	marker.Ack = &ack
-	p.reportSideEffectError("write delivery marker", appendJSONLine(p.env.deliveryPath, marker))
-	return ack, nil
-}
-
 func (p *teamsProvider) healthCheck() error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
@@ -605,7 +524,6 @@ func (p *teamsProvider) stop() {
 	p.stopOnce.Do(func() {
 		close(p.stopCh)
 		p.mu.Lock()
-		defer p.mu.Unlock()
 		for id, cfg := range p.routes {
 			if cfg.batcher != nil {
 				cfg.batcher.Close()
@@ -613,6 +531,8 @@ func (p *teamsProvider) stop() {
 				p.routes[id] = cfg
 			}
 		}
+		p.mu.Unlock()
+		p.closeAllTeamsProgressDispatchers()
 	})
 }
 

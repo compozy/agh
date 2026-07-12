@@ -27,6 +27,491 @@ import (
 	"github.com/compozy/agh/internal/subprocess"
 )
 
+func TestWhatsAppProgressRendering(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should acknowledge default-off progress without calling the WhatsApp API", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newWhatsAppProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newWhatsAppProvider() error = %v", err)
+		}
+		t.Cleanup(provider.stop)
+		managed := testBridgeRuntime(time.Unix(8_500, 0).UTC(), "brg-progress-off")
+		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+			managed:       &managed,
+			instanceID:    managed.Instance.ID,
+			phoneNumberID: "123456789",
+		}
+		provider.reportedStatus[managed.Instance.ID] = bridgepkg.BridgeStatusReady
+		apiCalls := 0
+		provider.apiFactory = func(resolvedInstanceConfig) whatsappAPI {
+			apiCalls++
+			return &fakeWhatsAppAPI{}
+		}
+
+		request := testWhatsAppProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-off",
+			1,
+			"call-off",
+			"agh__terminal",
+			"Inspecting",
+		)
+		ack, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			request,
+		)
+		if err != nil {
+			t.Fatalf("handleBridgesProgress() error = %v", err)
+		}
+		if ack.DeliveryID != request.Event.DeliveryID || ack.Seq != request.Event.Seq {
+			t.Fatalf("progress ack = %#v, want delivery id %q seq %d", ack, request.Event.DeliveryID, request.Event.Seq)
+		}
+		if ack.RemoteMessageID != "" || ack.ReplaceRemoteMessageID != "" {
+			t.Fatalf("progress ack remote ids = (%q, %q), want empty", ack.RemoteMessageID, ack.ReplaceRemoteMessageID)
+		}
+		if apiCalls != 0 {
+			t.Fatalf("WhatsApp API factory calls = %d, want zero", apiCalls)
+		}
+
+		provider.storeDeliveryState(managed.Instance.ID, request.Event.DeliveryID, deliveryState{
+			RemoteMessageID: "wamid.stale",
+		})
+		final := request
+		final.Event.Seq = 2
+		final.Event.EventType = bridgepkg.DeliveryEventTypeFinal
+		final.Event.Progress = nil
+		final.Event.Final = true
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			final,
+		); err != nil {
+			t.Fatalf("handleBridgesProgress(default-off lifecycle final) error = %v", err)
+		}
+		provider.mu.RLock()
+		_, deliveryExists := provider.deliveries[deliveryStateKey(managed.Instance.ID, request.Event.DeliveryID)]
+		provider.mu.RUnlock()
+		if deliveryExists {
+			t.Fatal("default-off lifecycle-only delivery state still exists, want terminal removal")
+		}
+	})
+
+	t.Run("Should detach pending progress after opt-out even when provider config is invalid", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newWhatsAppProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newWhatsAppProvider() error = %v", err)
+		}
+		t.Cleanup(provider.stop)
+		managed := testBridgeRuntime(time.Unix(8_525, 0).UTC(), "brg-progress-disabled")
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":false,"reactions":false}}`,
+		)
+		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+			managed:       &managed,
+			instanceID:    managed.Instance.ID,
+			phoneNumberID: "123456789",
+		}
+		api := &fakeWhatsAppAPI{nextMessageID: 25}
+		provider.apiFactory = func(resolvedInstanceConfig) whatsappAPI { return api }
+
+		first := testWhatsAppProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-disabled",
+			1,
+			"call-1",
+			"agh__terminal",
+			"Inspecting",
+		)
+		second := testWhatsAppProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-disabled",
+			2,
+			"call-2",
+			"agh__task_list",
+			"Reading tasks",
+		)
+		for _, request := range []bridgepkg.DeliveryRequest{first, second} {
+			if _, err := provider.handleBridgesProgress(
+				context.Background(),
+				&bridgesdk.Session{},
+				request,
+			); err != nil {
+				t.Fatalf("handleBridgesProgress(seq=%d) error = %v", request.Event.Seq, err)
+			}
+		}
+		if provider.deliveryState(managed.Instance.ID, first.Event.DeliveryID).Progress == nil {
+			t.Fatal("progress dispatcher before disabling = nil, want active dispatcher")
+		}
+		if got, want := len(api.requests), 1; got != want {
+			t.Fatalf("WhatsApp progress posts before disabling = %d, want %d pending update", got, want)
+		}
+
+		provider.mu.Lock()
+		cfg := provider.routes[managed.Instance.ID]
+		cfg.managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"off","grouping":"accumulate","typing":false,"reactions":false}}`,
+		)
+		cfg.configError = errors.New("whatsapp: provider config became invalid")
+		provider.routes[managed.Instance.ID] = cfg
+		provider.mu.Unlock()
+		disabled := second
+		disabled.Event.Seq = 3
+		disabled.Event.Progress.ToolCallID = "call-3"
+		disabled.Event.Progress.Index = 3
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			disabled,
+		); err != nil {
+			t.Fatalf("handleBridgesProgress(disabled invalid config) error = %v", err)
+		}
+
+		if provider.deliveryState(managed.Instance.ID, first.Event.DeliveryID).Progress != nil {
+			t.Fatal("progress dispatcher after disabling != nil, want detached dispatcher")
+		}
+		if got, want := len(api.requests), 1; got != want {
+			t.Fatalf("WhatsApp progress posts after disabling = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should retain failed progress for retry and report unhealthy", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newWhatsAppProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newWhatsAppProvider() error = %v", err)
+		}
+		t.Cleanup(provider.stop)
+		managed := testBridgeRuntime(time.Unix(8_550, 0).UTC(), "brg-progress-failure")
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"all","grouping":"separate","typing":false,"reactions":false}}`,
+		)
+		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+			managed:       &managed,
+			instanceID:    managed.Instance.ID,
+			phoneNumberID: "123456789",
+		}
+		provider.apiFactory = func(resolvedInstanceConfig) whatsappAPI {
+			return fakeWhatsAppAPIError{err: errors.New("messages unavailable")}
+		}
+
+		request := testWhatsAppProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-failure",
+			1,
+			"call-failure",
+			"agh__terminal",
+			"Inspecting",
+		)
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			request,
+		); err == nil {
+			t.Fatal("handleBridgesProgress() error = nil, want failed message error")
+		}
+		if provider.deliveryState(managed.Instance.ID, request.Event.DeliveryID).Progress == nil {
+			t.Fatal("failed progress dispatcher = nil, want retained dispatcher for retry")
+		}
+		if err := provider.healthCheck(); err == nil {
+			t.Fatal("healthCheck() error = nil, want reported progress failure")
+		}
+	})
+
+	t.Run("Should post distinct projected tools as separate status messages", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newWhatsAppProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newWhatsAppProvider() error = %v", err)
+		}
+		t.Cleanup(provider.stop)
+		managed := testBridgeRuntime(time.Unix(8_600, 0).UTC(), "brg-progress-separate")
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"new","grouping":"separate","typing":true,"reactions":true}}`,
+		)
+		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+			managed:       &managed,
+			instanceID:    managed.Instance.ID,
+			phoneNumberID: "123456789",
+		}
+		provider.reportedStatus[managed.Instance.ID] = bridgepkg.BridgeStatusReady
+		api := &fakeWhatsAppAPI{nextMessageID: 50}
+		provider.apiFactory = func(resolvedInstanceConfig) whatsappAPI { return api }
+
+		toolIDs := []string{"agh__terminal", "agh__task_list"}
+		labels := []string{"Inspecting", "Reading tasks"}
+		var first bridgepkg.DeliveryRequest
+		for index := range toolIDs {
+			request := testWhatsAppProgressRequest(
+				managed.Instance.ID,
+				"delivery-progress-separate",
+				int64(index+1),
+				fmt.Sprintf("call-%d", index+1),
+				toolIDs[index],
+				labels[index],
+			)
+			if index == 0 {
+				first = request
+			}
+			if _, err := provider.handleBridgesProgress(
+				context.Background(),
+				&bridgesdk.Session{},
+				request,
+			); err != nil {
+				t.Fatalf("handleBridgesProgress(seq=%d) error = %v", request.Event.Seq, err)
+			}
+		}
+
+		final := first
+		final.Event.Seq = 3
+		final.Event.EventType = bridgepkg.DeliveryEventTypeFinal
+		final.Event.Progress = nil
+		final.Event.Final = true
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			final,
+		); err != nil {
+			t.Fatalf("handleBridgesProgress(lifecycle final) error = %v", err)
+		}
+		provider.mu.RLock()
+		_, deliveryExists := provider.deliveries[deliveryStateKey(managed.Instance.ID, first.Event.DeliveryID)]
+		provider.mu.RUnlock()
+		if deliveryExists {
+			t.Fatal("lifecycle-only delivery state still exists, want terminal removal")
+		}
+
+		staleDeliveryID := "delivery-progress-separate-stale"
+		provider.storeDeliveryState(managed.Instance.ID, staleDeliveryID, deliveryState{
+			RemoteMessageID: "wamid.stale",
+		})
+		staleFinal := final
+		staleFinal.Event.DeliveryID = staleDeliveryID
+		staleFinal.Event.Seq = 4
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			staleFinal,
+		); err != nil {
+			t.Fatalf("handleBridgesProgress(stale lifecycle final) error = %v", err)
+		}
+		provider.mu.RLock()
+		_, staleExists := provider.deliveries[deliveryStateKey(managed.Instance.ID, staleDeliveryID)]
+		provider.mu.RUnlock()
+		if staleExists {
+			t.Fatal("dispatcher-free lifecycle-only state still exists, want terminal removal")
+		}
+
+		if got, want := len(api.requests), 2; got != want {
+			t.Fatalf("WhatsApp progress posts = %d, want %d", got, want)
+		}
+		for index, request := range api.requests {
+			if got, want := request.MessagingProduct, providerWhatsappKey; got != want {
+				t.Fatalf("progress post %d messaging product = %q, want %q", index, got, want)
+			}
+			if got, want := request.To, "15551234567"; got != want {
+				t.Fatalf("progress post %d target = %q, want %q", index, got, want)
+			}
+			if got, want := request.RecipientType, "individual"; got != want {
+				t.Fatalf("progress post %d recipient type = %q, want %q", index, got, want)
+			}
+			if got, want := request.Type, providerTextKey; got != want {
+				t.Fatalf("progress post %d type = %q, want %q", index, got, want)
+			}
+			if got, want := request.Text.Body, labels[index]; got != want {
+				t.Fatalf("progress post %d body = %q, want %q", index, got, want)
+			}
+			if request.Text.PreviewURL {
+				t.Fatalf("progress post %d preview URL = true, want false", index)
+			}
+		}
+	})
+
+	t.Run("Should append an accumulated progress edit when a configured grouping requests it", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newWhatsAppProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newWhatsAppProvider() error = %v", err)
+		}
+		t.Cleanup(provider.stop)
+		managed := testBridgeRuntime(time.Unix(8_700, 0).UTC(), "brg-progress-accumulate")
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":false,"reactions":false}}`,
+		)
+		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+			managed:       &managed,
+			instanceID:    managed.Instance.ID,
+			phoneNumberID: "123456789",
+		}
+		api := &fakeWhatsAppAPI{nextMessageID: 60}
+		provider.apiFactory = func(resolvedInstanceConfig) whatsappAPI { return api }
+
+		first := testWhatsAppProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-accumulate",
+			1,
+			"call-1",
+			"agh__terminal",
+			"Inspecting",
+		)
+		second := testWhatsAppProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-accumulate",
+			2,
+			"call-2",
+			"agh__task_list",
+			"Reading tasks",
+		)
+		for _, request := range []bridgepkg.DeliveryRequest{first, second} {
+			if _, err := provider.handleBridgesProgress(
+				context.Background(),
+				&bridgesdk.Session{},
+				request,
+			); err != nil {
+				t.Fatalf("handleBridgesProgress(seq=%d) error = %v", request.Event.Seq, err)
+			}
+		}
+		final := first
+		final.Event.Seq = 3
+		final.Event.EventType = bridgepkg.DeliveryEventTypeFinal
+		final.Event.Progress = nil
+		final.Event.Final = true
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			final,
+		); err != nil {
+			t.Fatalf("handleBridgesProgress(lifecycle final) error = %v", err)
+		}
+
+		if got, want := len(api.requests), 2; got != want {
+			t.Fatalf("WhatsApp accumulated progress posts = %d, want %d", got, want)
+		}
+		if got, want := api.requests[1].Text.Body, "Reading tasks"; got != want {
+			t.Fatalf("WhatsApp appended progress body = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should deliver the final answer after separate progress statuses", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newWhatsAppProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newWhatsAppProvider() error = %v", err)
+		}
+		t.Cleanup(provider.stop)
+		managed := testBridgeRuntime(time.Unix(8_750, 0).UTC(), "brg-progress-final")
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"new","grouping":"separate","typing":false,"reactions":false}}`,
+		)
+		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+			managed:       &managed,
+			instanceID:    managed.Instance.ID,
+			phoneNumberID: "123456789",
+		}
+		provider.reportedStatus[managed.Instance.ID] = bridgepkg.BridgeStatusReady
+		api := &fakeWhatsAppAPI{nextMessageID: 65}
+		provider.apiFactory = func(resolvedInstanceConfig) whatsappAPI { return api }
+
+		progress := testWhatsAppProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-final",
+			1,
+			"call-1",
+			"agh__terminal",
+			"Inspecting",
+		)
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			progress,
+		); err != nil {
+			t.Fatalf("handleBridgesProgress() error = %v", err)
+		}
+		final := testDeliveryRequest(
+			managed.Instance.ID,
+			progress.Event.DeliveryID,
+			2,
+			bridgepkg.DeliveryEventTypeFinal,
+			true,
+			"Final answer",
+		)
+		if _, err := provider.handleBridgesDeliver(
+			context.Background(),
+			&bridgesdk.Session{},
+			final,
+		); err != nil {
+			t.Fatalf("handleBridgesDeliver(final) error = %v", err)
+		}
+
+		if got, want := len(api.requests), 2; got != want {
+			t.Fatalf("WhatsApp progress and final posts = %d, want %d", got, want)
+		}
+		if got, want := api.requests[0].Text.Body, "Inspecting"; got != want {
+			t.Fatalf("WhatsApp progress body = %q, want %q", got, want)
+		}
+		if got, want := api.requests[1].Text.Body, "Final answer"; got != want {
+			t.Fatalf("WhatsApp final body = %q, want %q", got, want)
+		}
+		state := provider.deliveryState(managed.Instance.ID, progress.Event.DeliveryID)
+		if state.Progress != nil {
+			t.Fatal("terminal text delivery progress dispatcher != nil, want detached dispatcher")
+		}
+	})
+
+	t.Run("Should measure progress limits in Unicode code points", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newWhatsAppProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newWhatsAppProvider() error = %v", err)
+		}
+		t.Cleanup(provider.stop)
+		managed := testBridgeRuntime(time.Unix(8_800, 0).UTC(), "brg-progress-unicode")
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"all","grouping":"separate","typing":false,"reactions":false}}`,
+		)
+		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+			managed:       &managed,
+			instanceID:    managed.Instance.ID,
+			phoneNumberID: "123456789",
+		}
+		api := &fakeWhatsAppAPI{nextMessageID: 70}
+		provider.apiFactory = func(resolvedInstanceConfig) whatsappAPI { return api }
+
+		label := strings.Repeat("🙂", 4_000)
+		request := testWhatsAppProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-unicode",
+			1,
+			"call-unicode",
+			"agh__terminal",
+			label,
+		)
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			request,
+		); err != nil {
+			t.Fatalf("handleBridgesProgress() error = %v", err)
+		}
+		if got, want := len(api.requests), 1; got != want {
+			t.Fatalf("WhatsApp Unicode progress posts = %d, want %d", got, want)
+		}
+		if got := len([]rune(api.requests[0].Text.Body)); got != len([]rune(label)) {
+			t.Fatalf("WhatsApp Unicode progress runes = %d, want %d", got, len([]rune(label)))
+		}
+	})
+}
+
 func TestMapWhatsAppInboundMessageAndDMPolicy(t *testing.T) {
 	t.Parallel()
 
@@ -2075,6 +2560,32 @@ func testDeliveryRequest(
 			Final:     final,
 		},
 	}
+}
+
+func testWhatsAppProgressRequest(
+	instanceID string,
+	deliveryID string,
+	seq int64,
+	toolCallID string,
+	toolID string,
+	label string,
+) bridgepkg.DeliveryRequest {
+	request := testDeliveryRequest(
+		instanceID,
+		deliveryID,
+		seq,
+		bridgepkg.DeliveryEventTypeProgress,
+		false,
+		"",
+	)
+	request.Event.Progress = &bridgepkg.ToolProgress{
+		ToolCallID: toolCallID,
+		ToolID:     toolID,
+		Phase:      bridgepkg.ToolProgressPhaseStarted,
+		Label:      label,
+		Index:      int(seq),
+	}
+	return request
 }
 
 func testDeleteRequest(

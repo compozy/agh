@@ -16,6 +16,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -30,6 +31,391 @@ import (
 	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
 	"github.com/compozy/agh/internal/subprocess"
 )
+
+func TestGChatProgressRendering(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should acknowledge default-off progress without calling the Google Chat API", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newGChatProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newGChatProvider() error = %v", err)
+		}
+		t.Cleanup(provider.stop)
+		managed := testBridgeRuntime(t, time.Unix(8_300, 0).UTC(), "brg-progress-off")
+		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+			managed:    managed,
+			instanceID: managed.Instance.ID,
+		}
+		provider.reportedStatus[managed.Instance.ID] = bridgepkg.BridgeStatusReady
+		apiCalls := 0
+		provider.apiFactory = func(*resolvedInstanceConfig) gchatAPI {
+			apiCalls++
+			return &fakeGChatAPI{}
+		}
+
+		request := testGChatProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-off",
+			1,
+			"call-off",
+			"agh__terminal",
+			"Inspecting",
+		)
+		ack, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			request,
+		)
+		if err != nil {
+			t.Fatalf("handleBridgesProgress() error = %v", err)
+		}
+		if ack.DeliveryID != request.Event.DeliveryID || ack.Seq != request.Event.Seq {
+			t.Fatalf("progress ack = %#v, want delivery id %q seq %d", ack, request.Event.DeliveryID, request.Event.Seq)
+		}
+		if ack.RemoteMessageID != "" || ack.ReplaceRemoteMessageID != "" {
+			t.Fatalf("progress ack remote ids = (%q, %q), want empty", ack.RemoteMessageID, ack.ReplaceRemoteMessageID)
+		}
+		if apiCalls != 0 {
+			t.Fatalf("Google Chat API factory calls = %d, want zero", apiCalls)
+		}
+
+		provider.storeDeliveryState(
+			managed.Instance.ID,
+			request.Event.DeliveryID,
+			request.Event,
+			deliveryState{RemoteMessageID: "spaces/AAA/messages/stale"},
+		)
+		final := request
+		final.Event.Seq = 2
+		final.Event.EventType = bridgepkg.DeliveryEventTypeFinal
+		final.Event.Progress = nil
+		final.Event.Final = true
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			final,
+		); err != nil {
+			t.Fatalf("handleBridgesProgress(default-off lifecycle final) error = %v", err)
+		}
+		provider.mu.RLock()
+		_, deliveryExists := provider.deliveries[deliveryStateKey(managed.Instance.ID, request.Event.DeliveryID)]
+		provider.mu.RUnlock()
+		if deliveryExists {
+			t.Fatal("default-off lifecycle-only delivery state still exists, want terminal removal")
+		}
+	})
+
+	t.Run("Should retain failed progress for retry and report unhealthy", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newGChatProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newGChatProvider() error = %v", err)
+		}
+		t.Cleanup(provider.stop)
+		managed := testBridgeRuntime(t, time.Unix(8_325, 0).UTC(), "brg-progress-failure")
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"all","grouping":"separate","typing":false,"reactions":false}}`,
+		)
+		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+			managed:    managed,
+			instanceID: managed.Instance.ID,
+		}
+		provider.apiFactory = func(*resolvedInstanceConfig) gchatAPI {
+			return authFailingGChatAPI{}
+		}
+
+		request := testGChatProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-failure",
+			1,
+			"call-failure",
+			"agh__terminal",
+			"Inspecting",
+		)
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			request,
+		); err == nil {
+			t.Fatal("handleBridgesProgress() error = nil, want failed create error")
+		}
+		if provider.deliveryState(managed.Instance.ID, request.Event.DeliveryID).Progress == nil {
+			t.Fatal("failed progress dispatcher = nil, want retained dispatcher for retry")
+		}
+		if err := provider.healthCheck(); err == nil {
+			t.Fatal("healthCheck() error = nil, want reported progress failure")
+		}
+	})
+
+	t.Run("Should detach pending progress after opt-out even when provider config is invalid", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newGChatProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newGChatProvider() error = %v", err)
+		}
+		t.Cleanup(provider.stop)
+		managed := testBridgeRuntime(t, time.Unix(8_350, 0).UTC(), "brg-progress-disabled")
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":false,"reactions":false}}`,
+		)
+		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+			managed:    managed,
+			instanceID: managed.Instance.ID,
+		}
+		api := &fakeGChatAPI{}
+		provider.apiFactory = func(*resolvedInstanceConfig) gchatAPI { return api }
+
+		first := testGChatProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-disabled",
+			1,
+			"call-1",
+			"agh__terminal",
+			"Inspecting",
+		)
+		second := testGChatProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-disabled",
+			2,
+			"call-2",
+			"agh__task_list",
+			"Reading tasks",
+		)
+		for _, request := range []bridgepkg.DeliveryRequest{first, second} {
+			if _, err := provider.handleBridgesProgress(
+				context.Background(),
+				&bridgesdk.Session{},
+				request,
+			); err != nil {
+				t.Fatalf("handleBridgesProgress(seq=%d) error = %v", request.Event.Seq, err)
+			}
+		}
+		if provider.deliveryState(managed.Instance.ID, first.Event.DeliveryID).Progress == nil {
+			t.Fatal("progress dispatcher before disabling = nil, want active dispatcher")
+		}
+
+		provider.mu.Lock()
+		cfg := provider.routes[managed.Instance.ID]
+		cfg.managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"off","grouping":"accumulate","typing":false,"reactions":false}}`,
+		)
+		cfg.configError = errors.New("gchat: provider config became invalid")
+		provider.routes[managed.Instance.ID] = cfg
+		provider.mu.Unlock()
+		disabled := second
+		disabled.Event.Seq = 3
+		disabled.Event.Progress.ToolCallID = "call-3"
+		disabled.Event.Progress.Index = 3
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			disabled,
+		); err != nil {
+			t.Fatalf("handleBridgesProgress(disabled) error = %v", err)
+		}
+
+		if provider.deliveryState(managed.Instance.ID, first.Event.DeliveryID).Progress != nil {
+			t.Fatal("progress dispatcher after disabling != nil, want detached dispatcher")
+		}
+		api.mu.Lock()
+		updates := len(api.updates)
+		api.mu.Unlock()
+		if updates != 0 {
+			t.Fatalf("Google Chat progress updates after disabling = %d, want zero", updates)
+		}
+	})
+
+	t.Run("Should flush an opted-in plain-text progress message before the final answer", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newGChatProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newGChatProvider() error = %v", err)
+		}
+		t.Cleanup(provider.stop)
+		managed := testBridgeRuntime(t, time.Unix(8_400, 0).UTC(), "brg-progress-on")
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":false,"reactions":false}}`,
+		)
+		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+			managed:    managed,
+			instanceID: managed.Instance.ID,
+		}
+		provider.reportedStatus[managed.Instance.ID] = bridgepkg.BridgeStatusReady
+		api := &fakeGChatAPI{}
+		provider.apiFactory = func(*resolvedInstanceConfig) gchatAPI { return api }
+
+		first := testGChatProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-on",
+			1,
+			"call-1",
+			"agh__terminal",
+			"Inspecting",
+		)
+		second := testGChatProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-on",
+			2,
+			"call-2",
+			"agh__task_list",
+			"Reading tasks",
+		)
+		for _, request := range []bridgepkg.DeliveryRequest{first, second} {
+			if _, err := provider.handleBridgesProgress(
+				context.Background(),
+				&bridgesdk.Session{},
+				request,
+			); err != nil {
+				t.Fatalf("handleBridgesProgress(seq=%d) error = %v", request.Event.Seq, err)
+			}
+		}
+
+		final := first
+		final.Event.Seq = 3
+		final.Event.EventType = bridgepkg.DeliveryEventTypeFinal
+		final.Event.Progress = nil
+		final.Event.Content = bridgepkg.MessageContent{Text: "Final answer"}
+		final.Event.Final = true
+		if _, err := provider.handleBridgesDeliver(
+			context.Background(),
+			&bridgesdk.Session{},
+			final,
+		); err != nil {
+			t.Fatalf("handleBridgesDeliver(final) error = %v", err)
+		}
+		provider.mu.RLock()
+		_, deliveryExists := provider.deliveries[deliveryStateKey(managed.Instance.ID, first.Event.DeliveryID)]
+		provider.mu.RUnlock()
+		if deliveryExists {
+			t.Fatal("terminal delivery state still exists, want terminal removal")
+		}
+
+		api.mu.Lock()
+		messages := append([]gchatCreateMessageRequest(nil), api.messages...)
+		updates := append([]gchatUpdateMessageRequest(nil), api.updates...)
+		api.mu.Unlock()
+		if got, want := len(messages), 2; got != want {
+			t.Fatalf("Google Chat create calls = %d, want %d", got, want)
+		}
+		if got, want := messages[0].Text, "Inspecting"; got != want {
+			t.Fatalf("progress message text = %q, want %q", got, want)
+		}
+		if got, want := messages[0].SpaceName, "spaces/AAA"; got != want {
+			t.Fatalf("progress message space = %q, want %q", got, want)
+		}
+		if got, want := messages[0].ThreadName, "spaces/AAA/threads/thread-1"; got != want {
+			t.Fatalf("progress message thread = %q, want %q", got, want)
+		}
+		if got, want := len(updates), 1; got != want {
+			t.Fatalf("Google Chat progress patch calls = %d, want %d", got, want)
+		}
+		if got, want := updates[0].MessageName, "spaces/AAA/messages/msg-1"; got != want {
+			t.Fatalf("progress patch message name = %q, want %q", got, want)
+		}
+		if got, want := updates[0].Text, "Inspecting\nReading tasks"; got != want {
+			t.Fatalf("progress patch text = %q, want %q", got, want)
+		}
+		if got, want := messages[1].Text, "Final answer"; got != want {
+			t.Fatalf("final message text = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should ignore unsupported affordances and remove lifecycle-only state", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newGChatProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newGChatProvider() error = %v", err)
+		}
+		t.Cleanup(provider.stop)
+		managed := testBridgeRuntime(t, time.Unix(8_450, 0).UTC(), "brg-progress-lifecycle")
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"all","grouping":"separate","typing":true,"reactions":true}}`,
+		)
+		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+			managed:    managed,
+			instanceID: managed.Instance.ID,
+		}
+		api := &fakeGChatAPI{}
+		provider.apiFactory = func(*resolvedInstanceConfig) gchatAPI { return api }
+
+		request := testGChatProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-lifecycle",
+			1,
+			"call-lifecycle",
+			"agh__terminal",
+			"Inspecting",
+		)
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			request,
+		); err != nil {
+			t.Fatalf("handleBridgesProgress() error = %v", err)
+		}
+		final := request
+		final.Event.Seq = 2
+		final.Event.EventType = bridgepkg.DeliveryEventTypeFinal
+		final.Event.Progress = nil
+		final.Event.Final = true
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			final,
+		); err != nil {
+			t.Fatalf("handleBridgesProgress(lifecycle final) error = %v", err)
+		}
+
+		api.mu.Lock()
+		messages := append([]gchatCreateMessageRequest(nil), api.messages...)
+		updates := append([]gchatUpdateMessageRequest(nil), api.updates...)
+		api.mu.Unlock()
+		if got, want := len(messages), 1; got != want {
+			t.Fatalf("Google Chat progress create calls = %d, want %d", got, want)
+		}
+		if got, want := messages[0].Text, "Inspecting"; got != want {
+			t.Fatalf("Google Chat progress text = %q, want %q", got, want)
+		}
+		if len(updates) != 0 {
+			t.Fatalf("Google Chat progress patch calls = %d, want zero", len(updates))
+		}
+		provider.mu.RLock()
+		_, deliveryExists := provider.deliveries[deliveryStateKey(managed.Instance.ID, request.Event.DeliveryID)]
+		provider.mu.RUnlock()
+		if deliveryExists {
+			t.Fatal("lifecycle-only delivery state still exists, want terminal removal")
+		}
+
+		staleDeliveryID := "delivery-progress-lifecycle-stale"
+		provider.mu.Lock()
+		provider.deliveries[deliveryStateKey(managed.Instance.ID, staleDeliveryID)] = deliveryState{
+			RemoteMessageID: "spaces/AAA/messages/stale",
+		}
+		provider.mu.Unlock()
+		staleFinal := final
+		staleFinal.Event.DeliveryID = staleDeliveryID
+		staleFinal.Event.Seq = 3
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			staleFinal,
+		); err != nil {
+			t.Fatalf("handleBridgesProgress(stale lifecycle final) error = %v", err)
+		}
+		provider.mu.RLock()
+		_, staleExists := provider.deliveries[deliveryStateKey(managed.Instance.ID, staleDeliveryID)]
+		provider.mu.RUnlock()
+		if staleExists {
+			t.Fatal("dispatcher-free lifecycle-only state still exists, want terminal removal")
+		}
+	})
+}
 
 func TestMapGChatDirectAndPubSubPayloads(t *testing.T) {
 	t.Parallel()
@@ -1470,6 +1856,14 @@ func TestResolveInstanceConfigAndInitialState(t *testing.T) {
 }
 
 func TestGChatTransportAndClassificationHelpers(t *testing.T) {
+	t.Run(
+		"Should use exact Google Chat transport contracts and classify failures",
+		testGChatTransportAndClassificationHelpers,
+	)
+}
+
+func testGChatTransportAndClassificationHelpers(t *testing.T) {
+	t.Helper()
 	t.Parallel()
 
 	server := newGChatProviderTestServer(t)
@@ -1501,6 +1895,14 @@ func TestGChatTransportAndClassificationHelpers(t *testing.T) {
 		Text:        "updated",
 	}); err != nil {
 		t.Fatalf("UpdateMessage() error = %v", err)
+	}
+	updatePath := "/v1/" + created.Name
+	if !slices.ContainsFunc(server.Calls(), func(call gchatAPICall) bool {
+		return call.Method == http.MethodPatch &&
+			call.Path == updatePath &&
+			stringValue(call.Body[providerTextKey]) == "updated"
+	}) {
+		t.Fatalf("Google Chat API calls = %#v, want PATCH %s with updated text", server.Calls(), updatePath)
 	}
 	if err := client.DeleteMessage(context.Background(), created.Name); err != nil {
 		t.Fatalf("DeleteMessage() error = %v", err)
@@ -2560,7 +2962,7 @@ func (s *gchatProviderTestServer) serveHTTP(w http.ResponseWriter, r *http.Reque
 			_ = json.NewEncoder(w).
 				Encode(gchatSentMessage{Name: name, Thread: &gchatThread{Name: firstNonEmpty(threadName, "spaces/AAA/threads/thread-created")}})
 			return
-		case r.Method == http.MethodPut:
+		case r.Method == http.MethodPatch && r.URL.Query().Get("updateMask") == providerTextKey:
 			name := strings.TrimPrefix(r.URL.Path, "/v1/")
 			_ = json.NewEncoder(w).Encode(gchatSentMessage{Name: name})
 			return
@@ -2796,6 +3198,32 @@ func testDeliveryRequest(
 			Final:     final,
 		},
 	}
+}
+
+func testGChatProgressRequest(
+	instanceID string,
+	deliveryID string,
+	seq int64,
+	toolCallID string,
+	toolID string,
+	label string,
+) bridgepkg.DeliveryRequest {
+	request := testDeliveryRequest(
+		instanceID,
+		deliveryID,
+		seq,
+		bridgepkg.DeliveryEventTypeProgress,
+		false,
+	)
+	request.Event.Content = bridgepkg.MessageContent{}
+	request.Event.Progress = &bridgepkg.ToolProgress{
+		ToolCallID: toolCallID,
+		ToolID:     toolID,
+		Phase:      bridgepkg.ToolProgressPhaseStarted,
+		Label:      label,
+		Index:      int(seq),
+	}
+	return request
 }
 
 func testDeleteRequest(

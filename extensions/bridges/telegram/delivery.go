@@ -17,6 +17,15 @@ const (
 	telegramEscapedIndicatorPrefix = "\n\n\\("
 )
 
+type deliveryState struct {
+	LastSeq                int64
+	LastContent            string
+	RemoteMessageID        string
+	ReplaceRemoteMessageID string
+	PreviewOnly            bool
+	Progress               *bridgesdk.ProgressDispatcher
+}
+
 type telegramMarkdownParseError struct {
 	err error
 }

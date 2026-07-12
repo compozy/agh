@@ -8,6 +8,7 @@ It implements:
 - hardened webhook ingress with method/content-type/body-size/rate-limit/in-flight checks plus Discord Ed25519 signature verification
 - Discord webhook message events and interactions mapped to typed bridge `command`, `action`, and `reaction` flows
 - outbound Discord REST create, edit, and delete behavior for bridge delivery requests
+- live tool progress through Discord message create/edit, typing, and reaction endpoints
 - resume handling for the remote message recorded by the shared bridge delivery broker
 
 ## Delivery behavior
@@ -15,6 +16,10 @@ It implements:
 Discord accepts up to 2,000 Unicode code points per message. The provider splits longer terminal replies into ordered messages and adds `(N/M)` on a separate line so operators can follow the sequence. Every message remains within Discord's limit.
 
 While an agent response is still streaming, an overflowing preview stays in one editable message. On the terminal update, the provider edits that active message, posts the remaining chunks as continuations, and acknowledges the final message ID.
+
+Tool progress defaults to `new` with `accumulate` grouping. The provider posts the first progress line to the resolved Discord destination, edits that same message as more lines arrive, and keeps the progress message ID separate from the final-answer acknowledgement. Started, completed, and failed tool phases use phase-specific processing, success, and failure reactions on the progress message itself. Edits use the shared throttle and honor Discord `Retry-After` responses.
+
+Discord exposes a start-typing endpoint without a matching clear request. The provider stops issuing typing requests when text is delivered and closes progress state at terminal delivery. Set `delivery_defaults.progress.tool_progress` to `off` to acknowledge progress without Discord API calls.
 
 ## Build
 

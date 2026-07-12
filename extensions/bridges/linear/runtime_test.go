@@ -551,6 +551,63 @@ func TestRuntimeDeliveriesRecordMarkersForSupportedModes(t *testing.T) {
 	}
 }
 
+func TestRuntimeProgressDeliveryAcknowledgesWithoutPlatformSideEffects(t *testing.T) {
+	// not parallel: the provider bootstrap uses t.Setenv for process-wide runtime configuration.
+	t.Run("Should ack progress without creating a Linear API client", func(t *testing.T) {
+		setLinearProviderTestEnv(t)
+
+		runtime, hostPeer, cleanup := newLinearRuntimePeerPair(t)
+		defer cleanup()
+		apiFactoryCalls := 0
+		runtime.apiFactory = func(resolvedInstanceConfig) linearAPI {
+			apiFactoryCalls++
+			return &recordingLinearAPI{}
+		}
+		mustHandleLinearLifecycle(t, hostPeer)
+		if err := hostPeer.Call(
+			context.Background(),
+			"initialize",
+			linearInitializeRequest(time.Date(2026, 4, 15, 13, 20, 0, 0, time.UTC)),
+			nil,
+		); err != nil {
+			t.Fatalf("hostPeer.Call(initialize) error = %v", err)
+		}
+
+		request := linearTestDeliveryRequest(
+			"brg-linear-progress-noop",
+			"delivery-linear-progress-noop",
+			1,
+			bridgepkg.DeliveryEventTypeProgress,
+			linearThreadRef{IssueID: "issue-progress", RootCommentID: "comment-progress"},
+			"",
+			linearModeComments,
+		)
+		request.Event.Progress = &bridgepkg.ToolProgress{
+			ToolCallID: "tool-call-linear-noop",
+			ToolID:     "agh__search",
+			Phase:      bridgepkg.ToolProgressPhaseStarted,
+			Label:      "Search",
+			Index:      1,
+		}
+		var ack bridgepkg.DeliveryAck
+		if err := hostPeer.Call(context.Background(), "bridges/deliver", request, &ack); err != nil {
+			t.Fatalf("hostPeer.Call(progress) error = %v", err)
+		}
+		if got, want := ack.DeliveryID, request.Event.DeliveryID; got != want {
+			t.Fatalf("ack delivery id = %q, want %q", got, want)
+		}
+		if got, want := ack.Seq, request.Event.Seq; got != want {
+			t.Fatalf("ack seq = %d, want %d", got, want)
+		}
+		if ack.RemoteMessageID != "" || ack.ReplaceRemoteMessageID != "" {
+			t.Fatalf("progress ack = %#v, want no platform handles", ack)
+		}
+		if got := apiFactoryCalls; got != 0 {
+			t.Fatalf("apiFactory calls = %d, want 0", got)
+		}
+	})
+}
+
 func TestRetryWaitHealthAndHelperUtilities(t *testing.T) {
 	t.Parallel()
 
