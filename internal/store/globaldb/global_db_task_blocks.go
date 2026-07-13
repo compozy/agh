@@ -2,22 +2,21 @@ package globaldb
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 const taskRunReleaseReasonBlocked = "blocked"
 
-var _ taskpkg.BlockStore = (*GlobalDB)(nil)
+var _ taskpkg.BlockStore = (*TaskRepo)(nil)
 
 // CreateTaskBlock inserts one task block, stamping workspace_id from the owning task.
-func (g *GlobalDB) CreateTaskBlock(
+func (g *TaskRepo) CreateTaskBlock(
 	ctx context.Context,
 	mutation taskpkg.CreateTaskBlockMutation,
 ) (taskpkg.BlockMutationResult, error) {
@@ -53,7 +52,7 @@ func (g *GlobalDB) CreateTaskBlock(
 }
 
 // GetTaskBlock returns one task block when it belongs to the supplied task.
-func (g *GlobalDB) GetTaskBlock(ctx context.Context, taskID string, blockID string) (taskpkg.TaskBlock, error) {
+func (g *TaskRepo) GetTaskBlock(ctx context.Context, taskID string, blockID string) (taskpkg.TaskBlock, error) {
 	if err := g.checkReady(ctx, "get task block"); err != nil {
 		return taskpkg.TaskBlock{}, err
 	}
@@ -61,7 +60,7 @@ func (g *GlobalDB) GetTaskBlock(ctx context.Context, taskID string, blockID stri
 }
 
 // ClearTaskBlock stamps one open block as cleared and rejects repeated clears as conflicts.
-func (g *GlobalDB) ClearTaskBlock(
+func (g *TaskRepo) ClearTaskBlock(
 	ctx context.Context,
 	mutation taskpkg.ClearTaskBlockMutation,
 ) (taskpkg.TaskBlock, error) {
@@ -79,30 +78,17 @@ func (g *GlobalDB) ClearTaskBlock(
 		if err != nil {
 			return err
 		}
-		workspaceID := taskBlockWorkspaceID(taskRecord)
-		workspaceWhere, workspaceArgs := taskBlockWorkspaceWhere(workspaceID)
-		args := []any{
-			store.FormatTimestamp(normalized.ClearedAt),
-			string(normalized.ClearedBy.Kind),
-			normalized.ClearedBy.Ref,
-			store.NullableString(normalized.ClearNote),
-			normalized.BlockID,
-			normalized.TaskID,
-		}
-		args = append(args, workspaceArgs...)
-		result, err := exec.ExecContext(
-			ctx,
-			`UPDATE task_blocks
-			    SET cleared_at = ?, cleared_by_kind = ?, cleared_by_ref = ?, clear_note = ?
-			  WHERE id = ? AND task_id = ? AND `+workspaceWhere+` AND cleared_at IS NULL`,
-			args...,
-		)
+		affected, err := sqlcgen.New(exec).ClearTaskBlock(ctx, sqlcgen.ClearTaskBlockParams{
+			ClearedAt:     nullableTaskTime(normalized.ClearedAt),
+			ClearedByKind: nullableTaskString(string(normalized.ClearedBy.Kind)),
+			ClearedByRef:  nullableTaskString(normalized.ClearedBy.Ref),
+			ClearNote:     nullableTaskString(normalized.ClearNote),
+			ID:            normalized.BlockID,
+			TaskID:        normalized.TaskID,
+			WorkspaceID:   store.NullableString(taskBlockWorkspaceID(taskRecord)),
+		})
 		if err != nil {
 			return fmt.Errorf("store: clear task block %q: %w", normalized.BlockID, err)
-		}
-		affected, err := result.RowsAffected()
-		if err != nil {
-			return fmt.Errorf("store: rows affected for task block %q: %w", normalized.BlockID, err)
 		}
 		if affected == 0 {
 			current, loadErr := g.getTaskBlockWithExecutor(ctx, exec, normalized.TaskID, normalized.BlockID)
@@ -126,7 +112,7 @@ func (g *GlobalDB) ClearTaskBlock(
 }
 
 // ExpireTaskBlocks finalizes expired transient blocks as daemon-cleared rows, grouped one transaction per task.
-func (g *GlobalDB) ExpireTaskBlocks(
+func (g *TaskRepo) ExpireTaskBlocks(
 	ctx context.Context,
 	mutation taskpkg.ExpireTaskBlocksMutation,
 ) (taskpkg.ExpireTaskBlocksResult, error) {
@@ -157,7 +143,7 @@ func (g *GlobalDB) ExpireTaskBlocks(
 }
 
 // ListTaskBlocks returns task blocks for one task, open-only by default.
-func (g *GlobalDB) ListTaskBlocks(
+func (g *TaskRepo) ListTaskBlocks(
 	ctx context.Context,
 	taskID string,
 	includeCleared bool,
@@ -168,7 +154,7 @@ func (g *GlobalDB) ListTaskBlocks(
 	return g.listTaskBlocksWithExecutor(ctx, g.db, taskID, includeCleared, g.now())
 }
 
-func (g *GlobalDB) listTaskBlocksWithExecutor(
+func (g *TaskRepo) listTaskBlocksWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	taskID string,
@@ -183,49 +169,33 @@ func (g *GlobalDB) listTaskBlocksWithExecutor(
 	if err != nil {
 		return nil, err
 	}
-	workspaceID := taskBlockWorkspaceID(taskRecord)
-	workspaceWhere, workspaceArgs := taskBlockWorkspaceWhere(workspaceID)
-	query := `SELECT ` + taskBlockSelectColumnsSQL + `
-		FROM task_blocks
-		WHERE task_id = ? AND ` + workspaceWhere
-	args := []any{trimmedTaskID}
-	args = append(args, workspaceArgs...)
-	if !includeCleared {
-		query += ` AND cleared_at IS NULL AND (expires_at IS NULL OR expires_at > ?)`
-		args = append(args, store.FormatTimestamp(now.UTC()))
+	queries := sqlcgen.New(exec)
+	workspaceID := store.NullableString(taskBlockWorkspaceID(taskRecord))
+	var rows []sqlcgen.TaskBlock
+	if includeCleared {
+		rows, err = queries.ListAllTaskBlocks(ctx, sqlcgen.ListAllTaskBlocksParams{
+			TaskID: trimmedTaskID, WorkspaceID: workspaceID,
+		})
+	} else {
+		rows, err = queries.ListOpenTaskBlocks(ctx, sqlcgen.ListOpenTaskBlocksParams{
+			TaskID: trimmedTaskID, WorkspaceID: workspaceID, Now: nullableTaskTime(now.UTC()),
+		})
 	}
-	query += ` ORDER BY created_at ASC, id ASC`
-
-	rows, err := exec.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query task blocks for task %q: %w", trimmedTaskID, err)
 	}
-	blocks := make([]taskpkg.TaskBlock, 0)
-	for rows.Next() {
-		block, scanErr := scanTaskBlockRecord(rows)
-		if scanErr != nil {
-			return nil, joinRowsCloseError(rows, scanErr, "task block query")
-		}
-		blocks = append(blocks, block)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, joinRowsCloseError(rows, fmt.Errorf("store: iterate task blocks: %w", err), "task block query")
-	}
-	if err := joinRowsCloseError(rows, nil, "task block query"); err != nil {
-		return nil, err
-	}
-	return blocks, nil
+	return taskBlocksFromGenerated(rows)
 }
 
 // HasOpenTaskBlocks returns whether a task currently has any open, non-expired block.
-func (g *GlobalDB) HasOpenTaskBlocks(ctx context.Context, taskID string) (bool, error) {
+func (g *TaskRepo) HasOpenTaskBlocks(ctx context.Context, taskID string) (bool, error) {
 	if err := g.checkReady(ctx, "check open task blocks"); err != nil {
 		return false, err
 	}
 	return g.hasOpenTaskBlocksWithExecutor(ctx, g.db, taskID, g.now())
 }
 
-func (g *GlobalDB) hasOpenTaskBlocksWithExecutor(
+func (g *TaskRepo) hasOpenTaskBlocksWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	taskID string,
@@ -239,33 +209,19 @@ func (g *GlobalDB) hasOpenTaskBlocksWithExecutor(
 	if err != nil {
 		return false, err
 	}
-	workspaceID := taskBlockWorkspaceID(taskRecord)
-	workspaceWhere, workspaceArgs := taskBlockWorkspaceWhere(workspaceID)
-	args := []any{trimmedTaskID}
-	args = append(args, workspaceArgs...)
-	args = append(args, store.FormatTimestamp(now.UTC()))
-	row := exec.QueryRowContext(
-		ctx,
-		`SELECT 1
-		   FROM task_blocks
-		  WHERE task_id = ? AND `+workspaceWhere+`
-		    AND cleared_at IS NULL
-		    AND (expires_at IS NULL OR expires_at > ?)
-		  LIMIT 1`,
-		args...,
-	)
-	var exists int
-	if err := row.Scan(&exists); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return false, nil
-		}
+	exists, err := sqlcgen.New(exec).HasOpenTaskBlocks(ctx, sqlcgen.HasOpenTaskBlocksParams{
+		TaskID:      trimmedTaskID,
+		WorkspaceID: store.NullableString(taskBlockWorkspaceID(taskRecord)),
+		Now:         nullableTaskTime(now.UTC()),
+	})
+	if err != nil {
 		return false, fmt.Errorf("store: check open task blocks for task %q: %w", trimmedTaskID, err)
 	}
-	return exists == 1, nil
+	return exists, nil
 }
 
 // UpsertTaskBlockRecurrence sets the persisted counter for one task and block kind.
-func (g *GlobalDB) UpsertTaskBlockRecurrence(
+func (g *TaskRepo) UpsertTaskBlockRecurrence(
 	ctx context.Context,
 	recurrence taskpkg.BlockRecurrence,
 ) (taskpkg.BlockRecurrence, error) {
@@ -291,7 +247,7 @@ func (g *GlobalDB) UpsertTaskBlockRecurrence(
 }
 
 // IncrementTaskBlockRecurrence increments and returns the counter for one task and block kind.
-func (g *GlobalDB) IncrementTaskBlockRecurrence(
+func (g *TaskRepo) IncrementTaskBlockRecurrence(
 	ctx context.Context,
 	taskID string,
 	kind taskpkg.BlockKind,
@@ -319,7 +275,7 @@ func (g *GlobalDB) IncrementTaskBlockRecurrence(
 }
 
 // GetTaskBlockRecurrence returns the counter for one task and block kind, or a zero counter when absent.
-func (g *GlobalDB) GetTaskBlockRecurrence(
+func (g *TaskRepo) GetTaskBlockRecurrence(
 	ctx context.Context,
 	taskID string,
 	kind taskpkg.BlockKind,
@@ -338,7 +294,7 @@ func (g *GlobalDB) GetTaskBlockRecurrence(
 }
 
 // ResetTaskBlockRecurrences clears all breaker counters for one task.
-func (g *GlobalDB) ResetTaskBlockRecurrences(ctx context.Context, taskID string) error {
+func (g *TaskRepo) ResetTaskBlockRecurrences(ctx context.Context, taskID string) error {
 	if err := g.checkReady(ctx, "reset task block recurrences"); err != nil {
 		return err
 	}
@@ -355,7 +311,7 @@ func (g *GlobalDB) ResetTaskBlockRecurrences(ctx context.Context, taskID string)
 }
 
 // MarkTaskNeedsAttention writes the task-level escalation metadata columns.
-func (g *GlobalDB) MarkTaskNeedsAttention(
+func (g *TaskRepo) MarkTaskNeedsAttention(
 	ctx context.Context,
 	mutation taskpkg.NeedsAttentionMutation,
 ) (taskpkg.Task, error) {
@@ -370,7 +326,7 @@ func (g *GlobalDB) MarkTaskNeedsAttention(
 }
 
 // SetTaskWakeCreator writes the per-task creator wake opt-in flag.
-func (g *GlobalDB) SetTaskWakeCreator(
+func (g *TaskRepo) SetTaskWakeCreator(
 	ctx context.Context,
 	mutation taskpkg.WakeCreatorMutation,
 ) (taskpkg.Task, error) {
@@ -388,18 +344,16 @@ func (g *GlobalDB) SetTaskWakeCreator(
 
 	var updated taskpkg.Task
 	if err := g.withTaskImmediateTransaction(ctx, "set task wake creator", func(exec taskSQLExecutor) error {
-		result, err := exec.ExecContext(
-			ctx,
-			`UPDATE tasks SET wake_creator = ?, updated_at = ? WHERE id = ?`,
-			taskBoolToInt(mutation.WakeCreator),
-			store.FormatTimestamp(updatedAt),
-			trimmedTaskID,
-		)
+		affected, err := sqlcgen.New(exec).SetTaskWakeCreator(ctx, sqlcgen.SetTaskWakeCreatorParams{
+			WakeCreator: int64(taskBoolToInt(mutation.WakeCreator)),
+			UpdatedAt:   store.FormatTimestamp(updatedAt),
+			ID:          trimmedTaskID,
+		})
 		if err != nil {
 			return fmt.Errorf("store: set task wake creator %q: %w", trimmedTaskID, err)
 		}
-		if err := requireRowsAffected(result, taskpkg.ErrTaskNotFound, trimmedTaskID, "task"); err != nil {
-			return err
+		if affected == 0 {
+			return fmt.Errorf("store: task %q: %w", trimmedTaskID, taskpkg.ErrTaskNotFound)
 		}
 		updated, err = g.getTaskWithExecutor(ctx, exec, trimmedTaskID)
 		return err
@@ -410,7 +364,7 @@ func (g *GlobalDB) SetTaskWakeCreator(
 }
 
 // BlockTaskAndReleaseRun inserts a block, evaluates breaker accounting, and releases the active run atomically.
-func (g *GlobalDB) BlockTaskAndReleaseRun(
+func (g *TaskRepo) BlockTaskAndReleaseRun(
 	ctx context.Context,
 	mutation taskpkg.BlockTaskAndReleaseRunMutation,
 ) (taskpkg.BlockTaskAndReleaseRunResult, error) {
@@ -485,573 +439,4 @@ func (g *GlobalDB) BlockTaskAndReleaseRun(
 		return taskpkg.BlockTaskAndReleaseRunResult{}, err
 	}
 	return result, nil
-}
-
-const taskBlockSelectColumnsSQL = `id, workspace_id, task_id, kind, reason, details_json,
-	created_by_kind, created_by_ref, created_at, expires_at, cleared_at,
-	cleared_by_kind, cleared_by_ref, clear_note`
-
-func (g *GlobalDB) insertTaskBlockWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	block taskpkg.TaskBlock,
-) (taskpkg.TaskBlock, error) {
-	taskRecord, err := g.getTaskWithExecutor(ctx, exec, block.TaskID)
-	if err != nil {
-		return taskpkg.TaskBlock{}, err
-	}
-	normalized := block
-	normalized.WorkspaceID = taskBlockWorkspaceID(taskRecord)
-	if err := validateTaskBlockForInsert(normalized); err != nil {
-		return taskpkg.TaskBlock{}, err
-	}
-	if _, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO task_blocks (
-			id, workspace_id, task_id, kind, reason, details_json, created_by_kind, created_by_ref,
-			created_at, expires_at, cleared_at, cleared_by_kind, cleared_by_ref, clear_note
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL)`,
-		normalized.ID,
-		store.NullableString(normalized.WorkspaceID),
-		normalized.TaskID,
-		string(normalized.Kind),
-		normalized.Reason,
-		nullableTaskJSON(normalized.Details),
-		string(normalized.CreatedBy.Kind),
-		normalized.CreatedBy.Ref,
-		store.FormatTimestamp(normalized.CreatedAt),
-		nullableTaskTimestamp(normalized.ExpiresAt),
-	); err != nil {
-		return taskpkg.TaskBlock{}, fmt.Errorf("store: create task block %q: %w", normalized.ID, err)
-	}
-	return g.getTaskBlockWithExecutor(ctx, exec, normalized.TaskID, normalized.ID)
-}
-
-func (g *GlobalDB) insertTaskBlockWithBreaker(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	block taskpkg.TaskBlock,
-	recurrenceLimit int,
-	actor taskpkg.ActorContext,
-) (taskpkg.BlockMutationResult, error) {
-	hadClearedPrior, err := g.hasClearedTaskBlockKindWithExecutor(ctx, exec, block.TaskID, block.Kind)
-	if err != nil {
-		return taskpkg.BlockMutationResult{}, err
-	}
-	created, err := g.insertTaskBlockWithExecutor(ctx, exec, block)
-	if err != nil {
-		return taskpkg.BlockMutationResult{}, err
-	}
-	result := taskpkg.BlockMutationResult{
-		Block: created,
-		Recurrence: taskpkg.BlockRecurrence{
-			TaskID: created.TaskID,
-			Kind:   created.Kind,
-		},
-	}
-	if !hadClearedPrior {
-		return result, nil
-	}
-	recurrence, err := incrementBlockRecurrenceWithExecutor(ctx, exec, created.TaskID, created.Kind, created.CreatedAt)
-	if err != nil {
-		return taskpkg.BlockMutationResult{}, err
-	}
-	result.Recurrence = recurrence
-	if recurrenceLimit == 0 {
-		return result, nil
-	}
-	if recurrence.Count < recurrenceLimit {
-		return result, nil
-	}
-	escalated, changed, err := g.markTaskNeedsAttentionIfClearWithExecutor(ctx, exec, taskpkg.NeedsAttentionMutation{
-		TaskID:   created.TaskID,
-		Reason:   blockRecurrenceNeedsAttentionReason(recurrence),
-		Actor:    actor.Actor,
-		MarkedAt: created.CreatedAt,
-		Origin:   actor.Origin,
-	})
-	if err != nil {
-		return taskpkg.BlockMutationResult{}, err
-	}
-	if changed {
-		result.EscalatedTask = &escalated
-	}
-	return result, nil
-}
-
-func (g *GlobalDB) hasClearedTaskBlockKindWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	taskID string,
-	kind taskpkg.BlockKind,
-) (bool, error) {
-	taskRecord, err := g.getTaskWithExecutor(ctx, exec, taskID)
-	if err != nil {
-		return false, err
-	}
-	workspaceWhere, workspaceArgs := taskBlockWorkspaceWhere(taskBlockWorkspaceID(taskRecord))
-	args := []any{strings.TrimSpace(taskID), string(kind.Normalize())}
-	args = append(args, workspaceArgs...)
-	row := exec.QueryRowContext(
-		ctx,
-		`SELECT 1
-		   FROM task_blocks
-		  WHERE task_id = ? AND kind = ? AND `+workspaceWhere+`
-		    AND cleared_at IS NOT NULL
-		  LIMIT 1`,
-		args...,
-	)
-	var exists int
-	if err := row.Scan(&exists); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return false, nil
-		}
-		return false, fmt.Errorf(
-			"store: check cleared task block recurrence prior for task %q kind %q: %w",
-			taskID,
-			kind,
-			err,
-		)
-	}
-	return exists == 1, nil
-}
-
-func blockRecurrenceNeedsAttentionReason(recurrence taskpkg.BlockRecurrence) string {
-	return fmt.Sprintf(
-		"task re-blocked %d times with %q blocks",
-		recurrence.Count,
-		recurrence.Kind.Normalize(),
-	)
-}
-
-type taskBlockExpiryCandidate struct {
-	TaskID  string
-	BlockID string
-}
-
-func (g *GlobalDB) listExpiredTaskBlockCandidates(
-	ctx context.Context,
-	now time.Time,
-) ([]taskBlockExpiryCandidate, error) {
-	rows, err := g.db.QueryContext(
-		ctx,
-		`SELECT task_id, id
-		   FROM task_blocks
-		  WHERE cleared_at IS NULL
-		    AND expires_at IS NOT NULL
-		    AND expires_at <= ?
-		  ORDER BY task_id ASC, created_at ASC, id ASC`,
-		store.FormatTimestamp(now.UTC()),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("store: query expired task blocks: %w", err)
-	}
-	candidates := make([]taskBlockExpiryCandidate, 0)
-	for rows.Next() {
-		var candidate taskBlockExpiryCandidate
-		if err := rows.Scan(&candidate.TaskID, &candidate.BlockID); err != nil {
-			return nil, joinRowsCloseError(
-				rows,
-				fmt.Errorf("store: scan expired task block: %w", err),
-				"expired task block query",
-			)
-		}
-		candidates = append(candidates, candidate)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, joinRowsCloseError(
-			rows,
-			fmt.Errorf("store: iterate expired task blocks: %w", err),
-			"expired task block query",
-		)
-	}
-	if err := joinRowsCloseError(rows, nil, "expired task block query"); err != nil {
-		return nil, err
-	}
-	return candidates, nil
-}
-
-func uniqueTaskBlockCandidateTaskIDs(candidates []taskBlockExpiryCandidate) []string {
-	seen := make(map[string]struct{}, len(candidates))
-	taskIDs := make([]string, 0, len(candidates))
-	for _, candidate := range candidates {
-		taskID := strings.TrimSpace(candidate.TaskID)
-		if taskID == "" {
-			continue
-		}
-		if _, ok := seen[taskID]; ok {
-			continue
-		}
-		seen[taskID] = struct{}{}
-		taskIDs = append(taskIDs, taskID)
-	}
-	return taskIDs
-}
-
-func (g *GlobalDB) expireTaskBlocksForTaskWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	taskID string,
-	mutation taskpkg.ExpireTaskBlocksMutation,
-) ([]taskpkg.TaskBlock, error) {
-	taskRecord, err := g.getTaskWithExecutor(ctx, exec, taskID)
-	if err != nil {
-		return nil, err
-	}
-	workspaceWhere, workspaceArgs := taskBlockWorkspaceWhere(taskBlockWorkspaceID(taskRecord))
-	blockIDs, err := expiredTaskBlockIDsForTaskWithExecutor(
-		ctx,
-		exec,
-		taskID,
-		workspaceWhere,
-		workspaceArgs,
-		mutation.Now,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	expired := make([]taskpkg.TaskBlock, 0, len(blockIDs))
-	for _, blockID := range blockIDs {
-		updateArgs := []any{
-			store.FormatTimestamp(mutation.Now),
-			string(mutation.ClearedBy.Kind),
-			mutation.ClearedBy.Ref,
-			blockID,
-			strings.TrimSpace(taskID),
-			store.FormatTimestamp(mutation.Now),
-		}
-		updateArgs = append(updateArgs, workspaceArgs...)
-		result, err := exec.ExecContext(
-			ctx,
-			`UPDATE task_blocks
-			    SET cleared_at = ?, cleared_by_kind = ?, cleared_by_ref = ?, clear_note = NULL
-			  WHERE id = ? AND task_id = ?
-			    AND cleared_at IS NULL
-			    AND expires_at IS NOT NULL
-			    AND expires_at <= ?
-			    AND `+workspaceWhere,
-			updateArgs...,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("store: expire task block %q: %w", blockID, err)
-		}
-		affected, err := result.RowsAffected()
-		if err != nil {
-			return nil, fmt.Errorf("store: rows affected for expired task block %q: %w", blockID, err)
-		}
-		if affected == 0 {
-			continue
-		}
-		block, err := g.getTaskBlockWithExecutor(ctx, exec, taskID, blockID)
-		if err != nil {
-			return nil, err
-		}
-		expired = append(expired, block)
-	}
-	return expired, nil
-}
-
-func expiredTaskBlockIDsForTaskWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	taskID string,
-	workspaceWhere string,
-	workspaceArgs []any,
-	now time.Time,
-) ([]string, error) {
-	args := []any{strings.TrimSpace(taskID), store.FormatTimestamp(now)}
-	args = append(args, workspaceArgs...)
-	rows, err := exec.QueryContext(
-		ctx,
-		`SELECT id
-		   FROM task_blocks
-		  WHERE task_id = ?
-		    AND cleared_at IS NULL
-		    AND expires_at IS NOT NULL
-		    AND expires_at <= ?
-		    AND `+workspaceWhere+`
-		  ORDER BY created_at ASC, id ASC`,
-		args...,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("store: query expired task blocks for task %q: %w", taskID, err)
-	}
-	blockIDs := make([]string, 0)
-	for rows.Next() {
-		var blockID string
-		if err := rows.Scan(&blockID); err != nil {
-			return nil, joinRowsCloseError(
-				rows,
-				fmt.Errorf("store: scan expired block id: %w", err),
-				"expired block id query",
-			)
-		}
-		blockIDs = append(blockIDs, blockID)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, joinRowsCloseError(
-			rows,
-			fmt.Errorf("store: iterate expired block ids: %w", err),
-			"expired block id query",
-		)
-	}
-	if err := joinRowsCloseError(rows, nil, "expired block id query"); err != nil {
-		return nil, err
-	}
-	return blockIDs, nil
-}
-
-func normalizeCreateTaskBlockMutation(
-	mutation taskpkg.CreateTaskBlockMutation,
-	defaultNow time.Time,
-) (taskpkg.CreateTaskBlockMutation, error) {
-	normalized := mutation
-	if normalized.RecurrenceLimit < 0 {
-		return taskpkg.CreateTaskBlockMutation{}, fmt.Errorf(
-			"%w: task_block.recurrence_limit cannot be negative: %d",
-			taskpkg.ErrValidation,
-			normalized.RecurrenceLimit,
-		)
-	}
-	block, err := normalizeTaskBlockForCreate(normalized.Block, defaultNow)
-	if err != nil {
-		return taskpkg.CreateTaskBlockMutation{}, err
-	}
-	if err := normalized.Actor.Validate(); err != nil {
-		return taskpkg.CreateTaskBlockMutation{}, err
-	}
-	normalized.Block = block
-	return normalized, nil
-}
-
-func normalizeExpireTaskBlocksMutation(
-	mutation taskpkg.ExpireTaskBlocksMutation,
-	defaultNow time.Time,
-) (taskpkg.ExpireTaskBlocksMutation, error) {
-	normalized := mutation
-	if normalized.Now.IsZero() {
-		normalized.Now = defaultNow.UTC()
-	} else {
-		normalized.Now = normalized.Now.UTC()
-	}
-	normalized.ClearedBy.Kind = normalized.ClearedBy.Kind.Normalize()
-	normalized.ClearedBy.Ref = strings.TrimSpace(normalized.ClearedBy.Ref)
-	if err := normalized.ClearedBy.Validate("task_block.expired_by"); err != nil {
-		return taskpkg.ExpireTaskBlocksMutation{}, err
-	}
-	return normalized, nil
-}
-
-func (g *GlobalDB) getTaskBlockWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	taskID string,
-	blockID string,
-) (taskpkg.TaskBlock, error) {
-	trimmedTaskID, err := requireTaskValue(taskID, "task id")
-	if err != nil {
-		return taskpkg.TaskBlock{}, err
-	}
-	trimmedBlockID, err := requireTaskValue(blockID, "task block id")
-	if err != nil {
-		return taskpkg.TaskBlock{}, err
-	}
-	taskRecord, err := g.getTaskWithExecutor(ctx, exec, trimmedTaskID)
-	if err != nil {
-		return taskpkg.TaskBlock{}, err
-	}
-	workspaceWhere, workspaceArgs := taskBlockWorkspaceWhere(taskBlockWorkspaceID(taskRecord))
-	args := []any{trimmedBlockID, trimmedTaskID}
-	args = append(args, workspaceArgs...)
-
-	row := exec.QueryRowContext(
-		ctx,
-		`SELECT `+taskBlockSelectColumnsSQL+`
-		   FROM task_blocks
-		  WHERE id = ? AND task_id = ? AND `+workspaceWhere,
-		args...,
-	)
-	block, err := scanTaskBlockRecord(row)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return taskpkg.TaskBlock{}, taskpkg.ErrTaskBlockNotFound
-		}
-		return taskpkg.TaskBlock{}, err
-	}
-	return block, nil
-}
-
-func upsertBlockRecurrenceWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	recurrence taskpkg.BlockRecurrence,
-) (taskpkg.BlockRecurrence, error) {
-	if _, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO task_block_recurrences (task_id, kind, count, updated_at)
-		 VALUES (?, ?, ?, ?)
-		 ON CONFLICT(task_id, kind) DO UPDATE SET
-		   count = excluded.count,
-		   updated_at = excluded.updated_at`,
-		recurrence.TaskID,
-		string(recurrence.Kind),
-		recurrence.Count,
-		store.FormatTimestamp(recurrence.UpdatedAt),
-	); err != nil {
-		return taskpkg.BlockRecurrence{}, fmt.Errorf(
-			"store: upsert task block recurrence for task %q kind %q: %w",
-			recurrence.TaskID,
-			recurrence.Kind,
-			err,
-		)
-	}
-	return getBlockRecurrenceWithExecutor(ctx, exec, recurrence.TaskID, recurrence.Kind)
-}
-
-func incrementBlockRecurrenceWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	taskID string,
-	kind taskpkg.BlockKind,
-	updatedAt time.Time,
-) (taskpkg.BlockRecurrence, error) {
-	if _, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO task_block_recurrences (task_id, kind, count, updated_at)
-		 VALUES (?, ?, 1, ?)
-		 ON CONFLICT(task_id, kind) DO UPDATE SET
-		   count = count + 1,
-		   updated_at = excluded.updated_at`,
-		taskID,
-		string(kind),
-		store.FormatTimestamp(updatedAt),
-	); err != nil {
-		return taskpkg.BlockRecurrence{}, fmt.Errorf(
-			"store: increment task block recurrence for task %q kind %q: %w",
-			taskID,
-			kind,
-			err,
-		)
-	}
-	return getBlockRecurrenceWithExecutor(ctx, exec, taskID, kind)
-}
-
-func resetTaskBlockRecurrencesWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	taskID string,
-) error {
-	result, err := exec.ExecContext(ctx, `DELETE FROM task_block_recurrences WHERE task_id = ?`, taskID)
-	if err != nil {
-		return fmt.Errorf("store: reset task block recurrences for task %q: %w", taskID, err)
-	}
-	if _, err := result.RowsAffected(); err != nil {
-		return fmt.Errorf("store: rows affected for task block recurrences reset %q: %w", taskID, err)
-	}
-	return nil
-}
-
-func getBlockRecurrenceWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	taskID string,
-	kind taskpkg.BlockKind,
-) (taskpkg.BlockRecurrence, error) {
-	row := exec.QueryRowContext(
-		ctx,
-		`SELECT task_id, kind, count, updated_at
-		   FROM task_block_recurrences
-		  WHERE task_id = ? AND kind = ?`,
-		taskID,
-		string(kind),
-	)
-	var recurrence taskpkg.BlockRecurrence
-	var kindRaw string
-	var updatedAtRaw string
-	if err := row.Scan(&recurrence.TaskID, &kindRaw, &recurrence.Count, &updatedAtRaw); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return taskpkg.BlockRecurrence{
-				TaskID: taskID,
-				Kind:   kind,
-			}, nil
-		}
-		return taskpkg.BlockRecurrence{}, fmt.Errorf("store: scan task block recurrence: %w", err)
-	}
-	recurrence.Kind = taskpkg.BlockKind(strings.TrimSpace(kindRaw))
-	updatedAt, err := store.ParseTimestamp(updatedAtRaw)
-	if err != nil {
-		return taskpkg.BlockRecurrence{}, err
-	}
-	recurrence.UpdatedAt = updatedAt
-	return recurrence, nil
-}
-
-func (g *GlobalDB) updateTaskNeedsAttention(
-	ctx context.Context,
-	mutation taskpkg.NeedsAttentionMutation,
-) (taskpkg.Task, error) {
-	var updated taskpkg.Task
-	if err := g.withTaskImmediateTransaction(ctx, "mark task needs attention", func(exec taskSQLExecutor) error {
-		var changed bool
-		var err error
-		updated, changed, err = g.markTaskNeedsAttentionIfClearWithExecutor(ctx, exec, mutation)
-		if err != nil {
-			return err
-		}
-		if !changed {
-			var loadErr error
-			updated, loadErr = g.getTaskWithExecutor(ctx, exec, mutation.TaskID)
-			return loadErr
-		}
-		return nil
-	}); err != nil {
-		return taskpkg.Task{}, err
-	}
-	return updated, nil
-}
-
-func (g *GlobalDB) markTaskNeedsAttentionIfClearWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	mutation taskpkg.NeedsAttentionMutation,
-) (taskpkg.Task, bool, error) {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE tasks
-		    SET needs_attention_reason = ?,
-		        needs_attention_at = ?,
-		        needs_attention_by_kind = ?,
-		        needs_attention_by_ref = ?,
-		        updated_at = ?
-		  WHERE id = ? AND needs_attention_at IS NULL`,
-		mutation.Reason,
-		store.FormatTimestamp(mutation.MarkedAt),
-		string(mutation.Actor.Kind),
-		mutation.Actor.Ref,
-		store.FormatTimestamp(mutation.MarkedAt),
-		mutation.TaskID,
-	)
-	if err != nil {
-		return taskpkg.Task{}, false, fmt.Errorf("store: mark task needs attention %q: %w", mutation.TaskID, err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return taskpkg.Task{}, false, fmt.Errorf(
-			"store: rows affected for task needs attention %q: %w",
-			mutation.TaskID,
-			err,
-		)
-	}
-	if affected == 0 {
-		if _, loadErr := g.getTaskWithExecutor(ctx, exec, mutation.TaskID); loadErr != nil {
-			return taskpkg.Task{}, false, loadErr
-		}
-		return taskpkg.Task{}, false, nil
-	}
-	updated, err := g.getTaskWithExecutor(ctx, exec, mutation.TaskID)
-	if err != nil {
-		return taskpkg.Task{}, false, err
-	}
-	return updated, true, nil
 }

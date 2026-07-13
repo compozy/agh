@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/soul"
 	storepkg "github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/testutil"
 )
 
@@ -595,7 +596,7 @@ func newBundleResourceUnitHarness(t *testing.T) *bundleResourceUnitHarness {
 		ctx,
 		filepath.Join(t.TempDir(), storepkg.GlobalDatabaseName),
 		func(ctx context.Context, db *sql.DB) error {
-			return storepkg.EnsureSchema(ctx, db, resources.SchemaStatements())
+			return storepkg.Apply(ctx, db, globaldb.MigrationStream())
 		},
 	)
 	if err != nil {

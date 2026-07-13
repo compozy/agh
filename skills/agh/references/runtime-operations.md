@@ -80,7 +80,9 @@ Do not treat stale UI state, chat messages, or memory notes as runtime authority
 
 ## Status, Doctor, Logs, And Support
 
-`agh status -o json` is the consolidated runtime status surface for daemon health, providers, MCP servers, config apply status, and log tail summary. `agh doctor -o json` runs diagnostic probes; `--only`, `--exclude`, and `--quiet` bound the probe set for agents.
+`agh status -o json` is the consolidated runtime status surface for daemon health, providers, MCP servers, config apply status, schema migration streams, and log tail summary. Inspect `schema_streams` after startup to confirm that the global and memory streams report their expected version, applied migration count, and digest. An incompatible daemon-global `agh.db` is refused during boot, before readiness. By contrast, an incompatible per-session `events.db` can be discovered after the daemon is ready when a reader such as `agh session history <id> -o json` or `GET /api/workspaces/{workspace_id}/sessions/{session_id}/history` opens that session; that operation fails without making the healthy daemon-global store unavailable.
+
+For `legacy_database`, stop AGH, cold-move the complete containing `AGH_HOME` or workspace `.agh` family, and select a separate fresh home. Preserve every sibling database and SQLite sidecar together; never edit migration history or move one live file. For `schema_ahead`, first use a newer compatible AGH binary against the stopped, intact family—the state-preserving recovery. Use a fresh home only if discarding that state is acceptable. Stopped-daemon provider-auth, extension, and MCP-auth direct opens emit one JSON error document with `diagnostic.code` set to `legacy_database` or `schema_ahead`; use its surface and canonical-path evidence instead of parsing prose. `agh doctor -o json` runs diagnostic probes; `--only`, `--exclude`, and `--quiet` bound the probe set for agents.
 
 `agh logs --follow -o jsonl` streams redacted runtime logs over SSE. Use filters such as `--session`, `--workspace`, `--run`, `--actor kind:id`, `--provider`, `--component`, `--outcome`, and `--error-only` before broad log reads.
 

@@ -17,7 +17,7 @@ func TestStoreExtractorControllerFlow(t *testing.T) {
 	t.Run("Should propose extracted candidates through the controller seam", func(t *testing.T) {
 		t.Parallel()
 
-		store := NewStore(
+		store := newOpenTestStore(t,
 			filepath.Join(t.TempDir(), "memory"),
 			WithCatalogDatabasePath(filepath.Join(t.TempDir(), storepkg.GlobalDatabaseName)),
 		)
@@ -58,7 +58,7 @@ func TestStoreRecordExtractorEvent(t *testing.T) {
 	t.Run("Should persist extractor telemetry into memory events", func(t *testing.T) {
 		t.Parallel()
 
-		store := NewStore(
+		store := newOpenTestStore(t,
 			filepath.Join(t.TempDir(), "memory"),
 			WithCatalogDatabasePath(filepath.Join(t.TempDir(), storepkg.GlobalDatabaseName)),
 		)
@@ -106,7 +106,7 @@ func TestStoreRecordExtractorEvent(t *testing.T) {
 	t.Run("Should reject unsupported extractor operations", func(t *testing.T) {
 		t.Parallel()
 
-		store := NewStore(
+		store := newOpenTestStore(t,
 			filepath.Join(t.TempDir(), "memory"),
 			WithCatalogDatabasePath(filepath.Join(t.TempDir(), storepkg.GlobalDatabaseName)),
 		)
@@ -122,7 +122,7 @@ func TestStoreRecordExtractorEvent(t *testing.T) {
 	t.Run("Should redact and bound failed extractor metadata before persistence", func(t *testing.T) {
 		t.Parallel()
 
-		store := NewStore(
+		store := newOpenTestStore(t,
 			filepath.Join(t.TempDir(), "memory"),
 			WithCatalogDatabasePath(filepath.Join(t.TempDir(), storepkg.GlobalDatabaseName)),
 		)

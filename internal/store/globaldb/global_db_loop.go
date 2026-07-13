@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,10 +11,10 @@ import (
 
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
-var _ looppkg.Store = (*GlobalDB)(nil)
+var _ looppkg.Store = (*LoopRepo)(nil)
 
 const loopRunSelectColumnsSQL = `
 	id, workspace_id, loop_name, status, generation, reattempt_strategy, created_at, started_at,
@@ -27,7 +28,7 @@ const loopRunSelectColumnsSQL = `
 	origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest`
 
 // CreateLoopRunForStart atomically applies the loop concurrency policy and persists a new run.
-func (g *GlobalDB) CreateLoopRunForStart(
+func (g *LoopRepo) CreateLoopRunForStart(
 	ctx context.Context,
 	run looppkg.Run,
 	policy dsl.ConcurrencyPolicy,
@@ -64,7 +65,7 @@ func (g *GlobalDB) CreateLoopRunForStart(
 	return created, nil
 }
 
-func (g *GlobalDB) persistStartedLoopRunWithExecutor(
+func (g *LoopRepo) persistStartedLoopRunWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	run looppkg.Run,
@@ -130,53 +131,7 @@ func insertLoopRun(
 	inputsJSON []byte,
 	startMetadataJSON []byte,
 ) error {
-	_, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO loop_runs (
-			id, workspace_id, loop_name, status, generation, reattempt_strategy, created_at, started_at,
-			last_progress_at, definition_version, definition_digest, active_gate_id,
-			active_human_criteria_json, budget_approval_seq, start_metadata_json,
-			consecutive_failures, iteration_cap, budget_tokens, budget_wall_sec,
-			budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json,
-			started_by_kind, started_by_ref, started_origin_kind, started_origin_ref,
-			goal_context_nudge_ratio, origin_kind, origin_session_id,
-			origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		string(run.ID),
-		string(run.WorkspaceID),
-		run.LoopName,
-		string(run.Status),
-		run.Generation,
-		string(run.ReattemptStrategy),
-		store.FormatTimestamp(run.CreatedAt),
-		store.FormatTimestamp(run.StartedAt),
-		store.FormatTimestamp(run.LastProgressAt),
-		run.DefinitionVersion,
-		run.DefinitionDigest,
-		string(run.ActiveGateID),
-		string(run.ActiveHumanCriteria),
-		run.BudgetApprovalSeq,
-		string(startMetadataJSON),
-		run.ConsecutiveFailures,
-		run.IterationCap,
-		run.BudgetTokens,
-		run.BudgetWallSec,
-		string(run.BudgetOnExceeded),
-		run.TokensUsed,
-		nullString(string(run.ParentLoopRunID)),
-		boolToInt(run.PauseRequested),
-		string(inputsJSON),
-		string(run.StartedBy.Kind),
-		run.StartedBy.Ref,
-		string(run.StartedOrigin.Kind),
-		run.StartedOrigin.Ref,
-		run.GoalContextNudgeRatio,
-		string(run.Origin.Kind),
-		nullString(run.Origin.SessionID),
-		nullString(run.Origin.CreationProfileRef),
-		nullString(run.Origin.PolicySpecDigest),
-		nullString(run.Origin.CreationDigest),
-	)
+	err := sqlcgen.New(exec).InsertLoopRun(ctx, loopRunInsertParams(run, inputsJSON, startMetadataJSON))
 	if err != nil {
 		return fmt.Errorf("store: insert loop run %q: %w", run.ID, err)
 	}
@@ -205,7 +160,7 @@ func marshalLoopRunCreatePayload(run looppkg.Run) ([]byte, []byte, error) {
 }
 
 // GetLoopRun loads one workspace-scoped loop_run.
-func (g *GlobalDB) GetLoopRun(
+func (g *LoopRepo) GetLoopRun(
 	ctx context.Context,
 	ws looppkg.WorkspaceID,
 	runID looppkg.RunID,
@@ -213,30 +168,33 @@ func (g *GlobalDB) GetLoopRun(
 	if err := g.checkReady(ctx, "get loop run"); err != nil {
 		return looppkg.Run{}, err
 	}
-	row := g.db.QueryRowContext(
-		ctx,
-		`SELECT `+loopRunSelectColumnsSQL+` FROM loop_runs WHERE workspace_id = ? AND id = ?`,
-		string(ws),
-		string(runID),
-	)
-	return scanLoopRun(row)
+	row, err := g.queries.GetLoopRun(ctx, sqlcgen.GetLoopRunParams{WorkspaceID: string(ws), ID: string(runID)})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return looppkg.Run{}, looppkg.ErrRunNotFound
+		}
+		return looppkg.Run{}, fmt.Errorf("store: get loop run: %w", err)
+	}
+	return loopRunFromGenerated(&row)
 }
 
 // GetLoopRunByID loads one loop_run without a workspace filter for ancestry/transition internals.
-func (g *GlobalDB) GetLoopRunByID(ctx context.Context, runID looppkg.RunID) (looppkg.Run, error) {
+func (g *LoopRepo) GetLoopRunByID(ctx context.Context, runID looppkg.RunID) (looppkg.Run, error) {
 	if err := g.checkReady(ctx, "get loop run by id"); err != nil {
 		return looppkg.Run{}, err
 	}
-	row := g.db.QueryRowContext(
-		ctx,
-		`SELECT `+loopRunSelectColumnsSQL+` FROM loop_runs WHERE id = ?`,
-		string(runID),
-	)
-	return scanLoopRun(row)
+	row, err := g.queries.GetLoopRunByID(ctx, string(runID))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return looppkg.Run{}, looppkg.ErrRunNotFound
+		}
+		return looppkg.Run{}, fmt.Errorf("store: get loop run by id: %w", err)
+	}
+	return loopRunFromGenerated(&row)
 }
 
 // FindActiveLoopRun returns the oldest live run for a workspace loop.
-func (g *GlobalDB) FindActiveLoopRun(
+func (g *LoopRepo) FindActiveLoopRun(
 	ctx context.Context,
 	ws looppkg.WorkspaceID,
 	loopName string,
@@ -253,28 +211,17 @@ func findActiveLoopRunWithExecutor(
 	ws looppkg.WorkspaceID,
 	loopName string,
 ) (*looppkg.Run, error) {
-	row := exec.QueryRowContext(
-		ctx,
-		`SELECT `+loopRunSelectColumnsSQL+`
-		 FROM loop_runs
-		 WHERE workspace_id = ?
-		   AND loop_name = ?
-		   AND status IN (?, ?, ?, ?, ?)
-		 ORDER BY created_at ASC, id ASC
-		 LIMIT 1`,
-		string(ws),
-		strings.TrimSpace(loopName),
-		string(looppkg.StatusQueued),
-		string(looppkg.StatusRunning),
-		string(looppkg.StatusWatching),
-		string(looppkg.StatusNeedsApproval),
-		string(looppkg.StatusPaused),
-	)
-	run, err := scanLoopRun(row)
+	row, err := sqlcgen.New(exec).FindActiveLoopRun(ctx, sqlcgen.FindActiveLoopRunParams{
+		WorkspaceID: string(ws), LoopName: strings.TrimSpace(loopName),
+	})
 	if err != nil {
-		if errors.Is(err, looppkg.ErrRunNotFound) {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
+		return nil, fmt.Errorf("store: find active loop run: %w", err)
+	}
+	run, err := loopRunFromGenerated(&row)
+	if err != nil {
 		return nil, err
 	}
 	return &run, nil
@@ -296,7 +243,7 @@ func loopConcurrencyConflict(active *looppkg.Run) error {
 }
 
 // CompareAndSwapLoopRunStatus updates status only from the expected durable value.
-func (g *GlobalDB) CompareAndSwapLoopRunStatus(
+func (g *LoopRepo) CompareAndSwapLoopRunStatus(
 	ctx context.Context,
 	runID looppkg.RunID,
 	from looppkg.Status,
@@ -332,7 +279,7 @@ func (g *GlobalDB) CompareAndSwapLoopRunStatus(
 }
 
 // UpsertLoopConfig persists a no-fork per-loop config override.
-func (g *GlobalDB) UpsertLoopConfig(
+func (g *LoopRepo) UpsertLoopConfig(
 	ctx context.Context,
 	ws looppkg.WorkspaceID,
 	loopName string,
@@ -354,54 +301,33 @@ func (g *GlobalDB) UpsertLoopConfig(
 		return err
 	}
 	patch := loopConfigPatchFlagsForStore(cfg, normalized)
-	_, err = g.db.ExecContext(
-		ctx,
-		`INSERT INTO loop_config (
-			workspace_id, loop_name, human_gate_enabled, reattempt_strategy, enabled_checks_json,
-			iteration_cap, budget_tokens, budget_wall_sec, budget_on_exceeded,
-			no_progress_window, fan_out_width, gate_max_revisions,
-			model_default_worker, model_default_judge
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT(workspace_id, loop_name) DO UPDATE SET
-				human_gate_enabled = CASE WHEN ? THEN excluded.human_gate_enabled ELSE human_gate_enabled END,
-				reattempt_strategy = CASE WHEN ? THEN excluded.reattempt_strategy ELSE reattempt_strategy END,
-				enabled_checks_json = CASE WHEN ? THEN excluded.enabled_checks_json ELSE enabled_checks_json END,
-				iteration_cap = CASE WHEN ? THEN excluded.iteration_cap ELSE iteration_cap END,
-				budget_tokens = CASE WHEN ? THEN excluded.budget_tokens ELSE budget_tokens END,
-				budget_wall_sec = CASE WHEN ? THEN excluded.budget_wall_sec ELSE budget_wall_sec END,
-				budget_on_exceeded = CASE WHEN ? THEN excluded.budget_on_exceeded ELSE budget_on_exceeded END,
-				no_progress_window = CASE WHEN ? THEN excluded.no_progress_window ELSE no_progress_window END,
-				fan_out_width = CASE WHEN ? THEN excluded.fan_out_width ELSE fan_out_width END,
-				gate_max_revisions = CASE WHEN ? THEN excluded.gate_max_revisions ELSE gate_max_revisions END,
-				model_default_worker = CASE WHEN ? THEN excluded.model_default_worker ELSE model_default_worker END,
-				model_default_judge = CASE WHEN ? THEN excluded.model_default_judge ELSE model_default_judge END`,
-		workspaceID,
-		trimmedLoopName,
-		boolPtrToInt(normalized.HumanGateEnabled),
-		nullStringPtr(normalized.ReattemptStrategy),
-		enabledChecksForStore(normalized.EnabledChecks),
-		nullIntPtr(normalized.IterationCap),
-		nullIntPtr(normalized.BudgetTokens),
-		nullIntPtr(normalized.BudgetWallSec),
-		nullStringPtr(normalized.BudgetOnExceeded),
-		nullIntPtr(normalized.NoProgressWindow),
-		nullIntPtr(normalized.FanOutWidth),
-		nullIntPtr(normalized.GateMaxRevisions),
-		modelDefaultNullString(normalized.ModelDefaults, true),
-		modelDefaultNullString(normalized.ModelDefaults, false),
-		patch.HumanGate,
-		patch.Reattempt,
-		patch.EnabledChecks,
-		patch.IterationCap,
-		patch.BudgetTokens,
-		patch.BudgetWallSec,
-		patch.BudgetOnExceeded,
-		patch.NoProgressWindow,
-		patch.FanOutWidth,
-		patch.GateMaxRevisions,
-		patch.ModelWorker,
-		patch.ModelJudge,
-	)
+	err = g.withImmediateTransaction(ctx, "upsert loop config", func(exec globalSQLExecutor) error {
+		queries := sqlcgen.New(exec)
+		insert := sqlcgen.InsertLoopConfigIfMissingParams{
+			WorkspaceID:      workspaceID,
+			LoopName:         trimmedLoopName,
+			HumanGateEnabled: int64(boolPtrToInt(normalized.HumanGateEnabled)),
+			ReattemptStrategy: nullStringPtr(
+				normalized.ReattemptStrategy,
+			),
+			EnabledChecksJson: enabledChecksForStore(normalized.EnabledChecks),
+			IterationCap:      nullIntPtr(normalized.IterationCap),
+			BudgetTokens:      nullIntPtr(normalized.BudgetTokens),
+			BudgetWallSec: nullIntPtr(
+				normalized.BudgetWallSec,
+			),
+			BudgetOnExceeded:   nullStringPtr(normalized.BudgetOnExceeded),
+			NoProgressWindow:   nullIntPtr(normalized.NoProgressWindow),
+			FanOutWidth:        nullIntPtr(normalized.FanOutWidth),
+			GateMaxRevisions:   nullIntPtr(normalized.GateMaxRevisions),
+			ModelDefaultWorker: modelDefaultNullString(normalized.ModelDefaults, true),
+			ModelDefaultJudge:  modelDefaultNullString(normalized.ModelDefaults, false),
+		}
+		if insertErr := queries.InsertLoopConfigIfMissing(ctx, insert); insertErr != nil {
+			return insertErr
+		}
+		return queries.PatchLoopConfig(ctx, loopConfigPatchParams(insert, patch))
+	})
 	if err != nil {
 		return fmt.Errorf("store: upsert loop config %q/%q: %w", workspaceID, trimmedLoopName, err)
 	}
@@ -409,7 +335,7 @@ func (g *GlobalDB) UpsertLoopConfig(
 }
 
 // GetLoopConfig loads a no-fork per-loop config override.
-func (g *GlobalDB) GetLoopConfig(
+func (g *LoopRepo) GetLoopConfig(
 	ctx context.Context,
 	ws looppkg.WorkspaceID,
 	loopName string,
@@ -417,21 +343,16 @@ func (g *GlobalDB) GetLoopConfig(
 	if err := g.checkReady(ctx, "get loop config"); err != nil {
 		return nil, err
 	}
-	row := g.db.QueryRowContext(
-		ctx,
-		`SELECT human_gate_enabled, reattempt_strategy, enabled_checks_json,
-		        iteration_cap, budget_tokens, budget_wall_sec, budget_on_exceeded,
-		        no_progress_window, fan_out_width, gate_max_revisions,
-		        model_default_worker, model_default_judge
-		 FROM loop_config
-		 WHERE workspace_id = ? AND loop_name = ?`,
-		string(ws),
-		strings.TrimSpace(loopName),
-	)
-	cfg, err := scanLoopConfig(row)
+	row, err := g.queries.GetLoopConfig(ctx, sqlcgen.GetLoopConfigParams{
+		WorkspaceID: string(ws), LoopName: strings.TrimSpace(loopName),
+	})
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, looppkg.ErrConfigNotFound
+		}
 		return nil, err
 	}
+	cfg := loopConfigFromGenerated(row)
 	return &cfg, nil
 }
 
@@ -440,10 +361,12 @@ func getLoopRunByIDWithExecutor(
 	exec taskSQLExecutor,
 	runID looppkg.RunID,
 ) (looppkg.Run, error) {
-	row := exec.QueryRowContext(
-		ctx,
-		`SELECT `+loopRunSelectColumnsSQL+` FROM loop_runs WHERE id = ?`,
-		string(runID),
-	)
-	return scanLoopRun(row)
+	row, err := sqlcgen.New(exec).GetLoopRunByID(ctx, string(runID))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return looppkg.Run{}, looppkg.ErrRunNotFound
+		}
+		return looppkg.Run{}, fmt.Errorf("store: get loop run by id: %w", err)
+	}
+	return loopRunFromGenerated(&row)
 }

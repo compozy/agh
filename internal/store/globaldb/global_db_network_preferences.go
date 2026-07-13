@@ -2,17 +2,17 @@ package globaldb
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 // PutNetworkSubscription upserts one peer delivery preference.
-func (g *GlobalDB) PutNetworkSubscription(ctx context.Context, entry store.NetworkSubscriptionEntry) error {
+func (g *NetworkRepo) PutNetworkSubscription(ctx context.Context, entry store.NetworkSubscriptionEntry) error {
 	if err := g.checkReady(ctx, "put network subscription"); err != nil {
 		return err
 	}
@@ -26,31 +26,23 @@ func (g *GlobalDB) PutNetworkSubscription(ctx context.Context, entry store.Netwo
 	if normalized.UpdatedAt.IsZero() {
 		normalized.UpdatedAt = normalized.CreatedAt
 	}
-	if _, err := g.db.ExecContext(
-		ctx,
-		`INSERT INTO network_subscriptions (
-			workspace_id, channel, thread_id, peer_id, mode, keyword_filters_json, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(workspace_id, channel, thread_id, peer_id) DO UPDATE SET
-			mode = excluded.mode,
-			keyword_filters_json = excluded.keyword_filters_json,
-			updated_at = excluded.updated_at`,
-		normalized.WorkspaceID,
-		normalized.Channel,
-		normalized.ThreadID,
-		normalized.PeerID,
-		normalized.Mode,
-		stringSliceJSONString(normalized.KeywordFilters),
-		store.FormatTimestamp(normalized.CreatedAt),
-		store.FormatTimestamp(normalized.UpdatedAt),
-	); err != nil {
+	if err := g.queries.UpsertNetworkSubscription(ctx, sqlcgen.UpsertNetworkSubscriptionParams{
+		WorkspaceID:        normalized.WorkspaceID,
+		Channel:            normalized.Channel,
+		ThreadID:           normalized.ThreadID,
+		PeerID:             normalized.PeerID,
+		Mode:               normalized.Mode,
+		KeywordFiltersJson: stringSliceJSONString(normalized.KeywordFilters),
+		CreatedAt:          store.FormatTimestamp(normalized.CreatedAt),
+		UpdatedAt:          store.FormatTimestamp(normalized.UpdatedAt),
+	}); err != nil {
 		return fmt.Errorf("store: upsert network subscription: %w", err)
 	}
 	return nil
 }
 
 // ListNetworkSubscriptions returns peer delivery preferences in deterministic order.
-func (g *GlobalDB) ListNetworkSubscriptions(
+func (g *NetworkRepo) ListNetworkSubscriptions(
 	ctx context.Context,
 	query store.NetworkSubscriptionQuery,
 ) (entries []store.NetworkSubscriptionEntry, err error) {
@@ -67,6 +59,7 @@ func (g *GlobalDB) ListNetworkSubscriptions(
 	if err := normalized.Validate(); err != nil {
 		return nil, fmt.Errorf("store: validate network subscription query: %w", err)
 	}
+	// dynamic-sql: optional identity filters and the caller-provided limit change the statement shape.
 	sqlQuery := `SELECT
 		workspace_id, channel, thread_id, peer_id, mode, keyword_filters_json, created_at, updated_at
 		FROM network_subscriptions`
@@ -110,7 +103,7 @@ func (g *GlobalDB) ListNetworkSubscriptions(
 }
 
 // DeleteNetworkSubscription removes one delivery preference.
-func (g *GlobalDB) DeleteNetworkSubscription(ctx context.Context, ref store.NetworkSubscriptionRef) error {
+func (g *NetworkRepo) DeleteNetworkSubscription(ctx context.Context, ref store.NetworkSubscriptionRef) error {
 	if err := g.checkReady(ctx, "delete network subscription"); err != nil {
 		return err
 	}
@@ -123,22 +116,19 @@ func (g *GlobalDB) DeleteNetworkSubscription(ctx context.Context, ref store.Netw
 	if err := normalized.Validate(); err != nil {
 		return fmt.Errorf("store: validate network subscription ref: %w", err)
 	}
-	if _, err := g.db.ExecContext(
-		ctx,
-		`DELETE FROM network_subscriptions
-		WHERE workspace_id = ? AND channel = ? AND thread_id = ? AND peer_id = ?`,
-		normalized.WorkspaceID,
-		normalized.Channel,
-		normalized.ThreadID,
-		normalized.PeerID,
-	); err != nil {
+	if err := g.queries.DeleteNetworkSubscription(ctx, sqlcgen.DeleteNetworkSubscriptionParams{
+		WorkspaceID: normalized.WorkspaceID,
+		Channel:     normalized.Channel,
+		ThreadID:    normalized.ThreadID,
+		PeerID:      normalized.PeerID,
+	}); err != nil {
 		return fmt.Errorf("store: delete network subscription: %w", err)
 	}
 	return nil
 }
 
 // GetNetworkDeliveryGuidanceState returns durable guidance state for one session.
-func (g *GlobalDB) GetNetworkDeliveryGuidanceState(
+func (g *NetworkRepo) GetNetworkDeliveryGuidanceState(
 	ctx context.Context,
 	sessionID string,
 ) (store.NetworkDeliveryGuidanceState, error) {
@@ -151,19 +141,35 @@ func (g *GlobalDB) GetNetworkDeliveryGuidanceState(
 			"store: network delivery guidance session_id is required",
 		)
 	}
-	row := g.db.QueryRowContext(
-		ctx,
-		`SELECT
-			session_id, reply_guidance_delivered, protocol_guidance_delivered, created_at, updated_at
-		FROM network_delivery_guidance_state
-		WHERE session_id = ?`,
-		trimmed,
-	)
-	return scanNetworkDeliveryGuidanceState(row)
+	row, err := g.queries.GetNetworkDeliveryGuidanceState(ctx, trimmed)
+	if err != nil {
+		return store.NetworkDeliveryGuidanceState{}, err
+	}
+	createdAt, err := store.ParseTimestamp(row.CreatedAt)
+	if err != nil {
+		return store.NetworkDeliveryGuidanceState{}, fmt.Errorf(
+			"store: parse network delivery guidance state created_at: %w",
+			err,
+		)
+	}
+	updatedAt, err := store.ParseTimestamp(row.UpdatedAt)
+	if err != nil {
+		return store.NetworkDeliveryGuidanceState{}, fmt.Errorf(
+			"store: parse network delivery guidance state updated_at: %w",
+			err,
+		)
+	}
+	return store.NetworkDeliveryGuidanceState{
+		SessionID:                 row.SessionID,
+		ReplyGuidanceDelivered:    row.ReplyGuidanceDelivered,
+		ProtocolGuidanceDelivered: row.ProtocolGuidanceDelivered,
+		CreatedAt:                 createdAt,
+		UpdatedAt:                 updatedAt,
+	}, nil
 }
 
 // PutNetworkDeliveryGuidanceState upserts durable guidance state for one session.
-func (g *GlobalDB) PutNetworkDeliveryGuidanceState(
+func (g *NetworkRepo) PutNetworkDeliveryGuidanceState(
 	ctx context.Context,
 	state store.NetworkDeliveryGuidanceState,
 ) error {
@@ -181,20 +187,15 @@ func (g *GlobalDB) PutNetworkDeliveryGuidanceState(
 	if err := normalized.Validate(); err != nil {
 		return fmt.Errorf("store: validate network delivery guidance state: %w", err)
 	}
-	if _, err := g.db.ExecContext(
+	if err := g.queries.UpsertNetworkDeliveryGuidanceState(
 		ctx,
-		`INSERT INTO network_delivery_guidance_state (
-			session_id, reply_guidance_delivered, protocol_guidance_delivered, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?)
-		ON CONFLICT(session_id) DO UPDATE SET
-			reply_guidance_delivered = excluded.reply_guidance_delivered,
-			protocol_guidance_delivered = excluded.protocol_guidance_delivered,
-			updated_at = excluded.updated_at`,
-		normalized.SessionID,
-		normalized.ReplyGuidanceDelivered,
-		normalized.ProtocolGuidanceDelivered,
-		store.FormatTimestamp(normalized.CreatedAt),
-		store.FormatTimestamp(normalized.UpdatedAt),
+		sqlcgen.UpsertNetworkDeliveryGuidanceStateParams{
+			SessionID:                 normalized.SessionID,
+			ReplyGuidanceDelivered:    normalized.ReplyGuidanceDelivered,
+			ProtocolGuidanceDelivered: normalized.ProtocolGuidanceDelivered,
+			CreatedAt:                 store.FormatTimestamp(normalized.CreatedAt),
+			UpdatedAt:                 store.FormatTimestamp(normalized.UpdatedAt),
+		},
 	); err != nil {
 		return fmt.Errorf("store: upsert network delivery guidance state: %w", err)
 	}
@@ -202,7 +203,7 @@ func (g *GlobalDB) PutNetworkDeliveryGuidanceState(
 }
 
 // PutNetworkTaskThreadOrigin upserts the origin link for one promoted task.
-func (g *GlobalDB) PutNetworkTaskThreadOrigin(ctx context.Context, origin store.NetworkTaskThreadOrigin) error {
+func (g *NetworkRepo) PutNetworkTaskThreadOrigin(ctx context.Context, origin store.NetworkTaskThreadOrigin) error {
 	if err := g.checkReady(ctx, "put network task thread origin"); err != nil {
 		return err
 	}
@@ -216,37 +217,24 @@ func (g *GlobalDB) PutNetworkTaskThreadOrigin(ctx context.Context, origin store.
 	if err := normalized.Validate(); err != nil {
 		return fmt.Errorf("store: validate network task thread origin: %w", err)
 	}
-	if _, err := g.db.ExecContext(
-		ctx,
-		`INSERT INTO network_task_thread_origins (
-			task_id, workspace_id, channel, thread_id, origin_message_id, digest,
-			source_message_ids_json, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(task_id) DO UPDATE SET
-			workspace_id = excluded.workspace_id,
-			channel = excluded.channel,
-			thread_id = excluded.thread_id,
-			origin_message_id = excluded.origin_message_id,
-			digest = excluded.digest,
-			source_message_ids_json = excluded.source_message_ids_json,
-			updated_at = excluded.updated_at`,
-		normalized.TaskID,
-		normalized.WorkspaceID,
-		normalized.Channel,
-		normalized.ThreadID,
-		normalized.OriginMessageID,
-		normalized.Digest,
-		stringSliceJSONString(normalized.SourceMessageIDs),
-		store.FormatTimestamp(normalized.CreatedAt),
-		store.FormatTimestamp(normalized.UpdatedAt),
-	); err != nil {
+	if err := g.queries.UpsertNetworkTaskThreadOrigin(ctx, sqlcgen.UpsertNetworkTaskThreadOriginParams{
+		TaskID:               normalized.TaskID,
+		WorkspaceID:          normalized.WorkspaceID,
+		Channel:              normalized.Channel,
+		ThreadID:             normalized.ThreadID,
+		OriginMessageID:      normalized.OriginMessageID,
+		Digest:               normalized.Digest,
+		SourceMessageIdsJson: stringSliceJSONString(normalized.SourceMessageIDs),
+		CreatedAt:            store.FormatTimestamp(normalized.CreatedAt),
+		UpdatedAt:            store.FormatTimestamp(normalized.UpdatedAt),
+	}); err != nil {
 		return fmt.Errorf("store: upsert network task thread origin: %w", err)
 	}
 	return nil
 }
 
 // ListNetworkTaskThreadOrigins returns promoted task origins by task or thread.
-func (g *GlobalDB) ListNetworkTaskThreadOrigins(
+func (g *NetworkRepo) ListNetworkTaskThreadOrigins(
 	ctx context.Context,
 	query store.NetworkTaskThreadOriginQuery,
 ) (origins []store.NetworkTaskThreadOrigin, err error) {
@@ -263,6 +251,7 @@ func (g *GlobalDB) ListNetworkTaskThreadOrigins(
 	if err := normalized.Validate(); err != nil {
 		return nil, fmt.Errorf("store: validate network task thread origin query: %w", err)
 	}
+	// dynamic-sql: optional task/thread filters and the caller-provided limit change the statement shape.
 	sqlQuery := `SELECT
 		task_id, workspace_id, channel, thread_id, origin_message_id, digest,
 		source_message_ids_json, created_at, updated_at
@@ -307,7 +296,7 @@ func (g *GlobalDB) ListNetworkTaskThreadOrigins(
 }
 
 // PutTaskDesignationRollup upserts one terminal rollup artifact.
-func (g *GlobalDB) PutTaskDesignationRollup(ctx context.Context, rollup store.TaskDesignationRollup) error {
+func (g *NetworkRepo) PutTaskDesignationRollup(ctx context.Context, rollup store.TaskDesignationRollup) error {
 	if err := g.checkReady(ctx, "put task designation rollup"); err != nil {
 		return err
 	}
@@ -321,27 +310,19 @@ func (g *GlobalDB) PutTaskDesignationRollup(ctx context.Context, rollup store.Ta
 	if err := normalized.Validate(); err != nil {
 		return fmt.Errorf("store: validate task designation rollup: %w", err)
 	}
-	if _, err := g.db.ExecContext(
-		ctx,
-		`INSERT INTO task_designation_rollups (
-			designation_group_id, task_id, summary_json, created_at
-		) VALUES (?, ?, ?, ?)
-		ON CONFLICT(designation_group_id) DO UPDATE SET
-			task_id = excluded.task_id,
-			summary_json = excluded.summary_json,
-			created_at = excluded.created_at`,
-		normalized.DesignationGroupID,
-		normalized.TaskID,
-		string(normalized.SummaryJSON),
-		store.FormatTimestamp(normalized.CreatedAt),
-	); err != nil {
+	if err := g.queries.UpsertTaskDesignationRollup(ctx, sqlcgen.UpsertTaskDesignationRollupParams{
+		DesignationGroupID: normalized.DesignationGroupID,
+		TaskID:             normalized.TaskID,
+		SummaryJson:        string(normalized.SummaryJSON),
+		CreatedAt:          store.FormatTimestamp(normalized.CreatedAt),
+	}); err != nil {
 		return fmt.Errorf("store: upsert task designation rollup: %w", err)
 	}
 	return nil
 }
 
 // ListTaskDesignationRollups returns rollups by task or group.
-func (g *GlobalDB) ListTaskDesignationRollups(
+func (g *NetworkRepo) ListTaskDesignationRollups(
 	ctx context.Context,
 	query store.TaskDesignationRollupQuery,
 ) (rollups []store.TaskDesignationRollup, err error) {
@@ -356,6 +337,7 @@ func (g *GlobalDB) ListTaskDesignationRollups(
 	if err := normalized.Validate(); err != nil {
 		return nil, fmt.Errorf("store: validate task designation rollup query: %w", err)
 	}
+	// dynamic-sql: optional task/group filters and the caller-provided limit change the statement shape.
 	sqlQuery := `SELECT designation_group_id, task_id, summary_json, created_at FROM task_designation_rollups`
 	where, args := store.BuildClauses(
 		store.StringClause("designation_group_id", normalized.DesignationGroupID),
@@ -392,201 +374,4 @@ func (g *GlobalDB) ListTaskDesignationRollups(
 		return nil, fmt.Errorf("store: iterate task designation rollups: %w", err)
 	}
 	return rollups, nil
-}
-
-func normalizeNetworkSubscriptionEntry(entry store.NetworkSubscriptionEntry) store.NetworkSubscriptionEntry {
-	normalized := store.NetworkSubscriptionEntry{
-		WorkspaceID: strings.TrimSpace(entry.WorkspaceID),
-		Channel:     strings.TrimSpace(entry.Channel),
-		ThreadID:    strings.TrimSpace(entry.ThreadID),
-		PeerID:      strings.TrimSpace(entry.PeerID),
-		Mode:        strings.TrimSpace(entry.Mode),
-		CreatedAt:   entry.CreatedAt,
-		UpdatedAt:   entry.UpdatedAt,
-	}
-	normalized.KeywordFilters = normalizeStringSlice(entry.KeywordFilters)
-	return normalized
-}
-
-func normalizeNetworkTaskThreadOrigin(origin store.NetworkTaskThreadOrigin) store.NetworkTaskThreadOrigin {
-	return store.NetworkTaskThreadOrigin{
-		TaskID:           strings.TrimSpace(origin.TaskID),
-		WorkspaceID:      strings.TrimSpace(origin.WorkspaceID),
-		Channel:          strings.TrimSpace(origin.Channel),
-		ThreadID:         strings.TrimSpace(origin.ThreadID),
-		OriginMessageID:  strings.TrimSpace(origin.OriginMessageID),
-		Digest:           strings.TrimSpace(origin.Digest),
-		SourceMessageIDs: normalizeStringSlice(origin.SourceMessageIDs),
-		CreatedAt:        origin.CreatedAt,
-		UpdatedAt:        origin.UpdatedAt,
-	}
-}
-
-func scanNetworkSubscription(scanner rowScanner) (store.NetworkSubscriptionEntry, error) {
-	var (
-		entry        store.NetworkSubscriptionEntry
-		filtersRaw   string
-		createdAtRaw string
-		updatedAtRaw string
-	)
-	if err := scanner.Scan(
-		&entry.WorkspaceID,
-		&entry.Channel,
-		&entry.ThreadID,
-		&entry.PeerID,
-		&entry.Mode,
-		&filtersRaw,
-		&createdAtRaw,
-		&updatedAtRaw,
-	); err != nil {
-		return store.NetworkSubscriptionEntry{}, fmt.Errorf("store: scan network subscription: %w", err)
-	}
-	entry.KeywordFilters = stringSliceFromJSON(filtersRaw)
-	createdAt, err := store.ParseTimestamp(createdAtRaw)
-	if err != nil {
-		return store.NetworkSubscriptionEntry{}, fmt.Errorf("store: parse network subscription created_at: %w", err)
-	}
-	updatedAt, err := store.ParseTimestamp(updatedAtRaw)
-	if err != nil {
-		return store.NetworkSubscriptionEntry{}, fmt.Errorf("store: parse network subscription updated_at: %w", err)
-	}
-	entry.CreatedAt = createdAt
-	entry.UpdatedAt = updatedAt
-	return entry, nil
-}
-
-func scanNetworkDeliveryGuidanceState(scanner rowScanner) (store.NetworkDeliveryGuidanceState, error) {
-	var (
-		state        store.NetworkDeliveryGuidanceState
-		createdAtRaw string
-		updatedAtRaw string
-	)
-	if err := scanner.Scan(
-		&state.SessionID,
-		&state.ReplyGuidanceDelivered,
-		&state.ProtocolGuidanceDelivered,
-		&createdAtRaw,
-		&updatedAtRaw,
-	); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return store.NetworkDeliveryGuidanceState{}, err
-		}
-		return store.NetworkDeliveryGuidanceState{}, fmt.Errorf(
-			"store: scan network delivery guidance state: %w",
-			err,
-		)
-	}
-	createdAt, err := store.ParseTimestamp(createdAtRaw)
-	if err != nil {
-		return store.NetworkDeliveryGuidanceState{}, fmt.Errorf(
-			"store: parse network delivery guidance state created_at: %w",
-			err,
-		)
-	}
-	updatedAt, err := store.ParseTimestamp(updatedAtRaw)
-	if err != nil {
-		return store.NetworkDeliveryGuidanceState{}, fmt.Errorf(
-			"store: parse network delivery guidance state updated_at: %w",
-			err,
-		)
-	}
-	state.CreatedAt = createdAt
-	state.UpdatedAt = updatedAt
-	return state, nil
-}
-
-func scanNetworkTaskThreadOrigin(scanner rowScanner) (store.NetworkTaskThreadOrigin, error) {
-	var (
-		origin       store.NetworkTaskThreadOrigin
-		sourceRaw    string
-		createdAtRaw string
-		updatedAtRaw string
-	)
-	if err := scanner.Scan(
-		&origin.TaskID,
-		&origin.WorkspaceID,
-		&origin.Channel,
-		&origin.ThreadID,
-		&origin.OriginMessageID,
-		&origin.Digest,
-		&sourceRaw,
-		&createdAtRaw,
-		&updatedAtRaw,
-	); err != nil {
-		return store.NetworkTaskThreadOrigin{}, fmt.Errorf("store: scan network task thread origin: %w", err)
-	}
-	origin.SourceMessageIDs = stringSliceFromJSON(sourceRaw)
-	createdAt, err := store.ParseTimestamp(createdAtRaw)
-	if err != nil {
-		return store.NetworkTaskThreadOrigin{}, fmt.Errorf(
-			"store: parse network task thread origin created_at: %w",
-			err,
-		)
-	}
-	updatedAt, err := store.ParseTimestamp(updatedAtRaw)
-	if err != nil {
-		return store.NetworkTaskThreadOrigin{}, fmt.Errorf(
-			"store: parse network task thread origin updated_at: %w",
-			err,
-		)
-	}
-	origin.CreatedAt = createdAt
-	origin.UpdatedAt = updatedAt
-	return origin, nil
-}
-
-func scanTaskDesignationRollup(scanner rowScanner) (store.TaskDesignationRollup, error) {
-	var (
-		rollup     store.TaskDesignationRollup
-		summaryRaw string
-		createdRaw string
-	)
-	if err := scanner.Scan(
-		&rollup.DesignationGroupID,
-		&rollup.TaskID,
-		&summaryRaw,
-		&createdRaw,
-	); err != nil {
-		return store.TaskDesignationRollup{}, fmt.Errorf("store: scan task designation rollup: %w", err)
-	}
-	rollup.SummaryJSON = json.RawMessage(summaryRaw)
-	createdAt, err := store.ParseTimestamp(createdRaw)
-	if err != nil {
-		return store.TaskDesignationRollup{}, fmt.Errorf("store: parse task designation rollup created_at: %w", err)
-	}
-	rollup.CreatedAt = createdAt
-	return rollup, nil
-}
-
-func normalizeStringSlice(values []string) []string {
-	seen := make(map[string]struct{}, len(values))
-	normalized := make([]string, 0, len(values))
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			continue
-		}
-		if _, ok := seen[trimmed]; ok {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		normalized = append(normalized, trimmed)
-	}
-	return normalized
-}
-
-func stringSliceJSONString(values []string) string {
-	raw, err := json.Marshal(normalizeStringSlice(values))
-	if err != nil {
-		return "[]"
-	}
-	return string(raw)
-}
-
-func stringSliceFromJSON(raw string) []string {
-	var values []string
-	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &values); err != nil {
-		return nil
-	}
-	return normalizeStringSlice(values)
 }

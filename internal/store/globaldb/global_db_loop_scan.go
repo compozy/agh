@@ -201,18 +201,6 @@ func applyLoopRunScanTimestamps(
 	return nil
 }
 
-type loopConfigScanner interface {
-	Scan(dest ...any) error
-}
-
-func scanLoopConfig(row loopConfigScanner) (looppkg.LoopConfig, error) {
-	values, err := scanLoopConfigValues(row)
-	if err != nil {
-		return looppkg.LoopConfig{}, err
-	}
-	return values.toConfig(), nil
-}
-
 type loopConfigScanValues struct {
 	humanGateEnabled   int
 	reattempt          sql.NullString
@@ -226,30 +214,6 @@ type loopConfigScanValues struct {
 	gateMaxRevisions   sql.NullInt64
 	modelDefaultWorker sql.NullString
 	modelDefaultJudge  sql.NullString
-}
-
-func scanLoopConfigValues(row loopConfigScanner) (loopConfigScanValues, error) {
-	var values loopConfigScanValues
-	if err := row.Scan(
-		&values.humanGateEnabled,
-		&values.reattempt,
-		&values.enabledChecks,
-		&values.iterationCap,
-		&values.budgetTokens,
-		&values.budgetWallSec,
-		&values.budgetOnExceeded,
-		&values.noProgressWindow,
-		&values.fanOutWidth,
-		&values.gateMaxRevisions,
-		&values.modelDefaultWorker,
-		&values.modelDefaultJudge,
-	); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return loopConfigScanValues{}, looppkg.ErrConfigNotFound
-		}
-		return loopConfigScanValues{}, fmt.Errorf("store: scan loop config: %w", err)
-	}
-	return values, nil
 }
 
 func (v loopConfigScanValues) toConfig() looppkg.LoopConfig {

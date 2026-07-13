@@ -1,97 +1,71 @@
 ---
 name: agh-qa-bootstrap
-description: Builds a reusable local QA bootstrap for AGH by creating an isolated scenario workspace, optionally materializing a real-scenario QA playbook (workspaces, knowledge files, agents, open task tree), isolating AGH runtime paths and provider home, writing bootstrap-manifest.json and bootstrap.env, discovering the repository verification contract, and recording browser policy for downstream real-scenario-qa or qa-execution runs. Use when local QA would otherwise rebuild the lab from scratch or inherit broken global ~/.codex state. Do not use for single-command unit-test runs, static planning, or browser-only checks without daemon or workspace setup.
+description: Bootstraps isolated AGH QA labs and emits the canonical manifest for downstream QA. Use when local QA needs daemon, workspace, provider, or playbook setup. Do not use for unit tests, planning-only work, or browser-only checks.
 trigger: explicit
 argument-hint: "[scenario-slug] [--playbook <ref>]"
 ---
 
 # AGH QA Bootstrap
 
-Create a deterministic local QA lab quickly, default to a fresh lab for each new QA pass, and hand off a canonical bootstrap manifest to downstream QA skills. Reuse an existing lab only when continuing the same active QA session or loop.
-
-Bootstrap is infrastructure only. It does not validate AGH behavior, prove live agent/LLM behavior, satisfy `real-scenario-qa`, or replace CLI/API/Web/operator journey evidence.
+Provision infrastructure and scratch evidence for one QA pass. Bootstrap does
+not prove runtime behavior; downstream QA owns journeys and verdicts.
 
 ## Required Inputs
 
-- **scenario-slug** (optional): short context for the QA lab, such as `release-qa`, `autonomy`, or `hooks-network`. Defaults to `release-candidate`.
-- **--playbook \<ref\>** (required for real-scenario-qa runs): playbook ref under `.agents/skills/agh/real-scenario-qa/references/playbooks/` (e.g., `northstar-pay`, `devtool-oss-launch`, `consumer-saas-growth`). When set, the helper materializes the playbook's workspaces, knowledge files, agent registrations, and open task tree, and replaces the legacy charter skeleton with a populated charter. When omitted, the legacy skeleton charter is generated for backwards compatibility with non-playbook flows.
+- **scenario-slug** (optional): short lab context; defaults to `release-candidate`.
+- **--playbook <ref>**: required when called by `real-scenario-qa`; omitted for generic `qa-execution` infrastructure.
 
-## Procedures
+## Procedure
 
-**Step 1: Run the Bootstrap CLI**
+**Step 1: Create or Resume One Lab**
 
-1. Resolve the scenario slug from the user request. Default to `release-candidate`.
-2. When the caller is `real-scenario-qa`, the playbook ref is REQUIRED. Confirm `references/playbooks/<ref>.md` exists before running the helper.
-3. For a new QA pass, execute the repo-root bootstrap helper (bootstrap, mutating). Pass `--playbook` when applicable:
+1. Resolve the scenario slug and, for `real-scenario-qa`, validate the playbook under `.agents/skills/agh/real-scenario-qa/references/playbooks/`.
+2. For a new pass, run the bootstrap helper (bootstrap, mutating):
    `python3 .agents/skills/agh/agh-qa-bootstrap/scripts/bootstrap-qa-env.py --scenario "<scenario-slug>" --repo-root . [--playbook "<ref>"]`
-4. Only when continuing the same active QA session or loop and a manifest path is already known, reuse that exact lab:
+3. Reuse only when continuing the same active QA session or loop with its exact manifest:
    `python3 .agents/skills/agh/agh-qa-bootstrap/scripts/bootstrap-qa-env.py --scenario "<scenario-slug>" --repo-root . [--playbook "<ref>"] --reuse-manifest "<manifest-path>"`
-5. Read the helper output and record:
-   - `SCENARIO_SLUG`
-   - `WORKSPACE_PATH`
-   - `QA_OUTPUT_PATH`
-   - `BOOTSTRAP_MANIFEST`
-   - `BOOTSTRAP_ENV`
-   - `AGH_HOME`
-   - `AGH_HTTP_PORT`
-   - `AGH_UDS_PATH`
-   - `TMUX_BRIDGE_SOCKET`
-   - `AGH_WEB_API_PROXY_TARGET`
-   - `PROVIDER_HOME`
-   - `PROVIDER_CODEX_HOME`
-   - `BROWSER_MODE`
-   - `BROWSER_BLOCKER`
-   - `SCENARIO_CONTRACT`
-   - `BEHAVIORAL_CHARTER`
-   - `JOURNEY_LOG`
-   - `PROVIDER_ATTEMPT`
-   - `AUDIT_COMMAND`
-   - `TEARDOWN_COMMAND`
-   - `REUSED_LAB`
-   - `PLAYBOOK_REF` (empty when `--playbook` was not passed)
-   - `KICKOFF_POSTED` (`false` until `real-scenario-qa` Step 4 posts the kickoff)
+4. Record the emitted `BOOTSTRAP_MANIFEST`; do not reconstruct environment values manually.
 
-**Step 2: Verify the Bootstrap Contract**
+*Done when:* one fresh or same-session lab has one readable manifest and no unrelated lab was reused.
 
-1. Read `references/bootstrap-contract.md`.
-2. Open `<QA_OUTPUT_PATH>/qa/bootstrap-manifest.json` and treat it as the canonical handoff between bootstrap, `real-scenario-qa`, `qa-execution`, browser setup, audit execution, and timed-loop continuations.
-3. Open `<QA_OUTPUT_PATH>/qa/bootstrap.env` only when shell export lines are needed.
-4. Treat `REUSED_LAB=true` as valid only when the manifest came from the same active QA session or loop continuation. Do not reuse older labs across separate QA passes just because they target the same feature or scenario slug.
-5. Confirm the helper created `<QA_OUTPUT_PATH>/qa/scenario-contract.json`, `<QA_OUTPUT_PATH>/qa/behavioral-scenario-charter.yaml`, `<QA_OUTPUT_PATH>/qa/journey-log.jsonl`, and `<QA_OUTPUT_PATH>/qa/provider-attempt.json`. These files are evidence scaffolding only; they do not validate behavior until downstream QA fills them and the auditor passes.
-6. When `--playbook` was passed, additionally confirm the helper created `<WORKSPACE_PATH>/.agh/playbook.json`, `<WORKSPACE_PATH>/.agh/agents/*.json`, `<WORKSPACE_PATH>/.agh/tasks/open-tasks.json`, and the knowledge files under `<WORKSPACE_PATH>/knowledge/`. The seeded `behavioral-scenario-charter.yaml` is a populated charter (not the UNFILLED skeleton).
+**Step 2: Verify the Handoff Contract**
 
-**Step 3: Launch Downstream QA with the Manifest**
+1. Read `.agents/skills/agh/agh-qa-bootstrap/references/bootstrap-contract.md` in full.
+2. Validate every required manifest field, env value, scratch-evidence file, provider-home policy, browser policy, audit command, and teardown command against that contract.
+3. When a playbook was supplied, also validate the materialized playbook, agents, open-task tree, knowledge files, required deliverables/collaboration, and populated charter.
+4. Treat scaffolding as empty evidence until downstream QA records real actions and the strict auditor passes.
 
-1. Hand off to the pair with two distinct paths: `qa-report` and `qa-execution` take `qa-docs-path=docs/qa` (the repo's committed living QA tree — scenario files, journeys, charters, content-addressed bugs, dated reports), while `QA_OUTPUT_PATH` stays the lab-side scratch root (journey log, screenshots, observation, kickoff evidence) that reports index by path. Never point the pair's argument at the lab.
-2. Downstream QA must execute real operator journeys and live provider-backed agent behavior when reachable. Do not count successful bootstrap, health checks, or generated directories as real-scenario evidence.
-3. When starting provider-backed commands, follow the provider's home policy from the manifest/config:
-   - Bound-secret, brokered, or explicitly isolated-home lanes:
-     `HOME="$PROVIDER_HOME" CODEX_HOME="$PROVIDER_CODEX_HOME" <provider-command>`
-   - `native_cli` providers with `home_policy=operator`: preserve the operator `HOME` / native login state and do **not** rewrite it to `PROVIDER_HOME` unless the scenario explicitly tests isolated provider-home behavior.
-4. When starting `make web-dev` or any Web surface that proxies to the daemon, export:
-   `AGH_WEB_API_PROXY_TARGET="$AGH_WEB_API_PROXY_TARGET"`
-5. Keep `agh config set` and any other config mutation against the same isolated home strictly sequential. Do not parallelize writes against the same config file.
-6. Downstream QA must run the validation auditor from `AUDIT_COMMAND` before claiming behavior-first completion. The auditor writes `qa-audit-report.json` and `qa-audit-report.md`:
-   `python3 .agents/skills/agh/real-scenario-qa/scripts/audit-qa-evidence.py --qa-output-path "$QA_OUTPUT_PATH" --strict`
+*Done when:* manifest, env, paths, scenario contract, charter, playbook artifacts, and filesystem all describe the same isolated lab with no placeholders in a playbook run.
 
-**Step 4: Report Reuse State**
+**Step 3: Hand Off to Downstream QA**
 
-1. When QA completes, keep the manifest path, lab root, `AGH_HOME`, base URL, and the dated run report path (`docs/qa/reports/<YYYY-MM-DD>-<scope>.md`) visible in the final QA summary.
-2. For timed-loop or continuation-driven QA, include the machine-readable QA bootstrap block from `references/bootstrap-contract.md` so the next round can reuse the lab instead of rebuilding it.
+1. Pass `qa-docs-path=docs/qa` to `qa-report` and `qa-execution`; keep `QA_OUTPUT_PATH` as lab-side scratch evidence only.
+2. Launch providers, Web, browser, and config operations exactly from the manifest contract. Preserve operator home for `native_cli + home_policy=operator`; use isolated provider homes for bound-secret or brokered lanes.
+3. Export the manifest-derived `AGH_WEB_API_PROXY_TARGET` for Web QA and serialize config writes against one isolated home.
+4. Register every long-lived process immediately under `<QA_OUTPUT_PATH>/qa/pids/`.
+5. Require downstream QA to run the manifest's strict `AUDIT_COMMAND` before a behavior-first verdict.
 
-**Step 5: Tear Down the Lab (MANDATORY on every terminal path)**
+*Done when:* downstream skills consume the canonical manifest, durable findings land under `docs/qa/`, scratch evidence stays in the lab, and every owned process is registered.
 
-1. A QA pass is not complete while lab processes are alive. On pass, fail, blocked, or abort, run the recorded teardown:
-   `eval "$TEARDOWN_COMMAND"` (equivalent to `python3 .agents/skills/agh/agh-qa-bootstrap/scripts/teardown-qa-env.py --manifest "$BOOTSTRAP_MANIFEST"`).
-2. The teardown stops the daemon gracefully, kills the lab tmux server, and sweeps survivors (registered `qa/pids/*.pid`, cmdline references to lab roots, lab-port listeners, open files under runtime/provider homes). It writes `<QA_OUTPUT_PATH>/qa/teardown.json` and stamps the manifest with a `teardown` block.
-3. Cite `teardown.json` (`"clean": true`) as completion evidence in the final QA summary. Exit code `1` (survivors) is a blocking failure — diagnose the survivors, never ignore them.
-4. Register every long-lived process you start against the lab at `<QA_OUTPUT_PATH>/qa/pids/<name>.pid` immediately after spawn (`echo $! > "$QA_OUTPUT_PATH/qa/pids/web-dev.pid"`). The registry is the teardown's primary kill list.
-5. Only exception: the same active session/loop keeps the lab alive across a continuation (reuse policy). Whoever ends the loop inherits the teardown obligation.
-6. To reap every discoverable lab on the machine (stale labs from crashed runs), run `make qa-reap` (add `PURGE=1` to also delete runtime dirs after a clean sweep).
+**Step 4: Preserve Continuation State**
+
+1. Report the manifest path, lab root, `AGH_HOME`, base URL, dated run-report path, and reuse status.
+2. For a continuing loop, append the exact machine-readable continuation block from the bootstrap contract.
+
+*Done when:* the next continuation can identify the same lab from one exact manifest without discovery or guessing.
+
+**Step 5: Tear Down on Every Terminal Path**
+
+1. On PASS, FAIL, BLOCKED, or abort, run the manifest's exact `TEARDOWN_COMMAND`; only a confirmed continuation of the same loop may defer it.
+2. The teardown must stop the daemon, tmux server, registered PIDs, lab-root processes, and lab-port listeners without touching unrelated labs.
+3. Cite `<QA_OUTPUT_PATH>/qa/teardown.json` with `"clean": true`. Survivors are a blocking failure.
+4. Reserve `make qa-reap` for intentional stale-lab recovery across the machine, not normal cleanup of one active run.
+
+*Done when:* the current lab's teardown evidence is clean and no process owned by this pass remains alive.
 
 ## Error Handling
 
-- If the bootstrap helper reports `REUSED_LAB=false` because health checks failed, use the fresh manifest it just wrote instead of trying to revive the stale state manually.
-- If a bound-secret, brokered, or Codex-specific provider fails with global config errors such as malformed `config.toml`, confirm that commands are using the manifest-derived `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`. If a `native_cli` provider with `home_policy=operator` fails, confirm the lane preserved the operator `HOME` instead of incorrectly rewriting it to `PROVIDER_HOME`.
-- If Web flows hit the wrong daemon, confirm `AGH_WEB_API_PROXY_TARGET` matches the manifest and restart the Web dev server with that env.
-- If teardown reports survivors (exit 1), inspect `TEARDOWN_SURVIVOR` lines: EPERM means another user owns the process (escalate to the operator); "still alive after SIGKILL" usually means a zombie parent — find and stop the parent, then re-run the teardown.
+- **Requested reuse fails health checks:** use the fresh manifest emitted by the helper; do not revive stale state manually.
+- **Provider reports global config errors:** compare the command's home policy with the manifest; isolated and operator-home lanes intentionally differ.
+- **Web reaches the wrong daemon:** restart the Web process with the manifest-derived proxy target.
+- **Teardown reports survivors:** inspect each `TEARDOWN_SURVIVOR`, stop only processes owned by the current lab, and rerun the same targeted teardown.

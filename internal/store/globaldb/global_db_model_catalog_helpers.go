@@ -3,12 +3,14 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 type modelCatalogRowScan struct {
@@ -110,7 +112,7 @@ func (s *modelCatalogRowScan) modelRow() (modelcatalog.ModelRow, error) {
 	return row, nil
 }
 
-func (g *GlobalDB) withModelCatalogImmediateTransaction(
+func (g *ModelCatalogRepo) withModelCatalogImmediateTransaction(
 	ctx context.Context,
 	action string,
 	run func(exec modelCatalogSQLExecutor) error,
@@ -120,12 +122,13 @@ func (g *GlobalDB) withModelCatalogImmediateTransaction(
 		return fmt.Errorf("store: open connection for %s: %w", action, err)
 	}
 	defer func() {
-		if closeErr := conn.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("store: close %s transaction connection: %w", action, closeErr)
+		if closeErr := conn.Close(); closeErr != nil {
+			joinCleanupError(&err, fmt.Errorf("store: close %s transaction connection: %w", action, closeErr))
 		}
 	}()
 
 	rollbackCtx := context.WithoutCancel(ctx)
+	// dynamic-sql: BEGIN IMMEDIATE is explicit SQLite transaction control, not a schema query.
 	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
 		return fmt.Errorf("store: begin immediate %s transaction: %w", action, err)
 	}
@@ -140,6 +143,7 @@ func (g *GlobalDB) withModelCatalogImmediateTransaction(
 	if err := run(conn); err != nil {
 		return err
 	}
+	// dynamic-sql: COMMIT closes the explicit SQLite transaction and is outside sqlc's schema query model.
 	if _, err = conn.ExecContext(ctx, "COMMIT"); err != nil {
 		return fmt.Errorf("store: commit %s transaction: %w", action, err)
 	}
@@ -147,7 +151,7 @@ func (g *GlobalDB) withModelCatalogImmediateTransaction(
 	return nil
 }
 
-func (g *GlobalDB) withModelCatalogReadTransaction(
+func (g *ModelCatalogRepo) withModelCatalogReadTransaction(
 	ctx context.Context,
 	action string,
 	run func(exec modelCatalogSQLExecutor) error,
@@ -157,8 +161,8 @@ func (g *GlobalDB) withModelCatalogReadTransaction(
 		return fmt.Errorf("store: open connection for %s: %w", action, err)
 	}
 	defer func() {
-		if closeErr := conn.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("store: close %s transaction connection: %w", action, closeErr)
+		if closeErr := conn.Close(); closeErr != nil {
+			joinCleanupError(&err, fmt.Errorf("store: close %s transaction connection: %w", action, closeErr))
 		}
 	}()
 
@@ -170,8 +174,8 @@ func (g *GlobalDB) withModelCatalogReadTransaction(
 	finished := false
 	defer func() {
 		if !finished {
-			if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone && err == nil {
-				err = fmt.Errorf("store: rollback %s transaction: %w", action, rollbackErr)
+			if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+				joinCleanupError(&err, fmt.Errorf("store: rollback %s transaction: %w", action, rollbackErr))
 			}
 		}
 	}()
@@ -197,11 +201,11 @@ func boolToSQLiteInt(value bool) int {
 	return 0
 }
 
-func nullableBoolToSQLiteInt(value *bool) any {
+func nullableBoolToSQLiteInt(value *bool) sql.NullInt64 {
 	if value == nil {
-		return nil
+		return sql.NullInt64{}
 	}
-	return boolToSQLiteInt(*value)
+	return sql.NullInt64{Int64: int64(boolToSQLiteInt(*value)), Valid: true}
 }
 
 func boolPointerToSQLiteInt(value *bool) int {
@@ -244,26 +248,82 @@ func nullableSQLiteIntToBool(value sql.NullInt64, field string) (*bool, error) {
 	}
 }
 
-func nullableReasoningEffort(value *modelcatalog.ReasoningEffort) any {
+func nullableReasoningEffort(value *modelcatalog.ReasoningEffort) sql.NullString {
 	if value == nil {
-		return nil
+		return sql.NullString{}
 	}
 	trimmed := strings.TrimSpace(string(*value))
 	if trimmed == "" {
-		return nil
+		return sql.NullString{}
 	}
-	return trimmed
+	return sql.NullString{String: trimmed, Valid: true}
 }
 
-func nullableStringPtr(value *string) any {
+func nullableStringPtr(value *string) sql.NullString {
 	if value == nil {
-		return nil
+		return sql.NullString{}
 	}
 	trimmed := strings.TrimSpace(*value)
 	if trimmed == "" {
-		return nil
+		return sql.NullString{}
 	}
-	return trimmed
+	return sql.NullString{String: trimmed, Valid: true}
+}
+
+func nullableModelCatalogInt64(value *int64) sql.NullInt64 {
+	if value == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: *value, Valid: true}
+}
+
+func nullableModelCatalogFloat64(value *float64) sql.NullFloat64 {
+	if value == nil {
+		return sql.NullFloat64{}
+	}
+	return sql.NullFloat64{Float64: *value, Valid: true}
+}
+
+func modelCatalogRowParams(row modelcatalog.ModelRow) sqlcgen.InsertModelCatalogRowParams {
+	return sqlcgen.InsertModelCatalogRowParams{
+		SourceID:   row.SourceID,
+		ProviderID: row.ProviderID,
+		ModelID:    row.ModelID,
+		SourceKind: string(
+			row.SourceKind,
+		),
+		Priority:    int64(row.Priority),
+		Available:   nullableBoolToSQLiteInt(row.Available),
+		Stale:       int64(boolToSQLiteInt(row.Stale)),
+		RefreshedAt: store.FormatNullableTimestamp(row.RefreshedAt),
+		ExpiresAt:   store.FormatNullableTimestamp(row.ExpiresAt),
+		DisplayName: row.DisplayName,
+		ContextWindow: nullableModelCatalogInt64(
+			row.ContextWindow,
+		),
+		MaxInputTokens: nullableModelCatalogInt64(row.MaxInputTokens),
+		MaxOutputTokens: nullableModelCatalogInt64(
+			row.MaxOutputTokens,
+		),
+		SupportsTools:          nullableBoolToSQLiteInt(row.SupportsTools),
+		SupportsReasoning:      nullableBoolToSQLiteInt(row.SupportsReasoning),
+		DefaultReasoningEffort: nullableReasoningEffort(row.DefaultReasoningEffort),
+		CostInputPerMillion:    nullableModelCatalogFloat64(row.CostInputPerMillion),
+		CostOutputPerMillion:   nullableModelCatalogFloat64(row.CostOutputPerMillion),
+		ExplicitlyCurated:      int64(boolToSQLiteInt(row.ExplicitlyCurated)),
+		Deprecated: int64(
+			boolPointerToSQLiteInt(row.Deprecated),
+		),
+		Hidden: int64(boolPointerToSQLiteInt(row.Hidden)),
+		Featured: int64(
+			boolPointerToSQLiteInt(row.Featured),
+		),
+		DeprecatedSet: int64(boolToSQLiteInt(row.Deprecated != nil)),
+		HiddenSet:     int64(boolToSQLiteInt(row.Hidden != nil)),
+		FeaturedSet:   int64(boolToSQLiteInt(row.Featured != nil)),
+		ReleaseDate:   nullableStringPtr(row.ReleaseDate),
+		LastError:     row.LastError,
+	}
 }
 
 func nullReasoningEffort(value sql.NullString) *modelcatalog.ReasoningEffort {

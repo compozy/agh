@@ -2,13 +2,13 @@ package globaldb
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strings"
 	"time"
 
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 const (
@@ -122,18 +122,10 @@ func appendLoopRunEventWithSequence(
 	if err != nil {
 		return 0, err
 	}
-	_, err = exec.ExecContext(
-		ctx,
-		`INSERT INTO loop_run_events (id, loop_run_id, workspace_id, seq, kind, payload_json, at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		store.NewID("loopevt"),
-		string(runID),
-		string(ws),
-		seq,
-		kind,
-		string(payloadJSON),
-		store.FormatTimestamp(at),
-	)
+	err = sqlcgen.New(exec).InsertLoopRunEvent(ctx, sqlcgen.InsertLoopRunEventParams{
+		ID: store.NewID("loopevt"), LoopRunID: string(runID), WorkspaceID: string(ws),
+		Seq: seq, Kind: kind, PayloadJson: string(payloadJSON), At: at.UTC(),
+	})
 	if err != nil {
 		return 0, fmt.Errorf("store: insert loop run event %q: %w", kind, err)
 	}
@@ -145,18 +137,11 @@ func nextLoopRunEventSequence(
 	exec taskSQLExecutor,
 	runID looppkg.RunID,
 ) (int64, error) {
-	var next sql.NullInt64
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT COALESCE(MAX(seq), 0) + 1 FROM loop_run_events WHERE loop_run_id = ?`,
-		string(runID),
-	).Scan(&next); err != nil {
+	next, err := sqlcgen.New(exec).NextLoopRunEventSequence(ctx, string(runID))
+	if err != nil {
 		return 0, fmt.Errorf("store: select next loop run event sequence: %w", err)
 	}
-	if !next.Valid {
-		return 1, nil
-	}
-	return next.Int64, nil
+	return next, nil
 }
 
 func loopRunEventKindValid(kind string) bool {

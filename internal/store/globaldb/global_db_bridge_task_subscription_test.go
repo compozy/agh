@@ -1,68 +1,15 @@
 package globaldb
 
 import (
-	"database/sql"
 	"errors"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/compozy/agh/internal/bridges"
 	"github.com/compozy/agh/internal/notifications"
-	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
 )
-
-func TestGlobalDBBridgeTaskSubscriptionSchemaMigration(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should create bridge task subscription schema on fresh DB", func(t *testing.T) {
-		t.Parallel()
-
-		globalDB := openTestGlobalDB(t)
-
-		assertBridgeTaskSubscriptionSchema(t, globalDB.db)
-	})
-
-	t.Run("Should migrate previous global schema", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		legacyDB := openPreviousBridgeTaskSubscriptionSchemaDB(t, dbPath)
-		insertMigrationRecordsThroughVersion(t, legacyDB, 19)
-		if err := legacyDB.Close(); err != nil {
-			t.Fatalf("legacyDB.Close() error = %v", err)
-		}
-
-		globalDB, err := OpenGlobalDB(ctx, dbPath)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB() error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := globalDB.Close(ctx); err != nil {
-				t.Fatalf("Close() error = %v", err)
-			}
-		})
-
-		assertBridgeTaskSubscriptionSchema(t, globalDB.db)
-	})
-}
-
-func TestBridgeTaskSubscriptionSchemaStatements(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should use shared bridge task subscription DDL in fresh global schema", func(t *testing.T) {
-		t.Parallel()
-
-		for _, statement := range bridgeTaskSubscriptionSchemaStatements() {
-			if !schemaStatementsContain(globalSchemaStatements, statement) {
-				t.Fatalf("globalSchemaStatements missing bridge task subscription statement %q", statement)
-			}
-		}
-	})
-}
 
 func TestGlobalDBBridgeTaskSubscriptionStore(t *testing.T) {
 	t.Parallel()
@@ -221,62 +168,6 @@ func TestGlobalDBBridgeTaskSubscriptionStore(t *testing.T) {
 			t.Fatalf("recreated cursor = %#v, want stale sequence preserved", recreatedCursor)
 		}
 	})
-}
-
-func assertBridgeTaskSubscriptionSchema(t *testing.T, db *sql.DB) {
-	t.Helper()
-
-	assertTablesPresent(t, db, "bridge_task_subscriptions")
-	assertTableColumns(t, db, "bridge_task_subscriptions", []string{
-		"subscription_id",
-		"task_id",
-		"bridge_instance_id",
-		"scope",
-		"workspace_id",
-		"peer_id",
-		"thread_id",
-		"group_id",
-		"delivery_mode",
-		"created_by_kind",
-		"created_by_ref",
-		"created_at",
-		"updated_at",
-	})
-	assertIndexesPresent(
-		t,
-		db,
-		"bridge_task_subscriptions",
-		"idx_bridge_task_subscriptions_task",
-		"idx_bridge_task_subscriptions_bridge",
-		"idx_bridge_task_subscriptions_scope",
-	)
-}
-
-func openPreviousBridgeTaskSubscriptionSchemaDB(t *testing.T, dbPath string) *sql.DB {
-	t.Helper()
-
-	ctx := testutil.Context(t)
-	db, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		t.Fatalf("sql.Open() error = %v", err)
-	}
-
-	excluded := make(map[string]struct{})
-	for _, statement := range bridgeTaskSubscriptionSchemaStatements() {
-		excluded[statement] = struct{}{}
-	}
-	for _, statement := range globalSchemaStatements {
-		if _, ok := excluded[statement]; ok {
-			continue
-		}
-		if _, err := db.ExecContext(ctx, statement); err != nil {
-			t.Fatalf("ExecContext(previous bridge task subscription schema) error = %v", err)
-		}
-	}
-	if err := store.RunMigrations(ctx, db, nil); err != nil {
-		t.Fatalf("RunMigrations(empty) error = %v", err)
-	}
-	return db
 }
 
 func bridgeInstanceForSubscriptionTest(id string) bridges.BridgeInstance {

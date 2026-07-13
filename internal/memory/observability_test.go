@@ -2,7 +2,10 @@ package memory
 
 import (
 	"context"
+	"crypto/sha256"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,6 +13,7 @@ import (
 
 	eventspkg "github.com/compozy/agh/internal/events"
 	storepkg "github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/testutil"
 	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
@@ -38,7 +42,7 @@ func TestStoreListMemoryEventSummaries(t *testing.T) {
 		ctx := context.Background()
 		baseDir := t.TempDir()
 		workspaceRoot := filepath.Join(baseDir, "workspace")
-		globalStore := NewStore(
+		globalStore := newOpenTestStore(t,
 			filepath.Join(baseDir, "global", "memory"),
 			WithCatalogDatabasePath(filepath.Join(baseDir, "agh-home", storepkg.GlobalDatabaseName)),
 		)
@@ -153,6 +157,62 @@ func TestStoreListMemoryEventSummaries(t *testing.T) {
 			t.Fatalf("workspace-filtered events = %#v, want only visible workspace event", workspaceOnly)
 		}
 	})
+
+	t.Run("Should refuse a legacy workspace database before querying events", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+		dbPath := seedWorkspaceObservabilityDatabase(
+			t,
+			workspaceRoot,
+			`CREATE TABLE memory_schema_migrations (version INTEGER PRIMARY KEY)`,
+		)
+		before := observabilityFileDigest(t, dbPath)
+		store := NewStore(filepath.Join(t.TempDir(), "global-memory"))
+
+		_, err := store.ListMemoryEventSummaries(
+			testutil.Context(t),
+			[]string{workspaceRoot},
+			storepkg.EventSummaryQuery{},
+		)
+		if !errors.Is(err, storepkg.ErrLegacyDatabase) {
+			t.Fatalf("ListMemoryEventSummaries(legacy) error = %v, want ErrLegacyDatabase", err)
+		}
+		if after := observabilityFileDigest(t, dbPath); after != before {
+			t.Fatalf("legacy workspace database digest changed: got %x want %x", after, before)
+		}
+	})
+
+	t.Run("Should refuse an ahead workspace database before querying events", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+		dbPath := seedWorkspaceObservabilityDatabase(
+			t,
+			workspaceRoot,
+			`CREATE TABLE goose_db_version_memory (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				version_id INTEGER NOT NULL,
+				is_applied INTEGER NOT NULL,
+				tstamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			)`,
+			`INSERT INTO goose_db_version_memory (version_id, is_applied) VALUES (99, 1)`,
+		)
+		before := observabilityFileDigest(t, dbPath)
+		store := NewStore(filepath.Join(t.TempDir(), "global-memory"))
+
+		_, err := store.ListMemoryEventSummaries(
+			testutil.Context(t),
+			[]string{workspaceRoot},
+			storepkg.EventSummaryQuery{},
+		)
+		if !errors.Is(err, storepkg.ErrSchemaAhead) {
+			t.Fatalf("ListMemoryEventSummaries(ahead) error = %v, want ErrSchemaAhead", err)
+		}
+		if after := observabilityFileDigest(t, dbPath); after != before {
+			t.Fatalf("ahead workspace database digest changed: got %x want %x", after, before)
+		}
+	})
 }
 
 func TestStoreHealthStats(t *testing.T) {
@@ -162,7 +222,7 @@ func TestStoreHealthStats(t *testing.T) {
 		ctx := context.Background()
 		baseDir := t.TempDir()
 		workspaceRoot := filepath.Join(baseDir, "workspace")
-		globalStore := NewStore(
+		globalStore := newOpenTestStore(t,
 			filepath.Join(baseDir, "global", "memory"),
 			WithCatalogDatabasePath(filepath.Join(baseDir, "agh-home", storepkg.GlobalDatabaseName)),
 		)
@@ -211,7 +271,54 @@ func openWorkspaceObservabilityCatalog(
 		filepath.Join(filepath.Dir(identity.Path), storepkg.GlobalDatabaseName),
 		func() time.Time { return time.Now().UTC() },
 	)
+	if err := workspaceCatalog.open(ctx); err != nil {
+		t.Fatalf("catalog.open() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := workspaceCatalog.close(context.Background()); err != nil {
+			t.Errorf("catalog.close() error = %v", err)
+		}
+	})
 	return workspaceCatalog, identity.WorkspaceID
+}
+
+func seedWorkspaceObservabilityDatabase(t *testing.T, workspaceRoot string, statements ...string) string {
+	t.Helper()
+
+	if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
+		t.Fatalf("MkdirAll(workspaceRoot) error = %v", err)
+	}
+	identity, err := aghworkspace.EnsureIdentity(testutil.Context(t), workspaceRoot)
+	if err != nil {
+		t.Fatalf("EnsureIdentity() error = %v", err)
+	}
+	dbPath := filepath.Join(filepath.Dir(identity.Path), storepkg.GlobalDatabaseName)
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("sql.Open(%q) error = %v", dbPath, err)
+	}
+	for _, statement := range statements {
+		if _, err := db.ExecContext(testutil.Context(t), statement); err != nil {
+			if closeErr := db.Close(); closeErr != nil {
+				t.Fatalf("seed workspace database error = %v; close error = %v", err, closeErr)
+			}
+			t.Fatalf("seed workspace database error = %v", err)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close(seed workspace database) error = %v", err)
+	}
+	return dbPath
+}
+
+func observabilityFileDigest(t *testing.T, path string) [sha256.Size]byte {
+	t.Helper()
+
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", path, err)
+	}
+	return sha256.Sum256(contents)
 }
 
 func insertMemoryObservabilityEvent(

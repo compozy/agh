@@ -1,17 +1,11 @@
 ---
 name: agh-design
-description: Use this skill to generate well-branded interfaces and assets for AGH (Compozy's open workplace for AI agents - a local-first runtime that hosts durable agent sessions and the agh-network/v0 protocol) for production UI, static HTML artifacts, slides, prototypes, mocks, and design reviews.
-user-invocable: true
+description: AGH visual-design authority for production UI, static artifacts, prototypes, and reviews. Use when creating or reviewing an AGH surface or changing tokens, typography, spacing, depth, icons, or motion. Do not use for capture-only verification; use agh-ui-screenshot.
 ---
 
-Use this skill before making AGH visual decisions. AGH is dark-mode only,
-warm-dark, operator-first, and intentionally restrained.
+# AGH Design
 
-## Triggers
-
-- Generating UI artifacts: HTML mocks, slides, prototypes, screenshots, or production code.
-- Token, color, type, spacing, radius, icon, depth, or motion decisions.
-- Reviewing AI-generated UI for AGH brand and design-system alignment.
+Use the canonical visual authorities before making AGH design decisions.
 
 ## Authority
 
@@ -50,3 +44,16 @@ Edit the owning surface: `web/`, `packages/ui/`, or `packages/site/`. Consume
 CSS variables and bare Tailwind v4 token utilities. If `tokens.css` or
 `packages/site/app/global.css` changes, run `make codegen` and then
 `make codegen-check` so `DESIGN.md` stays synchronized.
+
+## Completion Criterion
+
+The change is complete when it uses the canonical tokens and primitive owner,
+introduces no parallel palette or shadow primitive, respects the owning
+surface's instructions, and regenerated design artifacts have no drift when a
+token source changed.
+
+## Error Handling
+
+- **`DESIGN.md` and runtime tokens disagree:** treat `packages/ui/src/tokens.css` as source, run codegen, and inspect the regenerated spec rather than editing generated regions.
+- **No exported primitive fits:** decide whether the need is generic or domain-specific; add generic primitives to `packages/ui` and domain composites to the owning Web system.
+- **A plausible mock implies unsupported runtime behavior:** remove the unsupported control or metric; daemon truth wins.

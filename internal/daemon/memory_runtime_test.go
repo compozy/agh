@@ -33,12 +33,12 @@ func TestDaemonMemoryProposalSinkTargetStore(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnsureIdentity() error = %v", err)
 		}
-		sink := daemonMemoryProposalSink{
-			base: memory.NewStore(
-				filepath.Join(baseDir, "global", "memory"),
-				memory.WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
-			),
-		}
+		memoryStore := memory.NewStore(
+			filepath.Join(baseDir, "global", "memory"),
+			memory.WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
+		)
+		openDaemonMemoryCatalog(t, memoryStore)
+		sink := daemonMemoryProposalSink{base: memoryStore}
 		candidate := memcontract.Candidate{
 			WorkspaceID: "ws-registration",
 			Scope:       memcontract.ScopeWorkspace,

@@ -8,28 +8,26 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
-func (g *GlobalDB) ensureClaimerHasNoActiveLease(
+func (g *TaskRunRepo) ensureClaimerHasNoActiveLease(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	criteria taskpkg.ClaimCriteria,
 ) error {
-	var count int
-	if err := exec.QueryRowContext(
+	count, err := sqlcgen.New(exec).CountActiveTaskRunLeasesForSession(
 		ctx,
-		`SELECT COUNT(1)
-		 FROM task_runs
-		 WHERE session_id = ?
-		   AND status IN (?, ?, ?)
-		   AND (lease_until IS NULL OR lease_until > ?)`,
-		criteria.ClaimerSessionID,
-		taskpkg.TaskRunStatusClaimed.String(),
-		taskpkg.TaskRunStatusStarting.String(),
-		taskpkg.TaskRunStatusRunning.String(),
-		store.FormatTimestamp(criteria.Now),
-	).Scan(&count); err != nil {
+		sqlcgen.CountActiveTaskRunLeasesForSessionParams{
+			SessionID:      sql.NullString{String: criteria.ClaimerSessionID, Valid: true},
+			ClaimedStatus:  taskpkg.TaskRunStatusClaimed.String(),
+			StartingStatus: taskpkg.TaskRunStatusStarting.String(),
+			RunningStatus:  taskpkg.TaskRunStatusRunning.String(),
+			Now:            nullableTaskTime(criteria.Now),
+		},
+	)
+	if err != nil {
 		return fmt.Errorf(
 			"store: count active task-run leases for %q: %w",
 			criteria.ClaimerSessionID,
@@ -46,7 +44,7 @@ func (g *GlobalDB) ensureClaimerHasNoActiveLease(
 	return nil
 }
 
-func (g *GlobalDB) selectClaimableRunID(
+func (g *TaskRunRepo) selectClaimableRunID(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	criteria taskpkg.ClaimCriteria,
@@ -72,6 +70,7 @@ func (g *GlobalDB) selectClaimableRunID(
 	where, args = appendClaimOwnerPredicate(where, args, criteria)
 	args = append(args, preferredCapabilityArgs(criteria.RequiredCapabilities)...)
 
+	// dynamic-sql: claim filters, capability cardinality, ownership, and priority ordering alter query structure.
 	query := `SELECT tr.id
 		FROM task_runs tr
 		JOIN tasks t ON t.id = tr.task_id

@@ -11,7 +11,7 @@ import (
 	"github.com/compozy/agh/internal/store"
 )
 
-func (g *GlobalDB) lookupNetworkConversationMessageCursor(
+func (g *NetworkRepo) lookupNetworkConversationMessageCursor(
 	ctx context.Context,
 	ref store.NetworkConversationRef,
 	messageID string,
@@ -25,6 +25,7 @@ func (g *GlobalDB) lookupNetworkConversationMessageCursor(
 	args = append([]any{strings.TrimSpace(messageID)}, args...)
 
 	var cursor networkMessageCursor
+	// dynamic-sql: the cursor must reuse the container-specific and optional message filters from the page query.
 	if err := g.db.QueryRowContext(
 		ctx,
 		store.AppendWhere(`SELECT sequence FROM network_timeline_log`, where),
@@ -257,76 +258,6 @@ func scanNetworkDirectRoomSummary(scanner rowScanner) (store.NetworkDirectRoomSu
 		return store.NetworkDirectRoomSummary{}, err
 	}
 	return summary, nil
-}
-
-func scanNetworkWorkEntry(scanner rowScanner) (store.NetworkWorkEntry, error) {
-	var (
-		entry       store.NetworkWorkEntry
-		threadID    sql.NullString
-		directID    sql.NullString
-		sessionID   sql.NullString
-		targetPeer  sql.NullString
-		openedRaw   string
-		activityRaw string
-		terminalRaw sql.NullString
-	)
-	if err := scanner.Scan(
-		&entry.WorkID,
-		&entry.WorkspaceID,
-		&entry.Channel,
-		&entry.Surface,
-		&threadID,
-		&directID,
-		&entry.OpenedByPeerID,
-		&sessionID,
-		&targetPeer,
-		&entry.State,
-		&openedRaw,
-		&activityRaw,
-		&terminalRaw,
-	); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return store.NetworkWorkEntry{}, fmt.Errorf(
-				"%w: network work: %w",
-				store.ErrNetworkConversationNotFound,
-				err,
-			)
-		}
-		return store.NetworkWorkEntry{}, fmt.Errorf("store: scan network work: %w", err)
-	}
-	if value := store.NullString(threadID); value != nil {
-		entry.ThreadID = *value
-	}
-	if value := store.NullString(directID); value != nil {
-		entry.DirectID = *value
-	}
-	if value := store.NullString(sessionID); value != nil {
-		entry.OpenedSessionID = *value
-	}
-	if value := store.NullString(targetPeer); value != nil {
-		entry.TargetPeerID = *value
-	}
-	openedAt, err := store.ParseTimestamp(openedRaw)
-	if err != nil {
-		return store.NetworkWorkEntry{}, fmt.Errorf("store: parse network work opened_at: %w", err)
-	}
-	activityAt, err := store.ParseTimestamp(activityRaw)
-	if err != nil {
-		return store.NetworkWorkEntry{}, fmt.Errorf("store: parse network work last_activity_at: %w", err)
-	}
-	entry.OpenedAt = openedAt
-	entry.LastActivityAt = activityAt
-	if value := store.NullString(terminalRaw); value != nil {
-		terminalAt, parseErr := store.ParseTimestamp(*value)
-		if parseErr != nil {
-			return store.NetworkWorkEntry{}, fmt.Errorf("store: parse network work terminal_at: %w", parseErr)
-		}
-		entry.TerminalAt = &terminalAt
-	}
-	if err := entry.Validate(); err != nil {
-		return store.NetworkWorkEntry{}, err
-	}
-	return entry, nil
 }
 
 func normalizeRequiredNetworkField(value string, label string) (string, error) {

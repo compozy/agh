@@ -28,6 +28,7 @@ type RuntimeDeps struct {
 	ToolApprovals       toolspkg.ApprovalTokenIssuer
 	HostedMCP           *mcppkg.HostedService
 	Observer            Observer
+	SchemaStreams       core.SchemaStreamStatusReader
 	Automation          core.AutomationManager
 	Loops               core.LoopService
 	Bridges             core.BridgeService

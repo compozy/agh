@@ -9,7 +9,7 @@ import (
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
-var _ taskpkg.InboxReader = (*GlobalDB)(nil)
+var _ taskpkg.InboxReader = (*TaskRepo)(nil)
 
 type taskInboxMetadata struct {
 	total          int
@@ -21,7 +21,7 @@ type taskInboxMetadata struct {
 }
 
 // ListTaskInbox returns one transactionally consistent actor-scoped inbox page.
-func (g *GlobalDB) ListTaskInbox(
+func (g *TaskRepo) ListTaskInbox(
 	ctx context.Context,
 	query taskpkg.InboxQuery,
 	actor taskpkg.ActorIdentity,
@@ -143,6 +143,7 @@ func queryTaskInboxMetadata(
 		UNION ALL
 		SELECT 'priority', priority, COUNT(*), 0, 0 FROM filtered_inbox GROUP BY priority
 		ORDER BY 1 ASC, 2 ASC`
+	// dynamic-sql: inbox ownership, attention, filter, and pagination clauses alter statement structure.
 	rows, err := exec.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return 0, 0, 0, nil, nil, nil, fmt.Errorf("store: query task inbox metadata: %w", err)
@@ -238,6 +239,7 @@ func queryTaskInboxPage(
 		" ORDER BY is_unread DESC, last_activity_at DESC, priority_rank DESC, id ASC" +
 		taskCatalogLimitClause(query.Limit+1)
 	args := append(append([]any(nil), baseArgs...), pageFilterArgs...)
+	// dynamic-sql: inbox aggregate filters share the structurally composed predicate set.
 	rows, err := exec.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query task inbox page: %w", err)

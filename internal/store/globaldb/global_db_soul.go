@@ -10,10 +10,11 @@ import (
 
 	"github.com/compozy/agh/internal/soul"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 // UpsertSoulSnapshot inserts a resolved Soul snapshot or reuses the existing row for its digest.
-func (g *GlobalDB) UpsertSoulSnapshot(ctx context.Context, snapshot soul.Snapshot) (soul.Snapshot, error) {
+func (g *SoulRepo) UpsertSoulSnapshot(ctx context.Context, snapshot soul.Snapshot) (soul.Snapshot, error) {
 	if err := g.checkReady(ctx, "upsert soul snapshot"); err != nil {
 		return soul.Snapshot{}, err
 	}
@@ -42,28 +43,14 @@ func (g *GlobalDB) UpsertSoulSnapshot(ctx context.Context, snapshot soul.Snapsho
 		return existing, nil
 	}
 
-	result, err := g.db.ExecContext(
-		ctx,
-		`INSERT INTO agent_soul_snapshots (
-			id, workspace_id, agent_name, source_path, digest, profile_json, body, truncated, created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(workspace_id, agent_name, digest) DO NOTHING`,
-		normalized.ID,
-		normalized.WorkspaceID,
-		normalized.AgentName,
-		normalized.SourcePath,
-		normalized.Digest,
-		string(normalized.ProfileJSON),
-		normalized.Body,
-		soulBoolToInt(normalized.Truncated),
-		store.FormatTimestamp(normalized.CreatedAt),
-	)
+	affected, err := g.queries.InsertSoulSnapshot(ctx, sqlcgen.InsertSoulSnapshotParams{
+		ID: normalized.ID, WorkspaceID: normalized.WorkspaceID, AgentName: normalized.AgentName,
+		SourcePath: normalized.SourcePath, Digest: normalized.Digest, ProfileJson: string(normalized.ProfileJSON),
+		Body: normalized.Body, Truncated: int64(soulBoolToInt(normalized.Truncated)),
+		CreatedAt: store.FormatTimestamp(normalized.CreatedAt),
+	})
 	if err != nil {
 		return soul.Snapshot{}, fmt.Errorf("store: insert soul snapshot %q: %w", normalized.ID, err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return soul.Snapshot{}, fmt.Errorf("store: inspect inserted soul snapshot %q: %w", normalized.ID, err)
 	}
 	if affected == 0 {
 		existing, ok, err := g.FindSoulSnapshotByDigest(
@@ -88,7 +75,7 @@ func (g *GlobalDB) UpsertSoulSnapshot(ctx context.Context, snapshot soul.Snapsho
 }
 
 // GetSoulSnapshot returns a persisted Soul snapshot by id.
-func (g *GlobalDB) GetSoulSnapshot(ctx context.Context, id string) (soul.Snapshot, error) {
+func (g *SoulRepo) GetSoulSnapshot(ctx context.Context, id string) (soul.Snapshot, error) {
 	if err := g.checkReady(ctx, "get soul snapshot"); err != nil {
 		return soul.Snapshot{}, err
 	}
@@ -97,24 +84,18 @@ func (g *GlobalDB) GetSoulSnapshot(ctx context.Context, id string) (soul.Snapsho
 		return soul.Snapshot{}, fmt.Errorf("%w: id is required", soul.ErrInvalidSnapshot)
 	}
 
-	snapshot, err := scanSoulSnapshot(g.db.QueryRowContext(
-		ctx,
-		`SELECT id, workspace_id, agent_name, source_path, digest, profile_json, body, truncated, created_at
-		FROM agent_soul_snapshots
-		WHERE id = ?`,
-		trimmedID,
-	))
+	row, err := g.queries.GetSoulSnapshot(ctx, trimmedID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return soul.Snapshot{}, fmt.Errorf("store: soul snapshot %q: %w", trimmedID, soul.ErrSnapshotNotFound)
 	}
 	if err != nil {
 		return soul.Snapshot{}, err
 	}
-	return snapshot, nil
+	return soulSnapshotFromGenerated(row)
 }
 
 // FindSoulSnapshotByDigest returns the snapshot matching an agent digest.
-func (g *GlobalDB) FindSoulSnapshotByDigest(
+func (g *SoulRepo) FindSoulSnapshotByDigest(
 	ctx context.Context,
 	workspaceID string,
 	agentName string,
@@ -133,26 +114,21 @@ func (g *GlobalDB) FindSoulSnapshotByDigest(
 		)
 	}
 
-	snapshot, err := scanSoulSnapshot(g.db.QueryRowContext(
-		ctx,
-		`SELECT id, workspace_id, agent_name, source_path, digest, profile_json, body, truncated, created_at
-		FROM agent_soul_snapshots
-		WHERE workspace_id = ? AND agent_name = ? AND digest = ?`,
-		workspaceID,
-		agentName,
-		digest,
-	))
+	row, err := g.queries.GetSoulSnapshotByDigest(ctx, sqlcgen.GetSoulSnapshotByDigestParams{
+		WorkspaceID: workspaceID, AgentName: agentName, Digest: digest,
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return soul.Snapshot{}, false, nil
 	}
 	if err != nil {
 		return soul.Snapshot{}, false, err
 	}
-	return snapshot, true, nil
+	snapshot, err := soulSnapshotFromGenerated(row)
+	return snapshot, err == nil, err
 }
 
 // ListSoulSnapshots lists persisted Soul snapshots in newest-first order.
-func (g *GlobalDB) ListSoulSnapshots(
+func (g *SoulRepo) ListSoulSnapshots(
 	ctx context.Context,
 	query soul.SnapshotListQuery,
 ) (snapshots []soul.Snapshot, err error) {
@@ -163,6 +139,7 @@ func (g *GlobalDB) ListSoulSnapshots(
 		return nil, err
 	}
 
+	// dynamic-sql: optional workspace/agent/digest filters and the caller limit change the statement shape.
 	sqlQuery := `SELECT id, workspace_id, agent_name, source_path, digest, profile_json, body, truncated, created_at
 		FROM agent_soul_snapshots`
 	where, args := store.BuildClauses(
@@ -179,8 +156,8 @@ func (g *GlobalDB) ListSoulSnapshots(
 		return nil, fmt.Errorf("store: query soul snapshots: %w", err)
 	}
 	defer func() {
-		if closeErr := rows.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("store: close soul snapshot rows: %w", closeErr)
+		if closeErr := rows.Close(); closeErr != nil {
+			joinCleanupError(&err, fmt.Errorf("store: close soul snapshot rows: %w", closeErr))
 		}
 	}()
 
@@ -199,7 +176,7 @@ func (g *GlobalDB) ListSoulSnapshots(
 }
 
 // AppendSoulRevision appends one managed authoring revision row.
-func (g *GlobalDB) AppendSoulRevision(ctx context.Context, revision soul.Revision) (soul.Revision, error) {
+func (g *SoulRepo) AppendSoulRevision(ctx context.Context, revision soul.Revision) (soul.Revision, error) {
 	if err := g.checkReady(ctx, "append soul revision"); err != nil {
 		return soul.Revision{}, err
 	}
@@ -215,27 +192,14 @@ func (g *GlobalDB) AppendSoulRevision(ctx context.Context, revision soul.Revisio
 		return soul.Revision{}, err
 	}
 
-	_, err := g.db.ExecContext(
-		ctx,
-		`INSERT INTO agent_soul_revisions (
-			id, workspace_id, agent_name, source_path, action, previous_digest, new_digest,
-			body, diagnostics_json, actor_kind, actor_id, origin_kind, origin_ref, created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		normalized.ID,
-		normalized.WorkspaceID,
-		normalized.AgentName,
-		normalized.SourcePath,
-		string(normalized.Action),
-		normalized.PreviousDigest,
-		normalized.NewDigest,
-		normalized.Body,
-		string(normalized.DiagnosticsJSON),
-		normalized.ActorKind,
-		normalized.ActorID,
-		normalized.OriginKind,
-		normalized.OriginRef,
-		store.FormatTimestamp(normalized.CreatedAt),
-	)
+	err := g.queries.InsertSoulRevision(ctx, sqlcgen.InsertSoulRevisionParams{
+		ID: normalized.ID, WorkspaceID: normalized.WorkspaceID, AgentName: normalized.AgentName,
+		SourcePath: normalized.SourcePath, Action: string(normalized.Action),
+		PreviousDigest: normalized.PreviousDigest, NewDigest: normalized.NewDigest, Body: normalized.Body,
+		DiagnosticsJson: string(normalized.DiagnosticsJSON), ActorKind: normalized.ActorKind,
+		ActorID: normalized.ActorID, OriginKind: normalized.OriginKind, OriginRef: normalized.OriginRef,
+		CreatedAt: store.FormatTimestamp(normalized.CreatedAt),
+	})
 	if err != nil {
 		return soul.Revision{}, fmt.Errorf("store: append soul revision %q: %w", normalized.ID, err)
 	}
@@ -243,7 +207,7 @@ func (g *GlobalDB) AppendSoulRevision(ctx context.Context, revision soul.Revisio
 }
 
 // GetSoulRevision returns a managed authoring revision by id.
-func (g *GlobalDB) GetSoulRevision(ctx context.Context, id string) (soul.Revision, error) {
+func (g *SoulRepo) GetSoulRevision(ctx context.Context, id string) (soul.Revision, error) {
 	if err := g.checkReady(ctx, "get soul revision"); err != nil {
 		return soul.Revision{}, err
 	}
@@ -252,25 +216,18 @@ func (g *GlobalDB) GetSoulRevision(ctx context.Context, id string) (soul.Revisio
 		return soul.Revision{}, fmt.Errorf("%w: id is required", soul.ErrInvalidRevision)
 	}
 
-	revision, err := scanSoulRevision(g.db.QueryRowContext(
-		ctx,
-		`SELECT id, workspace_id, agent_name, source_path, action, previous_digest, new_digest,
-			body, diagnostics_json, actor_kind, actor_id, origin_kind, origin_ref, created_at
-		FROM agent_soul_revisions
-		WHERE id = ?`,
-		trimmedID,
-	))
+	row, err := g.queries.GetSoulRevision(ctx, trimmedID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return soul.Revision{}, fmt.Errorf("store: soul revision %q: %w", trimmedID, soul.ErrRevisionNotFound)
 	}
 	if err != nil {
 		return soul.Revision{}, err
 	}
-	return revision, nil
+	return soulRevisionFromGenerated(row)
 }
 
 // ListSoulRevisions lists managed authoring revisions in newest-first order.
-func (g *GlobalDB) ListSoulRevisions(
+func (g *SoulRepo) ListSoulRevisions(
 	ctx context.Context,
 	query soul.RevisionListQuery,
 ) (revisions []soul.Revision, err error) {
@@ -281,6 +238,7 @@ func (g *GlobalDB) ListSoulRevisions(
 		return nil, err
 	}
 
+	// dynamic-sql: optional workspace/agent/action filters and the caller limit change the statement shape.
 	sqlQuery := `SELECT id, workspace_id, agent_name, source_path, action, previous_digest, new_digest,
 			body, diagnostics_json, actor_kind, actor_id, origin_kind, origin_ref, created_at
 		FROM agent_soul_revisions`
@@ -298,8 +256,8 @@ func (g *GlobalDB) ListSoulRevisions(
 		return nil, fmt.Errorf("store: query soul revisions: %w", err)
 	}
 	defer func() {
-		if closeErr := rows.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("store: close soul revision rows: %w", closeErr)
+		if closeErr := rows.Close(); closeErr != nil {
+			joinCleanupError(&err, fmt.Errorf("store: close soul revision rows: %w", closeErr))
 		}
 	}()
 
@@ -318,7 +276,7 @@ func (g *GlobalDB) ListSoulRevisions(
 }
 
 // FindSoulRevisionForRollback returns the revision body selected for a managed rollback.
-func (g *GlobalDB) FindSoulRevisionForRollback(
+func (g *SoulRepo) FindSoulRevisionForRollback(
 	ctx context.Context,
 	query soul.RollbackLookup,
 ) (soul.Revision, error) {
@@ -329,16 +287,10 @@ func (g *GlobalDB) FindSoulRevisionForRollback(
 		return soul.Revision{}, err
 	}
 
-	revision, err := scanSoulRevision(g.db.QueryRowContext(
-		ctx,
-		`SELECT id, workspace_id, agent_name, source_path, action, previous_digest, new_digest,
-			body, diagnostics_json, actor_kind, actor_id, origin_kind, origin_ref, created_at
-		FROM agent_soul_revisions
-		WHERE workspace_id = ? AND agent_name = ? AND id = ? AND action IN ('put', 'rollback')`,
-		strings.TrimSpace(query.WorkspaceID),
-		strings.TrimSpace(query.AgentName),
-		strings.TrimSpace(query.RevisionID),
-	))
+	row, err := g.queries.GetSoulRevisionForRollback(ctx, sqlcgen.GetSoulRevisionForRollbackParams{
+		WorkspaceID: strings.TrimSpace(query.WorkspaceID), AgentName: strings.TrimSpace(query.AgentName),
+		ID: strings.TrimSpace(query.RevisionID),
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return soul.Revision{}, fmt.Errorf(
 			"store: soul rollback revision %q: %w",
@@ -349,11 +301,11 @@ func (g *GlobalDB) FindSoulRevisionForRollback(
 	if err != nil {
 		return soul.Revision{}, err
 	}
-	return revision, nil
+	return soulRevisionFromGenerated(row)
 }
 
 // UpdateSessionSoulSnapshot updates only the Soul provenance fields on a session row.
-func (g *GlobalDB) UpdateSessionSoulSnapshot(ctx context.Context, update store.SessionSoulSnapshotUpdate) error {
+func (g *SoulRepo) UpdateSessionSoulSnapshot(ctx context.Context, update store.SessionSoulSnapshotUpdate) error {
 	if err := g.checkReady(ctx, "update session soul snapshot"); err != nil {
 		return err
 	}
@@ -365,23 +317,13 @@ func (g *GlobalDB) UpdateSessionSoulSnapshot(ctx context.Context, update store.S
 	if updatedAt.IsZero() {
 		updatedAt = g.now()
 	}
-	result, err := g.db.ExecContext(
-		ctx,
-		`UPDATE sessions
-		SET soul_snapshot_id = ?, soul_digest = ?, parent_soul_digest = ?, updated_at = ?
-		WHERE id = ?`,
-		store.NullableString(update.SoulSnapshotID),
-		strings.TrimSpace(update.SoulDigest),
-		strings.TrimSpace(update.ParentSoulDigest),
-		store.FormatTimestamp(updatedAt),
-		strings.TrimSpace(update.ID),
-	)
+	affected, err := g.queries.UpdateSessionSoulSnapshot(ctx, sqlcgen.UpdateSessionSoulSnapshotParams{
+		SoulSnapshotID: nullableSessionString(update.SoulSnapshotID), SoulDigest: strings.TrimSpace(update.SoulDigest),
+		ParentSoulDigest: strings.TrimSpace(update.ParentSoulDigest), UpdatedAt: store.FormatTimestamp(updatedAt),
+		ID: strings.TrimSpace(update.ID),
+	})
 	if err != nil {
 		return fmt.Errorf("store: update session soul snapshot %q: %w", update.ID, err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("store: rows affected for session soul snapshot %q: %w", update.ID, err)
 	}
 	if affected == 0 {
 		return fmt.Errorf("store: session %q not found", update.ID)

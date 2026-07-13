@@ -8,10 +8,11 @@ import (
 
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
-func (g *GlobalDB) FailRunLease(
+func (g *TaskRunRepo) FailRunLease(
 	ctx context.Context,
 	failure taskpkg.LeaseFailure,
 ) (taskpkg.Run, error) {
@@ -27,8 +28,8 @@ func (g *GlobalDB) FailRunLease(
 	}
 
 	var updated taskpkg.Run
-	if err := g.withTaskImmediateTransaction(ctx, "fail task run lease", func(exec taskSQLExecutor) error {
-		current, err := g.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
+	if err := g.tasks.withTaskImmediateTransaction(ctx, "fail task run lease", func(exec taskSQLExecutor) error {
+		current, err := g.tasks.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
 		if err != nil {
 			return err
 		}
@@ -38,24 +39,19 @@ func (g *GlobalDB) FailRunLease(
 		if err := requireLeaseTerminalTransition(current, taskpkg.TaskRunStatusFailed); err != nil {
 			return err
 		}
-		result, err := exec.ExecContext(
-			ctx,
-			`UPDATE task_runs
-			 SET status = ?, lease_until = NULL, heartbeat_at = NULL, claim_token = NULL,
-			     ended_at = ?, tokens_used = ?, error = ?, result_json = NULL
-			 WHERE id = ? AND claim_token_hash = ?`,
-			taskpkg.TaskRunStatusFailed.String(),
-			store.FormatTimestamp(normalized.Now),
-			normalized.TokensUsed,
-			normalized.Failure.Error,
-			current.ID,
-			current.ClaimTokenHash,
-		)
+		affected, err := sqlcgen.New(exec).FailTaskRunLease(ctx, sqlcgen.FailTaskRunLeaseParams{
+			Status:         taskpkg.TaskRunStatusFailed.String(),
+			EndedAt:        nullableTaskTime(normalized.Now),
+			TokensUsed:     normalized.TokensUsed,
+			Error:          nullableTaskString(normalized.Failure.Error),
+			ID:             current.ID,
+			ClaimTokenHash: nullableTaskString(current.ClaimTokenHash),
+		})
 		if err != nil {
 			return fmt.Errorf("store: fail task run lease %q: %w", current.ID, err)
 		}
-		if err := requireRowsAffected(result, taskpkg.ErrTaskRunNotFound, current.ID, "task run lease"); err != nil {
-			return err
+		if affected == 0 {
+			return fmt.Errorf("store: task run lease %q: %w", current.ID, taskpkg.ErrTaskRunNotFound)
 		}
 		if err := recordLoopNodeTerminalWithExecutor(
 			ctx,
@@ -74,7 +70,7 @@ func (g *GlobalDB) FailRunLease(
 		if err := appendFailedRunLeaseWatchEvent(ctx, exec, current, normalized); err != nil {
 			return err
 		}
-		updated, err = g.getTaskRunWithExecutor(ctx, exec, current.ID)
+		updated, err = g.tasks.getTaskRunWithExecutor(ctx, exec, current.ID)
 		return err
 	}); err != nil {
 		return taskpkg.Run{}, err
@@ -107,7 +103,7 @@ func appendFailedRunLeaseWatchEvent(
 
 // ListAutonomyLeaseHandles returns internal-only lease handles for one session.
 // Public task-run read projections keep claim_token masked.
-func (g *GlobalDB) ListAutonomyLeaseHandles(
+func (g *TaskRunRepo) ListAutonomyLeaseHandles(
 	ctx context.Context,
 	sessionID string,
 ) (handles []taskpkg.AutonomyLeaseHandle, err error) {
@@ -119,18 +115,9 @@ func (g *GlobalDB) ListAutonomyLeaseHandles(
 		return nil, fmt.Errorf("%w: session_id is required", taskpkg.ErrValidation)
 	}
 
-	rows, err := g.db.QueryContext(
+	rows, err := g.queries.ListAutonomyLeaseHandles(
 		ctx,
-		`SELECT tr.id, tr.task_id, COALESCE(t.workspace_id, ''), tr.status,
-		        COALESCE(tr.session_id, ''), tr.claimed_by_kind, tr.claimed_by_ref,
-		        COALESCE(tr.claim_token, ''), COALESCE(tr.claim_token_hash, ''),
-		        tr.lease_until, tr.heartbeat_at
-		   FROM task_runs tr
-		   JOIN tasks t ON t.id = tr.task_id
-		  WHERE tr.session_id = ?
-		    AND COALESCE(tr.claim_token_hash, '') <> ''
-		  ORDER BY COALESCE(tr.lease_until, '') DESC, tr.id ASC`,
-		trimmedSessionID,
+		sql.NullString{String: trimmedSessionID, Valid: true},
 	)
 	if err != nil {
 		return nil, fmt.Errorf(
@@ -139,59 +126,30 @@ func (g *GlobalDB) ListAutonomyLeaseHandles(
 			err,
 		)
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("store: close autonomy lease handle rows: %w", closeErr)
-		}
-	}()
-
-	handles = make([]taskpkg.AutonomyLeaseHandle, 0)
-	for rows.Next() {
-		handle, scanErr := scanAutonomyLeaseHandle(rows)
-		if scanErr != nil {
-			return nil, scanErr
+	handles = make([]taskpkg.AutonomyLeaseHandle, 0, len(rows))
+	for _, row := range rows {
+		handle, mapErr := autonomyLeaseHandleFromGenerated(row)
+		if mapErr != nil {
+			return nil, mapErr
 		}
 		handles = append(handles, handle)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate autonomy lease handles: %w", err)
 	}
 	return handles, nil
 }
 
-func scanAutonomyLeaseHandle(rows *sql.Rows) (taskpkg.AutonomyLeaseHandle, error) {
-	var handle taskpkg.AutonomyLeaseHandle
-	var status string
-	var claimedByKind sql.NullString
-	var claimedByRef sql.NullString
-	var leaseUntilRaw sql.NullString
-	var heartbeatAtRaw sql.NullString
-	if err := rows.Scan(
-		&handle.RunID,
-		&handle.TaskID,
-		&handle.WorkspaceID,
-		&status,
-		&handle.SessionID,
-		&claimedByKind,
-		&claimedByRef,
-		&handle.ClaimToken,
-		&handle.ClaimTokenHash,
-		&leaseUntilRaw,
-		&heartbeatAtRaw,
-	); err != nil {
-		return taskpkg.AutonomyLeaseHandle{}, fmt.Errorf(
-			"store: scan autonomy lease handle: %w",
-			err,
-		)
+func autonomyLeaseHandleFromGenerated(row sqlcgen.ListAutonomyLeaseHandlesRow) (taskpkg.AutonomyLeaseHandle, error) {
+	handle := taskpkg.AutonomyLeaseHandle{
+		RunID: row.ID, TaskID: row.TaskID, WorkspaceID: row.WorkspaceID,
+		Status: taskpkg.ParseRunStatus(row.Status).Normalize(), SessionID: row.SessionID,
+		ClaimToken: row.ClaimToken, ClaimTokenHash: row.ClaimTokenHash,
 	}
-	handle.Status = taskpkg.ParseRunStatus(status).Normalize()
-	if claimedByKind.Valid || claimedByRef.Valid {
+	if row.ClaimedByKind.Valid || row.ClaimedByRef.Valid {
 		handle.ClaimedBy = &taskpkg.ActorIdentity{
-			Kind: taskpkg.ActorKind(strings.TrimSpace(claimedByKind.String)),
-			Ref:  strings.TrimSpace(claimedByRef.String),
+			Kind: taskpkg.ActorKind(strings.TrimSpace(row.ClaimedByKind.String)),
+			Ref:  strings.TrimSpace(row.ClaimedByRef.String),
 		}
 	}
-	if err := setAutonomyLeaseHandleTimestamps(&handle, leaseUntilRaw, heartbeatAtRaw); err != nil {
+	if err := setAutonomyLeaseHandleTimestamps(&handle, row.LeaseUntil, row.HeartbeatAt); err != nil {
 		return taskpkg.AutonomyLeaseHandle{}, err
 	}
 	return handle, nil
@@ -224,7 +182,7 @@ func setAutonomyLeaseHandleTimestamps(
 }
 
 // RecoverExpiredRunLeases requeues stale active leases without issuing new ownership.
-func (g *GlobalDB) RecoverExpiredRunLeases(
+func (g *TaskRunRepo) RecoverExpiredRunLeases(
 	ctx context.Context,
 	recovery taskpkg.ExpiredLeaseRecovery,
 ) ([]taskpkg.ExpiredLeaseRecoveryResult, error) {
@@ -237,46 +195,50 @@ func (g *GlobalDB) RecoverExpiredRunLeases(
 	}
 
 	recovered := make([]taskpkg.ExpiredLeaseRecoveryResult, 0)
-	if err := g.withTaskImmediateTransaction(ctx, "recover expired task run leases", func(exec taskSQLExecutor) error {
-		runIDs, err := expiredLeaseRunIDs(ctx, exec, normalized)
-		if err != nil {
-			return err
-		}
-		for _, runID := range runIDs {
-			current, err := g.getTaskRunWithExecutor(ctx, exec, runID)
+	if err := g.tasks.withTaskImmediateTransaction(
+		ctx,
+		"recover expired task run leases",
+		func(exec taskSQLExecutor) error {
+			runIDs, err := expiredLeaseRunIDs(ctx, exec, normalized)
 			if err != nil {
 				return err
 			}
-			if current.LeaseUntil.IsZero() || current.LeaseUntil.After(normalized.Now) {
-				continue
+			for _, runID := range runIDs {
+				current, err := g.tasks.getTaskRunWithExecutor(ctx, exec, runID)
+				if err != nil {
+					return err
+				}
+				if current.LeaseUntil.IsZero() || current.LeaseUntil.After(normalized.Now) {
+					continue
+				}
+				snapshot := taskRunLeaseSnapshot{
+					status:         current.Status,
+					sessionID:      current.SessionID,
+					leaseUntil:     current.LeaseUntil,
+					claimTokenHash: current.ClaimTokenHash,
+				}
+				if err := requeueExpiredLease(ctx, exec, current, snapshot); err != nil {
+					return err
+				}
+				if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
+					return err
+				}
+				updated, err := g.tasks.getTaskRunWithExecutor(ctx, exec, current.ID)
+				if err != nil {
+					return err
+				}
+				recovered = append(recovered, taskpkg.ExpiredLeaseRecoveryResult{
+					Run:                    updated,
+					PreviousRunStatus:      snapshot.status,
+					PreviousSessionID:      snapshot.sessionID,
+					PreviousLeaseUntil:     snapshot.leaseUntil,
+					PreviousClaimTokenHash: snapshot.claimTokenHash,
+					Reason:                 normalized.Reason,
+				})
 			}
-			snapshot := taskRunLeaseSnapshot{
-				status:         current.Status,
-				sessionID:      current.SessionID,
-				leaseUntil:     current.LeaseUntil,
-				claimTokenHash: current.ClaimTokenHash,
-			}
-			if err := requeueExpiredLease(ctx, exec, current, snapshot); err != nil {
-				return err
-			}
-			if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
-				return err
-			}
-			updated, err := g.getTaskRunWithExecutor(ctx, exec, current.ID)
-			if err != nil {
-				return err
-			}
-			recovered = append(recovered, taskpkg.ExpiredLeaseRecoveryResult{
-				Run:                    updated,
-				PreviousRunStatus:      snapshot.status,
-				PreviousSessionID:      snapshot.sessionID,
-				PreviousLeaseUntil:     snapshot.leaseUntil,
-				PreviousClaimTokenHash: snapshot.claimTokenHash,
-				Reason:                 normalized.Reason,
-			})
-		}
-		return nil
-	}); err != nil {
+			return nil
+		},
+	); err != nil {
 		return nil, err
 	}
 

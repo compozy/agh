@@ -506,6 +506,7 @@ func TestPromptInputCompositeIncludesDurableMemoryRecall(t *testing.T) {
 			globalDir,
 			memory.WithCatalogDatabasePath(filepath.Join(baseDir, "catalog.db")),
 		)
+		openDaemonMemoryCatalog(t, store)
 		workspaceStore := store.ForWorkspace(workspaceRoot)
 		if err := workspaceStore.EnsureDirs(); err != nil {
 			t.Fatalf("EnsureDirs() error = %v", err)

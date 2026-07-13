@@ -1169,7 +1169,7 @@ func openTestKernel(t *testing.T, opts ...Option) (*Kernel, *sql.DB) {
 		testutil.Context(t),
 		filepath.Join(t.TempDir(), store.GlobalDatabaseName),
 		func(ctx context.Context, db *sql.DB) error {
-			return store.EnsureSchema(ctx, db, SchemaStatements())
+			return store.Apply(ctx, db, globalTestMigrationStream())
 		},
 	)
 	if err != nil {
@@ -1224,8 +1224,8 @@ func openLowBusyTestKernel(t *testing.T, opts ...Option) (*Kernel, *sql.DB) {
 	if err := db.PingContext(ctx); err != nil {
 		t.Fatalf("db.PingContext() error = %v", err)
 	}
-	if err := store.EnsureSchema(ctx, db, SchemaStatements()); err != nil {
-		t.Fatalf("EnsureSchema() error = %v", err)
+	if err := store.Apply(ctx, db, globalTestMigrationStream()); err != nil {
+		t.Fatalf("store.Apply() error = %v", err)
 	}
 
 	options := append([]Option{

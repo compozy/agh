@@ -1,6 +1,7 @@
 package globaldb
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -8,12 +9,14 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
 	"testing"
 	"time"
 
+	memorypkg "github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
@@ -33,7 +36,8 @@ type PermissionLogQuery = store.PermissionLogQuery
 
 const GlobalDatabaseName = store.GlobalDatabaseName
 const defaultSessionType = "user"
-const preNetworkActivationMigrationCount = 25
+
+const globalDBExtensionProvenanceJSONKey = "provenance_json"
 const sqliteDriverName = "sqlite"
 
 var testGlobalDBCurrentSchemaSeedPath string
@@ -44,14 +48,6 @@ func formatTimestamp(value time.Time) string {
 
 func sqliteDSN(path string) string {
 	return (&url.URL{Scheme: "file", Path: filepath.ToSlash(path)}).String()
-}
-
-func openSQLiteDatabase(
-	ctx context.Context,
-	path string,
-	initialize func(context.Context, *sql.DB) error,
-) (*sql.DB, error) {
-	return store.OpenSQLiteDatabase(ctx, path, initialize)
 }
 
 func SessionMetaFile(sessionDir string) string {
@@ -89,6 +85,18 @@ func runGlobalDBTests(m *testing.M) (code int) {
 		reportTestMainError("OpenGlobalDB(globaldb seed) error = %v", err)
 		return 1
 	}
+	memoryStore := memorypkg.NewStore(
+		filepath.Join(dir, "memory"),
+		memorypkg.WithCatalogDatabasePath(path),
+	)
+	if err := memoryStore.OpenCatalog(ctx); err != nil {
+		reportTestMainError("OpenCatalog(globaldb seed) error = %v", err)
+		return 1
+	}
+	if err := memoryStore.CloseCatalog(ctx); err != nil {
+		reportTestMainError("CloseCatalog(globaldb seed) error = %v", err)
+		return 1
+	}
 	if err := globalDB.Close(ctx); err != nil {
 		reportTestMainError("Close(globaldb seed) error = %v", err)
 		return 1
@@ -104,85 +112,259 @@ func reportTestMainError(format string, args ...any) {
 	}
 }
 
-func TestOpenGlobalDBCreatesSchemaAndEnablesWAL(t *testing.T) {
-	t.Parallel()
+func TestOpenGlobalDBAppliesGlobalBaselineAndEnablesWAL(t *testing.T) {
+	t.Run("Should apply only the global baseline before repository use", func(t *testing.T) {
+		t.Parallel()
 
-	globalDB := openFreshTestGlobalDB(t)
+		globalDB := openFreshTestGlobalDB(t)
 
-	assertTablesPresent(
-		t,
-		globalDB.db,
-		"schema_migrations",
-		"workspaces",
-		"sessions",
-		"event_summaries",
-		"memory_events",
-		"token_stats",
-		"permission_log",
-		"extensions",
-		"config_apply_records",
-		"network_channel_stats",
-		"network_channel_participants",
-		"network_channel_kind_counts",
-		"scheduler_pause",
-	)
-	assertTableHasColumns(t, globalDB.db, "event_summaries", []string{
-		"provider",
-		"outcome",
+		assertTablesPresent(
+			t,
+			globalDB.db,
+			globalMigrationVersionTable,
+			"workspaces",
+			"sessions",
+			"event_summaries",
+			"token_stats",
+			"permission_log",
+			"extensions",
+			"config_apply_records",
+			"network_channel_stats",
+			"network_channel_participants",
+			"network_channel_kind_counts",
+			"scheduler_pause",
+		)
+		assertTableHasColumns(t, globalDB.db, "event_summaries", []string{
+			"provider",
+			"outcome",
+		})
+		for _, absent := range []string{"schema_migrations", "memory_events", "goose_db_version_memory"} {
+			exists, err := tableExists(testutil.Context(t), globalDB.db, absent)
+			if err != nil {
+				t.Fatalf("tableExists(%q) error = %v", absent, err)
+			}
+			if exists {
+				t.Fatalf("global stream unexpectedly owns table %q", absent)
+			}
+		}
+		assertTableColumns(t, globalDB.db, "config_apply_records", []string{
+			"id",
+			"desired_config_hash",
+			"active_config_hash",
+			"generation",
+			"actor",
+			"diff_class",
+			"status",
+			"diagnostic_json",
+			"created_at",
+			"applied_at",
+			"updated_at",
+		})
+		assertIndexesPresent(
+			t,
+			globalDB.db,
+			"config_apply_records",
+			"idx_config_apply_records_desired",
+			"idx_config_apply_records_active",
+			"idx_config_apply_records_generation",
+			"idx_config_apply_records_actor",
+			"idx_config_apply_records_status",
+		)
+		assertIndexesPresent(
+			t,
+			globalDB.db,
+			"network_channel_stats",
+			"idx_network_channel_stats_activity",
+		)
+		assertIndexesPresent(
+			t,
+			globalDB.db,
+			"network_threads",
+			"idx_network_threads_created",
+			"idx_network_threads_title",
+			"idx_network_threads_open_work",
+		)
+		assertJournalModeWAL(t, globalDB.db)
+		assertSynchronousNormal(t, globalDB.db)
+		status, err := store.Status(testutil.Context(t), globalDB.db, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(global) error = %v", err)
+		}
+		if status.Version != 1 || status.AppliedCount != 1 {
+			t.Fatalf("Status(global) = %#v, want version/applied count 1", status)
+		}
+		workspaces, err := globalDB.ListWorkspaces(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("ListWorkspaces() error = %v", err)
+		}
+		if len(workspaces) != 0 {
+			t.Fatalf("ListWorkspaces() = %#v, want empty fresh repository", workspaces)
+		}
 	})
-	assertTableColumns(t, globalDB.db, "memory_events", []string{
-		"id",
-		"op",
-		"scope",
-		"agent_name",
-		"agent_tier",
-		"workspace_id",
-		"session_id",
-		"actor_kind",
-		"decision_id",
-		"target_id",
-		"metadata",
-		"ts_ms",
+}
+
+func TestGlobalDBRepositoryComposition(t *testing.T) {
+	t.Run("Should expose unique repository methods without lifecycle ownership", func(t *testing.T) {
+		t.Parallel()
+
+		facadeType := reflect.TypeFor[GlobalDB]()
+		methodOwners := make(map[string]string)
+		repositoryCount := 0
+		for field := range facadeType.Fields() {
+			if !isRepositoryField(field) {
+				continue
+			}
+			repositoryCount++
+			repositoryType := field.Type
+			for method := range repositoryType.Methods() {
+				if method.Name == "Close" || method.Name == "Path" || method.Name == "Checkpoint" {
+					t.Fatalf("repository %s owns facade lifecycle method %s", field.Name, method.Name)
+				}
+				if owner, exists := methodOwners[method.Name]; exists {
+					t.Fatalf("repository method %s is ambiguous between %s and %s", method.Name, owner, field.Name)
+				}
+				methodOwners[method.Name] = field.Name
+			}
+		}
+		if repositoryCount == 0 {
+			t.Fatal("repository reflection found no embedded repositories")
+		}
 	})
-	assertTableColumns(t, globalDB.db, "config_apply_records", []string{
-		"id",
-		"desired_config_hash",
-		"active_config_hash",
-		"generation",
-		"actor",
-		"diff_class",
-		"status",
-		"diagnostic_json",
-		"created_at",
-		"applied_at",
-		"updated_at",
+
+	t.Run("Should initialize every embedded repository after open", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openFreshTestGlobalDB(t)
+		facadeType := reflect.TypeFor[GlobalDB]()
+		facadeValue := reflect.ValueOf(globalDB).Elem()
+		for field := range facadeType.Fields() {
+			if !isRepositoryField(field) {
+				continue
+			}
+			if facadeValue.FieldByIndex(field.Index).IsNil() {
+				t.Fatalf("embedded repository %s is nil after OpenGlobalDB", field.Name)
+			}
+		}
 	})
-	assertIndexesPresent(
-		t,
-		globalDB.db,
-		"config_apply_records",
-		"idx_config_apply_records_desired",
-		"idx_config_apply_records_active",
-		"idx_config_apply_records_generation",
-		"idx_config_apply_records_actor",
-		"idx_config_apply_records_status",
-	)
-	assertIndexesPresent(
-		t,
-		globalDB.db,
-		"network_channel_stats",
-		"idx_network_channel_stats_activity",
-	)
-	assertIndexesPresent(
-		t,
-		globalDB.db,
-		"network_threads",
-		"idx_network_threads_created",
-		"idx_network_threads_title",
-		"idx_network_threads_open_work",
-	)
-	assertJournalModeWAL(t, globalDB.db)
-	assertSynchronousNormal(t, globalDB.db)
+}
+
+func isRepositoryField(field reflect.StructField) bool {
+	return field.Anonymous &&
+		field.Type.Kind() == reflect.Pointer &&
+		strings.HasSuffix(field.Type.Elem().Name(), "Repo")
+}
+
+func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
+	t.Run("Should preserve rows and migration status across reopen", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		first, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(first) error = %v", err)
+		}
+		firstStatus, err := store.Status(ctx, first.db, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(first) error = %v", err)
+		}
+		root := t.TempDir()
+		workspace := aghworkspace.Workspace{
+			ID:        "ws-reopen",
+			RootDir:   root,
+			Name:      "reopen",
+			CreatedAt: time.Date(2026, 7, 12, 12, 0, 0, 0, time.UTC),
+			UpdatedAt: time.Date(2026, 7, 12, 12, 0, 0, 0, time.UTC),
+		}
+		if err := first.InsertWorkspace(ctx, workspace); err != nil {
+			t.Fatalf("InsertWorkspace() error = %v", err)
+		}
+		if err := first.Close(ctx); err != nil {
+			t.Fatalf("Close(first) error = %v", err)
+		}
+
+		second, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(second) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := second.Close(testutil.Context(t)); err != nil {
+				t.Fatalf("Close(second) error = %v", err)
+			}
+		})
+		secondStatus, err := store.Status(ctx, second.db, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(second) error = %v", err)
+		}
+		if secondStatus != firstStatus {
+			t.Fatalf("Status(second) = %#v, want unchanged %#v", secondStatus, firstStatus)
+		}
+		loaded, err := second.GetWorkspace(ctx, workspace.ID)
+		if err != nil {
+			t.Fatalf("GetWorkspace(after reopen) error = %v", err)
+		}
+		if loaded.ID != workspace.ID || loaded.RootDir != workspace.RootDir || loaded.Name != workspace.Name {
+			t.Fatalf("GetWorkspace(after reopen) = %#v, want %#v", loaded, workspace)
+		}
+	})
+}
+
+func TestOpenGlobalDBRefusesLegacyDatabaseWithoutMutation(t *testing.T) {
+	t.Run("Should return ErrLegacyDatabase without changing the database file", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		legacy, err := sql.Open("sqlite", path)
+		if err != nil {
+			t.Fatalf("sql.Open(legacy) error = %v", err)
+		}
+		if _, err := legacy.ExecContext(ctx, `CREATE TABLE schema_migrations (
+		version INTEGER PRIMARY KEY,
+		name TEXT NOT NULL,
+		checksum TEXT NOT NULL,
+		applied_at TEXT NOT NULL
+	)`); err != nil {
+			t.Fatalf("create legacy schema_migrations error = %v", err)
+		}
+		if _, err := legacy.ExecContext(ctx, `WITH RECURSIVE versions(version) AS (
+		SELECT 1 UNION ALL SELECT version + 1 FROM versions WHERE version < 61
+	) INSERT INTO schema_migrations (version, name, checksum, applied_at)
+	SELECT version,
+		CASE WHEN version = 1 THEN 'create_global_schema' ELSE printf('legacy_%02d', version) END,
+		printf('checksum-%02d', version),
+		'2026-07-10T00:00:00Z'
+	FROM versions`); err != nil {
+			t.Fatalf("seed legacy schema_migrations error = %v", err)
+		}
+		if err := legacy.Close(); err != nil {
+			t.Fatalf("Close(legacy) error = %v", err)
+		}
+		before, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("ReadFile(before) error = %v", err)
+		}
+
+		_, openErr := OpenGlobalDB(ctx, path)
+		if !errors.Is(openErr, store.ErrLegacyDatabase) {
+			t.Fatalf("OpenGlobalDB(legacy) error = %v, want ErrLegacyDatabase", openErr)
+		}
+		canonicalPath, err := filepath.EvalSymlinks(path)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(legacy path) error = %v", err)
+		}
+		if !strings.Contains(openErr.Error(), canonicalPath) ||
+			!strings.Contains(openErr.Error(), "complete AGH_HOME or workspace .agh directory") {
+			t.Fatalf("OpenGlobalDB(legacy) error = %q, want path and whole-family remediation", openErr)
+		}
+		after, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("ReadFile(after) error = %v", err)
+		}
+		if !bytes.Equal(after, before) {
+			t.Fatal("legacy database bytes changed after refused open")
+		}
+	})
 }
 
 func TestSweepObservabilityDeletesOnlyRowsOlderThanCutoff(t *testing.T) {
@@ -252,1247 +434,6 @@ func TestSweepObservabilityDeletesOnlyRowsOlderThanCutoff(t *testing.T) {
 	assertPermissionLogIDs(t, globalDB, []string{"perm-boundary", "perm-fresh"})
 }
 
-func TestOpenGlobalDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t)
-	path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-	first, err := OpenGlobalDB(ctx, path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB(first) error = %v", err)
-	}
-	firstRecords, err := store.AppliedMigrations(ctx, first.db)
-	if err != nil {
-		t.Fatalf("AppliedMigrations(first) error = %v", err)
-	}
-	if got, want := len(firstRecords), len(globalSchemaMigrations); got != want {
-		t.Fatalf("len(firstRecords) = %d, want %d", got, want)
-	}
-	assertAppliedGlobalMigrationOrder(t, firstRecords)
-	if err := first.Close(ctx); err != nil {
-		t.Fatalf("Close(first) error = %v", err)
-	}
-
-	second, err := OpenGlobalDB(ctx, path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB(second) error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := second.Close(testutil.Context(t)); err != nil {
-			t.Fatalf("Close(second) error = %v", err)
-		}
-	})
-	secondRecords, err := store.AppliedMigrations(ctx, second.db)
-	if err != nil {
-		t.Fatalf("AppliedMigrations(second) error = %v", err)
-	}
-	if got, want := len(secondRecords), len(globalSchemaMigrations); got != want {
-		t.Fatalf("len(secondRecords) = %d, want %d", got, want)
-	}
-	for i := range firstRecords {
-		if !secondRecords[i].AppliedAt.Equal(firstRecords[i].AppliedAt) {
-			t.Fatalf(
-				"second record %d applied_at = %s, want unchanged %s",
-				i,
-				secondRecords[i].AppliedAt,
-				firstRecords[i].AppliedAt,
-			)
-		}
-	}
-}
-
-func TestGlobalDBWatchEventReplayProjectionMigration(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should backfill replay history and preserve it after reopen", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(v62) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if db != nil {
-				if closeErr := db.Close(); closeErr != nil {
-					t.Errorf("db.Close(cleanup) error = %v", closeErr)
-				}
-			}
-		})
-		preReplay := globalSchemaMigrations[:migrationIndexByName(t, "add_watch_event_replay_projections")]
-		if err := store.RunMigrations(ctx, db, preReplay); err != nil {
-			t.Fatalf("RunMigrations(v62) error = %v", err)
-		}
-		now := time.Date(2026, 7, 9, 18, 0, 0, 0, time.UTC)
-		nowRaw := store.FormatTimestamp(now)
-		if _, err := db.ExecContext(
-			ctx,
-			`INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
-			 VALUES ('ws-replay-upgrade', '/tmp/ws-replay-upgrade', 'Replay upgrade', ?, ?)`,
-			nowRaw,
-			nowRaw,
-		); err != nil {
-			t.Fatalf("insert v62 workspace error = %v", err)
-		}
-		if _, err := db.ExecContext(
-			ctx,
-			`INSERT INTO automation_jobs (
-				id, scope, name, agent_name, workspace_id, prompt, schedule, task,
-				enabled, retry, fire_limit, source, target_kind, loop_inputs,
-				loop_input_mapping, created_at, updated_at
-			) VALUES (
-				'job-replay-upgrade', 'workspace', 'Replay upgrade', 'coder',
-				'ws-replay-upgrade', 'Run upgrade', '{}', '{}', 1,
-				'{"strategy":"none","max_retries":0,"base_delay":""}', '{}',
-				'dynamic', 'agent', '{}', '{}', ?, ?
-			)`,
-			nowRaw,
-			nowRaw,
-		); err != nil {
-			t.Fatalf("insert v62 automation job error = %v", err)
-		}
-		if _, err := db.ExecContext(
-			ctx,
-			`INSERT INTO automation_runs (
-				id, job_id, status, attempt, started_at, ended_at, metadata_json
-			) VALUES ('run-replay-upgrade', 'job-replay-upgrade', 'completed', 1, ?, ?, '{}')`,
-			nowRaw,
-			store.FormatTimestamp(now.Add(time.Minute)),
-		); err != nil {
-			t.Fatalf("insert v62 automation run error = %v", err)
-		}
-		if _, err := db.ExecContext(
-			ctx,
-			`INSERT INTO network_timeline_log (
-				message_id, session_id, workspace_id, channel, surface, thread_id,
-				direction, peer_from, peer_to, kind, work_id, body_json, timestamp
-			) VALUES
-				('msg-replay-open', 'sess-replay', 'ws-replay-upgrade', 'builders', 'thread',
-				 'thread-replay', 'sent', 'coder.peer', 'reviewer.peer', 'say', 'work-replay', '{}', ?),
-				('msg-replay-working', 'sess-replay', 'ws-replay-upgrade', 'builders', 'thread',
-				 'thread-replay', 'received', 'reviewer.peer', NULL, 'trace', 'work-replay',
-				 '{"state":"working"}', ?)`,
-			nowRaw,
-			store.FormatTimestamp(now.Add(time.Minute)),
-		); err != nil {
-			t.Fatalf("insert v62 network timeline error = %v", err)
-		}
-
-		if err := store.RunMigrations(ctx, db, globalSchemaMigrations); err != nil {
-			t.Fatalf("RunMigrations(v63) error = %v", err)
-		}
-		assertWatchEventReplayProjectionMigrationState(t, db)
-		if err := db.Close(); err != nil {
-			t.Fatalf("db.Close(v63) error = %v", err)
-		}
-		db = nil
-
-		reopened, err := OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(reopen v63) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
-				t.Errorf("Close(reopened v63) error = %v", closeErr)
-			}
-		})
-		assertWatchEventReplayProjectionMigrationState(t, reopened.db)
-	})
-}
-
-func TestGlobalDBNetworkChannelProjectionMigration(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should backfill channel projections and preserve them after reopen", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(v66) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if db != nil {
-				if closeErr := db.Close(); closeErr != nil {
-					t.Errorf("db.Close(cleanup) error = %v", closeErr)
-				}
-			}
-		})
-		preProjection := globalSchemaMigrations[:globalMigrationIndex(t, networkChannelProjectionsMigration.Version)]
-		if err := store.RunMigrations(ctx, db, preProjection); err != nil {
-			t.Fatalf("RunMigrations(v66) error = %v", err)
-		}
-		startedAt := time.Date(2026, 7, 10, 16, 0, 0, 0, time.UTC)
-		if _, err := db.ExecContext(
-			ctx,
-			`INSERT INTO network_timeline_log (
-				message_id, workspace_id, channel, surface, thread_id, direct_id,
-				direction, peer_from, peer_to, kind, text, preview_text, mentions_json,
-				body_json, timestamp
-			) VALUES
-				('msg-projection-public', 'ws-projection-upgrade', 'builders', 'thread',
-				 'thread-projection', NULL, 'sent', 'peer.author', NULL, 'say', 'public',
-				 'public preview', '["peer.mentioned"]', '{}', ?),
-				('msg-projection-presence', 'ws-projection-upgrade', 'builders', NULL,
-				 NULL, NULL, 'received', 'peer.presence', NULL, 'greet', NULL, '', '[]', '{}', ?),
-				('msg-projection-direct', 'ws-projection-upgrade', 'builders', 'direct',
-				 NULL, 'direct_projection', 'sent', 'peer.author', 'peer.direct', 'say',
-				 'private', 'private', '[]', '{}', ?)`,
-			store.FormatTimestamp(startedAt),
-			store.FormatTimestamp(startedAt.Add(time.Minute)),
-			store.FormatTimestamp(startedAt.Add(2*time.Minute)),
-		); err != nil {
-			t.Fatalf("insert v66 network timeline error = %v", err)
-		}
-
-		if err := store.RunMigrations(ctx, db, globalSchemaMigrations); err != nil {
-			t.Fatalf("RunMigrations(v67) error = %v", err)
-		}
-		assertNetworkChannelProjectionMigrationState(t, db, startedAt)
-		if err := db.Close(); err != nil {
-			t.Fatalf("db.Close(v67) error = %v", err)
-		}
-		db = nil
-
-		reopened, err := OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(reopen v67) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
-				t.Errorf("Close(reopened v67) error = %v", closeErr)
-			}
-		})
-		assertNetworkChannelProjectionMigrationState(t, reopened.db, startedAt)
-	})
-}
-
-func assertNetworkChannelProjectionMigrationState(t *testing.T, db *sql.DB, startedAt time.Time) {
-	t.Helper()
-
-	var (
-		messageCount     int
-		presenceCount    int
-		participantCount int
-		lastActivityRaw  string
-		preview          string
-	)
-	if err := db.QueryRowContext(
-		testutil.Context(t),
-		`SELECT message_count, presence_count, historical_participant_count,
-			last_activity_at, last_message_preview
-		 FROM network_channel_stats
-		 WHERE workspace_id = 'ws-projection-upgrade' AND channel = 'builders'`,
-	).Scan(&messageCount, &presenceCount, &participantCount, &lastActivityRaw, &preview); err != nil {
-		t.Fatalf("query network channel projection state error = %v", err)
-	}
-	if messageCount != 1 || presenceCount != 1 || participantCount != 4 {
-		t.Fatalf(
-			"projection counts = messages:%d presence:%d participants:%d, want 1/1/4",
-			messageCount,
-			presenceCount,
-			participantCount,
-		)
-	}
-	if got, want := lastActivityRaw, store.FormatTimestamp(startedAt); got != want {
-		t.Fatalf("last_activity_at = %q, want %q", got, want)
-	}
-	if got, want := preview, "public preview"; got != want {
-		t.Fatalf("last_message_preview = %q, want %q", got, want)
-	}
-	var kindCount int
-	if err := db.QueryRowContext(
-		testutil.Context(t),
-		`SELECT message_count FROM network_channel_kind_counts
-		 WHERE workspace_id = 'ws-projection-upgrade' AND channel = 'builders' AND kind = 'say'`,
-	).Scan(&kindCount); err != nil {
-		t.Fatalf("query network channel kind projection error = %v", err)
-	}
-	if got, want := kindCount, 1; got != want {
-		t.Fatalf("kind count = %d, want %d", got, want)
-	}
-	assertIndexesPresent(
-		t,
-		db,
-		"network_channel_stats",
-		"idx_network_channel_stats_activity",
-	)
-}
-
-func globalMigrationIndex(t *testing.T, version int) int {
-	t.Helper()
-	for index, migration := range globalSchemaMigrations {
-		if migration.Version == version {
-			return index
-		}
-	}
-	t.Fatalf("global migration version %d not found", version)
-	return -1
-}
-
-func assertWatchEventReplayProjectionMigrationState(t *testing.T, db *sql.DB) {
-	t.Helper()
-
-	ctx := testutil.Context(t)
-	var runID, workspaceID string
-	if err := db.QueryRowContext(
-		ctx,
-		`SELECT run_id, workspace_id FROM automation_watch_events ORDER BY seq ASC LIMIT 1`,
-	).Scan(&runID, &workspaceID); err != nil {
-		t.Fatalf("read migrated automation watch event error = %v", err)
-	}
-	if runID != "run-replay-upgrade" || workspaceID != "ws-replay-upgrade" {
-		t.Fatalf("migrated automation watch event = %q/%q", workspaceID, runID)
-	}
-	rows, err := db.QueryContext(
-		ctx,
-		`SELECT work_opened, work_transitioned, work_state
-		 FROM network_timeline_log
-		 WHERE workspace_id = 'ws-replay-upgrade'
-		 ORDER BY rowid ASC`,
-	)
-	if err != nil {
-		t.Fatalf("read migrated network projections error = %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			t.Errorf("close migrated network projection rows cleanup error = %v", closeErr)
-		}
-	})
-	type projection struct {
-		opened       int
-		transitioned int
-		state        string
-	}
-	got := make([]projection, 0, 2)
-	for rows.Next() {
-		var value projection
-		if err := rows.Scan(&value.opened, &value.transitioned, &value.state); err != nil {
-			t.Fatalf("scan migrated network projection error = %v", err)
-		}
-		got = append(got, value)
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate migrated network projections error = %v", err)
-	}
-	if err := rows.Close(); err != nil {
-		t.Fatalf("close migrated network projection rows error = %v", err)
-	}
-	want := []projection{
-		{opened: 1, state: store.NetworkWorkStateSubmitted},
-		{transitioned: 1, state: store.NetworkWorkStateWorking},
-	}
-	if !slices.Equal(got, want) {
-		t.Fatalf("migrated network projections = %#v, want %#v", got, want)
-	}
-}
-
-func TestOpenGlobalDBFailsOnSchemaMigrationIntegrityMismatch(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t)
-	path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-	globalDB, err := OpenGlobalDB(ctx, path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB(initial) error = %v", err)
-	}
-	if err := globalDB.Close(ctx); err != nil {
-		t.Fatalf("Close(initial) error = %v", err)
-	}
-
-	db, err := store.OpenSQLiteDatabase(ctx, path, nil)
-	if err != nil {
-		t.Fatalf("OpenSQLiteDatabase() error = %v", err)
-	}
-	if _, err := db.ExecContext(
-		ctx,
-		`UPDATE schema_migrations SET checksum = 'tampered' WHERE version = 1`,
-	); err != nil {
-		t.Fatalf("tamper schema_migrations error = %v", err)
-	}
-	if err := db.Close(); err != nil {
-		t.Fatalf("db.Close() error = %v", err)
-	}
-
-	_, err = OpenGlobalDB(ctx, path)
-	if err == nil || !strings.Contains(err.Error(), "migration 1 integrity mismatch") {
-		t.Fatalf("OpenGlobalDB(tampered) error = %v, want integrity mismatch", err)
-	}
-}
-
-func TestGlobalSchemaMigrationsAreAppendOnlyContract(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should keep shipped migration prefix identities stable", func(t *testing.T) {
-		t.Parallel()
-
-		assertGlobalSchemaMigrationDefinitions(t, globalSchemaMigrations)
-	})
-
-	t.Run("Should apply shipped migration prefix on fresh DB", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		globalDB, err := OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB() error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
-				t.Errorf("Close() error = %v", closeErr)
-			}
-		})
-
-		records, err := store.AppliedMigrations(ctx, globalDB.db)
-		if err != nil {
-			t.Fatalf("AppliedMigrations() error = %v", err)
-		}
-		if got, want := len(records), len(globalSchemaMigrations); got != want {
-			t.Fatalf("len(records) = %d, want %d", got, want)
-		}
-		assertAppliedGlobalMigrationOrder(t, records)
-	})
-
-	t.Run("Should preserve shipped migration prefix across reopen", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		first, err := OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(first) error = %v", err)
-		}
-		firstRecords, err := store.AppliedMigrations(ctx, first.db)
-		if err != nil {
-			t.Fatalf("AppliedMigrations(first) error = %v", err)
-		}
-		assertAppliedGlobalMigrationOrder(t, firstRecords)
-		if err := first.Close(ctx); err != nil {
-			t.Fatalf("Close(first) error = %v", err)
-		}
-
-		second, err := OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(second) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := second.Close(testutil.Context(t)); closeErr != nil {
-				t.Errorf("Close(second) error = %v", closeErr)
-			}
-		})
-		secondRecords, err := store.AppliedMigrations(ctx, second.db)
-		if err != nil {
-			t.Fatalf("AppliedMigrations(second) error = %v", err)
-		}
-		if got, want := len(secondRecords), len(firstRecords); got != want {
-			t.Fatalf("len(secondRecords) = %d, want %d", got, want)
-		}
-		assertAppliedGlobalMigrationOrder(t, secondRecords)
-		for index := range expectedGlobalMigrationPrefix() {
-			if !secondRecords[index].AppliedAt.Equal(firstRecords[index].AppliedAt) {
-				t.Fatalf(
-					"migration %d applied_at = %s, want unchanged %s",
-					firstRecords[index].Version,
-					secondRecords[index].AppliedAt,
-					firstRecords[index].AppliedAt,
-				)
-			}
-		}
-	})
-
-	t.Run("Should upgrade recorded shipped prefix by appending later migrations", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(prefix) error = %v", err)
-		}
-		prefix := expectedGlobalMigrationPrefix()
-		if err := store.RunMigrations(ctx, db, globalSchemaMigrations[:len(prefix)]); err != nil {
-			t.Fatalf("RunMigrations(prefix) error = %v", err)
-		}
-		prefixRecords, err := store.AppliedMigrations(ctx, db)
-		if err != nil {
-			t.Fatalf("AppliedMigrations(prefix) error = %v", err)
-		}
-		assertAppliedGlobalMigrationPrefix(t, prefixRecords, len(prefix))
-		if err := db.Close(); err != nil {
-			t.Fatalf("prefix db.Close() error = %v", err)
-		}
-
-		globalDB, err := OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(upgrade) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
-				t.Errorf("Close(upgrade) error = %v", closeErr)
-			}
-		})
-		records, err := store.AppliedMigrations(ctx, globalDB.db)
-		if err != nil {
-			t.Fatalf("AppliedMigrations(upgrade) error = %v", err)
-		}
-		if got, want := len(records), len(globalSchemaMigrations); got != want {
-			t.Fatalf("len(records) = %d, want %d", got, want)
-		}
-		assertAppliedGlobalMigrationOrder(t, records)
-		for index, prefixRecord := range prefixRecords {
-			if !records[index].AppliedAt.Equal(prefixRecord.AppliedAt) {
-				t.Fatalf(
-					"migration %d applied_at = %s, want unchanged %s",
-					prefixRecord.Version,
-					records[index].AppliedAt,
-					prefixRecord.AppliedAt,
-				)
-			}
-		}
-	})
-
-	t.Run("Should introduce network activation fields only through tail migrations", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(prefix) error = %v", err)
-		}
-		if err := store.RunMigrations(
-			ctx,
-			db,
-			globalSchemaMigrations[:preNetworkActivationMigrationCount],
-		); err != nil {
-			t.Fatalf("RunMigrations(v25 prefix) error = %v", err)
-		}
-
-		channelColumns, err := tableColumns(ctx, db, "network_channels")
-		if err != nil {
-			t.Fatalf("tableColumns(network_channels) error = %v", err)
-		}
-		for _, column := range []string{"fanout_policy", "coordinator_peer_id"} {
-			if _, ok := channelColumns[column]; ok {
-				t.Fatalf("network_channels has %q before activation policy migration", column)
-			}
-		}
-		timelineColumns, err := tableColumns(ctx, db, "network_timeline_log")
-		if err != nil {
-			t.Fatalf("tableColumns(network_timeline_log) error = %v", err)
-		}
-		for _, column := range []string{"mentions_json", "ext_json"} {
-			if _, ok := timelineColumns[column]; ok {
-				t.Fatalf("network_timeline_log has %q before its owning migration", column)
-			}
-		}
-		for _, table := range []string{
-			"network_thread_peer_token_stats",
-			"network_subscriptions",
-			"network_delivery_guidance_state",
-			"network_task_thread_origins",
-		} {
-			exists, err := tableExists(ctx, db, table)
-			if err != nil {
-				t.Fatalf("tableExists(%s) error = %v", table, err)
-			}
-			if exists {
-				t.Fatalf("%s exists before its owning tail migration", table)
-			}
-		}
-
-		if err := store.RunMigrations(ctx, db, globalSchemaMigrations); err != nil {
-			t.Fatalf("RunMigrations(full upgrade) error = %v", err)
-		}
-		assertTableColumns(t, db, "network_channels", []string{
-			"workspace_id",
-			"channel",
-			"purpose",
-			"created_by",
-			"created_at",
-			"updated_at",
-			"fanout_policy",
-			"coordinator_peer_id",
-		})
-		timelineColumns, err = tableColumns(ctx, db, "network_timeline_log")
-		if err != nil {
-			t.Fatalf("tableColumns(network_timeline_log after upgrade) error = %v", err)
-		}
-		for _, column := range []string{"mentions_json", "ext_json"} {
-			if _, ok := timelineColumns[column]; !ok {
-				t.Fatalf("network_timeline_log missing %q after full upgrade", column)
-			}
-		}
-		assertTablesPresent(
-			t,
-			db,
-			"network_thread_peer_token_stats",
-			"network_subscriptions",
-			"network_delivery_guidance_state",
-			"network_task_thread_origins",
-		)
-		if err := db.Close(); err != nil {
-			t.Fatalf("db.Close() error = %v", err)
-		}
-	})
-}
-
-type expectedGlobalMigrationIdentity struct {
-	version  int
-	name     string
-	checksum string
-}
-
-func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
-	return []expectedGlobalMigrationIdentity{
-		{
-			version:  1,
-			name:     "create_global_schema",
-			checksum: "70e2c16c9d32e692891ab71d075ca823782626e7c9f6ffbbc88c5d662704e089",
-		},
-		{version: 2, name: "add_session_failure_diagnostics", checksum: "2026-04-24-add-session-failure-diagnostics"},
-		{version: 3, name: "add_automation_scheduler_state", checksum: "2026-04-24-add-automation-scheduler-state"},
-		{version: 4, name: "add_mcp_auth_tokens", checksum: "2026-04-25-add-mcp-auth-tokens"},
-		{version: 5, name: "add_tool_process_records", checksum: "2026-04-24-add-tool-process-records"},
-		{version: 6, name: "add_memory_operation_scope", checksum: "2026-04-25-add-memory-operation-scope"},
-		{version: 7, name: "add_task_run_claim_lease_schema", checksum: "2026-04-26-add-task-run-claim-lease-schema"},
-		{version: 8, name: "add_session_lineage_metadata", checksum: "2026-04-26-add-session-lineage-metadata"},
-		{
-			version:  9,
-			name:     "rename_environment_columns_to_sandbox",
-			checksum: "2026-04-28-rename-environment-columns-to-sandbox",
-		},
-		{version: 10, name: "add_vault_secrets", checksum: "2026-05-01-add-vault-secrets"},
-		{version: 11, name: "unify_secret_refs", checksum: "2026-05-01-unify-secret-refs"},
-		{version: 12, name: "add_agent_soul_snapshots", checksum: "2026-05-02-add-agent-soul-snapshots"},
-		{version: 13, name: "add_agent_heartbeat_storage", checksum: "2026-05-02-add-agent-heartbeat-storage"},
-		{version: 14, name: "add_event_summary_lineage", checksum: "2026-05-04-add-event-summary-lineage"},
-		{
-			version:  15,
-			name:     "rebuild_event_summaries_for_global_payloads",
-			checksum: "2026-05-04-rebuild-event-summaries-for-global-payloads",
-		},
-		{
-			version:  16,
-			name:     "rename_actor_ref_columns_to_actor_id",
-			checksum: "2026-05-04-rename-actor-ref-columns-to-actor-id",
-		},
-		{
-			version:  17,
-			name:     "add_task_orchestration_profile_schema",
-			checksum: "2026-05-05-add-task-orchestration-profile-schema",
-		},
-		{version: 18, name: "add_task_review_gate_schema", checksum: "2026-05-05-add-task-review-gate-schema"},
-		{version: 19, name: "add_notification_cursors", checksum: "2026-05-05-add-notification-cursors"},
-		{version: 20, name: "add_bridge_task_subscriptions", checksum: "2026-05-05-add-bridge-task-subscriptions"},
-		{
-			version:  21,
-			name:     "rebuild_network_conversation_containers",
-			checksum: "2026-05-05-rebuild-network-conversation-containers",
-		},
-		{version: 22, name: "memv2_memory_events", checksum: "2026-05-05-memv2-memory-events"},
-		{version: 23, name: "add_model_catalog_persistence", checksum: "2026-05-07-add-model-catalog-persistence"},
-		{
-			version:  24,
-			name:     "rebuild_model_catalog_source_constraints",
-			checksum: "2026-05-07-rebuild-model-catalog-source-constraints",
-		},
-		{
-			version:  25,
-			name:     "workspace_qualified_network_identity",
-			checksum: "2026-05-12-workspace-qualified-network-identity",
-		},
-		{
-			version:  26,
-			name:     "add_network_timeline_extensions",
-			checksum: "2026-05-16-add-network-timeline-extensions",
-		},
-		{
-			version:  27,
-			name:     "add_config_apply_records",
-			checksum: "2026-05-20-add-config-apply-records",
-		},
-		{
-			version:  28,
-			name:     "add_event_summary_projections",
-			checksum: "2026-05-20-add-event-summary-projections",
-		},
-		{
-			version:  29,
-			name:     "add_scheduler_pause_state",
-			checksum: "2026-05-20-add-scheduler-pause-state",
-		},
-		{
-			version:  30,
-			name:     "add_session_attach_lock",
-			checksum: "2026-05-20-add-session-attach-lock",
-		},
-		{
-			version:  31,
-			name:     "add_session_input_queue",
-			checksum: "2026-05-21-add-session-input-queue",
-		},
-		{
-			version:  32,
-			name:     "add_task_run_force_ops",
-			checksum: "2026-05-21-add-task-run-force-ops",
-		},
-		{
-			version:  33,
-			name:     "add_task_pause_state",
-			checksum: "2026-05-21-add-task-pause-state",
-		},
-		{
-			version:  34,
-			name:     "add_extension_provenance",
-			checksum: "2026-05-21-add-extension-provenance",
-		},
-		{
-			version:  35,
-			name:     "add_bridge_target_directory",
-			checksum: "2026-05-21-add-bridge-target-directory",
-		},
-		{
-			version:  36,
-			name:     "add_notification_presets",
-			checksum: "2026-05-21-add-notification-presets",
-		},
-		{
-			version:  37,
-			name:     "add_app_metadata",
-			checksum: "2026-05-25-add-app-metadata",
-		},
-		{
-			version:  38,
-			name:     "heal_scheduler_pause_updated_at",
-			checksum: "2026-05-28-heal-scheduler-pause-updated-at",
-		},
-		{
-			version:  39,
-			name:     "drop_task_run_status_check",
-			checksum: "2026-05-28-drop-task-run-status-check",
-		},
-		{
-			version:  40,
-			name:     "add_task_run_starvation_tracking",
-			checksum: "2026-05-28-add-task-run-starvation-tracking",
-		},
-		{
-			version:  41,
-			name:     "add_task_auto_enqueue",
-			checksum: "2026-05-29-add-task-auto-enqueue",
-		},
-		{
-			version:  42,
-			name:     "add_task_execution_profile_runtime_mode",
-			checksum: "2026-05-31-add-task-execution-profile-runtime-mode",
-		},
-		{
-			version:  43,
-			name:     "add_network_thread_peer_token_stats",
-			checksum: "2026-07-01-add-network-thread-peer-token-stats",
-		},
-		{
-			version:  44,
-			name:     "add_network_activation_policy_mentions",
-			checksum: "2026-07-01-add-network-activation-policy-mentions",
-		},
-		{
-			version:  45,
-			name:     "add_network_subscriptions_guidance_state",
-			checksum: "2026-07-01-add-network-subscriptions-guidance-state",
-		},
-		{
-			version:  46,
-			name:     "add_network_task_thread_origins",
-			checksum: "2026-07-01-add-network-task-thread-origins",
-		},
-		{
-			version:  47,
-			name:     "add_task_run_designations",
-			checksum: "2026-07-01-add-task-run-designations",
-		},
-		{
-			version:  48,
-			name:     "rebuild_tasks_for_task_blocks",
-			checksum: "2026-07-02-rebuild-tasks-for-task-blocks",
-		},
-		{
-			version:  49,
-			name:     "add_task_block_tables",
-			checksum: "2026-07-02-add-task-block-tables",
-		},
-		{
-			version:  50,
-			name:     "add_loop_run_state_schema",
-			checksum: "2026-07-04-add-loop-run-state-schema",
-		},
-		{
-			version:  51,
-			name:     "add_loop_run_queue_ordering",
-			checksum: "2026-07-04-add-loop-run-queue-ordering",
-		},
-		{
-			version:  52,
-			name:     "add_loop_output_blobs",
-			checksum: "2026-07-04-add-loop-output-blobs",
-		},
-		{
-			version:  53,
-			name:     "add_loop_run_iteration_cap",
-			checksum: "2026-07-04-add-loop-run-iteration-cap",
-		},
-		{
-			version:  54,
-			name:     "add_loop_generation_outputs_output_ref_index",
-			checksum: "2026-07-04-add-loop-generation-outputs-output-ref-index",
-		},
-		{
-			version:  55,
-			name:     "add_automation_loop_targets",
-			checksum: "2026-07-05-add-automation-loop-targets",
-		},
-		{
-			version:  56,
-			name:     "add_loop_run_start_actor",
-			checksum: "2026-07-05-add-loop-run-start-actor",
-		},
-		{
-			version:  57,
-			name:     "add_loop_run_pinning",
-			checksum: "2026-07-07-add-loop-run-pinning",
-		},
-		{
-			version:  58,
-			name:     "add_loop_config_model_defaults",
-			checksum: "2026-07-07-add-loop-config-model-defaults",
-		},
-		{
-			version:  59,
-			name:     "update_automation_catch_up_contract",
-			checksum: "2026-07-07-update-automation-catch-up-contract",
-		},
-		{
-			version:  60,
-			name:     "add_session_transcript_epoch",
-			checksum: "2026-07-07-add-session-transcript-epoch",
-		},
-		{
-			version:  61,
-			name:     "add_sessions_workspace_state_index",
-			checksum: "2026-07-07-add-sessions-workspace-state-index",
-		},
-		{
-			version:  62,
-			name:     "add_task_events_type_seq_index",
-			checksum: "2026-07-08-add-task-events-type-seq-index",
-		},
-		{
-			version:  63,
-			name:     "add_watch_event_replay_projections",
-			checksum: "2026-07-09-add-watch-event-replay-projections",
-		},
-		{
-			version:  64,
-			name:     "add_model_catalog_curation",
-			checksum: "2026-07-09-add-model-catalog-curation",
-		},
-		{
-			version:  65,
-			name:     "add_model_catalog_explicit_curation",
-			checksum: "2026-07-10-add-model-catalog-explicit-curation",
-		},
-		{
-			version:  66,
-			name:     "add_model_catalog_curation_presence",
-			checksum: "2026-07-10-add-model-catalog-curation-presence",
-		},
-		{
-			version:  67,
-			name:     "add_network_channel_projections",
-			checksum: "2026-07-10-add-network-channel-projections",
-		},
-		{
-			version:  68,
-			name:     "add_session_catalog_paging_indexes",
-			checksum: "2026-07-10-add-session-catalog-paging-indexes",
-		},
-		{
-			version:  69,
-			name:     "add_loop_catalog_run_index",
-			checksum: "2026-07-10-add-loop-catalog-run-index",
-		},
-		{
-			version:  70,
-			name:     "add_automation_catalog_projections",
-			checksum: "2026-07-10-add-automation-catalog-projections",
-		},
-		{
-			version:  71,
-			name:     "add_network_timeline_sequence",
-			checksum: "2026-07-11-add-network-timeline-sequence",
-		},
-		{
-			version:  72,
-			name:     "drop_redundant_sessions_workspace_state_index",
-			checksum: "2026-07-11-drop-redundant-sessions-workspace-state-index",
-		},
-		{
-			version:  73,
-			name:     "index_network_direct_rooms_by_opened_at",
-			checksum: "2026-07-11-index-network-direct-rooms-by-opened-at",
-		},
-		{
-			version:  74,
-			name:     "add_goal_durable_state",
-			checksum: "2026-07-10-add-goal-durable-state",
-		},
-		{
-			version:  75,
-			name:     "add_loop_run_control_actor",
-			checksum: "2026-07-10-add-loop-run-control-actor",
-		},
-		{
-			version:  76,
-			name:     "add_goal_checkpoint_control_cause",
-			checksum: "2026-07-10-add-goal-checkpoint-control-cause",
-		},
-		{
-			version:  77,
-			name:     "add_session_creation_profiles",
-			checksum: "2026-07-10-add-session-creation-profiles",
-		},
-		{
-			version:  78,
-			name:     "add_loop_run_origin_identity",
-			checksum: "2026-07-10-add-loop-run-origin-identity",
-		},
-		{
-			version:  79,
-			name:     "add_goal_recovery_cleanup",
-			checksum: "2026-07-11-add-goal-recovery-cleanup",
-		},
-		{
-			version:  80,
-			name:     "add_goal_binding_replay_fences",
-			checksum: "2026-07-11-add-goal-binding-replay-fences",
-		},
-		{
-			version:  81,
-			name:     "add_goal_adoption_attempt",
-			checksum: "2026-07-11-add-goal-adoption-attempt",
-		},
-	}
-}
-
-func assertGlobalSchemaMigrationDefinitions(t *testing.T, migrations []store.Migration) {
-	t.Helper()
-
-	want := expectedGlobalMigrationPrefix()
-	if got, wantLen := len(migrations), len(want); got != wantLen {
-		t.Fatalf("globalSchemaMigrations length = %d, want exact shipped length %d", got, wantLen)
-	}
-	for index, expected := range want {
-		got := migrations[index]
-		if got.Version != expected.version || got.Name != expected.name || got.Checksum != expected.checksum {
-			t.Fatalf(
-				"globalSchemaMigrations[%d] = version %d name %q checksum %q, want version %d name %q checksum %q",
-				index,
-				got.Version,
-				got.Name,
-				got.Checksum,
-				expected.version,
-				expected.name,
-				expected.checksum,
-			)
-		}
-	}
-}
-
-func assertAppliedGlobalMigrationOrder(t *testing.T, records []store.MigrationRecord) {
-	t.Helper()
-
-	want := expectedGlobalMigrationPrefix()
-	if got, wantLen := len(records), len(want); got != wantLen {
-		t.Fatalf("schema_migrations length = %d, want exact shipped length %d", got, wantLen)
-	}
-	for index, expected := range want {
-		got := records[index]
-		if got.Version != expected.version || got.Name != expected.name || got.Checksum != expected.checksum {
-			t.Fatalf(
-				"schema_migrations[%d] = version %d name %q checksum %q, want version %d name %q checksum %q",
-				index,
-				got.Version,
-				got.Name,
-				got.Checksum,
-				expected.version,
-				expected.name,
-				expected.checksum,
-			)
-		}
-	}
-}
-
-func assertAppliedGlobalMigrationPrefix(t *testing.T, records []store.MigrationRecord, length int) {
-	t.Helper()
-
-	want := expectedGlobalMigrationPrefix()
-	if length < 0 || length > len(want) {
-		t.Fatalf("migration prefix length = %d, want 0..%d", length, len(want))
-	}
-	if got := len(records); got < length {
-		t.Fatalf("schema_migrations length = %d, want at least prefix length %d", got, length)
-	}
-	for index := range records[:length] {
-		expected := want[index]
-		got := records[index]
-		if got.Version != expected.version || got.Name != expected.name || got.Checksum != expected.checksum {
-			t.Fatalf(
-				"schema_migrations[%d] = version %d name %q checksum %q, want version %d name %q checksum %q",
-				index,
-				got.Version,
-				got.Name,
-				got.Checksum,
-				expected.version,
-				expected.name,
-				expected.checksum,
-			)
-		}
-	}
-}
-
-func TestOpenGlobalDBHealsSchedulerPauseUpdatedAt(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should heal the non-canonical updated_at left by the v29 seed", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase() error = %v", err)
-		}
-		healIdx := -1
-		for index := range globalSchemaMigrations {
-			if globalSchemaMigrations[index].Name == migrationNameHealSchedulerPause {
-				healIdx = index
-				break
-			}
-		}
-		if healIdx < 0 {
-			t.Fatal("heal_scheduler_pause_updated_at migration not found in registry")
-		}
-		preHeal := globalSchemaMigrations[:healIdx]
-		if err := store.RunMigrations(ctx, db, preHeal); err != nil {
-			t.Fatalf("RunMigrations(pre-heal) error = %v", err)
-		}
-		var seeded string
-		if err := db.QueryRowContext(
-			ctx,
-			`SELECT updated_at FROM scheduler_pause WHERE id = 1`,
-		).Scan(&seeded); err != nil {
-			t.Fatalf("select seeded updated_at error = %v", err)
-		}
-		if _, parseErr := store.ParseTimestamp(seeded); parseErr == nil {
-			t.Fatalf("expected non-canonical seed updated_at, got parseable %q", seeded)
-		}
-		if err := db.Close(); err != nil {
-			t.Fatalf("pre-heal db.Close() error = %v", err)
-		}
-
-		globalDB, err := OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(upgrade) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
-				t.Errorf("Close() error = %v", closeErr)
-			}
-		})
-
-		var healed string
-		if err := globalDB.db.QueryRowContext(
-			ctx,
-			`SELECT updated_at FROM scheduler_pause WHERE id = 1`,
-		).Scan(&healed); err != nil {
-			t.Fatalf("select healed updated_at error = %v", err)
-		}
-		if _, parseErr := store.ParseTimestamp(healed); parseErr != nil {
-			t.Fatalf("healed updated_at %q is not canonical: %v", healed, parseErr)
-		}
-		if _, err := globalDB.GetSchedulerPause(ctx); err != nil {
-			t.Fatalf("GetSchedulerPause() after heal error = %v", err)
-		}
-	})
-
-	t.Run("Should heal idempotently and match FormatTimestamp", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		globalDB := openTestGlobalDB(t)
-		if _, err := globalDB.db.ExecContext(
-			ctx,
-			`UPDATE scheduler_pause SET updated_at = '2026-05-28 15:50:25' WHERE id = 1`,
-		); err != nil {
-			t.Fatalf("seed non-canonical updated_at error = %v", err)
-		}
-		if _, err := globalDB.db.ExecContext(ctx, healSchedulerPauseUpdatedAtSQL); err != nil {
-			t.Fatalf("first heal error = %v", err)
-		}
-		first := schedulerPauseUpdatedAtFromDB(ctx, t, globalDB)
-		if _, err := globalDB.db.ExecContext(ctx, healSchedulerPauseUpdatedAtSQL); err != nil {
-			t.Fatalf("second heal error = %v", err)
-		}
-		second := schedulerPauseUpdatedAtFromDB(ctx, t, globalDB)
-		if first != second {
-			t.Fatalf("heal is not idempotent: first %q, second %q", first, second)
-		}
-		if want := "2026-05-28T15:50:25.000000000Z"; second != want {
-			t.Fatalf("healed updated_at = %q, want %q", second, want)
-		}
-		if _, parseErr := store.ParseTimestamp(second); parseErr != nil {
-			t.Fatalf("healed updated_at %q is not canonical: %v", second, parseErr)
-		}
-	})
-}
-
-func schedulerPauseUpdatedAtFromDB(ctx context.Context, t *testing.T, globalDB *GlobalDB) string {
-	t.Helper()
-	var value string
-	if err := globalDB.db.QueryRowContext(
-		ctx,
-		`SELECT updated_at FROM scheduler_pause WHERE id = 1`,
-	).Scan(&value); err != nil {
-		t.Fatalf("select scheduler_pause updated_at error = %v", err)
-	}
-	return value
-}
-
-func TestOpenGlobalDBDropsTaskRunStatusCheck(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should accept needs_attention status on a freshly bootstrapped DB", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		globalDB := openTestGlobalDB(t)
-		seedQueuedRunForStatusTest(ctx, t, globalDB, "task-na-fresh", "run-na-fresh")
-		if _, err := globalDB.db.ExecContext(
-			ctx,
-			`UPDATE task_runs SET status = 'needs_attention' WHERE id = ?`,
-			"run-na-fresh",
-		); err != nil {
-			t.Fatalf("UPDATE to needs_attention on fresh DB error = %v, want nil (CHECK must be dropped)", err)
-		}
-		assertIndexesPresent(
-			t, globalDB.db, "task_runs",
-			"idx_task_runs_status", "idx_task_runs_pending_claim",
-			"idx_task_runs_coordination_channel", "idx_task_runs_session_status",
-		)
-	})
-
-	t.Run("Should accept needs_attention status on a DB migrated from v38", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase() error = %v", err)
-		}
-		preV39 := globalSchemaMigrations[:migrationIndexByName(t, "drop_task_run_status_check")]
-		if err := store.RunMigrations(ctx, db, preV39); err != nil {
-			t.Fatalf("RunMigrations(pre-v39) error = %v", err)
-		}
-		if err := db.Close(); err != nil {
-			t.Fatalf("pre-v39 db.Close() error = %v", err)
-		}
-
-		globalDB, err := OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(upgrade) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
-				t.Errorf("Close() error = %v", closeErr)
-			}
-		})
-		seedQueuedRunForStatusTest(ctx, t, globalDB, "task-na-mig", "run-na-mig")
-		if _, err := globalDB.db.ExecContext(
-			ctx,
-			`UPDATE task_runs SET status = 'needs_attention' WHERE id = ?`,
-			"run-na-mig",
-		); err != nil {
-			t.Fatalf("UPDATE to needs_attention on migrated DB error = %v, want nil (CHECK must be dropped)", err)
-		}
-	})
-
-	t.Run("Should preserve non-status constraints and foreign keys after the rebuild", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		globalDB := openTestGlobalDB(t)
-		seedQueuedRunForStatusTest(ctx, t, globalDB, "task-na-keep", "run-na-keep")
-		if _, err := globalDB.db.ExecContext(
-			ctx,
-			`UPDATE task_runs SET attempt = 0 WHERE id = ?`,
-			"run-na-keep",
-		); err == nil {
-			t.Fatal("UPDATE attempt=0 succeeded, want CHECK(attempt > 0) violation (rebuild must keep it)")
-		}
-		if _, err := globalDB.db.ExecContext(
-			ctx,
-			`UPDATE task_runs SET session_id = 'sess-x' WHERE id = ?`,
-			"run-na-keep",
-		); err == nil {
-			t.Fatal("UPDATE session_id on a queued run succeeded, want compound CHECK violation (rebuild must keep it)")
-		}
-		var fkCount int
-		if err := globalDB.db.QueryRowContext(
-			ctx,
-			`SELECT count(*) FROM pragma_foreign_key_list('task_runs')`,
-		).Scan(&fkCount); err != nil {
-			t.Fatalf("pragma_foreign_key_list error = %v", err)
-		}
-		if fkCount != 4 {
-			t.Fatalf("task_runs foreign key count = %d, want 4 (rebuild must preserve all FKs)", fkCount)
-		}
-	})
-
-	t.Run("Should keep the rebuilt task_runs columns aligned with the live schema", func(t *testing.T) {
-		t.Parallel()
-
-		globalDB := openTestGlobalDB(t)
-		assertTableColumns(t, globalDB.db, "task_runs", taskRunColumnNamesForStatusMigration())
-	})
-}
-
-func taskRunColumnNamesForStatusMigration() []string {
-	parts := strings.Split(taskRunColumns, ",")
-	columns := make([]string, 0, len(parts))
-	for _, part := range parts {
-		columns = append(columns, strings.TrimSpace(part))
-	}
-	return append(columns, "run_kind", "loop_run_id", "tokens_used")
-}
-
-func seedQueuedRunForStatusTest(ctx context.Context, t *testing.T, globalDB *GlobalDB, taskID, runID string) {
-	t.Helper()
-	task := taskRecordForTest(taskID)
-	task.Status = taskpkg.TaskStatusReady
-	if err := globalDB.CreateTask(ctx, task); err != nil {
-		t.Fatalf("CreateTask(%q) error = %v", taskID, err)
-	}
-	run := taskRunForTest(runID, taskID)
-	if err := globalDB.CreateTaskRun(ctx, run); err != nil {
-		t.Fatalf("CreateTaskRun(%q) error = %v", runID, err)
-	}
-}
-
 func TestOpenGlobalDBCreatesExtensionsTableWithExpectedColumns(t *testing.T) {
 	t.Parallel()
 
@@ -1554,126 +495,34 @@ func TestOpenGlobalDBExtensionsSchemaIsIdempotent(t *testing.T) {
 	})
 }
 
-func TestOpenGlobalDBMigratesLegacyExtensionsTableColumns(t *testing.T) {
-	t.Parallel()
+func TestRepositoryCheckReady(t *testing.T) {
+	t.Run("Should accept a valid repository and reject a nil context", func(t *testing.T) {
+		t.Parallel()
 
-	dir := t.TempDir()
-	path := filepath.Join(dir, GlobalDatabaseName)
-
-	db, err := sql.Open(sqliteDriverName, sqliteDSN(path))
-	if err != nil {
-		t.Fatalf("sql.Open() error = %v", err)
-	}
-
-	ctx := testutil.Context(t)
-	if _, err := db.ExecContext(ctx, `CREATE TABLE extensions (
-		name          TEXT PRIMARY KEY,
-		version       TEXT NOT NULL,
-		source        TEXT NOT NULL,
-		enabled       BOOLEAN NOT NULL DEFAULT 1,
-		manifest_path TEXT NOT NULL,
-		installed_at  TEXT NOT NULL,
-		capabilities  TEXT NOT NULL DEFAULT '{}',
-		actions       TEXT NOT NULL DEFAULT '{}',
-		checksum      TEXT NOT NULL
-	)`); err != nil {
-		t.Fatalf("create legacy extensions error = %v", err)
-	}
-	if _, err := db.ExecContext(
-		ctx,
-		`INSERT INTO extensions (name, version, source, enabled, manifest_path, installed_at, capabilities, actions, checksum) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		"legacy-extension",
-		"0.1.0",
-		"user",
-		true,
-		"/tmp/legacy-extension/extension.toml",
-		formatTimestamp(time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)),
-		"{}",
-		"{}",
-		"abc123",
-	); err != nil {
-		t.Fatalf("insert legacy extension error = %v", err)
-	}
-	if err := db.Close(); err != nil {
-		t.Fatalf("Close(legacy db) error = %v", err)
-	}
-
-	globalDB, err := OpenGlobalDB(ctx, path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
-			t.Fatalf("Close() error = %v", closeErr)
+		globalDB := openTestGlobalDB(t)
+		nilContext := func() context.Context { return nil }
+		if err := globalDB.SessionRepo.checkReady(nilContext(), "list sessions"); err == nil {
+			t.Fatal("checkReady(nil context) error = nil, want non-nil")
+		}
+		if err := globalDB.SessionRepo.checkReady(testutil.Context(t), "list sessions"); err != nil {
+			t.Fatalf("checkReady(valid) error = %v", err)
 		}
 	})
 
-	assertTableColumns(t, globalDB.db, "extensions", []string{
-		"name",
-		"version",
-		"source",
-		"enabled",
-		"manifest_path",
-		"installed_at",
-		"capabilities",
-		"actions",
-		"checksum",
-		"registry_slug",
-		"registry_name",
-		"remote_version",
-		globalDBExtensionProvenanceJSONKey,
+	t.Run("Should reject a repository after its database closes", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		if err := globalDB.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+		if err := globalDB.SessionRepo.checkReady(
+			testutil.Context(t),
+			"list sessions",
+		); !errors.Is(err, store.ErrClosed) {
+			t.Fatalf("checkReady(after close) error = %v, want ErrClosed", err)
+		}
 	})
-
-	var (
-		version       string
-		source        string
-		enabled       bool
-		registrySlug  sql.NullString
-		registryName  sql.NullString
-		remoteVersion sql.NullString
-	)
-	if err := globalDB.db.QueryRowContext(ctx, `
-		SELECT version, source, enabled, registry_slug, registry_name, remote_version
-		FROM extensions
-		WHERE name = ?
-	`, "legacy-extension").Scan(&version, &source, &enabled, &registrySlug, &registryName, &remoteVersion); err != nil {
-		t.Fatalf("QueryRowContext(legacy extension) error = %v", err)
-	}
-	if version != "0.1.0" || source != "user" || !enabled {
-		t.Fatalf("legacy extension row = version:%q source:%q enabled:%v", version, source, enabled)
-	}
-	if registrySlug.Valid || registryName.Valid || remoteVersion.Valid {
-		t.Fatalf(
-			"legacy extension provenance = (%v, %v, %v), want all NULL",
-			registrySlug,
-			registryName,
-			remoteVersion,
-		)
-	}
-}
-
-func TestGlobalDBCheckReady(t *testing.T) {
-	t.Parallel()
-
-	var nilDB *GlobalDB
-	if err := nilDB.checkReady(context.Background(), "list sessions"); err == nil {
-		t.Fatal("checkReady(nil receiver) error = nil, want non-nil")
-	}
-
-	globalDB := openTestGlobalDB(t)
-	nilContext := func() context.Context { return nil }
-	if err := globalDB.checkReady(nilContext(), "list sessions"); err == nil {
-		t.Fatal("checkReady(nil context) error = nil, want non-nil")
-	}
-	if err := globalDB.checkReady(testutil.Context(t), "list sessions"); err != nil {
-		t.Fatalf("checkReady(valid) error = %v", err)
-	}
-	if err := globalDB.Close(testutil.Context(t)); err != nil {
-		t.Fatalf("Close() error = %v", err)
-	}
-	if err := globalDB.checkReady(testutil.Context(t), "list sessions"); !errors.Is(err, store.ErrClosed) {
-		t.Fatalf("checkReady(after close) error = %v, want ErrClosed", err)
-	}
 }
 
 func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
@@ -2254,7 +1103,7 @@ func TestGlobalDBWorkspaceConstraintViolations(t *testing.T) {
 		want error
 	}{
 		{
-			name: "duplicate root dir",
+			name: "Should reject a duplicate root directory",
 			ws: aghworkspace.Workspace{
 				ID:        "ws-duplicate-root",
 				RootDir:   rootA,
@@ -2265,7 +1114,7 @@ func TestGlobalDBWorkspaceConstraintViolations(t *testing.T) {
 			want: aghworkspace.ErrWorkspacePathTaken,
 		},
 		{
-			name: "duplicate name",
+			name: "Should reject a duplicate name",
 			ws: aghworkspace.Workspace{
 				ID:        "ws-duplicate-name",
 				RootDir:   rootB,
@@ -2285,6 +1134,40 @@ func TestGlobalDBWorkspaceConstraintViolations(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should map a real delete foreign key constraint", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"workspace-delete-constraint",
+			filepath.Join(t.TempDir(), "workspace-delete-constraint"),
+		)
+		if err := globalDB.RegisterSession(ctx, SessionInfo{
+			ID:          "sess-delete-constraint",
+			AgentName:   "coder",
+			WorkspaceID: workspaceID,
+			State:       "stopped",
+			CreatedAt:   time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
+			UpdatedAt:   time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
+		}); err != nil {
+			t.Fatalf("RegisterSession() error = %v", err)
+		}
+
+		_, err := globalDB.db.ExecContext(ctx, `DELETE FROM workspaces WHERE id = ?`, workspaceID)
+		if err == nil {
+			t.Fatal("raw workspace delete error = nil, want foreign key constraint")
+		}
+		if mapped := mapWorkspaceDeleteConstraintError(err); !errors.Is(
+			mapped,
+			aghworkspace.ErrWorkspaceHasSessions,
+		) {
+			t.Fatalf("mapWorkspaceDeleteConstraintError() error = %v, want ErrWorkspaceHasSessions", mapped)
+		}
+	})
 }
 
 func TestGlobalDBWorkspaceNotFoundErrors(t *testing.T) {
@@ -2435,67 +1318,6 @@ func TestGlobalDBWorkspaceValidationAndDefaulting(t *testing.T) {
 			run: func() error {
 				var nilCtx context.Context
 				_, err := globalDB.ListWorkspaces(nilCtx)
-				return err
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := tt.run(); err == nil {
-				t.Fatal("error = nil, want non-nil")
-			}
-		})
-	}
-}
-
-func TestGlobalDBNilReceiverWorkspaceMethods(t *testing.T) {
-	t.Parallel()
-
-	var nilGlobalDB *GlobalDB
-	ctx := testutil.Context(t)
-
-	tests := []struct {
-		name string
-		run  func() error
-	}{
-		{
-			name: "insert workspace",
-			run:  func() error { return nilGlobalDB.InsertWorkspace(ctx, aghworkspace.Workspace{}) },
-		},
-		{
-			name: "update workspace",
-			run:  func() error { return nilGlobalDB.UpdateWorkspace(ctx, aghworkspace.Workspace{}) },
-		},
-		{
-			name: "delete workspace",
-			run:  func() error { return nilGlobalDB.DeleteWorkspace(ctx, "ws-1") },
-		},
-		{
-			name: "get workspace",
-			run: func() error {
-				_, err := nilGlobalDB.GetWorkspace(ctx, "ws-1")
-				return err
-			},
-		},
-		{
-			name: "get workspace by path",
-			run: func() error {
-				_, err := nilGlobalDB.GetWorkspaceByPath(ctx, "/tmp/workspace")
-				return err
-			},
-		},
-		{
-			name: "get workspace by name",
-			run: func() error {
-				_, err := nilGlobalDB.GetWorkspaceByName(ctx, "workspace")
-				return err
-			},
-		},
-		{
-			name: "list workspaces",
-			run: func() error {
-				_, err := nilGlobalDB.ListWorkspaces(ctx)
 				return err
 			},
 		},
@@ -2718,407 +1540,46 @@ func TestGlobalDBRegisterSessionRejectsStallStateWithoutReason(t *testing.T) {
 }
 
 func TestGlobalDBRegisterSessionRejectsUnmarshalableActivity(t *testing.T) {
-	t.Parallel()
+	t.Run("Should reject unmarshalable session activity without writing a row", func(t *testing.T) {
+		t.Parallel()
 
-	globalDB := openTestGlobalDB(t)
-	workspaceID := registerWorkspaceForGlobalTests(
-		t,
-		globalDB,
-		"invalid-activity-session",
-		filepath.Join(t.TempDir(), "invalid-activity-session"),
-	)
-	unmarshalableTime := time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"invalid-activity-session",
+			filepath.Join(t.TempDir(), "invalid-activity-session"),
+		)
+		unmarshalableTime := time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)
 
-	err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
-		ID:          "sess-invalid-activity",
-		AgentName:   "coder",
-		WorkspaceID: workspaceID,
-		State:       "active",
-		Liveness: &store.SessionLivenessMeta{
-			Activity: &store.SessionActivityMeta{
-				TurnStartedAt: &unmarshalableTime,
+		err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+			ID:          "sess-invalid-activity",
+			AgentName:   "coder",
+			WorkspaceID: workspaceID,
+			State:       "active",
+			Liveness: &store.SessionLivenessMeta{
+				Activity: &store.SessionActivityMeta{
+					TurnStartedAt: &unmarshalableTime,
+				},
 			},
-		},
-		CreatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
-		UpdatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
-	})
-	if err == nil {
-		t.Fatal("RegisterSession(unmarshalable activity) error = nil, want marshal failure")
-	}
-	if !strings.Contains(err.Error(), "store: session liveness activity marshal") {
-		t.Fatalf("RegisterSession(unmarshalable activity) error = %v, want activity marshal context", err)
-	}
+			CreatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+			UpdatedAt: time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC),
+		})
+		if err == nil {
+			t.Fatal("RegisterSession(unmarshalable activity) error = nil, want marshal failure")
+		}
+		if !strings.Contains(err.Error(), "store: session liveness activity marshal") {
+			t.Fatalf("RegisterSession(unmarshalable activity) error = %v, want activity marshal context", err)
+		}
 
-	sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{})
-	if err != nil {
-		t.Fatalf("ListSessions() error = %v", err)
-	}
-	if len(sessions) != 0 {
-		t.Fatalf("len(sessions) = %d, want failed register to skip write", len(sessions))
-	}
-}
-
-func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	path := filepath.Join(dir, GlobalDatabaseName)
-
-	db, err := sql.Open(sqliteDriverName, sqliteDSN(path))
-	if err != nil {
-		t.Fatalf("sql.Open() error = %v", err)
-	}
-	t.Cleanup(func() {
-		_ = db.Close()
-	})
-
-	ctx := testutil.Context(t)
-	if _, err := db.ExecContext(ctx, `CREATE TABLE sessions (
-		id TEXT PRIMARY KEY,
-		name TEXT,
-		agent_name TEXT NOT NULL,
-		workspace TEXT NOT NULL,
-		session_type TEXT NOT NULL DEFAULT 'user',
-		state TEXT NOT NULL,
-		acp_session_id TEXT,
-		created_at TEXT NOT NULL,
-		updated_at TEXT NOT NULL
-	)`); err != nil {
-		t.Fatalf("create legacy sessions error = %v", err)
-	}
-	if _, err := db.ExecContext(ctx, `CREATE TABLE event_summaries (
-		id TEXT PRIMARY KEY,
-		session_id TEXT NOT NULL REFERENCES sessions(id),
-		type TEXT NOT NULL,
-		agent_name TEXT NOT NULL,
-		summary TEXT,
-		timestamp TEXT NOT NULL
-	)`); err != nil {
-		t.Fatalf("create legacy event_summaries error = %v", err)
-	}
-	if _, err := db.ExecContext(ctx, `CREATE TABLE token_stats (
-		id TEXT PRIMARY KEY,
-		session_id TEXT NOT NULL REFERENCES sessions(id),
-		agent_name TEXT NOT NULL,
-		input_tokens INTEGER,
-		output_tokens INTEGER,
-		total_tokens INTEGER,
-		total_cost REAL,
-		cost_currency TEXT,
-		turn_count INTEGER NOT NULL DEFAULT 0,
-		updated_at TEXT NOT NULL
-	)`); err != nil {
-		t.Fatalf("create legacy token_stats error = %v", err)
-	}
-	if _, err := db.ExecContext(ctx, `CREATE TABLE permission_log (
-		id TEXT PRIMARY KEY,
-		session_id TEXT NOT NULL REFERENCES sessions(id),
-		agent_name TEXT NOT NULL,
-		action TEXT NOT NULL,
-		resource TEXT NOT NULL,
-		decision TEXT NOT NULL,
-		policy_used TEXT NOT NULL,
-		timestamp TEXT NOT NULL
-	)`); err != nil {
-		t.Fatalf("create legacy permission_log error = %v", err)
-	}
-
-	rootA := filepath.Join(dir, "apps", "project")
-	rootB := filepath.Join(dir, "services", "project")
-	if _, err := db.ExecContext(
-		ctx,
-		`INSERT INTO sessions (id, name, agent_name, workspace, session_type, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		"sess-legacy-a",
-		"A",
-		"coder",
-		rootA,
-		"user",
-		"active",
-		formatTimestamp(time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)),
-		formatTimestamp(time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)),
-	); err != nil {
-		t.Fatalf("insert legacy session A error = %v", err)
-	}
-	if _, err := db.ExecContext(
-		ctx,
-		`INSERT INTO sessions (id, name, agent_name, workspace, session_type, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		"sess-legacy-b",
-		"B",
-		"reviewer",
-		rootB,
-		"dream",
-		"stopped",
-		formatTimestamp(time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC)),
-		formatTimestamp(time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC)),
-	); err != nil {
-		t.Fatalf("insert legacy session B error = %v", err)
-	}
-	if _, err := db.ExecContext(
-		ctx,
-		`INSERT INTO event_summaries (id, session_id, type, agent_name, summary, timestamp) VALUES (?, ?, ?, ?, ?, ?)`,
-		"sum-legacy",
-		"sess-legacy-a",
-		"agent_message",
-		"coder",
-		"legacy summary",
-		formatTimestamp(time.Date(2026, 4, 3, 10, 1, 0, 0, time.UTC)),
-	); err != nil {
-		t.Fatalf("insert legacy event summary error = %v", err)
-	}
-	if err := db.Close(); err != nil {
-		t.Fatalf("Close(legacy db) error = %v", err)
-	}
-
-	globalDB, err := OpenGlobalDB(ctx, path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
-			t.Fatalf("Close() error = %v", closeErr)
+		sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{})
+		if err != nil {
+			t.Fatalf("ListSessions() error = %v", err)
+		}
+		if len(sessions) != 0 {
+			t.Fatalf("len(sessions) = %d, want failed register to skip write", len(sessions))
 		}
 	})
-
-	assertTableColumns(
-		t,
-		globalDB.db,
-		"sessions",
-		[]string{
-			"id",
-			"name",
-			"agent_name",
-			"provider",
-			"workspace_id",
-			"session_type",
-			"channel",
-			"state",
-			"acp_session_id",
-			"stop_reason",
-			"stop_detail",
-			"failure_kind",
-			"failure_summary",
-			"crash_bundle_path",
-			"sandbox_id",
-			"sandbox_backend",
-			"sandbox_profile",
-			"sandbox_instance_id",
-			"sandbox_state",
-			"sandbox_provider_state_json",
-			"sandbox_last_sync_at",
-			"sandbox_last_sync_error",
-			"created_at",
-			"updated_at",
-			"subprocess_pid",
-			"subprocess_started_at",
-			"last_update_at",
-			"stall_state",
-			"stall_reason",
-			"activity_json",
-			"parent_session_id",
-			"root_session_id",
-			"spawn_depth",
-			"spawn_role",
-			"ttl_expires_at",
-			"auto_stop_on_parent",
-			"spawn_budget_json",
-			"permission_policy_json",
-			"soul_snapshot_id",
-			"soul_digest",
-			"parent_soul_digest",
-			"attached_to",
-			"attach_expires_at",
-			sessionInputGenerationColumn,
-			"transcript_epoch",
-			"creation_digest",
-			"policy_spec_digest",
-			"creation_profile_ref",
-		},
-	)
-	assertTableColumns(
-		t,
-		globalDB.db,
-		"event_summaries",
-		[]string{
-			"id",
-			"session_id",
-			"workspace_id",
-			"type",
-			"agent_name",
-			"content_json",
-			"task_id",
-			"run_id",
-			"workflow_id",
-			"claim_token_hash",
-			"lease_until",
-			"coordinator_session_id",
-			"scheduler_reason",
-			"hook_event",
-			"hook_name",
-			"actor_kind",
-			"actor_id",
-			"release_reason",
-			"parent_session_id",
-			"root_session_id",
-			"spawn_depth",
-			"summary",
-			"timestamp",
-			"provider",
-			"outcome",
-		},
-	)
-	assertTableColumns(
-		t,
-		globalDB.db,
-		"workspaces",
-		[]string{"id", "root_dir", "add_dirs", "name", "default_agent", "sandbox_ref", "created_at", "updated_at"},
-	)
-
-	workspaces, err := globalDB.ListWorkspaces(ctx)
-	if err != nil {
-		t.Fatalf("ListWorkspaces() error = %v", err)
-	}
-	if got, want := len(workspaces), 2; got != want {
-		t.Fatalf("len(workspaces) = %d, want %d", got, want)
-	}
-	if got, want := []string{
-		workspaces[0].Name,
-		workspaces[1].Name,
-	}, []string{
-		"project",
-		"project-2",
-	}; !testutil.EqualStringSlices(
-		got,
-		want,
-	) {
-		t.Fatalf("workspace names = %#v, want %#v", got, want)
-	}
-
-	sessions, err := globalDB.ListSessions(ctx, SessionListQuery{})
-	if err != nil {
-		t.Fatalf("ListSessions() error = %v", err)
-	}
-	if got, want := len(sessions), 2; got != want {
-		t.Fatalf("len(sessions) = %d, want %d", got, want)
-	}
-	for _, session := range sessions {
-		if strings.HasPrefix(session.WorkspaceID, "/") {
-			t.Fatalf("session.WorkspaceID = %q, want migrated ws_ id", session.WorkspaceID)
-		}
-		if session.Channel != "" {
-			t.Fatalf("session.Channel = %q, want empty for migrated legacy rows", session.Channel)
-		}
-	}
-
-	summaries, err := globalDB.ListEventSummaries(ctx, EventSummaryQuery{SessionID: "sess-legacy-a"})
-	if err != nil {
-		t.Fatalf("ListEventSummaries() error = %v", err)
-	}
-	if got, want := len(summaries), 0; got != want {
-		t.Fatalf("len(summaries) = %d, want %d", got, want)
-	}
-}
-
-func TestOpenGlobalDBRewritesLegacySessionMetaWorkspaceID(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t)
-	homeDir := t.TempDir()
-	path := filepath.Join(homeDir, GlobalDatabaseName)
-
-	db, err := openSQLiteDatabase(ctx, path, nil)
-	if err != nil {
-		t.Fatalf("openSQLiteDatabase() error = %v", err)
-	}
-
-	rootDir := filepath.Join(homeDir, "workspace")
-	if err := os.MkdirAll(rootDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll(rootDir) error = %v", err)
-	}
-	if _, err := db.ExecContext(ctx, `CREATE TABLE sessions (
-		id TEXT PRIMARY KEY,
-		name TEXT,
-		agent_name TEXT NOT NULL,
-		workspace TEXT NOT NULL,
-		session_type TEXT NOT NULL DEFAULT 'user',
-		state TEXT NOT NULL,
-		acp_session_id TEXT,
-		created_at TEXT NOT NULL,
-		updated_at TEXT NOT NULL
-	)`); err != nil {
-		t.Fatalf("create legacy sessions error = %v", err)
-	}
-	createdAt := formatTimestamp(time.Date(2026, 4, 3, 15, 0, 0, 0, time.UTC))
-	if _, err := db.ExecContext(
-		ctx,
-		`INSERT INTO sessions (id, name, agent_name, workspace, session_type, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		"sess-meta-legacy",
-		"Legacy",
-		"coder",
-		rootDir,
-		"user",
-		"stopped",
-		createdAt,
-		createdAt,
-	); err != nil {
-		t.Fatalf("insert legacy session error = %v", err)
-	}
-	if err := db.Close(); err != nil {
-		t.Fatalf("Close(legacy db) error = %v", err)
-	}
-
-	sessionDir := filepath.Join(homeDir, "sessions", "sess-meta-legacy")
-	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll(sessionDir) error = %v", err)
-	}
-	metaPath := SessionMetaFile(sessionDir)
-	legacyMeta := `{
-  "id": "sess-meta-legacy",
-  "name": "Legacy",
-  "agent_name": "coder",
-  "workspace": "` + rootDir + `",
-  "session_type": "user",
-  "state": "stopped",
-  "created_at": "2026-04-03T15:00:00Z",
-  "updated_at": "2026-04-03T15:00:00Z"
-}
-`
-	if err := os.WriteFile(metaPath, []byte(legacyMeta), 0o644); err != nil {
-		t.Fatalf("WriteFile(legacy meta) error = %v", err)
-	}
-
-	globalDB, err := OpenGlobalDB(ctx, path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
-			t.Fatalf("Close() error = %v", closeErr)
-		}
-	})
-
-	sessions, err := globalDB.ListSessions(ctx, SessionListQuery{})
-	if err != nil {
-		t.Fatalf("ListSessions() error = %v", err)
-	}
-	if got, want := len(sessions), 1; got != want {
-		t.Fatalf("len(sessions) = %d, want %d", got, want)
-	}
-
-	meta, err := ReadSessionMeta(metaPath)
-	if err != nil {
-		t.Fatalf("ReadSessionMeta() error = %v", err)
-	}
-	if got, want := meta.WorkspaceID, sessions[0].WorkspaceID; got != want {
-		t.Fatalf("meta.WorkspaceID = %q, want %q", got, want)
-	}
-
-	data, err := os.ReadFile(metaPath)
-	if err != nil {
-		t.Fatalf("ReadFile(metaPath) error = %v", err)
-	}
-	if strings.Contains(string(data), `"workspace":`) {
-		t.Fatalf("legacy workspace field still present in %s", metaPath)
-	}
 }
 
 func TestGlobalDBWriteEventSummary(t *testing.T) {
@@ -3267,235 +1728,6 @@ func TestGlobalDBWriteEventSummaryAllowsGlobalEvents(t *testing.T) {
 				t.Fatalf("summaries[0].Content = %q, want %q", got, want)
 			}
 		})
-	}
-}
-
-func TestProdReadyFoundationMigrationsAppendSharedState(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should upgrade v26 tail with shared event projections and operation state", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(prefix) error = %v", err)
-		}
-		if err := store.RunMigrations(ctx, db, globalSchemaMigrations[:26]); err != nil {
-			t.Fatalf("RunMigrations(v26 prefix) error = %v", err)
-		}
-
-		now := formatTimestamp(time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC))
-		if _, err := db.ExecContext(
-			ctx,
-			`INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?)`,
-			"ws-prod-ready",
-			filepath.Join(t.TempDir(), "workspace"),
-			"prod-ready",
-			now,
-			now,
-		); err != nil {
-			t.Fatalf("insert workspace error = %v", err)
-		}
-		if _, err := db.ExecContext(
-			ctx,
-			`INSERT INTO sessions (
-				id, name, agent_name, provider, workspace_id, session_type, state, created_at, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			"sess-prod-ready",
-			"Prod Ready",
-			"coder",
-			"codex",
-			"ws-prod-ready",
-			defaultSessionType,
-			"stopped",
-			now,
-			now,
-		); err != nil {
-			t.Fatalf("insert session error = %v", err)
-		}
-		if _, err := db.ExecContext(
-			ctx,
-			`INSERT INTO event_summaries (id, session_id, workspace_id, type, agent_name, timestamp)
-			 VALUES (?, ?, ?, ?, ?, ?)`,
-			"sum-prod-ready",
-			"sess-prod-ready",
-			"ws-prod-ready",
-			"task.run_failed",
-			"coder",
-			now,
-		); err != nil {
-			t.Fatalf("insert event summary error = %v", err)
-		}
-		if err := db.Close(); err != nil {
-			t.Fatalf("prefix db.Close() error = %v", err)
-		}
-
-		globalDB, err := OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(upgrade) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
-				t.Errorf("Close(upgrade) error = %v", closeErr)
-			}
-		})
-
-		assertTablesPresent(t, globalDB.db, "config_apply_records", "scheduler_pause")
-		assertTableHasColumns(t, globalDB.db, "event_summaries", []string{"provider", "outcome"})
-		assertIndexesPresent(
-			t,
-			globalDB.db,
-			"event_summaries",
-			"idx_summaries_provider_timestamp",
-			"idx_summaries_outcome_timestamp",
-		)
-
-		var provider string
-		var outcome string
-		if err := globalDB.db.QueryRowContext(
-			ctx,
-			`SELECT provider, outcome FROM event_summaries WHERE id = ?`,
-			"sum-prod-ready",
-		).Scan(&provider, &outcome); err != nil {
-			t.Fatalf("select event summary projections error = %v", err)
-		}
-		if provider != "codex" || outcome != "failure" {
-			t.Fatalf("event projections = provider %q outcome %q, want codex failure", provider, outcome)
-		}
-
-		var paused int
-		if err := globalDB.db.QueryRowContext(
-			ctx,
-			`SELECT paused FROM scheduler_pause WHERE id = 1`,
-		).Scan(&paused); err != nil {
-			t.Fatalf("select scheduler_pause singleton error = %v", err)
-		}
-		if paused != 0 {
-			t.Fatalf("scheduler_pause.paused = %d, want 0", paused)
-		}
-	})
-}
-
-func TestGlobalDBListEventSummariesIncludesMemoryOperations(t *testing.T) {
-	t.Parallel()
-
-	globalDB := openTestGlobalDB(t)
-	registerSessionForGlobalTests(t, globalDB, "sess-summary")
-
-	if err := globalDB.WriteEventSummary(testutil.Context(t), EventSummary{
-		SessionID: "sess-summary",
-		Type:      "agent_message",
-		AgentName: "coder",
-		Summary:   "assistant replied",
-		Timestamp: time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
-	}); err != nil {
-		t.Fatalf("WriteEventSummary() error = %v", err)
-	}
-	if _, err := globalDB.db.ExecContext(
-		testutil.Context(t),
-		`INSERT INTO memory_events (
-			op, scope, agent_name, actor_kind, metadata, ts_ms
-		) VALUES (?, ?, ?, ?, ?, ?)`,
-		"memory.write.committed",
-		"global",
-		"daemon",
-		"system",
-		`{"summary":"scope=global filename=prefs.md"}`,
-		time.Date(2026, 4, 3, 14, 1, 0, 0, time.UTC).UnixNano()/int64(time.Millisecond),
-	); err != nil {
-		t.Fatalf("insert memory event error = %v", err)
-	}
-
-	summaries, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{})
-	if err != nil {
-		t.Fatalf("ListEventSummaries() error = %v", err)
-	}
-	if got, want := len(summaries), 2; got != want {
-		t.Fatalf("len(summaries) = %d, want %d", got, want)
-	}
-	if got, want := summaries[1].Type, "memory.write.committed"; got != want {
-		t.Fatalf("summaries[1].Type = %q, want %q", got, want)
-	}
-	if got := summaries[1].SessionID; got != "" {
-		t.Fatalf("summaries[1].SessionID = %q, want empty for memory operation", got)
-	}
-
-	sessionOnly, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{SessionID: "sess-summary"})
-	if err != nil {
-		t.Fatalf("ListEventSummaries(session filter) error = %v", err)
-	}
-	if got, want := len(sessionOnly), 1; got != want {
-		t.Fatalf("len(sessionOnly) = %d, want %d", got, want)
-	}
-	if got, want := sessionOnly[0].Type, "agent_message"; got != want {
-		t.Fatalf("sessionOnly[0].Type = %q, want %q", got, want)
-	}
-
-	if err := globalDB.WriteEventSummary(testutil.Context(t), EventSummary{
-		SessionID: "sess-summary",
-		Type:      "tool_call",
-		AgentName: "coder",
-		Summary:   "tool executed",
-		Timestamp: time.Date(2026, 4, 3, 14, 2, 0, 0, time.UTC),
-	}); err != nil {
-		t.Fatalf("WriteEventSummary(second event) error = %v", err)
-	}
-
-	limited, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{Limit: 2})
-	if err != nil {
-		t.Fatalf("ListEventSummaries(limit) error = %v", err)
-	}
-	if got, want := len(limited), 2; got != want {
-		t.Fatalf("len(limited) = %d, want %d", got, want)
-	}
-	if got, want := limited[0].Type, "memory.write.committed"; got != want {
-		t.Fatalf("limited[0].Type = %q, want %q", got, want)
-	}
-	if got, want := limited[1].Type, "tool_call"; got != want {
-		t.Fatalf("limited[1].Type = %q, want %q", got, want)
-	}
-
-	if _, err := globalDB.db.ExecContext(
-		testutil.Context(t),
-		`INSERT INTO memory_events (
-				op, scope, agent_name, actor_kind, metadata, ts_ms
-			) VALUES (?, ?, ?, ?, ?, ?)`,
-		"memory.write.rejected",
-		"global",
-		"daemon",
-		"system",
-		`{"summary":"subagent direct write denied"}`,
-		time.Date(2026, 4, 3, 14, 3, 0, 0, time.UTC).UnixNano()/int64(time.Millisecond),
-	); err != nil {
-		t.Fatalf("insert rejected memory event error = %v", err)
-	}
-
-	errorMemory, err := globalDB.ListEventSummaries(
-		testutil.Context(t),
-		EventSummaryQuery{Component: "memory", ErrorOnly: true},
-	)
-	if err != nil {
-		t.Fatalf("ListEventSummaries(memory error only) error = %v", err)
-	}
-	if got, want := len(errorMemory), 1; got != want {
-		t.Fatalf("len(errorMemory) = %d, want %d; events=%#v", got, want, errorMemory)
-	}
-	if got, want := errorMemory[0].Type, "memory.write.rejected"; got != want {
-		t.Fatalf("errorMemory[0].Type = %q, want %q", got, want)
-	}
-	if got, want := errorMemory[0].Outcome, "warning"; got != want {
-		t.Fatalf("errorMemory[0].Outcome = %q, want %q", got, want)
-	}
-
-	taskOnly, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{Component: "task"})
-	if err != nil {
-		t.Fatalf("ListEventSummaries(task component) error = %v", err)
-	}
-	if len(taskOnly) != 0 {
-		t.Fatalf("taskOnly events = %#v, want no memory rows for task component", taskOnly)
 	}
 }
 
@@ -3975,162 +2207,6 @@ func TestGlobalDBReconcileSessionsSkipsDuplicateIDsAndDefaultsTimestamps(t *test
 	}
 }
 
-func TestOpenGlobalDBAddsStopColumnsToCurrentSessionSchema(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	path := filepath.Join(dir, GlobalDatabaseName)
-
-	db, err := sql.Open(sqliteDriverName, sqliteDSN(path))
-	if err != nil {
-		t.Fatalf("sql.Open() error = %v", err)
-	}
-	t.Cleanup(func() {
-		_ = db.Close()
-	})
-
-	ctx := testutil.Context(t)
-	if _, err := db.ExecContext(ctx, `CREATE TABLE workspaces (
-		id TEXT PRIMARY KEY,
-		root_dir TEXT NOT NULL UNIQUE,
-		add_dirs TEXT NOT NULL DEFAULT '[]',
-		name TEXT NOT NULL UNIQUE,
-		default_agent TEXT DEFAULT '',
-		created_at TEXT NOT NULL,
-		updated_at TEXT NOT NULL
-	)`); err != nil {
-		t.Fatalf("create workspaces error = %v", err)
-	}
-	if _, err := db.ExecContext(ctx, `CREATE TABLE sessions (
-		id TEXT PRIMARY KEY,
-		name TEXT,
-		agent_name TEXT NOT NULL,
-		workspace_id TEXT NOT NULL REFERENCES workspaces(id),
-		session_type TEXT NOT NULL DEFAULT 'user',
-		state TEXT NOT NULL,
-		acp_session_id TEXT,
-		created_at TEXT NOT NULL,
-		updated_at TEXT NOT NULL
-	)`); err != nil {
-		t.Fatalf("create current sessions error = %v", err)
-	}
-	if _, err := db.ExecContext(
-		ctx,
-		`INSERT INTO workspaces (id, root_dir, add_dirs, name, default_agent, created_at, updated_at) VALUES (?, ?, '[]', ?, '', ?, ?)`,
-		"ws-current",
-		filepath.Join(dir, "workspace"),
-		"current",
-		formatTimestamp(time.Date(2026, 4, 3, 9, 0, 0, 0, time.UTC)),
-		formatTimestamp(time.Date(2026, 4, 3, 9, 0, 0, 0, time.UTC)),
-	); err != nil {
-		t.Fatalf("insert workspace error = %v", err)
-	}
-	if _, err := db.ExecContext(
-		ctx,
-		`INSERT INTO sessions (id, name, agent_name, workspace_id, session_type, state, acp_session_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		"sess-current",
-		"Current",
-		"coder",
-		"ws-current",
-		"user",
-		"stopped",
-		"acp-current",
-		formatTimestamp(time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)),
-		formatTimestamp(time.Date(2026, 4, 3, 10, 0, 0, 0, time.UTC)),
-	); err != nil {
-		t.Fatalf("insert session error = %v", err)
-	}
-	if err := db.Close(); err != nil {
-		t.Fatalf("Close(current schema db) error = %v", err)
-	}
-
-	globalDB, err := OpenGlobalDB(ctx, path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
-			t.Fatalf("Close() error = %v", closeErr)
-		}
-	})
-
-	assertTableColumns(
-		t,
-		globalDB.db,
-		"sessions",
-		[]string{
-			"id",
-			"name",
-			"agent_name",
-			"workspace_id",
-			"session_type",
-			"state",
-			"acp_session_id",
-			"created_at",
-			"updated_at",
-			"provider",
-			"stop_reason",
-			"stop_detail",
-			"failure_kind",
-			"failure_summary",
-			"crash_bundle_path",
-			"channel",
-			"subprocess_pid",
-			"subprocess_started_at",
-			"last_update_at",
-			"stall_state",
-			"stall_reason",
-			"activity_json",
-			"sandbox_id",
-			"sandbox_backend",
-			"sandbox_profile",
-			"sandbox_instance_id",
-			"sandbox_state",
-			"sandbox_provider_state_json",
-			"sandbox_last_sync_at",
-			"sandbox_last_sync_error",
-			"parent_session_id",
-			"root_session_id",
-			"spawn_depth",
-			"spawn_role",
-			"ttl_expires_at",
-			"auto_stop_on_parent",
-			"spawn_budget_json",
-			"permission_policy_json",
-			"soul_snapshot_id",
-			"soul_digest",
-			"parent_soul_digest",
-			"attached_to",
-			"attach_expires_at",
-			sessionInputGenerationColumn,
-			"transcript_epoch",
-			"creation_digest",
-			"policy_spec_digest",
-			"creation_profile_ref",
-		},
-	)
-	assertTableColumns(
-		t,
-		globalDB.db,
-		"workspaces",
-		[]string{"id", "root_dir", "add_dirs", "name", "default_agent", "created_at", "updated_at", "sandbox_ref"},
-	)
-
-	sessions, err := globalDB.ListSessions(ctx, SessionListQuery{})
-	if err != nil {
-		t.Fatalf("ListSessions() error = %v", err)
-	}
-	if got, want := len(sessions), 1; got != want {
-		t.Fatalf("len(sessions) = %d, want %d", got, want)
-	}
-	if sessions[0].StopReason != "" || sessions[0].StopDetail != "" {
-		t.Fatalf("sessions[0] stop fields = %#v, want empty after migration", sessions[0])
-	}
-	if sessions[0].Channel != "" {
-		t.Fatalf("sessions[0].Channel = %q, want empty after migration", sessions[0].Channel)
-	}
-}
-
 func TestGlobalDBRecoversFromCorruption(t *testing.T) {
 	t.Parallel()
 
@@ -4153,11 +2229,10 @@ func TestGlobalDBRecoversFromCorruption(t *testing.T) {
 	assertTablesPresent(
 		t,
 		globalDB.db,
-		"schema_migrations",
+		globalMigrationVersionTable,
 		"workspaces",
 		"sessions",
 		"event_summaries",
-		"memory_events",
 		"token_stats",
 		"permission_log",
 	)
@@ -4198,6 +2273,23 @@ func openGlobalDBForTest(t *testing.T, path string) *GlobalDB {
 		}
 	})
 	return globalDB
+}
+
+func openMemoryCatalogForGlobalDBTest(t *testing.T, globalDB *GlobalDB) {
+	t.Helper()
+	if globalDB == nil {
+		t.Fatal("global database is required")
+	}
+	memoryStore := memorypkg.NewStore(
+		filepath.Join(t.TempDir(), "memory"),
+		memorypkg.WithCatalogDatabasePath(globalDB.Path()),
+	)
+	if err := memoryStore.OpenCatalog(testutil.Context(t)); err != nil {
+		t.Fatalf("Store.OpenCatalog() error = %v", err)
+	}
+	if err := memoryStore.CloseCatalog(testutil.Context(t)); err != nil {
+		t.Fatalf("Store.CloseCatalog() error = %v", err)
+	}
 }
 
 func copyCurrentSchemaGlobalDBSeed(t *testing.T, targetPath string) {

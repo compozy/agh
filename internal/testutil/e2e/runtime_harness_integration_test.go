@@ -3,11 +3,15 @@
 package e2e
 
 import (
+	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +19,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghcontract "github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/testutil/acpmock"
 	"github.com/kballard/go-shellquote"
 )
@@ -52,6 +57,7 @@ func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 	if got, want := httpStatus.Daemon.Status, "running"; got != want {
 		t.Fatalf("httpStatus.Daemon.Status = %q, want %q", got, want)
 	}
+	assertSchemaStreamStatuses(t, httpStatus.Daemon.SchemaStreams)
 
 	var udsStatus aghcontract.StatusPayload
 	if err := harness.UDSJSON(ctx, "GET", "/api/status", nil, &udsStatus); err != nil {
@@ -60,6 +66,13 @@ func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 	if got, want := udsStatus.Daemon.HTTPPort, harness.Config.HTTP.Port; got != want {
 		t.Fatalf("udsStatus.Daemon.HTTPPort = %d, want %d", got, want)
 	}
+	if !slices.Equal(udsStatus.Daemon.SchemaStreams, httpStatus.Daemon.SchemaStreams) {
+		t.Fatalf(
+			"uds schema streams = %#v, want HTTP schema streams %#v",
+			udsStatus.Daemon.SchemaStreams,
+			httpStatus.Daemon.SchemaStreams,
+		)
+	}
 
 	var cliStatus aghcontract.StatusPayload
 	if err := harness.CLI.RunJSON(ctx, &cliStatus, "status", "-o", "json"); err != nil {
@@ -67,6 +80,179 @@ func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 	}
 	if got, want := cliStatus.Daemon.Socket, harness.Config.Daemon.Socket; got != want {
 		t.Fatalf("cliStatus.Daemon.Socket = %q, want %q", got, want)
+	}
+	if !slices.Equal(cliStatus.Daemon.SchemaStreams, httpStatus.Daemon.SchemaStreams) {
+		t.Fatalf(
+			"CLI schema streams = %#v, want HTTP schema streams %#v",
+			cliStatus.Daemon.SchemaStreams,
+			httpStatus.Daemon.SchemaStreams,
+		)
+	}
+
+	if err := harness.Stop(ctx); err != nil {
+		t.Fatalf("Stop() error = %v", err)
+	}
+	processLog, err := harness.readProcessLog()
+	if err != nil {
+		t.Fatalf("readProcessLog() error = %v", err)
+	}
+	assertMigrationAppliedLogs(t, processLog)
+	if _, err := os.Stat(harness.HomePaths.DaemonInfo); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("daemon info stat error = %v, want os.ErrNotExist", err)
+	}
+	if _, err := os.Stat(harness.Config.Daemon.Socket); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("daemon socket stat error = %v, want os.ErrNotExist", err)
+	}
+}
+
+func assertSchemaStreamStatuses(t *testing.T, statuses []aghcontract.SchemaStreamStatus) {
+	t.Helper()
+	wantStreams := []string{"global", "memory"}
+	if len(statuses) != len(wantStreams) {
+		t.Fatalf("schema streams = %#v, want global and memory", statuses)
+	}
+	for index, wantStream := range wantStreams {
+		status := statuses[index]
+		if status.Stream != wantStream || status.Version != 1 || status.AppliedCount != 1 ||
+			strings.TrimSpace(status.SumDigest) == "" {
+			t.Fatalf(
+				"schema stream[%d] = %#v, want stream=%q version=1 applied_count=1 and digest",
+				index,
+				status,
+				wantStream,
+			)
+		}
+	}
+}
+
+func assertMigrationAppliedLogs(t *testing.T, processLog string) {
+	t.Helper()
+	type migrationLog struct {
+		Message      string `json:"msg"`
+		Stream       string `json:"stream"`
+		Version      int64  `json:"version"`
+		AppliedCount int    `json:"applied_count"`
+	}
+
+	found := make(map[string]migrationLog, 2)
+	for _, line := range strings.Split(processLog, "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var record migrationLog
+		if err := json.Unmarshal([]byte(line), &record); err == nil {
+			if record.Message == "store.migrations.applied" {
+				found[record.Stream] = record
+			}
+			continue
+		}
+		for _, stream := range []string{"global", "memory"} {
+			needle := "store.migrations.applied stream=" + stream + " version=1 applied_count=1"
+			if strings.Contains(line, needle) {
+				found[stream] = migrationLog{
+					Message: "store.migrations.applied", Stream: stream, Version: 1, AppliedCount: 1,
+				}
+			}
+		}
+	}
+	for _, stream := range []string{"global", "memory"} {
+		record, ok := found[stream]
+		if !ok || record.Version != 1 || record.AppliedCount != 1 {
+			t.Fatalf(
+				"migration applied logs = %#v, want %q version=1 applied_count=1; process log=%s",
+				found,
+				stream,
+				processLog,
+			)
+		}
+	}
+}
+
+func TestStartRuntimeHarnessRefusesLegacyDatabaseBeforeReadiness(t *testing.T) {
+	t.Run("Should exit non-zero before readiness and leave the legacy database untouched", func(t *testing.T) {
+		t.Parallel()
+
+		layout := prepareRuntimeLayout(t, RuntimeHarnessOptions{})
+		seedLegacyRuntimeDatabase(t, layout.HomePaths.DatabaseFile)
+		before, err := os.ReadFile(layout.HomePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("ReadFile(legacy before boot) error = %v", err)
+		}
+		canonicalPath, err := filepath.EvalSymlinks(layout.HomePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("EvalSymlinks(legacy database) error = %v", err)
+		}
+
+		binaryPath := buildAGHBinary(t)
+		env, err := withRuntimeCLIEnv(layout.HomePaths, layout.Env, binaryPath)
+		if err != nil {
+			t.Fatalf("withRuntimeCLIEnv() error = %v", err)
+		}
+		harness := newRuntimeHarness(t, &layout, binaryPath)
+		startDaemonProcess(t, harness, env)
+
+		waitCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		exitErr := harness.waitForExit(waitCtx)
+		if errors.Is(exitErr, context.DeadlineExceeded) {
+			if killErr := harness.forceKillDaemonProcess(); killErr != nil {
+				t.Fatalf("legacy daemon did not exit before readiness; force kill error = %v", killErr)
+			}
+			t.Fatal("legacy daemon did not exit before readiness")
+		}
+		if exitErr == nil {
+			t.Fatal("legacy daemon exit error = nil, want non-zero exit")
+		}
+		if harness.process == nil || harness.process.ProcessState == nil || harness.process.ProcessState.ExitCode() == 0 {
+			t.Fatalf("legacy daemon process state = %#v, want non-zero exit", harness.process)
+		}
+
+		logBytes, err := os.ReadFile(harness.processLogPath)
+		if err != nil {
+			t.Fatalf("ReadFile(daemon process log) error = %v", err)
+		}
+		logText := string(logBytes)
+		if !strings.Contains(logText, store.ErrLegacyDatabase.Error()) ||
+			!strings.Contains(logText, canonicalPath) ||
+			!strings.Contains(logText, "complete AGH_HOME or workspace .agh directory") {
+			t.Fatalf("daemon process log = %q, want legacy sentinel, path, and whole-family remediation", logText)
+		}
+		if _, err := os.Stat(layout.HomePaths.DaemonInfo); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("daemon info stat error = %v, want no readiness artifact", err)
+		}
+		after, err := os.ReadFile(layout.HomePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("ReadFile(legacy after boot) error = %v", err)
+		}
+		if !bytes.Equal(after, before) {
+			t.Fatal("legacy database bytes changed after refused daemon boot")
+		}
+	})
+}
+
+func seedLegacyRuntimeDatabase(t *testing.T, path string) {
+	t.Helper()
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("sql.Open(legacy runtime database) error = %v", err)
+	}
+	if _, err := db.ExecContext(t.Context(), `CREATE TABLE schema_migrations (
+		version INTEGER PRIMARY KEY,
+		name TEXT NOT NULL,
+		checksum TEXT NOT NULL,
+		applied_at TEXT NOT NULL
+	)`); err != nil {
+		t.Fatalf("create legacy schema_migrations error = %v", err)
+	}
+	if _, err := db.ExecContext(t.Context(), `WITH RECURSIVE versions(version) AS (
+		SELECT 1 UNION ALL SELECT version + 1 FROM versions WHERE version < 61
+	) INSERT INTO schema_migrations (version, name, checksum, applied_at)
+	SELECT version, printf('legacy_%02d', version), printf('checksum-%02d', version), '2026-07-10T00:00:00Z'
+	FROM versions`); err != nil {
+		t.Fatalf("seed legacy schema_migrations error = %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close(legacy runtime database) error = %v", err)
 	}
 }
 

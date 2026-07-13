@@ -9,12 +9,13 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
-var _ store.SessionCreationStore = (*GlobalDB)(nil)
+var _ store.SessionCreationStore = (*SessionRepo)(nil)
 
 // PutSessionCreationProfile persists one immutable content-addressed profile.
-func (g *GlobalDB) PutSessionCreationProfile(
+func (g *SessionRepo) PutSessionCreationProfile(
 	ctx context.Context,
 	profile store.SessionCreationProfile,
 ) (string, error) {
@@ -30,23 +31,15 @@ func (g *GlobalDB) PutSessionCreationProfile(
 	if err != nil {
 		return "", err
 	}
-	err = g.withTaskImmediateTransaction(ctx, "put session creation profile", func(exec taskSQLExecutor) error {
-		if _, err := exec.ExecContext(
-			ctx,
-			`INSERT INTO session_creation_profiles (profile_ref, profile_json, created_at)
-			 VALUES (?, ?, ?) ON CONFLICT(profile_ref) DO NOTHING`,
-			profileRef,
-			string(payload),
-			store.FormatTimestamp(g.now()),
-		); err != nil {
+	err = g.withImmediateTransaction(ctx, "put session creation profile", func(exec globalSQLExecutor) error {
+		queries := sqlcgen.New(exec)
+		if err := queries.InsertSessionCreationProfile(ctx, sqlcgen.InsertSessionCreationProfileParams{
+			ProfileRef: profileRef, ProfileJson: string(payload), CreatedAt: store.FormatTimestamp(g.now()),
+		}); err != nil {
 			return fmt.Errorf("store: insert session creation profile %q: %w", profileRef, err)
 		}
-		var storedJSON string
-		if err := exec.QueryRowContext(
-			ctx,
-			`SELECT profile_json FROM session_creation_profiles WHERE profile_ref = ?`,
-			profileRef,
-		).Scan(&storedJSON); err != nil {
+		storedJSON, err := queries.GetSessionCreationProfileJSON(ctx, profileRef)
+		if err != nil {
 			return fmt.Errorf("store: read persisted session creation profile %q: %w", profileRef, err)
 		}
 		if strings.TrimSpace(storedJSON) != string(payload) {
@@ -61,7 +54,7 @@ func (g *GlobalDB) PutSessionCreationProfile(
 }
 
 // GetSessionCreationProfile loads and verifies one immutable profile.
-func (g *GlobalDB) GetSessionCreationProfile(
+func (g *SessionRepo) GetSessionCreationProfile(
 	ctx context.Context,
 	profileRef string,
 ) (store.SessionCreationProfile, error) {
@@ -72,12 +65,7 @@ func (g *GlobalDB) GetSessionCreationProfile(
 	if profileRef == "" {
 		return store.SessionCreationProfile{}, fmt.Errorf("store: session creation profile ref is required")
 	}
-	var payload string
-	err := g.db.QueryRowContext(
-		ctx,
-		`SELECT profile_json FROM session_creation_profiles WHERE profile_ref = ?`,
-		profileRef,
-	).Scan(&payload)
+	payload, err := g.queries.GetSessionCreationProfileJSON(ctx, profileRef)
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.SessionCreationProfile{}, fmt.Errorf("%w: %s", store.ErrSessionNotFound, profileRef)
 	}

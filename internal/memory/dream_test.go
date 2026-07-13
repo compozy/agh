@@ -51,7 +51,7 @@ func TestServiceConstructionOverridesDefaults(t *testing.T) {
 	t.Parallel()
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	store := NewStore(filepath.Join(t.TempDir(), "memory"))
+	store := newOpenTestStore(t, filepath.Join(t.TempDir(), "memory"))
 
 	service := NewService(
 		WithMemoryStore(store),
@@ -259,7 +259,7 @@ func TestServiceRunCallsSessionSpawnerWithGoalPromptAndWorkspaceID(t *testing.T)
 	service := NewService(
 		withLock(lock),
 		withGoal("custom-goal"),
-		WithMemoryStore(NewStore(globalMemoryDir)),
+		WithMemoryStore(newOpenTestStore(t, globalMemoryDir)),
 		WithWorkspaceResolver(&fakeDreamWorkspaceResolver{
 			resolved: workspacepkg.ResolvedWorkspace{
 				Workspace: workspacepkg.Workspace{
@@ -604,7 +604,7 @@ func TestDreamSystemPathValidation(t *testing.T) {
 	t.Run("Should reject unsafe _system path segments", func(t *testing.T) {
 		t.Parallel()
 
-		store := NewStore(filepath.Join(t.TempDir(), "memory"))
+		store := newOpenTestStore(t, filepath.Join(t.TempDir(), "memory"))
 		if _, err := store.dreamSystemPath(memcontract.ScopeGlobal, "dreaming", "../bad.json"); err == nil {
 			t.Fatal("dreamSystemPath() error = nil, want unsafe segment error")
 		}
@@ -614,7 +614,7 @@ func TestDreamSystemPathValidation(t *testing.T) {
 		t.Parallel()
 
 		root := filepath.Join(t.TempDir(), "memory")
-		store := NewStore(root)
+		store := newOpenTestStore(t, root)
 		path, err := store.dreamSystemPath(memcontract.ScopeGlobal, "dream", "failures", "run.json")
 		if err != nil {
 			t.Fatalf("dreamSystemPath() error = %v", err)
@@ -636,7 +636,7 @@ func TestServiceRunRequiresWorkspaceResolverForExplicitWorkspace(t *testing.T) {
 	}
 	service := NewService(
 		withLock(lock),
-		WithMemoryStore(NewStore(filepath.Join(t.TempDir(), "memory"))),
+		WithMemoryStore(newOpenTestStore(t, filepath.Join(t.TempDir(), "memory"))),
 	)
 
 	err := service.Run(
@@ -744,7 +744,7 @@ func TestServiceRunWrapsWorkspaceEnsureDirsErrors(t *testing.T) {
 				},
 			},
 		}),
-		WithMemoryStore(NewStore("")),
+		WithMemoryStore(newOpenTestStore(t, "")),
 	)
 
 	err := service.Run(
@@ -1189,7 +1189,7 @@ func newDreamSeedEnv(t *testing.T, _ time.Time) *dreamSeedEnv {
 
 	baseDir := t.TempDir()
 	workspaceRoot := filepath.Join(baseDir, "workspace")
-	baseStore := NewStore(
+	baseStore := newOpenTestStore(t,
 		filepath.Join(baseDir, "global", "memory"),
 		WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
 	)

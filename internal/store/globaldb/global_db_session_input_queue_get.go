@@ -10,7 +10,7 @@ import (
 )
 
 // GetSessionInputQueueEntryByID returns one exact internal queue entry by its globally unique ID.
-func (g *GlobalDB) GetSessionInputQueueEntryByID(
+func (g *SessionRepo) GetSessionInputQueueEntryByID(
 	ctx context.Context,
 	entryID string,
 ) (store.SessionInputQueueEntry, error) {
@@ -21,16 +21,12 @@ func (g *GlobalDB) GetSessionInputQueueEntryByID(
 	if target == "" {
 		return store.SessionInputQueueEntry{}, errors.New("store: session input queue entry id is required")
 	}
-	entry, err := scanSessionInputQueueEntry(g.db.QueryRowContext(
-		ctx,
-		`SELECT `+sessionInputQueueColumns+` FROM session_input_queue WHERE id = ?`,
-		target,
-	))
+	row, err := g.queries.GetSessionInputQueueEntryByID(ctx, target)
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.SessionInputQueueEntry{}, store.ErrSessionInputQueueEntryNotFound
 	}
 	if err != nil {
 		return store.SessionInputQueueEntry{}, err
 	}
-	return entry, nil
+	return sessionInputQueueFromGenerated(&row)
 }

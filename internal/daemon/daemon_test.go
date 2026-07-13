@@ -7914,13 +7914,26 @@ type daemonTestExtensionOptions struct {
 func openDaemonTestGlobalDB(t *testing.T) *globaldb.GlobalDB {
 	t.Helper()
 
-	db, err := globaldb.OpenGlobalDB(testutil.Context(t), filepath.Join(t.TempDir(), store.GlobalDatabaseName))
+	databasePath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+	db, err := globaldb.OpenGlobalDB(testutil.Context(t), databasePath)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
 	t.Cleanup(func() {
 		if err := db.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("GlobalDB.Close() error = %v", err)
+		}
+	})
+	memoryStore := memory.NewStore(
+		filepath.Join(t.TempDir(), "memory"),
+		memory.WithCatalogDatabasePath(databasePath),
+	)
+	if err := memoryStore.OpenCatalog(testutil.Context(t)); err != nil {
+		t.Fatalf("MemoryStore.OpenCatalog() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := memoryStore.CloseCatalog(testutil.Context(t)); err != nil {
+			t.Errorf("MemoryStore.CloseCatalog() error = %v", err)
 		}
 	})
 	return db

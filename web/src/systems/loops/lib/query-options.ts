@@ -5,13 +5,14 @@ import {
   getLoopAnnotations,
   getLoopConfig,
   getLoopRun,
+  listGoalTurns,
   listLoopRuns,
   listLoops,
 } from "../adapters/loops-api";
 import { isTerminalLoopStatus } from "./loop-formatters";
 import { loopsKeys } from "./query-keys";
 import { loopCatalogRequest, normalizeLoopCatalogFilter } from "./loops-list-query";
-import type { LoopCatalogStableFilter, LoopRunsFilter } from "../types";
+import type { GoalTurnFilter, LoopCatalogStableFilter, LoopRunsFilter } from "../types";
 
 const DEFAULT_STALE_TIME = 15_000;
 const DEFAULT_REFETCH_INTERVAL = 30_000;
@@ -27,6 +28,21 @@ export function loopsCatalogOptions(workspaceId: string, filters: LoopCatalogSta
     initialPageParam: undefined as string | undefined,
     getNextPageParam: lastPage => (lastPage.page.has_more ? lastPage.page.next_cursor : undefined),
     staleTime: DEFAULT_STALE_TIME,
+  });
+}
+
+export function goalTurnsOptions(
+  workspaceId: string,
+  runId: string,
+  filters: Pick<GoalTurnFilter, "node" | "item" | "limit"> = {}
+) {
+  const normalizedFilters = { ...filters, limit: filters.limit ?? 50 };
+  return infiniteQueryOptions({
+    queryKey: loopsKeys.goalTurns(workspaceId, runId, normalizedFilters),
+    queryFn: ({ pageParam, signal }) =>
+      listGoalTurns(workspaceId, runId, { ...normalizedFilters, after_seq: pageParam }, signal),
+    initialPageParam: 0,
+    getNextPageParam: page => page.next_after_seq ?? undefined,
   });
 }
 

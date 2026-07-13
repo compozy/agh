@@ -6,10 +6,11 @@ import (
 	"time"
 
 	looppkg "github.com/compozy/agh/internal/loop"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
-func (g *GlobalDB) applyCoordinatorBudgetExceededBoundaryWithExecutor(
+func (g *TaskRepo) applyCoordinatorBudgetExceededBoundaryWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	completion *taskpkg.CoordinatorCompletion,
@@ -46,19 +47,9 @@ func consumeLoopBudgetApprovalWithExecutor(
 	exec taskSQLExecutor,
 	runID looppkg.RunID,
 ) (bool, error) {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_runs
-		    SET budget_approval_seq = budget_approval_seq - 1
-		  WHERE id = ? AND budget_approval_seq > 0`,
-		string(runID),
-	)
+	affected, err := sqlcgen.New(exec).ConsumeLoopBudgetApproval(ctx, string(runID))
 	if err != nil {
 		return false, fmt.Errorf("store: consume loop run %q budget approval: %w", runID, err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("store: rows affected consuming loop run %q budget approval: %w", runID, err)
 	}
 	return affected > 0, nil
 }

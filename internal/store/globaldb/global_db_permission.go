@@ -6,10 +6,11 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 // WritePermissionLog stores one permission decision audit row.
-func (g *GlobalDB) WritePermissionLog(ctx context.Context, entry store.PermissionLogEntry) error {
+func (g *PermissionRepo) WritePermissionLog(ctx context.Context, entry store.PermissionLogEntry) error {
 	if err := g.checkReady(ctx, "write permission log"); err != nil {
 		return err
 	}
@@ -23,29 +24,21 @@ func (g *GlobalDB) WritePermissionLog(ctx context.Context, entry store.Permissio
 		entry.Timestamp = g.now()
 	}
 
-	if _, err := g.db.ExecContext(
-		ctx,
-		`INSERT INTO permission_log (id, session_id, agent_name, action, resource, decision, policy_used, timestamp)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		entry.ID,
-		entry.SessionID,
-		entry.AgentName,
-		entry.Action,
-		entry.Resource,
-		entry.Decision,
-		entry.PolicyUsed,
-		store.FormatTimestamp(entry.Timestamp),
-	); err != nil {
+	if err := g.queries.InsertPermissionLog(ctx, sqlcgen.InsertPermissionLogParams{
+		ID: entry.ID, SessionID: entry.SessionID, AgentName: entry.AgentName,
+		Action: entry.Action, Resource: entry.Resource, Decision: entry.Decision,
+		PolicyUsed: entry.PolicyUsed, Timestamp: store.FormatTimestamp(entry.Timestamp),
+	}); err != nil {
 		return fmt.Errorf("store: insert permission log entry: %w", err)
 	}
 	return nil
 }
 
 // ListPermissionLog returns permission audit rows filtered by the supplied options.
-func (g *GlobalDB) ListPermissionLog(
+func (g *PermissionRepo) ListPermissionLog(
 	ctx context.Context,
 	query store.PermissionLogQuery,
-) ([]store.PermissionLogEntry, error) {
+) (entries []store.PermissionLogEntry, err error) {
 	if err := g.checkReady(ctx, "list permission log"); err != nil {
 		return nil, err
 	}
@@ -53,6 +46,7 @@ func (g *GlobalDB) ListPermissionLog(
 		return nil, err
 	}
 
+	// dynamic-sql: optional audit filters, lower time bound, and caller limit change the statement shape.
 	sqlQuery := `SELECT id, session_id, agent_name, action, resource, decision, policy_used, timestamp FROM permission_log`
 	where, args := store.BuildClauses(
 		store.StringClause("session_id", query.SessionID),
@@ -69,10 +63,10 @@ func (g *GlobalDB) ListPermissionLog(
 		return nil, fmt.Errorf("store: query permission log: %w", err)
 	}
 	defer func() {
-		_ = rows.Close()
+		err = joinRowsCloseError(rows, err, "permission log query")
 	}()
 
-	entries := make([]store.PermissionLogEntry, 0)
+	entries = make([]store.PermissionLogEntry, 0)
 	for rows.Next() {
 		entry, scanErr := scanPermissionLog(rows)
 		if scanErr != nil {

@@ -8,6 +8,7 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 func revokeGoalPromptEvidence(
@@ -45,32 +46,25 @@ func terminalizePreparedGoalRevocation(
 	row *goalPromptRow,
 	request goal.RevokePromptRequest,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE session_input_queue
-		 SET status = 'canceled', terminal_kind = 'control-fenced', terminal_disposition = ?,
-		     terminal_reason_code = ?, terminal_tokens_reported = 0, terminal_tokens_used = NULL,
-		     terminal_at = ?, canceled_at = ?, updated_at = ?
-		 WHERE id = ? AND loop_run_id = ? AND task_run_id = ? AND prompt_id = ?
-		   AND owner_kind = ? AND owner_epoch = ? AND binding_epoch = ?
-		   AND status = 'queued' AND dispatchable = 0 AND terminal_at IS NULL`,
-		string(request.Disposition),
-		string(looppkg.ReasonCodeGoalControlRevokedInFlight),
-		store.FormatTimestamp(request.RevokedAt),
-		store.FormatTimestamp(request.RevokedAt),
-		store.FormatTimestamp(request.RevokedAt),
-		row.id,
-		string(request.Key.LoopRunID),
-		strings.TrimSpace(request.TaskRunID),
-		strings.TrimSpace(request.PromptID),
-		goalPromptOwnerKind,
-		request.ExpectedControlEpoch,
-		request.ExpectedBindingEpoch,
-	)
+	affected, err := sqlcgen.New(exec).
+		TerminalizePreparedGoalRevocation(ctx, sqlcgen.TerminalizePreparedGoalRevocationParams{
+			TerminalDisposition: goalNullableString(string(request.Disposition)),
+			TerminalReasonCode:  goalNullableString(string(looppkg.ReasonCodeGoalControlRevokedInFlight)),
+			TerminalAt:          store.FormatTimestamp(request.RevokedAt),
+			CanceledAt:          store.FormatTimestamp(request.RevokedAt),
+			UpdatedAt:           store.FormatTimestamp(request.RevokedAt),
+			ID:                  row.id,
+			LoopRunID:           goalNullableString(string(request.Key.LoopRunID)),
+			TaskRunID:           strings.TrimSpace(request.TaskRunID),
+			PromptID:            goalNullableString(request.PromptID),
+			OwnerKind:           goalNullableString(goalPromptOwnerKind),
+			OwnerEpoch:          goalNullableInt64(&request.ExpectedControlEpoch),
+			BindingEpoch:        goalNullableInt64(&request.ExpectedBindingEpoch),
+		})
 	if err != nil {
 		return fmt.Errorf("store: revoke prepared Goal prompt: %w", err)
 	}
-	return requireGoalRowsAffected(result, "revoke prepared Goal prompt")
+	return requireGoalAffectedCount(affected, "revoke prepared Goal prompt")
 }
 
 func terminalizeClaimedGoalRevocation(
@@ -79,32 +73,25 @@ func terminalizeClaimedGoalRevocation(
 	row *goalPromptRow,
 	request goal.RevokePromptRequest,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE session_input_queue
-		 SET status = 'failed', terminal_kind = 'ambiguous', terminal_reason_code = ?,
-		     terminal_tokens_reported = 0, terminal_tokens_used = NULL,
-		     terminal_at = ?, failed_at = ?, failure_summary = ?, updated_at = ?
-		 WHERE id = ? AND loop_run_id = ? AND task_run_id = ? AND prompt_id = ?
-		   AND owner_kind = ? AND owner_epoch = ? AND binding_epoch = ?
-		   AND status IN ('dispatching','sent') AND terminal_at IS NULL`,
-		string(looppkg.ReasonCodeGoalControlRevokedInFlight),
-		store.FormatTimestamp(request.RevokedAt),
-		store.FormatTimestamp(request.RevokedAt),
-		string(looppkg.ReasonCodeGoalControlRevokedInFlight),
-		store.FormatTimestamp(request.RevokedAt),
-		row.id,
-		string(request.Key.LoopRunID),
-		strings.TrimSpace(request.TaskRunID),
-		strings.TrimSpace(request.PromptID),
-		goalPromptOwnerKind,
-		request.ExpectedControlEpoch,
-		request.ExpectedBindingEpoch,
-	)
+	affected, err := sqlcgen.New(exec).
+		TerminalizeClaimedGoalRevocation(ctx, sqlcgen.TerminalizeClaimedGoalRevocationParams{
+			TerminalReasonCode: goalNullableString(string(looppkg.ReasonCodeGoalControlRevokedInFlight)),
+			TerminalAt:         store.FormatTimestamp(request.RevokedAt),
+			FailedAt:           store.FormatTimestamp(request.RevokedAt),
+			FailureSummary:     string(looppkg.ReasonCodeGoalControlRevokedInFlight),
+			UpdatedAt:          store.FormatTimestamp(request.RevokedAt),
+			ID:                 row.id,
+			LoopRunID:          goalNullableString(string(request.Key.LoopRunID)),
+			TaskRunID:          strings.TrimSpace(request.TaskRunID),
+			PromptID:           goalNullableString(request.PromptID),
+			OwnerKind:          goalNullableString(goalPromptOwnerKind),
+			OwnerEpoch:         goalNullableInt64(&request.ExpectedControlEpoch),
+			BindingEpoch:       goalNullableInt64(&request.ExpectedBindingEpoch),
+		})
 	if err != nil {
 		return fmt.Errorf("store: revoke claimed Goal prompt: %w", err)
 	}
-	return requireGoalRowsAffected(result, "revoke claimed Goal prompt")
+	return requireGoalAffectedCount(affected, "revoke claimed Goal prompt")
 }
 
 func terminalizeRevokedGoalTurn(
@@ -127,29 +114,31 @@ func terminalizeRevokedGoalTurn(
 	if err != nil {
 		return err
 	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_goal_turns
-		 SET result_status = ?, stop_reason = ?, reason_code = ?, verdict_outcome = NULL,
-		     blocking_json = '[]', evidence_ref = NULL, tokens_used = ?, ended_at = ?
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		   AND prompt_id = ? AND binding_epoch = ? AND result_status IS NULL`,
-		row.terminalKind.String,
-		nullableGoalString(row.terminalStopReason.String),
-		nullableGoalString(row.terminalReason.String),
+	tokensUsed, err := goalSQLNullInt64(
 		goalReportedTokens(row.terminalTokensUsed.Int64, row.terminalTokensReported != 0),
-		store.FormatTimestamp(endedAt),
-		string(request.Key.LoopRunID),
-		request.Key.Generation,
-		string(request.Key.NodeID),
-		request.Key.ItemIndex,
-		strings.TrimSpace(request.PromptID),
-		request.ExpectedBindingEpoch,
 	)
+	if err != nil {
+		return err
+	}
+	affected, err := sqlcgen.New(exec).TerminalizeRevokedGoalTurn(ctx, sqlcgen.TerminalizeRevokedGoalTurnParams{
+		ResultStatus: goalNullableString(
+			row.terminalKind.String,
+		),
+		StopReason:   goalNullableString(row.terminalStopReason.String),
+		ReasonCode:   goalNullableString(row.terminalReason.String),
+		TokensUsed:   tokensUsed,
+		EndedAt:      store.FormatTimestamp(endedAt),
+		LoopRunID:    string(request.Key.LoopRunID),
+		Generation:   int64(request.Key.Generation),
+		NodeID:       string(request.Key.NodeID),
+		ItemIndex:    int64(request.Key.ItemIndex),
+		PromptID:     strings.TrimSpace(request.PromptID),
+		BindingEpoch: request.ExpectedBindingEpoch,
+	})
 	if err != nil {
 		return fmt.Errorf("store: terminalize revoked Goal turn: %w", err)
 	}
-	return requireGoalRowsAffected(result, "terminalize revoked Goal turn")
+	return requireGoalAffectedCount(affected, "terminalize revoked Goal turn")
 }
 
 func revokedGoalTurnOutcomeValid(outcome string) bool {

@@ -672,9 +672,7 @@ func TestBrokerDeliveryMetricsForReadsOnlyRequestedBridgeRoutes(t *testing.T) {
 		broker.metrics["brg-page"] = &instanceDeliveryMetrics{deliveryFailuresTotal: 2}
 		broker.metrics["brg-foreign"] = &instanceDeliveryMetrics{deliveryFailuresTotal: 99}
 		pageRoute := broker.ensureRouteLocked("route-page", "brg-page", "ext-page")
-		pageRoute.queue = append(pageRoute.queue, deliveryQueueItem{deliveryID: "delivery-page"})
 		foreignRoute := broker.ensureRouteLocked("route-foreign", "brg-foreign", "ext-foreign")
-		foreignRoute.queue = append(foreignRoute.queue, deliveryQueueItem{deliveryID: "delivery-foreign"})
 		if got, want := len(broker.bridgeRoutes["brg-page"]), 1; got != want {
 			broker.mu.Unlock()
 			t.Fatalf("page route index size = %d, want %d", got, want)
@@ -683,6 +681,12 @@ func TestBrokerDeliveryMetricsForReadsOnlyRequestedBridgeRoutes(t *testing.T) {
 			broker.mu.Unlock()
 			t.Fatalf("foreign route index size = %d, want %d", got, want)
 		}
+		broker.mu.Unlock()
+		broker.Close()
+
+		broker.mu.Lock()
+		pageRoute.queue = append(pageRoute.queue, deliveryQueueItem{deliveryID: "delivery-page"})
+		foreignRoute.queue = append(foreignRoute.queue, deliveryQueueItem{deliveryID: "delivery-foreign"})
 		broker.mu.Unlock()
 
 		snapshot, err := broker.DeliveryMetricsFor([]string{"brg-page"})
@@ -710,11 +714,15 @@ func TestBrokerDeliveryMetricsForReadsOnlyRequestedBridgeRoutes(t *testing.T) {
 			t.Fatalf("retired page route remained indexed: %#v", broker.bridgeRoutes)
 		}
 		recreated := broker.ensureRouteLocked("route-page", "brg-page", "ext-page")
-		recreated.queue = append(recreated.queue, deliveryQueueItem{deliveryID: "delivery-page-recreated"})
 		if got, want := len(broker.bridgeRoutes["brg-page"]), 1; got != want {
 			broker.mu.Unlock()
 			t.Fatalf("recreated page route index size = %d, want %d", got, want)
 		}
+		broker.mu.Unlock()
+		broker.Close()
+
+		broker.mu.Lock()
+		recreated.queue = append(recreated.queue, deliveryQueueItem{deliveryID: "delivery-page-recreated"})
 		broker.mu.Unlock()
 
 		snapshot, err = broker.DeliveryMetricsFor([]string{"brg-page"})

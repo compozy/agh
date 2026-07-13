@@ -12,20 +12,12 @@ import (
 
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 const goalPromptOwnerKind = "goal"
 
-var _ goal.TurnStore = (*GlobalDB)(nil)
-
-const goalPromptSelectColumns = `
-	id, session_id, status, text, task_run_id, run_generation,
-	loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind,
-	prompt_attempt, dispatchable, operation_usage_base_tokens, dispatch_token_hash,
-	fence_kind, fence_disposition, fence_reason_code,
-	terminal_event_start_seq, terminal_event_end_seq, terminal_kind,
-	terminal_stop_reason, terminal_disposition, terminal_reason_code,
-	terminal_tokens_reported, terminal_tokens_used, terminal_at`
+var _ goal.TurnStore = (*GoalRepo)(nil)
 
 type goalPromptRow struct {
 	id                     string
@@ -64,51 +56,16 @@ func loadGoalPromptRow(
 	runID looppkg.RunID,
 	promptID string,
 ) (goalPromptRow, error) {
-	var row goalPromptRow
-	err := exec.QueryRowContext(
-		ctx,
-		`SELECT `+goalPromptSelectColumns+`
-		 FROM session_input_queue
-		 WHERE loop_run_id = ? AND prompt_id = ?`,
-		string(runID),
-		strings.TrimSpace(promptID),
-	).Scan(
-		&row.id,
-		&row.sessionID,
-		&row.status,
-		&row.text,
-		&row.taskRunID,
-		&row.runGeneration,
-		&row.loopRunID,
-		&row.ownerKind,
-		&row.ownerEpoch,
-		&row.bindingEpoch,
-		&row.promptID,
-		&row.promptKind,
-		&row.promptAttempt,
-		&row.dispatchable,
-		&row.operationUsageBase,
-		&row.dispatchTokenHash,
-		&row.fenceKind,
-		&row.fenceDisposition,
-		&row.fenceReason,
-		&row.terminalEventStart,
-		&row.terminalEventEnd,
-		&row.terminalKind,
-		&row.terminalStopReason,
-		&row.terminalDisposition,
-		&row.terminalReason,
-		&row.terminalTokensReported,
-		&row.terminalTokensUsed,
-		&row.terminalAt,
-	)
+	generated, err := sqlcgen.New(exec).GetGoalPromptRow(ctx, sqlcgen.GetGoalPromptRowParams{
+		LoopRunID: goalNullableString(string(runID)), PromptID: goalNullableString(promptID),
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return goalPromptRow{}, fmt.Errorf("%w: Goal prompt %s", goal.ErrTurnNotFound, promptID)
 	}
 	if err != nil {
 		return goalPromptRow{}, fmt.Errorf("store: scan Goal prompt row: %w", err)
 	}
-	return row, nil
+	return goalPromptRowFromGenerated(&generated), nil
 }
 
 func findGoalPromptRow(

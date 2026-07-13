@@ -11,20 +11,8 @@ import (
 
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
-
-const loopCatalogAggregateRunsSQL = `WITH requested_names(loop_name) AS (
-		SELECT DISTINCT CAST(value AS TEXT) FROM json_each(?)
-	)
-	SELECT lr.loop_name,
-		COUNT(*),
-		SUM(CASE WHEN lr.status = 'done' THEN 1 ELSE 0 END),
-		SUM(CASE WHEN lr.status IN ('failed', 'blocked', 'exhausted', 'stalled') THEN 1 ELSE 0 END)
-	FROM requested_names AS requested
-	JOIN loop_runs AS lr INDEXED BY idx_loop_runs_catalog
-		ON lr.workspace_id = ? AND lr.loop_name = requested.loop_name
-	WHERE lr.created_at >= ?
-	GROUP BY lr.loop_name`
 
 const loopCatalogLatestRunHeadColumnsSQL = `lr.id, lr.loop_name, lr.status, lr.created_at`
 
@@ -46,10 +34,10 @@ const loopCatalogLatestRunsSQL = `WITH requested_names(loop_name) AS (
 	JOIN latest_ids ON latest_ids.id = lr.id`
 
 type loopCatalogQueryExecutor interface {
-	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+	sqlcgen.DBTX
 }
 
-func (g *GlobalDB) ListLoopCatalogRunSummaries(
+func (g *LoopRepo) ListLoopCatalogRunSummaries(
 	ctx context.Context,
 	query looppkg.CatalogRunQuery,
 ) (summaries map[string]looppkg.CatalogRunSummary, err error) {
@@ -111,34 +99,25 @@ func readLoopCatalogAggregates(
 	query looppkg.CatalogRunQuery,
 	summaries map[string]looppkg.CatalogRunSummary,
 ) (err error) {
-	rows, err := executor.QueryContext(
-		ctx,
-		loopCatalogAggregateRunsSQL,
-		namesJSON,
-		string(query.WorkspaceID),
-		store.FormatTimestamp(query.AggregateAfter),
-	)
+	rows, err := sqlcgen.New(executor).ListLoopCatalogAggregates(ctx, sqlcgen.ListLoopCatalogAggregatesParams{
+		NamesJson: namesJSON, WorkspaceID: string(query.WorkspaceID),
+		AggregateAfter: store.FormatTimestamp(query.AggregateAfter),
+	})
 	if err != nil {
 		return fmt.Errorf("store: query loop catalog aggregates: %w", err)
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("store: close loop catalog aggregate rows: %w", closeErr))
+	for _, row := range rows {
+		aggregate := looppkg.CatalogRunAggregate{Runs: int(row.Runs)}
+		if row.Succeeded.Valid {
+			aggregate.Succeeded = int(row.Succeeded.Float64)
 		}
-	}()
-	for rows.Next() {
-		var name string
-		var aggregate looppkg.CatalogRunAggregate
-		if scanErr := rows.Scan(&name, &aggregate.Runs, &aggregate.Succeeded, &aggregate.Failed); scanErr != nil {
-			return fmt.Errorf("store: scan loop catalog aggregate: %w", scanErr)
+		if row.Failed.Valid {
+			aggregate.Failed = int(row.Failed.Float64)
 		}
-		summary := summaries[name]
-		summary.LoopName = name
+		summary := summaries[row.LoopName]
+		summary.LoopName = row.LoopName
 		summary.Aggregate30d = aggregate
-		summaries[name] = summary
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("store: iterate loop catalog aggregates: %w", err)
+		summaries[row.LoopName] = summary
 	}
 	return nil
 }
@@ -150,49 +129,36 @@ func readLoopCatalogLatestRuns(
 	workspaceID looppkg.WorkspaceID,
 	summaries map[string]looppkg.CatalogRunSummary,
 ) (err error) {
-	rows, err := executor.QueryContext(ctx, loopCatalogLatestRunsSQL, namesJSON, string(workspaceID))
+	rows, err := sqlcgen.New(executor).ListLoopCatalogLatestRuns(ctx, sqlcgen.ListLoopCatalogLatestRunsParams{
+		NamesJson: namesJSON, WorkspaceID: string(workspaceID),
+	})
 	if err != nil {
 		return fmt.Errorf("store: query loop catalog latest runs: %w", err)
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("store: close loop catalog latest rows: %w", closeErr))
-		}
-	}()
-	for rows.Next() {
-		var id string
-		var loopName string
-		var status string
-		var createdAtRaw string
-		if scanErr := rows.Scan(&id, &loopName, &status, &createdAtRaw); scanErr != nil {
-			return fmt.Errorf("store: scan loop catalog latest run: %w", scanErr)
-		}
-		runStatus := looppkg.Status(status)
+	for _, row := range rows {
+		runStatus := looppkg.Status(row.Status)
 		if !runStatus.Valid() {
 			return fmt.Errorf(
 				"%w: loop catalog latest run %q status is invalid: %q",
 				looppkg.ErrValidation,
-				id,
-				status,
+				row.ID,
+				row.Status,
 			)
 		}
-		createdAt, parseErr := parseLoopRunTimestamp(createdAtRaw)
+		createdAt, parseErr := parseLoopRunTimestamp(row.CreatedAt)
 		if parseErr != nil {
 			return fmt.Errorf("store: parse loop catalog latest run created_at: %w", parseErr)
 		}
 		run := looppkg.CatalogRunHead{
-			ID:        looppkg.RunID(id),
-			LoopName:  loopName,
+			ID:        looppkg.RunID(row.ID),
+			LoopName:  row.LoopName,
 			Status:    runStatus,
 			CreatedAt: createdAt,
 		}
-		summary := summaries[loopName]
-		summary.LoopName = loopName
+		summary := summaries[row.LoopName]
+		summary.LoopName = row.LoopName
 		summary.LastRun = &run
-		summaries[loopName] = summary
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("store: iterate loop catalog latest runs: %w", err)
+		summaries[row.LoopName] = summary
 	}
 	return nil
 }
@@ -225,4 +191,4 @@ func normalizeLoopCatalogRunQuery(query looppkg.CatalogRunQuery) (looppkg.Catalo
 	return normalized, nil
 }
 
-var _ looppkg.CatalogRunReader = (*GlobalDB)(nil)
+var _ looppkg.CatalogRunReader = (*LoopRepo)(nil)

@@ -52,6 +52,7 @@ type Server struct {
 	network           core.NetworkService
 	networkStore      core.NetworkStore
 	observer          core.Observer
+	schemaStreams     core.SchemaStreamStatusReader
 	automation        core.AutomationManager
 	loops             core.LoopService
 	bridges           core.BridgeService
@@ -199,13 +200,6 @@ func WithNetworkService(service core.NetworkService) Option {
 func WithNetworkStore(store core.NetworkStore) Option {
 	return func(server *Server) {
 		server.networkStore = store
-	}
-}
-
-// WithObserver injects the runtime observer.
-func WithObserver(observer core.Observer) Option {
-	return func(server *Server) {
-		server.observer = observer
 	}
 }
 
@@ -582,6 +576,7 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		network:           s.network,
 		networkStore:      s.networkStore,
 		observer:          s.observer,
+		schemaStreams:     s.schemaStreams,
 		resources:         s.resources,
 		automation:        s.automation,
 		loops:             s.loops,

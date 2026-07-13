@@ -12,14 +12,15 @@ import (
 	"github.com/compozy/agh/internal/loop/dsl"
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 const goalBudgetAuthorizationTTL = time.Second
 
-var _ goal.BudgetGuard = (*GlobalDB)(nil)
+var _ goal.BudgetGuard = (*GoalRepo)(nil)
 
 // FlushAndCheck synchronously max-flushes one Goal task's cumulative usage and fences the next effect.
-func (g *GlobalDB) FlushAndCheck(
+func (g *GoalRepo) FlushAndCheck(
 	ctx context.Context,
 	snapshot goal.BudgetBoundarySnapshot,
 ) (goal.BudgetDecision, error) {
@@ -96,11 +97,8 @@ func flushAndCheckGoalBudgetWithExecutor(
 }
 
 func goalBudgetDatabaseNow(ctx context.Context, exec taskSQLExecutor) (time.Time, error) {
-	var raw string
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`,
-	).Scan(&raw); err != nil {
+	raw, err := sqlcgen.New(exec).GetGoalDatabaseNow(ctx)
+	if err != nil {
 		return time.Time{}, fmt.Errorf("store: read Goal budget database time: %w", err)
 	}
 	now, err := time.Parse(time.RFC3339Nano, raw)
@@ -115,43 +113,20 @@ func flushGoalTaskUsage(
 	exec taskSQLExecutor,
 	snapshot goal.BudgetBoundarySnapshot,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE task_runs
-		 SET tokens_used = CASE
-		   WHEN ? = 1 AND ? > tokens_used THEN ?
-		   ELSE tokens_used
-		 END
-		 WHERE id = ? AND loop_run_id = ?
-		   AND EXISTS (
-		     SELECT 1 FROM loop_goal_checkpoints AS checkpoint
-		     WHERE checkpoint.loop_run_id = ? AND checkpoint.generation = ?
-		       AND checkpoint.node_id = ? AND checkpoint.item_index = ?
-		       AND checkpoint.control_epoch = ? AND COALESCE(checkpoint.binding_epoch, 0) = ?
-		       AND checkpoint.phase = ? AND COALESCE(checkpoint.task_run_id, '') = ?
-		       AND COALESCE(checkpoint.queue_entry_id, '') = ?
-		       AND COALESCE(checkpoint.prompt_id, '') = ?
-		   )`,
-		boolToInt(snapshot.TokensReported),
-		snapshot.LiveTokensUsed,
-		snapshot.LiveTokensUsed,
-		strings.TrimSpace(snapshot.TaskRunID),
-		string(snapshot.Key.LoopRunID),
-		string(snapshot.Key.LoopRunID),
-		snapshot.Key.Generation,
-		string(snapshot.Key.NodeID),
-		snapshot.Key.ItemIndex,
-		snapshot.ExpectedControlEpoch,
-		snapshot.ExpectedBindingEpoch,
-		strings.TrimSpace(snapshot.ExpectedPhase),
-		strings.TrimSpace(snapshot.TaskRunID),
-		strings.TrimSpace(snapshot.ExpectedQueueEntryID),
-		strings.TrimSpace(snapshot.ExpectedPromptID),
-	)
+	affected, err := sqlcgen.New(exec).FlushGoalTaskUsage(ctx, sqlcgen.FlushGoalTaskUsageParams{
+		TokensReported: boolToInt(snapshot.TokensReported), LiveTokensUsed: snapshot.LiveTokensUsed,
+		ID: strings.TrimSpace(snapshot.TaskRunID), TaskLoopRunID: goalRequiredSQLString(string(snapshot.Key.LoopRunID)),
+		CheckpointLoopRunID: string(snapshot.Key.LoopRunID), Generation: int64(snapshot.Key.Generation),
+		NodeID: string(snapshot.Key.NodeID), ItemIndex: int64(snapshot.Key.ItemIndex),
+		ControlEpoch: snapshot.ExpectedControlEpoch, BindingEpoch: goalNullableInt64(&snapshot.ExpectedBindingEpoch),
+		Phase: strings.TrimSpace(snapshot.ExpectedPhase), TaskRunID: goalRequiredSQLString(snapshot.TaskRunID),
+		QueueEntryID: goalRequiredSQLString(snapshot.ExpectedQueueEntryID),
+		PromptID:     goalRequiredSQLString(snapshot.ExpectedPromptID),
+	})
 	if err != nil {
 		return fmt.Errorf("store: flush Goal task usage: %w", err)
 	}
-	return requireGoalRowsAffected(result, "flush Goal task usage")
+	return requireGoalAffectedCount(affected, "flush Goal task usage")
 }
 
 func advanceGoalBudgetVersion(
@@ -159,29 +134,19 @@ func advanceGoalBudgetVersion(
 	exec taskSQLExecutor,
 	runID loop.RunID,
 ) (int, int, dsl.BudgetExceeded, time.Time, int64, error) {
-	var budgetTokens, budgetWallSec int
-	var onExceeded, startedAtRaw string
-	var budgetVersion int64
-	err := exec.QueryRowContext(
-		ctx,
-		`UPDATE loop_runs
-		 SET budget_version = budget_version + 1
-		 WHERE id = ?
-		 RETURNING budget_tokens, budget_wall_sec, budget_on_exceeded, started_at, budget_version`,
-		string(runID),
-	).Scan(&budgetTokens, &budgetWallSec, &onExceeded, &startedAtRaw, &budgetVersion)
+	row, err := sqlcgen.New(exec).AdvanceGoalBudgetVersion(ctx, string(runID))
 	if err != nil {
 		return 0, 0, "", time.Time{}, 0, fmt.Errorf("store: advance Goal budget version: %w", err)
 	}
-	startedAt, err := store.ParseTimestamp(startedAtRaw)
+	startedAt, err := store.ParseTimestamp(row.StartedAt)
 	if err != nil {
 		return 0, 0, "", time.Time{}, 0, fmt.Errorf("store: parse Goal budget started_at: %w", err)
 	}
-	return budgetTokens,
-		budgetWallSec,
-		dsl.BudgetExceeded(strings.TrimSpace(onExceeded)),
+	return int(row.BudgetTokens),
+		int(row.BudgetWallSec),
+		dsl.BudgetExceeded(strings.TrimSpace(row.BudgetOnExceeded)),
 		startedAt,
-		budgetVersion,
+		row.BudgetVersion,
 		nil
 }
 
@@ -265,18 +230,11 @@ func validateGoalBudgetDecision(
 	if !decision.Allowed || decision.BudgetVersion < 0 || decision.ValidUntil.IsZero() {
 		return goalPromptFencedError("budget decision does not authorize an effect")
 	}
-	var valid int
-	err := exec.QueryRowContext(
-		ctx,
-		`SELECT CASE
-			WHEN budget_version = ? AND julianday('now') <= julianday(?) THEN 1
-			ELSE 0
-		 END
-		 FROM loop_runs WHERE id = ?`,
-		decision.BudgetVersion,
-		store.FormatTimestamp(decision.ValidUntil),
-		string(runID),
-	).Scan(&valid)
+	valid, err := sqlcgen.New(exec).ValidateGoalBudgetDecision(ctx, sqlcgen.ValidateGoalBudgetDecisionParams{
+		BudgetVersion: decision.BudgetVersion,
+		ValidUntil:    store.FormatTimestamp(decision.ValidUntil),
+		ID:            string(runID),
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("%w: %s", loop.ErrRunNotFound, runID)
 	}

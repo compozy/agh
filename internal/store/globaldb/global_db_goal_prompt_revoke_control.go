@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 func advanceRevokedGoalCheckpoint(
@@ -19,54 +20,39 @@ func advanceRevokedGoalCheckpoint(
 	queueEntryID := strings.TrimSpace(request.QueueEntryID)
 	promptID := strings.TrimSpace(request.PromptID)
 	if checkpoint.JudgeAttemptID != "" {
-		if _, err := exec.ExecContext(
+		if _, err := sqlcgen.New(exec).MarkGoalJudgeAttemptAmbiguous(
 			ctx,
-			`UPDATE loop_goal_judge_attempts
-			 SET status = 'ambiguous', completed_at = ?
-			 WHERE attempt_id = ? AND loop_run_id = ? AND status = 'running'`,
-			store.FormatTimestamp(request.RevokedAt),
-			checkpoint.JudgeAttemptID,
-			string(request.Key.LoopRunID),
+			sqlcgen.MarkGoalJudgeAttemptAmbiguousParams{
+				CompletedAt: store.FormatTimestamp(request.RevokedAt), AttemptID: checkpoint.JudgeAttemptID,
+				LoopRunID: string(request.Key.LoopRunID),
+			},
 		); err != nil {
 			return fmt.Errorf("store: revoke running Goal judge attempt: %w", err)
 		}
 	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_goal_checkpoints
-		 SET control_epoch = control_epoch + 1, phase = 'terminal', goal_status = ?, control_cause = ?,
-		     control_actor_kind = ?, control_actor_id = ?, control_requested_at = ?,
-		     queue_entry_id = NULL, prompt_id = NULL, prompt_kind = NULL, prompt_attempt = 0,
-		     judge_attempt_id = NULL,
-		     report_prompt_id = NULL, report_status = NULL, report_evidence_ref = NULL,
-		     report_binding_epoch = NULL, report_actor_kind = NULL, report_actor_id = NULL,
-		     report_recorded_at = NULL, compaction_cancel_prompt_id = NULL,
-		     compaction_cancel_cause = NULL, compaction_cancel_requested_at = NULL,
-		     updated_at = ?
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		   AND control_epoch = ? AND binding_epoch = ? AND task_run_id = ?
-		   AND queue_entry_id = ? AND prompt_id = ?
-		   AND phase IN ('queued','prompting','compacting','judging','persisting')`,
-		request.Status,
-		string(request.Cause),
-		request.ActorKind,
-		request.ActorID,
-		store.FormatTimestamp(request.RevokedAt),
-		store.FormatTimestamp(request.RevokedAt),
-		string(request.Key.LoopRunID),
-		request.Key.Generation,
-		string(request.Key.NodeID),
-		request.Key.ItemIndex,
-		request.ExpectedControlEpoch,
-		request.ExpectedBindingEpoch,
-		taskRunID,
-		queueEntryID,
-		promptID,
-	)
+	affected, err := sqlcgen.New(exec).AdvanceRevokedGoalCheckpoint(ctx, sqlcgen.AdvanceRevokedGoalCheckpointParams{
+		GoalStatus:       request.Status,
+		ControlCause:     goalNullableString(string(request.Cause)),
+		ControlActorKind: goalNullableString(request.ActorKind),
+		ControlActorID:   goalNullableString(request.ActorID),
+		ControlRequestedAt: store.FormatTimestamp(
+			request.RevokedAt,
+		),
+		UpdatedAt:    store.FormatTimestamp(request.RevokedAt),
+		LoopRunID:    string(request.Key.LoopRunID),
+		Generation:   int64(request.Key.Generation),
+		NodeID:       string(request.Key.NodeID),
+		ItemIndex:    int64(request.Key.ItemIndex),
+		ControlEpoch: request.ExpectedControlEpoch,
+		BindingEpoch: goalNullableInt64(&request.ExpectedBindingEpoch),
+		TaskRunID:    goalNullableString(taskRunID),
+		QueueEntryID: goalNullableString(queueEntryID),
+		PromptID:     goalNullableString(promptID),
+	})
 	if err != nil {
 		return fmt.Errorf("store: advance revoked Goal checkpoint: %w", err)
 	}
-	return requireGoalRowsAffected(result, "advance revoked Goal checkpoint")
+	return requireGoalAffectedCount(affected, "advance revoked Goal checkpoint")
 }
 
 func markGoalRunCleared(
@@ -77,17 +63,14 @@ func markGoalRunCleared(
 	if request.ProjectionCause != goal.SessionOutboxCauseClear {
 		return nil
 	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_runs SET goal_cleared_at = ? WHERE id = ? AND workspace_id = ?`,
-		store.FormatTimestamp(request.RevokedAt),
-		string(request.Key.LoopRunID),
-		string(request.Key.WorkspaceID),
-	)
+	affected, err := sqlcgen.New(exec).MarkGoalRunCleared(ctx, sqlcgen.MarkGoalRunClearedParams{
+		GoalClearedAt: store.FormatTimestamp(request.RevokedAt), ID: string(request.Key.LoopRunID),
+		WorkspaceID: string(request.Key.WorkspaceID),
+	})
 	if err != nil {
 		return fmt.Errorf("store: mark Goal run cleared: %w", err)
 	}
-	return requireGoalRowsAffected(result, "mark Goal run cleared")
+	return requireGoalAffectedCount(affected, "mark Goal run cleared")
 }
 
 func enqueueRevokedGoalProjection(

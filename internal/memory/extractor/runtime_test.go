@@ -544,6 +544,7 @@ func TestInbox(t *testing.T) {
 		root := t.TempDir()
 		catalogPath := filepath.Join(t.TempDir(), "agh.db")
 		memStore := memory.NewStore(root, memory.WithCatalogDatabasePath(catalogPath))
+		openMemoryCatalog(t, memStore)
 		if err := memStore.EnsureDirs(); err != nil {
 			t.Fatalf("EnsureDirs() error = %v", err)
 		}
@@ -771,6 +772,7 @@ func TestInbox(t *testing.T) {
 		root := t.TempDir()
 		catalogPath := filepath.Join(t.TempDir(), "agh.db")
 		memStore := memory.NewStore(root, memory.WithCatalogDatabasePath(catalogPath))
+		openMemoryCatalog(t, memStore)
 		if err := memStore.EnsureDirs(); err != nil {
 			t.Fatalf("EnsureDirs() error = %v", err)
 		}
@@ -866,6 +868,18 @@ func TestInbox(t *testing.T) {
 		}
 		if result.Files != 0 || result.Proposed != 0 || result.Failed != 0 {
 			t.Fatalf("ConsumeOnce(empty) = %#v, want zero result", result)
+		}
+	})
+}
+
+func openMemoryCatalog(t *testing.T, store *memory.Store) {
+	t.Helper()
+	if err := store.OpenCatalog(testutil.Context(t)); err != nil {
+		t.Fatalf("Store.OpenCatalog() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := store.CloseCatalog(testutil.Context(t)); err != nil {
+			t.Errorf("Store.CloseCatalog() error = %v", err)
 		}
 	})
 }

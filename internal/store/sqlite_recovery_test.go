@@ -19,7 +19,7 @@ func TestOpenSQLiteDatabaseRecoveryContract(t *testing.T) {
 		ctx := testutil.Context(t)
 		dbPath := filepath.Join(t.TempDir(), "healthy.db")
 		db, err := OpenSQLiteDatabase(ctx, dbPath, func(ctx context.Context, db *sql.DB) error {
-			return EnsureSchema(ctx, db, []string{
+			return executeTestSchema(ctx, db, []string{
 				`CREATE TABLE IF NOT EXISTS sentinel (id TEXT PRIMARY KEY, value TEXT NOT NULL);`,
 				`INSERT INTO sentinel (id, value) VALUES ('row-1', 'alpha');`,
 			})
@@ -73,4 +73,34 @@ func TestOpenSQLiteDatabaseRecoveryContract(t *testing.T) {
 			t.Fatalf("sentinel value = %q, want alpha", value)
 		}
 	})
+}
+
+func TestCloseSQLiteAfterError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve both the primary and cleanup failures", func(t *testing.T) {
+		t.Parallel()
+
+		primaryErr := errors.New("initialization failed")
+		closeErr := errors.New("close failed")
+		closer := &sqliteFailureCloser{err: closeErr}
+
+		got := closeSQLiteAfterError(closer, primaryErr, "test database after initialization failure")
+		if !errors.Is(got, primaryErr) || !errors.Is(got, closeErr) {
+			t.Fatalf("closeSQLiteAfterError() error = %v, want both primary and close failures", got)
+		}
+		if !closer.closed {
+			t.Fatal("closeSQLiteAfterError() did not close the database handle")
+		}
+	})
+}
+
+type sqliteFailureCloser struct {
+	err    error
+	closed bool
+}
+
+func (c *sqliteFailureCloser) Close() error {
+	c.closed = true
+	return c.err
 }

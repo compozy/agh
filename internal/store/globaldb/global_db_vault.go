@@ -8,14 +8,15 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	"github.com/compozy/agh/internal/vault"
 )
 
-var _ vault.Store = (*GlobalDB)(nil)
+var _ vault.Store = (*VaultRepo)(nil)
 var _ vault.Store = transactionVaultStore{}
 
 type transactionVaultStore struct {
-	owner *GlobalDB
+	owner *VaultRepo
 	exec  globalSQLExecutor
 }
 
@@ -55,7 +56,7 @@ func (s transactionVaultStore) DeleteVaultSecret(ctx context.Context, ref string
 }
 
 // PutVaultSecret stores one encrypted vault secret record.
-func (g *GlobalDB) PutVaultSecret(ctx context.Context, record vault.Record) error {
+func (g *VaultRepo) PutVaultSecret(ctx context.Context, record vault.Record) error {
 	if err := g.checkReady(ctx, "put vault secret"); err != nil {
 		return err
 	}
@@ -70,20 +71,10 @@ func (g *GlobalDB) PutVaultSecret(ctx context.Context, record vault.Record) erro
 }
 
 func putVaultSecretWithExecutor(ctx context.Context, exec globalSQLExecutor, record vault.Record) error {
-	_, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO vault_secrets (ref, kind, encrypted_value, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT(ref) DO UPDATE SET
-			kind = excluded.kind,
-			encrypted_value = excluded.encrypted_value,
-			updated_at = excluded.updated_at`,
-		record.Ref,
-		record.Kind,
-		record.EncryptedValue,
-		store.FormatTimestamp(record.CreatedAt),
-		store.FormatTimestamp(record.UpdatedAt),
-	)
+	err := sqlcgen.New(exec).UpsertVaultSecret(ctx, sqlcgen.UpsertVaultSecretParams{
+		Ref: record.Ref, Kind: record.Kind, EncryptedValue: record.EncryptedValue,
+		CreatedAt: store.FormatTimestamp(record.CreatedAt), UpdatedAt: store.FormatTimestamp(record.UpdatedAt),
+	})
 	if err != nil {
 		return fmt.Errorf("store: put vault secret %q: %w", record.Ref, err)
 	}
@@ -91,7 +82,7 @@ func putVaultSecretWithExecutor(ctx context.Context, exec globalSQLExecutor, rec
 }
 
 // GetVaultSecret returns one encrypted vault secret record.
-func (g *GlobalDB) GetVaultSecret(ctx context.Context, ref string) (vault.Record, error) {
+func (g *VaultRepo) GetVaultSecret(ctx context.Context, ref string) (vault.Record, error) {
 	if err := g.checkReady(ctx, "get vault secret"); err != nil {
 		return vault.Record{}, err
 	}
@@ -107,25 +98,18 @@ func getVaultSecretWithExecutor(ctx context.Context, exec globalSQLExecutor, ref
 	if normalized == "" {
 		return vault.Record{}, errors.New("store: vault secret ref is required")
 	}
-	row := exec.QueryRowContext(
-		ctx,
-		`SELECT ref, kind, encrypted_value, created_at, updated_at
-		 FROM vault_secrets
-		 WHERE ref = ?`,
-		normalized,
-	)
-	record, err := scanVaultSecret(row)
+	row, err := sqlcgen.New(exec).GetVaultSecret(ctx, normalized)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return vault.Record{}, vault.ErrSecretNotFound
 		}
-		return vault.Record{}, err
+		return vault.Record{}, fmt.Errorf("store: get vault secret %q: %w", normalized, err)
 	}
-	return record, nil
+	return vaultRecordFromGenerated(row)
 }
 
 // ListVaultSecrets returns encrypted vault secret records filtered by ref prefix.
-func (g *GlobalDB) ListVaultSecrets(ctx context.Context, prefix string) (_ []vault.Record, err error) {
+func (g *VaultRepo) ListVaultSecrets(ctx context.Context, prefix string) (_ []vault.Record, err error) {
 	if err := g.checkReady(ctx, "list vault secrets"); err != nil {
 		return nil, err
 	}
@@ -138,6 +122,7 @@ func listVaultSecretsWithExecutor(
 	prefix string,
 ) (_ []vault.Record, err error) {
 	normalizedPrefix := strings.TrimSpace(prefix)
+	// dynamic-sql: exact-ref and prefix-range modes require distinct predicates and argument counts.
 	query := `SELECT ref, kind, encrypted_value, created_at, updated_at FROM vault_secrets`
 	args := make([]any, 0, 3)
 	if normalizedPrefix != "" {
@@ -157,8 +142,8 @@ func listVaultSecretsWithExecutor(
 		return nil, fmt.Errorf("store: list vault secrets: %w", err)
 	}
 	defer func() {
-		if closeErr := rows.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("store: close vault secret rows: %w", closeErr)
+		if closeErr := rows.Close(); closeErr != nil {
+			joinCleanupError(&err, fmt.Errorf("store: close vault secret rows: %w", closeErr))
 		}
 	}()
 
@@ -191,7 +176,7 @@ func vaultPrefixRangeEnd(prefix string) string {
 }
 
 // DeleteVaultSecret removes one encrypted vault secret record.
-func (g *GlobalDB) DeleteVaultSecret(ctx context.Context, ref string) error {
+func (g *VaultRepo) DeleteVaultSecret(ctx context.Context, ref string) error {
 	if err := g.checkReady(ctx, "delete vault secret"); err != nil {
 		return err
 	}
@@ -207,13 +192,9 @@ func deleteVaultSecretWithExecutor(ctx context.Context, exec globalSQLExecutor, 
 	if normalized == "" {
 		return errors.New("store: vault secret ref is required")
 	}
-	result, err := exec.ExecContext(ctx, `DELETE FROM vault_secrets WHERE ref = ?`, normalized)
+	affected, err := sqlcgen.New(exec).DeleteVaultSecret(ctx, normalized)
 	if err != nil {
 		return fmt.Errorf("store: delete vault secret %q: %w", normalized, err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("store: inspect deleted vault secret %q: %w", normalized, err)
 	}
 	if affected == 0 {
 		return vault.ErrSecretNotFound
@@ -221,7 +202,7 @@ func deleteVaultSecretWithExecutor(ctx context.Context, exec globalSQLExecutor, 
 	return nil
 }
 
-func (g *GlobalDB) normalizeVaultRecord(record vault.Record) (vault.Record, error) {
+func (g *VaultRepo) normalizeVaultRecord(record vault.Record) (vault.Record, error) {
 	record.Ref = vault.NormalizeRef(record.Ref)
 	record.Kind = strings.TrimSpace(record.Kind)
 	record.EncryptedValue = strings.TrimSpace(record.EncryptedValue)
@@ -270,4 +251,19 @@ func scanVaultSecret(scanner rowScanner) (vault.Record, error) {
 	record.CreatedAt = createdAt
 	record.UpdatedAt = updatedAt
 	return record, nil
+}
+
+func vaultRecordFromGenerated(row sqlcgen.VaultSecret) (vault.Record, error) {
+	createdAt, err := store.ParseTimestamp(row.CreatedAt)
+	if err != nil {
+		return vault.Record{}, err
+	}
+	updatedAt, err := store.ParseTimestamp(row.UpdatedAt)
+	if err != nil {
+		return vault.Record{}, err
+	}
+	return vault.Record{
+		Ref: row.Ref, Kind: row.Kind, EncryptedValue: row.EncryptedValue,
+		CreatedAt: createdAt, UpdatedAt: updatedAt,
+	}, nil
 }

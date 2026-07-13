@@ -11,7 +11,7 @@ import (
 
 // CountSessionsByAgent returns exact durable visible-session counts grouped by
 // agent for one workspace.
-func (g *GlobalDB) CountSessionsByAgent(
+func (g *SessionRepo) CountSessionsByAgent(
 	ctx context.Context,
 	query store.SessionAgentCountQuery,
 ) (counts []store.SessionAgentCount, err error) {
@@ -40,6 +40,7 @@ func (g *GlobalDB) CountSessionsByAgent(
 		FROM sessions`, where)
 	sqlQuery += " GROUP BY agent_name ORDER BY lower(agent_name), agent_name"
 
+	// dynamic-sql: exclusion slices and catalog visibility filters alter the aggregate query structure.
 	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query session agent counts: %w", err)
@@ -65,4 +66,4 @@ func (g *GlobalDB) CountSessionsByAgent(
 	return counts, nil
 }
 
-var _ store.SessionAgentCounter = (*GlobalDB)(nil)
+var _ store.SessionAgentCounter = (*SessionRepo)(nil)

@@ -11,7 +11,7 @@ import (
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
-func (g *GlobalDB) reserveLoopCoordinatorRunWithExecutor(
+func (g *LoopRepo) reserveLoopCoordinatorRunWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	run looppkg.Run,
@@ -36,19 +36,19 @@ func (g *GlobalDB) reserveLoopCoordinatorRunWithExecutor(
 	)
 }
 
-func (g *GlobalDB) ensureLoopCoordinatorTaskWithExecutor(
+func (g *LoopRepo) ensureLoopCoordinatorTaskWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	run looppkg.Run,
 	now time.Time,
 ) (string, error) {
 	taskID := loopCoordinatorTaskID(run.ID)
-	if _, err := g.getTaskWithExecutor(ctx, exec, taskID); err == nil {
+	if _, err := g.tasks.getTaskWithExecutor(ctx, exec, taskID); err == nil {
 		return taskID, nil
 	} else if !errorsIsTaskNotFound(err) {
 		return "", err
 	}
-	taskRecord, err := g.normalizeTaskForCreate(loopCoordinatorTaskRecordForRun(run, taskID, now))
+	taskRecord, err := g.tasks.normalizeTaskForCreate(loopCoordinatorTaskRecordForRun(run, taskID, now))
 	if err != nil {
 		return "", err
 	}

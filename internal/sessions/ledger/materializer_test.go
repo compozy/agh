@@ -236,6 +236,76 @@ func TestMaterializer(t *testing.T) {
 		}
 	})
 
+	t.Run("Should enforce session stream validation before materialization", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name       string
+			statements []string
+			want       error
+		}{
+			{
+				name: "Should refuse a legacy event store",
+				statements: []string{
+					`CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY)`,
+				},
+				want: store.ErrLegacyDatabase,
+			},
+			{
+				name: "Should refuse an ahead event store",
+				statements: []string{
+					`CREATE TABLE goose_db_version_session (
+						id INTEGER PRIMARY KEY AUTOINCREMENT,
+						version_id INTEGER NOT NULL,
+						is_applied INTEGER NOT NULL,
+						tstamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+					)`,
+					`INSERT INTO goose_db_version_session (version_id, is_applied) VALUES (99, 1)`,
+				},
+				want: store.ErrSchemaAhead,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t)
+				eventsDBPath := filepath.Join(t.TempDir(), "events.db")
+				seedLedgerMigrationState(t, eventsDBPath, tt.statements...)
+				before, err := os.ReadFile(eventsDBPath)
+				if err != nil {
+					t.Fatalf("ReadFile(before %q) error = %v", eventsDBPath, err)
+				}
+				materializer := newTestMaterializer(t, t.TempDir())
+				record := store.SessionLedgerRecord{
+					SessionID:    "sess-stream-validation",
+					WorkspaceID:  "ws-primary",
+					EventsDBPath: eventsDBPath,
+				}
+				ledgerPath, err := materializer.Path(record)
+				if err != nil {
+					t.Fatalf("Path() error = %v", err)
+				}
+
+				_, err = materializer.Materialize(ctx, record)
+				if !errors.Is(err, tt.want) {
+					t.Fatalf("Materialize() error = %v, want %v", err, tt.want)
+				}
+				after, err := os.ReadFile(eventsDBPath)
+				if err != nil {
+					t.Fatalf("ReadFile(after %q) error = %v", eventsDBPath, err)
+				}
+				if !bytes.Equal(after, before) {
+					t.Fatal("events.db bytes changed during refused materialization")
+				}
+				if _, err := os.Stat(ledgerPath); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("Stat(%q) error = %v, want os.ErrNotExist", ledgerPath, err)
+				}
+			})
+		}
+	})
+
 	t.Run("Should preserve legacy raw event payloads while materializing", func(t *testing.T) {
 		t.Parallel()
 
@@ -306,6 +376,44 @@ func TestMaterializer(t *testing.T) {
 			t.Fatalf("Materialize(missing db path) error = %v, want ErrInvalidRecord", err)
 		}
 	})
+
+	t.Run("Should preserve both query and event-store close failures", func(t *testing.T) {
+		t.Parallel()
+
+		queryErr := errors.New("query failed")
+		closeErr := errors.New("close failed")
+		materializer, err := NewMaterializer(Config{
+			RootDir: t.TempDir(),
+			OpenEventStore: func(context.Context, string, string) (store.EventRecorder, error) {
+				return &ledgerFailureRecorder{queryErr: queryErr, closeErr: closeErr}, nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("NewMaterializer() error = %v", err)
+		}
+		_, err = materializer.Materialize(testutil.Context(t), store.SessionLedgerRecord{
+			SessionID:    "sess-cleanup-failure",
+			WorkspaceID:  "ws-cleanup-failure",
+			EventsDBPath: filepath.Join(t.TempDir(), "events.db"),
+		})
+		if !errors.Is(err, queryErr) || !errors.Is(err, closeErr) {
+			t.Fatalf("Materialize() error = %v, want query and close failures", err)
+		}
+	})
+}
+
+type ledgerFailureRecorder struct {
+	store.EventRecorder
+	queryErr error
+	closeErr error
+}
+
+func (r *ledgerFailureRecorder) Query(context.Context, store.EventQuery) ([]store.SessionEvent, error) {
+	return nil, r.queryErr
+}
+
+func (r *ledgerFailureRecorder) Close(context.Context) error {
+	return r.closeErr
 }
 
 func newTestMaterializer(t *testing.T, root string) *Materializer {
@@ -316,6 +424,26 @@ func newTestMaterializer(t *testing.T, root string) *Materializer {
 		t.Fatalf("NewMaterializer() error = %v", err)
 	}
 	return materializer
+}
+
+func seedLedgerMigrationState(t *testing.T, path string, statements ...string) {
+	t.Helper()
+
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("sql.Open(%q) error = %v", path, err)
+	}
+	for _, statement := range statements {
+		if _, err := db.ExecContext(testutil.Context(t), statement); err != nil {
+			if closeErr := db.Close(); closeErr != nil {
+				t.Fatalf("seed migration state error = %v; close error = %v", err, closeErr)
+			}
+			t.Fatalf("seed migration state error = %v", err)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close(seed migration state) error = %v", err)
+	}
 }
 
 func createLedgerRecord(

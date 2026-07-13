@@ -9,19 +9,6 @@ import (
 	"github.com/compozy/agh/internal/loop/goal"
 )
 
-const goalCheckpointSelectColumns = `
-	loop_run_id, generation, node_id, item_index, control_epoch,
-	control_actor_kind, control_actor_id, control_requested_at, phase, goal_status, control_cause,
-	turns_used, turn_limit, broken_streak, recovery_streak, task_run_id,
-	queue_entry_id, prompt_id, prompt_kind, prompt_attempt, context_state,
-	usage_sequence, usage_pending_after_sequence, compaction_baseline_used,
-	compaction_recovery_required, session_id, binding_handle, binding_epoch,
-	context_nudge_ratio, control_grant_id, control_grant_kind, control_grant_cause,
-	control_grant_turn, control_grant_scope, control_grant_consumed, judge_attempt_id,
-	compaction_cancel_prompt_id, compaction_cancel_cause, compaction_cancel_requested_at,
-	report_prompt_id, report_status, report_evidence_ref, report_binding_epoch,
-	report_actor_kind, report_actor_id, report_recorded_at, updated_at`
-
 type goalCheckpointScanFields struct {
 	workspaceID                loop.WorkspaceID
 	controlActorKind           sql.NullString
@@ -56,73 +43,6 @@ type goalCheckpointScanFields struct {
 	reportActorID              sql.NullString
 	reportRecordedAt           any
 	updatedAt                  any
-}
-
-func scanGoalCheckpoint(
-	scanner rowScanner,
-	workspaceID loop.WorkspaceID,
-) (goal.Checkpoint, error) {
-	var checkpoint goal.Checkpoint
-	var controlGrantID int64
-	fields := goalCheckpointScanFields{workspaceID: workspaceID}
-	if err := scanner.Scan(
-		&checkpoint.Key.LoopRunID,
-		&checkpoint.Key.Generation,
-		&checkpoint.Key.NodeID,
-		&checkpoint.Key.ItemIndex,
-		&checkpoint.ControlEpoch,
-		&fields.controlActorKind,
-		&fields.controlActorID,
-		&fields.controlRequestedAt,
-		&checkpoint.Phase,
-		&checkpoint.Status,
-		&fields.controlCause,
-		&checkpoint.TurnsUsed,
-		&checkpoint.TurnLimit,
-		&checkpoint.BrokenStreak,
-		&checkpoint.RecoveryStreak,
-		&fields.taskRunID,
-		&fields.queueEntryID,
-		&fields.promptID,
-		&fields.promptKind,
-		&checkpoint.PromptAttempt,
-		&checkpoint.ContextState,
-		&fields.usageSequence,
-		&fields.usagePendingAfterSequence,
-		&fields.compactionBaselineUsed,
-		&fields.compactionRecoveryRequired,
-		&fields.sessionID,
-		&fields.bindingHandle,
-		&fields.bindingEpoch,
-		&checkpoint.ContextNudgeRatio,
-		&controlGrantID,
-		&fields.controlGrantKind,
-		&fields.controlGrantCause,
-		&fields.controlGrantTurn,
-		&fields.controlGrantScope,
-		&fields.controlGrantConsumed,
-		&fields.judgeAttemptID,
-		&fields.cancelPromptID,
-		&fields.cancelCause,
-		&fields.cancelRequestedAt,
-		&fields.reportPromptID,
-		&fields.reportStatus,
-		&fields.reportEvidenceRef,
-		&fields.reportBindingEpoch,
-		&fields.reportActorKind,
-		&fields.reportActorID,
-		&fields.reportRecordedAt,
-		&fields.updatedAt,
-	); err != nil {
-		return goal.Checkpoint{}, err
-	}
-	if controlGrantID > 0 {
-		checkpoint.ControlGrant = &goal.ControlGrant{ID: controlGrantID}
-	}
-	if err := fields.apply(&checkpoint); err != nil {
-		return goal.Checkpoint{}, err
-	}
-	return checkpoint, nil
 }
 
 func (fields *goalCheckpointScanFields) apply(checkpoint *goal.Checkpoint) error {

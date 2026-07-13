@@ -98842,6 +98842,33 @@
                                                 "pid": {
                                                     "type": "integer"
                                                 },
+                                                "schema_streams": {
+                                                    "items": {
+                                                        "properties": {
+                                                            "applied_count": {
+                                                                "type": "integer"
+                                                            },
+                                                            "stream": {
+                                                                "type": "string"
+                                                            },
+                                                            "sum_digest": {
+                                                                "type": "string"
+                                                            },
+                                                            "version": {
+                                                                "format": "int64",
+                                                                "type": "integer"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "applied_count",
+                                                            "stream",
+                                                            "sum_digest",
+                                                            "version"
+                                                        ],
+                                                        "type": "object"
+                                                    },
+                                                    "type": "array"
+                                                },
                                                 "socket": {
                                                     "type": "string"
                                                 },
@@ -98867,6 +98894,7 @@
                                                 "http_host",
                                                 "http_port",
                                                 "pid",
+                                                "schema_streams",
                                                 "socket",
                                                 "started_at",
                                                 "status",

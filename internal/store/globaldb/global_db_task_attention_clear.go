@@ -8,6 +8,7 @@ import (
 
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -19,7 +20,7 @@ type normalizedNeedsAttentionClear struct {
 
 // ClearTaskNeedsAttention clears escalation metadata and returns its exact
 // co-committed recovery event.
-func (g *GlobalDB) ClearTaskNeedsAttention(
+func (g *TaskRepo) ClearTaskNeedsAttention(
 	ctx context.Context,
 	mutation taskpkg.NeedsAttentionClearMutation,
 ) (taskpkg.NeedsAttentionClearResult, error) {
@@ -33,24 +34,12 @@ func (g *GlobalDB) ClearTaskNeedsAttention(
 
 	var cleared taskpkg.NeedsAttentionClearResult
 	if err := g.withTaskImmediateTransaction(ctx, "clear task needs attention", func(exec taskSQLExecutor) error {
-		result, err := exec.ExecContext(
-			ctx,
-			`UPDATE tasks
-			    SET needs_attention_reason = NULL,
-			        needs_attention_at = NULL,
-			        needs_attention_by_kind = NULL,
-			        needs_attention_by_ref = NULL,
-			        updated_at = ?
-			  WHERE id = ? AND needs_attention_at IS NOT NULL`,
-			store.FormatTimestamp(normalized.clearedAt),
-			normalized.taskID,
-		)
+		affected, err := sqlcgen.New(exec).ClearTaskNeedsAttention(ctx, sqlcgen.ClearTaskNeedsAttentionParams{
+			UpdatedAt: store.FormatTimestamp(normalized.clearedAt),
+			ID:        normalized.taskID,
+		})
 		if err != nil {
 			return fmt.Errorf("store: clear task needs attention %q: %w", normalized.taskID, err)
-		}
-		affected, err := result.RowsAffected()
-		if err != nil {
-			return fmt.Errorf("store: rows affected for task needs attention clear %q: %w", normalized.taskID, err)
 		}
 		if affected == 0 {
 			if _, loadErr := g.getTaskWithExecutor(ctx, exec, normalized.taskID); loadErr != nil {

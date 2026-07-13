@@ -11,7 +11,7 @@ import (
 )
 
 // ListBridgeCatalogRecords reads only metadata required to filter, count, and page the catalog.
-func (g *GlobalDB) ListBridgeCatalogRecords(
+func (g *BridgeRepo) ListBridgeCatalogRecords(
 	ctx context.Context,
 	query bridges.BridgeCatalogQuery,
 ) (records []bridges.BridgeCatalogRecord, err error) {
@@ -24,6 +24,7 @@ func (g *GlobalDB) ListBridgeCatalogRecords(
 	}
 	statement, args := bridgeCatalogRecordQuery(normalized)
 
+	// dynamic-sql: optional scope, workspace, and platform filters change the statement shape.
 	rows, err := g.db.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query bridge catalog records: %w", err)

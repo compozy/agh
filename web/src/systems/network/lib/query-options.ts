@@ -1,11 +1,18 @@
-import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import {
+  infiniteQueryOptions,
+  queryOptions,
+  type QueryClient,
+  type QueryKey,
+} from "@tanstack/react-query";
 
 import {
   NetworkApiError,
   getNetworkChannel,
   getNetworkDirectRoom,
+  getNetworkPeer,
   getNetworkStatus,
   getNetworkThread,
+  getNetworkWork,
   listNetworkChannels,
   listNetworkDirectRoomMessages,
   listNetworkDirectRooms,
@@ -21,8 +28,19 @@ import type {
   NetworkCursorPageParam,
   NetworkDirectsListQuery,
   NetworkMessagePageParam,
+  NetworkSurface,
   NetworkThreadsListQuery,
 } from "../types";
+import {
+  latestNetworkTailId,
+  mergeNetworkTailResponse,
+  type NetworkMessageData,
+} from "./network-message-tail";
+import {
+  NETWORK_DEFAULT_LIST_LIMIT,
+  NETWORK_DEFAULT_RECENTS_LIMIT,
+  NETWORK_DEFAULT_TIMELINE_LIMIT,
+} from "./query-constants";
 import { networkKeys } from "./query-keys";
 
 const STATUS_REFETCH_INTERVAL = 30_000;
@@ -30,10 +48,15 @@ const STATUS_STALE_TIME = 10_000;
 const CHANNELS_REFETCH_INTERVAL = 30_000;
 const LIST_REFETCH_INTERVAL = 15_000;
 const LIST_STALE_TIME = 5_000;
-export const NETWORK_DEFAULT_RECENTS_LIMIT = 5;
-export const NETWORK_DEFAULT_TIMELINE_LIMIT = 120;
-export const NETWORK_DEFAULT_LIST_LIMIT = 50;
+const WORK_REFETCH_INTERVAL = 3_000;
+const TAIL_REFRESH_INTERVAL = 5_000;
 const DETAIL_RETRY_LIMIT = 2;
+
+export {
+  NETWORK_DEFAULT_LIST_LIMIT,
+  NETWORK_DEFAULT_RECENTS_LIMIT,
+  NETWORK_DEFAULT_TIMELINE_LIMIT,
+} from "./query-constants";
 
 function shouldRetryDetailQuery(failureCount: number, error: Error): boolean {
   if (error instanceof NetworkApiError && error.status >= 400 && error.status < 500) {
@@ -271,6 +294,65 @@ export function networkDirectMessagesOptions(
   });
 }
 
+export interface NetworkMessageTailQuery {
+  workspaceId: string;
+  channel: string;
+  surface: NetworkSurface | null | undefined;
+  containerId: string;
+  filters: NetworkConversationMessageFilters;
+  enabled: boolean;
+}
+
+export function networkMessageTailOptions(
+  queryClient: QueryClient,
+  { workspaceId, channel, surface, containerId, filters, enabled }: NetworkMessageTailQuery
+) {
+  const normalizedFilters = {
+    ...filters,
+    limit: filters.limit ?? NETWORK_DEFAULT_TIMELINE_LIMIT,
+  };
+  const canonicalKey: QueryKey =
+    surface === "thread"
+      ? networkThreadMessagesOptions(workspaceId, channel, containerId, normalizedFilters).queryKey
+      : networkDirectMessagesOptions(workspaceId, channel, containerId, normalizedFilters).queryKey;
+  const tailKey =
+    surface === "thread"
+      ? networkKeys.threadMessageTail(workspaceId, channel, containerId, normalizedFilters)
+      : networkKeys.directMessageTail(workspaceId, channel, containerId, normalizedFilters);
+
+  return queryOptions({
+    queryKey: tailKey,
+    queryFn: async ({ signal }) => {
+      const current = queryClient.getQueryData<NetworkMessageData>(canonicalKey);
+      const after = latestNetworkTailId(current);
+      const query = { ...normalizedFilters, ...(after ? { after } : {}) };
+      const response =
+        surface === "thread"
+          ? await listNetworkThreadMessages(workspaceId, channel, containerId, query, signal)
+          : await listNetworkDirectRoomMessages(workspaceId, channel, containerId, query, signal);
+      queryClient.setQueryData<NetworkMessageData>(canonicalKey, previous =>
+        previous ? mergeNetworkTailResponse(previous, response, !after) : previous
+      );
+      return null;
+    },
+    enabled: enabled && Boolean(workspaceId) && Boolean(channel) && Boolean(containerId),
+    refetchInterval: TAIL_REFRESH_INTERVAL,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+  });
+}
+
+export function networkWorkOptions(workspaceId: string, workId: string, enabled = true) {
+  return queryOptions({
+    queryKey: networkKeys.work(workspaceId, workId),
+    queryFn: ({ signal }) => getNetworkWork(workspaceId, workId, signal),
+    staleTime: 2_000,
+    refetchInterval: WORK_REFETCH_INTERVAL,
+    refetchOnWindowFocus: true,
+    enabled: Boolean(workspaceId) && Boolean(workId) && enabled,
+  });
+}
+
 export function networkPeersOptions(workspaceId: string, channel?: string, enabled = true) {
   return queryOptions({
     queryKey: networkKeys.peers(workspaceId, channel),
@@ -279,5 +361,16 @@ export function networkPeersOptions(workspaceId: string, channel?: string, enabl
     refetchInterval: LIST_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
     enabled: Boolean(workspaceId) && enabled,
+  });
+}
+
+export function networkPeerDetailOptions(workspaceId: string, peerId: string, enabled = true) {
+  return queryOptions({
+    queryKey: networkKeys.peerDetail(workspaceId, peerId),
+    queryFn: ({ signal }) => getNetworkPeer(workspaceId, peerId, signal),
+    staleTime: LIST_STALE_TIME,
+    refetchInterval: LIST_REFETCH_INTERVAL,
+    refetchOnWindowFocus: true,
+    enabled: Boolean(workspaceId) && Boolean(peerId) && enabled,
   });
 }

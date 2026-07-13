@@ -1,6 +1,8 @@
 # Testing Failure Paths
 
-Every error return identified in Step 2 of the skill needs a test that triggers it and asserts cleanup. Patterns below.
+Every behaviorally distinct cleanup invariant needs coverage in its canonical
+suite. Use `consolidate-test-suites` first; multiple returns that exercise the
+same ownership failure mode share one test. Patterns below.
 
 ## Pattern 1: Inject a failing dependency
 
@@ -28,13 +30,15 @@ t.Run("Should stop ACP subprocess when parent context cancels", func(t *testing.
     t.Parallel()
     ctx, cancel := context.WithCancel(context.Background())
     proc := startTestACPProcess(t)
-    done := make(chan struct{})
-    go func() { proc.Wait(ctx); close(done) }()
+    errCh := make(chan error, 1)
+    go func() { errCh <- proc.Wait(ctx) }()
 
     cancel()
     select {
-    case <-done:
-        // ok
+    case err := <-errCh:
+        if err != nil && !errors.Is(err, context.Canceled) {
+            t.Fatalf("wait: %v", err)
+        }
     case <-time.After(2 * time.Second):
         t.Fatalf("process did not exit within timeout after ctx cancel")
     }
@@ -72,5 +76,5 @@ For long-lived components (Manager, Scheduler, Coordinator), the canonical regre
 
 - Asserting only the error type without checking that resources released.
 - Using `time.Sleep` to "give cleanup a chance" — race-flake guaranteed. Use synchronization or assertion-with-timeout helpers.
-- Mocking the cleanup itself ("fake.Close was called") instead of verifying the resource is actually released.
+- Asserting only that a fake cleanup method was called instead of verifying the resource is actually released.
 - Skipping cleanup tests because "make verify already runs the leak detector" — `make verify` does NOT detect lease leaks or in-memory registry leaks; only `-race` catches certain classes.

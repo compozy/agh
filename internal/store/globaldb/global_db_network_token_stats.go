@@ -2,16 +2,16 @@ package globaldb
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 // ListThreadParticipants returns peers recorded in one public thread.
-func (g *GlobalDB) ListThreadParticipants(
+func (g *NetworkRepo) ListThreadParticipants(
 	ctx context.Context,
 	ref store.NetworkChannelRef,
 	threadID string,
@@ -29,46 +29,35 @@ func (g *GlobalDB) ListThreadParticipants(
 		return nil, err
 	}
 
-	rows, err := g.db.QueryContext(
-		ctx,
-		`SELECT workspace_id, channel, thread_id, peer_id, first_message_id, first_seen_at, last_seen_at
-		FROM network_thread_participants
-		WHERE workspace_id = ? AND channel = ? AND thread_id = ?
-		ORDER BY last_seen_at DESC, peer_id ASC`,
-		conversationRef.WorkspaceID,
-		conversationRef.Channel,
-		conversationRef.ThreadID,
-	)
+	rows, err := g.queries.ListNetworkThreadParticipants(ctx, sqlcgen.ListNetworkThreadParticipantsParams{
+		WorkspaceID: conversationRef.WorkspaceID,
+		Channel:     conversationRef.Channel,
+		ThreadID:    conversationRef.ThreadID,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("store: query network thread participants: %w", err)
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			closeErr = fmt.Errorf("store: close network thread participant rows: %w", closeErr)
-			if err != nil {
-				err = errors.Join(err, closeErr)
-				return
-			}
-			err = closeErr
+	participants = make([]store.NetworkThreadParticipant, 0, len(rows))
+	for _, row := range rows {
+		firstSeenAt, parseErr := store.ParseTimestamp(row.FirstSeenAt)
+		if parseErr != nil {
+			return nil, fmt.Errorf("store: parse network thread participant first_seen_at: %w", parseErr)
 		}
-	}()
-
-	participants = make([]store.NetworkThreadParticipant, 0)
-	for rows.Next() {
-		participant, scanErr := scanNetworkThreadParticipant(rows)
-		if scanErr != nil {
-			return nil, scanErr
+		lastSeenAt, parseErr := store.ParseTimestamp(row.LastSeenAt)
+		if parseErr != nil {
+			return nil, fmt.Errorf("store: parse network thread participant last_seen_at: %w", parseErr)
 		}
-		participants = append(participants, participant)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate network thread participants: %w", err)
+		participants = append(participants, store.NetworkThreadParticipant{
+			WorkspaceID: row.WorkspaceID, Channel: row.Channel, ThreadID: row.ThreadID,
+			PeerID: row.PeerID, FirstMessageID: row.FirstMessageID,
+			FirstSeenAt: firstSeenAt, LastSeenAt: lastSeenAt,
+		})
 	}
 	return participants, nil
 }
 
 // UpdateNetworkThreadPeerTokenStats merges one delivered prompt into the thread/peer aggregate.
-func (g *GlobalDB) UpdateNetworkThreadPeerTokenStats(
+func (g *NetworkRepo) UpdateNetworkThreadPeerTokenStats(
 	ctx context.Context,
 	update store.NetworkThreadPeerTokenStatsUpdate,
 ) error {
@@ -88,38 +77,17 @@ func (g *GlobalDB) UpdateNetworkThreadPeerTokenStats(
 		update.UpdatedAt = g.now()
 	}
 
-	if _, err := g.db.ExecContext(
+	if err := g.queries.UpsertNetworkThreadPeerTokenStats(
 		ctx,
-		`INSERT INTO network_thread_peer_token_stats (
-			workspace_id, channel, thread_id, peer_id, delivered_count, prompt_size_bytes,
-			estimated_prompt_tokens, first_delivered_at, last_delivered_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(workspace_id, channel, thread_id, peer_id) DO UPDATE SET
-			delivered_count = network_thread_peer_token_stats.delivered_count + excluded.delivered_count,
-			prompt_size_bytes = network_thread_peer_token_stats.prompt_size_bytes + excluded.prompt_size_bytes,
-			estimated_prompt_tokens =
-				network_thread_peer_token_stats.estimated_prompt_tokens + excluded.estimated_prompt_tokens,
-			first_delivered_at = CASE
-				WHEN network_thread_peer_token_stats.first_delivered_at <= excluded.first_delivered_at
-					THEN network_thread_peer_token_stats.first_delivered_at
-				ELSE excluded.first_delivered_at
-			END,
-			last_delivered_at = CASE
-				WHEN network_thread_peer_token_stats.last_delivered_at >= excluded.last_delivered_at
-					THEN network_thread_peer_token_stats.last_delivered_at
-				ELSE excluded.last_delivered_at
-			END,
-			updated_at = excluded.updated_at`,
-		strings.TrimSpace(update.WorkspaceID),
-		strings.TrimSpace(update.Channel),
-		strings.TrimSpace(update.ThreadID),
-		strings.TrimSpace(update.PeerID),
-		update.DeliveredCount,
-		update.PromptSizeBytes,
-		update.EstimatedPromptTokens,
-		store.FormatTimestamp(update.DeliveredAt),
-		store.FormatTimestamp(update.DeliveredAt),
-		store.FormatTimestamp(update.UpdatedAt),
+		sqlcgen.UpsertNetworkThreadPeerTokenStatsParams{
+			WorkspaceID: strings.TrimSpace(update.WorkspaceID), Channel: strings.TrimSpace(update.Channel),
+			ThreadID: strings.TrimSpace(update.ThreadID), PeerID: strings.TrimSpace(update.PeerID),
+			DeliveredCount: update.DeliveredCount, PromptSizeBytes: update.PromptSizeBytes,
+			EstimatedPromptTokens: update.EstimatedPromptTokens,
+			FirstDeliveredAt:      store.FormatTimestamp(update.DeliveredAt),
+			LastDeliveredAt:       store.FormatTimestamp(update.DeliveredAt),
+			UpdatedAt:             store.FormatTimestamp(update.UpdatedAt),
+		},
 	); err != nil {
 		return fmt.Errorf("store: upsert network thread peer token stats: %w", err)
 	}
@@ -127,7 +95,7 @@ func (g *GlobalDB) UpdateNetworkThreadPeerTokenStats(
 }
 
 // ListNetworkThreadPeerTokenStats returns prompt-cost aggregates for one public thread.
-func (g *GlobalDB) ListNetworkThreadPeerTokenStats(
+func (g *NetworkRepo) ListNetworkThreadPeerTokenStats(
 	ctx context.Context,
 	query store.NetworkThreadPeerTokenStatsQuery,
 ) (stats []store.NetworkThreadPeerTokenStats, err error) {
@@ -138,6 +106,7 @@ func (g *GlobalDB) ListNetworkThreadPeerTokenStats(
 		return nil, err
 	}
 
+	// dynamic-sql: optional thread/peer filters and the caller-provided limit change the statement shape.
 	sqlQuery := `SELECT workspace_id, channel, thread_id, peer_id, delivered_count, prompt_size_bytes,
 		estimated_prompt_tokens, first_delivered_at, last_delivered_at, updated_at
 		FROM network_thread_peer_token_stats`
@@ -178,49 +147,6 @@ func (g *GlobalDB) ListNetworkThreadPeerTokenStats(
 		return nil, fmt.Errorf("store: iterate network thread peer token stats: %w", err)
 	}
 	return stats, nil
-}
-
-func scanNetworkThreadParticipant(scanner rowScanner) (store.NetworkThreadParticipant, error) {
-	var (
-		participant store.NetworkThreadParticipant
-		firstRaw    string
-		lastRaw     string
-	)
-	if err := scanner.Scan(
-		&participant.WorkspaceID,
-		&participant.Channel,
-		&participant.ThreadID,
-		&participant.PeerID,
-		&participant.FirstMessageID,
-		&firstRaw,
-		&lastRaw,
-	); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return store.NetworkThreadParticipant{}, fmt.Errorf(
-				"%w: network thread participant: %w",
-				store.ErrNetworkConversationNotFound,
-				err,
-			)
-		}
-		return store.NetworkThreadParticipant{}, fmt.Errorf("store: scan network thread participant: %w", err)
-	}
-	firstSeenAt, err := store.ParseTimestamp(firstRaw)
-	if err != nil {
-		return store.NetworkThreadParticipant{}, fmt.Errorf(
-			"store: parse network thread participant first_seen_at: %w",
-			err,
-		)
-	}
-	lastSeenAt, err := store.ParseTimestamp(lastRaw)
-	if err != nil {
-		return store.NetworkThreadParticipant{}, fmt.Errorf(
-			"store: parse network thread participant last_seen_at: %w",
-			err,
-		)
-	}
-	participant.FirstSeenAt = firstSeenAt
-	participant.LastSeenAt = lastSeenAt
-	return participant, nil
 }
 
 func scanNetworkThreadPeerTokenStats(scanner rowScanner) (store.NetworkThreadPeerTokenStats, error) {

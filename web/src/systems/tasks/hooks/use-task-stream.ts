@@ -128,11 +128,11 @@ function invalidateLiveTaskStreamQueries(queryClient: QueryClient, taskId: strin
 function markTaskCatalogsStale(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: tasksKeys.lists(), refetchType: "none" });
   void queryClient.invalidateQueries({
-    queryKey: [...tasksKeys.all, "dashboard"],
+    queryKey: tasksKeys.dashboardRoot(),
     refetchType: "none",
   });
   void queryClient.invalidateQueries({
-    queryKey: [...tasksKeys.all, "inbox"],
+    queryKey: tasksKeys.inboxRoot(),
     refetchType: "none",
   });
 }
@@ -140,10 +140,10 @@ function markTaskCatalogsStale(queryClient: QueryClient) {
 function reconcileActiveTaskCatalogs(queryClient: QueryClient) {
   void queryClient.refetchQueries({ queryKey: tasksKeys.lists(), type: "active" });
   void queryClient.refetchQueries({
-    queryKey: [...tasksKeys.all, "dashboard"],
+    queryKey: tasksKeys.dashboardRoot(),
     type: "active",
   });
-  void queryClient.refetchQueries({ queryKey: [...tasksKeys.all, "inbox"], type: "active" });
+  void queryClient.refetchQueries({ queryKey: tasksKeys.inboxRoot(), type: "active" });
 }
 
 export function useTaskStream(

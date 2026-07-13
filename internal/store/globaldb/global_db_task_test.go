@@ -391,60 +391,6 @@ func TestOpenGlobalDBTaskBlockSchemaSurvivesRestart(t *testing.T) {
 	})
 }
 
-func TestOpenGlobalDBTaskBlockSchemaFreshVsUpgradeEquality(t *testing.T) {
-	t.Run("Should match tasks schema and indexes between fresh and v47 upgrade paths", func(t *testing.T) {
-		ctx := testutil.Context(t)
-		freshPath := filepath.Join(t.TempDir(), "fresh-"+GlobalDatabaseName)
-		freshDB, err := OpenGlobalDB(ctx, freshPath)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(fresh) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := freshDB.Close(testutil.Context(t)); closeErr != nil {
-				t.Errorf("Close(fresh) error = %v", closeErr)
-			}
-		})
-
-		upgradePath := filepath.Join(t.TempDir(), "upgrade-"+GlobalDatabaseName)
-		upgradeSeed, err := store.OpenSQLiteDatabase(ctx, upgradePath, nil)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(upgrade seed) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := upgradeSeed.Close(); closeErr != nil {
-				t.Errorf("Close(upgrade seed cleanup) error = %v", closeErr)
-			}
-		})
-		v48Index := migrationIndexByName(t, "rebuild_tasks_for_task_blocks")
-		if err := store.RunMigrations(ctx, upgradeSeed, globalSchemaMigrations[:v48Index]); err != nil {
-			t.Fatalf("RunMigrations(v47 prefix) error = %v", err)
-		}
-		carriedTask, reviewOpenedAt := seedTaskBeforeTaskBlocksMigration(ctx, t, upgradeSeed)
-		if err := upgradeSeed.Close(); err != nil {
-			t.Fatalf("Close(upgrade seed) error = %v", err)
-		}
-		upgradeDB, err := OpenGlobalDB(ctx, upgradePath)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(upgrade) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := upgradeDB.Close(testutil.Context(t)); closeErr != nil {
-				t.Errorf("Close(upgrade) error = %v", closeErr)
-			}
-		})
-
-		assertTaskBlockingSchema(t, upgradeDB.db)
-		assertTaskTableInfoEqual(t, freshDB.db, upgradeDB.db)
-		assertTaskIndexInventoryEqual(t, freshDB.db, upgradeDB.db)
-		gotTask, err := upgradeDB.GetTask(ctx, carriedTask.ID)
-		if err != nil {
-			t.Fatalf("GetTask(carried task) error = %v", err)
-		}
-		assertTaskEqual(t, gotTask, carriedTask)
-		assertTaskBlockingMigrationCarriedRawColumns(t, upgradeDB.db, carriedTask.ID, reviewOpenedAt)
-	})
-}
-
 func TestOpenGlobalDBTaskRunClaimIndexesSupportPlannedScans(t *testing.T) {
 	t.Parallel()
 
@@ -644,7 +590,7 @@ func TestDeleteTaskTransactionStoreDelegatesTaskStateReadsAndMutations(t *testin
 		t.Fatalf("CreateTaskRun() error = %v", err)
 	}
 
-	txStore := &deleteTaskTxStore{global: globalDB, exec: globalDB.db}
+	txStore := &deleteTaskTxStore{tasks: globalDB.TaskRepo, exec: globalDB.db}
 	gotChild, err := txStore.GetTask(ctx, child.ID)
 	if err != nil {
 		t.Fatalf("txStore.GetTask() error = %v", err)
@@ -2292,6 +2238,19 @@ func TestGlobalDBTaskInboxUsesTwoStatementPaging(t *testing.T) {
 func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should join task-run scan and rows-close errors", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openQueryRowsCloseErrorGlobalDB(t)
+		_, err := globalDB.ListTaskRuns(
+			testutil.Context(t),
+			taskpkg.RunQuery{TaskID: "task-close-error"},
+		)
+		if !errors.Is(err, errQueryRowsClose) || !strings.Contains(err.Error(), "scan task run") {
+			t.Fatalf("ListTaskRuns() error = %v, want joined scan and rows-close errors", err)
+		}
+	})
+
 	globalDB := openTestGlobalDB(t)
 	taskRecord := taskRecordForTest("task-run-roundtrip")
 	if err := globalDB.CreateTask(testutil.Context(t), taskRecord); err != nil {
@@ -3522,114 +3481,6 @@ func storeLeasedTaskRunForBlockTest(
 	return leased
 }
 
-func seedTaskBeforeTaskBlocksMigration(
-	ctx context.Context,
-	t *testing.T,
-	db *sql.DB,
-) (taskpkg.Task, time.Time) {
-	t.Helper()
-
-	createdAt := time.Date(2026, 6, 30, 10, 15, 0, 0, time.UTC)
-	updatedAt := createdAt.Add(30 * time.Minute)
-	pausedAt := createdAt.Add(10 * time.Minute)
-	reviewOpenedAt := createdAt.Add(20 * time.Minute)
-	taskRecord := taskpkg.Task{
-		ID:             "task-v48-carry-forward",
-		Identifier:     "identifier-v48-carry-forward",
-		Scope:          taskpkg.ScopeGlobal,
-		NetworkChannel: "network:alpha",
-		Title:          "Task v48 carry forward",
-		Description:    "Preserve row data during v48 rebuild",
-		Priority:       taskpkg.PriorityHigh,
-		MaxAttempts:    7,
-		Status:         taskpkg.TaskStatusReady,
-		ApprovalPolicy: taskpkg.ApprovalPolicyManual,
-		ApprovalState:  taskpkg.ApprovalStateApproved,
-		Owner:          ownershipForTest(taskpkg.OwnerKindHuman, "user:bob"),
-		CreatedBy: taskpkg.ActorIdentity{
-			Kind: taskpkg.ActorKindAgentSession,
-			Ref:  "sess-v48-creator",
-		},
-		Origin: taskpkg.Origin{
-			Kind: taskpkg.OriginKindHTTP,
-			Ref:  "http://localhost/tasks",
-		},
-		CreatedAt:          createdAt,
-		UpdatedAt:          updatedAt,
-		AutoEnqueueOnReady: true,
-		Paused:             true,
-		PausedBy:           "operator:alice",
-		PausedAt:           pausedAt,
-		PausedReason:       "waiting for operator",
-		WakeCreator:        true,
-		Metadata:           json.RawMessage(`{"migration":"v48","preserve":true}`),
-	}
-	if _, err := db.ExecContext(
-		ctx,
-		`INSERT INTO tasks (
-			id, identifier, scope, workspace_id, parent_task_id, network_channel,
-			title, description, priority, max_attempts, status, approval_policy, approval_state,
-			owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
-			created_at, updated_at, closed_at, metadata_json, current_run_id,
-			paused, paused_by, paused_at, paused_reason, max_runtime_seconds,
-			spawn_failure_count, last_spawn_error, review_policy, review_max_rounds, review_round,
-			last_review_id, last_review_outcome, review_circuit_opened_at, review_circuit_reason,
-			auto_enqueue_on_ready
-		) VALUES (
-			?, ?, ?, ?, ?, ?,
-			?, ?, ?, ?, ?, ?, ?,
-			?, ?, ?, ?, ?, ?,
-			?, ?, ?, ?, ?,
-			?, ?, ?, ?, ?,
-			?, ?, ?, ?, ?,
-			?, ?, ?, ?,
-			?
-		)`,
-		taskRecord.ID,
-		taskRecord.Identifier,
-		string(taskRecord.Scope),
-		nil,
-		nil,
-		taskRecord.NetworkChannel,
-		taskRecord.Title,
-		taskRecord.Description,
-		string(taskRecord.Priority),
-		taskRecord.MaxAttempts,
-		string(taskRecord.Status),
-		string(taskRecord.ApprovalPolicy),
-		string(taskRecord.ApprovalState),
-		string(taskRecord.Owner.Kind),
-		taskRecord.Owner.Ref,
-		string(taskRecord.CreatedBy.Kind),
-		taskRecord.CreatedBy.Ref,
-		string(taskRecord.Origin.Kind),
-		taskRecord.Origin.Ref,
-		store.FormatTimestamp(taskRecord.CreatedAt),
-		store.FormatTimestamp(taskRecord.UpdatedAt),
-		nil,
-		string(taskRecord.Metadata),
-		nil,
-		1,
-		taskRecord.PausedBy,
-		store.FormatTimestamp(taskRecord.PausedAt),
-		taskRecord.PausedReason,
-		321,
-		2,
-		"spawn failed once",
-		string(taskpkg.ReviewPolicyAlways),
-		5,
-		2,
-		"review-v48",
-		string(taskpkg.RunReviewOutcomeApproved),
-		store.FormatTimestamp(reviewOpenedAt),
-		"review circuit opened",
-		1,
-	); err != nil {
-		t.Fatalf("seed v47 task row error = %v", err)
-	}
-	return taskRecord, reviewOpenedAt
-}
-
 func taskRunForTest(id string, taskID string) taskpkg.Run {
 	queuedAt := time.Date(2026, 4, 14, 13, 0, 0, 0, time.UTC)
 	return taskpkg.Run{
@@ -3841,90 +3692,6 @@ func assertTaskBlockingSchema(t *testing.T, db *sql.DB) {
 	)
 }
 
-func assertTaskBlockingMigrationCarriedRawColumns(
-	t *testing.T,
-	db *sql.DB,
-	taskID string,
-	reviewOpenedAt time.Time,
-) {
-	t.Helper()
-
-	var (
-		maxRuntimeSeconds     int
-		spawnFailureCount     int
-		lastSpawnError        string
-		reviewPolicy          string
-		reviewMaxRounds       int
-		reviewRound           int
-		lastReviewID          string
-		lastReviewOutcome     string
-		reviewCircuitOpenedAt sql.NullString
-		reviewCircuitReason   string
-		wakeCreator           int
-		needsAttentionReason  sql.NullString
-		needsAttentionAt      sql.NullString
-		needsAttentionByKind  sql.NullString
-		needsAttentionByRef   sql.NullString
-	)
-	if err := db.QueryRowContext(
-		testutil.Context(t),
-		`SELECT
-			max_runtime_seconds, spawn_failure_count, last_spawn_error, review_policy,
-			review_max_rounds, review_round, last_review_id, last_review_outcome,
-			review_circuit_opened_at, review_circuit_reason, wake_creator,
-			needs_attention_reason, needs_attention_at, needs_attention_by_kind, needs_attention_by_ref
-		 FROM tasks
-		 WHERE id = ?`,
-		taskID,
-	).Scan(
-		&maxRuntimeSeconds,
-		&spawnFailureCount,
-		&lastSpawnError,
-		&reviewPolicy,
-		&reviewMaxRounds,
-		&reviewRound,
-		&lastReviewID,
-		&lastReviewOutcome,
-		&reviewCircuitOpenedAt,
-		&reviewCircuitReason,
-		&wakeCreator,
-		&needsAttentionReason,
-		&needsAttentionAt,
-		&needsAttentionByKind,
-		&needsAttentionByRef,
-	); err != nil {
-		t.Fatalf("query carried task columns error = %v", err)
-	}
-	if maxRuntimeSeconds != 321 ||
-		spawnFailureCount != 2 ||
-		lastSpawnError != "spawn failed once" ||
-		reviewPolicy != string(taskpkg.ReviewPolicyAlways) ||
-		reviewMaxRounds != 5 ||
-		reviewRound != 2 ||
-		lastReviewID != "review-v48" ||
-		lastReviewOutcome != string(taskpkg.RunReviewOutcomeApproved) ||
-		!reviewCircuitOpenedAt.Valid ||
-		reviewCircuitOpenedAt.String != store.FormatTimestamp(reviewOpenedAt) ||
-		reviewCircuitReason != "review circuit opened" {
-		t.Fatalf("carried task columns mismatch after v48 rebuild")
-	}
-	if wakeCreator != 1 {
-		t.Fatalf("wake_creator = %d, want 1 default", wakeCreator)
-	}
-	if needsAttentionReason.Valid ||
-		needsAttentionAt.Valid ||
-		needsAttentionByKind.Valid ||
-		needsAttentionByRef.Valid {
-		t.Fatalf(
-			"needs_attention defaults = (%v, %v, %v, %v), want all NULL",
-			needsAttentionReason,
-			needsAttentionAt,
-			needsAttentionByKind,
-			needsAttentionByRef,
-		)
-	}
-}
-
 func assertTasksStatusAcceptsNeedsAttention(t *testing.T, globalDB *GlobalDB, taskID string) {
 	t.Helper()
 
@@ -3940,98 +3707,6 @@ func assertTasksStatusAcceptsNeedsAttention(t *testing.T, globalDB *GlobalDB, ta
 	); err != nil {
 		t.Fatalf("UPDATE tasks.status to needs_attention error = %v, want nil", err)
 	}
-}
-
-func assertTaskTableInfoEqual(t *testing.T, fresh *sql.DB, upgraded *sql.DB) {
-	t.Helper()
-
-	freshInfo := taskTableInfoInventory(t, fresh)
-	upgradedInfo := taskTableInfoInventory(t, upgraded)
-	if !testutil.EqualStringSlices(upgradedInfo, freshInfo) {
-		t.Fatalf("upgraded tasks table_info = %#v, want fresh %#v", upgradedInfo, freshInfo)
-	}
-}
-
-func assertTaskIndexInventoryEqual(t *testing.T, fresh *sql.DB, upgraded *sql.DB) {
-	t.Helper()
-
-	freshIndexes := taskIndexInventory(t, fresh)
-	upgradedIndexes := taskIndexInventory(t, upgraded)
-	if !testutil.EqualStringSlices(upgradedIndexes, freshIndexes) {
-		t.Fatalf("upgraded tasks indexes = %#v, want fresh %#v", upgradedIndexes, freshIndexes)
-	}
-}
-
-func taskTableInfoInventory(t *testing.T, db *sql.DB) []string {
-	t.Helper()
-
-	rows, err := db.QueryContext(testutil.Context(t), "PRAGMA table_info(tasks)")
-	if err != nil {
-		t.Fatalf("PRAGMA table_info(tasks) error = %v", err)
-	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			t.Fatalf("rows.Close(table_info tasks) error = %v", closeErr)
-		}
-	}()
-
-	inventory := make([]string, 0)
-	for rows.Next() {
-		var (
-			cid        int
-			name       string
-			columnType string
-			notNull    int
-			defaultVal sql.NullString
-			primaryKey int
-		)
-		if err := rows.Scan(&cid, &name, &columnType, &notNull, &defaultVal, &primaryKey); err != nil {
-			t.Fatalf("scan table_info(tasks) error = %v", err)
-		}
-		inventory = append(
-			inventory,
-			fmt.Sprintf("%03d|%s|%s|%d|%s|%d", cid, name, columnType, notNull, defaultVal.String, primaryKey),
-		)
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("rows.Err(table_info tasks) error = %v", err)
-	}
-	return inventory
-}
-
-func taskIndexInventory(t *testing.T, db *sql.DB) []string {
-	t.Helper()
-
-	rows, err := db.QueryContext(testutil.Context(t), "PRAGMA index_list(tasks)")
-	if err != nil {
-		t.Fatalf("PRAGMA index_list(tasks) error = %v", err)
-	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			t.Fatalf("rows.Close(index_list tasks) error = %v", closeErr)
-		}
-	}()
-
-	inventory := make([]string, 0)
-	for rows.Next() {
-		var (
-			seq     int
-			name    string
-			unique  int
-			origin  string
-			partial int
-		)
-		if err := rows.Scan(&seq, &name, &unique, &origin, &partial); err != nil {
-			t.Fatalf("scan index_list(tasks) error = %v", err)
-		}
-		sqlText := schemaObjectSQL(t, db, "index", name)
-		inventory = append(inventory, fmt.Sprintf("%s|%d|%s|%d|%s", name, unique, origin, partial, sqlText))
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("rows.Err(index_list tasks) error = %v", err)
-	}
-	sort.Strings(inventory)
-	return inventory
 }
 
 func assertTableHasColumn(t *testing.T, db *sql.DB, table string, column string) {

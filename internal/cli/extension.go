@@ -15,7 +15,6 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	aghdaemon "github.com/compozy/agh/internal/daemon"
 	extensionpkg "github.com/compozy/agh/internal/extension"
-	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/spf13/cobra"
 )
 
@@ -473,9 +472,9 @@ func withLocalExtensionRegistry[T any](
 		return result, err
 	}
 
-	globalDB, err := globaldb.OpenGlobalDB(ctx, runtime.HomePaths.DatabaseFile)
+	globalDB, err := openLocalGlobalDatabase(ctx, runtime.HomePaths.DatabaseFile, "extension")
 	if err != nil {
-		return result, fmt.Errorf("cli: open extension database %q: %w", runtime.HomePaths.DatabaseFile, err)
+		return result, err
 	}
 	defer func() {
 		closeErr := globalDB.Close(ctx)

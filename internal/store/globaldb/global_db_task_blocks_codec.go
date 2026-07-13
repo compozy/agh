@@ -1,12 +1,10 @@
 package globaldb
 
 import (
-	"database/sql"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -215,76 +213,6 @@ func normalizeBlockTaskAndReleaseRunMutation(
 	return normalized, nil
 }
 
-func scanTaskBlockRecord(scanner rowScanner) (taskpkg.TaskBlock, error) {
-	var block taskpkg.TaskBlock
-	var fields taskBlockScanFields
-	if err := scanner.Scan(
-		&block.ID,
-		&fields.workspaceID,
-		&block.TaskID,
-		&fields.kind,
-		&block.Reason,
-		&fields.details,
-		&fields.createdByKind,
-		&block.CreatedBy.Ref,
-		&fields.createdAtRaw,
-		&fields.expiresAtRaw,
-		&fields.clearedAtRaw,
-		&fields.clearedByKind,
-		&fields.clearedByRef,
-		&fields.clearNote,
-	); err != nil {
-		return taskpkg.TaskBlock{}, fmt.Errorf("store: scan task block: %w", err)
-	}
-	block.WorkspaceID = strings.TrimSpace(fields.workspaceID.String)
-	block.Kind = taskpkg.BlockKind(strings.TrimSpace(fields.kind))
-	block.CreatedBy.Kind = taskpkg.ActorKind(strings.TrimSpace(fields.createdByKind))
-	block.ClearNote = taskNullStringValue(fields.clearNote)
-	if fields.clearedByKind.Valid || fields.clearedByRef.Valid {
-		block.ClearedBy = taskpkg.ActorIdentity{
-			Kind: taskpkg.ActorKind(strings.TrimSpace(fields.clearedByKind.String)),
-			Ref:  strings.TrimSpace(fields.clearedByRef.String),
-		}
-	}
-	details, err := decodeTaskJSON(fields.details, "task_block.details_json")
-	if err != nil {
-		return taskpkg.TaskBlock{}, err
-	}
-	block.Details = details
-	createdAt, err := store.ParseTimestamp(fields.createdAtRaw)
-	if err != nil {
-		return taskpkg.TaskBlock{}, err
-	}
-	block.CreatedAt = createdAt
-	if err := assignNullableTaskTimestamp(&block.ExpiresAt, fields.expiresAtRaw); err != nil {
-		return taskpkg.TaskBlock{}, err
-	}
-	if err := assignNullableTaskTimestamp(&block.ClearedAt, fields.clearedAtRaw); err != nil {
-		return taskpkg.TaskBlock{}, err
-	}
-	return block, nil
-}
-
-type taskBlockScanFields struct {
-	workspaceID   sql.NullString
-	kind          string
-	details       sql.NullString
-	createdByKind string
-	createdAtRaw  string
-	expiresAtRaw  sql.NullString
-	clearedAtRaw  sql.NullString
-	clearedByKind sql.NullString
-	clearedByRef  sql.NullString
-	clearNote     sql.NullString
-}
-
 func taskBlockWorkspaceID(taskRecord taskpkg.Task) string {
 	return strings.TrimSpace(taskRecord.WorkspaceID)
-}
-
-func taskBlockWorkspaceWhere(workspaceID string) (string, []any) {
-	if strings.TrimSpace(workspaceID) == "" {
-		return "workspace_id IS NULL", nil
-	}
-	return "workspace_id = ?", []any{strings.TrimSpace(workspaceID)}
 }

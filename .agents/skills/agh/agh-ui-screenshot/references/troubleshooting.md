@@ -7,14 +7,14 @@ Cause: the story id passed to `cap.mjs` does not exist in the running Storybook.
 Fix: list valid ids first.
 
 ```
-bun run .agents/skills/agh/agh-ui-screenshot/scripts/list-stories.mjs http://localhost:6006 --filter <substring>
+bun run "$WORKDIR/list-stories.mjs" http://localhost:6006 --filter <substring>
 ```
 
 Match the exact id (case-sensitive, dashes only). Common slip: `systems-tasks-routes-taskdetail--overview` vs `systems-tasks-routes-tasks--id-overview` (Storybook derives the id from the literal `systems/<system>/routes/...` title, not the app URL).
 
 ## Symptom: PNGs render in fallback system fonts (Arial / Helvetica)
 
-Cause: `document.fonts.ready` resolved before Inter or JetBrains Mono finished decoding, OR the WARN line `fonts.ready timeout` appeared in stdout.
+Cause: `document.fonts.ready` resolved before Inter or JetBrains Mono finished decoding, OR the WARN line `fonts.ready timeout` appeared in stderr.
 
 Fix:
 
@@ -42,14 +42,10 @@ Fix:
 
 Cause: `cap.mjs` died before reaching its `finally` block (SIGKILL, OOM).
 
-Fix:
-
-```
-pkill -9 -f "Google Chrome.*headless"
-pkill -9 -f "Chrome Helper.*headless"
-```
-
-Then re-run.
+Fix: read the `chrome port <N>` line from the failed run, identify the single
+listener on that debug port, and verify its command line belongs to this
+headless capture. Terminate that PID/process group only. If ownership cannot be
+proved, report the process instead of killing it. Then rerun.
 
 ## Symptom: PNG is correct but cropped at unexpected width
 
@@ -64,8 +60,11 @@ Cause: the workdir's `package.json` declared a dep range that no longer resolves
 Fix:
 
 ```
-rm -rf <workdir>/node_modules <workdir>/bun.lock
-bash .agents/skills/agh/agh-ui-screenshot/scripts/setup-workdir.sh <workdir>
+Create a new unique workdir and rerun:
+
+```
+bash "$REPO_ROOT/.agents/skills/agh/agh-ui-screenshot/scripts/setup-workdir.sh" "$(mktemp -d /tmp/agh-ui-screenshot.XXXXXX)"
+```
 ```
 
 ## Symptom: Storybook tells the user the port is unavailable

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -93,7 +94,7 @@ func TestCLIDaemonLifecycleContracts(t *testing.T) {
 		if !errors.Is(err, statusErr) {
 			t.Fatalf("daemonStatusFromDeps() error = %v, want %v", err, statusErr)
 		}
-		if status != (DaemonStatus{}) {
+		if !reflect.DeepEqual(status, DaemonStatus{}) {
 			t.Fatalf("daemonStatusFromDeps() status = %#v, want empty status on control-plane failure", status)
 		}
 	})

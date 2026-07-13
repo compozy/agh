@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -57,7 +58,7 @@ type normalizedWatchEventsQuery struct {
 }
 
 // ReadCursors returns the current max replay cursor for each requested stream.
-func (g *GlobalDB) ReadCursors(
+func (g *WatchEventsRepo) ReadCursors(
 	ctx context.Context,
 	query looppkg.WatchEventsQuery,
 ) (map[string]int64, error) {
@@ -80,7 +81,7 @@ func (g *GlobalDB) ReadCursors(
 }
 
 // ReadMatches returns replay rows strictly after each stream cursor.
-func (g *GlobalDB) ReadMatches(
+func (g *WatchEventsRepo) ReadMatches(
 	ctx context.Context,
 	query looppkg.WatchEventsQuery,
 ) ([]looppkg.WatchEvent, error) {
@@ -155,7 +156,7 @@ func normalizeWatchEventsQuery(query looppkg.WatchEventsQuery) (normalizedWatchE
 	}, nil
 }
 
-func (g *GlobalDB) readWatchEventsCursor(
+func (g *WatchEventsRepo) readWatchEventsCursor(
 	ctx context.Context,
 	query normalizedWatchEventsQuery,
 	stream string,
@@ -163,6 +164,7 @@ func (g *GlobalDB) readWatchEventsCursor(
 	if len(query.kinds) == 0 {
 		return 0, nil
 	}
+	// dynamic-sql: task and loop cursors use caller-selected kind sets with variable-width IN lists.
 	placeholders, args := sqlInPlaceholders(query.kinds)
 	switch stream {
 	case looppkg.WatchEventsTaskStream:
@@ -214,7 +216,30 @@ func scanWatchEventCursor(row rowScanner, stream string) (int64, error) {
 	return cursor, nil
 }
 
-func (g *GlobalDB) readWatchEventsStreamMatches(
+func watchEventsCursorFromGenerated(raw any, stream string) (int64, error) {
+	switch value := raw.(type) {
+	case int64:
+		return value, nil
+	case int:
+		return int64(value), nil
+	case []byte:
+		return parseWatchEventsCursor(string(value), stream)
+	case string:
+		return parseWatchEventsCursor(value, stream)
+	default:
+		return 0, fmt.Errorf("store: scan watch-events cursor %q encoded as %T", stream, raw)
+	}
+}
+
+func parseWatchEventsCursor(raw string, stream string) (int64, error) {
+	cursor, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("store: parse watch-events cursor %q: %w", stream, err)
+	}
+	return cursor, nil
+}
+
+func (g *WatchEventsRepo) readWatchEventsStreamMatches(
 	ctx context.Context,
 	query normalizedWatchEventsQuery,
 	stream string,
@@ -241,13 +266,14 @@ func (g *GlobalDB) readWatchEventsStreamMatches(
 	}
 }
 
-func (g *GlobalDB) readTaskWatchEvents(
+func (g *WatchEventsRepo) readTaskWatchEvents(
 	ctx context.Context,
 	query normalizedWatchEventsQuery,
 ) ([]looppkg.WatchEvent, error) {
 	placeholders, kindArgs := sqlInPlaceholders(query.kinds)
 	args := append([]any{query.workspaceID, query.streams[looppkg.WatchEventsTaskStream]}, kindArgs...)
 	args = append(args, query.limit)
+	// dynamic-sql: caller-selected task event kinds require a variable-width IN list.
 	// #nosec G202 -- IN placeholders are generated from normalized kind count; values are parameterized.
 	rows, err := g.db.QueryContext(
 		ctx,

@@ -9,10 +9,10 @@ import (
 	"github.com/compozy/agh/internal/loop/goal"
 )
 
-var _ looppkg.GoalRunStopStore = (*GlobalDB)(nil)
+var _ looppkg.GoalRunStopStore = (*GoalRepo)(nil)
 
 // StopGoalRun atomically revokes every live Goal checkpoint before failing its owning Run.
-func (g *GlobalDB) StopGoalRun(
+func (g *GoalRepo) StopGoalRun(
 	ctx context.Context,
 	request looppkg.GoalRunStopRequest,
 ) (looppkg.GoalRunStopResult, error) {

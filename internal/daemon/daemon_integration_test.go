@@ -2242,6 +2242,19 @@ func TestBootInitializesMemoryStoreAndAssemblerIntegration(t *testing.T) {
 	if d.memoryStore == nil {
 		t.Fatal("boot() did not initialize the memory store")
 	}
+	registry, ok := d.registry.(*globaldb.GlobalDB)
+	if !ok {
+		t.Fatalf("registry type = %T, want *globaldb.GlobalDB", d.registry)
+	}
+	for _, stream := range []store.MigrationStream{globaldb.MigrationStream(), memory.MigrationStream()} {
+		status, err := store.Status(testutil.Context(t), registry.DB(), stream)
+		if err != nil {
+			t.Fatalf("Status(%s after boot) error = %v", stream.Name, err)
+		}
+		if status.Version != 1 || status.AppliedCount != 1 {
+			t.Fatalf("Status(%s after boot) = %#v, want version/applied count 1", stream.Name, status)
+		}
+	}
 	if capturedDeps.PromptAssembler == nil {
 		t.Fatal("boot() did not inject the prompt assembler")
 	}
@@ -2325,6 +2338,40 @@ func TestBootLoadsBundledSkillsIntoPromptAssemblerInSkillsOnlyMode(t *testing.T)
 
 	assertPromptContainsInOrder(t, prompt, "Base prompt.", "<available-skills>", "agh")
 	assertPromptExcludes(t, prompt, "# Persistent Memory")
+
+	t.Run("Should migrate every shared database stream while memory is disabled", func(t *testing.T) {
+		if d.memoryStore != nil {
+			t.Fatal("boot() initialized the memory runtime while memory is disabled")
+		}
+		registry, ok := d.registry.(*globaldb.GlobalDB)
+		if !ok {
+			t.Fatalf("registry type = %T, want *globaldb.GlobalDB", d.registry)
+		}
+		for _, stream := range []store.MigrationStream{globaldb.MigrationStream(), memory.MigrationStream()} {
+			status, statusErr := store.Status(testutil.Context(t), registry.DB(), stream)
+			if statusErr != nil {
+				t.Fatalf("Status(%s after memory-disabled boot) error = %v", stream.Name, statusErr)
+			}
+			if status.Version != 1 || status.AppliedCount != 1 {
+				t.Fatalf(
+					"Status(%s after memory-disabled boot) = %#v, want version/applied count 1",
+					stream.Name,
+					status,
+				)
+			}
+		}
+
+		var memoryTable string
+		if queryErr := registry.DB().QueryRowContext(
+			testutil.Context(t),
+			`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'memory_catalog_entries'`,
+		).Scan(&memoryTable); queryErr != nil {
+			t.Fatalf("query memory domain table after memory-disabled boot: %v", queryErr)
+		}
+		if memoryTable != "memory_catalog_entries" {
+			t.Fatalf("memory domain table = %q, want memory_catalog_entries", memoryTable)
+		}
+	})
 }
 
 func TestBootLeavesSkillDependenciesNilWhenSkillsDisabled(t *testing.T) {

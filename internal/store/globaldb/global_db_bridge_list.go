@@ -9,49 +9,32 @@ import (
 )
 
 // ListBridgeInstances returns all persisted bridge instances in stable display-name order.
-func (g *GlobalDB) ListBridgeInstances(
+func (g *BridgeRepo) ListBridgeInstances(
 	ctx context.Context,
 ) (instances []bridges.BridgeInstance, err error) {
 	if err := g.checkReady(ctx, "list bridge instances"); err != nil {
 		return nil, err
 	}
 
-	rows, err := g.db.QueryContext(
-		ctx,
-		`SELECT
-			id, scope, workspace_id, platform, extension_name, display_name,
-			source, enabled, status, dm_policy, routing_policy, provider_config,
-			delivery_defaults, notification_suppress, degradation_reason, degradation_message,
-			created_at, updated_at
-		 FROM bridge_instances
-		 ORDER BY display_name ASC, created_at ASC, id ASC`,
-	)
+	rows, err := g.queries.ListBridgeInstances(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: query bridge instances: %w", err)
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("store: close bridge instance rows: %w", closeErr))
-		}
-	}()
 
-	instances = make([]bridges.BridgeInstance, 0)
-	for rows.Next() {
-		instance, scanErr := scanBridgeInstance(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("store: scan bridge instance list: %w", scanErr)
+	instances = make([]bridges.BridgeInstance, 0, len(rows))
+	for _, row := range rows {
+		instance, mapErr := bridgeInstanceFromGenerated(row)
+		if mapErr != nil {
+			return nil, fmt.Errorf("store: map bridge instance list: %w", mapErr)
 		}
 		instances = append(instances, instance)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate bridge instances: %w", err)
 	}
 
 	return instances, nil
 }
 
 // ListBridgeInstancesByIDs returns one bounded bridge batch in caller-supplied order.
-func (g *GlobalDB) ListBridgeInstancesByIDs(
+func (g *BridgeRepo) ListBridgeInstancesByIDs(
 	ctx context.Context,
 	bridgeInstanceIDs []string,
 ) (instances []bridges.BridgeInstance, err error) {
@@ -66,6 +49,7 @@ func (g *GlobalDB) ListBridgeInstancesByIDs(
 		return nil, errors.New("store: at least one bridge instance id is required")
 	}
 
+	// dynamic-sql: sqlc cannot express a caller-sized IN list; only generated placeholders are interpolated.
 	// #nosec G202 -- the interpolated fragment contains generated placeholders only.
 	statement := `SELECT
 			id, scope, workspace_id, platform, extension_name, display_name,

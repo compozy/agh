@@ -3,6 +3,7 @@ package sessiondb
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -37,7 +38,7 @@ func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 		assertTablesPresent(
 			t,
 			sessionDB.db,
-			"schema_migrations",
+			sessionMigrationVersionTable,
 			"events",
 			"token_usage",
 			"transcript_projection_state",
@@ -303,10 +304,10 @@ func TestSessionDBRecordPersistedBatchCoalescesPromptChunks(t *testing.T) {
 	})
 }
 
-func TestOpenSessionDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testing.T) {
+func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should record schema migrations and keep repeated boot idempotent", func(t *testing.T) {
+	t.Run("Should round-trip an event and preserve stream status across reopen", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -315,12 +316,25 @@ func TestOpenSessionDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testi
 		if err != nil {
 			t.Fatalf("OpenSessionDB(first) error = %v", err)
 		}
-		firstRecords, err := store.AppliedMigrations(ctx, first.db)
+		firstStatus, err := store.Status(ctx, first.db, MigrationStream())
 		if err != nil {
-			t.Fatalf("AppliedMigrations(first) error = %v", err)
+			t.Fatalf("Status(first) error = %v", err)
 		}
-		assertSessionSchemaMigrations(t, firstRecords)
+		if firstStatus.Version != 1 || firstStatus.AppliedCount != 1 {
+			t.Fatalf("Status(first) = %#v, want version/applied count 1", firstStatus)
+		}
 		assertUniqueIndex(t, first.db, "events", "idx_events_sequence")
+		event := SessionEvent{
+			ID:        "event-before-reopen",
+			TurnID:    "turn-before-reopen",
+			Type:      "agent_message",
+			AgentName: "coder",
+			Content:   `{"text":"survives reopen"}`,
+			Timestamp: time.Date(2026, 7, 12, 12, 0, 0, 0, time.UTC),
+		}
+		if _, err := first.AppendEventIfAbsent(ctx, event); err != nil {
+			t.Fatalf("AppendEventIfAbsent() error = %v", err)
+		}
 		if err := first.Close(ctx); err != nil {
 			t.Fatalf("Close(first) error = %v", err)
 		}
@@ -334,21 +348,20 @@ func TestOpenSessionDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testi
 				t.Fatalf("Close(second) error = %v", err)
 			}
 		})
-		secondRecords, err := store.AppliedMigrations(ctx, second.db)
+		secondStatus, err := store.Status(ctx, second.db, MigrationStream())
 		if err != nil {
-			t.Fatalf("AppliedMigrations(second) error = %v", err)
+			t.Fatalf("Status(second) error = %v", err)
 		}
-		assertSessionSchemaMigrations(t, secondRecords)
+		if secondStatus != firstStatus {
+			t.Fatalf("Status(second) = %#v, want unchanged %#v", secondStatus, firstStatus)
+		}
 		assertUniqueIndex(t, second.db, "events", "idx_events_sequence")
-		for index, firstRecord := range firstRecords {
-			if !secondRecords[index].AppliedAt.Equal(firstRecord.AppliedAt) {
-				t.Fatalf(
-					"second v%d applied_at = %s, want unchanged %s",
-					firstRecord.Version,
-					secondRecords[index].AppliedAt,
-					firstRecord.AppliedAt,
-				)
-			}
+		events, err := second.Query(ctx, EventQuery{})
+		if err != nil {
+			t.Fatalf("Query(after reopen) error = %v", err)
+		}
+		if len(events) != 1 || events[0].ID != event.ID || events[0].Content != event.Content {
+			t.Fatalf("events after reopen = %#v, want preserved event %#v", events, event)
 		}
 	})
 }
@@ -745,108 +758,6 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 	})
 }
 
-func TestSessionDBTranscriptProjectionMigration(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should backfill a version three database and preserve replay after reopen", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		path := filepath.Join(t.TempDir(), SessionDatabaseName)
-		now := time.Date(2026, 7, 10, 14, 0, 0, 0, time.UTC)
-		legacyEvents := []SessionEvent{
-			canonicalStoreEvent(t, acp.AgentEvent{
-				Type:      acp.EventTypeUserMessage,
-				SessionID: "sess-v3-upgrade",
-				TurnID:    "turn-upgrade",
-				Timestamp: now,
-				Text:      "legacy question",
-			}, "coder"),
-			canonicalStoreEvent(t, acp.AgentEvent{
-				Type:      acp.EventTypeAgentMessage,
-				SessionID: "sess-v3-upgrade",
-				TurnID:    "turn-upgrade",
-				Timestamp: now.Add(time.Second),
-				Text:      "legacy answer",
-			}, "coder"),
-		}
-		legacyDB, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
-			if err := store.RunMigrations(ctx, db, sessionSchemaMigrations[:3]); err != nil {
-				return err
-			}
-			for index, event := range legacyEvents {
-				event.ID = fmt.Sprintf("legacy-%d", index+1)
-				event.Sequence = int64(index + 1)
-				legacyEvents[index] = event
-				if _, err := db.ExecContext(
-					ctx,
-					`INSERT INTO events (id, sequence, turn_id, type, agent_name, content, timestamp)
-					 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-					event.ID,
-					event.Sequence,
-					event.TurnID,
-					event.Type,
-					event.AgentName,
-					event.Content,
-					store.FormatTimestamp(event.Timestamp),
-				); err != nil {
-					return err
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(v3) error = %v", err)
-		}
-		if err := legacyDB.Close(); err != nil {
-			t.Fatalf("legacyDB.Close() error = %v", err)
-		}
-
-		writer, err := OpenSessionDB(ctx, "sess-v3-upgrade", path)
-		if err != nil {
-			t.Fatalf("OpenSessionDB(upgrade) error = %v", err)
-		}
-		if _, err := writer.db.ExecContext(
-			ctx,
-			`UPDATE events SET content = '{' WHERE id = 'legacy-1'`,
-		); err != nil {
-			t.Fatalf("corrupt raw history after backfill error = %v", err)
-		}
-		if err := writer.Close(ctx); err != nil {
-			t.Fatalf("Close(upgrade writer) error = %v", err)
-		}
-		reader, err := OpenSessionDBReadOnly(ctx, "sess-v3-upgrade", path)
-		if err != nil {
-			t.Fatalf("OpenSessionDBReadOnly(reopen) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := reader.Close(testutil.Context(t)); err != nil {
-				t.Errorf("Close(reader) error = %v", err)
-			}
-		})
-
-		page, err := reader.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
-		if err != nil {
-			t.Fatalf("TranscriptPage(reopen) error = %v", err)
-		}
-		want, err := transcript.ToUIEntries(legacyEvents)
-		if err != nil {
-			t.Fatalf("ToUIEntries(legacy) error = %v", err)
-		}
-		assertTranscriptEntriesEqual(t, page.Entries, want)
-		var unassigned int
-		if err := reader.db.QueryRowContext(
-			ctx,
-			`SELECT COUNT(*) FROM events WHERE transcript_entry_key = ''`,
-		).Scan(&unassigned); err != nil {
-			t.Fatalf("count unassigned events error = %v", err)
-		}
-		if unassigned != 0 {
-			t.Fatalf("unassigned events = %d, want 0", unassigned)
-		}
-	})
-}
-
 func TestOpenSessionDBReadOnly(t *testing.T) {
 	t.Parallel()
 
@@ -862,6 +773,52 @@ func TestOpenSessionDBReadOnly(t *testing.T) {
 		if _, statErr := os.Stat(path); !errors.Is(statErr, os.ErrNotExist) {
 			t.Fatalf("Stat(read-only missing path) error = %v, want os.ErrNotExist", statErr)
 		}
+	})
+
+	t.Run("Should refuse a legacy database without changing files", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		seedReadOnlySessionDatabase(
+			t,
+			path,
+			`CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY)`,
+		)
+		before := readOnlySessionDatabaseDigest(t, path)
+		beforeWAL := readOnlySessionFilePresence(t, path+"-wal")
+		beforeSHM := readOnlySessionFilePresence(t, path+"-shm")
+
+		_, err := OpenSessionDBReadOnly(testutil.Context(t), "sess-read-only-legacy", path)
+		if !errors.Is(err, store.ErrLegacyDatabase) {
+			t.Fatalf("OpenSessionDBReadOnly(legacy) error = %v, want ErrLegacyDatabase", err)
+		}
+		assertReadOnlySessionDatabaseUnchanged(t, path, before, beforeWAL, beforeSHM)
+	})
+
+	t.Run("Should refuse an ahead database without changing files", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		seedReadOnlySessionDatabase(
+			t,
+			path,
+			`CREATE TABLE goose_db_version_session (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				version_id INTEGER NOT NULL,
+				is_applied INTEGER NOT NULL,
+				tstamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			)`,
+			`INSERT INTO goose_db_version_session (version_id, is_applied) VALUES (99, 1)`,
+		)
+		before := readOnlySessionDatabaseDigest(t, path)
+		beforeWAL := readOnlySessionFilePresence(t, path+"-wal")
+		beforeSHM := readOnlySessionFilePresence(t, path+"-shm")
+
+		_, err := OpenSessionDBReadOnly(testutil.Context(t), "sess-read-only-ahead", path)
+		if !errors.Is(err, store.ErrSchemaAhead) {
+			t.Fatalf("OpenSessionDBReadOnly(ahead) error = %v, want ErrSchemaAhead", err)
+		}
+		assertReadOnlySessionDatabaseUnchanged(t, path, before, beforeWAL, beforeSHM)
 	})
 
 	t.Run("Should query an existing database without accepting writes", func(t *testing.T) {
@@ -1010,6 +967,70 @@ func TestOpenSessionDBReadOnly(t *testing.T) {
 	})
 }
 
+func seedReadOnlySessionDatabase(t *testing.T, path string, statements ...string) {
+	t.Helper()
+
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("sql.Open(%q) error = %v", path, err)
+	}
+	for _, statement := range statements {
+		if _, err := db.ExecContext(testutil.Context(t), statement); err != nil {
+			if closeErr := db.Close(); closeErr != nil {
+				t.Fatalf("seed session database error = %v; close error = %v", err, closeErr)
+			}
+			t.Fatalf("seed session database error = %v", err)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close(seed session database) error = %v", err)
+	}
+}
+
+func readOnlySessionDatabaseDigest(t *testing.T, path string) [sha256.Size]byte {
+	t.Helper()
+
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", path, err)
+	}
+	return sha256.Sum256(contents)
+}
+
+func readOnlySessionFilePresence(t *testing.T, path string) bool {
+	t.Helper()
+
+	_, err := os.Stat(path)
+	if err == nil {
+		return true
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+	t.Fatalf("Stat(%q) error = %v", path, err)
+	return false
+}
+
+func assertReadOnlySessionDatabaseUnchanged(
+	t *testing.T,
+	path string,
+	wantDigest [sha256.Size]byte,
+	wantWAL bool,
+	wantSHM bool,
+) {
+	t.Helper()
+
+	if got := readOnlySessionDatabaseDigest(t, path); got != wantDigest {
+		t.Fatalf("read-only refusal changed database digest: got %x want %x", got, wantDigest)
+	}
+	if got := readOnlySessionFilePresence(t, path+"-wal"); got != wantWAL {
+		t.Fatalf("WAL presence after refusal = %t, want %t", got, wantWAL)
+	}
+	if got := readOnlySessionFilePresence(t, path+"-shm"); got != wantSHM {
+		t.Fatalf("SHM presence after refusal = %t, want %t", got, wantSHM)
+	}
+}
+
 func TestSessionDBClear(t *testing.T) {
 	t.Parallel()
 
@@ -1115,97 +1136,6 @@ func TestSessionDBClear(t *testing.T) {
 	})
 }
 
-func TestOpenSessionDBStripsCanonicalRawPayloadsAndVacuumsOldRows(t *testing.T) {
-	t.Run("Should strip canonical raw payloads and vacuum old session rows", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		path := filepath.Join(t.TempDir(), SessionDatabaseName)
-		legacyRaw := strings.Repeat("search result line\n", 350000)
-		legacyContent := fmt.Sprintf(
-			`{"schema":%q,"type":"tool_call","turn_id":"turn-1","tool_call_id":"call-1","timestamp":"2026-04-25T22:00:00Z","raw":{"sessionUpdate":"tool_call_update","toolCallId":"call-1","content":[{"type":"content","content":{"type":"text","text":%q}}]}}`,
-			canonicalEventSchema,
-			legacyRaw,
-		)
-
-		legacyDB, err := store.OpenSQLiteDatabase(
-			ctx,
-			path,
-			func(ctx context.Context, db *sql.DB) error {
-				if err := store.RunMigrations(ctx, db, sessionSchemaMigrations[:1]); err != nil {
-					return err
-				}
-				_, err := db.ExecContext(
-					ctx,
-					`INSERT INTO events (id, sequence, turn_id, type, agent_name, content, timestamp)
-					 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-					"ev-legacy",
-					1,
-					"turn-1",
-					"tool_call",
-					"ceo",
-					legacyContent,
-					"2026-04-25T22:00:00Z",
-				)
-				return err
-			},
-		)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(legacy) error = %v", err)
-		}
-		if err := store.Checkpoint(ctx, legacyDB); err != nil {
-			t.Fatalf("Checkpoint(legacy) error = %v", err)
-		}
-		if err := legacyDB.Close(); err != nil {
-			t.Fatalf("legacyDB.Close() error = %v", err)
-		}
-
-		before, err := os.Stat(path)
-		if err != nil {
-			t.Fatalf("Stat(before) error = %v", err)
-		}
-
-		sessionDB, err := OpenSessionDB(ctx, "sess-legacy-raw", path)
-		if err != nil {
-			t.Fatalf("OpenSessionDB(migrated) error = %v", err)
-		}
-
-		var migratedContent string
-		if err := sessionDB.db.QueryRowContext(
-			ctx,
-			`SELECT content FROM events WHERE id = ?`,
-			"ev-legacy",
-		).Scan(&migratedContent); err != nil {
-			t.Fatalf("QueryRowContext(content) error = %v", err)
-		}
-		if strings.Contains(migratedContent, `"raw"`) {
-			t.Fatalf(
-				"migrated content still contains raw payload: %q",
-				migratedContent[:smallerInt(len(migratedContent), 200)],
-			)
-		}
-
-		if err := store.Checkpoint(ctx, sessionDB.db); err != nil {
-			t.Fatalf("Checkpoint(migrated) error = %v", err)
-		}
-		if err := sessionDB.Close(ctx); err != nil {
-			t.Fatalf("Close(migrated) error = %v", err)
-		}
-
-		after, err := os.Stat(path)
-		if err != nil {
-			t.Fatalf("Stat(after) error = %v", err)
-		}
-		if after.Size() >= before.Size() {
-			t.Fatalf(
-				"events.db size after migrate = %d, want smaller than %d",
-				after.Size(),
-				before.Size(),
-			)
-		}
-	})
-}
-
 func TestOpenSessionSQLiteDoesNotFailWhenVacuumFails(t *testing.T) {
 	t.Run("Should keep opening the session database when vacuuming fails", func(t *testing.T) {
 		t.Parallel()
@@ -1226,16 +1156,9 @@ func TestOpenSessionSQLiteDoesNotFailWhenVacuumFails(t *testing.T) {
 			}
 		})
 
-		assertTablesPresent(t, db, "schema_migrations", "events", "token_usage")
+		assertTablesPresent(t, db, sessionMigrationVersionTable, "events", "token_usage")
 		assertJournalModeWAL(t, db)
 	})
-}
-
-func smallerInt(a int, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func TestSessionDBRecordAutoIncrementSequence(t *testing.T) {
@@ -1709,7 +1632,7 @@ func TestSessionDBRecoversFromCorruption(t *testing.T) {
 			}
 		})
 
-		assertTablesPresent(t, sessionDB.db, "schema_migrations", "events", "token_usage")
+		assertTablesPresent(t, sessionDB.db, sessionMigrationVersionTable, "events", "token_usage")
 
 		matches, err := filepath.Glob(path + ".corrupt.*")
 		if err != nil {
@@ -1901,34 +1824,6 @@ func assertTablesPresent(t *testing.T, db *sql.DB, want ...string) {
 			}
 			sort.Strings(keys)
 			t.Fatalf("missing table %q, have %v", table, keys)
-		}
-	}
-}
-
-func assertSessionSchemaMigrations(t *testing.T, records []store.MigrationRecord) {
-	t.Helper()
-
-	want := []struct {
-		version int
-		name    string
-	}{
-		{version: 1, name: "create_session_schema"},
-		{version: 2, name: "strip_canonical_event_raw_payloads"},
-		{version: 3, name: "enforce_unique_event_sequences"},
-		{version: 4, name: "materialize_transcript_projection"},
-	}
-	if got, wantLen := len(records), len(want); got != wantLen {
-		t.Fatalf("len(records) = %d, want %d", got, wantLen)
-	}
-	for index, wantRecord := range want {
-		if records[index].Version != wantRecord.version || records[index].Name != wantRecord.name {
-			t.Fatalf(
-				"records[%d] = %#v, want version %d name %q",
-				index,
-				records[index],
-				wantRecord.version,
-				wantRecord.name,
-			)
 		}
 	}
 }

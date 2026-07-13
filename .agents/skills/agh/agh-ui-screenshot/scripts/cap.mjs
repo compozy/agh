@@ -6,8 +6,8 @@
 //     --shot <name> <url> [--shot <name> <url> ...]
 // Output:
 //   stdout: "chrome port <N>", then "saved <name>" per successful shot.
-//   stderr: chrome-launcher / CDP errors; per-shot failures printed as "FAIL <name> <msg>" on stdout.
-//   exit 0 even if individual shots failed (drift surfaced to caller via the FAIL lines).
+//   stderr: chrome-launcher / CDP errors and per-shot "FAIL <name> <msg>" lines.
+//   exit 1 when any requested shot fails after attempting the complete set.
 
 import { launch } from "chrome-launcher";
 import CDP from "chrome-remote-interface";
@@ -19,6 +19,7 @@ let width = 1440;
 let height = 900;
 let waitMs = 1500;
 const targets = [];
+let failedShots = 0;
 for (let i = 0; i < argv.length; i++) {
   const flag = argv[i];
   if (flag === "--out") outDir = argv[++i];
@@ -88,16 +89,24 @@ try {
           timeout: 5000,
         });
       } catch (fontErr) {
-        console.log(`WARN ${target.name} fonts.ready timeout: ${fontErr.message}`);
+        console.warn(`WARN ${target.name} fonts.ready timeout: ${fontErr.message}`);
       }
       const { data } = await Page.captureScreenshot({ format: "png" });
       writeFileSync(`${outDir}/${target.name}.png`, Buffer.from(data, "base64"));
       console.log("saved", target.name);
     } catch (shotErr) {
-      console.log("FAIL", target.name, shotErr.message);
+      failedShots += 1;
+      console.error("FAIL", target.name, shotErr.message);
     }
   }
 } finally {
-  if (client) await client.close();
-  await chrome.kill();
+  try {
+    if (client) await client.close();
+  } finally {
+    await chrome.kill();
+  }
+}
+
+if (failedShots > 0) {
+  process.exitCode = 1;
 }

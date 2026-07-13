@@ -46,7 +46,7 @@ The full per-operation table is embedded in code: see `internal/api/spec/spec.go
 | `automation`       | 15         | `httpapi/routes.go:168-191`                 | `udsapi/routes.go:193-217`                 | `agh automation`                               | yes        | Jobs + triggers + runs + history + delete.                                                                                                      |
 | `bridges`          | 14         | `httpapi/routes.go:38-54`                   | `udsapi/routes.go:32-50`                   | `agh bridge`                                   | yes        | Includes `POST /api/bridges/:id/test-delivery`.                                                                                                  |
 | `bundles`          | 8          | `httpapi/routes.go:268-278`                 | `udsapi/routes.go:308-320`                 | `agh bundle`                                   | yes        |                                                                                                                                                  |
-| `daemon`           | 1          | `httpapi/routes.go:249-252`                 | `udsapi/routes.go:285-290`                 | `agh daemon status`                            | yes        | Single `getDaemonStatus`. CLI lifecycle (`start`/`stop`/`relaunch`) is local-only and not an HTTP/UDS operation.                                |
+| `daemon`           | 1          | `httpapi/routes.go:249-252`                 | `udsapi/routes.go:285-290`                 | `agh status`                            | yes        | Single `getDaemonStatus`. CLI lifecycle (`start`/`stop`/`relaunch`) is local-only and not an HTTP/UDS operation.                                |
 | `extensions`       | 5          | `httpapi/routes.go:280-288`                 | `udsapi/routes.go:322-331`                 | `agh extension`                                | yes        | HTTP `POST /api/extensions/...` requires `privilegedMutationGuard` (loopback only); CLI default uses UDS so it bypasses the loopback check.      |
 | `hooks`            | 3          | `httpapi/routes.go:125-130`                 | `udsapi/routes.go:150-157`                 | `agh hooks`                                    | yes        |                                                                                                                                                  |
 | `memory`           | 9          | `httpapi/routes.go:236-247`                 | `udsapi/routes.go:270-283`                 | `agh memory`                                   | yes        |                                                                                                                                                  |
@@ -148,7 +148,7 @@ The gap real-LLM and behavior scenarios MUST close: every handler-side test stub
 5. **Web TS compile after codegen**: `agh-openapi.d.ts` regeneration leaves the web SPA TypeScript build green (API-09).
 6. **BaseHandlers single source of truth**: induce the same not-found / validation error class via HTTP and UDS, prove identical `ErrorPayload` shape and identical mapping (API-10).
 7. **HTTP origin/loopback guard vs UDS peer access**: HTTP `privilegedMutationGuard` denies non-loopback; UDS only requires the socket file mode `0o600`; CLI defaults to UDS (API-11).
-8. **CLI `-o json` envelope is stable**: golden snapshot test for `agh daemon status -o json`, `agh session list -o json`, `agh task list -o json`. CLI `-o jsonl` emits one valid object per line for streaming endpoints (API-13, API-14).
+8. **CLI `-o json` envelope is stable**: golden snapshot test for `agh status -o json`, `agh session list -o json`, `agh task list -o json`. CLI `-o jsonl` emits one valid object per line for streaming endpoints (API-13, API-14).
 9. **`mage Boundaries` is real**: introduce a fixture file that imports `internal/api/httpapi` from `internal/session` (forbidden) and prove `mage Boundaries` exits non-zero with the expected violation message (API-15).
 10. **Agent-manageable parity via CLI**: every state-transition operation present in `internal/api/spec` must have a CLI verb reachable from `NewRootCommand`. Derive the matrix at runtime; assert the diff is empty modulo the documented exceptions (API-16).
 11. **SSE event coverage**: every required correlation key (`session_id`, `parent_session_id`, `root_session_id`, `agent_name`, `task_id`, `run_id`, `claim_token_hash`, `lease_until`, `workflow_id`, `coordinator_session_id`, `scheduler_reason`, `hook_event`, `hook_name`, `spawn_depth`, `actor_kind`, `actor_id`, `release_reason`) appears at least once across the SSE captures from API-02..API-06 (API-17).
@@ -177,7 +177,7 @@ Bootstrap and isolation discipline (mandatory):
 
 - Fresh QA bootstrap; `bootstrap-manifest.json` saved and `bootstrap.env` exported.
 - `make verify` is green on the SUT branch (per the Critical Rules).
-- Daemon running: `agh daemon status -o json` reports `status="running"`.
+- Daemon running: `agh status -o json` reports `status="running"`.
 - For HTTP scenarios, the bound HTTP host is reachable on `127.0.0.1:<port>` from the same shell.
 - For UDS scenarios, the UDS path resolved via `cli/root.go:267-286` (`Daemon.Socket` → `HomePaths.DaemonSocket`) is mode `0o600`.
 - For real-LLM scenarios, the direct `claude` provider is authenticated in the
@@ -695,9 +695,9 @@ preconditions:
   - Daemon running with one workspace, one agent, no session
 code_refs:
   - /Users/pedronauck/Dev/compozy/agh/internal/cli/format.go:20-27
-  - /Users/pedronauck/Dev/compozy/agh/internal/cli/daemon.go:95 (`agh daemon status`)
+  - /Users/pedronauck/Dev/compozy/agh/internal/cli/daemon.go:95 (`agh status`)
 steps:
-  - Run `agh daemon status -o json | jq -S '.daemon | del(.uptime_seconds, .started_at, .last_seen_at)'` → write to `api-13-daemon-status.json`.
+  - Run `agh status -o json | jq -S '.daemon | del(.uptime_seconds, .started_at, .last_seen_at)'` → write to `api-13-daemon-status.json`.
   - Compare against committed golden `internal/cli/testdata/golden/daemon_status.json` (create on first run; CI updates on opt-in).
   - Repeat for `agh session list -o json`, `agh task list -o json`, `agh memory list -o json`, `agh skill list -o json`, `agh tool list -o json`.
   - Mask volatile fields (`generated_at`, `*_id` if random per run, `created_at`).

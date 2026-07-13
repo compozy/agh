@@ -414,7 +414,7 @@ func newAssemblerTestEnv(t *testing.T) assemblerTestEnv {
 		t.Fatalf("MkdirAll(workspace) error = %v", err)
 	}
 
-	store := NewStore(filepath.Join(baseDir, "home", "memory"))
+	store := newOpenTestStore(t, filepath.Join(baseDir, "home", "memory"))
 	if err := store.EnsureDirs(); err != nil {
 		t.Fatalf("Store.EnsureDirs() error = %v", err)
 	}

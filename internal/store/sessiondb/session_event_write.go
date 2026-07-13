@@ -9,8 +9,11 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/sessiondb/sqlcgen"
 	"github.com/compozy/agh/internal/transcript"
 )
+
+const canonicalEventSchema = "agh.session.event.v1"
 
 // ErrEventIdentityCollision reports a deterministic event ID reused with different content.
 var ErrEventIdentityCollision = errors.New("store: session event identity collision")
@@ -193,12 +196,21 @@ func (s *SessionDB) writeEventIfAbsent(
 	}
 	var persisted store.SessionEvent
 	err := store.ExecuteWriteNoCheckpoint(ctx, s.db, func(ctx context.Context, tx *store.WriteTx) error {
-		existing, err := s.scanSessionEvent(tx.QueryRowContext(
-			ctx,
-			`SELECT `+sessionEventColumns+` FROM events WHERE id = ?`,
-			event.ID,
-		))
+		row, err := sqlcgen.New(tx).GetEventByID(ctx, event.ID)
 		if err == nil {
+			existing, mapErr := sessionEventFromSQLC(
+				row.ID,
+				row.Sequence,
+				row.TurnID,
+				row.Type,
+				row.AgentName,
+				row.Content,
+				row.Timestamp,
+				s.sessionID,
+			)
+			if mapErr != nil {
+				return mapErr
+			}
 			if !sessionEventsHaveIdenticalIdentity(existing, event) {
 				return fmt.Errorf("%w: %s", ErrEventIdentityCollision, event.ID)
 			}
@@ -315,20 +327,16 @@ func insertSessionEvent(
 	event store.SessionEvent,
 	entryKey string,
 ) error {
-	if _, err := tx.ExecContext(
-		ctx,
-		`INSERT INTO events (
-			id, sequence, turn_id, type, agent_name, content, timestamp, transcript_entry_key
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		event.ID,
-		event.Sequence,
-		event.TurnID,
-		event.Type,
-		event.AgentName,
-		event.Content,
-		store.FormatTimestamp(event.Timestamp),
-		entryKey,
-	); err != nil {
+	if err := sqlcgen.New(tx).InsertEvent(ctx, sqlcgen.InsertEventParams{
+		ID:                 event.ID,
+		Sequence:           event.Sequence,
+		TurnID:             event.TurnID,
+		Type:               event.Type,
+		AgentName:          event.AgentName,
+		Content:            event.Content,
+		Timestamp:          store.FormatTimestamp(event.Timestamp),
+		TranscriptEntryKey: entryKey,
+	}); err != nil {
 		return fmt.Errorf("store: insert session event: %w", err)
 	}
 	return nil
@@ -389,12 +397,10 @@ func persistIncrementalTranscriptProjection(
 		}
 	}
 	for toolKey, entryKey := range projector.ToolRoutes() {
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO transcript_tool_routes (tool_key, entry_key) VALUES (?, ?)
-			ON CONFLICT(tool_key) DO UPDATE SET entry_key = excluded.entry_key`,
-			toolKey,
-			entryKey,
-		); err != nil {
+		if err := sqlcgen.New(tx).UpsertTranscriptToolRoute(ctx, sqlcgen.UpsertTranscriptToolRouteParams{
+			ToolKey:  toolKey,
+			EntryKey: entryKey,
+		}); err != nil {
 			return fmt.Errorf("store: upsert transcript tool route %q: %w", toolKey, err)
 		}
 	}

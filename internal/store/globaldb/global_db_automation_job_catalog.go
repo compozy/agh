@@ -8,26 +8,13 @@ import (
 	"strings"
 
 	automation "github.com/compozy/agh/internal/automation/model"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
+
+const automationJobCatalogWorkspaceIndex = "idx_automation_job_catalog_workspace_order"
 
 const automationJobCatalogBaseSQL = ` FROM automation_job_catalog_entries AS c
 	LEFT JOIN automation_job_overlays AS o ON o.job_id = c.job_id`
-
-const automationJobCatalogHydrationSQL = `WITH requested(job_id, ordinal) AS (
-	SELECT CAST(value AS TEXT), CAST(key AS INTEGER) FROM json_each(?)
-)
-SELECT j.id, j.scope, j.name, j.agent_name, j.workspace_id, j.prompt, j.schedule, j.task,
-	CASE
-		WHEN j.source IN ('config', 'package') AND o.enabled_override IS NOT NULL
-			THEN o.enabled_override
-		ELSE j.enabled
-	END,
-	j.retry, j.fire_limit, j.source, j.target_kind, j.loop_workspace_id,
-	j.loop_name, j.loop_inputs, j.loop_input_mapping, j.created_at, j.updated_at
-FROM requested
-JOIN automation_jobs AS j ON j.id = requested.job_id
-LEFT JOIN automation_job_overlays AS o ON o.job_id = j.id
-ORDER BY requested.ordinal`
 
 func listAutomationJobCatalog(
 	ctx context.Context,
@@ -40,6 +27,7 @@ func listAutomationJobCatalog(
 	}
 	where, args := automationJobCatalogWhere(query)
 	var total int
+	// dynamic-sql: optional catalog filters change the count predicate set.
 	if err := executor.QueryRowContext(
 		ctx,
 		`SELECT COUNT(*)`+automationJobCatalogBaseSQL+where,
@@ -155,6 +143,7 @@ func readAutomationJobCatalogCandidates(
 	where string,
 	args []any,
 ) (candidates []automationCatalogCandidate, err error) {
+	// dynamic-sql: optional filters and keyset cursor terms change the candidate query shape.
 	rows, err := executor.QueryContext(
 		ctx,
 		`SELECT c.job_id, c.source, c.name`+automationJobCatalogBaseSQL+where+
@@ -198,24 +187,16 @@ func hydrateAutomationJobCatalogPage(
 	if err != nil {
 		return nil, fmt.Errorf("store: encode automation job catalog ids: %w", err)
 	}
-	rows, err := executor.QueryContext(ctx, automationJobCatalogHydrationSQL, string(idsJSON))
+	rows, err := sqlcgen.New(executor).HydrateAutomationJobCatalog(ctx, string(idsJSON))
 	if err != nil {
 		return nil, fmt.Errorf("store: hydrate automation job catalog page: %w", err)
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("store: close automation job catalog hydration rows: %w", closeErr))
-		}
-	}()
-	for rows.Next() {
-		job, scanErr := scanAutomationJob(rows)
+	for _, row := range rows {
+		job, scanErr := automationJobFromHydrated(row)
 		if scanErr != nil {
 			return nil, scanErr
 		}
 		jobs = append(jobs, job)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate automation job catalog hydration rows: %w", err)
 	}
 	if len(jobs) != len(candidates) {
 		return nil, fmt.Errorf(

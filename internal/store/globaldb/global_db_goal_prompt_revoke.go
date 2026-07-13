@@ -10,7 +10,7 @@ import (
 )
 
 // RevokeGoalPrompt atomically fences prepared work or terminalizes one already-claimed operation.
-func (g *GlobalDB) RevokeGoalPrompt(
+func (g *GoalRepo) RevokeGoalPrompt(
 	ctx context.Context,
 	request goal.RevokePromptRequest,
 ) (goal.Checkpoint, error) {

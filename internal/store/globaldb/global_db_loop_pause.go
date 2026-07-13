@@ -8,12 +8,12 @@ import (
 	"time"
 
 	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 // SetLoopRunPauseRequested updates the durable operator pause intent and its authenticated actor.
-func (g *GlobalDB) SetLoopRunPauseRequested(
+func (g *LoopRepo) SetLoopRunPauseRequested(
 	ctx context.Context,
 	ws looppkg.WorkspaceID,
 	runID looppkg.RunID,
@@ -45,22 +45,13 @@ func (g *GlobalDB) SetLoopRunPauseRequested(
 		if err != nil || !changed {
 			return err
 		}
-		if _, err := exec.ExecContext(
+		if err := sqlcgen.New(exec).ProjectLoopPauseToGoalCheckpoints(
 			ctx,
-			`UPDATE loop_goal_checkpoints
-			 SET control_actor_kind = CASE WHEN ? = 1 THEN ? ELSE NULL END,
-			     control_actor_id = CASE WHEN ? = 1 THEN ? ELSE NULL END,
-			     control_requested_at = CASE WHEN ? = 1 THEN ? ELSE NULL END,
-			     updated_at = ?
-			 WHERE loop_run_id = ? AND phase NOT IN ('awaiting_control','terminal')`,
-			boolToInt(requested),
-			string(actor.Actor.Kind.Normalize()),
-			boolToInt(requested),
-			strings.TrimSpace(actor.Actor.Ref),
-			boolToInt(requested),
-			store.FormatTimestamp(now),
-			store.FormatTimestamp(now),
-			trimmedRunID,
+			sqlcgen.ProjectLoopPauseToGoalCheckpointsParams{
+				Requested: boolToInt(requested), ActorKind: nullString(string(actor.Actor.Kind.Normalize())),
+				ActorID: nullString(strings.TrimSpace(actor.Actor.Ref)), RequestedAt: nullableLoopTime(now),
+				UpdatedAt: now, LoopRunID: trimmedRunID,
+			},
 		); err != nil {
 			return fmt.Errorf("store: project loop pause intent to Goal checkpoints: %w", err)
 		}
@@ -81,31 +72,13 @@ func setLoopRunPauseState(
 	if requested {
 		expectedPause = 0
 	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_runs
-		 SET pause_requested = ?,
-		     control_actor_kind = CASE WHEN ? = 1 THEN ? ELSE NULL END,
-		     control_actor_id = CASE WHEN ? = 1 THEN ? ELSE NULL END,
-		     control_requested_at = CASE WHEN ? = 1 THEN ? ELSE NULL END
-		 WHERE workspace_id = ? AND id = ? AND status = 'running' AND pause_requested = ?`,
-		boolToInt(requested),
-		boolToInt(requested),
-		string(actor.Actor.Kind.Normalize()),
-		boolToInt(requested),
-		strings.TrimSpace(actor.Actor.Ref),
-		boolToInt(requested),
-		store.FormatTimestamp(now),
-		workspaceID,
-		runID,
-		expectedPause,
-	)
+	rows, err := sqlcgen.New(exec).SetLoopRunPauseState(ctx, sqlcgen.SetLoopRunPauseStateParams{
+		Requested: int64(boolToInt(requested)), ActorKind: nullString(string(actor.Actor.Kind.Normalize())),
+		ActorID: nullString(strings.TrimSpace(actor.Actor.Ref)), RequestedAt: nullableLoopTime(now),
+		WorkspaceID: workspaceID, ID: runID, ExpectedPause: int64(expectedPause),
+	})
 	if err != nil {
 		return false, fmt.Errorf("store: set loop run %q pause_requested: %w", runID, err)
-	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("store: inspect loop run %q pause update: %w", runID, err)
 	}
 	if rows == 1 {
 		return true, nil
@@ -121,30 +94,29 @@ func equivalentLoopPauseState(
 	requested bool,
 	actor taskpkg.ActorContext,
 ) (bool, error) {
-	var status string
-	var pauseRequested int
-	var actorKind, actorID sql.NullString
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT status, pause_requested, control_actor_kind, control_actor_id
-		 FROM loop_runs WHERE workspace_id = ? AND id = ?`,
-		workspaceID,
-		runID,
-	).Scan(&status, &pauseRequested, &actorKind, &actorID); err != nil {
+	row, err := sqlcgen.New(exec).GetLoopRunPauseState(ctx, sqlcgen.GetLoopRunPauseStateParams{
+		WorkspaceID: workspaceID, ID: runID,
+	})
+	if err != nil {
 		if err == sql.ErrNoRows {
 			return false, fmt.Errorf("%w: %s", looppkg.ErrRunNotFound, runID)
 		}
 		return false, fmt.Errorf("store: load loop run %q pause state: %w", runID, err)
 	}
-	if status != string(looppkg.StatusRunning) {
-		return false, fmt.Errorf("%w: loop run %q status changed to %q", looppkg.ErrTransitionConflict, runID, status)
+	if row.Status != string(looppkg.StatusRunning) {
+		return false, fmt.Errorf(
+			"%w: loop run %q status changed to %q",
+			looppkg.ErrTransitionConflict,
+			runID,
+			row.Status,
+		)
 	}
-	if !requested && pauseRequested == 0 {
+	if !requested && row.PauseRequested == 0 {
 		return false, nil
 	}
-	if requested && pauseRequested == 1 && actorKind.Valid && actorID.Valid &&
-		strings.TrimSpace(actorKind.String) == string(actor.Actor.Kind.Normalize()) &&
-		strings.TrimSpace(actorID.String) == strings.TrimSpace(actor.Actor.Ref) {
+	if requested && row.PauseRequested == 1 && row.ControlActorKind.Valid && row.ControlActorID.Valid &&
+		strings.TrimSpace(row.ControlActorKind.String) == string(actor.Actor.Kind.Normalize()) &&
+		strings.TrimSpace(row.ControlActorID.String) == strings.TrimSpace(actor.Actor.Ref) {
 		return false, nil
 	}
 	return false, fmt.Errorf("%w: loop run %q pause writer changed", looppkg.ErrTransitionConflict, runID)

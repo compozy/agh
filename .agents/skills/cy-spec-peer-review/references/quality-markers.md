@@ -37,4 +37,4 @@ Concurrency- or ownership-sensitive code paths spell out invariants as a numbere
 6. Lease extension bounded by config.
 7. One active lease per session in MVP.
 
-If any of these markers is missing, abort the requested peer review and ask the user to amend the spec first. Opus review on incomplete specs wastes credit and produces noise.
+If any of these markers is missing, abort the requested peer review and ask the user to amend the spec first. External review on incomplete specs wastes credit and produces noise.

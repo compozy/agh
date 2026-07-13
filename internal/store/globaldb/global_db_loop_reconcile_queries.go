@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -22,42 +23,11 @@ func oldestQueuedLoopRunReadyForPromotion(
 	if workspaceID == "" || loopName == "" {
 		return nil, nil
 	}
-	var candidate loopCoordinatorCandidate
-	if err := exec.QueryRowContext(
+	row, err := sqlcgen.New(exec).OldestQueuedLoopRunReadyForPromotion(
 		ctx,
-		`SELECT q.id, q.workspace_id, q.loop_name, q.generation
-		 FROM loop_runs q
-		 WHERE q.workspace_id = ?
-		   AND q.loop_name = ?
-		   AND q.status = 'queued'
-		   AND NOT EXISTS (
-		     SELECT 1
-		     FROM loop_runs active
-		     WHERE active.workspace_id = q.workspace_id
-		       AND active.loop_name = q.loop_name
-		       AND active.status IN ('running', 'watching', 'needs-approval', 'paused')
-		   )
-		   AND NOT EXISTS (
-		     SELECT 1
-		     FROM loop_runs older
-		     WHERE older.workspace_id = q.workspace_id
-		       AND older.loop_name = q.loop_name
-		       AND older.status = 'queued'
-		       AND (
-		         older.created_at < q.created_at OR
-		         (older.created_at = q.created_at AND older.id < q.id)
-		       )
-		   )
-		 ORDER BY q.created_at ASC, q.id ASC
-		 LIMIT 1`,
-		workspaceID,
-		loopName,
-	).Scan(
-		&candidate.loopRunID,
-		&candidate.workspaceID,
-		&candidate.loopName,
-		&candidate.generation,
-	); err != nil {
+		sqlcgen.OldestQueuedLoopRunReadyForPromotionParams{WorkspaceID: workspaceID, LoopName: loopName},
+	)
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
@@ -68,10 +38,13 @@ func oldestQueuedLoopRunReadyForPromotion(
 			err,
 		)
 	}
+	candidate := loopCoordinatorCandidate{
+		loopRunID: row.ID, workspaceID: row.WorkspaceID, loopName: row.LoopName, generation: int(row.Generation),
+	}
 	return &candidate, nil
 }
 
-func (g *GlobalDB) reconcileMissingRunningLoopCoordinators(
+func (g *LoopRepo) reconcileMissingRunningLoopCoordinators(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	origin taskpkg.Origin,
@@ -107,7 +80,7 @@ func (g *GlobalDB) reconcileMissingRunningLoopCoordinators(
 	return enqueued, nil
 }
 
-func (g *GlobalDB) promoteQueuedLoopCoordinators(
+func (g *LoopRepo) promoteQueuedLoopCoordinators(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	origin taskpkg.Origin,
@@ -130,7 +103,7 @@ func (g *GlobalDB) promoteQueuedLoopCoordinators(
 	return enqueued, nil
 }
 
-func (g *GlobalDB) promoteQueuedLoopCoordinator(
+func (g *LoopRepo) promoteQueuedLoopCoordinator(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	candidate loopCoordinatorCandidate,
@@ -164,7 +137,7 @@ func (g *GlobalDB) promoteQueuedLoopCoordinator(
 	)
 }
 
-func (g *GlobalDB) reserveCoordinatorRun(
+func (g *LoopRepo) reserveCoordinatorRun(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	taskID string,
@@ -187,7 +160,7 @@ func (g *GlobalDB) reserveCoordinatorRun(
 		origin:         origin,
 		queuedAt:       now,
 	}
-	_, run, existing, err := g.reserveQueuedRunWithExecutor(ctx, exec, reservation)
+	_, run, existing, err := g.tasks.reserveQueuedRunWithExecutor(ctx, exec, reservation)
 	if err != nil {
 		return taskpkg.Run{}, false, err
 	}
@@ -205,35 +178,13 @@ func loopRunsMissingActiveCoordinator(
 	ctx context.Context,
 	exec taskSQLExecutor,
 ) ([]loopCoordinatorCandidate, error) {
-	rows, err := exec.QueryContext(
-		ctx,
-		`SELECT lr.id, lr.generation
-		 FROM loop_runs lr
-		 WHERE lr.status = 'running'
-		   AND NOT EXISTS (
-		     SELECT 1
-		     FROM task_runs tr
-		     WHERE tr.loop_run_id = lr.id
-		       AND tr.run_kind = 'coordinator'
-		       AND tr.status IN ('queued', 'claimed', 'starting', 'running')
-		   )
-		 ORDER BY lr.created_at ASC, lr.id ASC`,
-	)
+	rows, err := sqlcgen.New(exec).ListLoopRunsMissingActiveCoordinator(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: list running loops missing coordinator: %w", err)
 	}
-	defer rows.Close()
-
-	candidates := make([]loopCoordinatorCandidate, 0)
-	for rows.Next() {
-		var candidate loopCoordinatorCandidate
-		if err := rows.Scan(&candidate.loopRunID, &candidate.generation); err != nil {
-			return nil, fmt.Errorf("store: scan loop coordinator candidate: %w", err)
-		}
-		candidates = append(candidates, candidate)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate loop coordinator candidates: %w", err)
+	candidates := make([]loopCoordinatorCandidate, 0, len(rows))
+	for _, row := range rows {
+		candidates = append(candidates, loopCoordinatorCandidate{loopRunID: row.ID, generation: int(row.Generation)})
 	}
 	return candidates, nil
 }
@@ -242,51 +193,15 @@ func queuedLoopRunsReadyForPromotion(
 	ctx context.Context,
 	exec taskSQLExecutor,
 ) ([]loopCoordinatorCandidate, error) {
-	rows, err := exec.QueryContext(
-		ctx,
-		`SELECT q.id, q.workspace_id, q.loop_name, q.generation
-		 FROM loop_runs q
-		 WHERE q.status = 'queued'
-		   AND NOT EXISTS (
-		     SELECT 1
-		     FROM loop_runs active
-		     WHERE active.workspace_id = q.workspace_id
-		       AND active.loop_name = q.loop_name
-		       AND active.status IN ('running', 'watching', 'needs-approval', 'paused')
-		   )
-		   AND NOT EXISTS (
-		     SELECT 1
-		     FROM loop_runs older
-		     WHERE older.workspace_id = q.workspace_id
-		       AND older.loop_name = q.loop_name
-		       AND older.status = 'queued'
-		       AND (
-		         older.created_at < q.created_at OR
-		         (older.created_at = q.created_at AND older.id < q.id)
-		       )
-		   )
-		 ORDER BY q.created_at ASC, q.id ASC`,
-	)
+	rows, err := sqlcgen.New(exec).ListQueuedLoopRunsReadyForPromotion(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: list queued loops ready for promotion: %w", err)
 	}
-	defer rows.Close()
-
-	candidates := make([]loopCoordinatorCandidate, 0)
-	for rows.Next() {
-		var candidate loopCoordinatorCandidate
-		if err := rows.Scan(
-			&candidate.loopRunID,
-			&candidate.workspaceID,
-			&candidate.loopName,
-			&candidate.generation,
-		); err != nil {
-			return nil, fmt.Errorf("store: scan queued loop promotion candidate: %w", err)
-		}
-		candidates = append(candidates, candidate)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate queued loop promotion candidates: %w", err)
+	candidates := make([]loopCoordinatorCandidate, 0, len(rows))
+	for _, row := range rows {
+		candidates = append(candidates, loopCoordinatorCandidate{
+			loopRunID: row.ID, workspaceID: row.WorkspaceID, loopName: row.LoopName, generation: int(row.Generation),
+		})
 	}
 	return candidates, nil
 }
@@ -296,17 +211,8 @@ func lastCoordinatorTaskIDForLoopRun(
 	exec taskSQLExecutor,
 	loopRunID string,
 ) (string, error) {
-	var taskID string
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT task_id
-		 FROM task_runs
-		 WHERE loop_run_id = ?
-		   AND run_kind = 'coordinator'
-		 ORDER BY queued_at DESC, id DESC
-		 LIMIT 1`,
-		loopRunID,
-	).Scan(&taskID); err != nil {
+	taskID, err := sqlcgen.New(exec).GetLastCoordinatorTaskIDForLoopRun(ctx, nullString(loopRunID))
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", err
 		}

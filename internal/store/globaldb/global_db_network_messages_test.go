@@ -3,7 +3,6 @@ package globaldb
 import (
 	"database/sql"
 	"errors"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -50,81 +49,6 @@ func TestOpenGlobalDBCreatesNetworkTimelineLogSchema(t *testing.T) {
 			"work_state",
 		})
 		assertTableHasNoForeignKeys(t, globalDB.db, "network_timeline_log")
-	})
-}
-
-func TestGlobalDBNetworkTimelineExtensionMigration(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should add ext_json and default existing timeline rows", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase() error = %v", err)
-		}
-		if err := store.RunMigrations(ctx, db, globalSchemaMigrations[:25]); err != nil {
-			t.Fatalf("RunMigrations(v25) error = %v", err)
-		}
-		workspaceID := "ws-network-ext-migration"
-		if _, err := db.ExecContext(
-			ctx,
-			`INSERT INTO network_timeline_log (
-				message_id, session_id, workspace_id, channel, surface, thread_id, direct_id, direction,
-				peer_from, peer_to, kind, work_id, reply_to, trace_id, causation_id, intent, text,
-				preview_text, body_json, timestamp
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			"msg_existing_ext",
-			"sess-existing",
-			workspaceID,
-			"builders",
-			store.NetworkSurfaceThread,
-			"thread_existing_ext",
-			nil,
-			"sent",
-			"coder.sess-existing",
-			nil,
-			store.NetworkKindSay,
-			nil,
-			nil,
-			nil,
-			nil,
-			nil,
-			"hello",
-			"hello",
-			`{"text":"hello"}`,
-			"2026-05-16T00:00:00Z",
-		); err != nil {
-			t.Fatalf("insert legacy timeline row error = %v", err)
-		}
-		if err := db.Close(); err != nil {
-			t.Fatalf("db.Close() error = %v", err)
-		}
-
-		globalDB, err := OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(upgrade) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := globalDB.Close(ctx); closeErr != nil {
-				t.Fatalf("Close() error = %v", closeErr)
-			}
-		})
-		assertAppliedMigrationVersion(t, globalDB.db, 26)
-		var extJSON string
-		if err := globalDB.db.QueryRowContext(
-			ctx,
-			`SELECT ext_json FROM network_timeline_log WHERE workspace_id = ? AND message_id = ?`,
-			workspaceID,
-			"msg_existing_ext",
-		).Scan(&extJSON); err != nil {
-			t.Fatalf("query ext_json error = %v", err)
-		}
-		if extJSON != "{}" {
-			t.Fatalf("ext_json = %q, want {}", extJSON)
-		}
 	})
 }
 
@@ -420,7 +344,6 @@ func networkMessageIDs(messages []store.NetworkMessageEntry) []string {
 func TestGlobalDBNetworkMessageGuardClauses(t *testing.T) {
 	t.Parallel()
 
-	var nilDB *GlobalDB
 	globalDB := openTestGlobalDB(t)
 	if err := globalDB.Close(testutil.Context(t)); err != nil {
 		t.Fatalf("Close() error = %v", err)
@@ -431,19 +354,6 @@ func TestGlobalDBNetworkMessageGuardClauses(t *testing.T) {
 		run  func() error
 		want error
 	}{
-		{
-			name: "Should reject writes on a nil receiver",
-			run: func() error {
-				return nilDB.WriteNetworkMessage(testutil.Context(t), store.NetworkMessageEntry{})
-			},
-		},
-		{
-			name: "Should reject reads on a nil receiver",
-			run: func() error {
-				_, err := nilDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{})
-				return err
-			},
-		},
 		{
 			name: "Should reject writes with a nil context",
 			run: func() error {

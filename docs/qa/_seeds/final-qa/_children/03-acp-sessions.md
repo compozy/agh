@@ -121,7 +121,7 @@ provider: claude-code
 preconditions:
   - Direct `claude` provider authenticated in the effective Claude home for the lane: operator `HOME` by default, or isolated `PROVIDER_HOME` only when the scenario explicitly validates isolated native auth
   - `agh provider show claude` reports command `npx -y @agentclientprotocol/claude-agent-acp@latest`
-  - daemon up via bootstrap manifest; `agh daemon status -o json` reports `running`
+  - daemon up via bootstrap manifest; `agh status -o json` reports `running`
 preconditions_files: [internal/config/provider.go:165-173]
 steps:
   1. `agh session new --agent claude --cwd $LAB/workspace -o json` → record session_id S
@@ -666,10 +666,10 @@ steps:
 expected_behavior:
   - Events count after >= count before (new events appended); the first-N events are bit-identical to the saved snapshot before restart
   - Transcript_hash_before matches the prefix of the new transcript
-  - `pragma user_version` matches the schema migration registry head version (`store/sessiondb/session_db.go:74-86`)
+  - `goose_db_version_session` reports exactly the embedded session-stream head as applied
   - lineage fields untouched
 evidence:
-  - `events_before.jsonl`, `events_after.jsonl`, `pragma_version.txt`, `quick_check.txt`
+  - `events_before.jsonl`, `events_after.jsonl`, `goose_version.txt`, `quick_check.txt`
 failure_signatures:
   - events.db corrupted on cold start → wal/shm recovery regression (CLAUDE.md "agh-schema-migration: -wal / -shm companion handling on recovery")
   - schema_version mismatch — migration didn't apply or applied twice

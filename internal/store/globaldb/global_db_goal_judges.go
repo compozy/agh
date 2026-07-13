@@ -11,12 +11,13 @@ import (
 
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
-var _ goal.JudgeStore = (*GlobalDB)(nil)
+var _ goal.JudgeStore = (*GoalRepo)(nil)
 
 // BeginJudgeAttempt persists one aggregate judge attempt before evaluator effects.
-func (g *GlobalDB) BeginJudgeAttempt(
+func (g *GoalRepo) BeginJudgeAttempt(
 	ctx context.Context,
 	req goal.BeginJudgeAttemptRequest,
 ) (goal.JudgeAttempt, error) {
@@ -101,22 +102,12 @@ func insertGoalJudgeAttempt(
 	req goal.BeginJudgeAttemptRequest,
 	now time.Time,
 ) error {
-	_, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO loop_goal_judge_attempts (
-			attempt_id, loop_run_id, generation, node_id, item_index, turn,
-			judge_digest, status, blocking_json, usage_base_tokens, started_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, 'running', '[]', ?, ?)`,
-		strings.TrimSpace(req.AttemptID),
-		string(req.Key.LoopRunID),
-		req.Key.Generation,
-		string(req.Key.NodeID),
-		req.Key.ItemIndex,
-		req.Turn,
-		strings.TrimSpace(req.JudgeDigest),
-		req.UsageBaseTokens,
-		store.FormatTimestamp(now),
-	)
+	err := sqlcgen.New(exec).InsertGoalJudgeAttempt(ctx, sqlcgen.InsertGoalJudgeAttemptParams{
+		AttemptID: strings.TrimSpace(req.AttemptID), LoopRunID: string(req.Key.LoopRunID),
+		Generation: int64(req.Key.Generation), NodeID: string(req.Key.NodeID), ItemIndex: int64(req.Key.ItemIndex),
+		Turn: int64(req.Turn), JudgeDigest: strings.TrimSpace(req.JudgeDigest),
+		UsageBaseTokens: req.UsageBaseTokens, StartedAt: store.FormatTimestamp(now),
+	})
 	if err != nil {
 		return fmt.Errorf("store: insert goal judge attempt: %w", err)
 	}
@@ -129,34 +120,21 @@ func attachGoalJudgeAttempt(
 	req goal.BeginJudgeAttemptRequest,
 	now time.Time,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_goal_checkpoints
-		 SET judge_attempt_id = ?, updated_at = ?
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		   AND control_epoch = ? AND binding_epoch = ? AND phase = 'judging'
-		   AND task_run_id = ? AND prompt_id = ?
-		   AND (judge_attempt_id IS NULL OR judge_attempt_id = ?)`,
-		strings.TrimSpace(req.AttemptID),
-		store.FormatTimestamp(now),
-		string(req.Key.LoopRunID),
-		req.Key.Generation,
-		string(req.Key.NodeID),
-		req.Key.ItemIndex,
-		req.ExpectedControlEpoch,
-		req.ExpectedBindingEpoch,
-		strings.TrimSpace(req.TaskRunID),
-		strings.TrimSpace(req.PromptID),
-		strings.TrimSpace(req.AttemptID),
-	)
+	affected, err := sqlcgen.New(exec).AttachGoalJudgeAttempt(ctx, sqlcgen.AttachGoalJudgeAttemptParams{
+		JudgeAttemptID: goalNullableString(req.AttemptID), UpdatedAt: store.FormatTimestamp(now),
+		LoopRunID: string(req.Key.LoopRunID), Generation: int64(req.Key.Generation),
+		NodeID: string(req.Key.NodeID), ItemIndex: int64(req.Key.ItemIndex),
+		ControlEpoch: req.ExpectedControlEpoch, BindingEpoch: goalNullableInt64(&req.ExpectedBindingEpoch),
+		TaskRunID: goalNullableString(req.TaskRunID), PromptID: goalNullableString(req.PromptID),
+	})
 	if err != nil {
 		return fmt.Errorf("store: attach goal judge attempt to checkpoint: %w", err)
 	}
-	return requireGoalRowsAffected(result, "attach goal judge attempt")
+	return requireGoalAffectedCount(affected, "attach goal judge attempt")
 }
 
 // CompleteJudgeAttempt records the evaluator terminal exactly once.
-func (g *GlobalDB) CompleteJudgeAttempt(
+func (g *GoalRepo) CompleteJudgeAttempt(
 	ctx context.Context,
 	req goal.CompleteJudgeAttemptRequest,
 ) (goal.JudgeAttempt, error) {
@@ -234,31 +212,26 @@ func completeJudgeAttemptWithExecutor(
 	if attempt.Status != goalJudgeStatusRunning {
 		return goal.JudgeAttempt{}, goalControlStaleError("judge attempt is not running")
 	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_goal_judge_attempts
-		 SET status = 'completed', outcome = ?, blocking_json = ?, evidence_ref = ?,
-		     tokens_used = ?, completed_at = ?
-		 WHERE attempt_id = ? AND loop_run_id = ? AND status = 'running'`,
-		string(req.Verdict.Outcome),
-		string(blockingJSON),
-		nullableGoalString(evidenceRef),
-		goalReportedTokens(req.TokensUsed, req.TokensReported),
-		store.FormatTimestamp(now),
-		strings.TrimSpace(req.AttemptID),
-		string(req.Key.LoopRunID),
-	)
+	tokensUsed, err := goalSQLNullInt64(goalReportedTokens(req.TokensUsed, req.TokensReported))
+	if err != nil {
+		return goal.JudgeAttempt{}, err
+	}
+	affected, err := sqlcgen.New(exec).CompleteGoalJudgeAttempt(ctx, sqlcgen.CompleteGoalJudgeAttemptParams{
+		Outcome: goalNullableString(string(req.Verdict.Outcome)), BlockingJson: string(blockingJSON),
+		EvidenceRef: goalNullableString(evidenceRef), TokensUsed: tokensUsed, CompletedAt: store.FormatTimestamp(now),
+		AttemptID: strings.TrimSpace(req.AttemptID), LoopRunID: string(req.Key.LoopRunID),
+	})
 	if err != nil {
 		return goal.JudgeAttempt{}, fmt.Errorf("store: complete goal judge attempt: %w", err)
 	}
-	if err := requireGoalRowsAffected(result, "complete goal judge attempt"); err != nil {
+	if err := requireGoalAffectedCount(affected, "complete goal judge attempt"); err != nil {
 		return goal.JudgeAttempt{}, err
 	}
 	return getGoalJudgeAttemptWithExecutor(ctx, exec, req.Key, req.AttemptID)
 }
 
 // GetJudgeAttempt returns one workspace-owned judge attempt.
-func (g *GlobalDB) GetJudgeAttempt(
+func (g *GoalRepo) GetJudgeAttempt(
 	ctx context.Context,
 	key goal.TurnKey,
 	attemptID string,
@@ -278,22 +251,19 @@ func getGoalJudgeAttemptWithExecutor(
 	key goal.TurnKey,
 	attemptID string,
 ) (goal.JudgeAttempt, error) {
-	attempt, err := scanGoalJudgeAttempt(exec.QueryRowContext(
-		ctx,
-		`SELECT `+goalJudgeAttemptSelectColumns+`
-		 FROM loop_goal_judge_attempts
-		 WHERE attempt_id = ? AND loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?`,
-		strings.TrimSpace(attemptID),
-		string(key.LoopRunID),
-		key.Generation,
-		string(key.NodeID),
-		key.ItemIndex,
-	), key.WorkspaceID)
+	row, err := sqlcgen.New(exec).GetGoalJudgeAttempt(ctx, sqlcgen.GetGoalJudgeAttemptParams{
+		AttemptID: strings.TrimSpace(attemptID), LoopRunID: string(key.LoopRunID),
+		Generation: int64(key.Generation), NodeID: string(key.NodeID), ItemIndex: int64(key.ItemIndex),
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return goal.JudgeAttempt{}, fmt.Errorf("%w: judge attempt %s", goal.ErrTurnNotFound, attemptID)
 	}
 	if err != nil {
 		return goal.JudgeAttempt{}, fmt.Errorf("store: scan goal judge attempt: %w", err)
+	}
+	attempt, err := goalJudgeAttemptFromGenerated(row, key.WorkspaceID)
+	if err != nil {
+		return goal.JudgeAttempt{}, err
 	}
 	return attempt, nil
 }
@@ -304,14 +274,10 @@ func findGoalJudgeAttemptWithDigest(
 	key goal.TurnKey,
 	attemptID string,
 ) (goal.JudgeAttempt, bool, string, error) {
-	var digest string
-	err := exec.QueryRowContext(
-		ctx,
-		`SELECT judge_digest
-		 FROM loop_goal_judge_attempts
-		 WHERE attempt_id = ? AND loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?`,
-		strings.TrimSpace(attemptID), string(key.LoopRunID), key.Generation, string(key.NodeID), key.ItemIndex,
-	).Scan(&digest)
+	digest, err := sqlcgen.New(exec).GetGoalJudgeAttemptDigest(ctx, sqlcgen.GetGoalJudgeAttemptDigestParams{
+		AttemptID: strings.TrimSpace(attemptID), LoopRunID: string(key.LoopRunID),
+		Generation: int64(key.Generation), NodeID: string(key.NodeID), ItemIndex: int64(key.ItemIndex),
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return goal.JudgeAttempt{}, false, "", nil
 	}

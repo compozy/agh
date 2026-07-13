@@ -11,6 +11,7 @@ import (
 
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 func enqueueGoalStatusOutboxIfSessionOrigin(
@@ -148,26 +149,20 @@ func loadGoalSessionOrigin(
 	workspaceID looppkg.WorkspaceID,
 	runID looppkg.RunID,
 ) (string, bool, error) {
-	var originKind string
-	var originSessionID sql.NullString
-	err := exec.QueryRowContext(
-		ctx,
-		`SELECT origin_kind, origin_session_id
-		 FROM loop_runs WHERE id = ? AND workspace_id = ?`,
-		string(runID),
-		string(workspaceID),
-	).Scan(&originKind, &originSessionID)
+	origin, err := sqlcgen.New(exec).GetGoalRunOrigin(ctx, sqlcgen.GetGoalRunOriginParams{
+		ID: string(runID), WorkspaceID: string(workspaceID),
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", false, fmt.Errorf("%w: %s", looppkg.ErrRunNotFound, runID)
 	}
 	if err != nil {
 		return "", false, fmt.Errorf("store: load goal session origin %q: %w", runID, err)
 	}
-	if originKind != goalRunOriginKindSession {
+	if origin.OriginKind != goalRunOriginKindSession {
 		return "", false, nil
 	}
-	normalizedOriginSessionID := strings.TrimSpace(originSessionID.String)
-	if !originSessionID.Valid || normalizedOriginSessionID == "" {
+	normalizedOriginSessionID := strings.TrimSpace(origin.OriginSessionID.String)
+	if !origin.OriginSessionID.Valid || normalizedOriginSessionID == "" {
 		return "", false, fmt.Errorf(
 			"%w: session-origin Goal run %q has no origin session",
 			looppkg.ErrTransitionConflict,

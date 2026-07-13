@@ -10,52 +10,31 @@ import (
 
 	looppkg "github.com/compozy/agh/internal/loop"
 	watchpkg "github.com/compozy/agh/internal/loop/watch"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 const watchEventsPendingOutputKind = "watch_events_pending"
 
 // ListParkedWatchEventSubscriptions rebuilds the in-memory daemon index from
 // durable watch-events pending output refs.
-func (g *GlobalDB) ListParkedWatchEventSubscriptions(
+func (g *WatchEventsRepo) ListParkedWatchEventSubscriptions(
 	ctx context.Context,
 ) ([]looppkg.ParkedWatchEventSubscription, error) {
 	if err := g.checkReady(ctx, "list parked watch-events subscriptions"); err != nil {
 		return nil, err
 	}
-	rows, err := g.db.QueryContext(
-		ctx,
-		`SELECT
-			lr.workspace_id,
-			lr.id,
-			lr.loop_name,
-			lr.generation,
-			lr.inputs_json,
-			lr.definition_digest,
-			lds.definition_json,
-			lgo.node_id,
-			COALESCE(lgo.output_ref, '')
-		   FROM loop_runs lr
-		   JOIN loop_definition_snapshots lds
-		     ON lds.workspace_id = lr.workspace_id
-		    AND lds.definition_digest = lr.definition_digest
-		   JOIN loop_generation_outputs lgo
-		     ON lgo.loop_run_id = lr.id
-		    AND lgo.generation = lr.generation
-		  WHERE lr.status = ?
-		    AND json_extract(COALESCE(lgo.output_ref, '{}'), '$.kind') = ?
-		  ORDER BY lr.workspace_id ASC, lr.id ASC, lgo.node_id ASC`,
-		string(looppkg.StatusWatching),
-		watchEventsPendingOutputKind,
-	)
+	rows, err := g.queries.ListParkedWatchEventSubscriptions(ctx, sqlcgen.ListParkedWatchEventSubscriptionsParams{
+		Status: string(looppkg.StatusWatching), OutputKind: nullableWatchEventsString(watchEventsPendingOutputKind),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("store: list parked watch-events subscriptions: %w", err)
 	}
-	return readParkedWatchEventSubscriptions(rows)
+	return parkedWatchEventSubscriptionsFromGenerated(rows)
 }
 
 // ListParkedWatchEventSubscriptionsForLoopRun returns the current parked
 // subscriptions for one loop run without rebuilding the global index.
-func (g *GlobalDB) ListParkedWatchEventSubscriptionsForLoopRun(
+func (g *WatchEventsRepo) ListParkedWatchEventSubscriptionsForLoopRun(
 	ctx context.Context,
 	loopRunID string,
 ) ([]looppkg.ParkedWatchEventSubscription, error) {
@@ -66,42 +45,22 @@ func (g *GlobalDB) ListParkedWatchEventSubscriptionsForLoopRun(
 	if loopRunID == "" {
 		return []looppkg.ParkedWatchEventSubscription{}, nil
 	}
-	rows, err := g.db.QueryContext(
+	rows, err := g.queries.ListParkedWatchEventSubscriptionsForLoopRun(
 		ctx,
-		`SELECT
-			lr.workspace_id,
-			lr.id,
-			lr.loop_name,
-			lr.generation,
-			lr.inputs_json,
-			lr.definition_digest,
-			lds.definition_json,
-			lgo.node_id,
-			COALESCE(lgo.output_ref, '')
-		   FROM loop_runs lr
-		   JOIN loop_definition_snapshots lds
-		     ON lds.workspace_id = lr.workspace_id
-		    AND lds.definition_digest = lr.definition_digest
-		   JOIN loop_generation_outputs lgo
-		     ON lgo.loop_run_id = lr.id
-		    AND lgo.generation = lr.generation
-		  WHERE lr.status = ?
-		    AND json_extract(COALESCE(lgo.output_ref, '{}'), '$.kind') = ?
-		    AND lr.id = ?
-		  ORDER BY lr.workspace_id ASC, lr.id ASC, lgo.node_id ASC`,
-		string(looppkg.StatusWatching),
-		watchEventsPendingOutputKind,
-		loopRunID,
+		sqlcgen.ListParkedWatchEventSubscriptionsForLoopRunParams{
+			Status: string(looppkg.StatusWatching), OutputKind: nullableWatchEventsString(watchEventsPendingOutputKind),
+			LoopRunID: loopRunID,
+		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("store: list parked watch-events subscriptions for loop run %q: %w", loopRunID, err)
 	}
-	return readParkedWatchEventSubscriptions(rows)
+	return parkedWatchEventSubscriptionsForLoopRunFromGenerated(rows)
 }
 
 // ListParkedWatchEventSubscriptionsPage returns one bounded recovery page
 // strictly after cursor in the same order as the full parked index.
-func (g *GlobalDB) ListParkedWatchEventSubscriptionsPage(
+func (g *WatchEventsRepo) ListParkedWatchEventSubscriptionsPage(
 	ctx context.Context,
 	cursor looppkg.ParkedWatchEventScanCursor,
 	limit int,
@@ -112,103 +71,93 @@ func (g *GlobalDB) ListParkedWatchEventSubscriptionsPage(
 	if limit <= 0 {
 		return nil, fmt.Errorf("%w: parked watch-events page limit must be positive", looppkg.ErrValidation)
 	}
-	rows, err := g.db.QueryContext(
+	rows, err := g.queries.ListParkedWatchEventSubscriptionsPage(
 		ctx,
-		`SELECT
-			lr.workspace_id,
-			lr.id,
-			lr.loop_name,
-			lr.generation,
-			lr.inputs_json,
-			lr.definition_digest,
-			lds.definition_json,
-			lgo.node_id,
-			COALESCE(lgo.output_ref, '')
-		   FROM loop_runs lr
-		   JOIN loop_definition_snapshots lds
-		     ON lds.workspace_id = lr.workspace_id
-		    AND lds.definition_digest = lr.definition_digest
-		   JOIN loop_generation_outputs lgo
-		     ON lgo.loop_run_id = lr.id
-		    AND lgo.generation = lr.generation
-		  WHERE lr.status = ?
-		    AND json_extract(COALESCE(lgo.output_ref, '{}'), '$.kind') = ?
-		    AND (
-			lr.workspace_id > ?
-			OR (lr.workspace_id = ? AND lr.id > ?)
-			OR (lr.workspace_id = ? AND lr.id = ? AND lgo.node_id > ?)
-		    )
-		  ORDER BY lr.workspace_id ASC, lr.id ASC, lgo.node_id ASC
-		  LIMIT ?`,
-		string(looppkg.StatusWatching),
-		watchEventsPendingOutputKind,
-		strings.TrimSpace(cursor.WorkspaceID),
-		strings.TrimSpace(cursor.WorkspaceID),
-		strings.TrimSpace(cursor.LoopRunID),
-		strings.TrimSpace(cursor.WorkspaceID),
-		strings.TrimSpace(cursor.LoopRunID),
-		strings.TrimSpace(cursor.NodeID),
-		limit,
+		sqlcgen.ListParkedWatchEventSubscriptionsPageParams{
+			Status:     string(looppkg.StatusWatching),
+			OutputKind: nullableWatchEventsString(watchEventsPendingOutputKind),
+			CursorWorkspaceID: strings.TrimSpace(
+				cursor.WorkspaceID,
+			),
+			CursorLoopRunID: strings.TrimSpace(cursor.LoopRunID),
+			CursorNodeID:    strings.TrimSpace(cursor.NodeID),
+			RowLimit:        int64(limit),
+		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("store: list parked watch-events subscriptions page: %w", err)
 	}
-	return readParkedWatchEventSubscriptions(rows)
+	return parkedWatchEventSubscriptionsPageFromGenerated(rows)
 }
 
-func readParkedWatchEventSubscriptions(
-	rows *sql.Rows,
+func parkedWatchEventSubscriptionsFromGenerated(
+	rows []sqlcgen.ListParkedWatchEventSubscriptionsRow,
 ) ([]looppkg.ParkedWatchEventSubscription, error) {
-	defer rows.Close()
-
-	parked := make([]looppkg.ParkedWatchEventSubscription, 0)
-	for rows.Next() {
-		subscription, scanErr := scanParkedWatchEventSubscription(rows)
-		if scanErr != nil {
-			return nil, joinRowsCloseError(rows, scanErr, "parked watch-events subscriptions query")
-		}
-		if len(subscription.Subscriptions) == 0 {
-			continue
-		}
-		parked = append(parked, subscription)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, joinRowsCloseError(
-			rows,
-			fmt.Errorf("store: iterate parked watch-events subscriptions: %w", err),
-			"parked watch-events subscriptions query",
+	parked := make([]looppkg.ParkedWatchEventSubscription, 0, len(rows))
+	for _, row := range rows {
+		subscription, err := parkedWatchEventSubscriptionFromFields(
+			row.WorkspaceID, row.ID, row.LoopName, row.Generation, row.InputsJson,
+			row.DefinitionDigest, row.DefinitionJson, row.NodeID, row.OutputRef,
 		)
-	}
-	if err := joinRowsCloseError(rows, nil, "parked watch-events subscriptions query"); err != nil {
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
+		if len(subscription.Subscriptions) > 0 {
+			parked = append(parked, subscription)
+		}
 	}
 	return parked, nil
 }
 
-func scanParkedWatchEventSubscription(row rowScanner) (looppkg.ParkedWatchEventSubscription, error) {
-	var (
-		subscription looppkg.ParkedWatchEventSubscription
-		inputsRaw    string
-		digest       string
-		snapshotRaw  string
-		outputRef    string
-	)
-	if err := row.Scan(
-		&subscription.WorkspaceID,
-		&subscription.LoopRunID,
-		&subscription.LoopName,
-		&subscription.Generation,
-		&inputsRaw,
-		&digest,
-		&snapshotRaw,
-		&subscription.NodeID,
-		&outputRef,
-	); err != nil {
-		return looppkg.ParkedWatchEventSubscription{}, fmt.Errorf(
-			"store: scan parked watch-events subscription: %w",
-			err,
+func parkedWatchEventSubscriptionsForLoopRunFromGenerated(
+	rows []sqlcgen.ListParkedWatchEventSubscriptionsForLoopRunRow,
+) ([]looppkg.ParkedWatchEventSubscription, error) {
+	parked := make([]looppkg.ParkedWatchEventSubscription, 0, len(rows))
+	for _, row := range rows {
+		subscription, err := parkedWatchEventSubscriptionFromFields(
+			row.WorkspaceID, row.ID, row.LoopName, row.Generation, row.InputsJson,
+			row.DefinitionDigest, row.DefinitionJson, row.NodeID, row.OutputRef,
 		)
+		if err != nil {
+			return nil, err
+		}
+		if len(subscription.Subscriptions) > 0 {
+			parked = append(parked, subscription)
+		}
 	}
+	return parked, nil
+}
+
+func parkedWatchEventSubscriptionsPageFromGenerated(
+	rows []sqlcgen.ListParkedWatchEventSubscriptionsPageRow,
+) ([]looppkg.ParkedWatchEventSubscription, error) {
+	parked := make([]looppkg.ParkedWatchEventSubscription, 0, len(rows))
+	for _, row := range rows {
+		subscription, err := parkedWatchEventSubscriptionFromFields(
+			row.WorkspaceID, row.ID, row.LoopName, row.Generation, row.InputsJson,
+			row.DefinitionDigest, row.DefinitionJson, row.NodeID, row.OutputRef,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if len(subscription.Subscriptions) > 0 {
+			parked = append(parked, subscription)
+		}
+	}
+	return parked, nil
+}
+
+func parkedWatchEventSubscriptionFromFields(
+	workspaceID string,
+	loopRunID string,
+	loopName string,
+	generation int64,
+	inputsRaw string,
+	digest string,
+	snapshotRaw string,
+	nodeID string,
+	outputRef string,
+) (looppkg.ParkedWatchEventSubscription, error) {
 	inputs, err := decodeParkedWatchEventsInputs(inputsRaw)
 	if err != nil {
 		return looppkg.ParkedWatchEventSubscription{}, err
@@ -227,15 +176,17 @@ func scanParkedWatchEventSubscription(row rowScanner) (looppkg.ParkedWatchEventS
 			err,
 		)
 	}
-	subscription.WorkspaceID = strings.TrimSpace(subscription.WorkspaceID)
-	subscription.LoopRunID = strings.TrimSpace(subscription.LoopRunID)
-	subscription.LoopName = strings.TrimSpace(subscription.LoopName)
-	subscription.NodeID = strings.TrimSpace(subscription.NodeID)
-	subscription.Inputs = inputs
-	subscription.Subscriptions = state.Subscriptions
-	subscription.Cursors = state.Cursors
-	subscription.Contracts = resolved.WatchEventsContracts
-	return subscription, nil
+	return looppkg.ParkedWatchEventSubscription{
+		WorkspaceID: strings.TrimSpace(workspaceID), LoopRunID: strings.TrimSpace(loopRunID),
+		LoopName: strings.TrimSpace(loopName), Generation: int(generation), NodeID: strings.TrimSpace(nodeID),
+		Inputs: inputs, Subscriptions: state.Subscriptions, Cursors: state.Cursors,
+		Contracts: resolved.WatchEventsContracts,
+	}, nil
+}
+
+func nullableWatchEventsString(value string) sql.NullString {
+	value = strings.TrimSpace(value)
+	return sql.NullString{String: value, Valid: value != ""}
 }
 
 func decodeParkedWatchEventsInputs(raw string) (map[string]any, error) {

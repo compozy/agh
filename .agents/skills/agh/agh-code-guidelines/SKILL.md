@@ -1,94 +1,55 @@
 ---
 name: agh-code-guidelines
 description: >-
-  Enforces AGH Go code style and concurrency patterns before writing or editing
-  any production Go file: error wrapping with %w, errors.Is/As only (no
-  strings.Contains on err.Error), no underscore-discarded errors, slog over
-  log/fmt, context.Context as first arg, compile-time interface assertions, no
-  hardcoded config, CLI flag presence detection, whitespace normalization at
-  CLI boundary, no comments restating WHAT, goroutine ownership and shutdown
-  via context, no fire-and-forget, no time.Sleep in orchestration. Use whenever
-  creating or modifying any *.go file under cmd/ or internal/ that is not a
-  test file. Do not use for *_test.go (use agh-test-conventions), schema
-  migrations (use agh-schema-migration), or contract changes (use
-  agh-contract-codegen-coship).
+  Go production discipline for AGH. Use when writing or editing non-test Go
+  files under cmd or internal, including config, logging, CLI, concurrency, and
+  process-lifecycle paths. Do not use for Go tests; pair it with the narrower
+  schema, contract, cleanup, or network skill when those domains apply.
 trigger: implicit
 ---
 
 # AGH Code Guidelines
 
-These are the AGH-specific Go style and concurrency rules. They exist because reviewers will block PRs that violate them, and most violations are caught by lint/CI only after the fact. Activate this skill before writing or editing production Go code so the patterns land correctly the first time.
-
-Companion skills cover narrower domains: `agh-test-conventions` for tests, `agh-cleanup-failure-paths` for multi-step error returns, `agh-schema-migration` for SQLite changes, `agh-contract-codegen-coship` for contract/OpenAPI edits, `golang-pro` for general Go idiom guidance. Activate those alongside when their domain applies.
+Apply the canonical AGH rules before changing production Go. This file owns the
+application order; its references own the rules.
 
 ## Procedures
 
-**Step 1: Identify the Edit Surface**
+**Step 1: Route the Change**
 
 1. Confirm the target is a production Go file (`cmd/**` or `internal/**`, not `*_test.go`).
-2. Read `references/coding-style.md` for the canonical style rules.
-3. Read `references/concurrency-patterns.md` for the canonical concurrency rules.
+2. Activate `golang-pro`. Also activate the matching narrow skill for tests, cleanup paths, schema migrations, API contracts, or `internal/network` work.
+3. Read `.agents/skills/agh/agh-code-guidelines/references/coding-style.md` in full. Also read `.agents/skills/agh/agh-code-guidelines/references/concurrency-patterns.md` in full when the change touches goroutines, shared state, detached lifetime, subprocesses, shutdown, timers, mutexes, or channels.
 
-**Step 2: Apply Error Discipline**
+*Done when:* the edit surface and every matching companion domain are named, and every applicable canonical reference is loaded.
 
-1. Wrap every error with context: `fmt.Errorf("operation: %w", err)`. The `%w` verb is mandatory when the caller may need to match the cause.
-2. Match errors with `errors.Is` and `errors.As` exclusively. `strings.Contains(err.Error(), ...)` is a blocking violation — replace with sentinel errors or typed errors.
-3. Never ignore an error with `_`. Either handle it or write a one-line justification comment explaining why the error is impossible or irrelevant.
-4. No `panic()` or `log.Fatal()` in production paths. The only legitimate use is unrecoverable startup failure in `main`.
+**Step 2: Apply the Canonical Rules**
 
-**Step 3: Apply Logging and Context Discipline**
+1. Apply every matching rule from the loaded references; do not copy a subset into task notes or local conventions.
+2. Trace the change through error identity, cleanup, context, logging, types, configuration lifecycle, CLI boundaries, comments, package boundaries, goroutine ownership, detached execution, and subprocess supervision.
+3. Repair violations in the touched behavior. Record unrelated pre-existing violations without expanding the change silently.
 
-1. Use `log/slog` for every operational log line. `log.Printf`, `fmt.Println`, `fmt.Printf` are forbidden in production paths.
-2. Pass `context.Context` as the first argument to any function that crosses a runtime boundary (HTTP handler, UDS handler, DB call, subprocess spawn, network call).
-3. Never call `context.Background()` outside `main` or a focused test. Caller-supplied context is the rule.
-4. External HTTP calls require an explicit timeout. `http.DefaultClient` is forbidden (also enforced by `agh-cleanup-failure-paths`).
+*Done when:* every reference heading that intersects the change has been checked and no touched path violates a matching rule.
 
-**Step 4: Apply Type Discipline**
+**Step 3: Audit Ownership**
 
-1. Every new exported type that satisfies an interface gets a compile-time assertion: `var _ Interface = (*Type)(nil)` adjacent to the type definition. Reviewers will block missing assertions.
-2. Replace `interface{}` / `any` with the concrete type whenever the type is known statically.
-3. No reflection without a written performance justification.
-4. No defensive nil-checks after `make(...)`. Lint flags `if x == nil` after `make` as unreachable.
+1. Enumerate each changed error, resource, goroutine, process, and mutable shared state owner.
+2. If setup or teardown has more than one fallible step, complete `agh-cleanup-failure-paths` before continuing.
+3. Verify that public behavior remains manageable through the required CLI, HTTP, UDS, native-tool, extension, config, docs, and official-skill surfaces.
 
-**Step 5: Apply Configuration Discipline**
+*Done when:* every changed lifetime has one explicit owner and every public contract has a complete AGH Impact Audit.
 
-1. Never hardcode operational values. Pull from TOML config (`internal/config`) or expose via functional options (`NewManager(opts ...Option)`).
-2. Disable / zero-value semantics must be explicit — document whether `0` means "off" or "use default".
-3. Resolution chains (e.g., env → flag → config → default) are documented in code as ordered fallbacks ending in an actionable error.
-4. Config lifecycle is part of feature lifecycle: any feature that adds/changes/removes config updates the struct, defaults, validation, examples, `config.toml` docs, and tests in the same change.
+**Step 4: Verify Once**
 
-**Step 6: Apply CLI Boundary Discipline**
+1. Run `make lint` and scoped `go test -race ./<owning-package>/...` for the changed package.
+2. Run cross-build or Linux-race parity checks only when the concurrency reference routes the change there.
+3. Reserve the single full `make verify` for the task completion gate after source freeze.
 
-1. Distinguish "flag not set" from "flag set to zero value" via `cmd.Flags().Changed(name)` (Cobra) or equivalent. Silently ignoring an explicit flag is a bug.
-2. Trim and drop empty entries from string-slice CLI inputs (capabilities, IDs, tags, paths) before sending to the daemon. Whitespace-only strings must not surface as "validation problems".
-3. Stable `-o json` / `-o jsonl` are compatibility contracts — do not change their shape without a contract update.
-
-**Step 7: Apply Concurrency Discipline**
-
-1. Every goroutine has explicit ownership and shutdown via `context.Context` cancellation.
-2. No fire-and-forget goroutines. Track with `sync.WaitGroup` (or equivalent owner-side primitive) and join on shutdown.
-3. Long-running loops use `select { case <-ctx.Done(): return; case ... }`.
-4. Prefer channels over shared memory with mutexes when practical. `sync.RWMutex` for read-heavy state, `sync.Mutex` for write-heavy.
-5. No `time.Sleep()` in orchestration paths — use timers, tickers, or context deadlines.
-6. Goroutines spawned by `internal/session/manager_*.go` MUST be tracked by a Manager-owned WaitGroup and joined in Manager shutdown. Never put goroutine-owned channels in a struct field that another goroutine mutates — use a per-run handle.
-7. Subprocess managed-stop respects `ctx.Done()` between Shutdown and Wait. Wrap `proc.Wait()` in `select { case <-proc.Done(): case <-ctx.Done(): }`. Process-group signaling helpers live in `internal/procutil`.
-
-**Step 8: Apply Comment Discipline**
-
-1. Default to writing no comments. Identifiers carry the WHAT.
-2. Comments capture WHY when non-obvious: hidden constraints, invariants, workarounds for a specific bug, behavior that would surprise a reader.
-3. Never reference the current task, fix, callers, or issue number in a comment ("used by X", "added for the Y flow", "handles the case from issue #123"). Those rot — they belong in the PR description.
-4. No multi-paragraph docstrings. One short line max.
-
-**Step 9: Pre-Commit Validation**
-
-1. Run `make lint` for the affected package — zero tolerance for golangci-lint findings.
-2. Run `make verify` (fmt → lint → test → boundaries → build) before declaring the edit complete.
-3. For race-sensitive packages (`internal/session`, `internal/acp`, `internal/hooks`, `internal/subprocess`, `internal/resources`), reproduce CI locally with `act workflow_dispatch -W .github/workflows/ci.yml -j verify --container-architecture linux/amd64` before claiming success.
+*Done when:* scoped lanes are green and exactly one fresh full gate is scheduled or complete for the finished task.
 
 ## Error Handling
 
-- **Existing file already violates the rules:** fix what the current edit touches; flag the rest as pre-existing tech debt in the task body. Do not silently expand scope.
+- **Existing file already violates the rules:** fix what the current behavior touches; record unrelated debt without silently expanding scope.
 - **`errors.Is` / `errors.As` is impossible because the dependency returns a string:** wrap once at the boundary in a typed error of yours; downstream code matches on your typed error.
 - **Reflection genuinely required (codegen, decoder):** keep a written justification adjacent to the reflection call. Lint exception requires a `//nolint:` directive with a reason.
 - **`panic` shows up in seemingly-production code:** confirm whether the path is reachable post-`main`. If it is, replace with explicit error return; if it is genuinely unreachable, mark with `// unreachable: ...` and prefer `panic("invariant: ...")` over `log.Fatal`.

@@ -6,17 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
-var _ goal.CheckpointStore = (*GlobalDB)(nil)
+var _ goal.CheckpointStore = (*GoalRepo)(nil)
 
 // CreateCheckpoint inserts one initial Goal checkpoint without overwriting durable progress.
-func (g *GlobalDB) CreateCheckpoint(
+func (g *GoalRepo) CreateCheckpoint(
 	ctx context.Context,
 	req goal.CreateCheckpointRequest,
 ) (goal.Checkpoint, error) {
@@ -42,32 +41,9 @@ func (g *GlobalDB) CreateCheckpoint(
 		if err := projectPendingPauseToNewGoalCheckpoint(ctx, exec, &checkpoint); err != nil {
 			return err
 		}
-		result, err := exec.ExecContext(
-			ctx,
-			`INSERT INTO loop_goal_checkpoints (
-				loop_run_id, generation, node_id, item_index, control_epoch,
-				control_actor_kind, control_actor_id, control_requested_at, phase, goal_status, control_cause,
-				turns_used, turn_limit, broken_streak, recovery_streak, task_run_id,
-				queue_entry_id, prompt_id, prompt_kind, prompt_attempt, context_state,
-				usage_sequence, usage_pending_after_sequence, compaction_baseline_used,
-				compaction_recovery_required, session_id, binding_handle, binding_epoch,
-				context_nudge_ratio, control_grant_id, control_grant_kind, control_grant_cause,
-				control_grant_turn, control_grant_scope, control_grant_consumed, judge_attempt_id,
-				compaction_cancel_prompt_id, compaction_cancel_cause, compaction_cancel_requested_at,
-				report_prompt_id, report_status, report_evidence_ref, report_binding_epoch,
-				report_actor_kind, report_actor_id, report_recorded_at, updated_at
-			) VALUES (
-				?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-				?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-			) ON CONFLICT(loop_run_id, generation, node_id, item_index) DO NOTHING`,
-			goalCheckpointInsertArgs(checkpoint)...,
-		)
+		affected, err := sqlcgen.New(exec).InsertGoalCheckpoint(ctx, goalCheckpointInsertParams(checkpoint))
 		if err != nil {
 			return fmt.Errorf("store: insert goal checkpoint: %w", err)
-		}
-		affected, err := result.RowsAffected()
-		if err != nil {
-			return fmt.Errorf("store: inspect inserted goal checkpoint: %w", err)
 		}
 		persisted, err = loadGoalCheckpointWithExecutor(ctx, exec, checkpoint.Key)
 		if err != nil {
@@ -128,7 +104,7 @@ func projectPendingPauseToNewGoalCheckpoint(
 }
 
 // LoadCheckpoint returns one checkpoint only through its owning workspace.
-func (g *GlobalDB) LoadCheckpoint(ctx context.Context, key goal.TurnKey) (goal.Checkpoint, error) {
+func (g *GoalRepo) LoadCheckpoint(ctx context.Context, key goal.TurnKey) (goal.Checkpoint, error) {
 	if err := g.checkReady(ctx, "load goal checkpoint"); err != nil {
 		return goal.Checkpoint{}, err
 	}
@@ -143,22 +119,20 @@ func loadGoalCheckpointWithExecutor(
 	exec taskSQLExecutor,
 	key goal.TurnKey,
 ) (goal.Checkpoint, error) {
-	checkpoint, err := scanGoalCheckpoint(exec.QueryRowContext(
-		ctx,
-		`SELECT `+goalCheckpointSelectColumns+`
-		 FROM loop_goal_checkpoints
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?`,
-		string(key.LoopRunID),
-		key.Generation,
-		string(key.NodeID),
-		key.ItemIndex,
-	), key.WorkspaceID)
+	row, err := sqlcgen.New(exec).GetGoalCheckpoint(ctx, sqlcgen.GetGoalCheckpointParams{
+		LoopRunID: string(key.LoopRunID), Generation: int64(key.Generation),
+		NodeID: string(key.NodeID), ItemIndex: int64(key.ItemIndex),
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return goal.Checkpoint{}, fmt.Errorf("%w: %s/%d/%s/%d", goal.ErrCheckpointNotFound,
 			key.LoopRunID, key.Generation, key.NodeID, key.ItemIndex)
 	}
 	if err != nil {
 		return goal.Checkpoint{}, fmt.Errorf("store: scan goal checkpoint: %w", err)
+	}
+	checkpoint, err := goalCheckpointFromGenerated(&row, key.WorkspaceID)
+	if err != nil {
+		return goal.Checkpoint{}, fmt.Errorf("store: decode goal checkpoint: %w", err)
 	}
 	return checkpoint, nil
 }
@@ -289,55 +263,4 @@ func validateGoalCheckpointControl(checkpoint goal.Checkpoint) error {
 		return fmt.Errorf("%w: goal control grant identity is incomplete", loop.ErrValidation)
 	}
 	return nil
-}
-
-func goalCheckpointInsertArgs(checkpoint goal.Checkpoint) []any {
-	grant := checkpoint.ControlGrant
-	return []any{
-		string(checkpoint.Key.LoopRunID), checkpoint.Key.Generation, string(checkpoint.Key.NodeID),
-		checkpoint.Key.ItemIndex, checkpoint.ControlEpoch, nullableGoalString(checkpoint.ControlActorKind),
-		nullableGoalString(checkpoint.ControlActorID), nullableGoalTime(checkpoint.ControlRequestedAt),
-		checkpoint.Phase, checkpoint.Status, nullableGoalString(string(checkpoint.ControlCause)),
-		checkpoint.TurnsUsed, checkpoint.TurnLimit,
-		checkpoint.BrokenStreak, checkpoint.RecoveryStreak, nullableGoalString(checkpoint.TaskRunID),
-		nullableGoalString(checkpoint.QueueEntryID), nullableGoalString(checkpoint.PromptID),
-		nullableGoalString(checkpoint.PromptKind), checkpoint.PromptAttempt, checkpoint.ContextState,
-		nullableGoalInt64(checkpoint.UsageSequence), nullableGoalInt64(checkpoint.UsagePendingAfterSequence),
-		nullableGoalInt64(checkpoint.CompactionBaselineUsed), boolToInt(checkpoint.CompactionRecoveryRequired),
-		nullableGoalString(checkpoint.SessionID), nullableGoalString(checkpoint.BindingHandle),
-		nullableGoalPositiveInt64(checkpoint.BindingEpoch), checkpoint.ContextNudgeRatio,
-		goalGrantID(grant), goalGrantKind(grant), goalGrantCause(grant), goalGrantTurn(grant),
-		goalGrantScope(grant), goalGrantConsumed(grant), nullableGoalString(checkpoint.JudgeAttemptID),
-		goalCancelPromptID(checkpoint.CompactionCancel), goalCancelCause(checkpoint.CompactionCancel),
-		goalCancelRequestedAt(checkpoint.CompactionCancel), goalReportPromptID(checkpoint.ReportIntent),
-		goalReportStatus(checkpoint.ReportIntent), goalReportEvidence(checkpoint.ReportIntent),
-		goalReportBindingEpoch(checkpoint.ReportIntent), goalReportActorKind(checkpoint.ReportIntent),
-		goalReportActorID(checkpoint.ReportIntent), goalReportRecordedAt(checkpoint.ReportIntent),
-		store.FormatTimestamp(checkpoint.UpdatedAt),
-	}
-}
-
-func nullableGoalString(value string) any {
-	return store.NullableString(strings.TrimSpace(value))
-}
-
-func nullableGoalTime(value *time.Time) any {
-	if value == nil || value.IsZero() {
-		return nil
-	}
-	return store.FormatTimestamp(value.UTC())
-}
-
-func nullableGoalInt64(value *int64) any {
-	if value == nil {
-		return nil
-	}
-	return *value
-}
-
-func nullableGoalPositiveInt64(value int64) any {
-	if value < 1 {
-		return nil
-	}
-	return value
 }

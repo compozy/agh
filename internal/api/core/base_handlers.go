@@ -28,6 +28,7 @@ type BaseHandlerConfig struct {
 	Network                      NetworkService
 	NetworkStore                 NetworkStore
 	Observer                     Observer
+	SchemaStreams                SchemaStreamStatusReader
 	Resources                    ResourceService
 	Extensions                   ExtensionService
 	Tools                        ToolRegistry
@@ -92,6 +93,7 @@ type BaseHandlers struct {
 	Network                      NetworkService
 	NetworkStore                 NetworkStore
 	Observer                     Observer
+	SchemaStreams                SchemaStreamStatusReader
 	Resources                    ResourceService
 	Extensions                   ExtensionService
 	Tools                        ToolRegistry
@@ -165,6 +167,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		Network:                      cfg.Network,
 		NetworkStore:                 cfg.NetworkStore,
 		Observer:                     cfg.Observer,
+		SchemaStreams:                cfg.SchemaStreams,
 		Resources:                    cfg.Resources,
 		Extensions:                   cfg.Extensions,
 		Tools:                        cfg.Tools,

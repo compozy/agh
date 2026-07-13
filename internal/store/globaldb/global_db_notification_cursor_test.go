@@ -2,66 +2,13 @@ package globaldb
 
 import (
 	"context"
-	"database/sql"
 	"errors"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/compozy/agh/internal/notifications"
-	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/testutil"
 )
-
-func TestGlobalDBNotificationCursorSchemaMigration(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should create notification cursor schema on fresh DB", func(t *testing.T) {
-		t.Parallel()
-
-		globalDB := openTestGlobalDB(t)
-
-		assertNotificationCursorSchema(t, globalDB.db)
-	})
-
-	t.Run("Should migrate previous global schema", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		legacyDB := openPreviousNotificationCursorSchemaDB(t, dbPath)
-		insertMigrationRecordsThroughVersion(t, legacyDB, 18)
-		if err := legacyDB.Close(); err != nil {
-			t.Fatalf("legacyDB.Close() error = %v", err)
-		}
-
-		globalDB, err := OpenGlobalDB(ctx, dbPath)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB() error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := globalDB.Close(ctx); err != nil {
-				t.Fatalf("Close() error = %v", err)
-			}
-		})
-
-		assertNotificationCursorSchema(t, globalDB.db)
-	})
-}
-
-func TestNotificationCursorSchemaStatements(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should use shared notification cursor DDL in fresh global schema", func(t *testing.T) {
-		t.Parallel()
-
-		for _, statement := range notificationCursorSchemaStatements() {
-			if !schemaStatementsContain(globalSchemaStatements, statement) {
-				t.Fatalf("globalSchemaStatements missing notification cursor statement %q", statement)
-			}
-		}
-	})
-}
 
 func TestGlobalDBNotificationCursorStore(t *testing.T) {
 	t.Parallel()
@@ -327,50 +274,6 @@ func TestGlobalDBNotificationCursorStore(t *testing.T) {
 	})
 }
 
-func assertNotificationCursorSchema(t *testing.T, db *sql.DB) {
-	t.Helper()
-
-	assertTablesPresent(t, db, "notification_cursors")
-	assertTableColumns(t, db, "notification_cursors", []string{
-		"consumer_id",
-		"stream_name",
-		"subject_id",
-		"last_sequence",
-		"last_delivery_id",
-		"last_delivered_at",
-		"last_error",
-		"updated_at",
-	})
-	assertIndexesPresent(t, db, "notification_cursors", "notification_cursors_stream_sequence_idx")
-}
-
-func openPreviousNotificationCursorSchemaDB(t *testing.T, dbPath string) *sql.DB {
-	t.Helper()
-
-	ctx := testutil.Context(t)
-	db, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		t.Fatalf("sql.Open() error = %v", err)
-	}
-
-	excluded := make(map[string]struct{})
-	for _, statement := range notificationCursorSchemaStatements() {
-		excluded[statement] = struct{}{}
-	}
-	for _, statement := range globalSchemaStatements {
-		if _, ok := excluded[statement]; ok {
-			continue
-		}
-		if _, err := db.ExecContext(ctx, statement); err != nil {
-			t.Fatalf("ExecContext(previous notification schema) error = %v", err)
-		}
-	}
-	if err := store.RunMigrations(ctx, db, nil); err != nil {
-		t.Fatalf("RunMigrations(empty) error = %v", err)
-	}
-	return db
-}
-
 func notificationCursorTestKey() notifications.CursorKey {
 	return notifications.CursorKey{
 		ConsumerID: "bridge_task_subscription:sub-1",
@@ -383,19 +286,57 @@ func notificationCursorTestTime() time.Time {
 	return time.Date(2026, 5, 5, 15, 0, 0, 0, time.UTC)
 }
 
-func TestNotificationCursorRollbackContext(t *testing.T) {
+func TestNotificationRollback(t *testing.T) {
 	t.Parallel()
 
-	parent, cancel := context.WithCancel(context.Background())
-	cancel()
+	t.Run("Should detach cleanup from caller cancellation and bound its duration", func(t *testing.T) {
+		t.Parallel()
 
-	rollbackCtx, rollbackCancel := notificationCursorRollbackContext(parent)
-	defer rollbackCancel()
+		parent, cancel := context.WithCancel(context.Background())
+		cancel()
 
-	if rollbackCtx.Err() != nil {
-		t.Fatalf("rollbackCtx.Err() = %v, want nil after detaching parent cancellation", rollbackCtx.Err())
-	}
-	if _, ok := rollbackCtx.Deadline(); !ok {
-		t.Fatal("rollbackCtx has no deadline, want bounded rollback timeout")
-	}
+		rollbackCtx, rollbackCancel := notificationRollbackContext(parent)
+		defer rollbackCancel()
+
+		if rollbackCtx.Err() != nil {
+			t.Fatalf("rollbackCtx.Err() = %v, want nil after detaching parent cancellation", rollbackCtx.Err())
+		}
+		if _, ok := rollbackCtx.Deadline(); !ok {
+			t.Fatal("rollbackCtx has no deadline, want bounded rollback timeout")
+		}
+	})
+
+	t.Run("Should roll back after the caller expires and release the pinned connection", func(t *testing.T) {
+		t.Parallel()
+
+		activeCtx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		conn, err := globalDB.db.Conn(activeCtx)
+		if err != nil {
+			t.Fatalf("db.Conn() error = %v", err)
+		}
+		defer func() {
+			if err := conn.Close(); err != nil {
+				t.Errorf("conn.Close() error = %v", err)
+			}
+		}()
+		if _, err := conn.ExecContext(activeCtx, "BEGIN IMMEDIATE"); err != nil {
+			t.Fatalf("BEGIN IMMEDIATE error = %v", err)
+		}
+
+		expiredCtx, expire := context.WithCancel(activeCtx)
+		expire()
+		var rollbackErr error
+		rollbackNotificationImmediate(expiredCtx, &rollbackErr, conn, "notification test")
+		if rollbackErr != nil {
+			t.Fatalf("rollbackNotificationImmediate() error = %v", rollbackErr)
+		}
+
+		if _, err := conn.ExecContext(activeCtx, "BEGIN IMMEDIATE"); err != nil {
+			t.Fatalf("second BEGIN IMMEDIATE error = %v, want released transaction", err)
+		}
+		if _, err := conn.ExecContext(activeCtx, "ROLLBACK"); err != nil {
+			t.Fatalf("final ROLLBACK error = %v", err)
+		}
+	})
 }

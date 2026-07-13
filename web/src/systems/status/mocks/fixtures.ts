@@ -68,6 +68,20 @@ export const daemonStatusFixture: DaemonStatusPayload = {
   active_sessions: 3,
   total_sessions: 11,
   version: "0.1.0-storybook",
+  schema_streams: [
+    {
+      stream: "global",
+      version: 1,
+      applied_count: 1,
+      sum_digest: "sha256:global-schema",
+    },
+    {
+      stream: "memory",
+      version: 1,
+      applied_count: 1,
+      sum_digest: "sha256:memory-schema",
+    },
+  ],
 };
 
 export const statusFixture: StatusPayload = {

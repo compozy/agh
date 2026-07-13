@@ -12,6 +12,7 @@ func openFreshLoopTestGlobalDB(t *testing.T, workspaceIDs ...string) *GlobalDB {
 	t.Helper()
 
 	globalDB := openFreshTestGlobalDB(t)
+	openMemoryCatalogForGlobalDBTest(t, globalDB)
 	if len(workspaceIDs) == 0 {
 		workspaceIDs = []string{"ws-1"}
 	}

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/loop/goal"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 func validateActiveGoalPromptBinding(
@@ -18,18 +19,10 @@ func validateActiveGoalPromptBinding(
 	bindingEpoch int64,
 	sessionID string,
 ) error {
-	var exists int
-	err := exec.QueryRowContext(
-		ctx,
-		`SELECT 1 FROM loop_session_bindings
-		 WHERE loop_run_id = ? AND workspace_id = ? AND handle = ? AND binding_epoch = ?
-		   AND session_id = ? AND state = 'active'`,
-		string(key.LoopRunID),
-		string(key.WorkspaceID),
-		strings.TrimSpace(handle),
-		bindingEpoch,
-		strings.TrimSpace(sessionID),
-	).Scan(&exists)
+	_, err := sqlcgen.New(exec).ActiveGoalPromptBindingExists(ctx, sqlcgen.ActiveGoalPromptBindingExistsParams{
+		LoopRunID: string(key.LoopRunID), WorkspaceID: string(key.WorkspaceID),
+		Handle: strings.TrimSpace(handle), BindingEpoch: bindingEpoch, SessionID: strings.TrimSpace(sessionID),
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return goalBindingMismatchError("Goal prompt binding is no longer active")
 	}

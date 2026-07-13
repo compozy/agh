@@ -10,12 +10,11 @@ import (
 
 	automation "github.com/compozy/agh/internal/automation/model"
 	"github.com/compozy/agh/internal/store"
-	"modernc.org/sqlite"
-	sqlite3 "modernc.org/sqlite/lib"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 // GetSchedulerState loads one durable automation scheduler cursor by job id.
-func (g *GlobalDB) GetSchedulerState(ctx context.Context, jobID string) (automation.SchedulerState, error) {
+func (g *AutomationRepo) GetSchedulerState(ctx context.Context, jobID string) (automation.SchedulerState, error) {
 	if err := g.checkReady(ctx, "get automation scheduler state"); err != nil {
 		return automation.SchedulerState{}, err
 	}
@@ -25,64 +24,39 @@ func (g *GlobalDB) GetSchedulerState(ctx context.Context, jobID string) (automat
 		return automation.SchedulerState{}, err
 	}
 
-	row := g.db.QueryRowContext(
-		ctx,
-		`SELECT
-			job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
-			schedule_hash, catch_up_policy, misfire_grace_seconds,
-			consecutive_resume_failures, last_misfire_at, misfire_count, updated_at
-		 FROM automation_scheduler_state
-		 WHERE job_id = ?`,
-		trimmedID,
-	)
-	state, err := scanAutomationSchedulerState(row)
+	row, err := g.queries.GetAutomationSchedulerState(ctx, trimmedID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return automation.SchedulerState{}, automation.ErrSchedulerStateNotFound
 		}
 		return automation.SchedulerState{}, err
 	}
-	return state, nil
+	return automationSchedulerFromGenerated(row)
 }
 
 // ListSchedulerStates returns every durable automation scheduler cursor.
-func (g *GlobalDB) ListSchedulerStates(ctx context.Context) ([]automation.SchedulerState, error) {
+func (g *AutomationRepo) ListSchedulerStates(ctx context.Context) ([]automation.SchedulerState, error) {
 	if err := g.checkReady(ctx, "list automation scheduler states"); err != nil {
 		return nil, err
 	}
 
-	rows, err := g.db.QueryContext(
-		ctx,
-		`SELECT
-			job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
-			schedule_hash, catch_up_policy, misfire_grace_seconds,
-			consecutive_resume_failures, last_misfire_at, misfire_count, updated_at
-		 FROM automation_scheduler_state
-		 ORDER BY job_id ASC`,
-	)
+	rows, err := g.queries.ListAutomationSchedulerStates(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: query automation scheduler states: %w", err)
 	}
-	defer func() {
-		_ = rows.Close()
-	}()
-
-	states := make([]automation.SchedulerState, 0)
-	for rows.Next() {
-		state, scanErr := scanAutomationSchedulerState(rows)
+	states := make([]automation.SchedulerState, 0, len(rows))
+	for _, row := range rows {
+		state, scanErr := automationSchedulerFromGenerated(row)
 		if scanErr != nil {
 			return nil, scanErr
 		}
 		states = append(states, state)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate automation scheduler states: %w", err)
-	}
 	return states, nil
 }
 
 // SaveSchedulerState upserts one durable automation scheduler cursor.
-func (g *GlobalDB) SaveSchedulerState(
+func (g *AutomationRepo) SaveSchedulerState(
 	ctx context.Context,
 	state automation.SchedulerState,
 ) (automation.SchedulerState, error) {
@@ -94,38 +68,7 @@ func (g *GlobalDB) SaveSchedulerState(
 	if err != nil {
 		return automation.SchedulerState{}, err
 	}
-	if _, err := g.db.ExecContext(
-		ctx,
-		`INSERT INTO automation_scheduler_state (
-			job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
-			schedule_hash, catch_up_policy, misfire_grace_seconds,
-			consecutive_resume_failures, last_misfire_at, misfire_count, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(job_id) DO UPDATE SET
-			next_run_at = excluded.next_run_at,
-			last_run_at = excluded.last_run_at,
-			last_scheduled_at = excluded.last_scheduled_at,
-			last_fire_id = excluded.last_fire_id,
-			schedule_hash = excluded.schedule_hash,
-			catch_up_policy = excluded.catch_up_policy,
-			misfire_grace_seconds = excluded.misfire_grace_seconds,
-			consecutive_resume_failures = excluded.consecutive_resume_failures,
-			last_misfire_at = excluded.last_misfire_at,
-			misfire_count = excluded.misfire_count,
-			updated_at = excluded.updated_at`,
-		normalized.JobID,
-		nullableAutomationTimestamp(normalized.NextRunAt),
-		nullableAutomationTimestamp(normalized.LastRunAt),
-		nullableAutomationTimestamp(normalized.LastScheduledAt),
-		normalized.LastFireID,
-		normalized.ScheduleHash,
-		normalized.CatchUpPolicy,
-		normalized.MisfireGraceSeconds,
-		normalized.ConsecutiveResumeFailures,
-		nullableAutomationTimestamp(normalized.LastMisfireAt),
-		normalized.MisfireCount,
-		store.FormatTimestamp(normalized.UpdatedAt),
-	); err != nil {
+	if err := g.queries.UpsertAutomationSchedulerState(ctx, automationSchedulerParams(normalized)); err != nil {
 		return automation.SchedulerState{}, fmt.Errorf(
 			"store: save automation scheduler state %q: %w",
 			normalized.JobID,
@@ -136,7 +79,7 @@ func (g *GlobalDB) SaveSchedulerState(
 }
 
 // DeleteSchedulerState removes a durable scheduler cursor if it exists.
-func (g *GlobalDB) DeleteSchedulerState(ctx context.Context, jobID string) error {
+func (g *AutomationRepo) DeleteSchedulerState(ctx context.Context, jobID string) error {
 	if err := g.checkReady(ctx, "delete automation scheduler state"); err != nil {
 		return err
 	}
@@ -145,11 +88,7 @@ func (g *GlobalDB) DeleteSchedulerState(ctx context.Context, jobID string) error
 	if err != nil {
 		return err
 	}
-	if _, err := g.db.ExecContext(
-		ctx,
-		`DELETE FROM automation_scheduler_state WHERE job_id = ?`,
-		trimmedID,
-	); err != nil {
+	if err := g.queries.DeleteAutomationSchedulerState(ctx, trimmedID); err != nil {
 		return fmt.Errorf("store: delete automation scheduler state %q: %w", trimmedID, err)
 	}
 	return nil
@@ -157,7 +96,7 @@ func (g *GlobalDB) DeleteSchedulerState(ctx context.Context, jobID string) error
 
 // ClaimScheduledRun advances one durable cursor and creates a run reservation
 // before scheduler dispatch begins.
-func (g *GlobalDB) ClaimScheduledRun(
+func (g *AutomationRepo) ClaimScheduledRun(
 	ctx context.Context,
 	claim automation.SchedulerClaim,
 ) (result automation.SchedulerClaimResult, err error) {
@@ -237,7 +176,11 @@ func (g *GlobalDB) ClaimScheduledRun(
 
 // RecordRunDeliveryError stores delivery diagnostics separately from normal
 // execution errors on an existing automation run.
-func (g *GlobalDB) RecordRunDeliveryError(ctx context.Context, runID string, runErr error) (automation.Run, error) {
+func (g *AutomationRepo) RecordRunDeliveryError(
+	ctx context.Context,
+	runID string,
+	runErr error,
+) (automation.Run, error) {
 	if err := g.checkReady(ctx, "record automation run delivery error"); err != nil {
 		return automation.Run{}, err
 	}
@@ -250,25 +193,24 @@ func (g *GlobalDB) RecordRunDeliveryError(ctx context.Context, runID string, run
 		return g.GetRun(ctx, trimmedID)
 	}
 
-	result, err := g.db.ExecContext(
+	affected, err := g.queries.RecordAutomationRunDeliveryError(
 		ctx,
-		`UPDATE automation_runs
-		 SET delivery_error = ?, delivery_error_at = ?
-		 WHERE id = ?`,
-		strings.TrimSpace(runErr.Error()),
-		store.FormatTimestamp(g.now().UTC()),
-		trimmedID,
+		sqlcgen.RecordAutomationRunDeliveryErrorParams{
+			DeliveryError:   nullableAutomationString(runErr.Error()),
+			DeliveryErrorAt: nullableAutomationString(store.FormatTimestamp(g.now().UTC())),
+			ID:              trimmedID,
+		},
 	)
 	if err != nil {
 		return automation.Run{}, fmt.Errorf("store: record automation run delivery error %q: %w", trimmedID, err)
 	}
-	if err := requireRowsAffected(result, automation.ErrRunNotFound, trimmedID, "automation run"); err != nil {
+	if err := requireAutomationAffected(affected, automation.ErrRunNotFound, trimmedID, "automation run"); err != nil {
 		return automation.Run{}, err
 	}
 	return g.GetRun(ctx, trimmedID)
 }
 
-func (g *GlobalDB) normalizeSchedulerState(state automation.SchedulerState) (automation.SchedulerState, error) {
+func (g *AutomationRepo) normalizeSchedulerState(state automation.SchedulerState) (automation.SchedulerState, error) {
 	state.JobID = strings.TrimSpace(state.JobID)
 	state.LastFireID = strings.TrimSpace(state.LastFireID)
 	state.ScheduleHash = strings.TrimSpace(state.ScheduleHash)
@@ -282,7 +224,7 @@ func (g *GlobalDB) normalizeSchedulerState(state automation.SchedulerState) (aut
 	return state, nil
 }
 
-func (g *GlobalDB) normalizeSchedulerClaim(claim automation.SchedulerClaim) (automation.SchedulerClaim, error) {
+func (g *AutomationRepo) normalizeSchedulerClaim(claim automation.SchedulerClaim) (automation.SchedulerClaim, error) {
 	claim.JobID = strings.TrimSpace(claim.JobID)
 	claim.RunID = strings.TrimSpace(claim.RunID)
 	claim.FireID = strings.TrimSpace(claim.FireID)
@@ -296,121 +238,26 @@ func (g *GlobalDB) normalizeSchedulerClaim(claim automation.SchedulerClaim) (aut
 	return claim, nil
 }
 
-func scanAutomationSchedulerState(scanner rowScanner) (automation.SchedulerState, error) {
-	var (
-		state           automation.SchedulerState
-		nextRunAt       sql.NullString
-		lastRunAt       sql.NullString
-		lastScheduledAt sql.NullString
-		lastFireID      string
-		scheduleHash    string
-		catchUpPolicy   string
-		lastMisfireAt   sql.NullString
-		updatedAtRaw    string
-	)
-	if err := scanner.Scan(
-		&state.JobID,
-		&nextRunAt,
-		&lastRunAt,
-		&lastScheduledAt,
-		&lastFireID,
-		&scheduleHash,
-		&catchUpPolicy,
-		&state.MisfireGraceSeconds,
-		&state.ConsecutiveResumeFailures,
-		&lastMisfireAt,
-		&state.MisfireCount,
-		&updatedAtRaw,
-	); err != nil {
-		return automation.SchedulerState{}, fmt.Errorf("store: scan automation scheduler state: %w", err)
-	}
-	var err error
-	if state.NextRunAt, err = parseNullableAutomationTime(nextRunAt); err != nil {
-		return automation.SchedulerState{}, err
-	}
-	if state.LastRunAt, err = parseNullableAutomationTime(lastRunAt); err != nil {
-		return automation.SchedulerState{}, err
-	}
-	if state.LastScheduledAt, err = parseNullableAutomationTime(lastScheduledAt); err != nil {
-		return automation.SchedulerState{}, err
-	}
-	if state.LastMisfireAt, err = parseNullableAutomationTime(lastMisfireAt); err != nil {
-		return automation.SchedulerState{}, err
-	}
-	state.LastFireID = strings.TrimSpace(lastFireID)
-	state.ScheduleHash = strings.TrimSpace(scheduleHash)
-	state.CatchUpPolicy = automation.SchedulerCatchUpPolicy(strings.TrimSpace(catchUpPolicy))
-	state.UpdatedAt, err = store.ParseTimestamp(updatedAtRaw)
-	if err != nil {
-		return automation.SchedulerState{}, err
-	}
-	if err := state.Validate("scheduler_state"); err != nil {
-		return automation.SchedulerState{}, err
-	}
-	return state, nil
-}
-
 func getSchedulerStateTx(
 	ctx context.Context,
 	tx *sql.Tx,
 	jobID string,
 ) (automation.SchedulerState, error) {
-	row := tx.QueryRowContext(
-		ctx,
-		`SELECT
-			job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
-			schedule_hash, catch_up_policy, misfire_grace_seconds,
-			consecutive_resume_failures, last_misfire_at, misfire_count, updated_at
-		 FROM automation_scheduler_state
-		 WHERE job_id = ?`,
-		jobID,
-	)
-	state, err := scanAutomationSchedulerState(row)
+	row, err := sqlcgen.New(tx).GetAutomationSchedulerState(ctx, jobID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return automation.SchedulerState{}, automation.ErrSchedulerStateNotFound
 		}
 		return automation.SchedulerState{}, err
 	}
-	return state, nil
+	return automationSchedulerFromGenerated(row)
 }
 
 func upsertSchedulerStateTx(ctx context.Context, tx *sql.Tx, state automation.SchedulerState) error {
 	if err := state.Validate("scheduler_state"); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(
-		ctx,
-		`INSERT INTO automation_scheduler_state (
-			job_id, next_run_at, last_run_at, last_scheduled_at, last_fire_id,
-			schedule_hash, catch_up_policy, misfire_grace_seconds,
-			consecutive_resume_failures, last_misfire_at, misfire_count, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(job_id) DO UPDATE SET
-			next_run_at = excluded.next_run_at,
-			last_run_at = excluded.last_run_at,
-			last_scheduled_at = excluded.last_scheduled_at,
-			last_fire_id = excluded.last_fire_id,
-			schedule_hash = excluded.schedule_hash,
-			catch_up_policy = excluded.catch_up_policy,
-			misfire_grace_seconds = excluded.misfire_grace_seconds,
-			consecutive_resume_failures = excluded.consecutive_resume_failures,
-			last_misfire_at = excluded.last_misfire_at,
-			misfire_count = excluded.misfire_count,
-			updated_at = excluded.updated_at`,
-		state.JobID,
-		nullableAutomationTimestamp(state.NextRunAt),
-		nullableAutomationTimestamp(state.LastRunAt),
-		nullableAutomationTimestamp(state.LastScheduledAt),
-		state.LastFireID,
-		state.ScheduleHash,
-		state.CatchUpPolicy,
-		state.MisfireGraceSeconds,
-		state.ConsecutiveResumeFailures,
-		nullableAutomationTimestamp(state.LastMisfireAt),
-		state.MisfireCount,
-		store.FormatTimestamp(state.UpdatedAt),
-	); err != nil {
+	if err := sqlcgen.New(tx).UpsertAutomationSchedulerState(ctx, automationSchedulerParams(state)); err != nil {
 		return fmt.Errorf("store: upsert automation scheduler state %q: %w", state.JobID, err)
 	}
 	return nil
@@ -424,31 +271,7 @@ func insertAutomationRunTx(ctx context.Context, tx *sql.Tx, run automation.Run) 
 	if err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(
-		ctx,
-		`INSERT INTO automation_runs (
-			id, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
-			status, attempt, scheduled_at, started_at, ended_at, error,
-			delivery_error, delivery_error_at, loop_run_id, metadata_json
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		run.ID,
-		store.NullableString(run.JobID),
-		store.NullableString(run.TriggerID),
-		store.NullableString(run.SessionID),
-		store.NullableString(run.TaskID),
-		store.NullableString(run.TaskRunID),
-		store.NullableString(run.FireID),
-		run.Status,
-		run.Attempt,
-		nullableAutomationTimestamp(run.ScheduledAt),
-		nullableAutomationTimestamp(run.StartedAt),
-		nullableAutomationTimestamp(run.EndedAt),
-		store.NullableString(run.Error),
-		store.NullableString(run.DeliveryError),
-		nullableAutomationTimestamp(run.DeliveryErrorAt),
-		store.NullableString(run.LoopRunID),
-		metadataJSON,
-	); err != nil {
+	if err := sqlcgen.New(tx).InsertAutomationRun(ctx, automationRunParams(run, metadataJSON)); err != nil {
 		if isSQLiteUniqueConstraint(err) {
 			return fmt.Errorf(
 				"store: automation scheduled fire %q: %w",
@@ -459,11 +282,6 @@ func insertAutomationRunTx(ctx context.Context, tx *sql.Tx, run automation.Run) 
 		return fmt.Errorf("store: create automation run %q: %w", run.ID, err)
 	}
 	return nil
-}
-
-func isSQLiteUniqueConstraint(err error) bool {
-	var sqliteErr *sqlite.Error
-	return errors.As(err, &sqliteErr) && sqliteErr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE
 }
 
 func schedulerCatchUpPolicyOrDefault(policy automation.SchedulerCatchUpPolicy) automation.SchedulerCatchUpPolicy {

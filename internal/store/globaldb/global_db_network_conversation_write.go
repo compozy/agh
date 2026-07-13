@@ -10,9 +10,10 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
-func (g *GlobalDB) normalizeDirectRoomEntry(
+func (g *NetworkRepo) normalizeDirectRoomEntry(
 	entry store.NetworkDirectRoomEntry,
 ) (store.NetworkDirectRoomEntry, error) {
 	now := g.now()
@@ -54,7 +55,7 @@ func (g *GlobalDB) normalizeDirectRoomEntry(
 	return normalized, nil
 }
 
-func (g *GlobalDB) normalizeConversationMessage(
+func (g *NetworkRepo) normalizeConversationMessage(
 	entry store.NetworkConversationMessage,
 ) (store.NetworkConversationMessage, error) {
 	normalized := store.NetworkConversationMessage{
@@ -109,26 +110,14 @@ func resolveDirectRoomWithExecutor(
 	exec networkSQLExecutor,
 	entry store.NetworkDirectRoomEntry,
 ) (store.NetworkDirectRoomSummary, bool, error) {
-	result, err := exec.ExecContext(
-		ctx,
-		`INSERT OR IGNORE INTO network_direct_rooms (
-			workspace_id, channel, direct_id, peer_a, peer_b, opened_at, last_activity_at, message_count, open_work_count,
-			last_message_preview
-		) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, '')`,
-		entry.WorkspaceID,
-		entry.Channel,
-		entry.DirectID,
-		entry.PeerA,
-		entry.PeerB,
-		store.FormatTimestamp(entry.OpenedAt),
-		store.FormatTimestamp(entry.LastActivityAt),
-	)
+	rowsAffected, err := sqlcgen.New(exec).InsertNetworkDirectRoom(ctx, sqlcgen.InsertNetworkDirectRoomParams{
+		WorkspaceID: entry.WorkspaceID, Channel: entry.Channel, DirectID: entry.DirectID,
+		PeerA: entry.PeerA, PeerB: entry.PeerB,
+		OpenedAt:       store.FormatTimestamp(entry.OpenedAt),
+		LastActivityAt: store.FormatTimestamp(entry.LastActivityAt),
+	})
 	if err != nil {
 		return store.NetworkDirectRoomSummary{}, false, fmt.Errorf("store: insert network direct room: %w", err)
-	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return store.NetworkDirectRoomSummary{}, false, fmt.Errorf("store: inspect network direct room insert: %w", err)
 	}
 
 	summary, err := getDirectRoomByPeerPairWithExecutor(
@@ -170,20 +159,30 @@ func getDirectRoomByPeerPairWithExecutor(
 	peerA string,
 	peerB string,
 ) (store.NetworkDirectRoomSummary, error) {
-	row := exec.QueryRowContext(
+	row, err := sqlcgen.New(exec).GetNetworkDirectRoomByPeerPair(
 		ctx,
-		`SELECT
-			workspace_id, channel, direct_id, peer_a, peer_b,
-			opened_at, opened_sequence, last_activity_at, last_activity_sequence,
-			message_count, open_work_count, last_message_preview
-		FROM network_direct_rooms
-		WHERE workspace_id = ? AND channel = ? AND peer_a = ? AND peer_b = ?`,
-		workspaceID,
-		channel,
-		peerA,
-		peerB,
+		sqlcgen.GetNetworkDirectRoomByPeerPairParams{
+			WorkspaceID: workspaceID, Channel: channel, PeerA: peerA, PeerB: peerB,
+		},
 	)
-	return scanNetworkDirectRoomSummary(row)
+	if err != nil {
+		return store.NetworkDirectRoomSummary{}, err
+	}
+	openedAt, err := store.ParseTimestamp(row.OpenedAt)
+	if err != nil {
+		return store.NetworkDirectRoomSummary{}, fmt.Errorf("store: parse network direct opened_at: %w", err)
+	}
+	lastActivityAt, err := store.ParseTimestamp(row.LastActivityAt)
+	if err != nil {
+		return store.NetworkDirectRoomSummary{}, fmt.Errorf("store: parse network direct last_activity_at: %w", err)
+	}
+	return store.NetworkDirectRoomSummary{
+		WorkspaceID: row.WorkspaceID, Channel: row.Channel, DirectID: row.DirectID,
+		PeerA: row.PeerA, PeerB: row.PeerB, OpenedAt: openedAt,
+		OpenedSequence: row.OpenedSequence, LastActivityAt: lastActivityAt,
+		LastActivitySequence: row.LastActivitySequence, MessageCount: int(row.MessageCount),
+		OpenWorkCount: int(row.OpenWorkCount), LastMessagePreview: row.LastMessagePreview,
+	}, nil
 }
 
 func insertNetworkTimelineMessageWithExecutor(
@@ -191,55 +190,34 @@ func insertNetworkTimelineMessageWithExecutor(
 	exec networkSQLExecutor,
 	entry store.NetworkConversationMessage,
 ) (bool, int64, error) {
-	result, err := exec.ExecContext(
+	result, err := sqlcgen.New(exec).InsertNetworkTimelineMessage(
 		ctx,
-		`INSERT INTO network_timeline_log (
-			message_id,
-			session_id,
-			workspace_id,
-			channel,
-			surface,
-			thread_id,
-			direct_id,
-			direction,
-			peer_from,
-			peer_to,
-			kind,
-			work_id,
-			reply_to,
-			trace_id,
-			causation_id,
-			intent,
-			text,
-			preview_text,
-			mentions_json,
-			ext_json,
-			body_json,
-			timestamp
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(workspace_id, message_id) DO NOTHING`,
-		entry.MessageID,
-		store.NullableString(entry.SessionID),
-		entry.WorkspaceID,
-		entry.Channel,
-		store.NullableString(entry.Surface),
-		store.NullableString(entry.ThreadID),
-		store.NullableString(entry.DirectID),
-		entry.Direction,
-		entry.PeerFrom,
-		store.NullableString(entry.PeerTo),
-		entry.Kind,
-		store.NullableString(entry.WorkID),
-		store.NullableString(entry.ReplyTo),
-		store.NullableString(entry.TraceID),
-		store.NullableString(entry.CausationID),
-		store.NullableString(entry.Intent),
-		store.NullableString(entry.Text),
-		entry.PreviewText,
-		networkMentionsJSONString(entry.Mentions),
-		networkMessageExtJSONString(entry.ExtJSON),
-		string(entry.Body),
-		store.FormatTimestamp(entry.Timestamp),
+		sqlcgen.InsertNetworkTimelineMessageParams{
+			MessageID:   entry.MessageID,
+			SessionID:   nullableNetworkString(entry.SessionID),
+			WorkspaceID: entry.WorkspaceID,
+			Channel:     entry.Channel,
+			Surface:     nullableNetworkString(entry.Surface),
+			ThreadID:    nullableNetworkString(entry.ThreadID),
+			DirectID:    nullableNetworkString(entry.DirectID),
+			Direction:   entry.Direction,
+			PeerFrom:    entry.PeerFrom,
+			PeerTo:      nullableNetworkString(entry.PeerTo),
+			Kind:        entry.Kind,
+			WorkID:      nullableNetworkString(entry.WorkID),
+			ReplyTo:     nullableNetworkString(entry.ReplyTo),
+			TraceID:     nullableNetworkString(entry.TraceID),
+			CausationID: nullableNetworkString(entry.CausationID),
+			Intent:      nullableNetworkString(entry.Intent),
+			Text:        nullableNetworkString(entry.Text),
+			PreviewText: entry.PreviewText,
+			MentionsJson: networkMentionsJSONString(
+				entry.Mentions,
+			),
+			ExtJson:   networkMessageExtJSONString(entry.ExtJSON),
+			BodyJson:  string(entry.Body),
+			Timestamp: store.FormatTimestamp(entry.Timestamp),
+		},
 	)
 	if err != nil {
 		return false, 0, fmt.Errorf("store: insert network conversation message: %w", err)
@@ -271,13 +249,11 @@ func lookupNetworkMessageTimestamp(
 	workspaceID string,
 	messageID string,
 ) time.Time {
-	var timestampRaw string
-	if err := exec.QueryRowContext(
+	timestampRaw, err := sqlcgen.New(exec).GetNetworkMessageTimestamp(
 		ctx,
-		`SELECT timestamp FROM network_timeline_log WHERE workspace_id = ? AND message_id = ?`,
-		workspaceID,
-		messageID,
-	).Scan(&timestampRaw); err != nil {
+		sqlcgen.GetNetworkMessageTimestampParams{WorkspaceID: workspaceID, MessageID: messageID},
+	)
+	if err != nil {
 		return time.Time{}
 	}
 	timestamp, err := store.ParseTimestamp(timestampRaw)
@@ -307,31 +283,15 @@ func ensureNetworkThreadWithExecutor(
 	exec networkSQLExecutor,
 	entry store.NetworkConversationMessage,
 ) (bool, error) {
-	result, err := exec.ExecContext(
-		ctx,
-		`INSERT OR IGNORE INTO network_threads (
-			workspace_id, channel, thread_id, root_message_id, title, opened_by_peer_id, opened_session_id,
-			opened_at, opened_sequence, last_activity_at, last_activity_sequence,
-			message_count, participant_count, open_work_count, last_message_preview
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, '')`,
-		entry.WorkspaceID,
-		entry.Channel,
-		entry.ThreadID,
-		entry.MessageID,
-		entry.PreviewText,
-		entry.PeerFrom,
-		entry.SessionID,
-		store.FormatTimestamp(entry.Timestamp),
-		entry.Sequence,
-		store.FormatTimestamp(entry.Timestamp),
-		entry.Sequence,
-	)
+	rowsAffected, err := sqlcgen.New(exec).InsertNetworkThread(ctx, sqlcgen.InsertNetworkThreadParams{
+		WorkspaceID: entry.WorkspaceID, Channel: entry.Channel, ThreadID: entry.ThreadID,
+		RootMessageID: entry.MessageID, Title: entry.PreviewText, OpenedByPeerID: entry.PeerFrom,
+		OpenedSessionID: entry.SessionID, OpenedAt: store.FormatTimestamp(entry.Timestamp),
+		OpenedSequence: entry.Sequence, LastActivityAt: store.FormatTimestamp(entry.Timestamp),
+		LastActivitySequence: entry.Sequence,
+	})
 	if err != nil {
 		return false, fmt.Errorf("store: insert network thread: %w", err)
-	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("store: inspect network thread insert: %w", err)
 	}
 	return rowsAffected > 0, nil
 }
@@ -373,23 +333,15 @@ func ensureNetworkDirectRoomWithExecutor(
 	if err != nil {
 		return opened, err
 	}
-	result, err := exec.ExecContext(
+	rowsAffected, err := sqlcgen.New(exec).InitializeNetworkDirectRoomSequence(
 		ctx,
-		`UPDATE network_direct_rooms
-		 SET opened_sequence = ?, last_activity_sequence = ?
-		 WHERE workspace_id = ? AND channel = ? AND direct_id = ? AND opened_sequence = 0`,
-		entry.Sequence,
-		entry.Sequence,
-		entry.WorkspaceID,
-		entry.Channel,
-		entry.DirectID,
+		sqlcgen.InitializeNetworkDirectRoomSequenceParams{
+			OpenedSequence: entry.Sequence, LastActivitySequence: entry.Sequence,
+			WorkspaceID: entry.WorkspaceID, Channel: entry.Channel, DirectID: entry.DirectID,
+		},
 	)
 	if err != nil {
 		return false, fmt.Errorf("store: initialize network direct room sequence: %w", err)
-	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("store: inspect network direct room sequence initialization: %w", err)
 	}
 	return opened || rowsAffected > 0, nil
 }

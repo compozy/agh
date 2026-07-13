@@ -8,11 +8,12 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 // ListNetworkChannelProjections returns one materialized row per persisted
 // channel timeline without scanning the underlying message log.
-func (g *GlobalDB) ListNetworkChannelProjections(
+func (g *NetworkRepo) ListNetworkChannelProjections(
 	ctx context.Context,
 	query store.NetworkChannelProjectionQuery,
 ) (projections []store.NetworkChannelProjection, err error) {
@@ -23,6 +24,7 @@ func (g *GlobalDB) ListNetworkChannelProjections(
 		return nil, fmt.Errorf("store: validate network channel projection query: %w", err)
 	}
 
+	// dynamic-sql: the optional channel filter and caller-provided limit change the statement shape.
 	statement := `SELECT
 		workspace_id, channel, message_count, presence_count, historical_participant_count,
 		last_activity_at, last_activity_sequence, last_presence_at, last_presence_sequence,
@@ -64,7 +66,7 @@ func (g *GlobalDB) ListNetworkChannelProjections(
 
 // ListNetworkChannelKindCounts returns materialized public-message totals for
 // one workspace-qualified channel.
-func (g *GlobalDB) ListNetworkChannelKindCounts(
+func (g *NetworkRepo) ListNetworkChannelKindCounts(
 	ctx context.Context,
 	ref store.NetworkChannelRef,
 ) (counts []store.NetworkChannelKindCount, err error) {
@@ -74,35 +76,21 @@ func (g *GlobalDB) ListNetworkChannelKindCounts(
 	if err := ref.Validate(); err != nil {
 		return nil, fmt.Errorf("store: validate network channel kind count ref: %w", err)
 	}
-	rows, err := g.db.QueryContext(
-		ctx,
-		`SELECT workspace_id, channel, kind, message_count
-		 FROM network_channel_kind_counts
-		 WHERE workspace_id = ? AND channel = ?
-		 ORDER BY kind ASC`,
-		strings.TrimSpace(ref.WorkspaceID),
-		strings.TrimSpace(ref.Channel),
-	)
+	rows, err := g.queries.ListNetworkChannelKindCounts(ctx, sqlcgen.ListNetworkChannelKindCountsParams{
+		WorkspaceID: strings.TrimSpace(ref.WorkspaceID),
+		Channel:     strings.TrimSpace(ref.Channel),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("store: query network channel kind counts: %w", err)
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			closeErr = fmt.Errorf("store: close network channel kind count rows: %w", closeErr)
-			err = errors.Join(err, closeErr)
-		}
-	}()
-
-	counts = make([]store.NetworkChannelKindCount, 0)
-	for rows.Next() {
-		var count store.NetworkChannelKindCount
-		if scanErr := rows.Scan(&count.WorkspaceID, &count.Channel, &count.Kind, &count.Count); scanErr != nil {
-			return nil, fmt.Errorf("store: scan network channel kind count: %w", scanErr)
-		}
-		counts = append(counts, count)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate network channel kind counts: %w", err)
+	counts = make([]store.NetworkChannelKindCount, 0, len(rows))
+	for _, row := range rows {
+		counts = append(counts, store.NetworkChannelKindCount{
+			WorkspaceID: row.WorkspaceID,
+			Channel:     row.Channel,
+			Kind:        row.Kind,
+			Count:       int(row.MessageCount),
+		})
 	}
 	return counts, nil
 }

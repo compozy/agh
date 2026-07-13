@@ -17,6 +17,7 @@ type handlerConfig struct {
 	network           core.NetworkService
 	networkStore      core.NetworkStore
 	observer          core.Observer
+	schemaStreams     core.SchemaStreamStatusReader
 	resources         core.ResourceService
 	automation        core.AutomationManager
 	loops             core.LoopService

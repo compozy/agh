@@ -1163,7 +1163,7 @@ func TestCatalogServiceRefresh(t *testing.T) {
 				kind:      SourceKindModelsDev,
 				priority:  PriorityModelsDev,
 				providers: []string{"codex"},
-				err:       errors.New("models.dev down"),
+				err:       errors.New("models.dev down api_key=super-secret"),
 			},
 		})
 
@@ -1173,6 +1173,12 @@ func TestCatalogServiceRefresh(t *testing.T) {
 		)
 		if !errors.Is(err, ErrAllSourcesFailed) {
 			t.Fatalf("ListModels() error = %v, want ErrAllSourcesFailed", err)
+		}
+		if !strings.Contains(err.Error(), "models.dev down") {
+			t.Fatalf("ListModels() error = %v, want redacted source failure detail", err)
+		}
+		if strings.Contains(err.Error(), "super-secret") || !strings.Contains(err.Error(), "[REDACTED]") {
+			t.Fatalf("ListModels() error = %v, want secret redaction", err)
 		}
 	})
 

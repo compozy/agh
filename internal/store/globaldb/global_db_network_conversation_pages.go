@@ -10,7 +10,7 @@ import (
 )
 
 // ListThreads returns one counted, bounded page of public-thread summaries.
-func (g *GlobalDB) ListThreads(
+func (g *NetworkRepo) ListThreads(
 	ctx context.Context,
 	ref store.NetworkChannelRef,
 	query store.NetworkThreadQuery,
@@ -75,7 +75,7 @@ func (g *GlobalDB) ListThreads(
 }
 
 // ListDirectRooms returns one counted, bounded page of direct-room summaries.
-func (g *GlobalDB) ListDirectRooms(
+func (g *NetworkRepo) ListDirectRooms(
 	ctx context.Context,
 	ref store.NetworkChannelRef,
 	query store.NetworkDirectRoomQuery,
@@ -145,6 +145,7 @@ func countNetworkThreads(
 	ref store.NetworkChannelRef,
 	query store.NetworkThreadQuery,
 ) (int, error) {
+	// dynamic-sql: optional peer/title/work filters and cursor scope change the count predicate set.
 	where, args := networkThreadListFilterClauses(ref, query)
 	var total int
 	if err := exec.QueryRowContext(
@@ -163,6 +164,7 @@ func countNetworkDirectRooms(
 	ref store.NetworkChannelRef,
 	query store.NetworkDirectRoomQuery,
 ) (int, error) {
+	// dynamic-sql: optional peer/work filters and cursor scope change the count predicate set.
 	where, args := networkDirectRoomListFilterClauses(ref, query)
 	var total int
 	if err := exec.QueryRowContext(
@@ -181,6 +183,7 @@ func queryNetworkThreadSummaries(
 	statement string,
 	args []any,
 ) (summaries []store.NetworkThreadSummary, err error) {
+	// dynamic-sql: statement is the keyset page query built from optional filters and cursor direction.
 	rows, err := exec.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query network threads: %w", err)
@@ -195,6 +198,7 @@ func queryNetworkDirectRoomSummaries(
 	statement string,
 	args []any,
 ) (summaries []store.NetworkDirectRoomSummary, err error) {
+	// dynamic-sql: statement is the keyset page query built from optional filters and cursor direction.
 	rows, err := exec.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query network direct rooms: %w", err)

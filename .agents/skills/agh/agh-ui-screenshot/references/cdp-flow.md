@@ -75,14 +75,13 @@ For each `{ name, url }`:
 
 - If `Page.loadEventFired()` never resolves, the script hangs. Cap.mjs does NOT timeout — wrap external invocations with `timeout 90 bash -c '...'` when batching.
 - If `document.fonts.ready` times out (`5000 ms`), `cap.mjs` emits `WARN <name> fonts.ready timeout` and proceeds with the snapshot. The PNG is usable but may show fallback fonts on slow networks.
-- If `captureScreenshot` rejects, `cap.mjs` emits `FAIL <name> <message>` and continues to the next target. The script exits 0 — the caller must scan stdout for `FAIL` lines.
+- If `captureScreenshot` rejects, `cap.mjs` emits `FAIL <name> <message>` to stderr, continues the requested set, and exits 1 after cleanup.
 - Small PNGs (under 20 KB) almost always mean Storybook rendered the "Couldn't find story" fallback. Re-check the story id against `list-stories.mjs`.
 
 ## Cleanup
 
-The script always calls `chrome.kill()` in a `finally` block. If the process is killed externally (SIGKILL), zombie Chrome helpers may linger; clear them with:
-
-```
-pkill -9 -f "Google Chrome.*headless"
-pkill -9 -f "Chrome Helper.*headless"
-```
+The script always calls `chrome.kill()` in a `finally` block. If the helper is
+killed before `finally`, use its printed debug port to identify the exact
+headless Chrome listener, verify that PID's command line belongs to the failed
+capture, and terminate only that PID/process group. Never use machine-wide
+process-name cleanup in a concurrent workspace.

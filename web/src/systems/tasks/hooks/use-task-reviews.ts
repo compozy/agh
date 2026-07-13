@@ -56,8 +56,8 @@ function invalidateReviewQueries(
   pending.push(
     queryClient.invalidateQueries({ queryKey: tasksKeys.runDetails() }),
     queryClient.invalidateQueries({ queryKey: tasksKeys.lists() }),
-    queryClient.invalidateQueries({ queryKey: [...tasksKeys.all, "dashboard"] }),
-    queryClient.invalidateQueries({ queryKey: [...tasksKeys.all, "inbox"] }),
+    queryClient.invalidateQueries({ queryKey: tasksKeys.dashboardRoot() }),
+    queryClient.invalidateQueries({ queryKey: tasksKeys.inboxRoot() }),
     queryClient.invalidateQueries({ queryKey: tasksKeys.contextBundle() }),
     queryClient.invalidateQueries({ queryKey: tasksKeys.agentContext() })
   );

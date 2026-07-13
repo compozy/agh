@@ -254,7 +254,7 @@ func openBenchmarkKernel(b *testing.B, opts ...Option) (*Kernel, *sql.DB) {
 		testutil.Context(b),
 		filepath.Join(b.TempDir(), store.GlobalDatabaseName),
 		func(ctx context.Context, db *sql.DB) error {
-			return store.EnsureSchema(ctx, db, SchemaStatements())
+			return store.Apply(ctx, db, globalTestMigrationStream())
 		},
 	)
 	if err != nil {

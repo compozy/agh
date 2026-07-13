@@ -56,9 +56,10 @@ YOUR JOB:
      parallel queue alongside `task_runs`, hooks tailing event tables, lock ordering hazards.
    - Correctness bugs: nil deref on hot path, off-by-one on lease/heartbeat math, swallowed errors
      (`_` discard) in production code, panic/log.Fatal in library/handler code.
-   - Persistence hazards: schema change without a numbered migration, side-table-vs-JSON inversion,
-     `EnsureSchema`-style boot reconciliation for a column change, missing `BEGIN IMMEDIATE` on a
-     state-mutating tx, `ORDER BY 0` shape errors.
+   - Persistence hazards: declarative schema change without the next gap-free Goose SQL migration,
+     `atlas.sum`/sqlc drift, edited historical migration bytes, side-table-vs-JSON inversion,
+     `EnsureSchema`-style boot reconciliation, missing `BEGIN IMMEDIATE` on a state-mutating tx,
+     `ORDER BY 0` shape errors.
    - Surface incompleteness: CLI/HTTP shipped without UDS, codegen drift (openapi/agh.json vs
      web/src/generated/agh-openapi.d.ts), backend change without web/docs impact analysis.
    - Test-shape violations: missing `t.Run("Should ...")` subtests, missing `t.Parallel`, mocks
@@ -104,8 +105,8 @@ schema_version: 1
 review_kind: implementation
 round: {round}
 verdict: SHIP|FIX_BEFORE_SHIP|REWORK
-reviewer_runtime: claude
-reviewer_model: opus
+reviewer_runtime: {reviewer_runtime}
+reviewer_model: {reviewer_model}
 generated_at: <ISO-8601 timestamp>
 ---
 

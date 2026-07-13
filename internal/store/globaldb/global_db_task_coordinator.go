@@ -2,17 +2,12 @@ package globaldb
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
-	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
 const (
@@ -21,7 +16,7 @@ const (
 )
 
 // CompleteCoordinatorAndEnqueueNext applies a coordinator plan in one BEGIN IMMEDIATE transaction.
-func (g *GlobalDB) CompleteCoordinatorAndEnqueueNext(
+func (g *TaskRepo) CompleteCoordinatorAndEnqueueNext(
 	ctx context.Context,
 	completion taskpkg.CoordinatorCompletion,
 	finalizer taskpkg.GenerationStateFinalizer,
@@ -66,13 +61,13 @@ func (g *GlobalDB) CompleteCoordinatorAndEnqueueNext(
 	return result, nil
 }
 
-func (g *GlobalDB) enqueueCoordinatorPostCommitWakes(
+func (g *TaskRepo) enqueueCoordinatorPostCommitWakes(
 	ctx context.Context,
 	completion taskpkg.CoordinatorCompletion,
 ) error {
 	for _, wake := range completion.Plan.PostCommitWakes {
 		normalized := wake.Normalize()
-		if _, _, err := g.EnqueueLoopCoordinatorWake(
+		if _, _, err := g.enqueueLoopCoordinatorWake(
 			ctx,
 			normalized.LoopRunID,
 			normalized.IdempotencyKey,
@@ -85,7 +80,7 @@ func (g *GlobalDB) enqueueCoordinatorPostCommitWakes(
 	return nil
 }
 
-func (g *GlobalDB) completeCoordinatorAndEnqueueNextWithExecutor(
+func (g *TaskRepo) completeCoordinatorAndEnqueueNextWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	completion taskpkg.CoordinatorCompletion,
@@ -186,7 +181,7 @@ func normalizePostReserveSnapshot(
 	return &snapshot
 }
 
-func (g *GlobalDB) prepareCoordinatorCompletionWithExecutor(
+func (g *TaskRepo) prepareCoordinatorCompletionWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	completion taskpkg.CoordinatorCompletion,
@@ -221,7 +216,7 @@ func (g *GlobalDB) prepareCoordinatorCompletionWithExecutor(
 	return current, loopRunID, nil
 }
 
-func (g *GlobalDB) applyCoordinatorBoundaryWithExecutor(
+func (g *TaskRepo) applyCoordinatorBoundaryWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	completion *taskpkg.CoordinatorCompletion,
@@ -419,7 +414,7 @@ func applyCoordinatorPauseBoundary(
 	return nil
 }
 
-func (g *GlobalDB) applyCoordinatorContinueBoundaryWithExecutor(
+func (g *TaskRepo) applyCoordinatorContinueBoundaryWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	completion *taskpkg.CoordinatorCompletion,
@@ -450,7 +445,7 @@ func (g *GlobalDB) applyCoordinatorContinueBoundaryWithExecutor(
 	return applyCoordinatorYieldBoundary(ctx, exec, snapshot, result)
 }
 
-func (g *GlobalDB) applyCoordinatorWatchReadyBoundaryWithExecutor(
+func (g *TaskRepo) applyCoordinatorWatchReadyBoundaryWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	completion *taskpkg.CoordinatorCompletion,
@@ -485,475 +480,4 @@ func (g *GlobalDB) applyCoordinatorWatchReadyBoundaryWithExecutor(
 		finalizer,
 		result,
 	)
-}
-
-func applyCoordinatorRunStopsWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	specs []taskpkg.CoordinatorStopSpec,
-	now time.Time,
-) error {
-	stoppedAny := false
-	for _, spec := range specs {
-		normalized := spec.Normalize()
-		child, err := getLoopRunByIDWithExecutor(ctx, exec, loop.RunID(normalized.LoopRunID))
-		if err != nil {
-			return err
-		}
-		if child.Status.Terminal() {
-			continue
-		}
-		if err := updateLoopBoundaryStatusWithExecutor(
-			ctx,
-			exec,
-			child,
-			loop.StatusFailed,
-			loop.TransitionCauseOperatorStop,
-			now,
-			child.Generation,
-		); err != nil {
-			return err
-		}
-		stoppedAny = true
-	}
-	if stoppedAny {
-		if err := sweepOrphanedLoopOutputBlobsWithExecutor(ctx, exec); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (g *GlobalDB) ensureCoordinatorPlanTasksWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	plan taskpkg.CoordinatorCompletionPlan,
-	current taskpkg.Run,
-	origin taskpkg.Origin,
-	now time.Time,
-) error {
-	if len(plan.NodeTasks) == 0 && len(plan.Dependencies) == 0 {
-		return nil
-	}
-	parentTask, err := g.getTaskWithExecutor(ctx, exec, current.TaskID)
-	if err != nil {
-		return err
-	}
-	for _, spec := range plan.NodeTasks {
-		if err := g.createCoordinatorTaskIfMissingWithExecutor(ctx, exec, spec, parentTask, origin, now); err != nil {
-			return err
-		}
-	}
-	for _, spec := range plan.Dependencies {
-		if err := g.createCoordinatorDependencyIfMissingWithExecutor(ctx, exec, spec, now); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (g *GlobalDB) createCoordinatorTaskIfMissingWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	spec taskpkg.CoordinatorTaskSpec,
-	parent taskpkg.Task,
-	origin taskpkg.Origin,
-	now time.Time,
-) error {
-	normalized := spec.Normalize()
-	if _, err := g.getTaskWithExecutor(ctx, exec, normalized.TaskID); err == nil {
-		return nil
-	} else if !errors.Is(err, taskpkg.ErrTaskNotFound) {
-		return err
-	}
-	taskRecord, err := g.normalizeTaskForCreate(
-		coordinatorTaskRecord(normalized, parent, origin, now),
-	)
-	if err != nil {
-		return err
-	}
-	if err := g.ensureCoordinatorTaskCreateReferencesWithExecutor(ctx, exec, taskRecord); err != nil {
-		return err
-	}
-	if err := insertTaskWithExecutor(ctx, exec, taskRecord); err != nil {
-		return fmt.Errorf("store: create coordinator node task %q: %w", taskRecord.ID, err)
-	}
-	return nil
-}
-
-func coordinatorTaskRecord(
-	spec taskpkg.CoordinatorTaskSpec,
-	parent taskpkg.Task,
-	origin taskpkg.Origin,
-	now time.Time,
-) taskpkg.Task {
-	return taskpkg.Task{
-		ID:                 spec.TaskID,
-		Scope:              parent.Scope,
-		WorkspaceID:        parent.WorkspaceID,
-		ParentTaskID:       parent.ID,
-		NetworkChannel:     parent.NetworkChannel,
-		Title:              spec.Title,
-		Description:        spec.Description,
-		Priority:           parent.Priority,
-		MaxAttempts:        parent.MaxAttempts,
-		Status:             taskpkg.TaskStatusReady,
-		ApprovalPolicy:     taskpkg.ApprovalPolicyNone,
-		ApprovalState:      taskpkg.ApprovalStateNotRequired,
-		AutoEnqueueOnReady: false,
-		CreatedBy: taskpkg.ActorIdentity{
-			Kind: taskpkg.ActorKindDaemon,
-			Ref:  loopCoordinatorActorRef,
-		},
-		Origin:    origin,
-		CreatedAt: now,
-		UpdatedAt: now,
-		Metadata:  spec.Metadata,
-	}
-}
-
-func (g *GlobalDB) ensureCoordinatorTaskCreateReferencesWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	record taskpkg.Task,
-) error {
-	if err := taskpkg.ValidateScopeBinding(record.Scope, record.WorkspaceID, "task", "workspace_id"); err != nil {
-		return err
-	}
-	if record.Scope == taskpkg.ScopeWorkspace {
-		if err := g.ensureWorkspaceExistsWithExecutor(ctx, exec, record.WorkspaceID); err != nil {
-			return err
-		}
-	}
-	if strings.TrimSpace(record.ParentTaskID) != "" {
-		if err := g.ensureTaskExistsWithExecutor(ctx, exec, record.ParentTaskID); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (g *GlobalDB) ensureWorkspaceExistsWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	workspaceID string,
-) error {
-	trimmedID := strings.TrimSpace(workspaceID)
-	if trimmedID == "" {
-		return nil
-	}
-	var exists int
-	if err := exec.QueryRowContext(ctx, `SELECT 1 FROM workspaces WHERE id = ?`, trimmedID).Scan(&exists); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return aghworkspace.ErrWorkspaceNotFound
-		}
-		return fmt.Errorf("store: check workspace %q exists: %w", trimmedID, err)
-	}
-	return nil
-}
-
-func (g *GlobalDB) createCoordinatorDependencyIfMissingWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	spec taskpkg.CoordinatorDependencySpec,
-	now time.Time,
-) error {
-	normalizedSpec := spec.Normalize()
-	dependency, err := g.normalizeTaskDependencyForCreate(taskpkg.Dependency{
-		TaskID:          normalizedSpec.TaskID,
-		DependsOnTaskID: normalizedSpec.DependsOnTaskID,
-		Kind:            normalizedSpec.Kind,
-		CreatedAt:       now,
-	})
-	if err != nil {
-		return err
-	}
-	if err := g.ensureTaskExistsWithExecutor(ctx, exec, dependency.TaskID); err != nil {
-		return err
-	}
-	if err := g.ensureTaskExistsWithExecutor(ctx, exec, dependency.DependsOnTaskID); err != nil {
-		return err
-	}
-	exists, err := g.taskDependencyExists(ctx, exec, dependency)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return nil
-	}
-	count, err := g.countDependenciesWithExecutor(ctx, exec, dependency.TaskID)
-	if err != nil {
-		return err
-	}
-	if err := taskpkg.ValidateDependencyCount(count + 1); err != nil {
-		return err
-	}
-	hasPath, err := g.hasDependencyPathWithExecutor(
-		ctx,
-		exec,
-		dependency.DependsOnTaskID,
-		dependency.TaskID,
-	)
-	if err != nil {
-		return err
-	}
-	if hasPath {
-		return fmt.Errorf(
-			"%w: adding dependency %q -> %q would create a cycle",
-			taskpkg.ErrCycleDetected,
-			dependency.TaskID,
-			dependency.DependsOnTaskID,
-		)
-	}
-	if _, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO task_dependencies (task_id, depends_on_task_id, kind, created_at)
-		 VALUES (?, ?, ?, ?)`,
-		dependency.TaskID,
-		dependency.DependsOnTaskID,
-		string(dependency.Kind),
-		store.FormatTimestamp(dependency.CreatedAt),
-	); err != nil {
-		return fmt.Errorf(
-			"store: create coordinator dependency %q -> %q: %w",
-			dependency.TaskID,
-			dependency.DependsOnTaskID,
-			err,
-		)
-	}
-	return nil
-}
-
-func completeCoordinatorRunWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	run taskpkg.Run,
-	now time.Time,
-) error {
-	resultJSON, err := json.Marshal(
-		map[string]string{taskRunResultKindKey: taskpkg.RunKindCoordinator.String()},
-	)
-	if err != nil {
-		return fmt.Errorf("store: marshal coordinator result: %w", err)
-	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE task_runs
-		 SET status = ?, lease_until = NULL, heartbeat_at = NULL, claim_token = NULL,
-		     ended_at = ?, error = NULL, result_json = ?
-		 WHERE id = ? AND claim_token_hash = ?`,
-		taskpkg.TaskRunStatusCompleted.String(),
-		store.FormatTimestamp(now),
-		string(resultJSON),
-		run.ID,
-		run.ClaimTokenHash,
-	)
-	if err != nil {
-		return fmt.Errorf("store: complete coordinator run %q: %w", run.ID, err)
-	}
-	return requireRowsAffected(result, taskpkg.ErrTaskRunNotFound, run.ID, "coordinator run lease")
-}
-
-func refreshLoopTokensUsedWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	loopRunID string,
-) (int64, error) {
-	var tokensUsed int64
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT COALESCE(SUM(tokens_used), 0) FROM task_runs WHERE loop_run_id = ?`,
-		loopRunID,
-	).Scan(&tokensUsed); err != nil {
-		return 0, fmt.Errorf("store: sum loop run %q task tokens: %w", loopRunID, err)
-	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_runs SET tokens_used = ? WHERE id = ?`,
-		tokensUsed,
-		loopRunID,
-	)
-	if err != nil {
-		return 0, fmt.Errorf("store: refresh loop run %q tokens_used: %w", loopRunID, err)
-	}
-	if err := requireRowsAffected(result, loop.ErrRunNotFound, loopRunID, "loop run"); err != nil {
-		return 0, err
-	}
-	return tokensUsed, nil
-}
-
-func updateLoopBoundaryStatusWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	current loop.Run,
-	to loop.Status,
-	cause loop.TransitionCause,
-	at time.Time,
-	generation int,
-) error {
-	if current.Status == to {
-		return updateLoopGenerationWithExecutor(ctx, exec, string(current.ID), generation)
-	}
-	if !to.Valid() {
-		return fmt.Errorf("%w: loop status is invalid: %q", loop.ErrValidation, to)
-	}
-	if strings.TrimSpace(string(cause)) == "" {
-		return fmt.Errorf("%w: transition cause is required", loop.ErrValidation)
-	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_runs
-		 SET status = ?,
-		     pause_requested = 0,
-		     generation = CASE WHEN ? > generation THEN ? ELSE generation END,
-		     active_gate_id = CASE WHEN ? != ? THEN '' ELSE active_gate_id END,
-		     active_human_criteria_json = CASE WHEN ? != ? THEN '[]' ELSE active_human_criteria_json END
-		 WHERE id = ? AND status = ?`,
-		string(to),
-		generation,
-		generation,
-		string(to),
-		string(loop.StatusNeedsApproval),
-		string(to),
-		string(loop.StatusNeedsApproval),
-		string(current.ID),
-		string(current.Status),
-	)
-	if err != nil {
-		return fmt.Errorf(
-			"store: transition loop run %q at coordinator boundary: %w",
-			current.ID,
-			err,
-		)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf(
-			"store: rows affected for loop run %q coordinator boundary: %w",
-			current.ID,
-			err,
-		)
-	}
-	if affected == 0 {
-		return fmt.Errorf(
-			"%w: run_id=%s from=%s to=%s",
-			loop.ErrTransitionConflict,
-			current.ID,
-			current.Status,
-			to,
-		)
-	}
-	return appendLoopRunStatusEvent(
-		ctx,
-		exec,
-		current.ID,
-		current.WorkspaceID,
-		current.Status,
-		to,
-		cause,
-		at,
-	)
-}
-
-func updateLoopGenerationWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	loopRunID string,
-	generation int,
-) error {
-	if generation <= 0 {
-		return nil
-	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_runs
-		 SET generation = CASE WHEN ? > generation THEN ? ELSE generation END
-		 WHERE id = ?`,
-		generation,
-		generation,
-		loopRunID,
-	)
-	if err != nil {
-		return fmt.Errorf("store: update loop run %q generation: %w", loopRunID, err)
-	}
-	return requireRowsAffected(result, loop.ErrRunNotFound, loopRunID, "loop run")
-}
-
-func loopStatusIsTerminalOrApproval(status loop.Status) bool {
-	switch status {
-	case loop.StatusDone,
-		loop.StatusNoOp,
-		loop.StatusBlocked,
-		loop.StatusFailed,
-		loop.StatusExhausted,
-		loop.StatusStalled,
-		loop.StatusNeedsApproval:
-		return true
-	default:
-		return false
-	}
-}
-
-func (g *GlobalDB) reserveCoordinatorPlanRunsWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	plan taskpkg.CoordinatorCompletionPlan,
-	current taskpkg.Run,
-	origin taskpkg.Origin,
-	queuedAt time.Time,
-) ([]taskpkg.Run, error) {
-	specs := make([]taskpkg.EnqueueSpec, 0, len(plan.NodeRuns)+1)
-	specs = append(specs, plan.NodeRuns...)
-	if plan.NextCoordinator != nil {
-		next := *plan.NextCoordinator
-		if next.RunKind.Normalize() == taskpkg.RunKindUnknown {
-			next.RunKind = taskpkg.RunKindCoordinator
-		}
-		if strings.TrimSpace(next.LoopRunID) == "" {
-			next.LoopRunID = current.LoopRunID
-		}
-		specs = append(specs, next)
-	}
-
-	enqueued := make([]taskpkg.Run, 0, len(specs))
-	for _, spec := range specs {
-		reservation := coordinatorPlanRunReservation(spec, current, origin, queuedAt)
-		_, run, existing, err := g.reserveQueuedRunWithExecutor(ctx, exec, reservation)
-		if err != nil {
-			return nil, err
-		}
-		if existing {
-			continue
-		}
-		enqueued = append(enqueued, run)
-	}
-	return enqueued, nil
-}
-
-func coordinatorPlanRunReservation(
-	spec taskpkg.EnqueueSpec,
-	current taskpkg.Run,
-	origin taskpkg.Origin,
-	queuedAt time.Time,
-) queuedRunReservationInput {
-	normalized := spec.Normalize()
-	runID := strings.TrimSpace(normalized.RunID)
-	if runID == "" {
-		runID = store.NewID("run")
-	}
-	if strings.TrimSpace(normalized.LoopRunID) == "" {
-		normalized.LoopRunID = current.LoopRunID
-	}
-	return queuedRunReservationInput{
-		taskID:             normalized.TaskID,
-		runID:              runID,
-		runKind:            normalized.RunKind,
-		loopRunID:          normalized.LoopRunID,
-		idempotencyKey:     normalized.IdempotencyKey,
-		origin:             origin,
-		requestedChannel:   normalized.NetworkChannel,
-		designationGroupID: normalized.DesignationGroupID,
-		metadata:           normalizeTaskJSON(normalized.Metadata),
-		queuedAt:           queuedAt,
-	}
 }

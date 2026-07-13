@@ -13,6 +13,11 @@ import (
 	"github.com/compozy/agh/internal/testutil"
 )
 
+const (
+	sessionCatalogRecentIndex   = "idx_sessions_catalog_recent"
+	sessionCatalogActivityIndex = "idx_sessions_catalog_activity"
+)
+
 func TestListSessionsWorkspaceStateIndex(t *testing.T) {
 	t.Parallel()
 
@@ -415,63 +420,6 @@ func TestPageSessionsStableKeyset(t *testing.T) {
 	})
 }
 
-func TestSessionsWorkspaceStateIndexMigration(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should replace the legacy workspace state index on fresh and upgraded DB", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		freshDB := openTestGlobalDB(t)
-
-		upgradePath := filepath.Join(t.TempDir(), "upgrade-"+GlobalDatabaseName)
-		upgradeSeed, err := store.OpenSQLiteDatabase(ctx, upgradePath, nil)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(upgrade seed) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := upgradeSeed.Close(); closeErr != nil {
-				t.Errorf("Close(upgrade seed cleanup) error = %v", closeErr)
-			}
-		})
-		epochMigrationIndex := migrationIndexByName(t, "add_session_transcript_epoch")
-		legacyIndexMigrationIndex := migrationIndexByName(t, "add_sessions_workspace_state_index")
-		catalogIndexMigrationIndex := migrationIndexByName(t, "add_session_catalog_paging_indexes")
-		cleanupMigrationIndex := migrationIndexByName(t, "drop_redundant_sessions_workspace_state_index")
-		indexMigrationPath := []store.Migration{
-			globalSchemaMigrations[0],
-			globalSchemaMigrations[epochMigrationIndex],
-			globalSchemaMigrations[legacyIndexMigrationIndex],
-			globalSchemaMigrations[catalogIndexMigrationIndex],
-			globalSchemaMigrations[cleanupMigrationIndex],
-		}
-		if err := store.RunMigrations(ctx, upgradeSeed, indexMigrationPath[:2]); err != nil {
-			t.Fatalf("RunMigrations(pre-legacy-index prefix) error = %v", err)
-		}
-		assertIndexAbsent(t, upgradeSeed, "idx_sessions_workspace_state")
-		if err := store.RunMigrations(ctx, upgradeSeed, indexMigrationPath[:3]); err != nil {
-			t.Fatalf("RunMigrations(legacy index migration) error = %v", err)
-		}
-		assertIndexesPresent(t, upgradeSeed, "sessions", "idx_sessions_workspace_state")
-		legacySQL := schemaObjectSQL(t, upgradeSeed, "index", "idx_sessions_workspace_state")
-		if !strings.Contains(legacySQL, "ON sessions(workspace_id, state)") {
-			t.Fatalf("legacy index SQL = %q, want sessions(workspace_id, state)", legacySQL)
-		}
-		if err := store.RunMigrations(ctx, upgradeSeed, indexMigrationPath[:4]); err != nil {
-			t.Fatalf("RunMigrations(catalog index migration) error = %v", err)
-		}
-		assertIndexesPresent(t, upgradeSeed, "sessions", "idx_sessions_workspace_state", sessionCatalogRecentIndex)
-		if err := store.RunMigrations(ctx, upgradeSeed, indexMigrationPath); err != nil {
-			t.Fatalf("RunMigrations(index cleanup migration) error = %v", err)
-		}
-
-		assertIndexAbsent(t, freshDB.db, "idx_sessions_workspace_state")
-		assertIndexAbsent(t, upgradeSeed, "idx_sessions_workspace_state")
-		assertIndexesPresent(t, freshDB.db, "sessions", sessionCatalogRecentIndex)
-		assertIndexesPresent(t, upgradeSeed, "sessions", sessionCatalogRecentIndex)
-	})
-}
-
 func TestSessionCatalogPagingIndexesFreshDB(t *testing.T) {
 	t.Parallel()
 
@@ -486,75 +434,6 @@ func TestSessionCatalogPagingIndexesFreshDB(t *testing.T) {
 			sessionCatalogRecentIndex,
 			sessionCatalogActivityIndex,
 		)
-	})
-}
-
-func TestSessionCatalogPagingIndexesReopenAfterRestart(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should preserve sessions while upgrading an existing database", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase() error = %v", err)
-		}
-		migrationIndex := migrationIndexByName(t, sessionCatalogPagingMigration.Name)
-		if err := store.RunMigrations(ctx, db, globalSchemaMigrations[:migrationIndex]); err != nil {
-			t.Fatalf("RunMigrations(previous) error = %v", err)
-		}
-		legacy := &GlobalDB{db: db, path: path, now: func() time.Time { return time.Now().UTC() }}
-		workspaceID := registerWorkspaceForGlobalTests(
-			t,
-			legacy,
-			"workspace-preserved",
-			filepath.Join(t.TempDir(), "workspace-preserved"),
-		)
-		preserved := sessionInfoForWorkspaceStateIndexTest(
-			"sess-preserved",
-			workspaceID,
-			globalDBSessionStateStopped,
-			time.Date(2026, 7, 10, 13, 0, 0, 0, time.UTC),
-		)
-		if err := legacy.RegisterSession(ctx, preserved); err != nil {
-			t.Fatalf("RegisterSession() error = %v", err)
-		}
-		if err := db.Close(); err != nil {
-			t.Fatalf("Close(previous database) error = %v", err)
-		}
-
-		reopened, err := store.OpenSQLiteDatabase(ctx, path, nil)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(reopen) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := reopened.Close(); closeErr != nil {
-				t.Errorf("Close(reopened database) error = %v", closeErr)
-			}
-		})
-		if err := store.RunMigrations(ctx, reopened, globalSchemaMigrations); err != nil {
-			t.Fatalf("RunMigrations(upgrade) error = %v", err)
-		}
-		assertIndexesPresent(
-			t,
-			reopened,
-			"sessions",
-			sessionCatalogRecentIndex,
-			sessionCatalogActivityIndex,
-		)
-		var found int
-		if err := reopened.QueryRowContext(
-			ctx,
-			"SELECT COUNT(1) FROM sessions WHERE id = ?",
-			preserved.ID,
-		).Scan(&found); err != nil {
-			t.Fatalf("query preserved session error = %v", err)
-		}
-		if found != 1 {
-			t.Fatalf("preserved session count = %d, want 1", found)
-		}
 	})
 }
 
@@ -616,7 +495,7 @@ func assertIndexAbsent(t *testing.T, db *sql.DB, index string) {
 		t.Fatalf("query sqlite_master index %s error = %v", index, err)
 	}
 	if found != 0 {
-		t.Fatalf("index %s exists before migration", index)
+		t.Fatalf("index %s exists, want absent", index)
 	}
 }
 

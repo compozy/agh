@@ -213,7 +213,7 @@ Reusable agents are standalone personas that can be invoked via `compozy exec --
 
 Install flow: `compozy ext install --yes compozy/compozy --remote github --ref <tag> --subdir extensions/cy-idea-factory` -> `compozy ext enable cy-idea-factory` -> `compozy setup`.
 
-The `cy-idea-factory` skill uses these agents in a council debate to challenge feature scope and surface risks. The `council` skill can also orchestrate multi-advisor debates on demand.
+The `cy-idea-factory` skill uses these agents in a council debate to challenge feature scope and surface risks.
 
 Management commands: `compozy agents list`, `compozy agents inspect <name>`.
 

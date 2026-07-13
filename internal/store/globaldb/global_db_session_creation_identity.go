@@ -9,10 +9,11 @@ import (
 
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 // RegisterSessionWithCreationIdentity atomically creates or refreshes one identity-matched session.
-func (g *GlobalDB) RegisterSessionWithCreationIdentity(
+func (g *SessionRepo) RegisterSessionWithCreationIdentity(
 	ctx context.Context,
 	session store.SessionInfo,
 	identity store.SessionCreationIdentity,
@@ -38,7 +39,7 @@ func (g *GlobalDB) RegisterSessionWithCreationIdentity(
 		SessionID: normalized.ID,
 		Identity:  identity,
 	}
-	err := g.withTaskImmediateTransaction(ctx, "register session creation identity", func(exec taskSQLExecutor) error {
+	err := g.withImmediateTransaction(ctx, "register session creation identity", func(exec globalSQLExecutor) error {
 		storedWorkspace, storedIdentity, found, err := readSessionCreationIdentity(ctx, exec, normalized.ID)
 		if err != nil {
 			return err
@@ -57,25 +58,16 @@ func (g *GlobalDB) RegisterSessionWithCreationIdentity(
 		if err := g.registerSession(ctx, exec, normalized); err != nil {
 			return fmt.Errorf("store: register identity-bound session %q: %w", normalized.ID, err)
 		}
-		result, err := exec.ExecContext(
+		affected, err := sqlcgen.New(exec).SetSessionCreationIdentity(
 			ctx,
-			`UPDATE sessions
-			 SET creation_profile_ref = ?, policy_spec_digest = ?, creation_digest = ?
-			 WHERE id = ?
-			   AND creation_profile_ref IS NULL
-			   AND policy_spec_digest IS NULL
-			   AND creation_digest IS NULL`,
-			identity.CreationProfileRef,
-			identity.PolicySpecDigest,
-			identity.CreationDigest,
-			normalized.ID,
+			sqlcgen.SetSessionCreationIdentityParams{
+				CreationProfileRef: nullableSessionString(identity.CreationProfileRef),
+				PolicySpecDigest:   nullableSessionString(identity.PolicySpecDigest),
+				CreationDigest:     nullableSessionString(identity.CreationDigest), ID: normalized.ID,
+			},
 		)
 		if err != nil {
 			return fmt.Errorf("store: persist session creation identity %q: %w", normalized.ID, err)
-		}
-		affected, err := result.RowsAffected()
-		if err != nil {
-			return fmt.Errorf("store: read session creation identity update count %q: %w", normalized.ID, err)
 		}
 		if affected != 1 {
 			return sessionCreationIdentityMismatch(normalized.ID)
@@ -90,7 +82,7 @@ func (g *GlobalDB) RegisterSessionWithCreationIdentity(
 }
 
 // GetSessionCreationIdentity loads one complete immutable identity witness.
-func (g *GlobalDB) GetSessionCreationIdentity(
+func (g *SessionRepo) GetSessionCreationIdentity(
 	ctx context.Context,
 	sessionID string,
 ) (store.SessionCreationIdentity, error) {
@@ -115,18 +107,7 @@ func readSessionCreationIdentity(
 	exec taskSQLExecutor,
 	sessionID string,
 ) (string, store.SessionCreationIdentity, bool, error) {
-	var (
-		workspaceID        string
-		creationProfileRef sql.NullString
-		policySpecDigest   sql.NullString
-		creationDigest     sql.NullString
-	)
-	err := exec.QueryRowContext(
-		ctx,
-		`SELECT workspace_id, creation_profile_ref, policy_spec_digest, creation_digest
-		 FROM sessions WHERE id = ?`,
-		sessionID,
-	).Scan(&workspaceID, &creationProfileRef, &policySpecDigest, &creationDigest)
+	row, err := sqlcgen.New(exec).GetSessionCreationIdentity(ctx, sessionID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", store.SessionCreationIdentity{}, false, nil
 	}
@@ -137,10 +118,10 @@ func readSessionCreationIdentity(
 			err,
 		)
 	}
-	return workspaceID, store.SessionCreationIdentity{
-		CreationProfileRef: strings.TrimSpace(creationProfileRef.String),
-		PolicySpecDigest:   strings.TrimSpace(policySpecDigest.String),
-		CreationDigest:     strings.TrimSpace(creationDigest.String),
+	return row.WorkspaceID, store.SessionCreationIdentity{
+		CreationProfileRef: strings.TrimSpace(row.CreationProfileRef.String),
+		PolicySpecDigest:   strings.TrimSpace(row.PolicySpecDigest.String),
+		CreationDigest:     strings.TrimSpace(row.CreationDigest.String),
 	}, true, nil
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/agh/internal/loop/gate"
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 func goalSettlementEvidenceRef(
@@ -26,14 +27,10 @@ func goalSettlementEvidenceRef(
 	if checkpoint.JudgeAttemptID == "" {
 		return "", nil
 	}
-	var evidence sql.NullString
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT evidence_ref FROM loop_goal_judge_attempts
-		 WHERE attempt_id = ? AND loop_run_id = ? AND status = 'completed'`,
-		checkpoint.JudgeAttemptID,
-		string(req.Key.LoopRunID),
-	).Scan(&evidence); err != nil {
+	evidence, err := sqlcgen.New(exec).GetGoalSettlementEvidenceRef(ctx, sqlcgen.GetGoalSettlementEvidenceRefParams{
+		AttemptID: checkpoint.JudgeAttemptID, LoopRunID: string(req.Key.LoopRunID),
+	})
+	if err != nil {
 		return "", fmt.Errorf("store: load Goal judge evidence for settlement: %w", err)
 	}
 	if evidence.Valid {
@@ -116,32 +113,33 @@ func pendingGoalPauseActor(
 	exec taskSQLExecutor,
 	runID looppkg.RunID,
 ) (bool, string, string, time.Time, error) {
-	var pauseRequested int
-	var actorKind, actorID sql.NullString
-	var requestedAt any
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT pause_requested, control_actor_kind, control_actor_id, control_requested_at
-		 FROM loop_runs WHERE id = ?`,
-		string(runID),
-	).Scan(&pauseRequested, &actorKind, &actorID, &requestedAt); err != nil {
+	row, err := sqlcgen.New(exec).GetPendingGoalPauseActor(ctx, string(runID))
+	if err != nil {
 		return false, "", "", time.Time{}, fmt.Errorf("store: load Goal pause actor: %w", err)
 	}
-	if pauseRequested == 0 {
+	if row.PauseRequested == 0 {
 		return false, "", "", time.Time{}, nil
 	}
-	if !actorKind.Valid || !actorID.Valid || strings.TrimSpace(actorKind.String) == "" ||
-		strings.TrimSpace(actorID.String) == "" {
+	if !row.ControlActorKind.Valid || !row.ControlActorID.Valid ||
+		strings.TrimSpace(row.ControlActorKind.String) == "" ||
+		strings.TrimSpace(row.ControlActorID.String) == "" {
 		return false, "", "", time.Time{}, fmt.Errorf(
 			"%w: pending Goal pause actor is incomplete",
 			looppkg.ErrValidation,
 		)
 	}
-	parsedRequestedAt, err := parseGoalTimestampValue(requestedAt, "loop pause control_requested_at")
+	parsedRequestedAt, err := parseGoalTimestampValue(
+		goalOptionalTimeValue(row.ControlRequestedAt),
+		"loop pause control_requested_at",
+	)
 	if err != nil {
 		return false, "", "", time.Time{}, err
 	}
-	return true, strings.TrimSpace(actorKind.String), strings.TrimSpace(actorID.String), parsedRequestedAt, nil
+	return true, strings.TrimSpace(
+			row.ControlActorKind.String,
+		), strings.TrimSpace(
+			row.ControlActorID.String,
+		), parsedRequestedAt, nil
 }
 
 func updateGoalCheckpointAfterTurn(
@@ -151,54 +149,39 @@ func updateGoalCheckpointAfterTurn(
 	settlement goalTurnSettlement,
 	now time.Time,
 ) error {
-	controlActorKind := any(nil)
-	controlActorID := any(nil)
-	controlRequestedAt := any(nil)
+	controlActorKind := goalNullableString("")
+	controlActorID := goalNullableString("")
+	controlRequestedAt := sql.NullString{}
 	if settlement.pauseRequested {
-		controlActorKind = settlement.actorKind
-		controlActorID = settlement.actorID
-		controlRequestedAt = store.FormatTimestamp(settlement.pauseRequestedAt)
+		controlActorKind = goalNullableString(settlement.actorKind)
+		controlActorID = goalNullableString(settlement.actorID)
+		controlRequestedAt = goalNullableTimestampString(&settlement.pauseRequestedAt)
 	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_goal_checkpoints
-		 SET phase = ?, goal_status = ?, control_cause = ?, broken_streak = ?, recovery_streak = ?,
-		     queue_entry_id = NULL, prompt_id = NULL, prompt_kind = NULL, prompt_attempt = 0,
-		     judge_attempt_id = NULL,
-		     report_prompt_id = NULL, report_status = NULL, report_evidence_ref = NULL,
-		     report_binding_epoch = NULL, report_actor_kind = NULL, report_actor_id = NULL,
-		     report_recorded_at = NULL,
-		     control_actor_kind = ?, control_actor_id = ?, control_requested_at = ?,
-		     control_grant_consumed = CASE WHEN ? = 1 THEN 1 ELSE control_grant_consumed END,
-		     updated_at = ?
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		   AND control_epoch = ? AND binding_epoch = ?
-		   AND task_run_id = ? AND queue_entry_id = ? AND prompt_id = ?
-		   AND phase IN ('prompting','judging','persisting')`,
-		settlement.phase,
-		settlement.status,
-		nullableGoalString(string(settlement.cause)),
-		settlement.brokenStreak,
-		settlement.recoveryStreak,
-		controlActorKind,
-		controlActorID,
-		controlRequestedAt,
-		boolToInt(settlement.consumeGrant),
-		store.FormatTimestamp(now),
-		string(checkpoint.Key.LoopRunID),
-		checkpoint.Key.Generation,
-		string(checkpoint.Key.NodeID),
-		checkpoint.Key.ItemIndex,
-		checkpoint.ControlEpoch,
-		checkpoint.BindingEpoch,
-		checkpoint.TaskRunID,
-		checkpoint.QueueEntryID,
-		checkpoint.PromptID,
-	)
+	affected, err := sqlcgen.New(exec).UpdateGoalCheckpointAfterTurn(ctx, sqlcgen.UpdateGoalCheckpointAfterTurnParams{
+		Phase:              settlement.phase,
+		GoalStatus:         settlement.status,
+		ControlCause:       goalNullableString(string(settlement.cause)),
+		BrokenStreak:       int64(settlement.brokenStreak),
+		RecoveryStreak:     int64(settlement.recoveryStreak),
+		ControlActorKind:   controlActorKind,
+		ControlActorID:     controlActorID,
+		ControlRequestedAt: controlRequestedAt,
+		ConsumeGrant:       boolToInt(settlement.consumeGrant),
+		UpdatedAt:          store.FormatTimestamp(now),
+		LoopRunID:          string(checkpoint.Key.LoopRunID),
+		Generation:         int64(checkpoint.Key.Generation),
+		NodeID:             string(checkpoint.Key.NodeID),
+		ItemIndex:          int64(checkpoint.Key.ItemIndex),
+		ControlEpoch:       checkpoint.ControlEpoch,
+		BindingEpoch:       goalNullableInt64(&checkpoint.BindingEpoch),
+		TaskRunID:          goalNullableString(checkpoint.TaskRunID),
+		QueueEntryID:       goalNullableString(checkpoint.QueueEntryID),
+		PromptID:           goalNullableString(checkpoint.PromptID),
+	})
 	if err != nil {
 		return fmt.Errorf("store: advance Goal checkpoint after turn: %w", err)
 	}
-	return requireGoalRowsAffected(result, "advance Goal checkpoint after turn")
+	return requireGoalAffectedCount(affected, "advance Goal checkpoint after turn")
 }
 
 func appendGoalTurnCompletedEvent(
@@ -208,19 +191,16 @@ func appendGoalTurnCompletedEvent(
 	promptID string,
 	at time.Time,
 ) error {
-	turn, err := scanGoalTurn(exec.QueryRowContext(
-		ctx,
-		`SELECT `+goalTurnSelectColumns+`
-		 FROM loop_goal_turns
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ? AND prompt_id = ?`,
-		string(key.LoopRunID),
-		key.Generation,
-		string(key.NodeID),
-		key.ItemIndex,
-		strings.TrimSpace(promptID),
-	), key.WorkspaceID, key.LoopRunID)
+	row, err := sqlcgen.New(exec).GetGoalTurnByPromptID(ctx, sqlcgen.GetGoalTurnByPromptIDParams{
+		LoopRunID: string(key.LoopRunID), Generation: int64(key.Generation), NodeID: string(key.NodeID),
+		ItemIndex: int64(key.ItemIndex), PromptID: strings.TrimSpace(promptID), WorkspaceID: string(key.WorkspaceID),
+	})
 	if err != nil {
 		return fmt.Errorf("store: load completed Goal turn event payload: %w", err)
+	}
+	turn, err := goalTurnFromGenerated(row, key.WorkspaceID, key.LoopRunID)
+	if err != nil {
+		return fmt.Errorf("store: decode completed Goal turn event payload: %w", err)
 	}
 	if turn.ResultStatus == nil || turn.EndedAt == nil {
 		return fmt.Errorf("%w: Goal turn event requires a terminal row", looppkg.ErrTransitionConflict)

@@ -3,7 +3,7 @@ package globaldb
 import (
 	"context"
 	"database/sql"
-	"path/filepath"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -14,499 +14,26 @@ import (
 	"github.com/compozy/agh/internal/testutil"
 )
 
-const (
-	modelCatalogMigrationVersion                 = 23
-	modelCatalogSourceConstraintMigrationVersion = 24
-	modelCatalogCurationMigrationVersion         = 64
-	modelCatalogExplicitCurationMigrationVersion = 65
-	modelCatalogCurationPresenceMigrationVersion = 66
-)
-
-func TestGlobalDBModelCatalogSchemaMigration(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should create model catalog schema on fresh DB", func(t *testing.T) {
-		t.Parallel()
-
-		globalDB := openFreshTestGlobalDB(t)
-
-		assertModelCatalogSchema(t, globalDB.db)
-		assertAppliedMigrationVersion(t, globalDB.db, modelCatalogCurationPresenceMigrationVersion)
-	})
-
-	t.Run("Should upgrade populated v63 catalog rows with curation defaults", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(v63) error = %v", err)
-		}
-		if err := store.RunMigrations(
-			ctx,
-			db,
-			globalSchemaMigrations[:modelCatalogCurationMigrationVersion-1],
-		); err != nil {
-			t.Fatalf("RunMigrations(v63) error = %v", err)
-		}
-		beforeRecords, err := store.AppliedMigrations(ctx, db)
-		if err != nil {
-			t.Fatalf("AppliedMigrations(v63) error = %v", err)
-		}
-		if _, err := db.ExecContext(ctx, `INSERT INTO model_catalog_sources
-			(source_id, provider_id, source_kind, priority, refresh_state)
-			VALUES ('config', 'codex', 'config', 120, 'succeeded')`); err != nil {
-			t.Fatalf("insert model_catalog_sources error = %v", err)
-		}
-		if _, err := db.ExecContext(ctx, `INSERT INTO model_catalog_rows
-			(source_id, provider_id, model_id, source_kind, priority)
-			VALUES ('config', 'codex', 'gpt-5.6-sol', 'config', 120)`); err != nil {
-			t.Fatalf("insert model_catalog_rows error = %v", err)
-		}
-		if err := db.Close(); err != nil {
-			t.Fatalf("Close(v63) error = %v", err)
-		}
-
-		globalDB, err := OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(v64 upgrade) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
-				t.Errorf("Close(v64 upgrade) error = %v", closeErr)
-			}
-		})
-
-		var deprecated, hidden, featured int
-		var releaseDate sql.NullString
-		if err := globalDB.db.QueryRowContext(ctx, `SELECT deprecated, hidden, featured, release_date
-			FROM model_catalog_rows WHERE source_id = 'config' AND provider_id = 'codex' AND model_id = 'gpt-5.6-sol'`).
-			Scan(&deprecated, &hidden, &featured, &releaseDate); err != nil {
-			t.Fatalf("query upgraded curation fields error = %v", err)
-		}
-		if deprecated != 0 || hidden != 0 || featured != 0 || releaseDate.Valid {
-			t.Fatalf("curation defaults = %d/%d/%d/%#v, want 0/0/0/NULL", deprecated, hidden, featured, releaseDate)
-		}
-		afterRecords, err := store.AppliedMigrations(ctx, globalDB.db)
-		if err != nil {
-			t.Fatalf("AppliedMigrations(v64) error = %v", err)
-		}
-		for index, before := range beforeRecords {
-			if !afterRecords[index].AppliedAt.Equal(before.AppliedAt) {
-				t.Fatalf(
-					"migration %d applied_at changed from %s to %s",
-					before.Version,
-					before.AppliedAt,
-					afterRecords[index].AppliedAt,
-				)
-			}
-		}
-	})
-
-	t.Run("Should upgrade populated v64 rows with explicit curation disabled", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(v64) error = %v", err)
-		}
-		if err := store.RunMigrations(
-			ctx,
-			db,
-			globalSchemaMigrations[:modelCatalogExplicitCurationMigrationVersion-1],
-		); err != nil {
-			t.Fatalf("RunMigrations(v64) error = %v", err)
-		}
-		if _, err := db.ExecContext(ctx, `INSERT INTO model_catalog_sources
-			(source_id, provider_id, source_kind, priority, refresh_state)
-			VALUES ('config', 'codex', 'config', 120, 'succeeded')`); err != nil {
-			t.Fatalf("insert v64 model_catalog_sources error = %v", err)
-		}
-		if _, err := db.ExecContext(ctx, `INSERT INTO model_catalog_rows
-			(source_id, provider_id, model_id, source_kind, priority, featured)
-			VALUES ('config', 'codex', 'gpt-5.6-sol', 'config', 120, 1)`); err != nil {
-			t.Fatalf("insert v64 model_catalog_rows error = %v", err)
-		}
-		beforeRecords, err := store.AppliedMigrations(ctx, db)
-		if err != nil {
-			t.Fatalf("AppliedMigrations(v64) error = %v", err)
-		}
-		if err := db.Close(); err != nil {
-			t.Fatalf("Close(v64) error = %v", err)
-		}
-
-		globalDB, err := OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(v65 upgrade) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
-				t.Errorf("Close(v65 upgrade) error = %v", closeErr)
-			}
-		})
-		var explicitlyCurated, featured, deprecatedSet, hiddenSet, featuredSet int
-		if err := globalDB.db.QueryRowContext(ctx, `SELECT
-			explicitly_curated, featured, deprecated_set, hidden_set, featured_set
-			FROM model_catalog_rows
-			WHERE source_id = 'config' AND provider_id = 'codex' AND model_id = 'gpt-5.6-sol'`).
-			Scan(&explicitlyCurated, &featured, &deprecatedSet, &hiddenSet, &featuredSet); err != nil {
-			t.Fatalf("query upgraded explicit curation error = %v", err)
-		}
-		if explicitlyCurated != 0 || featured != 1 || deprecatedSet != 0 || hiddenSet != 0 || featuredSet != 1 {
-			t.Fatalf(
-				"explicit/featured/presence after v66 = %d/%d/%d/%d/%d, want 0/1/0/0/1",
-				explicitlyCurated,
-				featured,
-				deprecatedSet,
-				hiddenSet,
-				featuredSet,
-			)
-		}
-		afterRecords, err := store.AppliedMigrations(ctx, globalDB.db)
-		if err != nil {
-			t.Fatalf("AppliedMigrations(v65) error = %v", err)
-		}
-		for index, before := range beforeRecords {
-			if !afterRecords[index].AppliedAt.Equal(before.AppliedAt) {
-				t.Fatalf(
-					"migration %d applied_at changed from %s to %s",
-					before.Version,
-					before.AppliedAt,
-					afterRecords[index].AppliedAt,
-				)
-			}
-		}
-	})
-
-	t.Run("Should backfill curated-false presence flags on v65 upgrade", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(v65) error = %v", err)
-		}
-		if err := store.RunMigrations(
-			ctx,
-			db,
-			globalSchemaMigrations[:modelCatalogCurationPresenceMigrationVersion-1],
-		); err != nil {
-			t.Fatalf("RunMigrations(v65) error = %v", err)
-		}
-		if _, err := db.ExecContext(ctx, `INSERT INTO model_catalog_sources
-			(source_id, provider_id, source_kind, priority, refresh_state)
-			VALUES ('config', 'codex', 'config', 120, 'succeeded')`); err != nil {
-			t.Fatalf("insert v65 model_catalog_sources error = %v", err)
-		}
-		if _, err := db.ExecContext(ctx, `INSERT INTO model_catalog_rows
-			(source_id, provider_id, model_id, source_kind, priority,
-			 explicitly_curated, deprecated, hidden, featured)
-			VALUES ('config', 'codex', 'gpt-5.6-sol', 'config', 120, 1, 0, 0, 0)`); err != nil {
-			t.Fatalf("insert v65 curated-false model_catalog_rows error = %v", err)
-		}
-		if _, err := db.ExecContext(ctx, `INSERT INTO model_catalog_rows
-			(source_id, provider_id, model_id, source_kind, priority,
-			 explicitly_curated, deprecated, hidden, featured)
-			VALUES ('config', 'codex', 'gpt-unmanaged', 'config', 120, 0, 0, 0, 0)`); err != nil {
-			t.Fatalf("insert v65 non-curated model_catalog_rows error = %v", err)
-		}
-		beforeRecords, err := store.AppliedMigrations(ctx, db)
-		if err != nil {
-			t.Fatalf("AppliedMigrations(v65) error = %v", err)
-		}
-		if err := db.Close(); err != nil {
-			t.Fatalf("Close(v65) error = %v", err)
-		}
-
-		globalDB, err := OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(v66 upgrade) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
-				t.Errorf("Close(v66 upgrade) error = %v", closeErr)
-			}
-		})
-
-		var deprecated, hidden, featured, deprecatedSet, hiddenSet, featuredSet int
-		if err := globalDB.db.QueryRowContext(ctx, `SELECT
-			deprecated, hidden, featured, deprecated_set, hidden_set, featured_set
-			FROM model_catalog_rows
-			WHERE source_id = 'config' AND provider_id = 'codex' AND model_id = 'gpt-5.6-sol'`).
-			Scan(&deprecated, &hidden, &featured, &deprecatedSet, &hiddenSet, &featuredSet); err != nil {
-			t.Fatalf("query curated-false presence error = %v", err)
-		}
-		if deprecated != 0 || hidden != 0 || featured != 0 ||
-			deprecatedSet != 1 || hiddenSet != 1 || featuredSet != 1 {
-			t.Fatalf(
-				"curated-false presence = %d/%d/%d set=%d/%d/%d, want 0/0/0 set=1/1/1",
-				deprecated,
-				hidden,
-				featured,
-				deprecatedSet,
-				hiddenSet,
-				featuredSet,
-			)
-		}
-
-		var nonCuratedDeprecatedSet, nonCuratedHiddenSet, nonCuratedFeaturedSet int
-		if err := globalDB.db.QueryRowContext(ctx, `SELECT
-			deprecated_set, hidden_set, featured_set
-			FROM model_catalog_rows
-			WHERE source_id = 'config' AND provider_id = 'codex' AND model_id = 'gpt-unmanaged'`).
-			Scan(&nonCuratedDeprecatedSet, &nonCuratedHiddenSet, &nonCuratedFeaturedSet); err != nil {
-			t.Fatalf("query non-curated presence error = %v", err)
-		}
-		if nonCuratedDeprecatedSet != 0 || nonCuratedHiddenSet != 0 || nonCuratedFeaturedSet != 0 {
-			t.Fatalf(
-				"non-curated presence = %d/%d/%d, want 0/0/0",
-				nonCuratedDeprecatedSet,
-				nonCuratedHiddenSet,
-				nonCuratedFeaturedSet,
-			)
-		}
-
-		afterRecords, err := store.AppliedMigrations(ctx, globalDB.db)
-		if err != nil {
-			t.Fatalf("AppliedMigrations(v66) error = %v", err)
-		}
-		for index, before := range beforeRecords {
-			if !afterRecords[index].AppliedAt.Equal(before.AppliedAt) {
-				t.Fatalf(
-					"migration %d applied_at changed from %s to %s",
-					before.Version,
-					before.AppliedAt,
-					afterRecords[index].AppliedAt,
-				)
-			}
-		}
-		assertAppliedMigrationVersion(t, globalDB.db, modelCatalogCurationPresenceMigrationVersion)
-	})
-
-	t.Run("Should upgrade previous global schema by appending model catalog migrations", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		previousDB := openPreviousModelCatalogSchemaDB(t, path)
-		beforeRecords, err := store.AppliedMigrations(ctx, previousDB)
-		if err != nil {
-			t.Fatalf("AppliedMigrations(previous) error = %v", err)
-		}
-		if got, want := len(beforeRecords), modelCatalogMigrationVersion-1; got != want {
-			t.Fatalf("len(beforeRecords) = %d, want %d", got, want)
-		}
-		exists, err := tableExists(ctx, previousDB, "model_catalog_sources")
-		if err != nil {
-			t.Fatalf("tableExists(model_catalog_sources) error = %v", err)
-		}
-		if exists {
-			t.Fatal("model_catalog_sources exists before v23 migration, want absent")
-		}
-		if err := previousDB.Close(); err != nil {
-			t.Fatalf("previousDB.Close() error = %v", err)
-		}
-
-		globalDB, err := OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(upgrade) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
-				t.Errorf("Close(upgrade) error = %v", closeErr)
-			}
-		})
-
-		assertModelCatalogSchema(t, globalDB.db)
-		records, err := store.AppliedMigrations(ctx, globalDB.db)
-		if err != nil {
-			t.Fatalf("AppliedMigrations(upgrade) error = %v", err)
-		}
-		if got, want := len(records), len(globalSchemaMigrations); got != want {
-			t.Fatalf("len(records) = %d, want %d", got, want)
-		}
-		if got := records[modelCatalogSourceConstraintMigrationVersion-1]; got.Version != modelCatalogSourceConstraintMigrationVersion ||
-			got.Name != "rebuild_model_catalog_source_constraints" {
-			t.Fatalf("migration v24 = %#v, want model catalog source constraint v24", got)
-		}
-		for index, before := range beforeRecords {
-			if !records[index].AppliedAt.Equal(before.AppliedAt) {
-				t.Fatalf(
-					"migration %d applied_at = %s, want unchanged %s",
-					before.Version,
-					records[index].AppliedAt,
-					before.AppliedAt,
-				)
-			}
-		}
-	})
-
-	t.Run("Should rebuild v23 model catalog tables into the v24 constrained shape", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		previousDB := openV23ModelCatalogSchemaDB(t, path)
-		if _, err := previousDB.ExecContext(
-			ctx,
-			`INSERT INTO model_catalog_rows (
-				source_id,
-				provider_id,
-				model_id,
-				source_kind,
-				priority,
-				stale,
-				refreshed_at,
-				expires_at,
-				display_name,
-				last_error
-			) VALUES (?, ?, ?, ?, ?, 0, ?, ?, '', '')`,
-			"orphan-source",
-			"codex",
-			"gpt-5.4",
-			string(modelcatalog.SourceKindConfig),
-			120,
-			time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC).Format(time.RFC3339Nano),
-			"",
-		); err != nil {
-			t.Fatalf("ExecContext(insert orphan row) error = %v", err)
-		}
-		if err := previousDB.Close(); err != nil {
-			t.Fatalf("previousDB.Close() error = %v", err)
-		}
-
-		globalDB, err := OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(v24 upgrade) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
-				t.Errorf("Close(v24 upgrade) error = %v", closeErr)
-			}
-		})
-
-		assertAppliedMigrationVersion(t, globalDB.db, modelCatalogSourceConstraintMigrationVersion)
-
-		var rowCount int
-		if err := globalDB.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM model_catalog_rows`).
-			Scan(&rowCount); err != nil {
-			t.Fatalf("QueryRowContext(model_catalog_rows count) error = %v", err)
-		}
-		if got, want := rowCount, 0; got != want {
-			t.Fatalf("model_catalog_rows count = %d, want %d after rebuild", got, want)
-		}
-
-		_, err = globalDB.db.ExecContext(
-			ctx,
-			`INSERT INTO model_catalog_rows (
-				source_id,
-				provider_id,
-				model_id,
-				source_kind,
-				priority,
-				stale,
-				refreshed_at,
-				expires_at,
-				display_name,
-				last_error
-			) VALUES (?, ?, ?, ?, ?, 0, ?, ?, '', '')`,
-			"missing-source",
-			"codex",
-			"gpt-5.4",
-			string(modelcatalog.SourceKindConfig),
-			120,
-			time.Date(2026, 5, 7, 12, 1, 0, 0, time.UTC).Format(time.RFC3339Nano),
-			"",
-		)
-		requireSQLiteConstraintError(t, err)
-	})
-
-	t.Run("Should keep model catalog migration record stable after reopen", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		first, err := OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(first) error = %v", err)
-		}
-		firstRecords, err := store.AppliedMigrations(ctx, first.db)
-		if err != nil {
-			t.Fatalf("AppliedMigrations(first) error = %v", err)
-		}
-		if err := first.Close(ctx); err != nil {
-			t.Fatalf("Close(first) error = %v", err)
-		}
-
-		second, err := OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(second) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := second.Close(testutil.Context(t)); closeErr != nil {
-				t.Errorf("Close(second) error = %v", closeErr)
-			}
-		})
-		secondRecords, err := store.AppliedMigrations(ctx, second.db)
-		if err != nil {
-			t.Fatalf("AppliedMigrations(second) error = %v", err)
-		}
-		if got, want := len(secondRecords), len(firstRecords); got != want {
-			t.Fatalf("len(secondRecords) = %d, want %d", got, want)
-		}
-		for index, firstRecord := range firstRecords {
-			if !secondRecords[index].AppliedAt.Equal(firstRecord.AppliedAt) {
-				t.Fatalf(
-					"migration %d applied_at = %s, want unchanged %s",
-					firstRecord.Version,
-					secondRecords[index].AppliedAt,
-					firstRecord.AppliedAt,
-				)
-			}
-		}
-	})
-
-	t.Run("Should keep model catalog migration identity before later workspace migrations", func(t *testing.T) {
-		t.Parallel()
-
-		if len(globalSchemaMigrations) < modelCatalogSourceConstraintMigrationVersion {
-			t.Fatalf(
-				"len(globalSchemaMigrations) = %d, want at least %d",
-				len(globalSchemaMigrations),
-				modelCatalogSourceConstraintMigrationVersion,
-			)
-		}
-		migration := globalSchemaMigrations[modelCatalogSourceConstraintMigrationVersion-1]
-		if migration.Version != modelCatalogSourceConstraintMigrationVersion ||
-			migration.Name != "rebuild_model_catalog_source_constraints" ||
-			migration.Checksum != "2026-05-07-rebuild-model-catalog-source-constraints" {
-			t.Fatalf(
-				"migration v24 = version %d name %q checksum %q, want model catalog source constraint v24",
-				migration.Version,
-				migration.Name,
-				migration.Checksum,
-			)
-		}
-		if previous := globalSchemaMigrations[modelCatalogSourceConstraintMigrationVersion-2]; previous.Version != modelCatalogMigrationVersion {
-			t.Fatalf("previous migration version = %d, want %d", previous.Version, modelCatalogMigrationVersion)
-		}
-	})
-
-	t.Run("Should keep model catalog schema out of migration v1 statements", func(t *testing.T) {
-		t.Parallel()
-
-		if !slices.Equal(globalSchemaStatements, schemaStatementsWithoutModelCatalog()) {
-			t.Fatalf("globalSchemaStatements unexpectedly include model catalog schema statements")
-		}
-	})
-}
-
 func TestGlobalDBModelCatalogStore(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should join reasoning-effort scan and rows-close errors", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openQueryRowsCloseErrorGlobalDB(t)
+		_, err := listModelCatalogReasoningEfforts(
+			testutil.Context(t),
+			globalDB.db,
+			modelcatalog.ListOptions{},
+		)
+		if !errors.Is(err, errQueryRowsClose) ||
+			!strings.Contains(err.Error(), "scan model catalog reasoning effort") {
+			t.Fatalf(
+				"listModelCatalogReasoningEfforts() error = %v, want joined scan and rows-close errors",
+				err,
+			)
+		}
+	})
 
 	t.Run("Should replace source rows and reasoning efforts atomically", func(t *testing.T) {
 		t.Parallel()
@@ -628,6 +155,53 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		}
 		if len(statuses) != 1 || statuses[0].RowCount != 1 {
 			t.Fatalf("statuses after failed replace = %#v, want original row_count 1", statuses)
+		}
+	})
+
+	t.Run("Should persist empty optional source timestamps", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		status := modelCatalogStatus("builtin", "blackbox", modelcatalog.SourceKindBuiltin, 10)
+		status.NextRefresh = time.Time{}
+		row := modelCatalogRow("builtin", "blackbox", "default", modelcatalog.SourceKindBuiltin, 10)
+		row.RefreshedAt = time.Time{}
+		row.ExpiresAt = time.Time{}
+		if err := globalDB.ReplaceSourceRows(
+			ctx,
+			"builtin",
+			"blackbox",
+			[]modelcatalog.ModelRow{row},
+			status,
+		); err != nil {
+			t.Fatalf("ReplaceSourceRows() error = %v", err)
+		}
+
+		var nextRefresh string
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT next_refresh_at FROM model_catalog_sources WHERE source_id = ? AND provider_id = ?`,
+			"builtin",
+			"blackbox",
+		).Scan(&nextRefresh); err != nil {
+			t.Fatalf("QueryRowContext(next_refresh_at) error = %v", err)
+		}
+		if nextRefresh != "" {
+			t.Fatalf("next_refresh_at = %q, want empty string", nextRefresh)
+		}
+		var refreshedAt string
+		var expiresAt string
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT refreshed_at, expires_at FROM model_catalog_rows WHERE source_id = ? AND provider_id = ?`,
+			"builtin",
+			"blackbox",
+		).Scan(&refreshedAt, &expiresAt); err != nil {
+			t.Fatalf("QueryRowContext(optional row timestamps) error = %v", err)
+		}
+		if refreshedAt != "" || expiresAt != "" {
+			t.Fatalf("optional row timestamps = %q/%q, want empty strings", refreshedAt, expiresAt)
 		}
 	})
 
@@ -1203,169 +777,6 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 			t.Fatalf("fresh ReasoningEfforts = %#v, want %#v", freshRows[0].ReasoningEfforts, second.ReasoningEfforts)
 		}
 	})
-}
-
-func assertModelCatalogSchema(t *testing.T, db *sql.DB) {
-	t.Helper()
-
-	assertTablesPresent(t, db, "model_catalog_sources", "model_catalog_rows", "model_catalog_reasoning_efforts")
-	assertTableColumns(t, db, "model_catalog_sources", []string{
-		"source_id",
-		"provider_id",
-		"source_kind",
-		"priority",
-		"refresh_state",
-		"last_refresh_at",
-		"next_refresh_at",
-		"last_success_at",
-		"last_error",
-		"row_count",
-		"stale",
-	})
-	assertTableColumns(t, db, "model_catalog_rows", []string{
-		"source_id",
-		"provider_id",
-		"model_id",
-		"source_kind",
-		"priority",
-		"available",
-		"stale",
-		"refreshed_at",
-		"expires_at",
-		"display_name",
-		"context_window",
-		"max_input_tokens",
-		"max_output_tokens",
-		"supports_tools",
-		"supports_reasoning",
-		"default_reasoning_effort",
-		"cost_input_per_million",
-		"cost_output_per_million",
-		"last_error",
-		"deprecated",
-		"hidden",
-		"featured",
-		"release_date",
-		"explicitly_curated",
-		"deprecated_set",
-		"hidden_set",
-		"featured_set",
-	})
-	assertTableColumns(t, db, "model_catalog_reasoning_efforts", []string{
-		"source_id",
-		"provider_id",
-		"model_id",
-		"effort",
-		"rank",
-	})
-	assertIndexesPresent(
-		t,
-		db,
-		"model_catalog_rows",
-		"idx_model_catalog_rows_provider_model",
-		"idx_model_catalog_rows_source_provider",
-	)
-	assertIndexesPresent(t, db, "model_catalog_sources", "idx_model_catalog_sources_provider")
-	assertModelCatalogRowSourceForeignKey(t, db)
-}
-
-func openPreviousModelCatalogSchemaDB(t *testing.T, dbPath string) *sql.DB {
-	t.Helper()
-
-	ctx := testutil.Context(t)
-	db, err := store.OpenSQLiteDatabase(ctx, dbPath, nil)
-	if err != nil {
-		t.Fatalf("OpenSQLiteDatabase(previous) error = %v", err)
-	}
-	if err := store.RunMigrations(ctx, db, previousModelCatalogMigrations()); err != nil {
-		t.Fatalf("RunMigrations(previous) error = %v", err)
-	}
-	return db
-}
-
-func previousModelCatalogMigrations() []store.Migration {
-	migrations := append([]store.Migration(nil), globalSchemaMigrations[:modelCatalogMigrationVersion-1]...)
-	migrations[0].Statements = schemaStatementsWithoutModelCatalog()
-	return migrations
-}
-
-func openV23ModelCatalogSchemaDB(t *testing.T, dbPath string) *sql.DB {
-	t.Helper()
-
-	ctx := testutil.Context(t)
-	db, err := store.OpenSQLiteDatabase(ctx, dbPath, nil)
-	if err != nil {
-		t.Fatalf("OpenSQLiteDatabase(v23) error = %v", err)
-	}
-	if err := store.RunMigrations(
-		ctx,
-		db,
-		append([]store.Migration(nil), globalSchemaMigrations[:modelCatalogSourceConstraintMigrationVersion-1]...),
-	); err != nil {
-		t.Fatalf("RunMigrations(v23) error = %v", err)
-	}
-	return db
-}
-
-func schemaStatementsWithoutModelCatalog() []string {
-	blocked := make(map[string]struct{}, len(modelCatalogSchemaStatements()))
-	for _, statement := range modelCatalogSchemaStatements() {
-		blocked[strings.TrimSpace(statement)] = struct{}{}
-	}
-	filtered := make([]string, 0, len(globalSchemaStatements)-len(blocked))
-	for _, statement := range globalSchemaStatements {
-		if _, ok := blocked[strings.TrimSpace(statement)]; ok {
-			continue
-		}
-		filtered = append(filtered, statement)
-	}
-	return filtered
-}
-
-func assertModelCatalogRowSourceForeignKey(t *testing.T, db *sql.DB) {
-	t.Helper()
-
-	rows, err := db.QueryContext(testutil.Context(t), `PRAGMA foreign_key_list(model_catalog_rows)`)
-	if err != nil {
-		t.Fatalf("PRAGMA foreign_key_list(model_catalog_rows) error = %v", err)
-	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			t.Fatalf("rows.Close(foreign_key_list model_catalog_rows) error = %v", closeErr)
-		}
-	}()
-
-	type foreignKeyRow struct {
-		table string
-		from  string
-		to    string
-	}
-
-	refs := make([]foreignKeyRow, 0)
-	for rows.Next() {
-		var (
-			id       int
-			seq      int
-			ref      foreignKeyRow
-			onUpdate string
-			onDelete string
-			match    string
-		)
-		if err := rows.Scan(&id, &seq, &ref.table, &ref.from, &ref.to, &onUpdate, &onDelete, &match); err != nil {
-			t.Fatalf("Scan(foreign_key_list model_catalog_rows) error = %v", err)
-		}
-		refs = append(refs, ref)
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("rows.Err(foreign_key_list model_catalog_rows) error = %v", err)
-	}
-
-	if !slices.Contains(refs, foreignKeyRow{table: "model_catalog_sources", from: "source_id", to: "source_id"}) {
-		t.Fatalf("model_catalog_rows foreign keys = %#v, want source_id -> model_catalog_sources(source_id)", refs)
-	}
-	if !slices.Contains(refs, foreignKeyRow{table: "model_catalog_sources", from: "provider_id", to: "provider_id"}) {
-		t.Fatalf("model_catalog_rows foreign keys = %#v, want provider_id -> model_catalog_sources(provider_id)", refs)
-	}
 }
 
 func replaceModelCatalogRows(

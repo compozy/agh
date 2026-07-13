@@ -26,6 +26,7 @@ Repo-wide rules (Critical Rules, Workflow, Build, Commits, Skill Dispatch, Memor
 - **Hooks are typed dispatch, not an event bus.** Dispatch at the call site that owns the state transition. Never tail event/log tables to fire hooks. Hooks may deny/narrow/annotate but cannot bypass safety primitives (claim tokens, leases, TTL, lineage, spawn caps, permission narrowing).
 - **Agent-manageable by default.** User-visible runtime capabilities must expose stable machine-readable control surfaces for agents: CLI verbs with `-o json`/`-o jsonl` where relevant, HTTP/UDS parity when state crosses the daemon boundary, discoverable status/config output, and docs that describe the agent path. UI-only manageability is incomplete.
 - **No partial-surface completions.** Any change touching a public surface closes the loop end-to-end in one pass: contract → HTTP handler → UDS handler → CLI client → CLI command → extension/config/docs surfaces → tests → docs.
+- **Public read boundaries activate `agh-data-boundaries`.** Preserve authorization, scope, ordering, completeness, cursor/fence metadata, and surface parity from store projection through Web cache.
 
 ### Concurrency
 
@@ -54,9 +55,10 @@ Generic Go concurrency patterns (goroutine ownership, channels vs mutexes, `sele
 
 ### Persistence
 
-- **SQLite migration registries are append-only.** `internal/store/globaldb.globalSchemaMigrations` and equivalent registries persist `version`, `name`, and `checksum` in `schema_migrations`; never insert, reorder, rename, renumber, or change an existing migration identity after it may have been applied.
-- **Migration drift fixes require observed-history tests.** Cover fresh DB, upgrade/reopen, and the real recorded migration prefix that failed. Integrity mismatch is a safety signal to preserve, not an error to suppress.
-- **New schema work appends at the registry tail.** If a migration appears to need an earlier slot, stop and write an ADR-backed repair plan instead of silently shifting recorded history.
+- **Goose owns runtime migration order.** Each physical SQLite scope has an embedded stream and dedicated Goose version table; append new migrations and never edit an applied identity.
+- **Atlas owns schema drift.** Keep each stream's declarative schema and `atlas.sum` aligned with its Goose head; integrity or ahead errors remain hard failures.
+- **sqlc owns static SQL.** Generated queries stay package-private behind repository mappings. Handwritten SQL is reserved for structural dynamic builders and must carry an ownership justification.
+- **Pre-Goose databases are unsupported alpha state.** Open paths refuse them without mutation; do not add compatibility readers, import bridges, or schema fallbacks.
 
 ## Security Invariants
 
@@ -118,7 +120,7 @@ Generic Go concurrency patterns (goroutine ownership, channels vs mutexes, `sele
 | `internal/skills`               | Skills catalog, loader, `VerifyContent`, MCP/hook decl, provenance            |
 | `skills/` (repo-root)           | Embedded bundled skill definitions and resources                              |
 | `internal/sse`                  | Shared SSE helpers                                                            |
-| `internal/store`                | SQLite shared helpers, migrations registry, validation                        |
+| `internal/store`                | SQLite helpers, migration streams/engine, integrity validation                |
 | `internal/store/globaldb`       | Global catalog (`agh.db`): sessions, metadata                                 |
 | `internal/store/sessiondb`      | Per-session event store (`events.db`)                                         |
 | `internal/subprocess`           | Subprocess signaling primitives                                               |

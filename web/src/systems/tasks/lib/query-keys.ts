@@ -80,10 +80,10 @@ export const tasksKeys = {
   runDetails: () => [...tasksKeys.all, "run-detail"] as const,
   runDetail: (runId: string) => [...tasksKeys.runDetails(), runId] as const,
 
+  dashboardRoot: () => [...tasksKeys.all, "dashboard"] as const,
   dashboard: (filters: TaskDashboardFilter = {}) =>
     [
-      ...tasksKeys.all,
-      "dashboard",
+      ...tasksKeys.dashboardRoot(),
       normalizeText(filters.scope),
       normalizeText(filters.workspace),
       normalizeText(filters.owner_kind),
@@ -92,11 +92,11 @@ export const tasksKeys = {
       normalizeText(filters.origin_kind),
     ] as const,
 
+  inboxRoot: () => [...tasksKeys.all, "inbox"] as const,
   inbox: (filters: TaskInboxFilter = {}) => {
     const normalized = taskInboxStableFilter(filters);
     return [
-      ...tasksKeys.all,
-      "inbox",
+      ...tasksKeys.inboxRoot(),
       normalizeText(normalized.scope),
       normalizeText(normalized.workspace),
       normalizeText(normalized.owner_kind),

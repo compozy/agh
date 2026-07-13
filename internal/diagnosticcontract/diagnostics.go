@@ -97,6 +97,7 @@ const (
 	CodeIdentityRequired              = "identity_required"
 	CodeIdentityStale                 = "identity_stale"
 	CodeIdentityUnauthorized          = "identity_unauthorized"
+	CodeLegacyDatabase                = "legacy_database"
 	CodeMarketplaceUnavailable        = "marketplace_unavailable"
 	CodeModelNotFound                 = "model_not_found"
 	CodeModelUnavailable              = "model_unavailable"
@@ -128,6 +129,7 @@ const (
 	CodeRetryChainTooDeep             = "retry_chain_too_deep"
 	CodeSchedulerReady                = "scheduler_ready"
 	CodeSchedulerPaused               = "scheduler_paused"
+	CodeSchemaAhead                   = "schema_ahead"
 	// #nosec G101 -- diagnostic code label, not credential material.
 	CodeSecretsPermsWrong      = "secrets_perms_wrong"
 	CodeSessionBusy            = "session_busy"
@@ -205,6 +207,7 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeIdentityRequired, Category: CategorySession},
 	{Code: CodeIdentityStale, Category: CategorySession},
 	{Code: CodeIdentityUnauthorized, Category: CategorySession},
+	{Code: CodeLegacyDatabase, Category: CategoryMigrations},
 	{Code: CodeMarketplaceUnavailable, Category: CategoryExtension},
 	{Code: CodeModelNotFound, Category: CategoryProvider},
 	{Code: CodeModelUnavailable, Category: CategoryProvider},
@@ -236,6 +239,7 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeRetryChainTooDeep, Category: CategoryTask},
 	{Code: CodeSchedulerReady, Category: CategoryTask},
 	{Code: CodeSchedulerPaused, Category: CategoryTask},
+	{Code: CodeSchemaAhead, Category: CategoryMigrations},
 	{Code: CodeSecretsPermsWrong, Category: CategorySecrets},
 	{Code: CodeSessionBusy, Category: CategorySession},
 	{Code: CodeSessionLocked, Category: CategorySession},

@@ -8,10 +8,11 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 // WriteNetworkAudit stores one network audit row.
-func (g *GlobalDB) WriteNetworkAudit(ctx context.Context, entry store.NetworkAuditEntry) error {
+func (g *NetworkRepo) WriteNetworkAudit(ctx context.Context, entry store.NetworkAuditEntry) error {
 	if err := g.checkReady(ctx, "write network audit"); err != nil {
 		return err
 	}
@@ -29,7 +30,7 @@ func (g *GlobalDB) WriteNetworkAudit(ctx context.Context, entry store.NetworkAud
 }
 
 // ListNetworkAudit returns network audit rows filtered by the supplied options.
-func (g *GlobalDB) ListNetworkAudit(
+func (g *NetworkRepo) ListNetworkAudit(
 	ctx context.Context,
 	query store.NetworkAuditQuery,
 ) (entries []store.NetworkAuditEntry, err error) {
@@ -40,6 +41,7 @@ func (g *GlobalDB) ListNetworkAudit(
 		return nil, err
 	}
 
+	// dynamic-sql: the optional audit dimensions, lower time bound, and caller limit change the statement shape.
 	sqlQuery := `SELECT
 		id, session_id, workspace_id, direction, kind, channel, surface, thread_id, direct_id, work_id,
 		peer_from, peer_to, message_id, reason, size, timestamp
@@ -154,30 +156,21 @@ func insertNetworkAuditWithExecutor(ctx context.Context, exec networkSQLExecutor
 	if err := entry.Validate(); err != nil {
 		return fmt.Errorf("store: validate network audit entry: %w", err)
 	}
-	if _, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO network_audit_log (
-			id, session_id, workspace_id, direction, kind, channel, surface, thread_id, direct_id, work_id,
-			peer_from, peer_to, message_id, reason, size, timestamp
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		entry.ID,
-		entry.SessionID,
-		entry.WorkspaceID,
-		entry.Direction,
-		entry.Kind,
-		entry.Channel,
-		store.NullableString(entry.Surface),
-		store.NullableString(entry.ThreadID),
-		store.NullableString(entry.DirectID),
-		store.NullableString(entry.WorkID),
-		entry.PeerFrom,
-		store.NullableString(entry.PeerTo),
-		entry.MessageID,
-		store.NullableString(entry.Reason),
-		entry.Size,
-		store.FormatTimestamp(entry.Timestamp),
-	); err != nil {
+	if err := sqlcgen.New(exec).InsertNetworkAudit(ctx, sqlcgen.InsertNetworkAuditParams{
+		ID: entry.ID, SessionID: entry.SessionID, WorkspaceID: entry.WorkspaceID,
+		Direction: entry.Direction, Kind: entry.Kind, Channel: entry.Channel,
+		Surface: nullableNetworkString(entry.Surface), ThreadID: nullableNetworkString(entry.ThreadID),
+		DirectID: nullableNetworkString(entry.DirectID), WorkID: nullableNetworkString(entry.WorkID),
+		PeerFrom: entry.PeerFrom, PeerTo: nullableNetworkString(entry.PeerTo), MessageID: entry.MessageID,
+		Reason: nullableNetworkString(entry.Reason), Size: int64(entry.Size),
+		Timestamp: store.FormatTimestamp(entry.Timestamp),
+	}); err != nil {
 		return fmt.Errorf("store: insert network audit entry: %w", err)
 	}
 	return nil
+}
+
+func nullableNetworkString(value string) sql.NullString {
+	value = strings.TrimSpace(value)
+	return sql.NullString{String: value, Valid: value != ""}
 }

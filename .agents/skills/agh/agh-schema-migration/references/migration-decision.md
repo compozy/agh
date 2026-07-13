@@ -8,13 +8,13 @@ Use the matrix below to decide what kind of artifact your change needs.
 | Add a NULLable column | YES | Even nullable adds need to be migrated, not implicit. |
 | Drop a column | YES | SQLite supports `ALTER TABLE DROP COLUMN` since 3.35; check the project's minimum version before using. |
 | Rename a column | YES | Use `CREATE NEW + INSERT INTO ... SELECT + DROP + RENAME` if direct rename isn't supported. |
-| Add an index | YES | Idempotent: `CREATE INDEX IF NOT EXISTS`. |
-| Drop an index | YES | `DROP INDEX IF EXISTS`. |
+| Add an index | YES | Add it beside its table in the owning declarative source; let Atlas plan the appended SQL. |
+| Drop an index | YES | Treat Atlas destructive diagnostics as a design review input. |
 | Add a CHECK constraint | YES | Same as table-rebuild for older SQLite versions. |
 | Add a unique constraint | YES | Risk of breaking existing data — surface in techspec. |
-| New table | YES | Idempotent: `CREATE TABLE IF NOT EXISTS`. |
+| New table | YES | Add the complete table and indexes to the owning declarative source. |
 | Drop a table | YES | Greenfield-alpha: hard cut. Mention the delete target in the techspec. |
-| Add a row (seed data) | YES | Use `INSERT OR IGNORE` for idempotence. |
+| Add a row (seed data) | YES | Add bounded data SQL to the unpublished migration tail and test repeated open. |
 | Change default value | YES | Existing rows are unaffected by SQLite default changes — explicit backfill if needed. |
 | Touch struct field that round-trips through SQLite | YES (column add/rename) | The Go struct change is just the front of the migration. |
 | In-memory cache shape change | NO | This skill does not apply. |
@@ -24,4 +24,4 @@ Use the matrix below to decide what kind of artifact your change needs.
 
 If the migration would require a "preserve old behavior" branch, the answer is "delete the old thing." Hard-cut renames sweep code, storage, APIs, CLI, extensions, specs, RFCs, AND `.compozy/tasks/*` artifacts in the same change.
 
-The narrow exception: in-place ALTER + one-shot repair when the cost of "delete the old thing" is "every developer rebuilds their local SQLite." Repair is bounded to a single boot, strict semantics resume immediately, exception is documented in an ADR (see `session-driver-override/adrs/adr-005.md`).
+Any one-pass data transformation belongs in one appended Goose SQL migration and an ADR-backed contract. Do not add boot-time schema repair or dual-shape runtime branches.

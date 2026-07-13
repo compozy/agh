@@ -39,6 +39,7 @@ import (
 	"github.com/compozy/agh/internal/skills"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/agh/internal/testutil"
 	toolspkg "github.com/compozy/agh/internal/tools"
 	builtintools "github.com/compozy/agh/internal/tools/builtin"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -863,6 +864,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			filepath.Join(t.TempDir(), "schema-memory"),
 			memorypkg.WithCatalogDatabasePath(filepath.Join(t.TempDir(), store.GlobalDatabaseName)),
 		)
+		openDaemonMemoryCatalog(t, memoryStore)
 		catalog := &nativeModelCatalogService{}
 		settingsService := &nativeProviderModelSettingsService{}
 		extractor := &nativeMemoryExtractorService{}
@@ -4379,6 +4381,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		globalDir := filepath.Join(t.TempDir(), "global-memory")
 		catalogPath := filepath.Join(t.TempDir(), "memory.db")
 		memoryStore := memorypkg.NewStore(globalDir, memorypkg.WithCatalogDatabasePath(catalogPath))
+		openDaemonMemoryCatalog(t, memoryStore)
 		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
 		stableWorkspaceID := "01ARZ3NDEKTSV4RRFFQ69G5FAV"
 		if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
@@ -4669,6 +4672,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			filepath.Join(baseDir, "global-memory"),
 			memorypkg.WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
 		)
+		openDaemonMemoryCatalog(t, memoryStore)
 		base := memoryStore.ForWorkspace(workspaceRoot)
 		for _, agentName := range []string{"reviewer-a", "reviewer-b"} {
 			agentStore := base.ForAgent(identity.WorkspaceID, agentName, memcontract.AgentTierWorkspace)
@@ -4727,6 +4731,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		globalDir := filepath.Join(t.TempDir(), "memory")
 		catalogPath := filepath.Join(t.TempDir(), "memory.db")
 		memoryStore := memorypkg.NewStore(globalDir, memorypkg.WithCatalogDatabasePath(catalogPath))
+		openDaemonMemoryCatalog(t, memoryStore)
 		for idx := range 205 {
 			filename := fmt.Sprintf("ops-%03d.md", idx)
 			if err := memoryStore.Write(
@@ -5517,6 +5522,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			globalDir,
 			memorypkg.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "agh.db")),
 		)
+		openDaemonMemoryCatalog(t, memoryStore)
 		recorder := &nativeMemoryToolWriteRecorder{}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			MemoryStore:      memoryStore,
@@ -6691,6 +6697,7 @@ func newNativeMemoryAdminFixture(t *testing.T) nativeMemoryAdminFixture {
 		globalDir,
 		memorypkg.WithCatalogDatabasePath(filepath.Join(t.TempDir(), store.GlobalDatabaseName)),
 	)
+	openDaemonMemoryCatalog(t, memoryStore)
 	if err := memoryStore.EnsureDirs(); err != nil {
 		t.Fatalf("EnsureDirs() error = %v", err)
 	}
@@ -6808,6 +6815,19 @@ func newNativeMemoryAdminFixture(t *testing.T) nativeMemoryAdminFixture {
 		providers:     providers,
 		ledger:        ledger,
 	}
+}
+
+func openDaemonMemoryCatalog(t *testing.T, store *memorypkg.Store) {
+	t.Helper()
+	ctx := testutil.Context(t)
+	if err := store.OpenCatalog(ctx); err != nil {
+		t.Fatalf("MemoryStore.OpenCatalog() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := store.CloseCatalog(ctx); err != nil {
+			t.Errorf("MemoryStore.CloseCatalog() error = %v", err)
+		}
+	})
 }
 
 type nativeDreamTriggerService struct {

@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 // DeleteHeartbeatAgentHistory removes revisions owned by one effective authored definition.
-func (g *GlobalDB) DeleteHeartbeatAgentHistory(
+func (g *HeartbeatRepo) DeleteHeartbeatAgentHistory(
 	ctx context.Context,
 	workspaceID string,
 	agentName string,
@@ -22,20 +24,16 @@ func (g *GlobalDB) DeleteHeartbeatAgentHistory(
 	if workspaceID == "" || agentName == "" || sourcePath == "" {
 		return fmt.Errorf("store: delete heartbeat agent history requires workspace id, agent name, and source path")
 	}
-	if _, err := g.db.ExecContext(
-		ctx,
-		`DELETE FROM agent_heartbeat_revisions WHERE workspace_id = ? AND agent_name = ? AND source_path = ?`,
-		workspaceID,
-		agentName,
-		sourcePath,
-	); err != nil {
+	if err := g.queries.DeleteHeartbeatAgentHistory(ctx, sqlcgen.DeleteHeartbeatAgentHistoryParams{
+		WorkspaceID: workspaceID, AgentName: agentName, SourcePath: sourcePath,
+	}); err != nil {
 		return fmt.Errorf("store: delete heartbeat agent history: %w", err)
 	}
 	return nil
 }
 
 // DeleteSoulAgentHistory removes revisions owned by one effective authored definition.
-func (g *GlobalDB) DeleteSoulAgentHistory(
+func (g *SoulRepo) DeleteSoulAgentHistory(
 	ctx context.Context,
 	workspaceID string,
 	agentName string,
@@ -50,13 +48,9 @@ func (g *GlobalDB) DeleteSoulAgentHistory(
 	if workspaceID == "" || agentName == "" || sourcePath == "" {
 		return fmt.Errorf("store: delete soul agent history requires workspace id, agent name, and source path")
 	}
-	if _, err := g.db.ExecContext(
-		ctx,
-		`DELETE FROM agent_soul_revisions WHERE workspace_id = ? AND agent_name = ? AND source_path = ?`,
-		workspaceID,
-		agentName,
-		sourcePath,
-	); err != nil {
+	if err := g.queries.DeleteSoulAgentHistory(ctx, sqlcgen.DeleteSoulAgentHistoryParams{
+		WorkspaceID: workspaceID, AgentName: agentName, SourcePath: sourcePath,
+	}); err != nil {
 		return fmt.Errorf("store: delete soul agent history: %w", err)
 	}
 	return nil

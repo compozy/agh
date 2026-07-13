@@ -40,7 +40,7 @@ import {
 } from "../query-options";
 import { networkKeys } from "../query-keys";
 import { flattenNetworkMessages } from "../infinite-data";
-import { rollNetworkMessageTail } from "../../hooks/use-network-message-tail";
+import { rollNetworkMessageTail } from "../network-message-tail";
 
 function makeQueryContext<TQueryKey extends readonly unknown[], TPageParam = never>(
   queryKey: TQueryKey,

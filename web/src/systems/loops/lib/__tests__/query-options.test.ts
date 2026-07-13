@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  goalTurnsOptions,
   loopConfigOptions,
   loopDetailOptions,
   loopRunDetailOptions,
@@ -32,6 +33,15 @@ describe("loop query-options", () => {
       "run-detail",
       "ws_a",
       "run_1",
+    ]);
+    expect(goalTurnsOptions("ws_a", "run_1", { node: "build", limit: 25 }).queryKey).toEqual([
+      "loops",
+      "goal-turns",
+      "ws_a",
+      "run_1",
+      "build",
+      "",
+      "25",
     ]);
   });
 

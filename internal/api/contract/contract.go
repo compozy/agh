@@ -598,21 +598,6 @@ type HookEventPayload struct {
 	PatchSchema   string `json:"patch_schema,omitempty"`
 }
 
-// DaemonStatusPayload is the shared daemon status response payload.
-type DaemonStatusPayload struct {
-	Status         string                `json:"status"`
-	PID            int                   `json:"pid"`
-	StartedAt      time.Time             `json:"started_at"`
-	Socket         string                `json:"socket"`
-	HTTPHost       string                `json:"http_host"`
-	HTTPPort       int                   `json:"http_port"`
-	UserHomeDir    string                `json:"user_home_dir"`
-	ActiveSessions int                   `json:"active_sessions"`
-	TotalSessions  int                   `json:"total_sessions"`
-	Version        string                `json:"version,omitempty"`
-	Network        *NetworkStatusPayload `json:"network,omitempty"`
-}
-
 // NetworkStatusPayload is the shared network diagnostics response payload.
 type NetworkStatusPayload struct {
 	Enabled                  bool                            `json:"enabled"`

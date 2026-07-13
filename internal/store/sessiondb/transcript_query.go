@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/sessiondb/sqlcgen"
 	"github.com/compozy/agh/internal/transcript"
 )
 
@@ -97,8 +98,8 @@ func queryTranscriptPage(
 		return transcript.Page{}, fmt.Errorf("store: begin transcript page read: %w", err)
 	}
 	defer func() {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) && err == nil {
-			err = fmt.Errorf("store: close transcript page read: %w", rollbackErr)
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			joinSessionCleanupError(&err, fmt.Errorf("store: close transcript page read: %w", rollbackErr))
 		}
 	}()
 	state, err := loadProjectionState(ctx, tx)
@@ -106,20 +107,14 @@ func queryTranscriptPage(
 		return transcript.Page{}, err
 	}
 	page.Generation = state.Generation
-	if err := tx.QueryRowContext(
-		ctx,
-		"SELECT COALESCE(MAX(sequence), 0) FROM events",
-	).Scan(&page.MaxSequence); err != nil {
+	page.MaxSequence, err = sqlcgen.New(tx).MaxEventSequence(ctx)
+	if err != nil {
 		return transcript.Page{}, fmt.Errorf("store: query transcript max sequence: %w", err)
 	}
 
-	rows, err := queryMaterializedTranscriptPage(ctx, tx, query)
+	entries, err := queryMaterializedTranscriptPage(ctx, tx, query)
 	if err != nil {
 		return transcript.Page{}, fmt.Errorf("store: query transcript page: %w", err)
-	}
-	entries, err := scanMaterializedEntries(rows)
-	if err != nil {
-		return transcript.Page{}, err
 	}
 	if len(entries) > query.Limit {
 		page.HasOlder = true
@@ -140,21 +135,51 @@ func queryMaterializedTranscriptPage(
 	ctx context.Context,
 	tx *sql.Tx,
 	query transcript.PageQuery,
-) (*sql.Rows, error) {
+) ([]transcript.Entry, error) {
+	queries := sqlcgen.New(tx)
 	if query.BeforeSequence == 0 {
-		return tx.QueryContext(ctx, `
-			SELECT message_json, start_sequence, updated_sequence, event_type, marker_json
-			FROM transcript_entries
-			WHERE message_json IS NOT NULL
-			ORDER BY start_sequence DESC
-			LIMIT ?`, query.Limit+1)
+		rows, err := queries.ListLatestTranscriptEntries(ctx, int64(query.Limit+1))
+		if err != nil {
+			return nil, err
+		}
+		entries := make([]transcript.Entry, 0, len(rows))
+		for _, row := range rows {
+			entry, mapErr := materializedTranscriptEntry(
+				row.MessageJson,
+				row.StartSequence,
+				row.UpdatedSequence,
+				row.EventType,
+				row.MarkerJson,
+			)
+			if mapErr != nil {
+				return nil, mapErr
+			}
+			entries = append(entries, entry)
+		}
+		return entries, nil
 	}
-	return tx.QueryContext(ctx, `
-		SELECT message_json, start_sequence, updated_sequence, event_type, marker_json
-		FROM transcript_entries
-		WHERE message_json IS NOT NULL AND start_sequence < ?
-		ORDER BY start_sequence DESC
-		LIMIT ?`, query.BeforeSequence, query.Limit+1)
+	rows, err := queries.ListTranscriptEntriesBefore(ctx, sqlcgen.ListTranscriptEntriesBeforeParams{
+		BeforeSequence: query.BeforeSequence,
+		RowLimit:       int64(query.Limit + 1),
+	})
+	if err != nil {
+		return nil, err
+	}
+	entries := make([]transcript.Entry, 0, len(rows))
+	for _, row := range rows {
+		entry, mapErr := materializedTranscriptEntry(
+			row.MessageJson,
+			row.StartSequence,
+			row.UpdatedSequence,
+			row.EventType,
+			row.MarkerJson,
+		)
+		if mapErr != nil {
+			return nil, mapErr
+		}
+		entries = append(entries, entry)
+	}
+	return entries, nil
 }
 
 func queryTranscriptChanges(
@@ -171,8 +196,8 @@ func queryTranscriptChanges(
 		return transcript.ChangePage{}, fmt.Errorf("store: begin transcript changes read: %w", err)
 	}
 	defer func() {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) && err == nil {
-			err = fmt.Errorf("store: close transcript changes read: %w", rollbackErr)
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			joinSessionCleanupError(&err, fmt.Errorf("store: close transcript changes read: %w", rollbackErr))
 		}
 	}()
 	state, err := loadProjectionState(ctx, tx)
@@ -180,14 +205,13 @@ func queryTranscriptChanges(
 		return transcript.ChangePage{}, err
 	}
 	page.Generation = state.Generation
-	if err := tx.QueryRowContext(
-		ctx,
-		"SELECT COALESCE(MAX(sequence), 0) FROM events",
-	).Scan(&page.MaxSequence); err != nil {
+	page.MaxSequence, err = sqlcgen.New(tx).MaxEventSequence(ctx)
+	if err != nil {
 		return transcript.ChangePage{}, fmt.Errorf("store: query transcript changes max sequence: %w", err)
 	}
 	// One event can update its assigned entry and close at most one active
 	// assistant. Rank paging keeps that bounded two-entry change atomic.
+	// dynamic-sql: sqlc's SQLite analyzer cannot resolve the DENSE_RANK alias through the derived-table boundary.
 	rows, err := tx.QueryContext(ctx, `
 		SELECT message_json, start_sequence, updated_sequence, event_type, marker_json, change_rank
 		FROM (
@@ -216,26 +240,6 @@ func queryTranscriptChanges(
 		return transcript.ChangePage{}, fmt.Errorf("store: commit transcript changes read: %w", err)
 	}
 	return page, nil
-}
-
-func scanMaterializedEntries(rows *sql.Rows) (entries []transcript.Entry, err error) {
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("store: close materialized transcript entries: %w", closeErr))
-		}
-	}()
-	entries = make([]transcript.Entry, 0)
-	for rows.Next() {
-		entry, scanErr := scanMaterializedEntry(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		entries = append(entries, entry)
-	}
-	if rowsErr := rows.Err(); rowsErr != nil {
-		return nil, fmt.Errorf("store: iterate materialized transcript entries: %w", rowsErr)
-	}
-	return entries, nil
 }
 
 func scanMaterializedChangeEntries(
@@ -286,25 +290,6 @@ func scanMaterializedChangeEntry(scanner rowScanner) (transcript.Entry, int, err
 	return entry, rank, nil
 }
 
-func scanMaterializedEntry(scanner rowScanner) (transcript.Entry, error) {
-	var entry transcript.Entry
-	var messageJSON string
-	var markerJSON sql.NullString
-	if err := scanner.Scan(
-		&messageJSON,
-		&entry.StartSequence,
-		&entry.Sequence,
-		&entry.EventType,
-		&markerJSON,
-	); err != nil {
-		return transcript.Entry{}, fmt.Errorf("store: scan materialized transcript entry: %w", err)
-	}
-	if err := decodeMaterializedEntry(&entry, messageJSON, markerJSON); err != nil {
-		return transcript.Entry{}, err
-	}
-	return entry, nil
-}
-
 func decodeMaterializedEntry(entry *transcript.Entry, messageJSON string, markerJSON sql.NullString) error {
 	if err := json.Unmarshal([]byte(messageJSON), &entry.Message); err != nil {
 		return fmt.Errorf(
@@ -327,4 +312,29 @@ func decodeMaterializedEntry(entry *transcript.Entry, messageJSON string, marker
 		entry.Marker = &marker
 	}
 	return nil
+}
+
+func materializedTranscriptEntry(
+	messageJSON sql.NullString,
+	startSequence int64,
+	updatedSequence int64,
+	eventType string,
+	markerJSON sql.NullString,
+) (transcript.Entry, error) {
+	entry := transcript.Entry{
+		StartSequence: startSequence,
+		Sequence:      updatedSequence,
+		EventType:     eventType,
+	}
+	if !messageJSON.Valid {
+		return transcript.Entry{}, fmt.Errorf(
+			"%w: missing message at sequence %d",
+			transcript.ErrProjectionCorrupt,
+			startSequence,
+		)
+	}
+	if err := decodeMaterializedEntry(&entry, messageJSON.String, markerJSON); err != nil {
+		return transcript.Entry{}, err
+	}
+	return entry, nil
 }

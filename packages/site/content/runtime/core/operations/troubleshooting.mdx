@@ -53,6 +53,37 @@ Fix the error reported by foreground mode, then start normally:
 agh daemon start
 ```
 
+## AGH refuses an incompatible database
+
+| Field      | What to check                                                                                                                                                                                                                                                                                                                      |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Symptoms   | A daemon-global refusal stops boot and names `$AGH_HOME/agh.db`. A per-session refusal can instead appear after AGH is ready when `agh session history <id> -o json` or the HTTP/UDS session-history route opens that session's `events.db`.                                                                                       |
+| Diagnosis  | `legacy_database` means the file predates AGH's Goose stream. `schema_ahead` means the recorded Goose version is newer than the running binary. Both refusals leave the incompatible file unchanged; daemon readiness only proves the global and memory streams, not every lazily opened per-session stream.                       |
+| Resolution | For `schema_ahead`, run a newer compatible AGH binary against the stopped, intact database family—the preferred state-preserving path. For `legacy_database`, cold-move the complete `AGH_HOME` or workspace `.agh` family and select a separate fresh home. Never edit a version table or move one database/sidecar in isolation. |
+
+Stopped-daemon provider-auth, extension, and MCP-auth commands return the same refusal as one structured error
+document under `-o json`. Match `diagnostic.code` as `legacy_database` or `schema_ahead`; the diagnostic evidence
+includes the direct-open surface and canonical offending path.
+
+When a fresh home is the chosen hard-cut path, stop AGH and preserve the complete old home first:
+
+```bash
+export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
+agh daemon stop
+legacy_home="${AGH_HOME}.pre-goose-$(date +%Y%m%d-%H%M%S)"
+mv "$AGH_HOME" "$legacy_home"
+mkdir -p "$AGH_HOME"
+agh daemon start
+agh status -o json | jq '.daemon.schema_streams'
+```
+
+The final command should report the `global` and `memory` streams with their applied versions and
+schema digests. It does not validate every per-session `events.db`; exercise the affected session-history
+reader separately. Do not copy legacy tables or session directories into the fresh home. Keep
+`$legacy_home` separate for inspection with its matching pre-Goose binary. For `schema_ahead`, keep the
+original home in place and use a newer compatible binary instead of this state-discarding path. See
+[Database Operations](/runtime/core/operations/database) for cold and live backup rules.
+
 ## Unix socket cannot be created or opened
 
 | Field      | What to check                                                                                                                                      |

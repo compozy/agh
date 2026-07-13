@@ -68,7 +68,7 @@ The two together give AGH a balanced execution model: openclaw-style scenarios w
 
 | #  | Module | Owns | Does NOT own (cross-references) |
 |----|--------|------|-------------------------------|
-| 01 | daemon-boot | composition root, lock, boot pipeline, shutdown ordering, migrations registry, signals, subprocess lifetime, diagnostics + heartbeat | session lifecycle (→ 03), task claim semantics (→ 04), event coverage matrix (→ 15) |
+| 01 | daemon-boot | composition root, lock, boot pipeline, shutdown ordering, Goose schema streams, signals, subprocess lifetime, diagnostics + heartbeat | session lifecycle (→ 03), task claim semantics (→ 04), event coverage matrix (→ 15) |
 | 02 | config-settings | TOML parse + merge + overlay, agent-def parsing, vault redaction, workspace resolver, frontmatter | settings projection over SSE (→ 11), session-snapshot config (→ 03) |
 | 03 | acp-sessions | ACP client + JSON-RPC, session manager + state machine, transcripts, replay assembly, agentidentity, situation surface | task_run claim (→ 04), event ledger (→ 15), web rendering (→ 12) |
 | 04 | autonomy-kernel | task_runs, ClaimNextRun, mechanical scheduler, hooks dispatch, coordinator, lease/sweep | session lifecycle (→ 03), automation/cron triggers (→ 09), tool deny/narrow (→ 07) |

@@ -9,6 +9,7 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 const (
@@ -42,20 +43,14 @@ func closeGoalBindingWithCleanup(
 	default:
 		return goalControlStaleError("Goal cleanup binding is not active")
 	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_session_bindings SET state = 'closed', closed_at = ?
-		 WHERE loop_run_id = ? AND handle = ? AND binding_epoch = ? AND session_id = ? AND state = 'active'`,
-		store.FormatTimestamp(closedAt),
-		string(key.LoopRunID),
-		key.Handle,
-		bindingEpoch,
-		strings.TrimSpace(sessionID),
-	)
+	affected, err := sqlcgen.New(exec).CloseGoalBindingWithCleanup(ctx, sqlcgen.CloseGoalBindingWithCleanupParams{
+		ClosedAt: store.FormatTimestamp(closedAt), LoopRunID: string(key.LoopRunID), Handle: key.Handle,
+		BindingEpoch: bindingEpoch, SessionID: strings.TrimSpace(sessionID),
+	})
 	if err != nil {
 		return fmt.Errorf("store: close Goal binding for cleanup: %w", err)
 	}
-	if err := requireGoalRowsAffected(result, "close Goal binding for cleanup"); err != nil {
+	if err := requireGoalAffectedCount(affected, "close Goal binding for cleanup"); err != nil {
 		return err
 	}
 	return enqueueGoalSessionCleanupWithExecutor(ctx, exec, binding, cause, closedAt)
@@ -87,7 +82,7 @@ func closeTerminalGoalCheckpointBinding(
 }
 
 // SettleStoppedSessionBindingCreation releases cleanup after an in-flight create effect has returned.
-func (g *GlobalDB) SettleStoppedSessionBindingCreation(
+func (g *GoalRepo) SettleStoppedSessionBindingCreation(
 	ctx context.Context,
 	req goal.SettleStoppedBindingCreationRequest,
 ) (bool, error) {
@@ -123,22 +118,19 @@ func (g *GlobalDB) SettleStoppedSessionBindingCreation(
 			default:
 				return nil
 			}
-			result, err := exec.ExecContext(
+			affected, err := sqlcgen.New(exec).SettleStoppedGoalBindingCreationForSession(
 				ctx,
-				`UPDATE loop_session_bindings SET failure_code = ?
-			 WHERE loop_run_id = ? AND handle = ? AND binding_epoch = ?
-			   AND session_id = ? AND state = 'failed' AND failure_code = ?`,
-				goalBindingFailureStopCreationSettled,
-				string(req.Key.LoopRunID),
-				req.Key.Handle,
-				req.ExpectedBindingEpoch,
-				strings.TrimSpace(req.SessionID),
-				goalBindingFailureStopCreationUnsettled,
+				sqlcgen.SettleStoppedGoalBindingCreationForSessionParams{
+					SettledFailureCode: goalNullableString(goalBindingFailureStopCreationSettled),
+					LoopRunID:          string(req.Key.LoopRunID), Handle: req.Key.Handle,
+					BindingEpoch: req.ExpectedBindingEpoch, SessionID: strings.TrimSpace(req.SessionID),
+					UnsettledFailureCode: goalNullableString(goalBindingFailureStopCreationUnsettled),
+				},
 			)
 			if err != nil {
 				return fmt.Errorf("store: settle stopped Goal binding creation: %w", err)
 			}
-			if err := requireGoalRowsAffected(result, "settle stopped Goal binding creation"); err != nil {
+			if err := requireGoalAffectedCount(affected, "settle stopped Goal binding creation"); err != nil {
 				return err
 			}
 			stopped = true

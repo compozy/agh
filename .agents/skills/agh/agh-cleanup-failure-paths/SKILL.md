@@ -1,65 +1,57 @@
 ---
 name: agh-cleanup-failure-paths
 description: >-
-  Audits Go functions with multi-step setup or teardown for cleanup discipline on
-  every error return: cancel any context created or extended, close every opened
-  resource, release every claim or lease, stop every spawned subprocess, drain
-  every HTTP body. Forbids http.DefaultClient in production code paths. Use when
-  editing functions in internal/acp, internal/session, internal/scheduler,
-  internal/coordinator, internal/extension, internal/automation, internal/store,
-  internal/memory, internal/api, or any subprocess or registry handler. Do not
-  use for read-only helpers, pure data structures, or tests.
+  Partial-failure cleanup audit for AGH Go functions. Use when a changed
+  function acquires, registers, starts, claims, leases, or opens more than one
+  fallible resource before returning. Do not use for pure transformations,
+  read-only helpers, or test-only code.
 trigger: implicit
 ---
 
 # Cleanup Failure Paths
 
-Hermes review issue #001 cost a real PR round because a `procCtx` leaked when registry registration failed. The happy path was clean; the partial-failure path leaked. This pattern recurs in every AGH PR that adds multi-step setup. Activate this skill before editing any function that creates/extends a context, registers a resource, opens a connection, or spawns a subprocess.
+Audit the complete acquisition/cleanup matrix of every touched function. This
+file owns the audit order; its references own canonical pairings and tests.
 
 ## Procedures
 
-**Step 1: Identify Setup-Step Boundaries**
+**Step 1: Build the Acquisition Matrix**
 
 1. Read the target function and enumerate every "step" that allocates a resource: context creation, file open, listener bind, registry register, lease claim, goroutine spawn, subprocess start, HTTP request, mutex lock, transaction begin.
-2. For each step, identify the cleanup action that pairs with it: `cancel()`, `Close()`, `Unregister()`, `Release()`, `Stop()`, `defer cancel()`, `tx.Rollback()`.
-3. Read `references/cleanup-table.md` for the canonical pairing table.
+2. Read `.agents/skills/agh/agh-cleanup-failure-paths/references/cleanup-table.md` in full and map each acquisition to its owner, cleanup action, cleanup-error handling, and shutdown order.
+3. Mark resources whose lifetime intentionally escapes the function and name the new owner and explicit cancel/stop surface.
 
-**Step 2: Walk Every Error Return**
+*Done when:* every acquired resource has one owner, one cleanup path, one error policy, and one bounded lifetime.
 
-1. List every `return ... err` statement in the function.
-2. For each one, walk backward through the function body and confirm every resource allocated above the return point is cleaned up — either by an immediate `defer` adjacent to its allocation OR by an explicit cleanup call before the return.
-3. If a resource is allocated and the only cleanup is on the success path, that's a leak. Add cleanup on the error path.
-4. Treat panic recovery and `runtime.Goexit` as additional exit paths — `defer` covers both.
+**Step 2: Walk Every Exit**
 
-**Step 3: Apply the Defer-Adjacent Rule**
+1. List success, error, cancellation, panic-recovery, and `runtime.Goexit` exits after each acquisition.
+2. Walk backward from every exit and account for all resources acquired above it.
+3. Handle cleanup failures according to the canonical reference; do not replace a primary error or silently discard a secondary cleanup error.
+4. Restructure the function when ownership cannot be proven locally instead of auditing only the branch being edited.
 
-1. Pair each `WithCancel`/`WithTimeout`/`WithDeadline` with a `defer cancel()` on the next line.
-2. Pair each `os.Open`/`net.Listen`/`db.Begin`/`tx.Begin` with a `defer Close()`/`defer tx.Rollback()` on the next line.
-3. Goroutine spawns paired with WaitGroup increment and a `defer wg.Done()` inside the goroutine.
-4. Subprocess starts paired with a deferred `Stop()` whose context respects `select { case <-proc.Done(): case <-ctx.Done(): }`.
+*Done when:* every exit after every acquisition releases or transfers ownership of every live resource, including cleanup-error paths.
 
-**Step 4: Detached-Lifetime Discipline**
+**Step 3: Apply Lifetime and Shutdown Semantics**
 
-1. Any work that outlives the request (prompt execution, channel send, automation job) MUST detach via `context.WithoutCancel(ctx)`.
-2. The writer loop stays bound to the request context — detach the *execution*, not the *response*.
-3. `context.WithoutCancel` does NOT preserve deadlines — re-attach with `WithDeadline` if needed.
-4. Expose explicit cancel endpoints for detached work.
+1. Apply every matching pairing, ordering, detached-lifetime, subprocess, transaction, and HTTP-drain rule from the cleanup table.
+2. Keep writer/response lifetimes request-bound while explicitly detached execution gets a deadline and cancel surface.
+3. Verify process-group parity and cancel-then-grace semantics for subprocess trees.
 
-**Step 5: Outbound-Call Hygiene**
+*Done when:* cleanup order preserves public/private state invariants and every detached or spawned lifetime has an observable stop path.
 
-1. `http.DefaultClient` is forbidden in production paths. Every outbound HTTP call uses an explicit timeout.
-2. Drain response bodies via `io.Copy(io.Discard, resp.Body)` then `resp.Body.Close()` — do not skip the drain.
-3. For TLS-sensitive endpoints, require HTTPS and OAuth/PKCE per `docs/_memory/lessons/L-008-schema-migrations-mandatory.md` (no, that's a sibling lesson — see Hermes review issues 015/016/017 for OAuth discovery, RFC 8414 well-known URLs, and HTTPS enforcement).
+**Step 4: Prove Distinct Failure Modes**
 
-**Step 6: Test the Failure Paths**
+1. Activate `consolidate-test-suites` and `agh-test-conventions` before changing Go tests.
+2. Read `.agents/skills/agh/agh-cleanup-failure-paths/references/test-failure-paths.md` in full.
+3. Add or extend canonical coverage for each behaviorally distinct cleanup invariant, not each syntactic return.
+4. Inject the failure through an interface or real boundary, then assert the resource is actually reusable, released, stopped, or closed; a mock-call count alone is insufficient.
 
-1. For each error return identified in Step 2, write or extend a test that triggers that exact failure and asserts the cleanup happened (resource released, context cancelled, lease unblocked, subprocess reaped).
-2. Read `references/test-failure-paths.md` for canonical patterns.
-3. Mocking via interfaces is preferred over runtime fault injection.
+*Done when:* every distinct failure class that could leak ownership is proved by the canonical suite without duplicate invariants.
 
 ## Error Handling
 
-- **Function is too large to audit in one pass:** break the audit at the function boundary; audit only the function being edited. Cross-function cleanup is the caller's responsibility.
+- **Function is too large to audit completely:** split ownership into smaller helpers before changing behavior; completion still requires every exit in the touched function to be accounted for.
 - **Cleanup requires a resource not in scope:** the function is structured wrong — push the cleanup responsibility up to the caller via an opener-closer pair, or restructure into a helper that returns a `cleanup func()` callback.
-- **Existing function lacks any error-path cleanup:** flag it as pre-existing technical debt; add cleanup for the path you're editing and note the rest in the task body for follow-up.
+- **Existing function lacks error-path cleanup:** treat the touched function as one cleanup unit and repair every affected exit before completion.
 - **`defer` count exceeds reasonable bounds (e.g., >6 in one function):** the function is doing too much. Recommend splitting before adding more defers.

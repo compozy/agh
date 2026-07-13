@@ -120,27 +120,29 @@ ordered event stream for one session.
 
 ## Schema migration discipline
 
-AGH applies global database changes through the numbered `globalSchemaMigrations` registry in the
-runtime binary. New schema work appends at the registry tail. Existing migration versions, names,
-checksums, and order are persisted contracts and are not edited in place.
+AGH versions each SQLite authority as an independent Goose migration stream:
 
-The prod-ready foundation appends shared operational state after migration v26:
+| Stream      | Database family                          | Version table                |
+| ----------- | ---------------------------------------- | ---------------------------- |
+| `global`    | `$AGH_HOME/agh.db` global runtime tables | `goose_db_version_global`    |
+| `memory`    | `$AGH_HOME/agh.db` memory catalog tables | `goose_db_version_memory`    |
+| `session`   | Per-session `events.db`                  | `goose_db_version_session`   |
+| `workspace` | Workspace-local `.agh/agh.db`            | `goose_db_version_workspace` |
 
-| Table or column            | Owner         | Purpose                                                                                         |
-| -------------------------- | ------------- | ----------------------------------------------------------------------------------------------- |
-| `config_apply_records`     | Configuration | Records desired configuration hashes, active hashes, generation, actor, diff class, and status. |
-| `event_summaries.provider` | Observability | Stores the provider at write time so log filters do not join `sessions` on the read path.       |
-| `event_summaries.outcome`  | Observability | Stores the canonical event outcome for `error-only` log filters.                                |
-| `scheduler_pause`          | Scheduler     | Stores the scheduler-wide pause singleton that later scheduler controls read transactionally.   |
-| `tasks.paused`             | Scheduler     | Marks tasks whose queued runs are not eligible for new claims.                                  |
-| `tasks.paused_by`          | Scheduler     | Records the actor that paused a task.                                                           |
-| `tasks.paused_at`          | Scheduler     | Records when a task pause was written.                                                          |
-| `tasks.paused_reason`      | Scheduler     | Stores operator or agent evidence for a task pause.                                             |
+Before AGH runs pending SQL migrations, it rejects pre-Goose markers, validates the embedded
+`atlas.sum`, and refuses a recorded version newer than the binary. The runtime does not edit a
+version table to repair drift and does not read an incompatible database as a fallback.
 
-Event names and outcomes are owned by the runtime event registry. Slices that introduce a new
-public event add one registry entry with its family, component, outcome, log eligibility, and
-notification eligibility before producers emit the event. The existing task-run family remains the
-underscore form, such as `task.run_completed`; `task_run.*` is not a public event family.
+For the daemon-global streams, inspect the applied version, migration count, and schema digest
+without opening SQLite directly:
+
+```bash
+agh status -o json | jq '.daemon.schema_streams'
+```
+
+Contributors add schema changes as numbered SQL migrations, refresh `atlas.sum` through the codegen
+lane, and keep the declarative schema and package-owned sqlc queries in the same change. Existing
+migration files and checksums are immutable.
 
 ## Inspect a session event database
 

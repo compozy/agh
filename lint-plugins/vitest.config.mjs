@@ -10,7 +10,7 @@ export default defineConfig({
     passWithNoTests: false,
     coverage: {
       provider: "v8",
-      include: ["compozy-design-system.mjs", "ui-primitive-reuse.mjs"],
+      include: ["compozy-design-system.mjs", "ui-primitive-reuse.mjs", "data-boundaries.mjs"],
       exclude: ["vitest.config.mjs", "__tests__/**"],
       reporter: ["text", "json"],
     },

@@ -4,8 +4,17 @@
         {
             "name": "goal_rejections",
             "provider": "claude",
+            "model": "goal-e2e-judge",
             "permissions": "approve-all",
             "prompt": "You are a deterministic Goal lifecycle worker and judge.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "goal-e2e-judge",
+                    "values": [{ "value": "goal-e2e-judge", "label": "Goal E2E judge" }]
+                }
+            ],
             "turns": [
                 {
                     "name": "goal-rejections-work-1",
@@ -47,8 +56,17 @@
         {
             "name": "goal_pause",
             "provider": "claude",
+            "model": "goal-e2e-judge",
             "permissions": "approve-all",
             "prompt": "You are a deterministic pause and resume Goal worker.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "goal-e2e-judge",
+                    "values": [{ "value": "goal-e2e-judge", "label": "Goal E2E judge" }]
+                }
+            ],
             "turns": [
                 {
                     "name": "goal-pause-work-1",
@@ -90,8 +108,17 @@
         {
             "name": "goal_approval",
             "provider": "claude",
+            "model": "goal-e2e-judge",
             "permissions": "approve-all",
             "prompt": "You are a deterministic Goal approval-grant worker.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "goal-e2e-judge",
+                    "values": [{ "value": "goal-e2e-judge", "label": "Goal E2E judge" }]
+                }
+            ],
             "turns": [
                 {
                     "name": "goal-approval-refusal",
@@ -127,8 +154,17 @@
         {
             "name": "goal_clear",
             "provider": "claude",
+            "model": "goal-e2e-judge",
             "permissions": "approve-all",
             "prompt": "You are a deterministic active-prompt clear-fence worker.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "goal-e2e-judge",
+                    "values": [{ "value": "goal-e2e-judge", "label": "Goal E2E judge" }]
+                }
+            ],
             "turns": [
                 {
                     "name": "goal-clear-blocked-work",

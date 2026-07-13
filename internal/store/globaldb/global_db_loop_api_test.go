@@ -4,96 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
-	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/testutil"
 )
-
-func TestLoopCatalogRunIndexMigration(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should create the catalog index on a fresh database", func(t *testing.T) {
-		t.Parallel()
-
-		globalDB := openTestGlobalDB(t)
-		assertIndexesPresent(t, globalDB.db, "loop_runs", loopRunCatalogIndex)
-		assertIndexSQLContains(
-			t,
-			globalDB.db,
-			loopRunCatalogIndex,
-			"ON loop_runs(workspace_id, loop_name, created_at DESC, id DESC, status)",
-		)
-	})
-
-	t.Run("Should preserve loop runs while upgrading and remain idempotent after reopen", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(previous) error = %v", err)
-		}
-		closed := false
-		t.Cleanup(func() {
-			if !closed {
-				if closeErr := db.Close(); closeErr != nil {
-					t.Errorf("Close(previous cleanup) error = %v", closeErr)
-				}
-			}
-		})
-		migrationIndex := migrationIndexByName(t, loopCatalogPagingMigration.Name)
-		if err := store.RunMigrations(ctx, db, globalSchemaMigrations[:migrationIndex]); err != nil {
-			t.Fatalf("RunMigrations(previous) error = %v", err)
-		}
-		legacy := &GlobalDB{db: db, path: path, now: func() time.Time { return time.Now().UTC() }}
-		workspaceID := registerWorkspaceForGlobalTests(t, legacy, "loop-catalog-upgrade", t.TempDir())
-		run := testLoopRun("looprun-preserved-catalog", time.Now().UTC(), looppkg.StatusDone)
-		run.WorkspaceID = looppkg.WorkspaceID(workspaceID)
-		run.LoopName = "preserved"
-		insertLoopCatalogRunForTest(t, legacy, run)
-		assertIndexAbsent(t, db, loopRunCatalogIndex)
-		if err := db.Close(); err != nil {
-			t.Fatalf("Close(previous) error = %v", err)
-		}
-		closed = true
-
-		reopened, err := store.OpenSQLiteDatabase(ctx, path, nil)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(reopen) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := reopened.Close(); closeErr != nil {
-				t.Errorf("Close(reopened cleanup) error = %v", closeErr)
-			}
-		})
-		if err := store.RunMigrations(ctx, reopened, globalSchemaMigrations); err != nil {
-			t.Fatalf("RunMigrations(upgrade) error = %v", err)
-		}
-		if err := store.RunMigrations(ctx, reopened, globalSchemaMigrations); err != nil {
-			t.Fatalf("RunMigrations(idempotent) error = %v", err)
-		}
-		assertIndexesPresent(t, reopened, "loop_runs", loopRunCatalogIndex)
-		var count int
-		if err := reopened.QueryRowContext(
-			ctx,
-			`SELECT COUNT(*) FROM loop_runs WHERE id = ?`,
-			string(run.ID),
-		).Scan(&count); err != nil {
-			t.Fatalf("query preserved loop run error = %v", err)
-		}
-		if count != 1 {
-			t.Fatalf("preserved loop run count = %d, want 1", count)
-		}
-	})
-}
 
 func TestGlobalDBLoopCatalogRunsShouldReturnTruthfulBatchSummaries(t *testing.T) {
 	t.Parallel()
@@ -303,6 +223,19 @@ func (e *countingLoopCatalogQueryExecutor) QueryContext(
 
 func TestGlobalDBLoopAPIRunsShouldRemainWorkspaceScoped(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should join loop-run scan and rows-close errors", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openQueryRowsCloseErrorGlobalDB(t)
+		_, err := globalDB.ListLoopRuns(
+			testutil.Context(t),
+			looppkg.RunListQuery{WorkspaceID: "ws-close-error"},
+		)
+		if !errors.Is(err, errQueryRowsClose) || !strings.Contains(err.Error(), "scan loop run") {
+			t.Fatalf("ListLoopRuns() error = %v, want joined scan and rows-close errors", err)
+		}
+	})
 
 	t.Run("Should list only the requested workspace runs with filters and aggregates inputs", func(t *testing.T) {
 		t.Parallel()

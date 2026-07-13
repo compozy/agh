@@ -976,7 +976,7 @@ preconditions:
   - Bootstrap manifest with isolated `AGH_HOME`, daemon HTTP port, and the
     effective Claude home for the lane documented (`HOME` by default,
     `PROVIDER_HOME` only for explicit isolated-home scenarios)
-  - Daemon up: `agh daemon status -o json` reports `status="running"`
+  - Daemon up: `agh status -o json` reports `status="running"`
   - Direct `claude` auth available in the effective Claude home for the lane
 code_refs:
   - /Users/pedronauck/Dev/compozy/agh/packages/site/components/landing/hero-player.tsx (Remotion Player)

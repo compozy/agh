@@ -11,6 +11,7 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKDIR="${1:-/tmp/agh-ui-screenshot}"
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
@@ -28,5 +29,8 @@ fi
 if [ ! -d node_modules/chrome-launcher ] || [ ! -d node_modules/chrome-remote-interface ]; then
   bun add chrome-launcher chrome-remote-interface >&2
 fi
+
+cp "$SCRIPT_DIR/cap.mjs" "$WORKDIR/cap.mjs"
+cp "$SCRIPT_DIR/list-stories.mjs" "$WORKDIR/list-stories.mjs"
 
 echo "$WORKDIR"

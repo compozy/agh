@@ -21,7 +21,7 @@ flowchart TD
     NF --> STABLE[Same stable code across CLI/HTTP/UDS/native — deterministic error terminal]
     NORES --> STABLE
     STATUS --> RESTART[Daemon restart → rehydrate deterministic builtin/config sources]
-    RESTART --> READBACK[Fresh cross-surface list CLI/HTTP/UDS/native shows the persisted curation survived; schema_migrations append-only integrity intact — true_end_state]
+    RESTART --> READBACK[Fresh cross-surface list CLI/HTTP/UDS/native shows persisted curation; agh status schema_streams reports global+memory Goose heads and digests — true_end_state]
     REFRESH -.->|refresh failure| STALE[Prior rows kept, marked stale — never emptied]
 ```
 
@@ -60,7 +60,7 @@ journey:
   goal:
     observable: "The catalog is curatable and inspectable from every agent surface with one truthful projection and shared deterministic error codes."
     side_effects: [config-curation-persisted, catalog-refreshed, source-status-reported]
-  true_end_state: "After a curation write, a fresh list on any surface shows the new membership; a daemon restart rehydrates the deterministic builtin/config sources so the curation survives; schema_migrations integrity is preserved (append-only)."
+  true_end_state: "After a curation write, a fresh list on any surface shows the new membership; a daemon restart rehydrates deterministic builtin/config sources so the curation survives; `agh status -o json` reports healthy global and memory `schema_streams` with stable versions, applied counts, and digests."
   exit:
     natural: "The agent has a curated, current catalog it can drive sessions against without touching the web UI."
   abandonment:
@@ -70,7 +70,7 @@ journey:
     - at_step: 4
       how: "The agent curates a model that isn't in any source."
       resume: "model_not_found is returned deterministically; no phantom row is created."
-  crosses: [provider-models-cli, model-catalog-service, settings-provider-curate, native-provider-model-tools, curated-view-predicate, schema-migrations]
+  crosses: [provider-models-cli, model-catalog-service, settings-provider-curate, native-provider-model-tools, curated-view-predicate, goose-schema-streams]
 
 design_reference:
   screens:

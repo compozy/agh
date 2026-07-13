@@ -33,7 +33,10 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 	setup := func(t *testing.T) (handlerFixture, string, *stubDreamTrigger) {
 		t.Helper()
 
-		store := memory.NewStore(filepath.Join(t.TempDir(), "memory"))
+		store := memory.NewStore(
+			filepath.Join(t.TempDir(), "memory"),
+			memory.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "agh.db")),
+		)
 		t.Cleanup(func() {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
@@ -44,6 +47,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("EnsureDirs() error = %v", err)
 		}
+		openCoreTestMemoryCatalog(t, store)
 
 		workspace := filepath.Join(t.TempDir(), "workspace with space")
 		if err := os.MkdirAll(workspace, 0o755); err != nil {
@@ -140,10 +144,14 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		t.Parallel()
 
 		globalDir := filepath.Join(t.TempDir(), "memory")
-		store := memory.NewStore(globalDir)
+		store := memory.NewStore(
+			globalDir,
+			memory.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "agh.db")),
+		)
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
+		openCoreTestMemoryCatalog(t, store)
 		seedCoreMemoryCatalogDocuments(t, globalDir, 205)
 		fixture := newHandlerFixture(
 			t,
@@ -188,6 +196,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 			filepath.Join(baseDir, "global-memory"),
 			memory.WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
 		)
+		openCoreTestMemoryCatalog(t, store)
 		base := store.ForWorkspace(workspaceRoot)
 		for _, agentName := range []string{"reviewer-a", "reviewer-b"} {
 			agentStore := base.ForAgent(identity.WorkspaceID, agentName, memcontract.AgentTierWorkspace)
@@ -567,6 +576,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("EnsureDirs() error = %v", err)
 		}
+		openCoreTestMemoryCatalog(t, store)
 		if err := store.Write(
 			memcontract.ScopeWorkspace,
 			"orphan.md",
@@ -619,6 +629,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("EnsureDirs() error = %v", err)
 		}
+		openCoreTestMemoryCatalog(t, store)
 		if err := store.Write(
 			memcontract.ScopeWorkspace,
 			"project.md",
@@ -846,7 +857,10 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 	t.Run("Should revert workspace decisions through the workspace-bound store", func(t *testing.T) {
 		t.Parallel()
 
-		store := memory.NewStore(filepath.Join(t.TempDir(), "memory"))
+		store := memory.NewStore(
+			filepath.Join(t.TempDir(), "memory"),
+			memory.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "agh.db")),
+		)
 		t.Cleanup(func() {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
@@ -857,6 +871,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("EnsureDirs() error = %v", err)
 		}
+		openCoreTestMemoryCatalog(t, store)
 		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
 		if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
 			t.Fatalf("MkdirAll(workspaceRoot) error = %v", err)
@@ -984,7 +999,10 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 	t.Run("Should revert agent workspace-tier decisions through the workspace-bound store", func(t *testing.T) {
 		t.Parallel()
 
-		store := memory.NewStore(filepath.Join(t.TempDir(), "memory"))
+		store := memory.NewStore(
+			filepath.Join(t.TempDir(), "memory"),
+			memory.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "agh.db")),
+		)
 		t.Cleanup(func() {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
@@ -995,6 +1013,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("EnsureDirs() error = %v", err)
 		}
+		openCoreTestMemoryCatalog(t, store)
 		workspaceRoot := filepath.Join(t.TempDir(), "workspace")
 		if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
 			t.Fatalf("MkdirAll(workspaceRoot) error = %v", err)
@@ -1223,6 +1242,18 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		traceResp := performRequest(t, fixture.Engine, http.MethodGet, "/memory/recall-traces/sess-1/7", nil)
 		if traceResp.Code != http.StatusNotFound {
 			t.Fatalf("recall trace status = %d, want %d", traceResp.Code, http.StatusNotFound)
+		}
+	})
+}
+
+func openCoreTestMemoryCatalog(t *testing.T, store *memory.Store) {
+	t.Helper()
+	if err := store.OpenCatalog(t.Context()); err != nil {
+		t.Fatalf("Store.OpenCatalog() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := store.CloseCatalog(context.Background()); err != nil {
+			t.Errorf("Store.CloseCatalog() error = %v", err)
 		}
 	})
 }

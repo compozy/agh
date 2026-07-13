@@ -174,6 +174,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"DELETE /api/workspaces/:workspace_id",
 		"GET /api/agents",
 		"GET /api/agents/:name",
+		"GET /api/agents/catalog",
 		"GET /api/agents/:name/heartbeat",
 		"GET /api/agents/:name/heartbeat/history",
 		"GET /api/agents/:name/heartbeat/status",
@@ -501,7 +502,31 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 	sort.Strings(want)
 
 	if len(got) != len(want) {
-		t.Fatalf("len(routes) = %d, want %d\nroutes=%v", len(got), len(want), got)
+		wantSet := make(map[string]struct{}, len(want))
+		for _, route := range want {
+			wantSet[route] = struct{}{}
+		}
+		gotSet := make(map[string]struct{}, len(got))
+		unexpected := make([]string, 0)
+		for _, route := range got {
+			gotSet[route] = struct{}{}
+			if _, ok := wantSet[route]; !ok {
+				unexpected = append(unexpected, route)
+			}
+		}
+		missing := make([]string, 0)
+		for _, route := range want {
+			if _, ok := gotSet[route]; !ok {
+				missing = append(missing, route)
+			}
+		}
+		t.Fatalf(
+			"len(routes) = %d, want %d; unexpected=%v missing=%v",
+			len(got),
+			len(want),
+			unexpected,
+			missing,
+		)
 	}
 	for i := range want {
 		if got[i] != want[i] {

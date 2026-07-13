@@ -12,12 +12,12 @@ Verbatim canonical rules. Reviewers will quote these. Stay aligned.
 
 - Independent subtests: `t.Parallel()` is mandatory.
 - `t.Setenv` users: `t.Parallel()` is forbidden (Go contract). Reviewers who request `t.Parallel()` on such tests are wrong.
-- Tests that mutate process-globals (current working directory, file mode, time package) stay serial with a `// not parallel: <reason>` comment.
+- Tests that mutate process globals must first isolate or inject that state. `t.Setenv` is the only legitimate `t.Parallel()` opt-out; do not preserve avoidable global coupling by serializing the case.
 
 ## Error handling
 
 - `_ = err` is forbidden in production code AND in tests.
-- `if err := json.Marshal(x); err != nil { t.Fatalf("marshal: %v", err) }` over `_ = json.Marshal(x)`.
+- Capture both `data, err := json.Marshal(x)`, handle `err`, and use `data`; never discard either result.
 - Cleanup with `t.Cleanup(func() { ... })` returns errors via `t.Errorf` (not `t.Fatalf` — cleanup is best-effort).
 
 ## Assertions

@@ -26,10 +26,11 @@ export const agentKeys = {
     [...agentKeys.detail(name, workspace), "heartbeat"] as const,
   heartbeatHistory: (name: string, workspace?: string | null) =>
     [...agentKeys.heartbeat(name, workspace), "history"] as const,
+  heartbeatStatuses: (name: string, workspace?: string | null) =>
+    [...agentKeys.heartbeat(name, workspace), "status"] as const,
   heartbeatStatus: (name: string, options: AgentHeartbeatStatusKeyOptions = {}) =>
     [
-      ...agentKeys.heartbeat(name, options.workspaceId),
-      "status",
+      ...agentKeys.heartbeatStatuses(name, options.workspaceId),
       options.sessionId ?? null,
       options.includeSessionHealth ?? null,
       options.includeRecentWakeEvents ?? null,
