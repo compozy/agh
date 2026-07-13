@@ -62,6 +62,7 @@ A narrow verification does not support a broad claim. Running `make test` alone 
 | Agent completed       | VCS diff shows changes          | Agent reports "success"        |
 | Requirements met      | Line-by-line checklist          | Tests passing                  |
 | Matches spec contract | Field-by-field diff vs canonical spec artifacts | Task-file paraphrase satisfied, checkboxes ticked |
+| Matches visual contract | Complete reference/implementation evidence bundle for every state/viewport | Implementation-only screenshots, tests/build green |
 
 ## Red Flags
 
@@ -73,6 +74,7 @@ A narrow verification does not support a broad claim. Running `make test` alone 
 - Thinking "just this once"
 - Any wording that implies success without current evidence
 - Verifying against a task file's paraphrase when a canonical contract artifact exists in the spec directory
+- Calling implementation-only screenshots “design parity” without rendering and comparing the named reference
 
 ## Rationalization Prevention
 
@@ -152,6 +154,18 @@ A green pipeline and ticked task checkboxes do not prove the deliverable matches
 
 Failure mode this section exists to prevent (real incident): a task shipped "green" through seven peer-review rounds while contradicting the spec's canonical example document — every check measured engineering quality against the task file's paraphrase, and nothing ever compared the deliverable to the canonical contract.
 
+## Visual Contract Parity (visible UI)
+
+When a spec/task names an OpenDesign artifact, HTML mock, screenshot, or other trusted visual reference, completion additionally requires:
+
+1. Resolve the exact reference path, including absolute paths outside the current worktree. If `agh-ui-screenshot` is installed, follow its Visual Contract Mode in full.
+2. Enumerate every required state/viewport. For each one, require a durable bundle containing `reference.png`, `implementation.png`, `side-by-side.png`, `diff.png`, `comparison.json`, and `review.md`.
+3. Open and inspect every pair. A wrong shell, missing/reordered region, materially different geometry or hierarchy, substituted component anatomy, missing state/control, or uncited structural delta is a blocker regardless of green tests or pixel ratio.
+4. Run the `agh-ui-screenshot` bundle validator for every row and require exit zero (`PASS` plus `blocking_divergences: 0`). Implementation-only screenshots, filenames, checklist ticks, and “looks close” prose are not parity evidence.
+5. Cite the contract matrix and bundle root in the Verification Report (`Visual contract:` line). If no named visual reference exists, report `n/a — no named visual reference found`.
+
+A runtime-truth conflict does not permit a silent visual deviation: follow runtime truth, then reconcile the contract or cite the higher-authority artifact that explicitly authorizes the difference before reporting PASS.
+
 ## Verification Report Template
 
 Verification is not complete until the agent **cites actual command output** in their response. "I ran it and it passed" is not evidence. If the verification output is not shown, the verification did not happen.
@@ -169,6 +183,7 @@ Output summary: [Key lines from output — pass count, error count, build result
 Warnings: [Any warnings, or "none"]
 Errors: [Any errors, or "none"]
 Contract parity: [spec-workflow tasks: artifacts compared + PASS/mismatch; otherwise "n/a"]
+Visual contract: [named-reference UI: matrix rows passed/total + durable bundle root; otherwise "n/a — no named visual reference found"]
 Verdict: PASS or FAIL
 ```
 

@@ -23,6 +23,14 @@ Use the canonical visual authorities before making AGH design decisions.
 - `<Eyebrow>` is the only uppercase label contract; do not inline typography tuples for labels.
 - See `DESIGN.md` section 10 for the anti-pattern list and lint/test guardrails.
 
+## Named visual contracts
+
+When a task or spec names an OpenDesign artifact, mock, screenshot, or other
+trusted visual reference, activate `agh-ui-screenshot` before implementation
+and follow its Visual Contract Mode. Implement from the rendered reference,
+not source inspection alone; an implementation-only screenshot never proves
+parity.
+
 ## Static HTML artifacts
 
 Inline or import actual values from `packages/ui/src/tokens.css`. Mirror the class
@@ -49,11 +57,13 @@ CSS variables and bare Tailwind v4 token utilities. If `tokens.css` or
 
 The change is complete when it uses the canonical tokens and primitive owner,
 introduces no parallel palette or shadow primitive, respects the owning
-surface's instructions, and regenerated design artifacts have no drift when a
-token source changed.
+surface's instructions, regenerated design artifacts have no drift when a
+token source changed, and every named visual contract has a passing evidence
+bundle with zero unresolved blocking divergence.
 
 ## Error Handling
 
 - **`DESIGN.md` and runtime tokens disagree:** treat `packages/ui/src/tokens.css` as source, run codegen, and inspect the regenerated spec rather than editing generated regions.
 - **No exported primitive fits:** decide whether the need is generic or domain-specific; add generic primitives to `packages/ui` and domain composites to the owning Web system.
 - **A plausible mock implies unsupported runtime behavior:** remove the unsupported control or metric; daemon truth wins.
+- **Runtime truth conflicts with a normative visual reference:** follow runtime truth, record the contract conflict, and reconcile or explicitly authorize the reference delta before claiming parity.

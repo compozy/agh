@@ -36,6 +36,7 @@ Compozy runs tasks in a loop. Pausing for clarification breaks the loop.
    - Read the PRD documents under the provided directory, especially `_techspec.md`, `_tasks.md`, and the contract catalogs `_user_stories.md` and `_tests.md` when present.
    - Read ADRs from the `adrs/` subdirectory of the PRD directory to understand the architectural decision context for this task.
    - Read in full every sibling artifact the survey flags as contract-bearing for this task, and the `analysis/` summaries for decision context.
+   - Resolve every local artifact path or glob cited by those sources, including repo-relative and absolute paths outside the spec directory. Read text contracts in full and render visual contracts; never substitute a same-named artifact from another worktree.
    - After reading all sources, check for conflicts between the task specification, techspec, ADRs, and the contract-bearing siblings. When sources contradict, apply Authority and Contract Precedence, pick one canonical interpretation, note it in one checklist line, and proceed to step 2 — do not pause.
    - If the caller provides workflow memory paths, use the installed `cy-workflow-memory` skill before editing code.
    - Reconcile the current workspace state before new edits.
@@ -44,6 +45,7 @@ Compozy runs tasks in a loop. Pausing for clarification breaks the loop.
    - Extract deliverables, acceptance criteria, and every explicit `Validation`, `Test Plan`, or `Testing` item into a numbered working checklist.
    - Add one checklist line per test-case ID assigned in the task's `## Tests` section, and implement each case as `_tests.md` specifies it — the assigned IDs are part of the deliverable, not a suggestion.
    - Add one checklist line per concrete contract fact extracted from the contract-bearing spec artifacts (input names/types/defaults/required flags, command and route names, node topologies, declared behaviors) — parity with these facts is part of the deliverable.
+   - When visible UI has a named visual reference, activate `agh-design` and `agh-ui-screenshot`, follow Visual Contract Mode before code, and add one checklist line per explicit state/viewport row plus its durable evidence-bundle path. Expand vague “all states” requirements before implementation.
    - Include any conflict-resolution decisions from step 1 as checklist lines so the chosen interpretation stays visible during implementation.
    - Print the full checklist before starting implementation so it is visible and trackable.
    - Capture the concrete pre-change signal that proves the task is not finished yet.
@@ -52,12 +54,14 @@ Compozy runs tasks in a loop. Pausing for clarification breaks the loop.
 3. Implement the task.
    - Keep scope tight to the task specification and the resolved contract interpretation.
    - Follow repository patterns and real dependency APIs.
+   - For a visual contract, render and inspect the reference first, close one representative reference/implementation row early, then repeat the capture/compare/fix loop for every remaining row. Do not defer the first visual comparison until final verification.
    - Record meaningful out-of-scope work as follow-up notes instead of silently expanding the task.
 
 4. Validate and self-review.
    - Run every test and validation command listed in the task specification — not just the repository-wide verification.
    - Use the installed `cy-final-verify` skill. This step is mandatory regardless of auto-commit mode — always verify before claiming completion.
    - Check the finished deliverable field by field against every contract-bearing spec artifact identified by the survey (cy-final-verify "Spec Contract Parity"), using the resolved interpretation from step 1 when sources had disagreed. A mismatch against that resolved contract fails completion — fix the deliverable and re-verify; do not reinterpret the contract to match what was built, and do not pause to ask.
+   - For every named visual contract, require the complete `agh-ui-screenshot` bundle: rendered reference and implementation at the same state/viewport, side-by-side, diff, metric, reviewed zero-blocker verdict, and a passing bundle validator. A screenshot set containing only the implementation fails completion.
    - Perform a self-review after verification and resolve every blocking issue before proceeding.
 
 5. Update task tracking.
@@ -79,17 +83,18 @@ Compozy runs tasks in a loop. Pausing for clarification breaks the loop.
 Task files paraphrase the spec, and paraphrases drift. Real incident: a task was implemented straight from its task file while the spec directory contained the canonical, complete definition of the deliverable (`_examples.md`) and the QA input contract (`_qa.md`); neither was read, seven review rounds validated engineering quality only, and the shipped result contradicted the product contract wholesale. This survey exists so that can never repeat.
 
 1. Dispatch the agent's NATIVE read-only subagent facility (e.g. `Explore` in Claude Code, or the closest scoped read-only subagent the current harness offers) to inventory the ENTIRE spec directory — every file, not a subset: all `_*.md` siblings (`_prd.md`, `_user_stories.md`, `_techspec.md`, `_tests.md`, `_tasks.md`, `_examples.md`, `_qa.md`, and any others present), loose siblings such as `requirements.md` and `product-ux.md`, plus the `adrs/`, `analysis/` (including `summary*.md`), `handoffs/`, and `memory/` subdirectories.
-2. Require the subagent to return, per file: a one-line description and a CONTRACT-BEARING verdict — does this file pin concrete facts about this task's deliverables (canonical example documents, input/schema tables, parity maps, test contracts, CLI/UX surfaces)?
+2. Require the subagent to return, per file: a one-line description and a CONTRACT-BEARING verdict — does this file pin concrete facts about this task's deliverables (canonical example documents, input/schema tables, parity maps, visual references, test contracts, CLI/UX surfaces)? Also return every referenced local path/glob and whether it resolves.
 3. If the harness has no subagent facility, perform the same inventory inline before any edit. Skipping the survey because the task file "looks complete" is forbidden — looking complete is exactly how the incident happened.
 4. Read in full, on the main thread, every contract-bearing file for this task. Read the `analysis/` summaries (at minimum the newest `summary*.md`) for the decision context behind the spec.
+5. Follow resolved local references outside the spec directory. Render named HTML/image visual contracts and inspect their required states on the main thread; the survey is incomplete while a contract path is only mentioned rather than opened.
 
 ## Authority and Contract Precedence
 
 Resolve contradictions autonomously with this ladder (highest wins). Record the pick; continue.
 
 1. Machine-checkable TechSpec constraints (schemas, SQL `CHECK`s, typed tables, enumerated states) beat conflicting prose in the same TechSpec.
-2. Contract-bearing sibling catalogs that pin concrete form for this task (`_tests.md` assigned cases, `_examples.md`, `_qa.md` input tables, `_user_stories.md` acceptance criteria, parity maps) beat a task-file paraphrase of the same fact.
-3. When TechSpec and a sibling catalog disagree on concrete form: prefer the sibling catalog for facts that catalog owns (assigned test IDs, canonical examples, QA inputs); prefer the TechSpec machine-checkable constraint for storage/schema/state-machine facts.
+2. Contract-bearing sibling catalogs and resolved local artifacts that pin concrete form for this task (`_tests.md` assigned cases, `_examples.md`, `_qa.md` input tables, `_user_stories.md` acceptance criteria, parity maps, approved visual contracts) beat a task-file paraphrase of the same fact.
+3. When TechSpec and a contract artifact disagree on concrete form: prefer the artifact for facts it owns (assigned test IDs, canonical examples, QA inputs, rendered anatomy/layout/state); prefer the TechSpec machine-checkable constraint for storage/schema/state-machine facts.
 4. ADRs beat informal `analysis/` notes when they address the same decision.
 5. Among remaining ties, prefer the interpretation that satisfies the most assigned `_tests.md` cases and remains implementable against the winning schema/state constraints.
 6. A task-file paraphrase never overrides a higher rung — implementing the paraphrase against a higher-rung contract is the error.
@@ -103,3 +108,4 @@ The existing runtime shape is never the contract. If the current code cannot exp
 - If the pre-change signal cannot be reproduced directly, capture the strongest available baseline signal, note the limitation, and continue.
 - If validation fails, keep the task status unchanged, fix the failure, and re-verify until clean — do not ask whether to proceed.
 - If tracking files are missing, stop and report the missing path before marking completion (infrastructure failure, not a design conflict).
+- If a cited local contract path is missing, unreadable, or unrenderable, stop before editing and report the exact path; never replace a missing contract with a best-effort interpretation.

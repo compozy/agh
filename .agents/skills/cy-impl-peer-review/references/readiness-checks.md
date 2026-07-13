@@ -39,3 +39,7 @@ If an owning declarative schema source changed semantically, the diff also conta
 ## Marker 7: Surface Co-Ship Statement
 
 For backend changes, the user (or the matching task file) has named the web/docs impact: either the diff includes the web/docs changes, or there is an explicit "no impact" rationale that the reviewer can validate. A backend-only diff with no impact analysis is a `cy-web-docs-impact` violation and the reviewer will flag it correctly — but the skill should call it out before spending review credit.
+
+## Marker 8: Visual Contract Evidence (when visible UI has a named reference)
+
+Every required state/viewport has a durable `agh-ui-screenshot` bundle containing the rendered reference, implementation, side-by-side, diff, comparison JSON, and a reviewed zero-blocker verdict; the bundle validator exits zero for every row. The bundle root and contract matrix are included in review context. An implementation-only screenshot set fails readiness; external review must not spend credit inventing the missing comparison.

@@ -1,6 +1,6 @@
 ---
 name: agh-ui-screenshot
-description: Screenshot capture for deterministic PNG evidence of AGH Storybook stories and local UI URLs. Use for visual audits, regression diffs, and design-parity checks. Do not use for interactive E2E flows, remote authenticated sites, or Storybook test execution.
+description: Screenshot capture for deterministic PNG evidence and visual-contract bundles for AGH Storybook stories and local UI URLs. Use for visual audits, regression diffs, and design-parity checks. Do not use for interactive E2E flows, remote authenticated sites, or Storybook test execution.
 ---
 
 # AGH UI Screenshot
@@ -8,6 +8,11 @@ description: Screenshot capture for deterministic PNG evidence of AGH Storybook 
 Capture deterministic PNG evidence through the bundled CDP helper. The helper
 owns load/font settling and viewport emulation; the procedure owns target
 resolution, evidence checks, and process cleanup.
+
+When a task or spec names a trusted visual reference, **STOP and read
+`.agents/skills/agh/agh-ui-screenshot/references/visual-contract.md` in full
+before capture or implementation**. Its evidence bundle, not an
+implementation-only screenshot, is the completion contract.
 
 ## Procedure
 
@@ -22,7 +27,7 @@ resolution, evidence checks, and process cleanup.
 
 **Step 2: Establish Storybook Ownership**
 
-1. Read `.agents/skills/agh/agh-ui-screenshot/references/storybook-urls.md` in full when capturing Storybook.
+1. Skip this step when the capture set has no Storybook target. Otherwise read `.agents/skills/agh/agh-ui-screenshot/references/storybook-urls.md` in full.
 2. Probe the required server (`6006` for `web`, `6007` for `packages/ui`) and reuse it only when its `index.json` is healthy.
 3. If a server is absent, start the matching `bun run storybook` from its package, redirect logs into `WORKDIR`, and immediately record its PID as `WORKDIR/web-storybook.pid` or `WORKDIR/ui-storybook.pid`.
 4. Poll the health endpoint until it returns `200` or the owned process exits; on exit, fail with its log.
@@ -60,8 +65,9 @@ resolution, evidence checks, and process cleanup.
 
 1. Verify the exact expected PNG set; file size is a tripwire, not proof.
 2. Open at least one PNG from every distinct surface or viewport and compare it with the intended state or trusted baseline.
+3. For visual-contract runs, inspect every reference/implementation pair and require the complete evidence bundle before reporting parity.
 
-*Done when:* target identity, viewport, rendered content, fonts, and visible state are verified rather than inferred from filenames.
+*Done when:* target identity, viewport, rendered content, fonts, and visible state are verified rather than inferred from filenames; visual-contract runs additionally have no unresolved blocking divergence.
 
 **Step 7: Tear Down Owned Processes**
 
@@ -77,3 +83,4 @@ resolution, evidence checks, and process cleanup.
 - **A Storybook port is occupied but unhealthy:** identify the owner and report it. Reuse only a healthy `index.json`; never kill an unowned process to claim the port.
 - **The bootstrap workdir fails:** discard that unique temporary workdir and rerun the bootstrap into a new one; do not mutate repository dependencies.
 - **Chrome survives a crashed helper:** use the printed debug port to identify the exact headless Chrome PID, verify ownership from its command line, then terminate only that PID/process group. Never use a machine-wide `pkill`.
+- **Reference and implementation dimensions differ:** recapture both at the exact contract viewport; never resize one image to manufacture a diff.

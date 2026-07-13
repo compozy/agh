@@ -29,6 +29,18 @@ complexity: [low, medium, high, critical]
 - [Requirement 3]
 </requirements>
 
+## Visual Contract
+
+[Include this section only when the task implements visible UI from a named
+visual reference. Enumerate every required state and viewport; do not use an
+“all states” catch-all row.]
+
+| ID | Reference artifact + state | Implementation target + state | Viewport | Fidelity | Authorized differences + authority |
+| --- | --- | --- | --- | --- | --- |
+| VC-01 | `path/to/reference.html` — populated | `/route` — populated fixture | 1440×900 | normative | None |
+
+Evidence for each row: `.compozy/tasks/<workflow>/evidence/visual/<task-id>/<contract-id>/{reference.png,implementation.png,side-by-side.png,diff.png,comparison.json,review.md}` (or `<QA_OUTPUT_PATH>/qa/visual-contract/<task-id>/...` for isolated QA).
+
 ## Subtasks
 - [ ] N.1 [Subtask description — WHAT to accomplish]
 - [ ] N.2 [Subtask description]
@@ -51,6 +63,7 @@ Reference the TechSpec implementation section for code patterns and interface de
 - [Concrete output 1]
 - [Concrete output 2]
 - Every test case assigned in `## Tests` implemented and passing **(REQUIRED)**
+- [Visible UI with a named reference only: every Visual Contract row has a durable passing evidence bundle **(REQUIRED)**]
 
 ## Tests
 
@@ -66,6 +79,7 @@ Cases assigned from `_tests.md`, the test contract — read each ID's full defin
 - Every assigned test case implemented and passing
 - [Measurable outcome 1]
 - [Measurable outcome 2]
+- [Visible UI with a named reference only: every Visual Contract row is `PASS` with zero unresolved blocking divergence]
 ```
 
 ## Guidelines

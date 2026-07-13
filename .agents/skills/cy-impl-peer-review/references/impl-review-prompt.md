@@ -50,6 +50,11 @@ YOUR JOB:
      provided context — inputs renamed/retyped, required-vs-default flipped, graph/topology or
      command surface changed, a provider/integration dropped, or hardcoded values where the
      contract requires declared inputs.
+   - Visual-contract violations: a named visual reference lacks a matched evidence bundle, or the
+     rendered implementation has a wrong shell, missing/reordered region, materially different
+     geometry/hierarchy, substituted component anatomy, missing state/control, or uncited
+     structural delta. Open every provided reference/implementation pair; implementation-only
+     screenshots and green tests cannot satisfy visual parity.
    - Security regressions: raw `claim_token` leaving its boundary, unverified-format identity
      classification, secrets in logs, command/SQL injection, missing authn/authz on a new surface.
    - Concurrency bugs: races, goroutine leaks, missing context cancellation, peer claimer pattern,

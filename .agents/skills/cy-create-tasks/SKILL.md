@@ -36,6 +36,7 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
 2. Load context.
    - Read `_prd.md`, `_techspec.md`, `_user_stories.md`, and `_tests.md` from `.compozy/tasks/<name>/`.
    - Read existing ADRs from `.compozy/tasks/<name>/adrs/` to understand the decision context behind requirements and design choices.
+   - Resolve every local artifact path or glob cited as a contract, including repo-relative and absolute paths outside the task directory. Read textual contracts and use `agh-ui-screenshot` to render and inspect named visual artifacts; a path mention is an input, not optional background.
    - If `_techspec.md` is missing:
      - Warn the user that tasks will be higher-level without TechSpec implementation guidance.
      - Derive tasks from PRD functional requirements and the `_user_stories.md` catalog instead of TechSpec implementation sections.
@@ -57,6 +58,7 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
      - `critical`: cross-cutting change with high regression risk, requires coordination with other tasks.
    - When a task directly implements or is constrained by a specific ADR, include the ADR reference in the task's "Related ADRs" section under Implementation Details.
    - Tests live inside the task that implements the behavior they verify; never create tasks dedicated solely to testing.
+   - For every task that implements visible UI from a named visual reference, define an explicit Visual Contract: one row per reference state and required viewport, with the implementation target, fidelity, and source-authorized differences. Never use “all states,” “match the mock,” or “screenshot parity” as a substitute for enumerating rows.
    - Follow the structure defined in `references/task-template.md` and the metadata definitions in `references/task-context-schema.md`.
 
 4. Assign the test contract.
@@ -93,7 +95,7 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
    - Task numbering must be sequential and consistent between `_tasks.md` and individual files.
 
 7. Enrich each task file.
-   - For each task file, check whether it already has `## Overview`, `## Deliverables`, and `## Tests` sections. If all three exist, skip enrichment for that file.
+   - For each task file, check whether it already has `## Overview`, `## Deliverables`, and `## Tests` sections, plus a complete `## Visual Contract` when it implements visible UI from a named reference. Skip enrichment only when every required and conditional section is complete.
    - Map the task to PRD requirements, user stories, and TechSpec guidance.
    - Spawn an Agent tool call to discover relevant files, dependent files, integration points, and project rules for this specific task.
    - Fill ALL template sections from `references/task-template.md`. Every task file MUST contain each of the following sections — omitting any is a failure:
@@ -108,6 +110,7 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
      - `## Deliverables`: concrete outputs, including every assigned test case implemented and passing.
      - `## Tests`: the assigned test-case IDs grouped by level with the behavior they cover; full case definitions stay in `_tests.md`.
      - `## Success Criteria`: measurable outcomes including "Every assigned test case implemented and passing".
+   - When the task implements visible UI from a named visual reference, also include `## Visual Contract` from the template. Its deliverables and success criteria MUST require the durable `agh-ui-screenshot` evidence bundle for every row; implementation-only captures are invalid evidence.
    - Reassess complexity based on exploration findings and update if changed.
    - Update the task file in place with enriched content.
    - If enrichment fails for one task, continue to the next and report all failures at the end.
@@ -115,6 +118,7 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
 8. Validate.
    - Run `compozy tasks validate --name <feature>`. If it exits non-zero, fix the reported issues and re-run; do not finish until it exits 0.
    - Audit the test assignment: every ID in `_tests.md` appears in exactly one task file's `## Tests` section. Fix any orphan or duplicate and re-audit.
+   - Audit visual references: every visible UI task that cites one has an explicit Visual Contract row for each required state/viewport, and each row names the durable evidence bundle. Fix vague or missing rows before finishing.
 
 ## Error Handling
 
@@ -124,3 +128,4 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
 - If a test case in `_tests.md` fits no task, the breakdown is missing a slice — fix the breakdown rather than dropping the case.
 - If the target directory does not exist, create it.
 - If a task file already exists and is fully enriched, skip it and move to the next.
+- If a named visual reference is missing or cannot be rendered, stop before generating the affected task; do not downgrade it to prose guidance.

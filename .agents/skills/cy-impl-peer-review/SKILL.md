@@ -90,7 +90,7 @@ Every blocker, risk, and nit must include an ID, a real file path and line when 
    - Use `--out` if provided.
    - Otherwise default to `.peer-reviews/<UTC-timestamp-YYYYMMDDTHHMMSSZ>/` at the repository root.
    - Create the directory if it does not exist.
-4. Read `.agents/skills/cy-impl-peer-review/references/readiness-checks.md` and verify every readiness marker passes (build/tests green, no committed `.tmp/` or `ai-docs/`, diff is non-empty, no obvious WIP markers in changed files, codegen co-ship if contracts touched, migration co-ship if schema touched). If any marker fails, report the failed markers and abort — external review on a broken or incomplete change wastes credit and produces noise.
+4. Read `.agents/skills/cy-impl-peer-review/references/readiness-checks.md` and verify every readiness marker passes (build/tests green, no committed `.tmp/` or `ai-docs/`, diff is non-empty, no obvious WIP markers in changed files, codegen co-ship if contracts touched, migration co-ship if schema touched, and complete visual-contract evidence when visible UI has a named reference). If any marker fails, report the failed markers and abort — external review on a broken or incomplete change wastes credit and produces noise.
 5. Determine the next review round number by listing existing `impl-review-findings-round*.md`, `impl-review-summary-round*.md`, and legacy `impl-review-result-round*.json*` files (prior local output only — not a compatibility path) in the artifact directory. Start at `round1` when none exist.
 
 **Step 2: Compose the Review Prompt**
@@ -108,7 +108,7 @@ Every blocker, risk, and nit must include an ID, a real file path and line when 
    - Validation error, only when needed: `<out>/impl-review-validation-error-roundN.md`.
 4. Substitute the placeholders in the prompt template:
    - `{scope_summary}` — one-paragraph description of what was implemented. Derive from the user's brief, the commit messages, or — if the user passed `--context` — the linked spec/PRD summary.
-   - `{context_paths}` — newline-separated repo-root paths from `--context`, or the literal string `none` when not provided. **Spec-workflow rule:** when the reviewed diff implements a task from a spec directory (e.g. `.compozy/tasks/<slug>/`), the parent MUST resolve that spec's contract-bearing artifacts (canonical example documents such as `_examples.md`, input tables such as `_qa.md`, test contracts such as `_tests.md`, requirements/product-ux documents, parity maps) and include them here even when the user passed no `--context`. Passing only the task file is insufficient — a task-file paraphrase must never be the reviewer's only contract source.
+   - `{context_paths}` — newline-separated repo-root paths from `--context`, or the literal string `none` when not provided. **Spec-workflow rule:** when the reviewed diff implements a task from a spec directory (e.g. `.compozy/tasks/<slug>/`), the parent MUST resolve that spec's contract-bearing artifacts (canonical example documents such as `_examples.md`, input tables such as `_qa.md`, test contracts such as `_tests.md`, requirements/product-ux documents, parity maps) and include them here even when the user passed no `--context`. Passing only the task file is insufficient — a task-file paraphrase must never be the reviewer's only contract source. When visible UI has a named visual reference, also include the exact reference artifact, Visual Contract matrix, and durable evidence-bundle root.
    - `{changed_files}` — newline-separated repo-root paths.
    - `{diff_path}` — repo-root path to the patch file from step 2.
    - `{findings_path}` — exact absolute path to `<out>/impl-review-findings-roundN.md`.
@@ -155,6 +155,7 @@ Every blocker, risk, and nit must include an ID, a real file path and line when 
    - blockers include a rationale tied to project rules, lessons, or architecture constraints;
    - no `TBD`, placeholder text, invented paths, or stdout-only findings;
    - when spec contract artifacts were passed in `{context_paths}`, the findings explicitly assess contract parity (deliverable vs each canonical artifact, field by field) — a `SHIP` verdict with no contract-parity assessment is an invalid round;
+   - when a named visual reference was passed, the findings explicitly assess every reference/implementation pair and its unresolved-divergence review — a `SHIP` verdict based only on code or implementation screenshots is an invalid round;
    - comparing the pre/post status snapshots shows no changes outside the expected review artifact/log paths.
 3. If validation fails, write `<out>/impl-review-validation-error-roundN.md` with the failed checks, command, exit status, and artifact paths. Do not summarize the round as `SHIP`.
 4. Write `<out>/impl-review-summary-roundN.md` from the validated findings file with:
@@ -196,6 +197,7 @@ Every blocker, risk, and nit must include an ID, a real file path and line when 
 - The `compozy exec` call is the only place this skill spends external review credit. Do not invoke it more than once per round unless the round is explicitly invalid and the user requests a rerun.
 - The bundled helper paths used by this skill (`references/impl-review-prompt.md`, `references/readiness-checks.md`, `scripts/validate-findings.sh`) are read-only templates/helpers — the skill reads or runs them, never edits them during a review round.
 - For spec-workflow diffs, a round whose `{context_paths}` omitted the spec's contract-bearing artifacts is an invalid round: engineering quality alone can never produce `SHIP`. Real incident: seven rounds reached `SHIP` on a deliverable that contradicted the spec's canonical example document because no round ever received it.
+- For visible-UI diffs with a named visual reference, missing reference/implementation evidence bundles invalidate the round before execution; implementation-only screenshots can never produce `SHIP`.
 
 ## Error Handling
 
