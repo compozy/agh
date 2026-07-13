@@ -1,6 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 
 import { useAgent } from "@/systems/agent/hooks/use-agents";
+import { useAgentCatalogMetrics } from "@/systems/agent/hooks/use-agent-catalog-metrics";
 import { useAgentSessions } from "@/systems/agent/hooks/use-agent-sessions";
 import { useAgentCreateHost } from "@/systems/agent/hooks/use-agent-create-host";
 import { useAgentDeleteFlow } from "@/systems/agent/hooks/use-agent-delete-flow";
@@ -24,12 +25,19 @@ export interface UseAgentDetailPageResult {
   sessions: SessionPayload[];
   sessionsTotal: number;
   activeSessionsTotal: number;
-  resumableSessionsTotal: number;
+  failedSessionsTotal: number | null;
+  runtimeSeconds: number | null;
+  /** True when catalog did not return exact aggregates (or the metrics query failed). */
+  metricsUnavailable: boolean;
+  metricsLoading: boolean;
+  metricsError: boolean;
   lastSessionActivityAt: string | null;
   hasMoreSessions: boolean;
   isLoadingMoreSessions: boolean;
   onLoadMoreSessions: () => void;
+  /** Row-page loading only — never OR'd with the metrics query. */
   sessionsLoading: boolean;
+  /** Row-page error only — never OR'd with the metrics query. */
   sessionsError: boolean;
   search: ResolvedAgentDetailSearch;
   setTab: (tab: AgentDetailTab) => void;
@@ -59,12 +67,9 @@ export function useAgentDetailPage(
     isLoading: agentLoading,
     error: agentError,
   } = useAgent(name, activeWorkspaceId);
+  const metrics = useAgentCatalogMetrics(activeWorkspaceId, name);
   const {
     sessions,
-    total: sessionsTotal,
-    activeTotal: activeSessionsTotal,
-    resumableTotal: resumableSessionsTotal,
-    lastActivityAt: lastSessionActivityAt,
     hasMore: hasMoreSessions,
     isLoadingMore: isLoadingMoreSessions,
     loadMore: onLoadMoreSessions,
@@ -130,10 +135,14 @@ export function useAgentDetailPage(
     agentLoading,
     agentError: (agentError as Error | null) ?? null,
     sessions,
-    sessionsTotal,
-    activeSessionsTotal,
-    resumableSessionsTotal,
-    lastSessionActivityAt,
+    sessionsTotal: metrics.total,
+    activeSessionsTotal: metrics.active,
+    failedSessionsTotal: metrics.failed,
+    runtimeSeconds: metrics.runtimeSeconds,
+    metricsUnavailable: metrics.isError || !metrics.sessionsAvailable,
+    metricsLoading: metrics.isLoading,
+    metricsError: metrics.isError,
+    lastSessionActivityAt: metrics.lastActivityAt,
     hasMoreSessions,
     isLoadingMoreSessions,
     onLoadMoreSessions,

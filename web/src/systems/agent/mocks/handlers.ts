@@ -1,6 +1,8 @@
 import { HttpResponse, type HttpHandler } from "msw";
 import { aghApiMock } from "@/storybook/openapi-msw";
 
+import { sessionFixtures } from "@/systems/session/mocks";
+
 import { agentFixtures, FIXTURE_AGENT_DEFINITION_DIGEST } from "./fixtures";
 import type { AgentHeartbeatPayload, AgentPayload, AgentSoulPayload } from "../types";
 
@@ -22,6 +24,16 @@ function agentByName(name: string): AgentPayload | undefined {
   return agentsState.find(agent => agent.name === name);
 }
 
+function activeAgentNamesFromSessions(): string[] {
+  return [
+    ...new Set(
+      sessionFixtures
+        .filter(session => session.state === "active" && Boolean(session.agent_name))
+        .map(session => session.agent_name as string)
+    ),
+  ];
+}
+
 interface AgentCatalogMockOptions {
   activeAgents?: readonly string[];
   sessionsAvailable?: boolean;
@@ -33,14 +45,16 @@ export function agentCatalogMockResponse(
   options: AgentCatalogMockOptions = {}
 ) {
   const url = new URL(request.url);
+  const exactName = url.searchParams.get("name")?.trim() ?? "";
   const search = url.searchParams.get("q")?.trim().toLowerCase() ?? "";
   const category = url.searchParams.get("category")?.trim() ?? "";
   const status = url.searchParams.get("status")?.trim() ?? "";
   const limit = Number(url.searchParams.get("limit") ?? "50");
   const start = Number(url.searchParams.get("cursor") ?? "0");
-  const activeAgents = new Set(options.activeAgents ?? []);
+  const activeAgents = new Set(options.activeAgents ?? activeAgentNamesFromSessions());
   const sessionsAvailable = options.sessionsAvailable ?? true;
   const filtered = agents.filter(agent => {
+    if (exactName && agent.name !== exactName) return false;
     const agentCategory = agent.category_path?.join(" / ") ?? "";
     if (
       search &&
@@ -66,8 +80,19 @@ export function agentCatalogMockResponse(
       ...(sessionsAvailable
         ? {
             sessions: activeAgents.has(agent.name)
-              ? { active: 1, total: 1 }
-              : { active: 0, total: 0 },
+              ? {
+                  active: 1,
+                  failed: 0,
+                  runtime_seconds: 0,
+                  total: 1,
+                  last_activity_at: "2026-04-17T18:10:00Z",
+                }
+              : {
+                  active: 0,
+                  failed: 0,
+                  runtime_seconds: 0,
+                  total: 0,
+                },
           }
         : {}),
     })),

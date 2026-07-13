@@ -27,8 +27,8 @@ sys.dont_write_bytecode = True
 HEADER = "AGH_PRE_LOOP_REVIEW"
 DEFAULT_COMPOZY_TIMEOUT = "8m"
 SCRIPT_RELATIVE = Path(".codex/scripts/codex-loop-pre-loop-review.py")
-STATE_IO_RELATIVE = Path(".agents/skills/compozy/cy-loop-tasks/scripts/_state_io.py")
-CY_MARKERS = ("$cy-loop-tasks", "/cy-loop-tasks", ".agents/skills/compozy/cy-loop-tasks")
+STATE_IO_RELATIVE = Path(".agents/skills/cy-loop-tasks/scripts/_state_io.py")
+CY_MARKERS = ("$cy-loop-tasks", "/cy-loop-tasks")
 CY_ACTION_PATTERNS = (
     re.compile(r"^executed task_\d+$"),
     re.compile(r"^slice .+"),

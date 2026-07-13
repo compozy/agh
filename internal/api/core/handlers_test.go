@@ -3074,20 +3074,27 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 		}
 	})
 
-	t.Run("Should filter and page the fleet with exact backend session totals", func(t *testing.T) {
+	t.Run("Should filter and page the fleet with exact backend session metrics", func(t *testing.T) {
 		t.Parallel()
 
 		const workspaceRef = "alpha"
+		lastActivityAt := time.Date(2026, 7, 12, 9, 30, 0, 0, time.UTC)
 		manager := testutil.StubSessionManager{
-			CountByAgentFn: func(
+			MetricsByAgentFn: func(
 				_ context.Context,
 				workspaceID string,
-			) (map[string]session.AgentSessionCount, error) {
+			) (map[string]session.AgentSessionMetrics, error) {
 				if workspaceID != "ws-1" {
-					t.Fatalf("CountSessionsByAgent() workspace = %q, want ws-1", workspaceID)
+					t.Fatalf("AggregateSessionsByAgent() workspace = %q, want ws-1", workspaceID)
 				}
-				return map[string]session.AgentSessionCount{
-					"alpha": {Total: 2, Active: 1},
+				return map[string]session.AgentSessionMetrics{
+					"alpha": {
+						Total:          2,
+						Active:         1,
+						Failed:         1,
+						RuntimeSeconds: 4_200,
+						LastActivityAt: lastActivityAt,
+					},
 					"beta":  {Total: 1},
 					"gamma": {Total: 3, Active: 2},
 				}, nil
@@ -3130,7 +3137,10 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 		decodeJSON(t, firstResp.Body.Bytes(), &first)
 		if len(first.Agents) != 1 || first.Agents[0].Agent.Name != "alpha" ||
 			first.Agents[0].Sessions == nil || first.Agents[0].Sessions.Active != 1 ||
-			first.Agents[0].Sessions.Total != 2 {
+			first.Agents[0].Sessions.Total != 2 || first.Agents[0].Sessions.Failed != 1 ||
+			first.Agents[0].Sessions.RuntimeSeconds != 4_200 ||
+			first.Agents[0].Sessions.LastActivityAt == nil ||
+			!first.Agents[0].Sessions.LastActivityAt.Equal(lastActivityAt) {
 			t.Fatalf("first agent catalog = %#v, want alpha with 1/2 sessions", first)
 		}
 		if first.Page.Total != 2 || !first.Page.HasMore || first.Page.NextCursor == "" ||
@@ -3140,6 +3150,20 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 			[]string{"Operations", "Release / Backend"},
 		) {
 			t.Fatalf("first agent catalog metadata = %#v", first)
+		}
+
+		exactResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/agents/catalog?workspace=alpha&name=beta&limit=1",
+			nil,
+		)
+		var exact contract.AgentCatalogResponse
+		decodeJSON(t, exactResp.Body.Bytes(), &exact)
+		if exactResp.Code != http.StatusOK || len(exact.Agents) != 1 ||
+			exact.Agents[0].Agent.Name != "beta" || exact.Page.Total != 1 || exact.Page.HasMore {
+			t.Fatalf("exact-name agent catalog = status %d payload %#v", exactResp.Code, exact)
 		}
 
 		secondResp := performRequest(
@@ -3169,7 +3193,7 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 		}
 
 		fixture.Handlers.Sessions = testutil.StubSessionManager{
-			CountByAgentFn: func(context.Context, string) (map[string]session.AgentSessionCount, error) {
+			MetricsByAgentFn: func(context.Context, string) (map[string]session.AgentSessionMetrics, error) {
 				return nil, errors.New("session catalog unavailable")
 			},
 		}

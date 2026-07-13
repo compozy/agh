@@ -88,16 +88,23 @@ definition list:
 GET /api/agents/catalog?workspace=ws_alpha&q=release&category=Engineering%20%2F%20Release&status=active&limit=50
 ```
 
-The daemon applies `q`, `category`, and `status` before the cursor page is cut. Each result combines
-the effective agent definition with exact visible-session totals. `facets.total` and
+The daemon applies exact `name`, substring `q`, `category`, and `status` filters before the cursor
+page is cut. Each result combines
+the effective agent definition with exact metrics over every visible retained session for that
+workspace and agent. The `sessions` object reports `total`, currently `active`, terminal `failed`,
+summed `runtime_seconds`, and `last_activity_at`. Runtime spans creation to the current read for an
+active session and creation to the last persisted update for a stopped session. Failed includes
+stopped sessions with a persisted failure or an `agent_crashed`/`error` stop reason.
+
+`last_activity_at` follows the session catalog's canonical activity timestamp. `facets.total` and
 `facets.categories` describe the complete workspace fleet; `facets.active` and `facets.idle` are
 exact when `sessions_available` is true. Follow the opaque `page.next_cursor` with the same filters
 to load another page.
 
 If the session authority is unavailable, the endpoint still returns definitions with
 `sessions_available: false` and no per-agent `sessions` value. Clients must show session state as
-unavailable instead of inferring that those agents are idle. HTTP and UDS expose the same catalog
-contract.
+unavailable instead of inferring zero, idle state, runtime, failure count, or last activity. HTTP
+and UDS expose the same catalog contract.
 
 ## Edit with compare-and-swap
 

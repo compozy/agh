@@ -168,7 +168,7 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
     setMutationDenied(false);
 
     updateAgent.mutate(
-      { name: agent.name, params },
+      { name: agent.name, params, cacheWorkspace: activeWorkspaceId },
       {
         onSuccess: updated => {
           setEditorState({

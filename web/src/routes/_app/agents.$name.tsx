@@ -11,10 +11,7 @@ export const Route = createFileRoute("/_app/agents/$name")({
     topbar: { title: params.name, icon: User2 },
   }),
   validateSearch: validateAgentDetailSearch,
-  loader: ({ context, location, params }) =>
-    location.pathname.split("/").filter(Boolean).length === 2
-      ? preloadAgentDetailRoute(context.queryClient, params.name)
-      : Promise.resolve(),
+  loader: ({ context, params }) => preloadAgentDetailRoute(context.queryClient, params.name),
   component: AgentDetailRoute,
 });
 

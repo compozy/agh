@@ -71,16 +71,29 @@ const handlers: HttpHandler[] = [
     const status = url.searchParams.get("status")?.trim() ?? "";
     const requestedLimit = Number(url.searchParams.get("limit") ?? "50");
     const start = Number(url.searchParams.get("cursor") ?? "0");
-    const counts = new Map<string, { active: number; total: number }>();
+    const counts = new Map<
+      string,
+      { active: number; failed: number; runtime_seconds: number; total: number }
+    >();
     for (const item of mockSessions) {
-      const current = counts.get(item.agent_name) ?? { active: 0, total: 0 };
+      const current = counts.get(item.agent_name) ?? {
+        active: 0,
+        failed: 0,
+        runtime_seconds: 0,
+        total: 0,
+      };
       current.total += 1;
       if (item.state === "active") current.active += 1;
       counts.set(item.agent_name, current);
     }
     const filtered = mockAgents.filter(item => {
       const itemCategory = item.category_path?.join(" / ") ?? "";
-      const itemCounts = counts.get(item.name) ?? { active: 0, total: 0 };
+      const itemCounts = counts.get(item.name) ?? {
+        active: 0,
+        failed: 0,
+        runtime_seconds: 0,
+        total: 0,
+      };
       if (
         query &&
         !item.name.toLowerCase().includes(query) &&
@@ -99,7 +112,14 @@ const handlers: HttpHandler[] = [
       agents: pageAgents.map(item => ({
         agent: item,
         ...(sessionsAvailable
-          ? { sessions: counts.get(item.name) ?? { active: 0, total: 0 } }
+          ? {
+              sessions: counts.get(item.name) ?? {
+                active: 0,
+                failed: 0,
+                runtime_seconds: 0,
+                total: 0,
+              },
+            }
           : {}),
       })),
       facets: {

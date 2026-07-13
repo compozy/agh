@@ -5,6 +5,7 @@ import type { SessionPayload } from "@/systems/session";
 import { filterAgentSessionsByStatus, type AgentSessionFilter } from "../lib/agent-detail-search";
 import { AgentSessionsList } from "./agent-sessions-list";
 import { AgentStatsGrid } from "./agent-stats-grid";
+import { formatAgentRuntimeDuration } from "../lib/format-agent-runtime-duration";
 
 const FILTER_ITEMS: PillGroupItem<AgentSessionFilter>[] = [
   { value: "all", label: "All", testId: "agent-sessions-filter-all" },
@@ -18,8 +19,12 @@ export interface AgentSessionsTabProps {
   sessions: SessionPayload[];
   total: number;
   active: number;
-  resumable: number;
+  failed: number | null;
+  runtimeSeconds?: number | null;
+  metricsUnavailable?: boolean;
+  metricsLoading?: boolean;
   lastActivityAt: string | null;
+  /** Row-list status only — independent of catalog metrics. */
   status: "loading" | "error" | "ready";
   paginationStatus?: "available" | "loading";
   onLoadMore: () => void;
@@ -34,7 +39,10 @@ export function AgentSessionsTab({
   sessions,
   total,
   active,
-  resumable,
+  failed,
+  runtimeSeconds = null,
+  metricsUnavailable = false,
+  metricsLoading = false,
   lastActivityAt,
   status,
   paginationStatus,
@@ -50,7 +58,7 @@ export function AgentSessionsTab({
 
   return (
     <div className="flex flex-col gap-4" data-testid="agent-sessions-tab">
-      {status === "loading" ? (
+      {metricsLoading ? (
         <div
           className="grid grid-cols-2 gap-3 md:grid-cols-4"
           data-testid="agent-sessions-metrics-loading"
@@ -61,11 +69,13 @@ export function AgentSessionsTab({
         </div>
       ) : (
         <AgentStatsGrid
-          total={total}
+          variant="sessions"
           active={active}
-          resumable={resumable}
+          runtimeLabel={runtimeSeconds === null ? null : formatAgentRuntimeDuration(runtimeSeconds)}
+          failed={failed}
+          sessionsTotal={total}
           lastActivityAt={lastActivityAt}
-          unavailable={status === "error"}
+          metricsAvailable={!metricsUnavailable}
         />
       )}
       <PillGroup
@@ -80,8 +90,6 @@ export function AgentSessionsTab({
         agentName={agentName}
         sessions={filtered}
         status={status}
-        paginationStatus={paginationStatus}
-        onLoadMore={onLoadMore}
         emptyTitle={emptyTitle}
         emptyDescription={
           emptyDescription ?? (
@@ -95,6 +103,8 @@ export function AgentSessionsTab({
             </button>
           )
         }
+        paginationStatus={paginationStatus}
+        onLoadMore={onLoadMore}
       />
       {filter === "all" && status === "ready" && sessions.length === 0 ? (
         <div className="flex justify-center">

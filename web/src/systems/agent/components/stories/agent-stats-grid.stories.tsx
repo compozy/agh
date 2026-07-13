@@ -24,10 +24,11 @@ function Frame({ children }: { children: ReactNode }) {
 
 export const Default: Story = {
   args: {
-    total: 205,
     active: 7,
-    resumable: 13,
+    runtimeLabel: "4h 12m",
+    failed: 1,
     lastActivityAt: new Date().toISOString(),
+    sessionsTotal: 205,
   },
   render: args => (
     <Frame>
@@ -38,10 +39,11 @@ export const Default: Story = {
 
 export const Idle: Story = {
   args: {
-    total: 42,
     active: 0,
-    resumable: 4,
+    runtimeLabel: "12m",
+    failed: 0,
     lastActivityAt: "2026-04-17T18:10:00Z",
+    sessionsTotal: 42,
   },
   render: args => (
     <Frame>
@@ -51,7 +53,44 @@ export const Idle: Story = {
 };
 
 export const Empty: Story = {
-  args: { total: 0, active: 0, resumable: 0, lastActivityAt: null },
+  args: {
+    active: 0,
+    runtimeLabel: "0s",
+    failed: 0,
+    lastActivityAt: null,
+    sessionsTotal: 0,
+  },
+  render: args => (
+    <Frame>
+      <AgentStatsGrid {...args} />
+    </Frame>
+  ),
+};
+
+export const MetricsUnavailable: Story = {
+  args: {
+    active: 2,
+    runtimeLabel: null,
+    failed: null,
+    lastActivityAt: null,
+    sessionsTotal: 40,
+    metricsAvailable: false,
+  },
+  render: args => (
+    <Frame>
+      <AgentStatsGrid {...args} />
+    </Frame>
+  ),
+};
+
+export const SessionsVariant: Story = {
+  args: {
+    variant: "sessions",
+    active: 2,
+    runtimeLabel: "4h 12m",
+    failed: 1,
+    sessionsTotal: 6,
+  },
   render: args => (
     <Frame>
       <AgentStatsGrid {...args} />

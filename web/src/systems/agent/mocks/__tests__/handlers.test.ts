@@ -23,18 +23,25 @@ afterAll(() => {
 describe("agent MSW handlers", () => {
   it("Should filter the workspace catalog before returning its counted page", async () => {
     const response = await fetch(
-      `${API}/api/agents/catalog?workspace=ws-test&q=${encodeURIComponent(primaryAgentFixture.name)}&status=idle&limit=1`
+      `${API}/api/agents/catalog?workspace=ws-test&q=${encodeURIComponent(primaryAgentFixture.name)}&status=active&limit=1`
     );
 
     expect(response.status).toBe(200);
     const body = (await response.json()) as {
-      agents: Array<{ agent: { name: string }; sessions: { active: number; total: number } }>;
+      agents: Array<{
+        agent: { name: string };
+        sessions: { active: number; failed: number; runtime_seconds: number; total: number };
+      }>;
       page: { limit: number; total: number };
       sessions_available: boolean;
     };
     expect(body.agents).toHaveLength(1);
     expect(body.agents[0]?.agent.name).toBe(primaryAgentFixture.name);
-    expect(body.agents[0]?.sessions).toEqual({ active: 0, total: 0 });
+    expect(body.agents[0]?.sessions.active).toBeGreaterThan(0);
+    expect(body.agents[0]?.sessions).toMatchObject({
+      failed: 0,
+      runtime_seconds: 0,
+    });
     expect(body.page).toMatchObject({ limit: 1, total: 1 });
     expect(body.sessions_available).toBe(true);
   });

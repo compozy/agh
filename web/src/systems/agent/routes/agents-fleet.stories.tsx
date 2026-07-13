@@ -149,3 +149,62 @@ export const SessionsPartial: Story = {
   },
   render: () => <StorybookWorkspaceSetup />,
 };
+
+/** Long agent name + deep category path for truncation/wrap visual contract. */
+export const LongNameCategory: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/agents"),
+    ...storybookMswParameters({
+      agent: [
+        aghApiMock.get("/api/agents/catalog", ({ request }) =>
+          HttpResponse.json(
+            agentCatalogMockResponse(request, [
+              {
+                ...fleetStoryAgents[0]!,
+                name: "launch-room-merchant-risk-settlement-compliance-orchestrator-v2",
+                category_path: [
+                  "Operations",
+                  "Risk",
+                  "Settlement",
+                  "Launch Room",
+                  "Compliance Gates",
+                ],
+              },
+            ])
+          )
+        ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/** Catalog row with agent diagnostics (invalid definition signal). */
+export const InvalidAgent: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters("/agents"),
+    ...storybookMswParameters({
+      agent: [
+        aghApiMock.get("/api/agents/catalog", ({ request }) =>
+          HttpResponse.json(
+            agentCatalogMockResponse(request, [
+              {
+                ...fleetStoryAgents[1]!,
+                diagnostics: [
+                  {
+                    error_kind: "validation",
+                    message: "Provider configuration is incomplete",
+                    path: "AGENT.md",
+                  },
+                ],
+              },
+            ])
+          )
+        ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+};

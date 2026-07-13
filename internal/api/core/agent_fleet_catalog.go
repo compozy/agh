@@ -25,6 +25,7 @@ var errAgentCatalogQueryInvalid = errors.New("api: agent catalog query is invali
 
 type agentCatalogQuery struct {
 	Workspace string
+	Name      string
 	Search    string
 	Category  string
 	Status    string
@@ -34,6 +35,7 @@ type agentCatalogQuery struct {
 
 type agentCatalogFingerprint struct {
 	WorkspaceID string `json:"workspace_id"`
+	Name        string `json:"name"`
 	Search      string `json:"q"`
 	Category    string `json:"category"`
 	Status      string `json:"status"`
@@ -44,7 +46,7 @@ type agentCatalogCursor struct {
 }
 
 // ListAgentCatalog returns one filtered, counted workspace fleet page with
-// exact per-agent session totals when the session authority is available.
+// exact per-agent session metrics when the session authority is available.
 func (h *BaseHandlers) ListAgentCatalog(c *gin.Context) {
 	query, err := parseAgentCatalogQuery(c)
 	if err != nil {
@@ -75,8 +77,8 @@ func (h *BaseHandlers) ListAgentCatalog(c *gin.Context) {
 		return compareAgentCatalogNames(left.Name, right.Name)
 	})
 
-	counts, sessionsAvailable := h.agentCatalogSessionCounts(c, workspaceID)
-	response, err := buildAgentCatalogResponse(query, workspaceID, agents, counts, sessionsAvailable)
+	metrics, sessionsAvailable := h.agentCatalogSessionMetrics(c, workspaceID)
+	response, err := buildAgentCatalogResponse(query, workspaceID, agents, metrics, sessionsAvailable)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
@@ -84,24 +86,24 @@ func (h *BaseHandlers) ListAgentCatalog(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-func (h *BaseHandlers) agentCatalogSessionCounts(
+func (h *BaseHandlers) agentCatalogSessionMetrics(
 	c *gin.Context,
 	workspaceID string,
-) (map[string]session.AgentSessionCount, bool) {
-	counter, ok := h.Sessions.(AgentSessionCounter)
-	if !ok || counter == nil {
+) (map[string]session.AgentSessionMetrics, bool) {
+	reader, ok := h.Sessions.(AgentSessionMetricsReader)
+	if !ok || reader == nil {
 		return nil, false
 	}
-	counts, err := counter.CountSessionsByAgent(c.Request.Context(), workspaceID)
+	metrics, err := reader.AggregateSessionsByAgent(c.Request.Context(), workspaceID)
 	if err != nil {
 		h.Logger.Warn(
-			"api: agent catalog session counts unavailable",
+			"api: agent catalog session metrics unavailable",
 			"workspace_id", workspaceID,
 			handlersErrorKey, err,
 		)
 		return nil, false
 	}
-	return counts, true
+	return metrics, true
 }
 
 func parseAgentCatalogQuery(c *gin.Context) (agentCatalogQuery, error) {
@@ -132,6 +134,7 @@ func parseAgentCatalogQuery(c *gin.Context) (agentCatalogQuery, error) {
 	}
 	return agentCatalogQuery{
 		Workspace: workspace,
+		Name:      strings.TrimSpace(c.Query("name")),
 		Search:    strings.ToLower(strings.TrimSpace(c.Query("q"))),
 		Category:  strings.TrimSpace(c.Query("category")),
 		Status:    status,
@@ -144,11 +147,12 @@ func buildAgentCatalogResponse(
 	query agentCatalogQuery,
 	workspaceID string,
 	agents []contract.AgentPayload,
-	counts map[string]session.AgentSessionCount,
+	metrics map[string]session.AgentSessionMetrics,
 	sessionsAvailable bool,
 ) (contract.AgentCatalogResponse, error) {
 	fingerprint, err := listcursor.Fingerprint(agentCatalogFingerprint{
 		WorkspaceID: workspaceID,
+		Name:        query.Name,
 		Search:      query.Search,
 		Category:    query.Category,
 		Status:      query.Status,
@@ -161,7 +165,7 @@ func buildAgentCatalogResponse(
 		return contract.AgentCatalogResponse{}, err
 	}
 
-	facets, filtered := filterAgentCatalog(agents, counts, sessionsAvailable, query)
+	facets, filtered := filterAgentCatalog(agents, metrics, sessionsAvailable, query)
 	response := contract.AgentCatalogResponse{
 		Agents:            []contract.AgentCatalogItemPayload{},
 		SessionsAvailable: sessionsAvailable,
@@ -184,10 +188,16 @@ func buildAgentCatalogResponse(
 	for _, agent := range filtered[start:end] {
 		item := contract.AgentCatalogItemPayload{Agent: agent}
 		if sessionsAvailable {
-			count := counts[agent.Name]
-			item.Sessions = &contract.AgentSessionCountsPayload{
-				Total:  count.Total,
-				Active: count.Active,
+			metric := metrics[agent.Name]
+			item.Sessions = &contract.AgentSessionMetricsPayload{
+				Total:          metric.Total,
+				Active:         metric.Active,
+				Failed:         metric.Failed,
+				RuntimeSeconds: metric.RuntimeSeconds,
+			}
+			if !metric.LastActivityAt.IsZero() {
+				lastActivityAt := metric.LastActivityAt.UTC()
+				item.Sessions.LastActivityAt = &lastActivityAt
 			}
 		}
 		response.Agents = append(response.Agents, item)
@@ -210,7 +220,7 @@ func buildAgentCatalogResponse(
 
 func filterAgentCatalog(
 	agents []contract.AgentPayload,
-	counts map[string]session.AgentSessionCount,
+	metrics map[string]session.AgentSessionMetrics,
 	sessionsAvailable bool,
 	query agentCatalogQuery,
 ) (contract.AgentCatalogFacetsPayload, []contract.AgentPayload) {
@@ -225,15 +235,15 @@ func filterAgentCatalog(
 		if category != "" {
 			categorySet[category] = struct{}{}
 		}
-		count := counts[agent.Name]
+		metric := metrics[agent.Name]
 		if sessionsAvailable {
-			if count.Active > 0 {
+			if metric.Active > 0 {
 				facets.Active++
 			} else {
 				facets.Idle++
 			}
 		}
-		if !agentMatchesCatalogQuery(agent, count, sessionsAvailable, query) {
+		if !agentMatchesCatalogQuery(agent, metric, sessionsAvailable, query) {
 			continue
 		}
 		filtered = append(filtered, agent)
@@ -247,10 +257,13 @@ func filterAgentCatalog(
 
 func agentMatchesCatalogQuery(
 	agent contract.AgentPayload,
-	count session.AgentSessionCount,
+	metric session.AgentSessionMetrics,
 	sessionsAvailable bool,
 	query agentCatalogQuery,
 ) bool {
+	if query.Name != "" && agent.Name != query.Name {
+		return false
+	}
 	category := strings.Join(agent.CategoryPath, " / ")
 	if query.Category != "" && category != query.Category {
 		return false
@@ -262,10 +275,10 @@ func agentMatchesCatalogQuery(
 			return false
 		}
 	}
-	if sessionsAvailable && query.Status == "active" && count.Active == 0 {
+	if sessionsAvailable && query.Status == "active" && metric.Active == 0 {
 		return false
 	}
-	if sessionsAvailable && query.Status == "idle" && count.Active > 0 {
+	if sessionsAvailable && query.Status == "idle" && metric.Active > 0 {
 		return false
 	}
 	return true

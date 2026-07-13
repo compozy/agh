@@ -176,7 +176,7 @@ export {
 } from "./lib/agent-absent-value";
 export {
   formatAgentFleetAriaLabel,
-  formatAgentFleetCardMeta,
+  formatAgentFleetCardCategory,
   formatAgentFleetMeta,
   formatAgentOriginLabel,
   formatCategoryMetaSegment,
@@ -211,6 +211,11 @@ export {
   type AgentCreateDialogState,
 } from "./hooks/use-agent-create-dialog";
 export { useAgentSessions } from "./hooks/use-agent-sessions";
+export {
+  useAgentCatalogMetrics,
+  type AgentCatalogMetrics,
+} from "./hooks/use-agent-catalog-metrics";
+export { useAgentRuntimeEditor } from "./hooks/use-agent-runtime-editor";
 export {
   useAgentSoul,
   useAgentSoulHistory,
@@ -247,8 +252,14 @@ export {
   type AgentPageMetaProps,
   type AgentPageStatusPillProps,
 } from "./components/agent-page-header";
+export { AgentDetailHeader, type AgentDetailHeaderProps } from "./components/agent-detail-header";
 export { AgentSessionsList, type AgentSessionsListProps } from "./components/agent-sessions-list";
-export { AgentStatsGrid, type AgentStatsGridProps } from "./components/agent-stats-grid";
+export {
+  AgentStatsGrid,
+  type AgentStatsGridProps,
+  type AgentStatsGridVariant,
+} from "./components/agent-stats-grid";
+export { formatAgentRuntimeDuration } from "./lib/format-agent-runtime-duration";
 export {
   AgentDiagnosticsBanner,
   type AgentDiagnosticsBannerProps,

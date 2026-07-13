@@ -284,7 +284,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List a filtered workspace agent fleet with exact session totals */
+    /** List a filtered workspace agent fleet with exact session metrics */
     get: operations["listAgentCatalog"];
     put?: never;
     post?: never;
@@ -9588,6 +9588,8 @@ export interface operations {
       query: {
         /** @description Workspace id, name, or path */
         workspace: string;
+        /** @description Exact agent name */
+        name?: string;
         /** @description Case-insensitive agent name or category search */
         q?: string;
         /** @description Exact category path joined by slash separators */
@@ -9665,6 +9667,11 @@ export interface operations {
               };
               sessions?: {
                 active: number;
+                failed: number;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                /** Format: int64 */
+                runtime_seconds: number;
                 total: number;
               } | null;
             }[];

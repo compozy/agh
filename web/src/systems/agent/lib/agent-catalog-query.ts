@@ -12,6 +12,7 @@ export function normalizeAgentCatalogFilter(
   filters: AgentCatalogStableFilter = {}
 ): AgentCatalogStableFilter {
   return {
+    name: normalizeOptionalText(filters.name),
     q: normalizeOptionalText(filters.q),
     category: normalizeOptionalText(filters.category),
     status: filters.status,

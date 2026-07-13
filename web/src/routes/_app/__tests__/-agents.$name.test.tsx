@@ -7,7 +7,7 @@ import { primaryAgentFixture } from "@/systems/agent/testing";
 import type { SessionPayload } from "@/systems/session";
 import { primarySessionFixture } from "@/systems/session/testing";
 
-let childMatches: Array<{ id: string }> = [];
+let childMatches: Array<{ routeId: string }> = [];
 let routeSearch: { tab: string; file: string; filter: string } = {
   tab: "overview",
   file: "agent",
@@ -54,28 +54,46 @@ vi.mock("@/systems/agent", async importOriginal => {
   return {
     ...actual,
     AgentPageActions: () => <div data-testid="agent-page-actions" />,
-    AgentPageStatusPill: ({ activeCount }: { activeCount: number }) => (
-      <span data-testid="agent-page-status-pill">{activeCount}</span>
+    AgentDetailHeader: ({
+      metricsUnavailable,
+      activeCount,
+    }: {
+      metricsUnavailable?: boolean;
+      activeCount: number;
+    }) => (
+      <div
+        data-testid="agent-detail-header"
+        data-metrics-unavailable={metricsUnavailable ? "true" : "false"}
+        data-active-count={activeCount}
+      />
     ),
-    AgentPageMeta: () => <span data-testid="agent-page-meta" />,
     AgentDiagnosticsBanner: () => <div data-testid="agent-diagnostics-banner" />,
     AgentOverviewTab: ({
       sessions,
       sessionsTotal,
       activeSessionsTotal,
-      resumableSessionsTotal,
+      failedSessionsTotal,
+      metricsUnavailable,
+      metricsLoading,
+      sessionsError,
     }: {
       sessions: SessionPayload[];
       sessionsTotal: number;
       activeSessionsTotal: number;
-      resumableSessionsTotal: number;
+      failedSessionsTotal: number | null;
+      metricsUnavailable: boolean;
+      metricsLoading?: boolean;
+      sessionsError: boolean;
     }) => (
       <div
         data-testid="agent-overview-tab"
         data-session-ids={sessions.map(session => session.id).join(",")}
         data-total={sessionsTotal}
         data-active={activeSessionsTotal}
-        data-resumable={resumableSessionsTotal}
+        data-failed={failedSessionsTotal ?? "null"}
+        data-metrics-unavailable={metricsUnavailable ? "true" : "false"}
+        data-metrics-loading={metricsLoading ? "true" : "false"}
+        data-sessions-error={sessionsError ? "true" : "false"}
       />
     ),
     useAgentInstructionsTab: () => ({
@@ -103,48 +121,14 @@ vi.mock("@/systems/agent", async importOriginal => {
         onSave: vi.fn(),
         onRestore: vi.fn(),
         onRetry: vi.fn(),
-        status: undefined,
-        statusLoading: false,
-        statusError: false,
-        onRetryStatus: vi.fn(),
-        activeSessions: [],
-        wakeSessionId: null,
-        setWakeSessionId: vi.fn(),
         onWake: vi.fn(),
-        waking: false,
-        wakeDecision: undefined,
-        wakeError: null,
+        wakePending: false,
+        status: undefined,
       },
     }),
-    AgentInstructionsTab: ({ file }: { file: string }) => (
-      <div data-testid="agent-instructions-tab" data-file={file} />
-    ),
+    AgentInstructionsTab: () => <div data-testid="agent-instructions-tab" />,
     AgentConfigurationTab: () => <div data-testid="agent-configuration-tab" />,
-    AgentSessionsTab: ({
-      sessions,
-      filter,
-      total,
-      active,
-      resumable,
-      paginationStatus,
-    }: {
-      sessions: SessionPayload[];
-      filter: string;
-      total: number;
-      active: number;
-      resumable: number;
-      paginationStatus?: "available" | "loading";
-    }) => (
-      <div
-        data-testid="agent-sessions-tab"
-        data-session-ids={sessions.map(session => session.id).join(",")}
-        data-filter={filter}
-        data-total={total}
-        data-active={active}
-        data-resumable={resumable}
-        data-has-more={Boolean(paginationStatus)}
-      />
-    ),
+    AgentSessionsTab: () => <div data-testid="agent-sessions-tab" />,
     validateAgentDetailSearch: actual.validateAgentDetailSearch,
   };
 });
@@ -162,7 +146,11 @@ function makePage(overrides: Partial<UseAgentDetailPageResult> = {}): UseAgentDe
     sessions: [primarySessionFixture],
     sessionsTotal: 205,
     activeSessionsTotal: 7,
-    resumableSessionsTotal: 13,
+    failedSessionsTotal: 1,
+    runtimeSeconds: 3600,
+    metricsUnavailable: false,
+    metricsLoading: false,
+    metricsError: false,
     lastSessionActivityAt: "2026-07-11T12:00:00Z",
     hasMoreSessions: true,
     isLoadingMoreSessions: false,
@@ -214,13 +202,24 @@ describe("Agent detail route", () => {
     });
   });
 
-  it("Should render nested child routes without starting the detail page queries", () => {
-    childMatches = [{ id: "/_app/agents/$name/sessions/$id" }];
+  it("Should replace the detail shell for nested session routes", () => {
+    childMatches = [{ routeId: "/_app/agents/$name/sessions/$id" }];
 
     render(<AgentDetailRoute />);
 
     expect(screen.getByTestId("agent-detail-outlet")).toBeInTheDocument();
     expect(mockUseAgentDetailPage).not.toHaveBeenCalled();
+  });
+
+  it("Should keep the detail shell mounted under the settings overlay outlet", () => {
+    childMatches = [{ routeId: "/_app/agents/$name/settings" }];
+
+    render(<AgentDetailRoute />);
+
+    expect(screen.getByTestId("agent-detail-page")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-detail-header")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-detail-outlet")).toBeInTheDocument();
+    expect(mockUseAgentDetailPage).toHaveBeenCalled();
   });
 
   it("Should render the tabbed detail surface with exact server-owned session totals", () => {
@@ -235,6 +234,7 @@ describe("Agent detail route", () => {
     render(<AgentDetailRoute />);
 
     expect(screen.getByTestId("agent-detail-page")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-detail-header")).toBeInTheDocument();
     expect(screen.getByTestId("agent-detail-tabs")).toBeInTheDocument();
     expect(screen.getByTestId("agent-overview-tab")).toHaveAttribute(
       "data-session-ids",
@@ -242,55 +242,102 @@ describe("Agent detail route", () => {
     );
     expect(screen.getByTestId("agent-overview-tab")).toHaveAttribute("data-total", "205");
     expect(screen.getByTestId("agent-overview-tab")).toHaveAttribute("data-active", "7");
-    expect(screen.getByTestId("agent-overview-tab")).toHaveAttribute("data-resumable", "13");
+    expect(screen.getByTestId("agent-overview-tab")).toHaveAttribute("data-failed", "1");
     const slot = mockUseTopbarSlot.mock.calls.at(-1)?.[0];
-    render(slot.tabs);
-    expect(screen.getByTestId("agent-page-status-pill")).toHaveTextContent("7");
+    expect(slot?.tabs).toBeUndefined();
     expect(slot?.backLabel).toBe("Agents");
     expect(slot?.actions).toBeTruthy();
   });
 
-  it("Should associate the active detail tab with its tabpanel", () => {
-    render(<AgentDetailRoute />);
-
-    const tab = screen.getByRole("tab", { name: "Overview" });
-    const panel = screen.getByRole("tabpanel");
-
-    expect(tab).toHaveAttribute("aria-controls", panel.id);
-    expect(panel).toHaveAttribute("aria-labelledby", tab.id);
-    expect(panel).toContainElement(screen.getByTestId("agent-overview-tab"));
-  });
-
-  it("Should render geometry skeleton while the agent is loading", () => {
+  it("Should render loading and not-found states", () => {
     mockUseAgentDetailPage.mockReturnValue(makePage({ agent: undefined, agentLoading: true }));
     render(<AgentDetailRoute />);
     expect(screen.getByTestId("agent-detail-loading")).toBeInTheDocument();
-  });
 
-  it("Should restore instructions file and sessions filter deep links exactly", () => {
-    routeSearch = { tab: "instructions", file: "soul", filter: "all" };
-    mockUseAgentDetailPage.mockReturnValue(
-      makePage({ search: { tab: "instructions", file: "soul", filter: "all" } })
-    );
     const view = render(<AgentDetailRoute />);
-    expect(screen.getByTestId("agent-instructions-tab")).toHaveAttribute("data-file", "soul");
-
-    routeSearch = { tab: "sessions", file: "agent", filter: "failed" };
     mockUseAgentDetailPage.mockReturnValue(
-      makePage({ search: { tab: "sessions", file: "agent", filter: "failed" } })
+      makePage({ agent: undefined, agentLoading: false, agentError: new Error("missing") })
     );
     view.rerender(<AgentDetailRoute />);
-    expect(screen.getByTestId("agent-sessions-tab")).toHaveAttribute("data-filter", "failed");
-    expect(screen.getByTestId("agent-sessions-tab")).toHaveAttribute("data-total", "205");
-    expect(screen.getByTestId("agent-sessions-tab")).toHaveAttribute("data-has-more", "true");
+    mockUseAgentDetailPage.mockReturnValue(
+      makePage({ agent: undefined, agentLoading: false, agentError: null })
+    );
+    view.rerender(<AgentDetailRoute />);
+    expect(screen.getByTestId("agent-detail-not-found")).toBeInTheDocument();
   });
 
-  it("Should omit the status pill instead of claiming Idle when sessions are unavailable", () => {
+  it("Should keep overview mounted when sessions error", () => {
     mockUseAgentDetailPage.mockReturnValue(makePage({ sessions: [], sessionsError: true }));
     render(<AgentDetailRoute />);
-    const slot = mockUseTopbarSlot.mock.calls.at(-1)?.[0];
-    render(slot.tabs);
-    expect(screen.queryByTestId("agent-page-status-pill")).toBeNull();
-    expect(screen.getByTestId("agent-page-meta")).toBeVisible();
+    expect(screen.getByTestId("agent-overview-tab")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-overview-tab")).toHaveAttribute("data-sessions-error", "true");
+    expect(screen.getByTestId("agent-overview-tab")).toHaveAttribute(
+      "data-metrics-unavailable",
+      "false"
+    );
+    expect(screen.getByTestId("agent-detail-header")).toHaveAttribute(
+      "data-metrics-unavailable",
+      "false"
+    );
+    expect(screen.getByTestId("agent-tab-sessions")).toHaveTextContent("205");
+  });
+
+  it("Should omit the Sessions tab count when catalog metrics are unavailable", () => {
+    mockUseAgentDetailPage.mockReturnValue(
+      makePage({
+        sessionsTotal: 0,
+        activeSessionsTotal: 0,
+        metricsUnavailable: true,
+        metricsError: true,
+        failedSessionsTotal: null,
+        runtimeSeconds: null,
+      })
+    );
+    render(<AgentDetailRoute />);
+    expect(screen.getByTestId("agent-tab-sessions")).toHaveTextContent("Sessions");
+    expect(screen.getByTestId("agent-tab-sessions")).not.toHaveTextContent("0");
+    expect(screen.getByTestId("agent-detail-header")).toHaveAttribute(
+      "data-metrics-unavailable",
+      "true"
+    );
+    expect(screen.getByTestId("agent-overview-tab")).toHaveAttribute(
+      "data-metrics-unavailable",
+      "true"
+    );
+    expect(screen.getByTestId("agent-overview-tab")).toHaveAttribute(
+      "data-sessions-error",
+      "false"
+    );
+  });
+
+  it("Should place diagnostics above the body DetailHeader and outside tab content", () => {
+    mockUseAgentDetailPage.mockReturnValue(
+      makePage({
+        agent: {
+          ...primaryAgentFixture,
+          diagnostics: [
+            {
+              error_kind: "schema",
+              message: "Invalid permissions value",
+              path: "permissions",
+            },
+          ],
+        },
+      })
+    );
+    render(<AgentDetailRoute />);
+
+    const banner = screen.getByTestId("agent-diagnostics-banner");
+    const header = screen.getByTestId("agent-detail-header");
+    const tabs = screen.getByTestId("agent-detail-tabs");
+    const body = screen.getByTestId("agent-detail-body");
+
+    expect(banner.compareDocumentPosition(header) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+    expect(header.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+    expect(body.contains(banner)).toBe(false);
   });
 });

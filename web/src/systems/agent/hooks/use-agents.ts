@@ -86,6 +86,12 @@ export function useCreateAgent() {
 export interface UpdateAgentVariables {
   name: string;
   params: UpdateAgentParams;
+  /**
+   * Workspace key used by `useAgent` for this view.
+   * Must match the read key even when the winning agent is global
+   * (`params.workspace` omitted/null) so success writes do not miss the cache.
+   */
+  cacheWorkspace: string | null;
 }
 
 export function useUpdateAgent() {
@@ -94,11 +100,16 @@ export function useUpdateAgent() {
   return useMutation({
     mutationFn: ({ name, params }: UpdateAgentVariables) => updateAgent(name, params),
     onSuccess: (agent, variables) => {
-      const workspace = variables.params.workspace ?? null;
-      queryClient.setQueryData<AgentPayload>(agentKeys.detail(agent.name, workspace), agent);
+      // Write only the exact detail key for this view — never broadcast to all
+      // same-name workspace caches, and never fall back to params.workspace
+      // (null for global winners viewed under an active workspace).
+      queryClient.setQueryData<AgentPayload>(
+        agentKeys.detail(agent.name, variables.cacheWorkspace),
+        agent
+      );
     },
     onSettled: (_agent, error, variables) => {
-      invalidateAgentCollectionQueries(queryClient, error, variables?.params.workspace);
+      invalidateAgentCollectionQueries(queryClient, error, variables?.cacheWorkspace);
     },
   });
 }

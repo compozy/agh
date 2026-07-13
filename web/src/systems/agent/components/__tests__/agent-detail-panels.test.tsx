@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -124,7 +124,9 @@ describe("agent detail panels", () => {
     expect(onFileChange).toHaveBeenCalledWith("soul");
   });
 
-  it("Should render Overview runtime truth, skills policy, and up to three live sessions", () => {
+  it("Should render Overview runtime truth, deep-link editing, and up to three live sessions", async () => {
+    const user = userEvent.setup();
+    const onEditRuntime = vi.fn();
     render(
       <AgentOverviewTab
         agent={agent()}
@@ -136,10 +138,14 @@ describe("agent detail panels", () => {
         ]}
         sessionsTotal={4}
         activeSessionsTotal={4}
-        resumableSessionsTotal={0}
+        failedSessionsTotal={0}
+        runtimeSeconds={180}
+        metricsUnavailable={false}
+        metricsLoading={false}
         lastSessionActivityAt="2026-04-01T01:00:00Z"
         sessionsLoading={false}
         sessionsError={false}
+        onEditRuntime={onEditRuntime}
         onViewAllSessions={vi.fn()}
       />
     );
@@ -150,25 +156,84 @@ describe("agent detail panels", () => {
     expect(screen.getByTestId("agent-overview-live-sess-active")).toHaveTextContent("59s");
     expect(screen.getByTestId("agent-overview-live-sess-active")).not.toHaveTextContent("1m");
     expect(screen.queryByText(String.fromCharCode(0x2014))).toBeNull();
+    await user.click(screen.getByTestId("agent-overview-edit-runtime"));
+    expect(onEditRuntime).toHaveBeenCalledTimes(1);
   });
 
-  it("Should keep definition panels and render unavailable metrics when sessions fail", () => {
+  it("Should keep successful catalog metrics visible when the sessions page fails", () => {
     render(
       <AgentOverviewTab
         agent={agent()}
         sessions={[]}
-        sessionsTotal={0}
-        activeSessionsTotal={0}
-        resumableSessionsTotal={0}
-        lastSessionActivityAt={null}
+        sessionsTotal={11}
+        activeSessionsTotal={2}
+        failedSessionsTotal={1}
+        runtimeSeconds={90}
+        metricsUnavailable={false}
+        metricsLoading={false}
+        lastSessionActivityAt="2026-04-01T01:00:00Z"
         sessionsLoading={false}
         sessionsError
+        onEditRuntime={vi.fn()}
         onViewAllSessions={vi.fn()}
       />
     );
     expect(screen.getByTestId("agent-overview-runtime")).toBeVisible();
-    expect(screen.getAllByText("--").length).toBeGreaterThanOrEqual(4);
-    expect(screen.getAllByText("Session status unavailable").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByTestId("agent-overview-sessions-notice")).toHaveTextContent(
+      "Session status unavailable"
+    );
+    expect(within(screen.getByTestId("agent-stat-active")).getByText("2")).toBeInTheDocument();
+    expect(within(screen.getByTestId("agent-stat-failed")).getByText("1")).toBeInTheDocument();
+  });
+
+  it("Should dash metrics without turning the live-session list into an error when catalog fails", () => {
+    render(
+      <AgentOverviewTab
+        agent={agent()}
+        sessions={[session()]}
+        sessionsTotal={0}
+        activeSessionsTotal={0}
+        failedSessionsTotal={null}
+        runtimeSeconds={null}
+        metricsUnavailable
+        metricsLoading={false}
+        lastSessionActivityAt={null}
+        sessionsLoading={false}
+        sessionsError={false}
+        onEditRuntime={vi.fn()}
+        onViewAllSessions={vi.fn()}
+      />
+    );
+    expect(screen.queryByTestId("agent-overview-sessions-notice")).not.toBeInTheDocument();
+    expect(within(screen.getByTestId("agent-stat-active")).getByText("—")).toBeInTheDocument();
+    expect(within(screen.getByTestId("agent-stat-runtime")).getByText("—")).toBeInTheDocument();
+    expect(within(screen.getByTestId("agent-stat-failed")).getByText("—")).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("agent-stat-last-activity")).getByText("—")
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("agent-overview-live-sess-active")).toBeInTheDocument();
+  });
+
+  it("Should skeleton metrics from the catalog query while sessions rows stay independent", () => {
+    render(
+      <AgentOverviewTab
+        agent={agent()}
+        sessions={[session()]}
+        sessionsTotal={0}
+        activeSessionsTotal={0}
+        failedSessionsTotal={null}
+        runtimeSeconds={null}
+        metricsUnavailable
+        metricsLoading
+        lastSessionActivityAt={null}
+        sessionsLoading={false}
+        sessionsError={false}
+        onEditRuntime={vi.fn()}
+        onViewAllSessions={vi.fn()}
+      />
+    );
+    expect(screen.getByTestId("agent-overview-metrics-skeleton").children).toHaveLength(4);
+    expect(screen.getByTestId("agent-overview-live-sess-active")).toBeInTheDocument();
   });
 
   it("Should render Configuration sections and deep-link each Edit action", async () => {
@@ -193,9 +258,12 @@ describe("agent detail panels", () => {
         sessions={[session(), session({ id: "sess-done", state: "stopped" })]}
         total={2}
         active={1}
-        resumable={0}
+        failed={0}
+        runtimeSeconds={120}
+        metricsUnavailable={false}
+        metricsLoading
         lastActivityAt="2026-04-01T01:00:00Z"
-        status="loading"
+        status="ready"
         onLoadMore={vi.fn()}
         filter="all"
         onFilterChange={onFilterChange}
@@ -204,6 +272,7 @@ describe("agent detail panels", () => {
       />
     );
     expect(screen.getByTestId("agent-sessions-metrics-loading").children).toHaveLength(4);
+    expect(screen.getByTestId("agent-session-row-sess-done")).toBeInTheDocument();
 
     view.rerender(
       <AgentSessionsTab
@@ -211,7 +280,10 @@ describe("agent detail panels", () => {
         sessions={[session(), session({ id: "sess-done", state: "stopped" })]}
         total={2}
         active={1}
-        resumable={0}
+        failed={0}
+        runtimeSeconds={120}
+        metricsUnavailable={false}
+        metricsLoading={false}
         lastActivityAt="2026-04-01T01:00:00Z"
         status="ready"
         onLoadMore={vi.fn()}
@@ -223,6 +295,82 @@ describe("agent detail panels", () => {
     );
     await user.click(screen.getByTestId("agent-sessions-filter-done"));
     expect(onFilterChange).toHaveBeenCalledWith("done");
+  });
+
+  it("Should keep the sessions list ready while catalog metrics are unavailable", () => {
+    render(
+      <AgentSessionsTab
+        agentName="coder"
+        sessions={[session()]}
+        total={0}
+        active={0}
+        failed={null}
+        runtimeSeconds={null}
+        metricsUnavailable
+        metricsLoading={false}
+        lastActivityAt={null}
+        status="ready"
+        onLoadMore={vi.fn()}
+        filter="all"
+        onFilterChange={vi.fn()}
+        onNewSession={vi.fn()}
+        onClearFilter={vi.fn()}
+      />
+    );
+    expect(within(screen.getByTestId("agent-stat-active")).getByText("—")).toBeInTheDocument();
+    expect(within(screen.getByTestId("agent-stat-total")).getByText("—")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-session-row-sess-active")).toBeInTheDocument();
+  });
+
+  it("Should expose the task-oriented action for each empty sessions state", async () => {
+    const user = userEvent.setup();
+    const onNewSession = vi.fn();
+    const onClearFilter = vi.fn();
+    const view = render(
+      <AgentSessionsTab
+        agentName="coder"
+        sessions={[]}
+        total={0}
+        active={0}
+        failed={0}
+        runtimeSeconds={0}
+        metricsUnavailable={false}
+        metricsLoading={false}
+        lastActivityAt={null}
+        status="ready"
+        onLoadMore={vi.fn()}
+        filter="all"
+        onFilterChange={vi.fn()}
+        onNewSession={onNewSession}
+        onClearFilter={onClearFilter}
+      />
+    );
+
+    await user.click(screen.getByTestId("agent-sessions-empty-new"));
+    expect(onNewSession).toHaveBeenCalledTimes(1);
+
+    view.rerender(
+      <AgentSessionsTab
+        agentName="coder"
+        sessions={[]}
+        total={0}
+        active={0}
+        failed={0}
+        runtimeSeconds={0}
+        metricsUnavailable={false}
+        metricsLoading={false}
+        lastActivityAt={null}
+        status="ready"
+        onLoadMore={vi.fn()}
+        filter="failed"
+        onFilterChange={vi.fn()}
+        onNewSession={onNewSession}
+        onClearFilter={onClearFilter}
+      />
+    );
+
+    await user.click(screen.getByTestId("agent-sessions-show-all"));
+    expect(onClearFilter).toHaveBeenCalledTimes(1);
   });
 
   it("Should list every diagnostic with kind, message, and source path", () => {

@@ -9,7 +9,7 @@ import {
 } from "../agent-fleet-filters";
 import {
   formatAgentFleetAriaLabel,
-  formatAgentFleetCardMeta,
+  formatAgentFleetCardCategory,
   formatAgentFleetMeta,
   formatCategoryMetaSegment,
   projectAgentFleetRows,
@@ -28,7 +28,12 @@ function agent(overrides: Partial<AgentPayload> & Pick<AgentPayload, "name">): A
 
 function catalogItem(
   definition: AgentPayload,
-  sessions: AgentCatalogItem["sessions"] = { active: 0, total: 0 }
+  sessions: AgentCatalogItem["sessions"] = {
+    active: 0,
+    failed: 0,
+    runtime_seconds: 0,
+    total: 0,
+  }
 ): AgentCatalogItem {
   return { agent: definition, sessions };
 }
@@ -70,9 +75,9 @@ describe("agent fleet projection", () => {
     const agents = [agent({ name: "zeta" }), agent({ name: "alpha" }), agent({ name: "Beta" })];
     const rows = projectAgentFleetRows({
       items: [
-        catalogItem(agents[1]!, { active: 0, total: 4 }),
-        catalogItem(agents[2]!, { active: 2, total: 6 }),
-        catalogItem(agents[0]!, { active: 0, total: 0 }),
+        catalogItem(agents[1]!, { active: 0, failed: 0, runtime_seconds: 0, total: 4 }),
+        catalogItem(agents[2]!, { active: 2, failed: 0, runtime_seconds: 120, total: 6 }),
+        catalogItem(agents[0]!, { active: 0, failed: 0, runtime_seconds: 0, total: 0 }),
       ],
       sessionsAvailable: true,
     });
@@ -115,7 +120,7 @@ describe("agent fleet projection", () => {
     ).toBe("Engineering / Release · anthropic · claude-sonnet-4-5 · Workspace");
 
     expect(
-      formatAgentFleetCardMeta(
+      formatAgentFleetCardCategory(
         agent({
           name: "release-captain",
           category_path: ["Engineering", "Release"],
@@ -124,17 +129,17 @@ describe("agent fleet projection", () => {
           origin: "workspace",
         })
       )
-    ).toBe("Engineering / Release · claude-sonnet-4-5 · Workspace");
+    ).toBe("Engineering / Release");
 
     expect(
-      formatAgentFleetCardMeta(
+      formatAgentFleetCardCategory(
         agent({
           name: "triage-bot",
           provider: "openai",
           origin: "global",
         })
       )
-    ).toBe("openai · Global");
+    ).toBe("openai");
 
     expect(
       formatCategoryMetaSegment(["Engineering", "Platform", "Infrastructure", "Release", "Canary"])
@@ -180,7 +185,8 @@ describe("agent fleet projection", () => {
       ],
       sessionsAvailable: true,
     });
-    expect(rows[0]?.cardMeta).toBe("openai · Workspace");
+    expect(rows[0]?.cardCategory).toBe("openai");
+    expect(rows[0]?.cardOrigin).toBe("Workspace");
     expect(rows[0]?.ariaLabel).toBe("triage-bot, Idle, 0 of 0 sessions active");
   });
 });

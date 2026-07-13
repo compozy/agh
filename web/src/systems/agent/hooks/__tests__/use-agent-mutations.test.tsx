@@ -141,6 +141,7 @@ describe("use-agent-mutations", () => {
     await act(async () => {
       await result.current.mutateAsync({
         name: "coder",
+        cacheWorkspace: "ws_alpha",
         params: {
           expected_digest: "d1",
           agent: { name: "coder", provider: "claude", prompt: "Updated" },
@@ -152,6 +153,56 @@ describe("use-agent-mutations", () => {
     expect(queryClient.getQueryData(agentKeys.detail("coder", "ws_alpha"))).toEqual(updated);
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: agentKeys.lists() });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: agentKeys.catalogs() });
+  });
+
+  it("Should write global winners to the active queryWorkspace key, not params.workspace null", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const otherWorkspaceKey = agentKeys.detail("fraud-ops-agent", "ws_other");
+    const activeViewKey = agentKeys.detail("fraud-ops-agent", "ws_alpha");
+    const globalNullKey = agentKeys.detail("fraud-ops-agent", null);
+    const staleView = makeAgent({
+      name: "fraud-ops-agent",
+      origin: "global",
+      prompt: "stale",
+      definition_digest: "d1",
+    });
+    const updated = makeAgent({
+      name: "fraud-ops-agent",
+      origin: "global",
+      prompt: "Updated global",
+      definition_digest: "d2",
+    });
+    queryClient.setQueryData(activeViewKey, staleView);
+    queryClient.setQueryData(otherWorkspaceKey, staleView);
+    queryClient.setQueryData(globalNullKey, staleView);
+    mockUpdateAgent.mockResolvedValue(updated);
+
+    const { result } = renderHook(() => useUpdateAgent(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        name: "fraud-ops-agent",
+        // Matches useAgent(name, activeWorkspaceId) even when origin is global.
+        cacheWorkspace: "ws_alpha",
+        params: {
+          expected_digest: "d1",
+          // Global update omits workspace — must not drive the cache key.
+          agent: {
+            name: "fraud-ops-agent",
+            provider: "claude",
+            prompt: "Updated global",
+          },
+        },
+      });
+    });
+
+    expect(queryClient.getQueryData(activeViewKey)).toEqual(updated);
+    expect(queryClient.getQueryData(otherWorkspaceKey)).toEqual(staleView);
+    expect(queryClient.getQueryData(globalNullKey)).toEqual(staleView);
   });
 
   it("Should not poison detail cache on digest conflict", async () => {
@@ -170,6 +221,7 @@ describe("use-agent-mutations", () => {
       await expect(
         result.current.mutateAsync({
           name: "coder",
+          cacheWorkspace: "ws_alpha",
           params: {
             expected_digest: "stale",
             agent: { name: "coder", provider: "claude", prompt: "Nope" },
@@ -180,6 +232,47 @@ describe("use-agent-mutations", () => {
     });
 
     expect(queryClient.getQueryData(agentKeys.detail("coder", "ws_alpha"))).toEqual(stale);
+  });
+
+  it("Should leave a global-view cache untouched when a rejected runtime choice conflicts", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const viewKey = agentKeys.detail("fraud-ops-agent", "ws_alpha");
+    const serverTruth = makeAgent({
+      name: "fraud-ops-agent",
+      origin: "global",
+      provider: "claude",
+      model: "sonnet",
+      definition_digest: "d1",
+    });
+    queryClient.setQueryData(viewKey, serverTruth);
+    mockUpdateAgent.mockRejectedValue(new AgentDigestConflictError("definition digest conflict"));
+
+    const { result } = renderHook(() => useUpdateAgent(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({
+          name: "fraud-ops-agent",
+          cacheWorkspace: "ws_alpha",
+          params: {
+            expected_digest: "stale",
+            agent: {
+              name: "fraud-ops-agent",
+              provider: "codex",
+              model: "gpt-5.4",
+              prompt: serverTruth.prompt,
+            },
+          },
+        })
+      ).rejects.toBeInstanceOf(AgentDigestConflictError);
+    });
+
+    expect(queryClient.getQueryData(viewKey)).toEqual(serverTruth);
+    expect(queryClient.getQueryData(agentKeys.detail("fraud-ops-agent", null))).toBeUndefined();
   });
 
   it("Should remove detail, refresh nav counts, and return unshadowed_origin on delete", async () => {

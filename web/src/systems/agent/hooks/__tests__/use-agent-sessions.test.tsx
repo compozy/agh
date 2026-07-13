@@ -29,7 +29,7 @@ describe("useAgentSessions", () => {
     });
   });
 
-  it("waits for an explicit workspace before issuing any agent session query", async () => {
+  it("Should wait for an explicit workspace before issuing one agent session query", async () => {
     const initialProps: { workspaceId: string | null } = { workspaceId: null };
     const { rerender } = renderHook(
       ({ workspaceId }) => useAgentSessions(workspaceId, "claude-agent"),
@@ -44,7 +44,7 @@ describe("useAgentSessions", () => {
     rerender({ workspaceId: "ws_alpha" });
 
     await waitFor(() => {
-      expect(fetchSessions).toHaveBeenCalledTimes(3);
+      expect(fetchSessions).toHaveBeenCalledTimes(1);
     });
     for (const [filters] of vi.mocked(fetchSessions).mock.calls) {
       expect(filters?.workspace).toBe("ws_alpha");

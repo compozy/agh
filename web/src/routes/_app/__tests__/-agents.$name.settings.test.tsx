@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -10,7 +11,6 @@ import {
 } from "@/systems/agent/lib/agent-settings-draft";
 
 const mockUseAgentSettingsPage = vi.fn();
-const mockUseTopbarSlot = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute:
@@ -25,14 +25,6 @@ vi.mock("@tanstack/react-router", () => ({
       useSearch: () => ({ section: "basics" }),
     }),
 }));
-
-vi.mock("@agh/ui", async importOriginal => {
-  const actual = await importOriginal<typeof import("@agh/ui")>();
-  return {
-    ...actual,
-    useTopbarSlot: mockUseTopbarSlot,
-  };
-});
 
 vi.mock("@/systems/agent/hooks/use-agent-settings-page", () => ({
   useAgentSettingsPage: (args: unknown) => mockUseAgentSettingsPage(args),
@@ -99,7 +91,6 @@ function makePage(overrides: Record<string, unknown> = {}) {
 describe("Agent settings route", () => {
   beforeEach(() => {
     mockUseAgentSettingsPage.mockReset();
-    mockUseTopbarSlot.mockReset();
     mockUseAgentSettingsPage.mockReturnValue(makePage());
   });
 
@@ -109,21 +100,21 @@ describe("Agent settings route", () => {
     expect(validateAgentSettingsSearch({ section: "nope" })).toEqual({ section: "basics" });
   });
 
-  it("Should hide page actions when pristine", () => {
+  it("Should render a settings dialog with footer actions when pristine", () => {
     render(<AgentSettingsRoute />);
-    const slot = mockUseTopbarSlot.mock.calls.at(-1)?.[0];
-    expect(slot?.actions).toBeUndefined();
-    expect(slot?.meta).toBeUndefined();
+    expect(screen.getByTestId("agent-settings-dialog")).toBeInTheDocument();
     expect(screen.getByTestId("agent-settings-page")).toBeInTheDocument();
     expect(screen.getByTestId("agent-settings-panels")).toHaveAttribute("data-section", "basics");
+    expect(screen.getByTestId("agent-settings-footer-note")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-settings-save")).toBeDisabled();
+    expect(screen.queryByTestId("agent-settings-unsaved")).not.toBeInTheDocument();
   });
 
-  it("Should show Unsaved pill and PageActionsTopbarSlot when dirty", () => {
+  it("Should show Unsaved pill and enable Save when dirty", () => {
     mockUseAgentSettingsPage.mockReturnValue(makePage({ dirty: true }));
     render(<AgentSettingsRoute />);
-    const slot = mockUseTopbarSlot.mock.calls.at(-1)?.[0];
-    expect(slot?.meta).toBeTruthy();
-    expect(slot?.actions).toBeTruthy();
+    expect(screen.getByTestId("agent-settings-unsaved")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-settings-save")).not.toBeDisabled();
   });
 
   it("Should block save for unrecognized legacy permissions until an explicit choice", () => {
@@ -137,7 +128,7 @@ describe("Agent settings route", () => {
     expect(validation.fields.permissions).toContain("Unrecognized permission mode: legacy-mode");
   });
 
-  it("Should keep Save focusable with aria-disabled and a caption when mutation is denied", () => {
+  it("Should keep Save disabled with a caption when mutation is denied", () => {
     mockUseAgentSettingsPage.mockReturnValue(
       makePage({
         dirty: true,
@@ -148,11 +139,25 @@ describe("Agent settings route", () => {
       })
     );
     render(<AgentSettingsRoute />);
-    const slot = mockUseTopbarSlot.mock.calls.at(-1)?.[0];
-    render(slot.actions);
-    const save = screen.getByRole("button", { name: "Save changes" });
-    expect(save).toHaveAttribute("aria-disabled", "true");
-    expect(save).not.toBeDisabled();
-    expect(screen.getByText("Editing is not permitted for this agent.")).toBeVisible();
+    const save = screen.getByTestId("agent-settings-save");
+    expect(save).toBeDisabled();
+    expect(save).toHaveAttribute("title", "Editing is not permitted for this agent.");
+  });
+
+  it("Should navigate back when Cancel is pressed", async () => {
+    const user = userEvent.setup();
+    const onBackToDetail = vi.fn();
+    mockUseAgentSettingsPage.mockReturnValue(makePage({ onBackToDetail }));
+    render(<AgentSettingsRoute />);
+    await user.click(screen.getByTestId("agent-settings-cancel"));
+    expect(onBackToDetail).toHaveBeenCalled();
+  });
+
+  it("Should render nothing when the agent is missing so detail owns not-found", () => {
+    mockUseAgentSettingsPage.mockReturnValue(
+      makePage({ agent: null, draft: null, agentError: new Error("missing") })
+    );
+    const { container } = render(<AgentSettingsRoute />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

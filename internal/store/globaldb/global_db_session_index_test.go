@@ -202,7 +202,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		}
 	})
 
-	t.Run("Should group exact visible counts while excluding the live overlay", func(t *testing.T) {
+	t.Run("Should aggregate exact visible metrics while excluding the live overlay", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -220,6 +220,8 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			filepath.Join(t.TempDir(), "workspace-agent-counts-foreign"),
 		)
 		baseAt := time.Date(2026, 7, 11, 16, 0, 0, 0, time.UTC)
+		now := baseAt.Add(10 * time.Minute)
+		globalDB.now = func() time.Time { return now }
 		coderActive := sessionInfoForWorkspaceStateIndexTest(
 			"sess-coder-active",
 			workspaceID,
@@ -232,6 +234,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			globalDBSessionStateStopped,
 			baseAt,
 		)
+		coderStopped.StopReason = store.StopError
 		reviewer := sessionInfoForWorkspaceStateIndexTest(
 			"sess-reviewer",
 			workspaceID,
@@ -272,18 +275,27 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			}
 		}
 
-		counts, err := globalDB.CountSessionsByAgent(ctx, store.SessionAgentCountQuery{
+		metrics, err := globalDB.AggregateSessionsByAgent(ctx, store.SessionAgentMetricsQuery{
 			WorkspaceID:         workspaceID,
 			ExcludeIDs:          []string{reviewer.ID},
 			ExcludeSessionTypes: []string{"dream"},
 			ExcludeSpawnRoles:   []string{"memory-extractor"},
 		})
 		if err != nil {
-			t.Fatalf("CountSessionsByAgent() error = %v", err)
+			t.Fatalf("AggregateSessionsByAgent() error = %v", err)
 		}
-		if len(counts) != 1 || counts[0].AgentName != "coder" ||
-			counts[0].Total != 2 || counts[0].Active != 1 {
-			t.Fatalf("CountSessionsByAgent() = %#v, want coder total=2 active=1", counts)
+		wantRuntime := int64(now.Sub(coderActive.CreatedAt).Seconds()) +
+			int64(coderStopped.UpdatedAt.Sub(coderStopped.CreatedAt).Seconds())
+		if len(metrics) != 1 || metrics[0].AgentName != "coder" ||
+			metrics[0].Total != 2 || metrics[0].Active != 1 || metrics[0].Failed != 1 ||
+			metrics[0].RuntimeSeconds != wantRuntime ||
+			!metrics[0].LastActivityAt.Equal(coderStopped.UpdatedAt) {
+			t.Fatalf(
+				"AggregateSessionsByAgent() = %#v, want coder total=2 active=1 failed=1 runtime=%d last=%s",
+				metrics,
+				wantRuntime,
+				coderStopped.UpdatedAt,
+			)
 		}
 	})
 }

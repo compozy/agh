@@ -6,6 +6,7 @@ import { handlers as bridgeHandlers } from "@/systems/bridges/mocks";
 import { handlers as daemonHandlers } from "@/systems/status/mocks";
 import { handlers as knowledgeHandlers } from "@/systems/knowledge/mocks";
 import { handlers as loopsHandlers } from "@/systems/loops/mocks";
+import { handlers as modelCatalogHandlers } from "@/systems/model-catalog/mocks";
 import { handlers as networkHandlers } from "@/systems/network/mocks";
 import { handlers as onboardingHandlers } from "@/systems/onboarding/mocks";
 import { handlers as runtimeHandlers } from "@/systems/runtime/mocks";
@@ -26,6 +27,7 @@ export type StorybookHandlerGroupName =
   | "guard"
   | "knowledge"
   | "loops"
+  | "model-catalog"
   | "network"
   | "onboarding"
   | "runtime"
@@ -48,6 +50,7 @@ export const storybookSystemHandlerGroups: StorybookHandlerGroups = {
   "design-system": [],
   knowledge: knowledgeHandlers,
   loops: loopsHandlers,
+  "model-catalog": modelCatalogHandlers,
   network: networkHandlers,
   onboarding: onboardingHandlers,
   runtime: runtimeHandlers,
@@ -88,13 +91,22 @@ export function composeStorybookHandlerGroup(
   overrides: HttpHandler[]
 ) {
   const overrideSignatures = new Set(overrides.map(handlerSignature));
+  const retained = storybookSystemHandlerGroups[groupName].filter(
+    handler => !overrideSignatures.has(handlerSignature(handler))
+  );
 
-  return [
-    ...overrides,
-    ...storybookSystemHandlerGroups[groupName].filter(
-      handler => !overrideSignatures.has(handlerSignature(handler))
-    ),
-  ];
+  // Concrete paths before param paths so an override of `/api/agents/{name}`
+  // (OpenAPI MSW registers `:name`) cannot shadow retained `/api/agents/catalog`.
+  const isConcrete = (handler: HttpHandler) => {
+    const path = String(handler.info.path);
+    return !/\{[^/]+\}|:[^/]+/.test(path);
+  };
+  const overrideConcrete = overrides.filter(isConcrete);
+  const overrideParam = overrides.filter(handler => !isConcrete(handler));
+  const retainedConcrete = retained.filter(isConcrete);
+  const retainedParam = retained.filter(handler => !isConcrete(handler));
+
+  return [...overrideConcrete, ...retainedConcrete, ...overrideParam, ...retainedParam];
 }
 
 export function composeStorybookHandlerOverrides(overrides: StorybookHandlerOverrides) {

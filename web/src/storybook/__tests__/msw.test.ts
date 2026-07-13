@@ -85,6 +85,35 @@ describe("storybook msw helpers", () => {
     expect(signatures.filter(signature => signature === "GET /api/bridges")).toHaveLength(1);
   });
 
+  it("Should keep concrete catalog routes ahead of param overrides that would shadow them", () => {
+    const nameOverride = [
+      aghApiMock.get("/api/agents/{name}", () =>
+        HttpResponse.json({
+          agent: {
+            name: "fraud-ops-agent",
+            provider: "claude",
+            prompt: "triage",
+            origin: "global",
+            definition_digest: "a".repeat(64),
+          },
+        })
+      ),
+    ];
+    const composed = composeStorybookHandlerGroup("agent", nameOverride);
+    const signatures = composed.map(handlerSignature);
+    const catalogIdx = signatures.findIndex(signature => signature.includes("/api/agents/catalog"));
+    const nameIdx = signatures.findIndex(
+      signature =>
+        /\/api\/agents\/(\{name\}|:name)$/.test(signature.replace(/^GET\s+\*?/, "GET ")) ||
+        signature.endsWith("/api/agents/{name}") ||
+        signature.endsWith("/api/agents/:name")
+    );
+
+    expect(catalogIdx).toBeGreaterThanOrEqual(0);
+    expect(nameIdx).toBeGreaterThanOrEqual(0);
+    expect(catalogIdx).toBeLessThan(nameIdx);
+  });
+
   it("does not register duplicate local API method/path pairs after normalizing path params", () => {
     const signatures = storybookSystemHandlers
       .map(handlerSignature)

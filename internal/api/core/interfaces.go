@@ -105,13 +105,12 @@ type SessionPageManager interface {
 	ListPage(ctx context.Context, query session.ListQuery) (session.ListPage, error)
 }
 
-// AgentSessionCounter exposes exact workspace-scoped session aggregates for
-// agent fleet catalogs.
-type AgentSessionCounter interface {
-	CountSessionsByAgent(
+// AgentSessionMetricsReader exposes exact workspace-scoped session aggregates.
+type AgentSessionMetricsReader interface {
+	AggregateSessionsByAgent(
 		ctx context.Context,
 		workspaceID string,
-	) (map[string]session.AgentSessionCount, error)
+	) (map[string]session.AgentSessionMetrics, error)
 }
 
 // SessionAttachManager owns durable attach CAS and live-session synchronization.

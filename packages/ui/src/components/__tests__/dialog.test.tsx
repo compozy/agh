@@ -214,6 +214,21 @@ describe("Dialog", () => {
     expect(dialog.dataset.frame).toBe("framed");
   });
 
+  it("Should paint an already-open controlled dialog at full opacity", async () => {
+    render(
+      <Dialog open onOpenChange={() => undefined}>
+        <DialogContent showCloseButton={false}>
+          <DialogTitle>Visible open</DialogTitle>
+        </DialogContent>
+      </Dialog>
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() => {
+      expect(getComputedStyle(dialog).opacity).toBe("1");
+    });
+  });
+
   it("Should throw when DialogContent is rendered outside <Dialog>", () => {
     const originalError = console.error;
     try {

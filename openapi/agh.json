@@ -12134,6 +12134,14 @@
                         }
                     },
                     {
+                        "description": "Exact agent name",
+                        "in": "query",
+                        "name": "name",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
                         "description": "Case-insensitive agent name or category search",
                         "in": "query",
                         "name": "q",
@@ -12376,11 +12384,28 @@
                                                             "active": {
                                                                 "type": "integer"
                                                             },
+                                                            "failed": {
+                                                                "type": "integer"
+                                                            },
+                                                            "last_activity_at": {
+                                                                "format": "date-time",
+                                                                "nullable": true,
+                                                                "type": "string"
+                                                            },
+                                                            "runtime_seconds": {
+                                                                "format": "int64",
+                                                                "type": "integer"
+                                                            },
                                                             "total": {
                                                                 "type": "integer"
                                                             }
                                                         },
-                                                        "required": ["active", "total"],
+                                                        "required": [
+                                                            "active",
+                                                            "failed",
+                                                            "runtime_seconds",
+                                                            "total"
+                                                        ],
                                                         "type": "object"
                                                     }
                                                 },
@@ -12750,7 +12775,7 @@
                         "description": "Workspace resolver unavailable"
                     }
                 },
-                "summary": "List a filtered workspace agent fleet with exact session totals",
+                "summary": "List a filtered workspace agent fleet with exact session metrics",
                 "tags": ["agents"],
                 "x-agh-transports": ["http", "uds"]
             }

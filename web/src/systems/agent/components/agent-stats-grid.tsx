@@ -1,63 +1,128 @@
-import { Metric, MetricGrid } from "@agh/ui";
+import { Metric, MetricGrid, Time } from "@agh/ui";
+
+export type AgentStatsGridVariant = "overview" | "sessions";
 
 export interface AgentStatsGridProps {
-  total: number;
   active: number;
-  resumable: number;
-  lastActivityAt: string | null;
+  /** Formatted runtime duration, or null when there is no elapsed runtime yet. */
+  runtimeLabel: string | null;
+  failed: number | null;
+  lastActivityAt?: string | null;
+  sessionsTotal?: number;
+  variant?: AgentStatsGridVariant;
   className?: string;
+  /**
+   * True when catalog returned the exact workspace-scoped session aggregate.
+   * When false, Active / Runtime / Failed / Last activity (or Total) all render as dash —
+   * never inferred zeros or "Never".
+   */
+  metricsAvailable?: boolean;
+  /** True when the session/metrics query failed entirely. */
   unavailable?: boolean;
 }
 
 export function AgentStatsGrid({
-  total,
   active,
-  resumable,
-  lastActivityAt,
+  runtimeLabel,
+  failed,
+  lastActivityAt = null,
+  sessionsTotal,
+  variant = "overview",
   className,
+  metricsAvailable = true,
   unavailable = false,
 }: AgentStatsGridProps) {
-  const unavailableValue = "--";
+  const dash = "—";
+  const showMetrics = metricsAvailable && !unavailable;
+
   return (
     <MetricGrid data-testid="agent-stats-grid" className={className}>
       <Metric
-        label="Active sessions"
-        value={unavailable ? unavailableValue : active}
-        tone={!unavailable && active > 0 ? "success" : "default"}
+        label="Active"
+        value={showMetrics ? active : dash}
+        tone={showMetrics && active > 0 ? "success" : "default"}
+        subtext={
+          variant === "overview" && showMetrics && typeof sessionsTotal === "number"
+            ? `of ${sessionsTotal} sessions`
+            : !showMetrics
+              ? "session metrics unavailable"
+              : undefined
+        }
+        aria-label={
+          !showMetrics
+            ? "Active is unavailable because the catalog did not return session aggregates for this agent."
+            : undefined
+        }
         data-testid="agent-stat-active"
       />
       <Metric
-        label="Total sessions"
-        value={unavailable ? unavailableValue : total}
-        data-testid="agent-stat-total"
+        label="Runtime"
+        value={showMetrics && runtimeLabel !== null ? runtimeLabel : dash}
+        subtext={
+          showMetrics && runtimeLabel !== null
+            ? "elapsed across sessions"
+            : !showMetrics
+              ? "session metrics unavailable"
+              : undefined
+        }
+        aria-label={
+          !showMetrics
+            ? "Runtime is unavailable because the catalog did not return session aggregates for this agent."
+            : undefined
+        }
+        data-testid="agent-stat-runtime"
       />
       <Metric
-        label="Resumable"
-        value={unavailable ? unavailableValue : resumable}
-        data-testid="agent-stat-resumable"
+        label="Failed"
+        value={showMetrics && failed !== null ? failed : dash}
+        tone={showMetrics && failed !== null && failed > 0 ? "danger" : "default"}
+        subtext={
+          showMetrics && failed !== null
+            ? "stopped with failure"
+            : !showMetrics
+              ? "session metrics unavailable"
+              : undefined
+        }
+        aria-label={
+          !showMetrics
+            ? "Failed count is unavailable because the catalog did not return session aggregates for this agent."
+            : undefined
+        }
+        data-testid="agent-stat-failed"
       />
-      <Metric
-        label="Last activity"
-        value={unavailable ? unavailableValue : formatRelative(lastActivityAt)}
-        data-testid="agent-stat-last-activity"
-      />
+      {variant === "sessions" ? (
+        <Metric
+          label="Total"
+          value={showMetrics ? (sessionsTotal ?? 0) : dash}
+          subtext={!showMetrics ? "session metrics unavailable" : undefined}
+          aria-label={
+            !showMetrics
+              ? "Total is unavailable because the catalog did not return session aggregates for this agent."
+              : undefined
+          }
+          data-testid="agent-stat-total"
+        />
+      ) : (
+        <Metric
+          label="Last activity"
+          value={
+            !showMetrics ? (
+              dash
+            ) : lastActivityAt ? (
+              <Time iso={lastActivityAt} mode="relative" />
+            ) : (
+              "Never"
+            )
+          }
+          subtext={showMetrics ? "from scoped sessions" : "session metrics unavailable"}
+          aria-label={
+            !showMetrics
+              ? "Last activity is unavailable because the catalog did not return session aggregates for this agent."
+              : undefined
+          }
+          data-testid="agent-stat-last-activity"
+        />
+      )}
     </MetricGrid>
   );
-}
-
-function formatRelative(value: string | null): string {
-  if (!value) return "--";
-  const timestamp = new Date(value).getTime();
-  if (!Number.isFinite(timestamp)) return "--";
-  const diffMs = Date.now() - timestamp;
-  if (diffMs < 0) return "just now";
-  const seconds = Math.floor(diffMs / 1_000);
-  if (seconds < 45) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(timestamp).toLocaleDateString();
 }

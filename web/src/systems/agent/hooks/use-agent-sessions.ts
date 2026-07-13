@@ -7,10 +7,6 @@ interface UseAgentSessionsOptions {
 
 interface UseAgentSessionsResult {
   sessions: SessionPayload[];
-  total: number;
-  activeTotal: number;
-  resumableTotal: number;
-  lastActivityAt: string | null;
   hasMore: boolean;
   isLoadingMore: boolean;
   loadMore: () => void;
@@ -18,6 +14,10 @@ interface UseAgentSessionsResult {
   isError: boolean;
 }
 
+/**
+ * Paginated session rows for an agent. Metrics (Active/Failed/Runtime/Last activity)
+ * come from `useAgentCatalogMetrics` — never derive them from this page.
+ */
 export function useAgentSessions(
   workspaceId: string | null,
   agentName: string | undefined,
@@ -28,28 +28,15 @@ export function useAgentSessions(
     enabled,
     filters: { agent: agentName, sort: "last_activity" },
   });
-  const activeQuery = useSessions(workspaceId, {
-    enabled,
-    filters: { agent: agentName, state: "active", limit: 1 },
-  });
-  const resumableQuery = useSessions(workspaceId, {
-    enabled,
-    filters: { agent: agentName, resumable: true, limit: 1 },
-  });
-  const latestSession = sessionsQuery.data?.[0];
 
   return {
     sessions: sessionsQuery.data ?? [],
-    total: sessionsQuery.total,
-    activeTotal: activeQuery.total,
-    resumableTotal: resumableQuery.total,
-    lastActivityAt: latestSession?.activity?.last_activity_at ?? latestSession?.updated_at ?? null,
     hasMore: sessionsQuery.hasNextPage,
     isLoadingMore: sessionsQuery.isFetchingNextPage,
     loadMore: () => {
       void sessionsQuery.fetchNextPage();
     },
-    isLoading: sessionsQuery.isLoading || activeQuery.isLoading || resumableQuery.isLoading,
-    isError: sessionsQuery.isError || activeQuery.isError || resumableQuery.isError,
+    isLoading: sessionsQuery.isLoading,
+    isError: sessionsQuery.isError,
   };
 }

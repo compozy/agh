@@ -12,27 +12,10 @@ import {
   type DialogMotionContextValue,
   useDialogMotion,
 } from "./hooks/use-dialog-motion";
+import { useDialogMotionTransition } from "./hooks/use-dialog-motion-transition";
 import { useInitialState } from "./use-initial-state";
 
 type DialogRootProps = DialogPrimitive.Root.Props;
-
-const DIALOG_OVERLAY_RENDER = (
-  <m.div
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    exit={{ opacity: 0 }}
-    transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
-  />
-);
-
-const DIALOG_POPUP_RENDER = (
-  <m.div
-    initial={{ opacity: 0, scale: 0.97 }}
-    animate={{ opacity: 1, scale: 1 }}
-    exit={{ opacity: 0, scale: 0.97 }}
-    transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
-  />
-);
 
 function Dialog({
   open: controlledOpen,
@@ -82,10 +65,14 @@ function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
 }
 
 function DialogOverlay({ className, style, ...props }: DialogPrimitive.Backdrop.Props) {
+  const transition = useDialogMotionTransition();
+  const overlayRender = (
+    <m.div initial={false} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={transition} />
+  );
   return (
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
-      render={DIALOG_OVERLAY_RENDER}
+      render={overlayRender}
       className={cn("fixed inset-0 isolate z-50 bg-overlay-scrim", className)}
       style={{ backdropFilter: "blur(var(--overlay-blur))", ...style }}
       {...props}
@@ -126,6 +113,15 @@ function DialogContent({
   ...props
 }: DialogContentProps) {
   const { actionsRef, open } = useDialogMotion();
+  const transition = useDialogMotionTransition();
+  const popupRender = (
+    <m.div
+      initial={false}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      transition={transition}
+    />
+  );
 
   const handleExitComplete = () => {
     actionsRef.current?.unmount();
@@ -139,7 +135,7 @@ function DialogContent({
           <DialogPrimitive.Popup
             data-slot="dialog-content"
             data-frame={unframed ? "unframed" : "framed"}
-            render={DIALOG_POPUP_RENDER}
+            render={popupRender}
             className={cn(
               DIALOG_CONTENT_BASE,
               unframed ? DIALOG_CONTENT_UNFRAMED : DIALOG_CONTENT_FRAMED,

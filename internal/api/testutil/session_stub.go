@@ -16,7 +16,7 @@ type StubSessionManager struct {
 	ListFn              func() []*session.Info
 	ListAllFn           func(context.Context) ([]*session.Info, error)
 	ListPageFn          func(context.Context, session.ListQuery) (session.ListPage, error)
-	CountByAgentFn      func(context.Context, string) (map[string]session.AgentSessionCount, error)
+	MetricsByAgentFn    func(context.Context, string) (map[string]session.AgentSessionMetrics, error)
 	ListSessionsFn      func(context.Context, store.SessionListQuery) ([]store.SessionInfo, error)
 	StatusFn            func(context.Context, string) (*session.Info, error)
 	EventsFn            func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
@@ -85,18 +85,18 @@ func (s StubSessionManager) ListPage(ctx context.Context, query session.ListQuer
 	return stubSessionListPage(infos, query), nil
 }
 
-func (s StubSessionManager) CountSessionsByAgent(
+func (s StubSessionManager) AggregateSessionsByAgent(
 	ctx context.Context,
 	workspaceID string,
-) (map[string]session.AgentSessionCount, error) {
-	if s.CountByAgentFn != nil {
-		return s.CountByAgentFn(ctx, workspaceID)
+) (map[string]session.AgentSessionMetrics, error) {
+	if s.MetricsByAgentFn != nil {
+		return s.MetricsByAgentFn(ctx, workspaceID)
 	}
 	infos, err := s.ListAll(ctx)
 	if err != nil {
 		return nil, err
 	}
-	counts := make(map[string]session.AgentSessionCount)
+	metrics := make(map[string]session.AgentSessionMetrics)
 	for _, info := range infos {
 		if info == nil || info.WorkspaceID != workspaceID || info.Type == session.SessionTypeDream {
 			continue
@@ -108,14 +108,25 @@ func (s StubSessionManager) CountSessionsByAgent(
 		if agentName == "" {
 			continue
 		}
-		count := counts[agentName]
-		count.Total++
+		metric := metrics[agentName]
+		metric.Total++
 		if info.State == session.StateActive {
-			count.Active++
+			metric.Active++
 		}
-		counts[agentName] = count
+		if info.State == session.StateStopped &&
+			(info.Failure != nil || info.StopReason == store.StopAgentCrashed ||
+				info.StopReason == store.StopError) {
+			metric.Failed++
+		}
+		if !info.CreatedAt.IsZero() && info.UpdatedAt.After(info.CreatedAt) {
+			metric.RuntimeSeconds += int64(info.UpdatedAt.Sub(info.CreatedAt).Seconds())
+		}
+		if info.UpdatedAt.After(metric.LastActivityAt) {
+			metric.LastActivityAt = info.UpdatedAt
+		}
+		metrics[agentName] = metric
 	}
-	return counts, nil
+	return metrics, nil
 }
 
 func (s StubSessionManager) ListSessions(
@@ -368,7 +379,7 @@ func (s StubSessionManager) InputQueueSummary(ctx context.Context, id string) (s
 
 var _ core.SessionManager = (*StubSessionManager)(nil)
 var _ core.SessionCatalog = (*StubSessionManager)(nil)
-var _ core.AgentSessionCounter = (*StubSessionManager)(nil)
+var _ core.AgentSessionMetricsReader = (*StubSessionManager)(nil)
 
 func storeSessionInfoFromRuntime(info *session.Info) store.SessionInfo {
 	storeInfo := store.SessionInfo{

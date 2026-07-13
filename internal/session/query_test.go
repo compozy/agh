@@ -166,7 +166,6 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 			t.Fatalf("Stop(stopped) error = %v", err)
 		}
 		catalog.durable = sessionCatalogInfoFromRuntime(stopped.Info())
-		catalog.agentCounts = []store.SessionAgentCount{{AgentName: "coder", Total: 1}}
 		metaReads := 0
 		h.manager.readSessionMeta = func(path string) (store.SessionMeta, error) {
 			metaReads++
@@ -224,21 +223,6 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 				"workspace resolver calls = %d after catalog pages, want unchanged %d",
 				resolverCallsAfter,
 				resolverCallsBefore,
-			)
-		}
-
-		counts, err := h.manager.CountSessionsByAgent(testutil.Context(t), h.workspaceID)
-		if err != nil {
-			t.Fatalf("CountSessionsByAgent() error = %v", err)
-		}
-		if counts["coder"].Total != 2 || counts["coder"].Active != 1 {
-			t.Fatalf("CountSessionsByAgent() = %#v, want coder total=2 active=1", counts)
-		}
-		if !slices.Contains(catalog.lastAgentCountQuery.ExcludeIDs, active.ID) {
-			t.Fatalf(
-				"CountSessionsByAgent().ExcludeIDs = %#v, want active id %q",
-				catalog.lastAgentCountQuery.ExcludeIDs,
-				active.ID,
 			)
 		}
 
@@ -321,6 +305,65 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		}
 		if !healthByID[active.ID].Attachable {
 			t.Fatalf("SessionHealthForPage(after expiry) = %#v, want attachable", healthByID[active.ID])
+		}
+	})
+}
+
+func TestManagerAggregateSessionsByAgent(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should overlay live sessions onto exact durable workspace metrics", func(t *testing.T) {
+		t.Parallel()
+
+		baseAt := time.Date(2026, 7, 12, 14, 0, 0, 0, time.UTC)
+		clock := newSessionHealthTestClock(baseAt)
+		catalog := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		h := newHarness(t, WithNow(clock.Now), WithSessionCatalog(catalog))
+		active, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Name:      "live coder",
+			Workspace: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create(active) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if stopErr := h.manager.Stop(testutil.Context(t), active.ID); stopErr != nil &&
+				!errors.Is(stopErr, ErrSessionNotFound) {
+				t.Errorf("Stop(active cleanup) error = %v", stopErr)
+			}
+		})
+		lastActivityAt := baseAt.Add(20 * time.Second)
+		catalog.agentMetrics = []store.SessionAgentMetrics{{
+			AgentName:      "coder",
+			Total:          1,
+			Failed:         1,
+			RuntimeSeconds: 12,
+			LastActivityAt: lastActivityAt,
+		}}
+		clock.Set(baseAt.Add(30 * time.Second))
+
+		metrics, err := h.manager.AggregateSessionsByAgent(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("AggregateSessionsByAgent() error = %v", err)
+		}
+		coder := metrics["coder"]
+		if coder.Total != 2 || coder.Active != 1 || coder.Failed != 1 ||
+			coder.RuntimeSeconds != 42 || !coder.LastActivityAt.Equal(lastActivityAt) {
+			t.Fatalf(
+				"AggregateSessionsByAgent() = %#v, want coder total=2 active=1 failed=1 runtime=42 last=%s",
+				metrics,
+				lastActivityAt,
+			)
+		}
+		if catalog.lastAgentMetricsQuery.WorkspaceID != h.workspaceID ||
+			!slices.Contains(catalog.lastAgentMetricsQuery.ExcludeIDs, active.ID) ||
+			!slices.Contains(catalog.lastAgentMetricsQuery.ExcludeSessionTypes, string(SessionTypeDream)) ||
+			!slices.Contains(catalog.lastAgentMetricsQuery.ExcludeSpawnRoles, SpawnRoleMemoryExtractor) {
+			t.Fatalf(
+				"AggregateSessionsByAgent() query = %#v, want workspace and live/internal exclusions",
+				catalog.lastAgentMetricsQuery,
+			)
 		}
 	})
 }
@@ -430,11 +473,11 @@ func TestNormalizeListQuery(t *testing.T) {
 
 type pagedRecordingSessionCatalog struct {
 	*recordingSessionCatalog
-	durable             store.SessionInfo
-	agentCounts         []store.SessionAgentCount
-	lastQuery           store.SessionCatalogPageQuery
-	lastAgentCountQuery store.SessionAgentCountQuery
-	calls               int
+	durable               store.SessionInfo
+	agentMetrics          []store.SessionAgentMetrics
+	lastQuery             store.SessionCatalogPageQuery
+	lastAgentMetricsQuery store.SessionAgentMetricsQuery
+	calls                 int
 }
 
 func (c *pagedRecordingSessionCatalog) PageSessions(
@@ -454,12 +497,12 @@ func (c *pagedRecordingSessionCatalog) PageSessions(
 	return page, nil
 }
 
-func (c *pagedRecordingSessionCatalog) CountSessionsByAgent(
+func (c *pagedRecordingSessionCatalog) AggregateSessionsByAgent(
 	_ context.Context,
-	query store.SessionAgentCountQuery,
-) ([]store.SessionAgentCount, error) {
-	c.lastAgentCountQuery = query
-	return append([]store.SessionAgentCount(nil), c.agentCounts...), nil
+	query store.SessionAgentMetricsQuery,
+) ([]store.SessionAgentMetrics, error) {
+	c.lastAgentMetricsQuery = query
+	return append([]store.SessionAgentMetrics(nil), c.agentMetrics...), nil
 }
 
 func TestManagerStatusReturnsActiveAndStoredSessions(t *testing.T) {

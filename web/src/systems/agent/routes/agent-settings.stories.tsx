@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { HttpResponse } from "msw";
-import { fireEvent, expect, userEvent, within } from "storybook/test";
+import { fireEvent, expect, userEvent, waitFor, within } from "storybook/test";
 
 import { storyAgentNames, storyWorkspaceIds } from "@/storybook/fintech-scenario";
 import { aghApiMock } from "@/storybook/openapi-msw";
@@ -10,6 +10,7 @@ import {
   StorybookWorkspaceSetup,
   appRouteParameters,
 } from "@/storybook/route-story-meta";
+import { agentFixtures } from "@/systems/agent/mocks";
 
 const settingsRoute = `/agents/${storyAgentNames.fraud}/settings`;
 
@@ -25,7 +26,7 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
     docs: {
       description: {
         component:
-          "Full-page agent settings editor with section nav, dirty topbar actions, and Danger zone.",
+          "Agent settings modal overlay with section navigation, dirty footer Save/Cancel, and Danger zone.",
       },
     },
   },
@@ -113,7 +114,7 @@ export const DirtyInstructions: Story = {
     const prompt = await canvas.findByTestId("agent-settings-prompt");
     await fireEvent.change(prompt, { target: { value: "Review every release gate before ship." } });
     await expect(canvas.findByTestId("agent-settings-unsaved")).resolves.toBeDefined();
-    await expect(canvas.findByTestId("agent-settings-page-actions")).resolves.toBeDefined();
+    await expect(canvas.findByTestId("agent-settings-save")).resolves.toBeDefined();
   },
 };
 
@@ -160,8 +161,192 @@ export const PermissionDenied: Story = {
     await fireEvent.change(prompt, { target: { value: "An unauthorized definition update." } });
     await userEvent.click(await canvas.findByRole("button", { name: "Save changes" }));
     await expect(canvas.findByTestId("agent-settings-mutation-denied")).resolves.toBeDefined();
-    await expect(
-      canvas.findByTestId("page-actions-topbar-slot-blocked-caption")
-    ).resolves.toHaveTextContent("Editing is not permitted for this agent.");
+    await expect(canvas.findByTestId("agent-settings-save")).resolves.toBeDisabled();
+  },
+};
+
+export const RuntimeSelectorOpen: Story = {
+  args: {},
+  parameters: appRouteParameters(`${settingsRoute}?section=runtime`),
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(await body.findByTestId("agent-settings-runtime")).toBeInTheDocument();
+    const trigger = await body.findByTestId("agent-settings-runtime-select");
+    const openButton =
+      within(trigger).queryByRole("button", { name: /^Model:/i }) ??
+      within(trigger).queryByRole("button", { name: /^Open runtime selector$/i }) ??
+      within(trigger).getByRole("button", { name: /^Provider:/i });
+    await waitFor(() => expect(openButton).toBeEnabled(), { timeout: 15_000 });
+    await userEvent.click(openButton);
+    await expect(await body.findByTestId("runtime-selector-popup")).toBeInTheDocument();
+  },
+};
+
+export const InstructionsLong: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(`${settingsRoute}?section=instructions`),
+    ...storybookMswParameters({
+      agent: [
+        aghApiMock.get("/api/agents/{name}", () =>
+          HttpResponse.json({
+            agent: {
+              ...agentFixtures.find(agent => agent.name === storyAgentNames.fraud)!,
+              prompt: Array.from(
+                { length: 24 },
+                (_, index) =>
+                  `Gate ${index + 1}: verify payout holds, reserve anomalies, sanctions evidence, and launch-room approval before any merchant action ships.`
+              ).join("\n"),
+            },
+          })
+        ),
+      ],
+    }),
+  },
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(await body.findByTestId("agent-settings-instructions")).toBeInTheDocument();
+    await expect(await body.findByTestId("agent-settings-prompt")).toBeInTheDocument();
+  },
+};
+
+export const AccessPopulated: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(`${settingsRoute}?section=access`),
+    ...storybookMswParameters({
+      agent: [
+        aghApiMock.get("/api/agents/{name}", () =>
+          HttpResponse.json({
+            agent: {
+              ...agentFixtures.find(agent => agent.name === storyAgentNames.fraud)!,
+              tools: ["agh__skill_view", "mcp__github__*"],
+              toolsets: ["agh__catalog"],
+              deny_tools: ["agh__task_delete"],
+              skills: { disabled: ["code-review"] },
+            },
+          })
+        ),
+      ],
+    }),
+  },
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(await body.findByTestId("agent-settings-access")).toBeInTheDocument();
+    await expect(await body.findByTestId("agent-settings-tools")).toHaveTextContent(
+      "agh__skill_view"
+    );
+  },
+};
+
+export const McpServersPopulated: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(`${settingsRoute}?section=mcp`),
+    ...storybookMswParameters({
+      agent: [
+        aghApiMock.get("/api/agents/{name}", () =>
+          HttpResponse.json({
+            agent: {
+              ...agentFixtures.find(agent => agent.name === storyAgentNames.fraud)!,
+              mcp_servers: [
+                {
+                  name: "github",
+                  transport: "stdio",
+                  command: "npx",
+                  env: { GITHUB_API_URL: "redacted" },
+                  secret_env: { GITHUB_TOKEN: "redacted" },
+                },
+              ],
+            },
+          })
+        ),
+      ],
+    }),
+  },
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(await body.findByTestId("agent-settings-mcp")).toBeInTheDocument();
+  },
+};
+
+export const McpServersEmpty: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(`${settingsRoute}?section=mcp`),
+    ...storybookMswParameters({
+      agent: [
+        aghApiMock.get("/api/agents/{name}", () =>
+          HttpResponse.json({
+            agent: {
+              ...agentFixtures.find(agent => agent.name === storyAgentNames.fraud)!,
+              mcp_servers: [],
+            },
+          })
+        ),
+      ],
+    }),
+  },
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(await body.findByTestId("agent-settings-mcp")).toBeInTheDocument();
+  },
+};
+
+export const FieldValidationError: Story = {
+  args: {},
+  parameters: appRouteParameters(`${settingsRoute}?section=basics`),
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    const category = await body.findByTestId("agent-settings-category");
+    await fireEvent.change(category, { target: { value: "Engineering/" } });
+    await expect(await body.findByTestId("agent-settings-category-error")).toBeInTheDocument();
+  },
+};
+
+export const SaveFailure: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(`${settingsRoute}?section=instructions`),
+    ...storybookMswParameters({
+      agent: [
+        aghApiMock.put("/api/agents/{name}", () =>
+          HttpResponse.json({ error: "agent store unavailable" }, { status: 500 })
+        ),
+      ],
+    }),
+  },
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    const prompt = await body.findByTestId("agent-settings-prompt");
+    await fireEvent.change(prompt, { target: { value: "A save that fails on the server." } });
+    await userEvent.click(await body.findByRole("button", { name: "Save changes" }));
+    await expect(await body.findByTestId("agent-settings-save-error")).toBeInTheDocument();
+  },
+};
+
+export const DeleteConfirm: Story = {
+  args: {},
+  parameters: appRouteParameters(`${settingsRoute}?section=danger`),
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await body.findByTestId("agent-settings-delete"));
+    await expect(await body.findByTestId("agent-delete-dialog")).toBeInTheDocument();
   },
 };

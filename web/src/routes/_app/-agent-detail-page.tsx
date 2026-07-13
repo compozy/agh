@@ -14,12 +14,11 @@ import {
 import { useAgentDetailPage } from "@/hooks/routes/use-agent-detail-page";
 import {
   AgentConfigurationTab,
+  AgentDetailHeader,
   AgentDiagnosticsBanner,
   AgentInstructionsTab,
   AgentOverviewTab,
   AgentPageActions,
-  AgentPageMeta,
-  AgentPageStatusPill,
   AgentSessionsTab,
   useAgentInstructionsTab,
   type AgentDetailSearch,
@@ -29,6 +28,9 @@ import {
 } from "@/systems/agent";
 import type { SessionPayload } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
+
+const SETTINGS_ROUTE_ID = "/_app/agents/$name/settings";
+const SESSION_ROUTE_ID = "/_app/agents/$name/sessions/$id";
 
 interface AgentInstructionsSectionProps {
   agent: AgentPayload;
@@ -64,13 +66,21 @@ function AgentInstructionsSection({
 
 export function AgentDetailPage({ name, rawSearch }: AgentDetailContentProps) {
   const childMatches = useChildMatches();
-  const hasChildMatch = childMatches.length > 0;
+  const isSettingsChild = childMatches.some(match => match.routeId === SETTINGS_ROUTE_ID);
+  const isSessionChild = childMatches.some(match => match.routeId === SESSION_ROUTE_ID);
 
-  if (hasChildMatch) {
+  // Session child remains a full-page replacement. Settings mounts as an overlay
+  // over the detail shell so deep links keep entity context behind the scrim.
+  if (isSessionChild) {
     return <Outlet />;
   }
 
-  return <AgentDetailContent name={name} rawSearch={rawSearch} />;
+  return (
+    <>
+      <AgentDetailContent name={name} rawSearch={rawSearch} />
+      {isSettingsChild ? <Outlet /> : null}
+    </>
+  );
 }
 
 interface AgentDetailContentProps {
@@ -83,6 +93,7 @@ function AgentDetailContent({ name, rawSearch }: AgentDetailContentProps) {
   const search = page.search;
   const { activeWorkspaceId } = useActiveWorkspace();
 
+  const metricsReady = !page.metricsLoading && !page.metricsUnavailable;
   const tabItems: LaneTabsItem<AgentDetailTab>[] = [
     { value: "overview", label: "Overview", testId: "agent-tab-overview" },
     { value: "instructions", label: "Instructions", testId: "agent-tab-instructions" },
@@ -90,8 +101,9 @@ function AgentDetailContent({ name, rawSearch }: AgentDetailContentProps) {
     {
       value: "sessions",
       label: "Sessions",
-      count: page.sessionsTotal,
-      liveLabel: page.activeSessionsTotal > 0 ? "Live" : undefined,
+      // Omit count when metrics are loading/unavailable — never show an inferred zero.
+      ...(metricsReady ? { count: page.sessionsTotal } : {}),
+      liveLabel: metricsReady && page.activeSessionsTotal > 0 ? "Live" : undefined,
       testId: "agent-tab-sessions",
     },
   ];
@@ -99,14 +111,6 @@ function AgentDetailContent({ name, rawSearch }: AgentDetailContentProps) {
   useTopbarSlot({
     back: page.onBackToAgents,
     backLabel: "Agents",
-    tabs: page.agent ? (
-      <div className="flex min-w-0 items-center gap-2">
-        {!page.sessionsLoading && !page.sessionsError ? (
-          <AgentPageStatusPill activeCount={page.activeSessionsTotal} />
-        ) : null}
-        <AgentPageMeta agent={page.agent} />
-      </div>
-    ) : undefined,
     actions: page.agent ? (
       <AgentPageActions
         onEditSettings={() => page.onEditSettings()}
@@ -169,6 +173,17 @@ function AgentDetailContent({ name, rawSearch }: AgentDetailContentProps) {
       data-testid="agent-detail-page"
     >
       {page.deleteDialog}
+      {page.agent.diagnostics && page.agent.diagnostics.length > 0 ? (
+        <div className="shrink-0 px-6 pt-5" data-testid="agent-diagnostics-slot">
+          <AgentDiagnosticsBanner diagnostics={page.agent.diagnostics} />
+        </div>
+      ) : null}
+      <AgentDetailHeader
+        agent={page.agent}
+        activeCount={page.activeSessionsTotal}
+        workspaceId={activeWorkspaceId}
+        metricsUnavailable={page.metricsUnavailable || page.metricsLoading}
+      />
       <LaneTabs
         ariaLabel="Agent detail panels"
         className="min-h-0 flex-1 gap-0"
@@ -182,20 +197,20 @@ function AgentDetailContent({ name, rawSearch }: AgentDetailContentProps) {
           className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-5"
           data-testid="agent-detail-body"
         >
-          {page.agent.diagnostics && page.agent.diagnostics.length > 0 ? (
-            <AgentDiagnosticsBanner diagnostics={page.agent.diagnostics} />
-          ) : null}
-
           <TabsContent value="overview" className="flex flex-col gap-6">
             <AgentOverviewTab
               agent={page.agent}
               sessions={page.sessions}
               sessionsTotal={page.sessionsTotal}
               activeSessionsTotal={page.activeSessionsTotal}
-              resumableSessionsTotal={page.resumableSessionsTotal}
+              failedSessionsTotal={page.failedSessionsTotal}
+              runtimeSeconds={page.runtimeSeconds}
+              metricsUnavailable={page.metricsUnavailable}
+              metricsLoading={page.metricsLoading}
               lastSessionActivityAt={page.lastSessionActivityAt}
               sessionsLoading={page.sessionsLoading}
               sessionsError={page.sessionsError}
+              onEditRuntime={() => page.onEditSettings("runtime")}
               onViewAllSessions={() => page.setTab("sessions")}
             />
           </TabsContent>
@@ -225,7 +240,10 @@ function AgentDetailContent({ name, rawSearch }: AgentDetailContentProps) {
               sessions={page.sessions}
               total={page.sessionsTotal}
               active={page.activeSessionsTotal}
-              resumable={page.resumableSessionsTotal}
+              failed={page.failedSessionsTotal}
+              runtimeSeconds={page.runtimeSeconds}
+              metricsUnavailable={page.metricsUnavailable}
+              metricsLoading={page.metricsLoading}
               lastActivityAt={page.lastSessionActivityAt}
               status={page.sessionsLoading ? "loading" : page.sessionsError ? "error" : "ready"}
               paginationStatus={

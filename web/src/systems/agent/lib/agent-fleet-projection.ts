@@ -9,7 +9,8 @@ export interface AgentFleetRowModel {
   agent: AgentPayload;
   signals: AgentFleetSessionSignals | null;
   meta: string;
-  cardMeta: string;
+  cardCategory: string | null;
+  cardOrigin: string;
   ariaLabel: string;
   hasDiagnostics: boolean;
   sessionsAvailable: boolean;
@@ -57,18 +58,12 @@ export function formatAgentFleetMeta(agent: AgentPayload): string {
   return segments.join(META_SEPARATOR);
 }
 
-/** Card eyebrow: category (or provider) · model · origin — keeps definition truth without decorative chrome. */
-export function formatAgentFleetCardMeta(agent: AgentPayload): string {
-  const segments: string[] = [];
+/** Card structural category (or provider fallback when category is empty). */
+export function formatAgentFleetCardCategory(agent: AgentPayload): string | null {
   const category = formatCategoryMetaSegment(agent.category_path);
-  if (category) {
-    segments.push(category);
-  } else if (agent.provider) {
-    segments.push(agent.provider);
-  }
-  if (agent.model) segments.push(agent.model);
-  segments.push(formatAgentOriginLabel(agent.origin));
-  return segments.join(META_SEPARATOR);
+  if (category) return category;
+  if (agent.provider) return agent.provider;
+  return null;
 }
 
 export function formatAgentFleetAriaLabel(
@@ -101,7 +96,8 @@ export function projectAgentFleetRows(input: {
       agent,
       signals,
       meta: formatAgentFleetMeta(agent),
-      cardMeta: formatAgentFleetCardMeta(agent),
+      cardCategory: formatAgentFleetCardCategory(agent),
+      cardOrigin: formatAgentOriginLabel(agent.origin),
       ariaLabel: formatAgentFleetAriaLabel(agent, signals, input.sessionsAvailable),
       hasDiagnostics: Array.isArray(agent.diagnostics) && agent.diagnostics.length > 0,
       sessionsAvailable: input.sessionsAvailable,

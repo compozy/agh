@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, HttpResponse } from "msw";
 import { aghApiMock } from "@/storybook/openapi-msw";
-import { expect, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import {
   storyAgentNames,
@@ -195,7 +195,12 @@ export const Diagnostics: Story = {
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.findByTestId("agent-diagnostics-banner")).resolves.toBeDefined();
+    const banner = await canvas.findByTestId("agent-diagnostics-banner");
+    const header = await canvas.findByTestId("agent-detail-header");
+    expect(banner.compareDocumentPosition(header) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+    expect(canvas.queryByTestId("agent-detail-body")?.contains(banner)).toBe(false);
   },
 };
 
@@ -239,7 +244,170 @@ export const NoSessions: Story = {
 };
 
 /**
- * Sessions list loading branch while `/api/sessions` is still pending.
+ * Overview with exact catalog metrics at zero (not derived from the sessions page).
+ */
+export const OverviewZeroSessions: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(complianceAgentRoute),
+    ...storybookMswParameters({
+      agent: [
+        aghApiMock.get("/api/agents/catalog", ({ request }) => {
+          const url = new URL(request.url);
+          const name = url.searchParams.get("name")?.trim() ?? "";
+          const agent = agentFixtures.find(entry => entry.name === storyAgentNames.compliance)!;
+          if (name && name !== agent.name) {
+            return HttpResponse.json({
+              agents: [],
+              facets: { active: 0, categories: [], idle: 0, total: 0 },
+              page: { has_more: false, limit: 1, total: 0 },
+              sessions_available: true,
+            });
+          }
+          return HttpResponse.json({
+            agents: [
+              {
+                agent,
+                sessions: {
+                  active: 0,
+                  failed: 0,
+                  runtime_seconds: 0,
+                  total: 0,
+                },
+              },
+            ],
+            facets: { active: 0, categories: [], idle: 1, total: 1 },
+            page: { has_more: false, limit: 1, total: 1 },
+            sessions_available: true,
+          });
+        }),
+      ],
+      session: [aghApiMock.get("/api/sessions", () => HttpResponse.json(sessionPage([])))],
+    }),
+  },
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.findByTestId("agent-overview-tab")).resolves.toBeDefined();
+    await expect(canvas.findByTestId("agent-stats-grid")).resolves.toBeDefined();
+  },
+};
+
+async function openDetailRuntimeSelector(canvasElement: HTMLElement) {
+  const body = within(canvasElement.ownerDocument.body);
+  const trigger = await body.findByTestId("agent-detail-runtime-select");
+  const openButton =
+    within(trigger).queryByRole("button", { name: /^Open runtime selector$/i }) ??
+    within(trigger).queryByRole("button", { name: /^Model:/i }) ??
+    within(trigger).getByRole("button", { name: /^Provider:/i });
+  await waitFor(() => expect(openButton).toBeEnabled(), { timeout: 15_000 });
+  await userEvent.click(openButton);
+  await expect(await body.findByTestId("runtime-selector-popup")).toBeInTheDocument();
+  return body;
+}
+
+async function chooseAlternateRuntimeOption(popupRoot: HTMLElement) {
+  const popup = within(popupRoot);
+  const option = popup
+    .getAllByRole("option")
+    .find(
+      entry =>
+        !entry.hasAttribute("aria-selected") || entry.getAttribute("aria-selected") !== "true"
+    );
+  if (!option) throw new Error("expected an alternate runtime option");
+  await userEvent.click(option);
+}
+
+/** Runtime selector open on the detail header. */
+export const RuntimeSelectorOpen: Story = {
+  args: {},
+  parameters: appRouteParameters(fraudAgentRoute),
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    await openDetailRuntimeSelector(canvasElement);
+  },
+};
+
+/** Runtime mutation stays pending while the header keeps the closed trigger. */
+export const RuntimeMutationPending: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(fraudAgentRoute),
+    ...storybookMswParameters({
+      agent: [
+        aghApiMock.put("/api/agents/{name}", async () => {
+          await delay(120_000);
+          return HttpResponse.json({ error: "unreachable" }, { status: 500 });
+        }),
+      ],
+    }),
+  },
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = await openDetailRuntimeSelector(canvasElement);
+    await chooseAlternateRuntimeOption(await body.findByTestId("runtime-selector-popup"));
+    await expect(await canvas.findByTestId("agent-detail-runtime-pending")).toBeInTheDocument();
+  },
+};
+
+/** Runtime CAS conflict surfaces server-refresh guidance without poisoning cache. */
+export const RuntimeMutationConflict: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(fraudAgentRoute),
+    ...storybookMswParameters({
+      agent: [
+        aghApiMock.put("/api/agents/{name}", () =>
+          HttpResponse.json({ error: "definition digest conflict" }, { status: 409 })
+        ),
+      ],
+    }),
+  },
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = await openDetailRuntimeSelector(canvasElement);
+    await chooseAlternateRuntimeOption(await body.findByTestId("runtime-selector-popup"));
+    await expect(await canvas.findByTestId("agent-detail-runtime-conflict")).toBeInTheDocument();
+  },
+};
+
+/**
+ * Catalog metrics loading while session rows remain independent.
+ */
+export const MetricsLoading: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(fraudAgentRoute),
+    ...storybookMswParameters({
+      agent: [
+        aghApiMock.get("/api/agents/catalog", async () => {
+          await delay("infinite");
+          return HttpResponse.json({
+            agents: [],
+            facets: { active: 0, categories: [], idle: 0, total: 0 },
+            page: { has_more: false, limit: 1, total: 0 },
+            sessions_available: true,
+          });
+        }),
+      ],
+    }),
+  },
+  render: () => <AgentWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.findByTestId("agent-overview-metrics-skeleton")).resolves.toBeDefined();
+  },
+};
+
+/**
+ * Sessions list loading branch while catalog metrics stay independent.
  */
 export const SessionsLoading: Story = {
   args: {},
@@ -258,7 +426,8 @@ export const SessionsLoading: Story = {
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.findByTestId("agent-overview-metrics-skeleton")).resolves.toBeDefined();
+    await expect(canvas.findByTestId("agent-stats-grid")).resolves.toBeDefined();
+    await expect(canvas.findByTestId("agent-overview-live-sessions")).resolves.toBeDefined();
   },
 };
 
@@ -272,7 +441,7 @@ export const AgentLoading: Story = {
     ...storybookMswParameters({
       agent: [
         aghApiMock.get("/api/agents/{name}", async () => {
-          await delay("infinite");
+          await delay(120_000);
           return HttpResponse.json({ agent: agentFixtures[0]! });
         }),
       ],
@@ -281,8 +450,8 @@ export const AgentLoading: Story = {
   render: () => <AgentWorkspaceSetup />,
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(canvas.findByTestId("agent-detail-loading")).resolves.toBeDefined();
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(await body.findByTestId("agent-detail-loading")).toBeInTheDocument();
   },
 };
 
