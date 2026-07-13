@@ -77,6 +77,7 @@ site-build:
 
 cli-docs:
 	@go run ./cmd/agh doc --output-dir packages/site/content/runtime/cli-reference
+	@bunx oxfmt packages/site/content/runtime/cli-reference
 
 # Web UI
 .PHONY: web-dev web-build web-fmt web-typecheck web-test
