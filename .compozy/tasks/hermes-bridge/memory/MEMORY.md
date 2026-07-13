@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Phase B, Tasks 01–06 are checkpointed at `66880e5`, `b103482`, `2be5ddf`, `d362403`, `c8ebbcaf`, and `2b00ab3`. Task 07 implementation, focused verification, contract audit, deslop audit, and QA impact tracking are complete; its atomic checkpoint is the next loop action.
+- Phase B, Tasks 01–07 are checkpointed at `66880e5`, `b103482`, `2be5ddf`, `d362403`, `c8ebbcaf`, `2b00ab3`, and `7494982`. Task 08 is complete and ready for its checkpoint; Task 09 is next.
 - Per-task evidence is focused and proportional. Global tests and the single `make verify` are deferred until all ten tasks, QA, and review remediation are complete per user direction.
 
 ## Shared Decisions
@@ -51,5 +51,6 @@
 - Task 04 provides Slack manifest generation, guided/headless setup, typed provider verification, doctor aggregation, Telegram registration, real send-test, hardened control isolation, public API parity, and generated contracts.
 - Task 05 provides the disabled-first Web setup orchestrator, daemon-owned Slack manifest handoff, state-derived setup checklist, typed verify/register/send-test flows, progress editors, and route-local evidence isolation. `NB-039` and `NB-052` are `untested` inputs to the QA tail.
 - Task 06 provides typed Slack/Telegram edits, bounded Slack/Telegram/GChat reply context, a workspace-isolated checkpoint/metric ledger, boot admission fencing, and universal visible fail-open recovery. `NB-053` and `NB-054` are `untested` inputs to the QA tail.
-- Task 07 provides shared provider lifecycle/Host/reconcile/routes/delivery/HTTP/marker/command owners, eight migrated providers, auto-discovered manifest/schema/binary/runtime conformance, and docs↔code invariants. Task 08 owns the currently red setup/slots parity. NB-029 and NB-031 are reset to `untested` for the discovered lifecycle fixes.
+- Task 07 provides shared provider lifecycle/Host/reconcile/routes/delivery/HTTP/marker/command owners, eight migrated providers, auto-discovered manifest/schema/binary/runtime conformance, and docs↔code invariants. Task 08 turned its former setup/slots red lane green. NB-029 and NB-031 are reset to `untested` for the discovered lifecycle fixes.
+- Task 08 provides exact 8/8 manifest-slot/setup parity, deep operator journeys for Teams/WhatsApp/GChat/GitHub/Linear, CLI-first shared setup, truthful Discord docs, bridge-author guides, and official-skill management guidance. The docs conformance suite, site typecheck/247 tests, and 1,578-page build are green; `NB-051` already owns the untested QA journey.
 - Task 09/10 own living QA planning/execution and tracker retests.

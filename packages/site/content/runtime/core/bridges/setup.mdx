@@ -1,11 +1,13 @@
 ---
 title: Bridge Setup
-description: CLI-first setup for Slack, WhatsApp, Telegram, and Discord bridges.
+description: CLI-first setup and verification for all eight bundled bridge providers.
 ---
 
 Set up bridges through AGH's public commands. The daemon creates the instance, stores each secret
-through its write-only vault boundary, asks the provider to verify its own credentials, and keeps the
-same operations available over HTTP and UDS for automation.
+through its write-only vault boundary, and asks the provider for typed identity and configuration
+checks. Some providers deliberately report identity verification as `skipped`; enabled runtime
+health remains authoritative for their live authentication result. The same control operations stay
+available over HTTP and UDS for automation.
 
 The safe order is:
 
@@ -13,7 +15,8 @@ The safe order is:
 2. Create the bridge disabled and bind its secrets.
 3. Configure the provider webhook.
 4. Run `agh bridge verify <id>` before enabling the bridge.
-5. Enable the bridge, then use `agh bridge send-test` for a real provider delivery.
+5. Enable the bridge and verify again to test public reachability.
+6. Use `agh bridge send-test` for a real provider delivery.
 
 <OperatorNote>
   `provider_config.webhook.public_url` is the complete HTTPS callback URL the platform calls.
@@ -33,11 +36,34 @@ Confirm the installed extension, then inspect the provider catalog without expos
 
 ```bash
 agh extension list -o json
-curl --silent http://localhost:2123/api/bridges/providers
 ```
 
 Provider records and bridge instances are also available through `/api/bridges/providers` and
 `/api/bridges` over HTTP or UDS.
+
+## Choose a provider
+
+| Provider        | AGH setup path                                                   | Authentication model                          |
+| --------------- | ---------------------------------------------------------------- | --------------------------------------------- |
+| Slack           | Generated manifest plus the [Slack steps below](#slack)          | Bot token and request-signing secret          |
+| Telegram        | Guided [Telegram setup](#telegram)                               | Bot token and optional webhook secret         |
+| Discord         | Guided [Discord setup](#discord)                                 | Bot token and Ed25519 public key              |
+| WhatsApp        | [WhatsApp Cloud API setup](/runtime/core/bridges/setup-whatsapp) | Access token, app secret, and verify token    |
+| Microsoft Teams | [Generic CLI setup](/runtime/core/bridges/setup-teams)           | Bot Framework application credentials         |
+| Google Chat     | [Mode-aware CLI setup](/runtime/core/bridges/setup-gchat)        | Service account and ingress verification      |
+| GitHub          | [PAT or GitHub App setup](/runtime/core/bridges/setup-github)    | Webhook secret and mode-dependent credentials |
+| Linear          | [API key or OAuth setup](/runtime/core/bridges/setup-linear)     | Webhook secret and mode-dependent credentials |
+
+Only WhatsApp, Telegram, and Discord have guided `agh bridge setup` commands. Other providers use
+the generic `agh bridge create` and `agh bridge secret-bindings put` commands. Slack adds
+`agh bridge manifest slack` after creating its disabled instance.
+
+<OperatorNote>
+  Guided setup stores the public URL and local path, but it does not prompt for the provider
+  listener address. Set `AGH_BRIDGE_WHATSAPP_LISTEN_ADDR`, `AGH_BRIDGE_TELEGRAM_LISTEN_ADDR`, or
+  `AGH_BRIDGE_DISCORD_LISTEN_ADDR` in the daemon service environment before starting the provider.
+  Strict JSON setup can instead pass `provider_config.webhook.listen_addr`.
+</OperatorNote>
 
 ## Network trust boundary
 
@@ -168,47 +194,10 @@ user token when a Bot User OAuth token was expected.
 
 ## WhatsApp
 
-Run the guided setup and enter the Meta Phone Number ID, access token, app secret, public webhook URL,
-and local webhook path:
-
-```bash
-agh bridge setup whatsapp
-```
-
-The wizard rejects a phone number pasted in place of Meta's 15–17 digit Phone Number ID and calls out
-OpenAI, Slack, or GitHub credentials pasted into the access-token field. It requires the webhook
-verify token because Meta setup needs that value after AGH stores the binding as write-only.
-
-For an agent or script, send exactly one JSON object on stdin:
-
-```bash
-agh bridge setup whatsapp --json <<'JSON'
-{
-  "scope": "workspace",
-  "workspace_id": "ws_8f33a913d23c4fd1",
-  "webhook_public_url": "https://bridge.example.com/whatsapp/support",
-  "webhook_path": "/whatsapp/support",
-  "phone_number_id": "123456789012345",
-  "access_token": "EAA...",
-  "app_secret": "0123456789abcdef0123456789abcdef",
-  "verify_token": "value-from-your-secret-manager"
-}
-JSON
-```
-
-In strict JSON mode, omit `verify_token` only with `--reveal-generated-secrets`. AGH then returns the
-newly generated value once in JSON output so it can be entered in Meta's webhook configuration:
-
-```bash
-agh bridge setup whatsapp --json --reveal-generated-secrets < whatsapp-setup.json
-```
-
-This flag never returns supplied credentials or an existing binding. Without the flag, setup rejects
-a generated WhatsApp verify token before creating the bridge; supplied secret slots remain rendered
-as `********`.
-
-Use the returned instructions to subscribe the WhatsApp Business account to messages and configure
-Meta's callback verification. The result ends with `agh bridge verify <id>`.
+The WhatsApp wizard creates a disabled WhatsApp Cloud API bridge, validates the Meta Phone Number ID,
+and binds all three write-only secrets. Continue with the dedicated
+[WhatsApp setup guide](/runtime/core/bridges/setup-whatsapp) for interactive and strict JSON flows,
+Meta callback verification, and real-delivery checks.
 
 ## Telegram
 
@@ -275,14 +264,15 @@ JSON
 ```
 
 Open the returned invite URL, add the bot to the server, and set Discord's Interactions Endpoint URL
-to `webhook_public_url`. The provider answers Discord's endpoint validation with the bound public key.
+to `webhook_public_url`. The provider verifies Discord's Ed25519-signed PING and returns PONG.
 
 ## Verify, enable, and send
 
 Verification runs inside the owning provider adapter and does not change the bridge lifecycle state.
-It checks live credentials and provider configuration even while the instance is disabled. Webhook
-reachability is reported as `skipped` until the instance is enabled; skipped checks remain explicit
-records rather than disappearing.
+It returns provider-owned identity and configuration records. GitHub and Linear currently report
+identity as `skipped`, while providers such as Slack, Telegram, Discord, WhatsApp, Teams, and Google
+Chat perform a live identity or credential check. Webhook reachability is also `skipped` until the
+instance is enabled; skipped checks remain explicit records rather than disappearing.
 
 ```bash
 agh bridge verify "$BRIDGE_ID" --json
@@ -324,10 +314,10 @@ agh bridge test-delivery "$BRIDGE_ID" \
   --json
 ```
 
-## Automation and web orchestration contracts
+## HTTP and UDS automation fallback
 
-The web setup flow and HTTP-only agents use the same handlers as the CLI. Every operation is exposed
-over HTTP and UDS:
+Prefer the CLI because it validates inputs and renders the next action. HTTP-only agents and the Web
+setup flow use the same handlers. These control operations are also available over HTTP and UDS:
 
 | Operation             | Route                                                     | Typed result                                        |
 | --------------------- | --------------------------------------------------------- | --------------------------------------------------- |
@@ -338,6 +328,14 @@ over HTTP and UDS:
 
 The send-test request is `{ message, target }`; `target` accepts `peer_id`, `thread_id`, `group_id`,
 and `mode`. These are the stable shapes consumed by the web setup orchestration.
+
+Use curl only when the CLI is unavailable. For example, the fallback verify call is:
+
+```bash
+curl --fail-with-body \
+  --request POST \
+  "http://localhost:2123/api/bridges/$BRIDGE_ID/verify"
+```
 
 ## Routing after setup
 

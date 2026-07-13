@@ -3,10 +3,11 @@ title: Bridges Overview
 description: How AGH bridge instances connect workspace agents to external messaging platforms.
 ---
 
-A bridge is a workspace-facing adapter between AGH sessions and a messaging platform. The platform
-can be Slack, Discord, Telegram, or any installed extension that advertises the `bridge.adapter`
-capability. The bridge instance stores the operator-owned configuration; the provider extension owns
-platform-specific webhook validation, message normalization, and outbound delivery.
+A bridge is a workspace-facing adapter between AGH sessions and an external platform. AGH ships
+providers for Slack, Discord, Telegram, WhatsApp, Microsoft Teams, Google Chat, GitHub, and Linear;
+installed extensions can add more through the `bridge.adapter` capability. The bridge instance
+stores the operator-owned configuration, while the provider extension owns webhook validation,
+message normalization, and outbound delivery.
 
 That split keeps AGH responsible for sessions, routing, persistence, and delivery bookkeeping while
 letting each platform adapter speak the platform API directly.
@@ -48,8 +49,15 @@ letting each platform adapter speak the platform API directly.
     href="/runtime/core/bridges/setup"
     label="Setup"
     title="Platform Setup"
-    description="Configure Slack, Discord, and Telegram bridges with webhook paths, secrets, and routing."
+    description="Configure all eight bundled providers with CLI-first secret, webhook, and verification flows."
     meta="How-to"
+  />
+  <RouteRow
+    href="/runtime/core/bridges/adding-a-bridge"
+    label="Authoring"
+    title="Add a Bridge Provider"
+    description="Declare, implement, verify, and document a bridge.adapter extension."
+    meta="Developer guide"
   />
 </RouteList>
 
@@ -67,15 +75,14 @@ letting each platform adapter speak the platform API directly.
 The provider catalog is dynamic. `GET /api/bridges/providers` returns every installed and enabled
 extension that provides `bridge.adapter`. In this repository, the catalog includes provider
 manifests for Slack, Discord, Telegram, WhatsApp, Microsoft Teams, Google Chat, GitHub, and Linear.
-This setup guide covers Slack, Discord, and Telegram because those are the supported walkthroughs for
-this section.
+The setup section covers every bundled provider and calls out mode-dependent credentials explicitly.
 
 ## Message flow
 
 <Mermaid
   chart={`sequenceDiagram
 participant User as Platform user
-participant Platform as Slack/Discord/Telegram
+participant Platform as External platform
 participant Adapter as Bridge provider extension
 participant Host as AGH Host API
 participant Router as Bridge routing
@@ -111,8 +118,8 @@ instances assigned to that extension and a Host API surface. The adapter then:
 5. Reports bridge state back to AGH as `ready`, `degraded`, `auth_required`, or `error`.
 6. Delivers response events back to the platform API and acknowledges delivery to AGH.
 
-AGH does not parse Slack, Discord, or Telegram webhook payloads in the daemon. The daemon accepts the
-normalized envelope only after the provider extension authenticates itself and the bridge instance is
+AGH does not parse provider webhook payloads in the daemon. The daemon accepts the normalized
+envelope only after the provider extension authenticates it and confirms that the bridge instance is
 enabled for that extension.
 
 ## Bridge instance format
@@ -171,19 +178,27 @@ Package-managed instances can be created by extension bundles. Those records rep
 
 ## Supported provider slots
 
-| Provider | Required secrets              | Optional secrets | Webhook auth                                                       |
-| -------- | ----------------------------- | ---------------- | ------------------------------------------------------------------ |
-| Slack    | `bot_token`, `signing_secret` | none             | Slack request signing secret.                                      |
-| Discord  | `bot_token`, `public_key`     | none             | Discord Ed25519 interaction signature headers.                     |
-| Telegram | `bot_token`                   | `webhook_secret` | Telegram `X-Telegram-Bot-Api-Secret-Token` header when configured. |
+| Provider        | Required secrets                             | Optional secrets                        | Webhook auth                                                          |
+| --------------- | -------------------------------------------- | --------------------------------------- | --------------------------------------------------------------------- |
+| Slack           | `bot_token`, `signing_secret`                | none                                    | Slack request signing secret.                                         |
+| Discord         | `bot_token`, `public_key`                    | none                                    | Discord Ed25519 interaction signature headers.                        |
+| Telegram        | `bot_token`                                  | `webhook_secret`                        | Telegram `X-Telegram-Bot-Api-Secret-Token` header when configured.    |
+| WhatsApp        | `access_token`, `app_secret`, `verify_token` | none                                    | Meta `X-Hub-Signature-256` plus the GET verification challenge.       |
+| Microsoft Teams | `app_id`, `app_password`                     | `app_tenant_id`                         | Bot Framework bearer JWT validated against the activity `serviceUrl`. |
+| Google Chat     | `credentials_json`                           | `project_number`                        | Google direct-webhook JWT, Pub/Sub OIDC token, or both.               |
+| GitHub          | `webhook_secret`                             | `token`, `app_id`, `private_key`        | GitHub `X-Hub-Signature-256`.                                         |
+| Linear          | `webhook_secret`                             | `api_key`, `client_id`, `client_secret` | Linear `linear-signature` HMAC.                                       |
 
 Bind each slot to an AGH-managed vault secret before enabling the bridge. The API accepts the
 plaintext only through the write-only `secret_value` field and never returns it:
 
 ```bash
-curl -X PUT http://localhost:2123/api/bridges/brg_123/secret-bindings/bot_token \
-  -H "Content-Type: application/json" \
-  -d '{"secret_ref":"vault:bridges/brg_123/bot_token","secret_value":"xoxb-...","kind":"token"}'
+BRIDGE_ID=brg_123
+
+agh bridge secret-bindings put "$BRIDGE_ID" bot_token \
+  --secret-ref "vault:bridges/$BRIDGE_ID/bot_token" \
+  --kind token \
+  --secret-value "$SLACK_BOT_TOKEN"
 ```
 
 The reference must be scoped to the edited bridge: `vault:bridges/<bridge>/<slot>`. Restart or
@@ -216,9 +231,9 @@ instance's operator-declared delivery defaults. The daemon validates snapshots, 
 `bridge_target_directory`, and records the latest successful refresh time. The directory refreshes
 when an extension runtime connects and then every five minutes while that runtime remains connected.
 
-The bundled v1 Slack, Discord, and Telegram walkthroughs use those operator-declared delivery
-defaults for target snapshots. Native platform discovery such as Slack `conversations.list` is not
-part of the v1 target-directory contract.
+The bundled provider walkthroughs use operator-declared delivery defaults for target snapshots.
+Native platform discovery such as Slack `conversations.list` is not part of the v1 target-directory
+contract.
 
 Each target stores the provider-derived immutable route, display name, normalized lookup key,
 optional qualifier, type, capabilities, `updated_at`, and `last_seen_at`. Missing targets are not

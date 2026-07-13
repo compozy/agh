@@ -1,0 +1,396 @@
+---
+title: Add a Bridge Provider
+description: Design, implement, verify, and document an in-tree bridge.adapter extension with the shared Go runtime.
+---
+
+This guide is for contributors adding a provider under `extensions/bridges/<provider>` to the AGH
+repository. It follows one provider from manifest to conformance, including the touch points that are
+easy to miss when copying only an API client.
+
+External extensions implement the same subprocess protocol through an appropriate SDK. They cannot
+import Go packages under `internal/` from another module, so the Go templates below are specifically
+for providers built inside the AGH repository.
+
+## Architecture
+
+<Mermaid
+  chart={`flowchart LR
+Platform[External platform] -->|authenticated webhook or poll| Provider[bridge.adapter subprocess]
+Provider -->|bridges/messages/ingest| Host[AGH Host API]
+Host --> Router[Workspace route + session]
+Router --> Agent[ACP agent]
+Agent --> Broker[Ordered delivery broker]
+Broker -->|bridges/deliver| Provider
+Provider -->|provider API| Platform
+Daemon[AGH extension manager] <-->|initialize / health / shutdown over JSON-RPC stdio| Provider`}
+  caption="The provider owns platform protocol truth; AGH owns workspace routing, sessions, persistence, and ordered delivery."
+/>
+
+The boundary is deliberate. The daemon never needs to learn a provider's signature scheme or REST
+API, and the provider never owns AGH sessions or workspace routing.
+
+## Decide the contract before writing code
+
+Write down these decisions first:
+
+| Decision            | Questions to answer                                                                                      |
+| ------------------- | -------------------------------------------------------------------------------------------------------- |
+| Provider identity   | What lowercase key will be used for directory, extension name, platform, runtime, and schema?            |
+| Inbound transport   | Webhook, polling, subscription, or hybrid? What owns each listener/task and its shutdown?                |
+| Authentication      | Which exact bytes are signed? Which header/token/JWT claims are required? What is the replay window?     |
+| Secret slots        | Which credentials are always required? Which are conditional on an auth or ingress mode?                 |
+| Route identity      | Which provider IDs become `peer_id`, `group_id`, and `thread_id`? How are replies and edits represented? |
+| Delivery capability | Can the platform create, edit, delete, reply, type, react, and resume? What is the message-length unit?  |
+| Verification        | Which identity/configuration checks can run while disabled? Can AGH register the webhook remotely?       |
+| Data scope          | Is each new datum global, workspace, session, or agent scoped? How is `workspace_id` preserved?          |
+
+Required slots must be required in every mode. A mode-specific credential stays optional in the
+manifest and becomes a conditional requirement in runtime validation and setup documentation.
+
+## Know what the SDK owns
+
+| Shared owner                                 | What it handles                                                                                                        | What your provider still decides                                          |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `Runtime`                                    | JSON-RPC method registration, initialize/session cache, default target snapshots, progress-only no-op acknowledgements | Delivery, provider checks, optional webhook registration, provider health |
+| `ProviderLifecycle`                          | Host synchronization, initial state reporting, goroutine ownership, health error, shutdown join                        | Reconciliation result, provider resources, state/degradation reason       |
+| `ManagedConfigReconciler`                    | Full-snapshot resolve/prepare/publish/finalize order and atomic route replacement                                      | Config decoding, conflicts, listeners, identity probes, cleanup callback  |
+| `RouteTable`                                 | Instance and alternate-key lookup with atomic replacement                                                              | Which paths or ownership keys index a config                              |
+| `ProviderHTTPServer`                         | One listener/server lifecycle and cooperative shutdown                                                                 | Handler security, body limits, method/content type, response semantics    |
+| `ProviderHost`                               | Typed list/get/report-state/ingest calls with lifecycle-aware retry                                                    | When a platform event is safe to ingest                                   |
+| `DeliveryStateStore`                         | Provider-local typed delivery snapshots                                                                                | Snapshot contents and platform create/edit/delete rules                   |
+| `ProgressAccumulator` / `ProgressDispatcher` | Grouping, throttled edits, affordance ordering, shutdown                                                               | Platform sink implementation and whether progress should render at all    |
+| `AdapterMarkers`                             | Conformance/integration process markers                                                                                | No provider-local copy; only provider name and error handling             |
+
+Composition does not replace platform logic. Your package still owns authentication, normalization,
+API requests, rate-limit parsing, message formatting, conditional credentials, and unsupported
+operation errors.
+
+## Create the provider directory
+
+Split by responsibility before files grow:
+
+```text
+extensions/bridges/acme-chat/
+├── extension.toml
+├── main.go                 # thin bridgesdk command entry
+├── provider.go             # composition root only
+├── provider_config.go      # decode, resolve, validate, reconcile hooks
+├── webhook.go              # HTTP contract and dispatch
+├── webhook_auth.go         # exact signature/JWT verification
+├── inbound_mapping.go      # provider payload → Bridge envelope
+├── api_client.go           # outbound provider API
+├── delivery.go             # target + create/edit/delete/resume
+├── control.go              # provider-owned checks/registration
+├── progress.go             # only when the platform renders progress
+├── provider_test.go
+├── provider_delivery_test.go
+└── control_test.go
+```
+
+Not every provider needs every file, but production source must stay below 500 lines and one file
+must not become a registry, transport, formatter, and lifecycle owner at once.
+
+## Step 1: Copy the manifest template
+
+Replace every `acme-chat` value and declare the exact slot contract:
+
+```toml
+[extension]
+name = "acme-chat"
+version = "0.1.0"
+description = "Acme Chat bridge provider built on internal/bridgesdk"
+min_agh_version = "0.5.0"
+
+[capabilities]
+provides = ["bridge.adapter"]
+
+[bridge]
+platform = "acme-chat"
+display_name = "Acme Chat"
+
+[[bridge.secret_slots]]
+name = "bot_token"
+description = "Acme Chat bot token"
+required = true
+
+[[bridge.secret_slots]]
+name = "webhook_secret"
+description = "Acme Chat webhook signing secret"
+required = true
+
+[bridge.config_schema]
+schema = "agh.bridge.acme-chat"
+version = "1"
+
+[actions]
+requires = [
+  "bridges/instances/list",
+  "bridges/instances/get",
+  "bridges/instances/report_state",
+  "bridges/messages/ingest",
+]
+
+[subprocess]
+command = "./bin/acme-chat"
+args = ["serve"]
+
+[subprocess.env]
+AGH_BRIDGE_ACME_CHAT_LISTEN_ADDR = "{{env:AGH_BRIDGE_ACME_CHAT_LISTEN_ADDR}}"
+
+[security]
+capabilities = ["bridge.read", "bridge.write"]
+```
+
+Do not put credential-bearing upstream destinations in `provider_config`. Use fixed official
+defaults and explicit operator-owned process variables for trusted sovereign/test overrides. The
+daemon rejects instance fields such as `api_base_url`, `oauth_token_url`, `service_url`,
+`openid_metadata_url`, and `token_url`.
+
+### Manifest checkpoint
+
+Before the adapter exists, confirm:
+
+- directory, extension name, platform, and schema suffix are identical;
+- at least one slot is required;
+- optional slots are explained by a conditional runtime mode;
+- actions and security capabilities are the minimal bridge Host API set;
+- the subprocess path matches the binary you will build.
+
+## Step 2: Copy the runtime bootstrap
+
+This `main.go` compiles and participates in lifecycle conformance. It deliberately fails delivery
+until you implement it; never acknowledge a platform message that was not sent.
+
+```go
+package main
+
+import (
+    "context"
+    "errors"
+    "io"
+
+    bridgepkg "github.com/compozy/agh/internal/bridges"
+    "github.com/compozy/agh/internal/bridgesdk"
+    "github.com/compozy/agh/internal/subprocess"
+)
+
+func main() { bridgesdk.Main("acme-chat", serve) }
+
+func serve(stdin io.Reader, stdout io.Writer, _ io.Writer) error {
+    lifecycle, err := bridgesdk.NewProviderLifecycle(bridgesdk.ProviderLifecycleConfig{
+        ProviderName: "acme-chat",
+    })
+    if err != nil {
+        return err
+    }
+    runtime, err := bridgesdk.NewRuntime(bridgesdk.RuntimeConfig{
+        ExtensionInfo: subprocess.InitializeExtensionInfo{
+            Name: "acme-chat", Version: "0.1.0", SDKName: "bridgesdk",
+        },
+        Initialize: lifecycle.Initialize,
+        Deliver: func(
+            context.Context,
+            *bridgesdk.Session,
+            bridgepkg.DeliveryRequest,
+        ) (bridgepkg.DeliveryAck, error) {
+            return bridgepkg.DeliveryAck{}, errors.New("acme-chat: delivery not implemented")
+        },
+        Check: func(
+            context.Context,
+            *bridgesdk.Session,
+            bridgepkg.BridgeCheckRequest,
+        ) (bridgepkg.BridgeCheckResponse, error) {
+            return bridgepkg.BridgeCheckResponse{}, nil
+        },
+        HealthCheck: func(context.Context, *bridgesdk.Session) error {
+            return lifecycle.Health()
+        },
+        Shutdown: lifecycle.Shutdown,
+    })
+    if err != nil {
+        return err
+    }
+    return lifecycle.Serve(context.Background(), runtime, stdin, stdout)
+}
+```
+
+Build from the repository root:
+
+```bash
+go build -o ./extensions/bridges/acme-chat/bin/acme-chat ./extensions/bridges/acme-chat
+```
+
+At this checkpoint, build and initialize may work, but provider behavior is intentionally incomplete.
+
+## Step 3: Resolve and reconcile managed instances
+
+Define a provider config DTO that contains only instance-owned settings. Resolve secrets by exact
+manifest slot name through `Session.Cache()`. Then use one `ManagedConfigReconciler` for the full
+snapshot:
+
+```go
+reconciler := bridgesdk.ManagedConfigReconciler[resolvedInstanceConfig]{
+    Routes:   provider.routes,
+    Resolve:  provider.resolveInstanceConfig,
+    Prepare:  provider.prepareConfigs,
+    Finalize: provider.probeConfigs,
+    Identity: func(config resolvedInstanceConfig) string {
+        return config.instanceID
+    },
+    OnPublish: provider.lifecycle.MarkRoutesReady,
+}
+
+configs, err := reconciler.Reconcile(ctx, session, managed)
+```
+
+Use `Prepare` for deterministic local work: ownership conflicts, listener selection, path conflicts,
+and resource startup. The first publish admits routes. Use `Finalize` for bounded live identity probes
+and publish the resulting status/degradation snapshot again.
+
+Do not append a credential destination to the DTO for test convenience. Put the trusted seam in the
+provider process environment and validate the default/override host before sending a credential.
+
+## Step 4: Authenticate and normalize inbound events
+
+A webhook handler must apply this order:
+
+1. Match the HTTP method and content type.
+2. Bound the body before parsing.
+3. Apply rate and in-flight limits.
+4. Preserve the raw body for signature verification.
+5. Select exactly one bridge instance without trusting an unauthenticated tenant field alone.
+6. Verify the signature/token/JWT for that selected instance.
+7. Parse only supported event types and actions.
+8. Map stable provider IDs into `peer_id`, `group_id`, and `thread_id`.
+9. Apply DM/ACL policy and deduplication.
+10. Validate the `InboundMessageEnvelope`.
+11. Call `session.HostAPI().IngestBridgeMessage`.
+
+Record reply text from an embedded provider snapshot or a bounded local cache only. A cache miss must
+not fetch arbitrary provider history during prompt construction.
+
+For a polling provider, the same authentication/mapping rules apply, but the poll loop must run under
+`ProviderLifecycle.Go`, observe the stop channel, and persist provider cursors only at a layer that
+can prove restart semantics.
+
+## Step 5: Implement delivery and acknowledgements
+
+Handle each platform capability explicitly:
+
+- create a remote message for new content;
+- edit only when the platform and target support it;
+- delete only when a real provider API exists;
+- preserve an explicit edit/reply reference over stale local state;
+- split terminal content with the platform's real unit and limit;
+- send continuations in order and acknowledge the last materialized remote ID;
+- keep progress message IDs separate from final-text delivery state;
+- classify auth, rate-limit, transient, and permanent errors with typed bridgesdk errors.
+
+Build acknowledgements through `session.AckDelivery` so delivery ID, sequence, remote ID, replacement
+ID, and event family are validated together. A provider that cannot perform an operation returns a
+permanent unsupported error; it never reports a successful no-op for text delivery.
+
+## Step 6: Add checks and optional webhook registration
+
+`Check` runs in a short-lived control runtime. It has no Host API grants and must not start the service
+listener. Return stable records such as:
+
+- `provider.configuration` for decoded mode/tenant/listener requirements;
+- `provider.identity` for a bounded credential probe, or explicit `skipped` when the provider cannot
+  truthfully probe in isolation;
+- webhook configuration and reachability through shared bridgesdk helpers.
+
+Implement `RegisterWebhook` only when the provider has a real remote registration API. Return status
+and remediation when registration is manual; do not simulate success.
+
+## Step 7: Decide progress behavior
+
+With no `Progress` handler, the SDK acknowledges progress and a progress-only empty final without
+calling the text handler. That is the correct default for issue trackers and platforms without useful
+status affordances.
+
+When the platform can render progress:
+
+1. implement a `ProgressSink` for post/edit/typing/reaction operations it actually supports;
+2. create one accumulator/dispatcher per delivery;
+3. use provider-specific message limits and dialect formatting;
+4. close/detach dispatchers on terminal content, mode-off changes, removal, and shutdown;
+5. keep affordance failures observable without dropping the main progress line.
+
+## Step 8: Put tests in the owning suites
+
+Before adding a test, name its invariant, owning layer, and canonical suite. Cover:
+
+| Invariant                                                           | Owning suite                                                 |
+| ------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Config, conditional slots, signature/JWT, mapping, DM policy, dedup | `provider_test.go`                                           |
+| Create/edit/delete/resume, message limit, retry class, ack          | `provider_delivery_test.go`                                  |
+| Identity/configuration checks and optional registration             | `control_test.go`                                            |
+| Full subprocess initialize/ingest/deliver/shutdown                  | `internal/extension/<provider>_provider_integration_test.go` |
+| Manifest/schema/required-slot discovery and lifecycle               | auto-discovered provider conformance                         |
+| Exact docs slots and setup coverage                                 | bridge docs conformance                                      |
+
+Use fake platform servers, not live provider accounts, for committed tests. Assert request method,
+path, headers, body, response status, and cleanup.
+
+Run focused gates from the repository root:
+
+```bash
+go test -race ./extensions/bridges/acme-chat/...
+go test -race -tags=integration ./internal/extension \
+  -run '^TestAutoDiscoveredProviderRuntimeConformance$'
+go test -race ./internal/extension \
+  -run '^TestBridgeProviderDocsConformance$'
+```
+
+## Step 9: Co-ship every public surface
+
+- Add the exact display name and slot row to the [bridge overview](/runtime/core/bridges).
+- Add `setup-acme-chat.mdx` and navigation with provider-console steps, CLI setup, expected checks,
+  enable/send-test, configuration reference, limits, security, and troubleshooting.
+- Add a provider README with build/install, runtime config, transport, delivery behavior, and explicit
+  unsupported operations.
+- Update the bundled AGH skill with the provider's agent-manageable CLI/HTTP/UDS path.
+- Flag the new user-visible journey as `untested` in `docs/qa/state.csv`.
+- If shared contracts change, co-ship OpenAPI, generated SDK/Web types, CLI/API references, mocks,
+  native descriptors, and the canonical AGH skill.
+
+A provider-only implementation must not invent a central registry, `config.toml` key, or UI-only
+management path.
+
+## Definition of done
+
+- Manifest identity, required slots, and schema pass discovery.
+- Every provider process builds and completes initialize, health, and cooperative shutdown.
+- Invalid auth/config produces actionable state without leaking secret values.
+- Inbound events cannot cross workspace/instance ownership.
+- Delivery semantics match the provider, including unsupported operations and message limits.
+- All resources close on success, failure, cancellation, and shutdown.
+- Setup docs let an operator locate each credential and configure the provider console without reading
+  Go code.
+- CLI/HTTP/UDS and official-skill paths make the provider manageable by agents.
+
+## Grep before review
+
+```bash
+PROVIDER=acme-chat
+DISPLAY='Acme Chat'
+
+rg -n "$PROVIDER|$DISPLAY" \
+  "extensions/bridges/$PROVIDER" \
+  packages/site/content/runtime/core/bridges \
+  skills/agh docs/qa/state.csv
+
+rg -n 'bridge\.adapter|bridge\.secret_slots|bridge\.config_schema|bridges/deliver' \
+  "extensions/bridges/$PROVIDER"
+
+rg -n 'api_base_url|oauth_token_url|service_url|openid_metadata_url|token_url' \
+  "extensions/bridges/$PROVIDER"
+
+rg -n 'TODO|FIXME|not implemented|chat\.postMessage|chat\.update|chat\.delete' \
+  "extensions/bridges/$PROVIDER" \
+  "packages/site/content/runtime/core/bridges/setup-$PROVIDER.mdx"
+```
+
+Inspect every match. Endpoint names must be trusted process seams or rejection tests; copied provider
+terminology and unfinished delivery code block review.

@@ -1,5 +1,15 @@
 {
     "title": "Bridges",
     "icon": "Layers",
-    "pages": ["routing", "progress", "setup"]
+    "pages": [
+        "routing",
+        "progress",
+        "setup",
+        "setup-teams",
+        "setup-whatsapp",
+        "setup-gchat",
+        "setup-github",
+        "setup-linear",
+        "adding-a-bridge"
+    ]
 }

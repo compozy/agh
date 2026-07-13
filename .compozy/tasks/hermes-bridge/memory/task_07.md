@@ -40,6 +40,7 @@
 
 ## Completion Evidence
 
+- Atomic Task 07 checkpoint: `749498228ed54e9861e24f8bcdbc7ea7cdecb283`.
 - Aggregate provider size: 17,688 → 10,521 lines (40.5% reduction); `find extensions/bridges -name markers.go` returns zero; eight providers reference `ManagedConfigReconciler`.
 - Fresh focused race coverage: bridgesdk 80.0%; Slack 80.1%; Telegram 80.6%; Discord 82.2%; WhatsApp 81.1%; Teams 80.1%; Google Chat 80.1%; GitHub 80.0%; Linear 80.0%.
 - Auto-discovered provider conformance passes 11/11 under `-race`; focused daemon bridge E2E passes 4/4; scoped golangci-lint reports zero issues; `make boundaries` passes.
