@@ -12,7 +12,6 @@ import (
 
 	"github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
-	"github.com/compozy/agh/internal/network"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/gin-gonic/gin"
@@ -1436,7 +1435,7 @@ func prepareFanOutTaskRunsRequest(
 	if len(req.Designations) > maxDesignations {
 		return nil, NewTaskValidationError(fmt.Errorf("designations cannot exceed %d", maxDesignations))
 	}
-	if err := validateTaskChannel("fan_out_runs.network_channel", req.NetworkChannel); err != nil {
+	if err := rejectRemovedTaskChannel("fan_out_runs.network_channel", req.NetworkChannel); err != nil {
 		return nil, err
 	}
 	prepared := make([]preparedFanOutDesignation, 0, len(req.Designations))
@@ -1474,7 +1473,6 @@ func enqueueFanOutTaskRuns(
 		run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{
 			TaskID:             taskID,
 			IdempotencyKey:     prepared[index].idempotencyKey,
-			NetworkChannel:     strings.TrimSpace(req.NetworkChannel),
 			DesignationGroupID: groupID,
 			Metadata:           prepared[index].metadata,
 		}, actor)
@@ -2020,7 +2018,7 @@ func (h *BaseHandlers) createTaskSpecFromRequest(
 	if err != nil {
 		return taskpkg.CreateTask{}, err
 	}
-	if err := validateTaskChannel("create_task.network_channel", req.NetworkChannel); err != nil {
+	if err := rejectRemovedTaskChannel("create_task.network_channel", req.NetworkChannel); err != nil {
 		return taskpkg.CreateTask{}, err
 	}
 
@@ -2029,7 +2027,6 @@ func (h *BaseHandlers) createTaskSpecFromRequest(
 		Identifier:         strings.TrimSpace(req.Identifier),
 		Scope:              scope,
 		WorkspaceID:        workspaceID,
-		NetworkChannel:     strings.TrimSpace(req.NetworkChannel),
 		Title:              strings.TrimSpace(req.Title),
 		Description:        strings.TrimSpace(req.Description),
 		Priority:           req.Priority.Normalize(),
@@ -2056,7 +2053,7 @@ func (h *BaseHandlers) createChildTaskSpecFromRequest(
 	if err != nil {
 		return taskpkg.CreateTask{}, err
 	}
-	if err := validateTaskChannel("create_child_task.network_channel", req.NetworkChannel); err != nil {
+	if err := rejectRemovedTaskChannel("create_child_task.network_channel", req.NetworkChannel); err != nil {
 		return taskpkg.CreateTask{}, err
 	}
 
@@ -2065,7 +2062,6 @@ func (h *BaseHandlers) createChildTaskSpecFromRequest(
 		Identifier:         strings.TrimSpace(req.Identifier),
 		Scope:              scope,
 		WorkspaceID:        workspaceID,
-		NetworkChannel:     strings.TrimSpace(req.NetworkChannel),
 		Title:              strings.TrimSpace(req.Title),
 		Description:        strings.TrimSpace(req.Description),
 		Priority:           req.Priority.Normalize(),
@@ -2085,7 +2081,7 @@ func (h *BaseHandlers) createChildTaskSpecFromRequest(
 
 func taskPatchFromRequest(req contract.UpdateTaskRequest) (taskpkg.Patch, error) {
 	if req.NetworkChannel != nil {
-		if err := validateTaskChannel("task_patch.network_channel", *req.NetworkChannel); err != nil {
+		if err := rejectRemovedTaskChannel("task_patch.network_channel", *req.NetworkChannel); err != nil {
 			return taskpkg.Patch{}, err
 		}
 	}
@@ -2098,7 +2094,6 @@ func taskPatchFromRequest(req contract.UpdateTaskRequest) (taskpkg.Patch, error)
 		AutoEnqueueOnReady: req.AutoEnqueueOnReady,
 		ApprovalPolicy:     normalizeApprovalPolicyPtr(req.ApprovalPolicy),
 		Metadata:           cloneRawMessagePtr(req.Metadata),
-		NetworkChannel:     trimStringPtr(req.NetworkChannel),
 		Owner:              cloneOwnership(req.Owner),
 		ClearOwner:         req.ClearOwner,
 	}
@@ -2161,14 +2156,13 @@ func addTaskDependencyFromRequest(taskID string, req contract.AddTaskDependencyR
 }
 
 func enqueueTaskRunFromRequest(taskID string, req contract.EnqueueTaskRunRequest) (taskpkg.EnqueueRun, error) {
-	if err := validateTaskChannel("enqueue_run.network_channel", req.NetworkChannel); err != nil {
+	if err := rejectRemovedTaskChannel("enqueue_run.network_channel", req.NetworkChannel); err != nil {
 		return taskpkg.EnqueueRun{}, err
 	}
 
 	spec := taskpkg.EnqueueRun{
 		TaskID:         strings.TrimSpace(taskID),
 		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
-		NetworkChannel: strings.TrimSpace(req.NetworkChannel),
 		Metadata:       append(json.RawMessage(nil), req.Metadata...),
 	}
 	if err := spec.Validate("enqueue_run"); err != nil {
@@ -2285,12 +2279,11 @@ func fanOutDesignationRollupJSON(runs []taskpkg.Run, now time.Time) json.RawMess
 }
 
 func taskExecutionRequestFromRequest(req contract.TaskExecutionRequest) (taskpkg.ExecutionRequest, error) {
-	if err := validateTaskChannel("task_execution.network_channel", req.NetworkChannel); err != nil {
+	if err := rejectRemovedTaskChannel("task_execution.network_channel", req.NetworkChannel); err != nil {
 		return taskpkg.ExecutionRequest{}, err
 	}
 	spec := taskpkg.ExecutionRequest{
 		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
-		NetworkChannel: strings.TrimSpace(req.NetworkChannel),
 		Metadata:       append(json.RawMessage(nil), req.Metadata...),
 	}
 	if err := spec.Validate("task_execution"); err != nil {
@@ -2414,17 +2407,6 @@ func (h *BaseHandlers) resolveTaskWorkspaceBinding(
 	return h.lookupWorkspaceID(ctx, trimmed)
 }
 
-func validateTaskChannel(path string, channel string) error {
-	trimmed := strings.TrimSpace(channel)
-	if trimmed == "" {
-		return nil
-	}
-	if err := network.ValidateChannel(trimmed); err != nil {
-		return NewTaskValidationError(fmt.Errorf("%s: %w", path, err))
-	}
-	return nil
-}
-
 func requiredPathID(raw string, field string) (string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -2461,7 +2443,7 @@ func TaskSummaryPayloadFromSummary(record *taskpkg.Summary) contract.TaskSummary
 		Scope:                record.Scope,
 		WorkspaceID:          record.WorkspaceID,
 		ParentTaskID:         record.ParentTaskID,
-		NetworkChannel:       record.NetworkChannel,
+		NetworkChannel:       taskRunSummaryChannel(record.ActiveRun),
 		Title:                taskpkg.RedactClaimTokens(strings.TrimSpace(record.Title)),
 		Priority:             record.Priority,
 		MaxAttempts:          record.MaxAttempts,
@@ -2510,7 +2492,6 @@ func TaskPayloadFromTask(record *taskpkg.Task) contract.TaskPayload {
 		Scope:              record.Scope,
 		WorkspaceID:        record.WorkspaceID,
 		ParentTaskID:       record.ParentTaskID,
-		NetworkChannel:     record.NetworkChannel,
 		Title:              taskpkg.RedactClaimTokens(strings.TrimSpace(record.Title)),
 		Description:        taskpkg.RedactClaimTokens(strings.TrimSpace(record.Description)),
 		Priority:           record.Priority,
@@ -2660,6 +2641,7 @@ func TaskRunPayloadFromRun(run *taskpkg.Run) contract.TaskRunPayload {
 		return contract.TaskRunPayload{}
 	}
 
+	networkSpec := run.NetworkSpecSnapshot()
 	return contract.TaskRunPayload{
 		ID:                    run.ID,
 		TaskID:                run.TaskID,
@@ -2671,12 +2653,12 @@ func TaskRunPayloadFromRun(run *taskpkg.Run) contract.TaskRunPayload {
 		SessionID:             run.SessionID,
 		Origin:                run.Origin,
 		IdempotencyKey:        run.IdempotencyKey,
-		NetworkChannel:        run.NetworkChannel,
+		NetworkChannel:        networkSpec.ChannelID,
 		DesignationGroupID:    run.DesignationGroupID,
 		ClaimTokenHash:        run.ClaimTokenHash,
 		LeaseUntil:            optionalTime(run.LeaseUntil),
 		HeartbeatAt:           optionalTime(run.HeartbeatAt),
-		CoordinationChannelID: run.CoordinationChannelID,
+		CoordinationChannelID: networkSpec.ChannelID,
 		QueuedAt:              run.QueuedAt,
 		ClaimedAt:             optionalTime(run.ClaimedAt),
 		StartedAt:             optionalTime(run.StartedAt),

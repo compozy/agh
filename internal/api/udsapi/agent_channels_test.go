@@ -39,7 +39,7 @@ func TestAgentContextReturnsSituationPayload(t *testing.T) {
 					Session: contract.AgentSessionPayload{
 						ID:        info.ID,
 						State:     info.State,
-						Channel:   info.Channel,
+						Channel:   info.NetworkParticipation.ChannelID,
 						CreatedAt: info.CreatedAt,
 						UpdatedAt: info.UpdatedAt,
 					},
@@ -448,17 +448,17 @@ func activeAgentSessionManager(t *testing.T) stubSessionManager {
 			}
 			now := time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC)
 			return &session.Info{
-				ID:          "sess-agent",
-				Name:        "worker",
-				AgentName:   "coder",
-				Provider:    "test-provider",
-				WorkspaceID: "ws-1",
-				Workspace:   "/workspace/project",
-				Channel:     "builders",
-				Type:        session.SessionTypeUser,
-				State:       session.StateActive,
-				CreatedAt:   now,
-				UpdatedAt:   now,
+				ID:                   "sess-agent",
+				Name:                 "worker",
+				AgentName:            "coder",
+				Provider:             "test-provider",
+				WorkspaceID:          "ws-1",
+				Workspace:            "/workspace/project",
+				NetworkParticipation: udsTestLiveParticipation("ws-1", "builders"),
+				Type:                 session.SessionTypeUser,
+				State:                session.StateActive,
+				CreatedAt:            now,
+				UpdatedAt:            now,
 			}, nil
 		},
 	}

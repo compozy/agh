@@ -273,6 +273,7 @@ func (e *Executor) actionSessionBindRequest(
 		AllowedTools:                   append([]string(nil), segment.input.AllowedTools...),
 		MaxTurns:                       segment.params.MaxTurns,
 		ContractBlock:                  loop.RenderContractBlock(contract),
+		NetworkParticipation:           segment.input.NetworkParticipation,
 	}, nil
 }
 

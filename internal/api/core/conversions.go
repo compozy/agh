@@ -60,7 +60,7 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		ReasoningEffort:   contract.ReasoningEffort(strings.TrimSpace(info.ReasoningEffort)),
 		WorkspaceID:       ref.WorkspaceID,
 		WorkspacePath:     ref.WorkspacePath,
-		Channel:           info.Channel,
+		Channel:           info.NetworkParticipation.ChannelID,
 		Type:              info.Type,
 		State:             info.State,
 		Badge:             session.BadgeForInfo(info),
@@ -93,29 +93,29 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 func SessionPayloadFromStoreInfo(info store.SessionInfo) contract.SessionPayload {
 	state := session.State(strings.TrimSpace(info.State))
 	converted := &session.Info{
-		ID:               strings.TrimSpace(info.ID),
-		Name:             strings.TrimSpace(info.Name),
-		AgentName:        strings.TrimSpace(info.AgentName),
-		Provider:         strings.TrimSpace(info.Provider),
-		WorkspaceID:      strings.TrimSpace(info.WorkspaceID),
-		Channel:          strings.TrimSpace(info.Channel),
-		Type:             session.Type(strings.TrimSpace(info.SessionType)),
-		State:            state,
-		StopReason:       info.StopReason,
-		StopDetail:       strings.TrimSpace(info.StopDetail),
-		Failure:          store.CloneSessionFailure(info.Failure),
-		ACPSessionID:     stringPointerValue(info.ACPSessionID),
-		Lineage:          store.NormalizeSessionLineage(info.ID, info.Lineage),
-		Liveness:         store.CloneSessionLivenessMeta(info.Liveness),
-		Sandbox:          cloneStoreSessionSandboxMeta(info.Sandbox),
-		SoulSnapshotID:   strings.TrimSpace(info.SoulSnapshotID),
-		SoulDigest:       strings.TrimSpace(info.SoulDigest),
-		ParentSoulDigest: strings.TrimSpace(info.ParentSoulDigest),
-		AttachedTo:       strings.TrimSpace(info.AttachedTo),
-		AttachExpiresAt:  cloneTimePtr(info.AttachExpiresAt),
-		TranscriptEpoch:  info.TranscriptEpoch,
-		CreatedAt:        info.CreatedAt,
-		UpdatedAt:        info.UpdatedAt,
+		ID:                   strings.TrimSpace(info.ID),
+		Name:                 strings.TrimSpace(info.Name),
+		AgentName:            strings.TrimSpace(info.AgentName),
+		Provider:             strings.TrimSpace(info.Provider),
+		WorkspaceID:          strings.TrimSpace(info.WorkspaceID),
+		NetworkParticipation: info.NetworkSpecSnapshot(),
+		Type:                 session.Type(strings.TrimSpace(info.SessionType)),
+		State:                state,
+		StopReason:           info.StopReason,
+		StopDetail:           strings.TrimSpace(info.StopDetail),
+		Failure:              store.CloneSessionFailure(info.Failure),
+		ACPSessionID:         stringPointerValue(info.ACPSessionID),
+		Lineage:              store.NormalizeSessionLineage(info.ID, info.Lineage),
+		Liveness:             store.CloneSessionLivenessMeta(info.Liveness),
+		Sandbox:              cloneStoreSessionSandboxMeta(info.Sandbox),
+		SoulSnapshotID:       strings.TrimSpace(info.SoulSnapshotID),
+		SoulDigest:           strings.TrimSpace(info.SoulDigest),
+		ParentSoulDigest:     strings.TrimSpace(info.ParentSoulDigest),
+		AttachedTo:           strings.TrimSpace(info.AttachedTo),
+		AttachExpiresAt:      cloneTimePtr(info.AttachExpiresAt),
+		TranscriptEpoch:      info.TranscriptEpoch,
+		CreatedAt:            info.CreatedAt,
+		UpdatedAt:            info.UpdatedAt,
 	}
 	return SessionPayloadFromInfo(converted)
 }
@@ -2324,36 +2324,6 @@ func TaskReferencePayloadFromReference(record taskpkg.Reference) contract.TaskRe
 		Paused:          record.Paused,
 		EffectivePaused: record.EffectivePaused,
 		PausedByTaskID:  record.PausedByTaskID,
-	}
-}
-
-// TaskRunSummaryPayloadFromSummary converts one operator-facing run summary into the shared payload.
-func TaskRunSummaryPayloadFromSummary(summary *taskpkg.RunSummary) *contract.TaskRunSummaryPayload {
-	if summary == nil {
-		return nil
-	}
-
-	return &contract.TaskRunSummaryPayload{
-		ID:                    summary.ID,
-		TaskID:                summary.TaskID,
-		Status:                summary.Status,
-		Attempt:               summary.Attempt,
-		PreviousRunID:         summary.PreviousRunID,
-		FailureKind:           summary.FailureKind,
-		MaxAttempts:           summary.MaxAttempts,
-		SessionID:             summary.SessionID,
-		ClaimedBy:             cloneActorIdentity(summary.ClaimedBy),
-		ClaimTokenHash:        summary.ClaimTokenHash,
-		LeaseUntil:            optionalTime(summary.LeaseUntil),
-		HeartbeatAt:           optionalTime(summary.HeartbeatAt),
-		CoordinationChannelID: summary.CoordinationChannelID,
-		DesignationGroupID:    summary.DesignationGroupID,
-		Designation:           cloneRunDesignationSummary(summary.Designation),
-		QueuedAt:              summary.QueuedAt,
-		ClaimedAt:             optionalTime(summary.ClaimedAt),
-		StartedAt:             optionalTime(summary.StartedAt),
-		EndedAt:               optionalTime(summary.EndedAt),
-		Error:                 summary.Error,
 	}
 }
 

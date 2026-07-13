@@ -23,16 +23,7 @@ func (s *Service) UpdateActivation(ctx context.Context, req UpdateActivationRequ
 		return ActivationPreview{}, err
 	}
 	next.SpecContentHash = definition.specContentHash
-	next.BindPrimaryChannelAsDefault = req.BindPrimaryChannelAsDefault
 	next.UpdatedAt = s.now().UTC()
-
-	activations, err := s.store.ListBundleActivations(ctx)
-	if err != nil {
-		return ActivationPreview{}, err
-	}
-	if err := validatePrimaryChannelClaim(replaceActivation(activations, next), next); err != nil {
-		return ActivationPreview{}, err
-	}
 
 	if err := s.store.UpdateBundleActivation(ctx, next); err != nil {
 		return ActivationPreview{}, err

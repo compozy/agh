@@ -603,7 +603,7 @@ describe("Jobs create modal", () => {
     fireEvent.change(screen.getByTestId("job-task-desc"), {
       target: { value: "Open a task for payout drift review." },
     });
-    fireEvent.change(screen.getByTestId("job-task-channel"), { target: { value: "ops-review" } });
+    expect(screen.queryByTestId("job-task-channel")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("job-workspace-select"));
     fireEvent.click(screen.getByTestId("job-workspace-item-ws_beta"));
 
@@ -620,12 +620,12 @@ describe("Jobs create modal", () => {
         scope: "workspace",
         task: expect.objectContaining({
           description: "Open a task for payout drift review.",
-          network_channel: "ops-review",
           title: "Audit payout drift",
         }),
         workspace_id: "ws_beta",
       })
     );
+    expect(createJobRequests[0]?.task).not.toHaveProperty("network_channel");
   });
 
   it("Should keep submit disabled for empty schedules and invalid cron expressions", async () => {

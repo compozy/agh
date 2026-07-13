@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/tools"
 )
@@ -88,6 +89,7 @@ type ActionExecutionInput struct {
 	UsageReporter            ActionUsageReporter
 	PersistedTaskTokensUsed  int64
 	GoalSegmentEpoch         int64
+	NetworkParticipation     *participation.Spec
 }
 
 // ActionRawResult captures backend-specific action output before harvest policy.
@@ -219,6 +221,7 @@ type ActionSessionBindRequest struct {
 	AllowedTools                   []string
 	MaxTurns                       int
 	ContractBlock                  string
+	NetworkParticipation           *participation.Spec
 }
 
 // ActionSessionCreationError carries provider-effect certainty without importing session internals.

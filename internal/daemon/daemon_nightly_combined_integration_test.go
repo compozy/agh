@@ -20,8 +20,10 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	extensiontest "github.com/compozy/agh/internal/extensiontest"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/sandbox"
 	sessionpkg "github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil/acpmock"
 	e2etest "github.com/compozy/agh/internal/testutil/e2e"
@@ -47,6 +49,17 @@ const (
 	nightlyBridgeAssistantPrefix    = "Bridge tool summary: "
 	nightlyBridgeSideEffectRelative = "toolhost/nightly-bridge-summary.txt"
 )
+
+func daemonTestNamedParticipationIntent(channelID string) *participation.Request {
+	mode := participation.ModeLive
+	strategy := participation.StrategyNamed
+	trimmedChannelID := strings.TrimSpace(channelID)
+	return &participation.Request{
+		Mode:            &mode,
+		ChannelStrategy: &strategy,
+		ChannelID:       &trimmedChannelID,
+	}
+}
 
 func TestDaemonNightlyCombinedACPHelperProcess(t *testing.T) {
 	if os.Getenv(nightlyCombinedHelperEnvKey) != "1" {
@@ -88,6 +101,15 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 		&diagnostics,
 		&combined,
 	)
+	if _, err := harness.CreateNetworkChannel(ctx, aghcontract.CreateNetworkChannelRequest{
+		Channel:      "ops-nightly",
+		WorkspaceID:  harness.WorkspaceID,
+		Purpose:      "Nightly delegated task coordination",
+		FanoutPolicy: store.NetworkFanoutPolicyAllMembers,
+		AgentNames:   []string{nightlyCombinedTaskAgentName},
+	}); err != nil {
+		t.Fatalf("CreateNetworkChannel(%q) error = %v", "ops-nightly", err)
+	}
 
 	seeded, err := harness.SeedAutomationFixtures(ctx, e2etest.AutomationFixtureSeed{
 		Jobs: []aghcontract.CreateJobRequest{{
@@ -100,9 +122,9 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 				Interval: "24h",
 			},
 			Task: &automationpkg.JobTaskConfig{
-				Title:          "Nightly delegated regression follow-up",
-				Description:    "Resume the delegated regression and post the result to the shared channel.",
-				NetworkChannel: "ops-nightly",
+				Title:                "Nightly delegated regression follow-up",
+				Description:          "Resume the delegated regression and post the result to the shared channel.",
+				NetworkParticipation: daemonTestNamedParticipationIntent("ops-nightly"),
 				Owner: &taskpkg.Ownership{
 					Kind: taskpkg.OwnerKindAutomation,
 					Ref:  "job:nightly-triage",
@@ -267,7 +289,7 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 	}
 
 	meta := mustReadSessionMeta(t, harness, sessionID)
-	if got, want := meta.Channel, "ops-nightly"; got != want {
+	if got, want := meta.NetworkParticipation.ChannelID, "ops-nightly"; got != want {
 		t.Fatalf("session meta channel = %q, want %q", got, want)
 	}
 	if meta.Sandbox == nil {

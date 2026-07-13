@@ -3552,7 +3552,6 @@ func newIntegrationHarness(t *testing.T) integrationHarness {
 	cfg := aghconfig.DefaultWithHome(homePaths)
 	cfg.Daemon.Socket = socketPath
 	cfg.Network.Enabled = true
-	cfg.Network.Port = -1
 	cfg.Network.GreetInterval = 1
 	cfg.Providers = map[string]aghconfig.ProviderConfig{
 		"fake": {Command: "fake-agent"},
@@ -3712,7 +3711,6 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 	taskManager, err := taskpkg.NewManager(
 		taskpkg.WithStore(registry),
 		taskpkg.WithSessionExecutor(&integrationTaskExecutor{}),
-		taskpkg.WithNetworkChannelValidator(network.ValidateChannel),
 	)
 	if err != nil {
 		return fmt.Errorf("new task manager: %w", err)

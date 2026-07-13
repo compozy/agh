@@ -179,8 +179,14 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		if create.Type != session.SessionTypeSystem {
 			t.Fatalf("CreateOpts.Type = %q, want system", create.Type)
 		}
-		if create.AgentName != "reviewer" || create.Channel != "reviews" {
-			t.Fatalf("CreateOpts agent/channel = %q/%q, want reviewer/reviews", create.AgentName, create.Channel)
+		if create.AgentName != "reviewer" || create.NetworkParticipation != nil ||
+			create.ResolvedNetworkParticipation != nil {
+			t.Fatalf(
+				"CreateOpts agent/participation = %q/%#v/%#v, want reviewer with independent Local default",
+				create.AgentName,
+				create.NetworkParticipation,
+				create.ResolvedNetworkParticipation,
+			)
 		}
 		if !strings.Contains(create.PromptOverlay, "references/tasks-and-orchestration.md") ||
 			!strings.Contains(create.PromptOverlay, "submit_run_review") {
@@ -347,13 +353,13 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		)
 
 		router.OnSessionStopped(context.Background(), &session.Session{
-			ID:          "sess-stopped-reviewer",
-			AgentName:   "reviewer",
-			WorkspaceID: "ws-1",
-			Workspace:   "ws-1",
-			Channel:     "reviews",
-			Type:        session.SessionTypeSystem,
-			State:       session.StateStopped,
+			ID:                   "sess-stopped-reviewer",
+			AgentName:            "reviewer",
+			WorkspaceID:          "ws-1",
+			Workspace:            "ws-1",
+			NetworkParticipation: daemonTestLiveParticipation("ws-1", "reviews"),
+			Type:                 session.SessionTypeSystem,
+			State:                session.StateStopped,
 		})
 
 		if got, want := len(tasks.listQueries), 1; got != want {
@@ -408,13 +414,13 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		)
 
 		router.OnSessionStopped(context.Background(), &session.Session{
-			ID:          "sess-stopped-reviewer",
-			AgentName:   "reviewer",
-			WorkspaceID: "ws-1",
-			Workspace:   "ws-1",
-			Channel:     "reviews",
-			Type:        session.SessionTypeSystem,
-			State:       session.StateStopped,
+			ID:                   "sess-stopped-reviewer",
+			AgentName:            "reviewer",
+			WorkspaceID:          "ws-1",
+			Workspace:            "ws-1",
+			NetworkParticipation: daemonTestLiveParticipation("ws-1", "reviews"),
+			Type:                 session.SessionTypeSystem,
+			State:                session.StateStopped,
 		})
 
 		if len(tasks.binds) != 0 {
@@ -644,12 +650,11 @@ func reviewRouterStoreForTest() *reviewRouterStoreStub {
 			Title:       "Review routed task",
 		},
 		run: taskpkg.Run{
-			ID:                    "run-1",
-			TaskID:                "task-1",
-			Status:                taskpkg.TaskRunStatusCompleted,
-			SessionID:             "sess-worker",
-			CoordinationChannelID: "reviews",
-			NetworkChannel:        "reviews",
+			ID:              "run-1",
+			TaskID:          "task-1",
+			Status:          taskpkg.TaskRunStatusCompleted,
+			SessionID:       "sess-worker",
+			RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: daemonTestLiveParticipation("ws-1", "reviews")},
 		},
 	}
 }
@@ -670,13 +675,13 @@ func reviewRouterNotificationForTest() taskpkg.RunReviewRequestedNotification {
 
 func reviewRouterSessionInfo(id string, agent string, channel string) *session.Info {
 	return &session.Info{
-		ID:          id,
-		AgentName:   agent,
-		WorkspaceID: "ws-1",
-		Workspace:   "ws-1",
-		Channel:     channel,
-		Type:        session.SessionTypeSystem,
-		State:       session.StateActive,
+		ID:                   id,
+		AgentName:            agent,
+		WorkspaceID:          "ws-1",
+		Workspace:            "ws-1",
+		NetworkParticipation: daemonTestLiveParticipation("ws-1", channel),
+		Type:                 session.SessionTypeSystem,
+		State:                session.StateActive,
 	}
 }
 

@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -92,14 +91,17 @@ func (h *BaseHandlers) UpdateBundleActivation(c *gin.Context) {
 	}
 
 	var req contract.UpdateBundleActivationRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	if req.BindPrimaryChannelAsDefault {
+		h.respondError(c, http.StatusBadRequest, bundlepkg.ErrDefaultChannelRemoved)
 		return
 	}
 
 	item, err := h.Bundles.UpdateActivation(c.Request.Context(), bundlepkg.UpdateActivationRequest{
-		ID:                          strings.TrimSpace(c.Param("id")),
-		BindPrimaryChannelAsDefault: req.BindPrimaryChannelAsDefault,
+		ID: strings.TrimSpace(c.Param("id")),
 	})
 	if err != nil {
 		h.respondError(c, StatusForBundleError(err), err)
@@ -132,10 +134,7 @@ func (h *BaseHandlers) BundleNetworkSettings(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, contract.BundleNetworkSettingsResponse{
 		Network: contract.BundleNetworkSettingsPayload{
-			ConfiguredDefaultChannel: strings.TrimSpace(settings.ConfiguredDefaultChannel),
-			EffectiveDefaultChannel:  strings.TrimSpace(settings.EffectiveDefaultChannel),
-			EffectiveDefaultSource:   strings.TrimSpace(settings.EffectiveDefaultSource),
-			DeclaredChannels:         DeclaredNetworkChannelPayloads(settings.DeclaredChannels),
+			DeclaredChannels: DeclaredNetworkChannelPayloads(settings.DeclaredChannels),
 		},
 	})
 }
@@ -150,14 +149,17 @@ func (h *BaseHandlers) bindBundleActivateRequest(c *gin.Context) (bundlepkg.Acti
 		h.respondError(c, http.StatusBadRequest, err)
 		return bundlepkg.ActivateRequest{}, false
 	}
+	if req.BindPrimaryChannelAsDefault {
+		h.respondError(c, http.StatusBadRequest, bundlepkg.ErrDefaultChannelRemoved)
+		return bundlepkg.ActivateRequest{}, false
+	}
 
 	return bundlepkg.ActivateRequest{
-		ExtensionName:               strings.TrimSpace(req.ExtensionName),
-		BundleName:                  strings.TrimSpace(req.BundleName),
-		ProfileName:                 strings.TrimSpace(req.ProfileName),
-		Scope:                       bundlepkg.Scope(strings.TrimSpace(req.Scope)).Normalize(),
-		Workspace:                   strings.TrimSpace(req.Workspace),
-		BindPrimaryChannelAsDefault: req.BindPrimaryChannelAsDefault,
+		ExtensionName: strings.TrimSpace(req.ExtensionName),
+		BundleName:    strings.TrimSpace(req.BundleName),
+		ProfileName:   strings.TrimSpace(req.ProfileName),
+		Scope:         bundlepkg.Scope(strings.TrimSpace(req.Scope)).Normalize(),
+		Workspace:     strings.TrimSpace(req.Workspace),
 	}, true
 }
 
@@ -172,23 +174,6 @@ func bundleServiceRequired(c *gin.Context, h *BaseHandlers) bool {
 		return false
 	}
 	return true
-}
-
-func (h *BaseHandlers) defaultSessionChannel(ctx context.Context, explicit string) (string, error) {
-	trimmed := strings.TrimSpace(explicit)
-	if trimmed != "" {
-		return trimmed, nil
-	}
-	if h != nil && h.Bundles != nil {
-		settings, err := h.Bundles.NetworkSettings(ctx)
-		if err != nil {
-			return "", err
-		}
-		if strings.TrimSpace(settings.EffectiveDefaultChannel) != "" {
-			return strings.TrimSpace(settings.EffectiveDefaultChannel), nil
-		}
-	}
-	return "", nil
 }
 
 func BundleCatalogPayloads(items []bundlepkg.CatalogEntry) []contract.BundleCatalogPayload {
@@ -277,24 +262,23 @@ func BundleActivationPayload(item bundlepkg.ActivationPreview) contract.BundleAc
 		})
 	}
 	return contract.BundleActivationPayload{
-		ID:                          strings.TrimSpace(item.Activation.ID),
-		ExtensionName:               strings.TrimSpace(item.Activation.ExtensionName),
-		BundleName:                  strings.TrimSpace(item.Bundle.Name),
-		BundleDescription:           strings.TrimSpace(item.Bundle.Description),
-		ProfileName:                 strings.TrimSpace(item.Profile.Name),
-		ProfileDescription:          strings.TrimSpace(item.Profile.Description),
-		Scope:                       string(item.Activation.Scope),
-		WorkspaceID:                 strings.TrimSpace(item.Activation.WorkspaceID),
-		BindPrimaryChannelAsDefault: item.Activation.BindPrimaryChannelAsDefault,
-		Channels:                    bundleChannelPayloads(item.Profile.Channels),
-		Agents:                      agents,
-		Jobs:                        jobs,
-		Triggers:                    triggers,
-		Bridges:                     bridges,
-		Inventory:                   inventory,
-		SpecDrift:                   item.SpecDrift,
-		CreatedAt:                   item.Activation.CreatedAt,
-		UpdatedAt:                   item.Activation.UpdatedAt,
+		ID:                 strings.TrimSpace(item.Activation.ID),
+		ExtensionName:      strings.TrimSpace(item.Activation.ExtensionName),
+		BundleName:         strings.TrimSpace(item.Bundle.Name),
+		BundleDescription:  strings.TrimSpace(item.Bundle.Description),
+		ProfileName:        strings.TrimSpace(item.Profile.Name),
+		ProfileDescription: strings.TrimSpace(item.Profile.Description),
+		Scope:              string(item.Activation.Scope),
+		WorkspaceID:        strings.TrimSpace(item.Activation.WorkspaceID),
+		Channels:           bundleChannelPayloads(item.Profile.Channels),
+		Agents:             agents,
+		Jobs:               jobs,
+		Triggers:           triggers,
+		Bridges:            bridges,
+		Inventory:          inventory,
+		SpecDrift:          item.SpecDrift,
+		CreatedAt:          item.Activation.CreatedAt,
+		UpdatedAt:          item.Activation.UpdatedAt,
 	}
 }
 
@@ -337,13 +321,13 @@ func StatusForBundleError(err error) int {
 		errors.Is(err, bundlepkg.ErrProfileNotFound),
 		errors.Is(err, extensionpkg.ErrExtensionNotFound):
 		return http.StatusNotFound
-	case errors.Is(err, bundlepkg.ErrDefaultChannelBusy),
-		errors.Is(err, bundlepkg.ErrAgentConflict),
+	case errors.Is(err, bundlepkg.ErrAgentConflict),
 		errors.Is(err, extensionpkg.ErrExtensionHasActiveBundles):
 		return http.StatusConflict
 	case errors.Is(err, bundlepkg.ErrAgentReferenceNotFound):
 		return http.StatusUnprocessableEntity
-	case errors.Is(err, bundlepkg.ErrWebhookUnsupported):
+	case errors.Is(err, bundlepkg.ErrWebhookUnsupported),
+		errors.Is(err, bundlepkg.ErrDefaultChannelRemoved):
 		return http.StatusBadRequest
 	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
 		errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):

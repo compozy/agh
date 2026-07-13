@@ -54,9 +54,11 @@ func TestGlobalDBTaskEventCommitObserverShouldPublishRecoveredAfterCommit(t *tes
 
 	observer := &recordingTaskEventCommitObserver{db: globalDB}
 	globalDB.SetTaskEventCommitObserver(observer)
+	recoveryNote := "operator reviewed escalation"
 	if _, err := globalDB.ClearTaskNeedsAttention(ctx, taskpkg.NeedsAttentionClearMutation{
 		Origin:    operatorActorContextForTest("operator").Origin,
 		TaskID:    taskRecord.ID,
+		Note:      recoveryNote,
 		ClearedBy: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "operator"},
 		ClearedAt: markedAt.Add(time.Minute),
 	}); err != nil {
@@ -70,6 +72,16 @@ func TestGlobalDBTaskEventCommitObserverShouldPublishRecoveredAfterCommit(t *tes
 	}
 	if got, want := observer.records[0].Event.EventType, string(hookspkg.HookTaskRecovered); got != want {
 		t.Fatalf("observer event type = %q, want %q", got, want)
+	}
+	var payload taskRecoveredWatchEventPayload
+	if err := json.Unmarshal(observer.records[0].Event.Payload, &payload); err != nil {
+		t.Fatalf("Unmarshal(recovered payload) error = %v", err)
+	}
+	if got, want := payload.Status, taskpkg.TaskStatusReady; got != want {
+		t.Fatalf("recovered payload status = %q, want %q", got, want)
+	}
+	if got, want := payload.Note, recoveryNote; got != want {
+		t.Fatalf("recovered payload note = %q, want %q", got, want)
 	}
 	if got, want := len(observer.tasks), 1; got != want {
 		t.Fatalf("len(observer.tasks) = %d, want %d", got, want)

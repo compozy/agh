@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/agh/internal/loop/dsl"
 	"github.com/compozy/agh/internal/loop/gate"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/task"
 )
 
@@ -21,10 +22,12 @@ type NodeID = dsl.NodeID
 
 // Inputs carries user inputs plus runtime-only start metadata.
 type Inputs struct {
-	Values          map[string]any `json:"values,omitempty"`
-	ParentLoopRunID RunID          `json:"parent_loop_run_id,omitempty"`
-	ConfigOverrides LoopConfig     `json:"config_overrides"`
-	StartMetadata   map[string]any `json:"start_metadata,omitempty"`
+	Values                     map[string]any         `json:"values,omitempty"`
+	ParentLoopRunID            RunID                  `json:"parent_loop_run_id,omitempty"`
+	ConfigOverrides            LoopConfig             `json:"config_overrides"`
+	StartMetadata              map[string]any         `json:"start_metadata,omitempty"`
+	NetworkParticipation       *participation.Request `json:"network_participation,omitempty"`
+	NetworkParticipationSource participation.Source   `json:"-"`
 }
 
 // Status is the closed loop_runs.status vocabulary.
@@ -256,12 +259,13 @@ type PlanNodePreview struct {
 
 // PlanPreview is the no-state preview returned by DryRun.
 type PlanPreview struct {
-	LoopName        string            `json:"loop_name"`
-	ResolvedInputs  map[string]any    `json:"resolved_inputs"`
-	Generation      int               `json:"generation"`
-	Nodes           []PlanNodePreview `json:"nodes"`
-	Contract        dsl.Contract      `json:"contract"`
-	EffectiveConfig EffectiveConfig   `json:"effective_config"`
+	LoopName                     string             `json:"loop_name"`
+	ResolvedInputs               map[string]any     `json:"resolved_inputs"`
+	Generation                   int                `json:"generation"`
+	Nodes                        []PlanNodePreview  `json:"nodes"`
+	Contract                     dsl.Contract       `json:"contract"`
+	EffectiveConfig              EffectiveConfig    `json:"effective_config"`
+	ResolvedNetworkParticipation participation.Spec `json:"resolved_network_participation"`
 }
 
 // DisplayCost is derived UI-only cost information.

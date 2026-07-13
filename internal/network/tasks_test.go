@@ -12,22 +12,10 @@ import (
 )
 
 type fakeNetworkTaskService struct {
-	getTaskFn    func(context.Context, string, taskpkg.ActorContext) (*taskpkg.View, error)
 	createTaskFn func(context.Context, taskpkg.CreateTask, taskpkg.ActorContext) (*taskpkg.Task, error)
 	updateTaskFn func(context.Context, string, taskpkg.Patch, taskpkg.ActorContext) (*taskpkg.Task, error)
 	cancelTaskFn func(context.Context, string, taskpkg.CancelTask, taskpkg.ActorContext) (*taskpkg.Task, error)
 	enqueueRunFn func(context.Context, taskpkg.EnqueueRun, taskpkg.ActorContext) (*taskpkg.Run, error)
-}
-
-func (f fakeNetworkTaskService) GetTask(
-	ctx context.Context,
-	id string,
-	actor taskpkg.ActorContext,
-) (*taskpkg.View, error) {
-	if f.getTaskFn == nil {
-		return nil, errors.New("unexpected GetTask call")
-	}
-	return f.getTaskFn(ctx, id, actor)
 }
 
 func (f fakeNetworkTaskService) CreateTask(
@@ -113,81 +101,6 @@ func (r *taskIngressAuditRecorder) snapshot() []TaskIngressAudit {
 	return append([]TaskIngressAudit(nil), r.records...)
 }
 
-func TestEnqueueRunFromPeerRejectsChannelMismatchAndAudits(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC)
-	peerID := "reviewer.sess-ops"
-	auditor := &taskIngressAuditRecorder{}
-	var getActor taskpkg.ActorContext
-	enqueueCalled := false
-	manager := &Manager{
-		logger:  discardManagerLogger(),
-		now:     func() time.Time { return now },
-		peers:   newRemotePeerRegistry(t, now, "ops", peerID, []string{networkTaskWriteCapability}),
-		auditor: auditor,
-		tasks: fakeNetworkTaskService{
-			getTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.View, error) {
-				getActor = actor
-				return &taskpkg.View{
-					Task: taskpkg.Task{
-						ID:             id,
-						Scope:          taskpkg.ScopeGlobal,
-						Title:          "Bound task",
-						NetworkChannel: "finance",
-					},
-				}, nil
-			},
-			enqueueRunFn: func(context.Context, taskpkg.EnqueueRun, taskpkg.ActorContext) (*taskpkg.Run, error) {
-				enqueueCalled = true
-				return nil, nil
-			},
-		},
-	}
-
-	_, err := manager.EnqueueRunFromPeer(context.Background(), TaskIngressContext{
-		WorkspaceID: testWorkspaceID,
-		PeerID:      peerID,
-		Channel:     "ops",
-		RequestID:   "req-enqueue-1",
-		Surface:     SurfaceThread,
-		ThreadID:    "thread_task_ingress",
-		WorkID:      "work_task_ingress",
-	}, taskpkg.EnqueueRun{
-		TaskID:         "task-1",
-		IdempotencyKey: "idem-1",
-	})
-	if !errors.Is(err, ErrTaskChannelMismatch) {
-		t.Fatalf("EnqueueRunFromPeer() error = %v, want %v", err, ErrTaskChannelMismatch)
-	}
-	if enqueueCalled {
-		t.Fatal("EnqueueRunFromPeer() called task service enqueue on channel mismatch")
-	}
-	if got, want := getActor.Actor.Kind, taskpkg.ActorKindNetworkPeer; got != want {
-		t.Fatalf("GetTask actor kind = %q, want %q", got, want)
-	}
-	if got, want := getActor.Actor.Ref, peerID; got != want {
-		t.Fatalf("GetTask actor ref = %q, want %q", got, want)
-	}
-	if got, want := getActor.Origin.Ref, "workspace:wks_test/channel:ops/peer:"+peerID; got != want {
-		t.Fatalf("GetTask origin ref = %q, want %q", got, want)
-	}
-
-	records := auditor.snapshot()
-	if got, want := len(records), 1; got != want {
-		t.Fatalf("len(task ingress audit records) = %d, want %d", got, want)
-	}
-	if got, want := records[0].Action, networkTaskActionEnqueue; got != want {
-		t.Fatalf("audit action = %q, want %q", got, want)
-	}
-	if got, want := records[0].Direction, AuditDirectionRejected; got != want {
-		t.Fatalf("audit direction = %q, want %q", got, want)
-	}
-	if got, want := records[0].Reason, "channel_mismatch"; got != want {
-		t.Fatalf("audit reason = %q, want %q", got, want)
-	}
-}
-
 func TestEnqueueRunFromPeerAttachesNetworkWorkMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -204,23 +117,12 @@ func TestEnqueueRunFromPeerAttachesNetworkWorkMetadata(t *testing.T) {
 			peers:   newRemotePeerRegistry(t, now, "ops", peerID, []string{networkTaskWriteCapability}),
 			auditor: auditor,
 			tasks: fakeNetworkTaskService{
-				getTaskFn: func(_ context.Context, id string, _ taskpkg.ActorContext) (*taskpkg.View, error) {
-					return &taskpkg.View{
-						Task: taskpkg.Task{
-							ID:             id,
-							Scope:          taskpkg.ScopeGlobal,
-							Title:          "Bound task",
-							NetworkChannel: "ops",
-						},
-					}, nil
-				},
 				enqueueRunFn: func(_ context.Context, spec taskpkg.EnqueueRun, _ taskpkg.ActorContext) (*taskpkg.Run, error) {
 					captured = spec
 					return &taskpkg.Run{
 						ID:             "run-1",
 						TaskID:         spec.TaskID,
 						IdempotencyKey: spec.IdempotencyKey,
-						NetworkChannel: spec.NetworkChannel,
 						Metadata:       spec.Metadata,
 					}, nil
 				},
@@ -241,7 +143,6 @@ func TestEnqueueRunFromPeerAttachesNetworkWorkMetadata(t *testing.T) {
 		}, taskpkg.EnqueueRun{
 			TaskID:         "task-1",
 			IdempotencyKey: "idem-1",
-			NetworkChannel: "ops",
 			Metadata:       json.RawMessage(`{"user":"kept"}`),
 		})
 		if err != nil {
@@ -249,6 +150,12 @@ func TestEnqueueRunFromPeerAttachesNetworkWorkMetadata(t *testing.T) {
 		}
 		if got, want := run.Metadata, captured.Metadata; string(got) != string(want) {
 			t.Fatalf("run.Metadata = %s, want captured metadata %s", got, want)
+		}
+		if captured.NetworkParticipation != nil {
+			t.Fatalf(
+				"captured.NetworkParticipation = %#v, want nil ingress participation",
+				captured.NetworkParticipation,
+			)
 		}
 
 		var metadata map[string]string
@@ -284,18 +191,8 @@ func TestEnqueueRunFromPeerNormalizesIngressIdentifiersBeforePeerLookup(t *testi
 		now:    func() time.Time { return now },
 		peers:  newRemotePeerRegistry(t, now, "ops", peerID, []string{networkTaskWriteCapability}),
 		tasks: fakeNetworkTaskService{
-			getTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.View, error) {
+			enqueueRunFn: func(_ context.Context, spec taskpkg.EnqueueRun, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
 				capturedActor = actor
-				return &taskpkg.View{
-					Task: taskpkg.Task{
-						ID:             id,
-						Scope:          taskpkg.ScopeGlobal,
-						Title:          "Bound task",
-						NetworkChannel: "ops",
-					},
-				}, nil
-			},
-			enqueueRunFn: func(_ context.Context, spec taskpkg.EnqueueRun, _ taskpkg.ActorContext) (*taskpkg.Run, error) {
 				return &taskpkg.Run{ID: "run-1", TaskID: spec.TaskID}, nil
 			},
 		},
@@ -342,16 +239,12 @@ func TestCreateTaskFromPeerUsesServerDerivedIdentityAndAcceptedAudit(t *testing.
 		tasks: fakeNetworkTaskService{
 			createTaskFn: func(_ context.Context, spec taskpkg.CreateTask, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
 				createActor = actor
-				if got, want := spec.NetworkChannel, "ops"; got != want {
-					t.Fatalf("CreateTask spec.NetworkChannel = %q, want %q", got, want)
-				}
 				return &taskpkg.Task{
-					ID:             "task-1",
-					Scope:          taskpkg.ScopeGlobal,
-					Title:          spec.Title,
-					NetworkChannel: spec.NetworkChannel,
-					CreatedBy:      actor.Actor,
-					Origin:         actor.Origin,
+					ID:        "task-1",
+					Scope:     taskpkg.ScopeGlobal,
+					Title:     spec.Title,
+					CreatedBy: actor.Actor,
+					Origin:    actor.Origin,
 				}, nil
 			},
 		},
@@ -363,9 +256,8 @@ func TestCreateTaskFromPeerUsesServerDerivedIdentityAndAcceptedAudit(t *testing.
 		Channel:     "ops",
 		RequestID:   "req-create-1",
 	}, taskpkg.CreateTask{
-		Scope:          taskpkg.ScopeGlobal,
-		Title:          "Peer task",
-		NetworkChannel: "ops",
+		Scope: taskpkg.ScopeGlobal,
+		Title: "Peer task",
 	})
 	if err != nil {
 		t.Fatalf("CreateTaskFromPeer() error = %v", err)
@@ -392,13 +284,13 @@ func TestCreateTaskFromPeerUsesServerDerivedIdentityAndAcceptedAudit(t *testing.
 	}
 }
 
-func TestUpdateTaskFromPeerAllowsOnlyStaleChannelRepair(t *testing.T) {
+func TestUpdateTaskFromPeerDoesNotBindTaskToIngressChannel(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 4, 14, 18, 5, 0, 0, time.UTC)
 	peerID := "reviewer.sess-ops"
 
-	t.Run("Should allows clearing stale channel", func(t *testing.T) {
+	t.Run("Should forward mutable updates without reading task identity channel state", func(t *testing.T) {
 		t.Parallel()
 
 		auditor := &taskIngressAuditRecorder{}
@@ -409,42 +301,32 @@ func TestUpdateTaskFromPeerAllowsOnlyStaleChannelRepair(t *testing.T) {
 			peers:   newRemotePeerRegistry(t, now, "ops", peerID, []string{networkTaskWriteCapability}),
 			auditor: auditor,
 			tasks: fakeNetworkTaskService{
-				getTaskFn: func(_ context.Context, id string, _ taskpkg.ActorContext) (*taskpkg.View, error) {
-					return &taskpkg.View{
-						Task: taskpkg.Task{
-							ID:             id,
-							Scope:          taskpkg.ScopeGlobal,
-							Title:          "Stale task",
-							NetworkChannel: "Finance",
-						},
-					}, nil
-				},
 				updateTaskFn: func(_ context.Context, id string, patch taskpkg.Patch, _ taskpkg.ActorContext) (*taskpkg.Task, error) {
 					updateCalled = true
-					if patch.NetworkChannel == nil || *patch.NetworkChannel != "" {
-						t.Fatalf("update patch network_channel = %#v, want explicit clear", patch.NetworkChannel)
+					if patch.Title == nil || *patch.Title != "Renamed" {
+						t.Fatalf("update patch title = %#v, want Renamed", patch.Title)
 					}
 					return &taskpkg.Task{
 						ID:    id,
 						Scope: taskpkg.ScopeGlobal,
-						Title: "Stale task",
+						Title: "Renamed",
 					}, nil
 				},
 			},
 		}
 
-		clearChannel := ""
+		title := "Renamed"
 		record, err := manager.UpdateTaskFromPeer(context.Background(), TaskIngressContext{
 			WorkspaceID: testWorkspaceID,
 			PeerID:      peerID,
 			Channel:     "ops",
-			RequestID:   "req-update-clear",
-		}, "task-1", taskpkg.Patch{NetworkChannel: &clearChannel})
+			RequestID:   "req-update-title",
+		}, "task-1", taskpkg.Patch{Title: &title})
 		if err != nil {
-			t.Fatalf("UpdateTaskFromPeer(clear stale channel) error = %v", err)
+			t.Fatalf("UpdateTaskFromPeer() error = %v", err)
 		}
 		if !updateCalled {
-			t.Fatal("UpdateTaskFromPeer(clear stale channel) did not call task service update")
+			t.Fatal("UpdateTaskFromPeer() did not call task service update")
 		}
 		if got, want := record.ID, "task-1"; got != want {
 			t.Fatalf("updated record id = %q, want %q", got, want)
@@ -456,60 +338,6 @@ func TestUpdateTaskFromPeerAllowsOnlyStaleChannelRepair(t *testing.T) {
 		}
 		if got, want := records[0].Direction, AuditDirectionReceived; got != want {
 			t.Fatalf("audit direction = %q, want %q", got, want)
-		}
-	})
-
-	t.Run("Should rejects unrelated writes while stale channel remains", func(t *testing.T) {
-		t.Parallel()
-
-		auditor := &taskIngressAuditRecorder{}
-		updateCalled := false
-		manager := &Manager{
-			logger:  discardManagerLogger(),
-			now:     func() time.Time { return now },
-			peers:   newRemotePeerRegistry(t, now, "ops", peerID, []string{networkTaskWriteCapability}),
-			auditor: auditor,
-			tasks: fakeNetworkTaskService{
-				getTaskFn: func(_ context.Context, id string, _ taskpkg.ActorContext) (*taskpkg.View, error) {
-					return &taskpkg.View{
-						Task: taskpkg.Task{
-							ID:             id,
-							Scope:          taskpkg.ScopeGlobal,
-							Title:          "Stale task",
-							NetworkChannel: "Finance",
-						},
-					}, nil
-				},
-				updateTaskFn: func(context.Context, string, taskpkg.Patch, taskpkg.ActorContext) (*taskpkg.Task, error) {
-					updateCalled = true
-					return nil, nil
-				},
-			},
-		}
-
-		title := "Renamed"
-		_, err := manager.UpdateTaskFromPeer(context.Background(), TaskIngressContext{
-			WorkspaceID: testWorkspaceID,
-			PeerID:      peerID,
-			Channel:     "ops",
-			RequestID:   "req-update-title",
-		}, "task-1", taskpkg.Patch{Title: &title})
-		if !errors.Is(err, ErrTaskChannelStale) {
-			t.Fatalf("UpdateTaskFromPeer(unrelated stale update) error = %v, want %v", err, ErrTaskChannelStale)
-		}
-		if updateCalled {
-			t.Fatal("UpdateTaskFromPeer(unrelated stale update) called task service update")
-		}
-
-		records := auditor.snapshot()
-		if got, want := len(records), 1; got != want {
-			t.Fatalf("len(task ingress audit records) = %d, want %d", got, want)
-		}
-		if got, want := records[0].Direction, AuditDirectionRejected; got != want {
-			t.Fatalf("audit direction = %q, want %q", got, want)
-		}
-		if got, want := records[0].Reason, "stale_channel"; got != want {
-			t.Fatalf("audit reason = %q, want %q", got, want)
 		}
 	})
 }
@@ -577,15 +405,12 @@ func TestTaskIngressHelpersCoverValidationAndReasonMapping(t *testing.T) {
 			err  error
 			want string
 		}{
-			{err: ErrTaskChannelMismatch, want: "channel_mismatch"},
-			{err: ErrTaskChannelStale, want: "stale_channel"},
 			{err: ErrTaskIngressCapabilityDenied, want: "capability_denied"},
 			{err: ErrTaskIngressPeerNotFound, want: "peer_not_found"},
 			{err: ErrTaskIngressUnavailable, want: "task_ingress_unavailable"},
 			{err: taskpkg.ErrTaskNotFound, want: "task_not_found"},
 			{err: taskpkg.ErrValidation, want: "validation_failed"},
 			{err: taskpkg.ErrPermissionDenied, want: "permission_denied"},
-			{err: taskpkg.ErrStaleNetworkChannel, want: "stale_channel"},
 			{err: ErrMissingField, want: "invalid_request"},
 			{err: errors.New("boom"), want: "task_ingress_failed"},
 		}

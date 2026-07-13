@@ -224,7 +224,13 @@ func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 	if query.Search == "" {
 		return true
 	}
-	for _, value := range []string{info.ID, info.Name, info.AgentName, info.Provider, info.Channel} {
+	for _, value := range []string{
+		info.ID,
+		info.Name,
+		info.AgentName,
+		info.Provider,
+		info.NetworkParticipation.ChannelID,
+	} {
 		if strings.Contains(strings.ToLower(strings.TrimSpace(value)), query.Search) {
 			return true
 		}
@@ -340,28 +346,28 @@ func projectSessionCatalogPage(
 
 func sessionInfoFromCatalog(info store.SessionInfo) *Info {
 	return &Info{
-		ID:               strings.TrimSpace(info.ID),
-		Name:             strings.TrimSpace(info.Name),
-		AgentName:        strings.TrimSpace(info.AgentName),
-		Provider:         strings.TrimSpace(info.Provider),
-		WorkspaceID:      strings.TrimSpace(info.WorkspaceID),
-		Channel:          strings.TrimSpace(info.Channel),
-		Type:             Type(strings.TrimSpace(info.SessionType)),
-		Lineage:          store.CloneSessionLineage(info.Lineage),
-		State:            State(strings.TrimSpace(info.State)),
-		StopReason:       info.StopReason,
-		StopDetail:       strings.TrimSpace(info.StopDetail),
-		Failure:          store.CloneSessionFailure(info.Failure),
-		ACPSessionID:     stringValue(info.ACPSessionID),
-		Liveness:         store.CloneSessionLivenessMeta(info.Liveness),
-		Sandbox:          cloneSessionSandboxMeta(info.Sandbox),
-		SoulSnapshotID:   strings.TrimSpace(info.SoulSnapshotID),
-		SoulDigest:       strings.TrimSpace(info.SoulDigest),
-		ParentSoulDigest: strings.TrimSpace(info.ParentSoulDigest),
-		AttachedTo:       strings.TrimSpace(info.AttachedTo),
-		AttachExpiresAt:  cloneTimePointer(info.AttachExpiresAt),
-		TranscriptEpoch:  info.TranscriptEpoch,
-		CreatedAt:        info.CreatedAt,
-		UpdatedAt:        info.UpdatedAt,
+		ID:                   strings.TrimSpace(info.ID),
+		Name:                 strings.TrimSpace(info.Name),
+		AgentName:            strings.TrimSpace(info.AgentName),
+		Provider:             strings.TrimSpace(info.Provider),
+		WorkspaceID:          strings.TrimSpace(info.WorkspaceID),
+		NetworkParticipation: info.NetworkSpecSnapshot(),
+		Type:                 Type(strings.TrimSpace(info.SessionType)),
+		Lineage:              store.CloneSessionLineage(info.Lineage),
+		State:                State(strings.TrimSpace(info.State)),
+		StopReason:           info.StopReason,
+		StopDetail:           strings.TrimSpace(info.StopDetail),
+		Failure:              store.CloneSessionFailure(info.Failure),
+		ACPSessionID:         stringValue(info.ACPSessionID),
+		Liveness:             store.CloneSessionLivenessMeta(info.Liveness),
+		Sandbox:              cloneSessionSandboxMeta(info.Sandbox),
+		SoulSnapshotID:       strings.TrimSpace(info.SoulSnapshotID),
+		SoulDigest:           strings.TrimSpace(info.SoulDigest),
+		ParentSoulDigest:     strings.TrimSpace(info.ParentSoulDigest),
+		AttachedTo:           strings.TrimSpace(info.AttachedTo),
+		AttachExpiresAt:      cloneTimePointer(info.AttachExpiresAt),
+		TranscriptEpoch:      info.TranscriptEpoch,
+		CreatedAt:            info.CreatedAt,
+		UpdatedAt:            info.UpdatedAt,
 	}
 }

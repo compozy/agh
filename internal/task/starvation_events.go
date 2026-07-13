@@ -49,7 +49,7 @@ func (m *Service) RecordRunStarved(
 	return m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunStarved, actor, runStarvedPayload{
 		QueuedAt:            queuedAt,
 		QueuedAgeMS:         age.Milliseconds(),
-		CoordinationChannel: run.CoordinationChannelID,
+		CoordinationChannel: run.NetworkSpecSnapshot().ChannelID,
 	})
 }
 
@@ -96,7 +96,7 @@ func (m *Service) MarkRunNeedsAttention(
 			Status:              updated.Status.Normalize(),
 			Diagnostic:          diagnostic,
 			QueuedAt:            updated.QueuedAt,
-			CoordinationChannel: updated.CoordinationChannelID,
+			CoordinationChannel: updated.NetworkSpecSnapshot().ChannelID,
 		},
 	); err != nil {
 		return Run{}, err

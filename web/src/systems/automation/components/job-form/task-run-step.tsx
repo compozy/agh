@@ -12,7 +12,6 @@ interface TaskRunStepProps {
   task: TaskDraft;
   onTaskTitle: (next: string) => void;
   onTaskDescription: (next: string) => void;
-  onTaskChannel: (next: string) => void;
   onOwnerKind: (kind: OwnerKind | "") => void;
   onOwnerRef: (next: string) => void;
 }
@@ -48,7 +47,6 @@ export function TaskRunStep({
   task,
   onTaskTitle,
   onTaskDescription,
-  onTaskChannel,
   onOwnerKind,
   onOwnerRef,
 }: TaskRunStepProps) {
@@ -56,29 +54,16 @@ export function TaskRunStep({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <Field>
-          <FieldLabel htmlFor="job-task-title">Task title</FieldLabel>
-          <Input
-            data-testid="job-task-title"
-            id="job-task-title"
-            onChange={event => onTaskTitle(event.target.value)}
-            placeholder={jobName}
-            value={task.title ?? ""}
-          />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="job-task-channel">Network channel</FieldLabel>
-          <Input
-            className="font-mono text-form-label"
-            data-testid="job-task-channel"
-            id="job-task-channel"
-            onChange={event => onTaskChannel(event.target.value)}
-            placeholder="peer ingress channel"
-            value={task.network_channel ?? ""}
-          />
-        </Field>
-      </div>
+      <Field>
+        <FieldLabel htmlFor="job-task-title">Task title</FieldLabel>
+        <Input
+          data-testid="job-task-title"
+          id="job-task-title"
+          onChange={event => onTaskTitle(event.target.value)}
+          placeholder={jobName}
+          value={task.title ?? ""}
+        />
+      </Field>
       <Field>
         <FieldLabel htmlFor="job-task-desc">Description</FieldLabel>
         <Textarea

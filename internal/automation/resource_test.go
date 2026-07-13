@@ -1113,10 +1113,10 @@ func TestAutomationResourceSyncManagedDefinitionsSkipsUnchangedTaskBackedJob(t *
 	job.Prompt = ""
 	job.Retry = RetryConfig{Strategy: RetryStrategyNone}
 	job.Task = &JobTaskConfig{
-		Title:          "Run task-backed automation",
-		Description:    "Exercise task equality in managed resource sync",
-		NetworkChannel: "builders",
-		Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "ops"},
+		Title:                "Run task-backed automation",
+		Description:          "Exercise task equality in managed resource sync",
+		NetworkParticipation: testNamedParticipation("builders"),
+		Owner:                &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "ops"},
 	}
 
 	if _, err := manager.SyncManagedDefinitions(h.ctx, JobSourceConfig, []Job{job}, nil); err != nil {

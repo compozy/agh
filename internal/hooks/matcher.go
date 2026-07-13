@@ -400,7 +400,7 @@ func (m HookMatcher) MatchesTaskRun(payload TaskRunContext) bool {
 		"",
 		"",
 		payload.WorkflowID,
-		payload.CoordinationChannelID,
+		payload.NetworkSpecSnapshot().ChannelID,
 		payload.ReleaseReason,
 	)
 }
@@ -670,7 +670,7 @@ func matchTaskRunEnqueued(matcher HookMatcher, payload TaskRunEnqueuedPayload) b
 }
 
 func matchTaskRunPreClaim(matcher HookMatcher, payload TaskRunPreClaimPayload) bool {
-	return matcher.MatchesTaskRun(payload.TaskRunContext)
+	return matcher.MatchesTaskRun(payload.taskRunContextSnapshot())
 }
 
 func matchTaskRunPostClaim(matcher HookMatcher, payload TaskRunPostClaimPayload) bool {

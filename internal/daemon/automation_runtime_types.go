@@ -10,6 +10,7 @@ import (
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	looppkg "github.com/compozy/agh/internal/loop"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -28,18 +29,19 @@ type automationRuntime interface {
 }
 
 type automationManagerDeps struct {
-	Store               automationpkg.Store
-	Sessions            SessionManager
-	Tasks               taskpkg.Manager
-	WorkspaceResolver   workspacepkg.RuntimeResolver
-	Config              aghconfig.AutomationConfig
-	Hooks               automationpkg.HookDispatcher
-	WebhookSecrets      automationpkg.WebhookSecretStore
-	Logger              *slog.Logger
-	GlobalWorkspacePath string
-	ResourceStore       resources.RawStore
-	ResourceCodecs      *resources.CodecRegistry
-	ResourceTrigger     func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
-	LoopCatalog         *resourceCatalog[looppkg.ResourceSpec]
-	ToolRegistry        toolspkg.Registry
+	Store                 automationpkg.Store
+	Sessions              SessionManager
+	Tasks                 taskpkg.Manager
+	WorkspaceResolver     workspacepkg.RuntimeResolver
+	Config                aghconfig.AutomationConfig
+	Hooks                 automationpkg.HookDispatcher
+	WebhookSecrets        automationpkg.WebhookSecretStore
+	Logger                *slog.Logger
+	GlobalWorkspacePath   string
+	ResourceStore         resources.RawStore
+	ResourceCodecs        *resources.CodecRegistry
+	ResourceTrigger       func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
+	LoopCatalog           *resourceCatalog[looppkg.ResourceSpec]
+	ToolRegistry          toolspkg.Registry
+	ParticipationResolver participation.Resolver
 }

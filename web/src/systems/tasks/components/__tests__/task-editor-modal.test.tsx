@@ -202,12 +202,11 @@ describe("TaskEditorModal", () => {
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ title: "Ship it" }), false);
   });
 
-  it("Should render edit mode without the toolbar or templates and with the channel input", () => {
+  it("Should render edit mode without the toolbar, templates, or network channel input", () => {
     const draft: TaskEditorDraft = {
       ...createTaskEditorDraft("blank", "ws_alpha"),
       title: "Summarize review feedback",
       maxAttempts: 3,
-      networkChannel: "launch-room",
     };
 
     renderModal({ mode: "edit", draft, task: editTask });
@@ -217,7 +216,7 @@ describe("TaskEditorModal", () => {
     expect(screen.queryByTestId("task-mode-advanced")).not.toBeInTheDocument();
     expect(screen.queryByTestId("task-template-one_shot")).not.toBeInTheDocument();
     expect(screen.getByTestId("task-title-input")).toHaveValue("Summarize review feedback");
-    expect(screen.getByTestId("task-network-input")).toHaveValue("launch-room");
+    expect(screen.queryByTestId("task-network-input")).not.toBeInTheDocument();
     expect(screen.getByTestId("task-editor-modal-submit")).toHaveTextContent("Save changes");
   });
 });

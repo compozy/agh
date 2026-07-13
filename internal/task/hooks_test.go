@@ -9,6 +9,7 @@ import (
 	"time"
 
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 func TestNoopRunHookDispatcherPreservesRunLifecycle(t *testing.T) {
@@ -567,10 +568,9 @@ func TestTaskLevelHooksDispatchAtServiceCallSites(t *testing.T) {
 		agent.Actor = ActorIdentity{Kind: ActorKindAgentSession, Ref: "sess-task-hooks"}
 		agent.Origin = Origin{Kind: OriginKindAgentSession, Ref: "codex"}
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
-			Scope:          ScopeWorkspace,
-			WorkspaceID:    "ws-task-hooks",
-			NetworkChannel: "network-build",
-			Title:          "Task hook dispatch",
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "ws-task-hooks",
+			Title:       "Task hook dispatch",
 			Metadata: json.RawMessage(
 				`{"workflow_id":"wf-task-hooks","coordination_channel_id":"coord-task-hooks","agent_name":"worker-a"}`,
 			),
@@ -615,8 +615,8 @@ func TestTaskLevelHooksDispatchAtServiceCallSites(t *testing.T) {
 			blocked.WorkspaceID != taskRecord.WorkspaceID ||
 			blocked.RunID != run.ID ||
 			blocked.WorkflowID != "wf-task-hooks" ||
-			blocked.CoordinationChannelID != "coord-task-hooks" ||
-			blocked.NetworkChannel != "network-build" ||
+			blocked.CoordinationChannelID != "" ||
+			blocked.NetworkChannel != "" ||
 			blocked.AgentName != "worker-a" ||
 			blocked.ReleaseReason != "blocked" {
 			t.Fatalf(
@@ -832,6 +832,15 @@ func testTaskRunHookContextCarriesLoopFilterKeys(t *testing.T) {
 		LoopRunID: "loop-run-1",
 		Status:    TaskRunStatusCompleted,
 	}
+	liveSpec := participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     "ws-1",
+		ChannelStrategy: participation.StrategyLoopRun,
+		ChannelID:       "loop-run-1",
+		Source:          participation.SourceLoopDefinition,
+	}
+	run.SetNetworkState(liveSpec, "", "", "")
 	taskRecord := Task{
 		ID:           "task-node",
 		ParentTaskID: "task-coordinator",
@@ -848,6 +857,16 @@ func testTaskRunHookContextCarriesLoopFilterKeys(t *testing.T) {
 	}
 	if got, want := *payload.RunKind, RunKindWorker.String(); got != want {
 		t.Fatalf("RunKind = %q, want %q", got, want)
+	}
+	if got := payload.ResolvedNetworkParticipation; got == nil || *got != liveSpec {
+		t.Fatalf("ResolvedNetworkParticipation = %#v, want %#v", got, liveSpec)
+	}
+	if payload.CoordinationChannelID != "" || payload.NetworkChannel != "" {
+		t.Fatalf(
+			"flat task-run channels = %q/%q, want empty owner writes",
+			payload.CoordinationChannelID,
+			payload.NetworkChannel,
+		)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
 )
@@ -42,7 +43,6 @@ func TestGlobalDBTaskPersistenceSurvivesReopenWithGlobalAndWorkspaceTasks(t *tes
 	workspaceTask.ApprovalPolicy = taskpkg.ApprovalPolicyManual
 	workspaceTask.ApprovalState = taskpkg.ApprovalStateApproved
 	workspaceTask.Owner = ownershipForTest(taskpkg.OwnerKindPool, "backlog")
-	workspaceTask.NetworkChannel = "engineering"
 
 	if err := first.CreateTask(ctx, globalTask); err != nil {
 		t.Fatalf("CreateTask(global) error = %v", err)
@@ -179,7 +179,11 @@ func TestGlobalDBTaskRunSessionAttachmentSurvivesReopen(t *testing.T) {
 	storedQueued.ClaimTokenHash = "sha256:" + strings.Repeat("b", 64)
 	storedQueued.LeaseUntil = storedQueued.ClaimedAt.Add(20 * time.Minute)
 	storedQueued.HeartbeatAt = storedQueued.ClaimedAt.Add(30 * time.Second)
-	storedQueued.CoordinationChannelID = "coord-reopen-run"
+	storedQueued.NetworkSpec = participation.Spec{
+		Mode:      participation.ModeLive,
+		ChannelID: "coord-reopen-run",
+		Source:    participation.SourceExplicitRequest,
+	}
 	storedQueued.RequiredCapabilities = []string{"golang", "sqlite"}
 	storedQueued.PreferredCapabilities = []string{"claude", "codex"}
 	if err := second.UpdateTaskRun(ctx, storedQueued); err != nil {
@@ -215,17 +219,6 @@ func TestGlobalDBTaskRunSessionAttachmentSurvivesReopen(t *testing.T) {
 	}
 	assertTaskRunEqual(t, runs[0], storedQueued)
 
-	runsByChannel, err := third.ListTaskRuns(
-		ctx,
-		taskpkg.RunQuery{CoordinationChannelID: storedQueued.CoordinationChannelID},
-	)
-	if err != nil {
-		t.Fatalf("ListTaskRuns(coordination channel) error = %v", err)
-	}
-	if got, want := len(runsByChannel), 1; got != want {
-		t.Fatalf("len(ListTaskRuns(coordination channel)) = %d, want %d", got, want)
-	}
-	assertTaskRunEqual(t, runsByChannel[0], storedQueued)
 }
 
 func TestGlobalDBTaskSearchFiltersAndOrderingSurviveReopen(t *testing.T) {

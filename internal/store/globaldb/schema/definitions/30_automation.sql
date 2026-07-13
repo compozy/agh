@@ -42,6 +42,9 @@ CREATE TABLE automation_jobs (
 		loop_name    TEXT,
 		loop_inputs  TEXT,
 		loop_input_mapping TEXT,
+		loop_network_participation TEXT CHECK (
+			loop_network_participation IS NULL OR json_valid(loop_network_participation)
+		),
 		created_at   TEXT NOT NULL,
 		updated_at   TEXT NOT NULL,
 		CHECK (
@@ -63,7 +66,10 @@ CREATE TABLE automation_runs (
 		ended_at   TEXT,
 		error      TEXT,
 		loop_run_id TEXT REFERENCES loop_runs(id) ON DELETE SET NULL
-	, fire_id TEXT, scheduled_at TEXT, delivery_error TEXT, delivery_error_at TEXT, metadata_json TEXT NOT NULL DEFAULT '{}');
+	, fire_id TEXT, scheduled_at TEXT, delivery_error TEXT, delivery_error_at TEXT,
+	  network_participation TEXT CHECK (
+		network_participation IS NULL OR json_valid(network_participation)
+	  ), metadata_json TEXT NOT NULL DEFAULT '{}');
 
 CREATE TABLE "automation_scheduler_state" (
 			job_id                       TEXT PRIMARY KEY,
@@ -137,6 +143,9 @@ CREATE TABLE automation_triggers (
 		loop_name     TEXT,
 		loop_inputs   TEXT,
 		loop_input_mapping TEXT,
+		loop_network_participation TEXT CHECK (
+			loop_network_participation IS NULL OR json_valid(loop_network_participation)
+		),
 		created_at    TEXT NOT NULL,
 		updated_at    TEXT NOT NULL,
 		CHECK (

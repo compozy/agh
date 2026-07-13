@@ -122,7 +122,7 @@ func TaskCatalogItemPayloadFromSummary(record *taskpkg.Summary) TaskCatalogItemP
 		Scope:                record.Scope,
 		WorkspaceID:          record.WorkspaceID,
 		ParentTaskID:         record.ParentTaskID,
-		NetworkChannel:       record.NetworkChannel,
+		NetworkChannel:       taskCatalogRunChannel(record.ActiveRun),
 		Title:                taskpkg.RedactClaimTokens(strings.TrimSpace(record.Title)),
 		Priority:             record.Priority,
 		MaxAttempts:          record.MaxAttempts,
@@ -183,13 +183,20 @@ func TaskCatalogRunPayloadFromSummary(summary *taskpkg.RunSummary) *TaskCatalogR
 		ClaimedBy:             taskCatalogCloneActorIdentity(summary.ClaimedBy),
 		LeaseUntil:            taskCatalogOptionalTime(summary.LeaseUntil),
 		HeartbeatAt:           taskCatalogOptionalTime(summary.HeartbeatAt),
-		CoordinationChannelID: summary.CoordinationChannelID,
+		CoordinationChannelID: taskCatalogRunChannel(summary),
 		QueuedAt:              summary.QueuedAt,
 		ClaimedAt:             taskCatalogOptionalTime(summary.ClaimedAt),
 		StartedAt:             taskCatalogOptionalTime(summary.StartedAt),
 		EndedAt:               taskCatalogOptionalTime(summary.EndedAt),
 		Error:                 summary.Error,
 	}
+}
+
+func taskCatalogRunChannel(summary *taskpkg.RunSummary) string {
+	if summary == nil || summary.ResolvedNetworkParticipation == nil {
+		return ""
+	}
+	return strings.TrimSpace(summary.ResolvedNetworkParticipation.ChannelID)
 }
 
 func taskCatalogCloneOwnership(source *taskpkg.Ownership) *taskpkg.Ownership {

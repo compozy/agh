@@ -666,7 +666,7 @@ func (h *HostAPIHandler) createTaskSpecFromRequest(
 	if err != nil {
 		return taskpkg.CreateTask{}, err
 	}
-	if err := validateTaskChannel("create_task.network_channel", req.NetworkChannel); err != nil {
+	if err := rejectRemovedTaskChannel("create_task.network_channel", req.NetworkChannel); err != nil {
 		return taskpkg.CreateTask{}, err
 	}
 
@@ -675,7 +675,6 @@ func (h *HostAPIHandler) createTaskSpecFromRequest(
 		Identifier:         strings.TrimSpace(req.Identifier),
 		Scope:              scope,
 		WorkspaceID:        workspaceID,
-		NetworkChannel:     strings.TrimSpace(req.NetworkChannel),
 		Title:              strings.TrimSpace(req.Title),
 		Description:        strings.TrimSpace(req.Description),
 		Priority:           req.Priority.Normalize(),
@@ -694,7 +693,7 @@ func (h *HostAPIHandler) createTaskSpecFromRequest(
 
 func taskPatchFromRequest(req apicontract.UpdateTaskRequest) (taskpkg.Patch, error) {
 	if req.NetworkChannel != nil {
-		if err := validateTaskChannel("task_patch.network_channel", *req.NetworkChannel); err != nil {
+		if err := rejectRemovedTaskChannel("task_patch.network_channel", *req.NetworkChannel); err != nil {
 			return taskpkg.Patch{}, err
 		}
 	}
@@ -707,7 +706,6 @@ func taskPatchFromRequest(req apicontract.UpdateTaskRequest) (taskpkg.Patch, err
 		AutoEnqueueOnReady: req.AutoEnqueueOnReady,
 		ApprovalPolicy:     normalizeApprovalPolicyPtr(req.ApprovalPolicy),
 		Metadata:           cloneRawMessagePtr(req.Metadata),
-		NetworkChannel:     trimStringPtr(req.NetworkChannel),
 		Owner:              cloneOwnership(req.Owner),
 		ClearOwner:         req.ClearOwner,
 	}
@@ -729,14 +727,13 @@ func cancelTaskFromRequest(req apicontract.CancelTaskRequest) (taskpkg.CancelTas
 }
 
 func enqueueTaskRunFromRequest(taskID string, req apicontract.EnqueueTaskRunRequest) (taskpkg.EnqueueRun, error) {
-	if err := validateTaskChannel("enqueue_run.network_channel", req.NetworkChannel); err != nil {
+	if err := rejectRemovedTaskChannel("enqueue_run.network_channel", req.NetworkChannel); err != nil {
 		return taskpkg.EnqueueRun{}, err
 	}
 
 	spec := taskpkg.EnqueueRun{
 		TaskID:         strings.TrimSpace(taskID),
 		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
-		NetworkChannel: strings.TrimSpace(req.NetworkChannel),
 		Metadata:       cloneRawMessage(req.Metadata),
 	}
 	if err := spec.Validate("enqueue_run"); err != nil {
@@ -845,6 +842,13 @@ func validateTaskChannel(path string, channel string) error {
 	return nil
 }
 
+func rejectRemovedTaskChannel(path string, channel string) error {
+	if strings.TrimSpace(channel) == "" {
+		return nil
+	}
+	return invalidParamsRPCError(fmt.Errorf("%s is no longer supported", path))
+}
+
 func mapTaskRPCError(id string, err error) error {
 	switch {
 	case err == nil:
@@ -866,7 +870,6 @@ func mapTaskRPCError(id string, err error) error {
 		errors.Is(err, taskpkg.ErrInvalidStatusTransition),
 		errors.Is(err, taskpkg.ErrSessionAlreadyBound),
 		errors.Is(err, taskpkg.ErrSessionAttachNotAllowed),
-		errors.Is(err, taskpkg.ErrStaleNetworkChannel),
 		errors.Is(err, taskpkg.ErrPermissionDenied):
 		return invalidParamsRPCError(err)
 	default:
@@ -915,70 +918,6 @@ func taskCatalogResponseFromPage(page taskpkg.CatalogPage) apicontract.TasksResp
 	return response
 }
 
-func taskSummaryPayloadFromSummary(record *taskpkg.Summary) apicontract.TaskSummaryPayload {
-	if record == nil {
-		return apicontract.TaskSummaryPayload{}
-	}
-
-	return apicontract.TaskSummaryPayload{
-		ID:                 record.ID,
-		Identifier:         record.Identifier,
-		Scope:              record.Scope,
-		WorkspaceID:        record.WorkspaceID,
-		ParentTaskID:       record.ParentTaskID,
-		NetworkChannel:     record.NetworkChannel,
-		Title:              record.Title,
-		Priority:           record.Priority,
-		MaxAttempts:        record.MaxAttempts,
-		AutoEnqueueOnReady: record.AutoEnqueueOnReady,
-		Status:             record.Status,
-		ApprovalPolicy:     record.ApprovalPolicy,
-		ApprovalState:      record.ApprovalState,
-		Draft:              record.Draft,
-		Owner:              cloneOwnership(record.Owner),
-		CreatedBy:          record.CreatedBy,
-		Origin:             record.Origin,
-		CreatedAt:          record.CreatedAt,
-		UpdatedAt:          record.UpdatedAt,
-		ClosedAt:           optionalTime(record.ClosedAt),
-		ChildCount:         int(record.ChildCount),
-		DependencyCount:    int(record.DependencyCount),
-		Dependencies:       taskDependencyReferencePayloadsFromReferences(record.Dependencies),
-		ActiveRun:          taskRunSummaryPayloadFromSummary(record.ActiveRun),
-		LastActivityAt:     optionalTime(record.LastActivityAt),
-	}
-}
-
-func taskPayloadFromTask(record *taskpkg.Task) apicontract.TaskPayload {
-	if record == nil {
-		return apicontract.TaskPayload{}
-	}
-
-	return apicontract.TaskPayload{
-		ID:                 record.ID,
-		Identifier:         record.Identifier,
-		Scope:              record.Scope,
-		WorkspaceID:        record.WorkspaceID,
-		ParentTaskID:       record.ParentTaskID,
-		NetworkChannel:     record.NetworkChannel,
-		Title:              record.Title,
-		Description:        record.Description,
-		Priority:           record.Priority,
-		MaxAttempts:        record.MaxAttempts,
-		AutoEnqueueOnReady: record.AutoEnqueueOnReady,
-		Status:             record.Status,
-		ApprovalPolicy:     record.ApprovalPolicy,
-		ApprovalState:      record.ApprovalState,
-		Owner:              cloneOwnership(record.Owner),
-		CreatedBy:          record.CreatedBy,
-		Origin:             record.Origin,
-		CreatedAt:          record.CreatedAt,
-		UpdatedAt:          record.UpdatedAt,
-		ClosedAt:           optionalTime(record.ClosedAt),
-		Metadata:           cloneRawMessage(record.Metadata),
-	}
-}
-
 func taskDependencyPayloadsFromDependencies(dependencies []taskpkg.Dependency) []apicontract.TaskDependencyPayload {
 	payloads := make([]apicontract.TaskDependencyPayload, len(dependencies))
 	for i := range dependencies {
@@ -999,31 +938,6 @@ func taskRunPayloadsFromRuns(runs []taskpkg.Run) []apicontract.TaskRunPayload {
 		payloads[i] = taskRunPayloadFromRun(&runs[i])
 	}
 	return payloads
-}
-
-func taskRunPayloadFromRun(run *taskpkg.Run) apicontract.TaskRunPayload {
-	if run == nil {
-		return apicontract.TaskRunPayload{}
-	}
-
-	return apicontract.TaskRunPayload{
-		ID:             run.ID,
-		TaskID:         run.TaskID,
-		Status:         run.Status,
-		Attempt:        int(run.Attempt),
-		ClaimedBy:      cloneActorIdentity(run.ClaimedBy),
-		SessionID:      run.SessionID,
-		Origin:         run.Origin,
-		IdempotencyKey: run.IdempotencyKey,
-		NetworkChannel: run.NetworkChannel,
-		QueuedAt:       run.QueuedAt,
-		ClaimedAt:      optionalTime(run.ClaimedAt),
-		StartedAt:      optionalTime(run.StartedAt),
-		EndedAt:        optionalTime(run.EndedAt),
-		Error:          run.Error,
-		Metadata:       cloneRawMessage(run.Metadata),
-		Result:         cloneRawMessage(run.Result),
-	}
 }
 
 func taskReferencePayloadFromReference(record taskpkg.Reference) apicontract.TaskReferencePayload {

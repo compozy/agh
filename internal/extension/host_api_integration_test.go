@@ -565,7 +565,6 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 			Kind: taskpkg.OwnerKindExtension,
 			Ref:  "ext-reader",
 		},
-		NetworkChannel: "builders",
 	}, actor)
 	if err != nil {
 		t.Fatalf("tasks.CreateChildTask(child) error = %v", err)
@@ -588,7 +587,6 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 	queued, err := env.tasks.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{
 		TaskID:         child.ID,
 		IdempotencyKey: "integration-read-run",
-		NetworkChannel: "builders",
 	}, actor)
 	if err != nil {
 		t.Fatalf("tasks.EnqueueRun() error = %v", err)

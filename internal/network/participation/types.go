@@ -45,6 +45,12 @@ type OwnerRef struct {
 	ID   string    `json:"id"`
 }
 
+// AuthorityScope carries the concrete channel grant delegated to one child execution.
+type AuthorityScope struct {
+	Enforced   bool
+	ChannelIDs []string
+}
+
 type Request struct {
 	Mode            *Mode            `json:"mode,omitempty"`
 	ChannelStrategy *ChannelStrategy `json:"channel_strategy,omitempty"`
@@ -67,13 +73,15 @@ type Resolver interface {
 }
 
 type ResolveInput struct {
-	WorkspaceID string
-	Owner       OwnerRef
-	Request     *Request
-	Definition  *Request
-	RunID       string
-	LoopRunID   string
-	Coordinated bool
+	WorkspaceID   string
+	Owner         OwnerRef
+	Request       *Request
+	RequestSource Source
+	Definition    *Request
+	RunID         string
+	LoopRunID     string
+	Coordinated   bool
+	Authority     *AuthorityScope
 }
 
 func (r Request) isZero() bool {

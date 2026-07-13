@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -66,20 +67,20 @@ type taskRoleRuntime struct {
 }
 
 type taskRoleActivation struct {
-	TaskID         string
-	RunID          string
-	Scope          taskpkg.Scope
-	WorkspaceID    string
-	WorkspacePath  string
-	AgentName      string
-	Provider       string
-	Model          string
-	Channel        string
-	Title          string
-	Profile        *taskpkg.ExecutionProfile
-	Capabilities   []string
-	Designation    taskpkg.RunDesignation
-	HasDesignation bool
+	TaskID               string
+	RunID                string
+	Scope                taskpkg.Scope
+	WorkspaceID          string
+	WorkspacePath        string
+	AgentName            string
+	Provider             string
+	Model                string
+	NetworkParticipation *participation.Spec
+	Title                string
+	Profile              *taskpkg.ExecutionProfile
+	Capabilities         []string
+	Designation          taskpkg.RunDesignation
+	HasDesignation       bool
 }
 
 var _ taskRunEnqueuedObserver = (*taskRoleRuntime)(nil)
@@ -185,7 +186,11 @@ func (r *taskRoleRuntime) Recover(ctx context.Context) {
 		taskRecord, err := r.store.GetTask(ctx, run.TaskID)
 		if err != nil {
 			r.logTaskRoleError("daemon: load task for role recovery", err, hookspkg.TaskRunEnqueuedPayload{
-				TaskRunContext: hookspkg.TaskRunContext{RunID: run.ID, TaskID: run.TaskID},
+				TaskRunContext: hookspkg.TaskRunContext{
+					RunID:                        run.ID,
+					TaskID:                       run.TaskID,
+					ResolvedNetworkParticipation: new(run.NetworkSpecSnapshot()),
+				},
 			})
 			continue
 		}
@@ -195,10 +200,10 @@ func (r *taskRoleRuntime) Recover(ctx context.Context) {
 				err,
 				hookspkg.TaskRunEnqueuedPayload{
 					TaskRunContext: hookspkg.TaskRunContext{
-						RunID:                 run.ID,
-						TaskID:                run.TaskID,
-						WorkspaceID:           taskRecord.WorkspaceID,
-						CoordinationChannelID: run.CoordinationChannelID,
+						RunID:                        run.ID,
+						TaskID:                       run.TaskID,
+						WorkspaceID:                  taskRecord.WorkspaceID,
+						ResolvedNetworkParticipation: new(run.NetworkSpecSnapshot()),
 					},
 				},
 			)
@@ -234,7 +239,7 @@ func (r *taskRoleRuntime) activateRun(
 			taskRoleRuntimeTaskIDKey, activation.TaskID,
 			"run_id", activation.RunID,
 			"agent_name", activation.AgentName,
-			"channel", activation.Channel,
+			"channel", activation.NetworkParticipation.ChannelID,
 			"reason", reason,
 		)
 		return nil
@@ -245,7 +250,7 @@ func (r *taskRoleRuntime) activateRun(
 		taskRoleRuntimeTaskIDKey, activation.TaskID,
 		"run_id", activation.RunID,
 		"agent_name", activation.AgentName,
-		"channel", activation.Channel,
+		"channel", activation.NetworkParticipation.ChannelID,
 		"reason", reason,
 	)
 	return nil
@@ -276,16 +281,16 @@ func (r *taskRoleRuntime) activationForRun(
 	}
 
 	activation := taskRoleActivation{
-		TaskID:      strings.TrimSpace(taskRecord.ID),
-		RunID:       strings.TrimSpace(run.ID),
-		Scope:       taskRecord.Scope.Normalize(),
-		WorkspaceID: strings.TrimSpace(taskRecord.WorkspaceID),
-		AgentName:   agentName,
-		Provider:    provider,
-		Model:       model,
-		Channel:     taskRunSessionChannel(run),
-		Title:       strings.TrimSpace(taskRecord.Title),
-		Profile:     profile,
+		TaskID:               strings.TrimSpace(taskRecord.ID),
+		RunID:                strings.TrimSpace(run.ID),
+		Scope:                taskRecord.Scope.Normalize(),
+		WorkspaceID:          strings.TrimSpace(taskRecord.WorkspaceID),
+		AgentName:            agentName,
+		Provider:             provider,
+		Model:                model,
+		NetworkParticipation: new(run.NetworkSpecSnapshot()),
+		Title:                strings.TrimSpace(taskRecord.Title),
+		Profile:              profile,
 		Capabilities: append(
 			append([]string(nil), run.RequiredCapabilities...),
 			profileRequiredWorkerCapabilities(profile)...,

@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-
 	"strings"
-
 	"time"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 func summaryFromTaskRecord(record Task) Summary {
@@ -17,7 +17,6 @@ func summaryFromTaskRecord(record Task) Summary {
 		Scope:              record.Scope,
 		WorkspaceID:        record.WorkspaceID,
 		ParentTaskID:       record.ParentTaskID,
-		NetworkChannel:     record.NetworkChannel,
 		Title:              record.Title,
 		Priority:           record.Priority,
 		MaxAttempts:        record.MaxAttempts,
@@ -58,7 +57,6 @@ func taskRecordFromSummary(summary *Summary) Task {
 		Scope:              summary.Scope,
 		WorkspaceID:        summary.WorkspaceID,
 		ParentTaskID:       summary.ParentTaskID,
-		NetworkChannel:     summary.NetworkChannel,
 		Title:              summary.Title,
 		Priority:           summary.Priority,
 		MaxAttempts:        summary.MaxAttempts,
@@ -191,25 +189,25 @@ func activeRunSummary(runs []Run, maxAttempts int) *RunSummary {
 		return nil
 	}
 	summary := &RunSummary{
-		ID:                    current.ID,
-		TaskID:                current.TaskID,
-		Status:                current.Status,
-		Attempt:               int(current.Attempt),
-		PreviousRunID:         current.PreviousRunID,
-		FailureKind:           current.FailureKind,
-		MaxAttempts:           maxAttempts,
-		SessionID:             current.SessionID,
-		ClaimedBy:             cloneActorIdentity(current.ClaimedBy),
-		ClaimTokenHash:        current.ClaimTokenHash,
-		LeaseUntil:            current.LeaseUntil,
-		HeartbeatAt:           current.HeartbeatAt,
-		CoordinationChannelID: current.CoordinationChannelID,
-		DesignationGroupID:    current.DesignationGroupID,
-		QueuedAt:              current.QueuedAt,
-		ClaimedAt:             current.ClaimedAt,
-		StartedAt:             current.StartedAt,
-		EndedAt:               current.EndedAt,
-		Error:                 current.Error,
+		ID:                           current.ID,
+		TaskID:                       current.TaskID,
+		Status:                       current.Status,
+		Attempt:                      int(current.Attempt),
+		PreviousRunID:                current.PreviousRunID,
+		FailureKind:                  current.FailureKind,
+		MaxAttempts:                  maxAttempts,
+		SessionID:                    current.SessionID,
+		ClaimedBy:                    cloneActorIdentity(current.ClaimedBy),
+		ClaimTokenHash:               current.ClaimTokenHash,
+		LeaseUntil:                   current.LeaseUntil,
+		HeartbeatAt:                  current.HeartbeatAt,
+		ResolvedNetworkParticipation: participation.CloneSpec(current.NetworkSpecSnapshot()),
+		DesignationGroupID:           current.DesignationGroupID,
+		QueuedAt:                     current.QueuedAt,
+		ClaimedAt:                    current.ClaimedAt,
+		StartedAt:                    current.StartedAt,
+		EndedAt:                      current.EndedAt,
+		Error:                        current.Error,
 	}
 	ApplyRunDesignationSummary(summary, *current)
 	return summary

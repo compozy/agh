@@ -86,7 +86,7 @@ func (g *TaskRunRepo) ClaimNextRun(
 		if err != nil {
 			return err
 		}
-		channel, err := g.coordinationChannelMetadata(ctx, exec, taskRecord, run)
+		channel, err := g.coordinationChannelMetadata(ctx, exec, run)
 		if err != nil {
 			return err
 		}

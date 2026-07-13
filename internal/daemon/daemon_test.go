@@ -167,12 +167,20 @@ func TestBootWithNetworkDisabledKeepsDaemonOperational(t *testing.T) {
 	homePaths := testHomePaths(t)
 	cfg := testConfig(t, homePaths)
 	cfg.Network.Enabled = false
+	registry := &recordingRegistry{path: homePaths.DatabaseFile}
+	ownerSawDisabledAvailability := false
 
 	d := newTestDaemon(t, homePaths, &cfg)
 	d.openRegistry = func(context.Context, string) (Registry, error) {
-		return &recordingRegistry{path: homePaths.DatabaseFile}, nil
+		return registry, nil
 	}
 	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		availability, err := registry.GetNetworkAvailability(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("GetNetworkAvailability() before session owner construction error = %v", err)
+		}
+		ownerSawDisabledAvailability = !availability.Enabled &&
+			availability.UpdatedBy == "config.reload.boot"
 		return &fakeSessionManager{}, nil
 	}
 	d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
@@ -205,6 +213,12 @@ func TestBootWithNetworkDisabledKeepsDaemonOperational(t *testing.T) {
 	}
 	if got, want := d.info.Network.Status, network.StatusDisabled; got != want {
 		t.Fatalf("boot() daemon info network status = %q, want %q", got, want)
+	}
+	if !ownerSawDisabledAvailability {
+		t.Fatal("session owner constructed before disabled network availability was persisted")
+	}
+	if got, want := registry.networkAvailabilityWrites, []bool{false}; !slices.Equal(got, want) {
+		t.Fatalf("network availability boot writes = %#v, want %#v", got, want)
 	}
 }
 
@@ -4504,20 +4518,20 @@ func testTaskRuntimeDetachedHarnessSubmissionAllowsProcessedReentryMetadata(t *t
 	workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
 	sessions.infos = []*session.Info{
 		{
-			ID:          "sess-owner",
-			Type:        session.SessionTypeSystem,
-			State:       session.StateActive,
-			WorkspaceID: workspace.ID,
-			Workspace:   workspace.RootDir,
-			Channel:     "builders",
+			ID:                   "sess-owner",
+			Type:                 session.SessionTypeSystem,
+			State:                session.StateActive,
+			WorkspaceID:          workspace.ID,
+			Workspace:            workspace.RootDir,
+			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 		{
-			ID:          "sess-wake",
-			Type:        session.SessionTypeSystem,
-			State:       session.StateActive,
-			WorkspaceID: workspace.ID,
-			Workspace:   workspace.RootDir,
-			Channel:     "builders",
+			ID:                   "sess-wake",
+			Type:                 session.SessionTypeSystem,
+			State:                session.StateActive,
+			WorkspaceID:          workspace.ID,
+			Workspace:            workspace.RootDir,
+			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 	}
 
@@ -4607,18 +4621,18 @@ func testHarnessReentryBridgeRecoverOrdersEqualTimestampsByTerminalSequence(t *t
 	sessions := &fakeSessionManager{
 		infos: []*session.Info{
 			{
-				ID:        "sess-owner",
-				AgentName: "coder",
-				Type:      session.SessionTypeSystem,
-				State:     session.StateActive,
-				Channel:   "builders",
+				ID:                   "sess-owner",
+				AgentName:            "coder",
+				Type:                 session.SessionTypeSystem,
+				State:                session.StateActive,
+				NetworkParticipation: daemonTestLiveParticipation("", "builders"),
 			},
 			{
-				ID:        "sess-wake",
-				AgentName: "coder",
-				Type:      session.SessionTypeSystem,
-				State:     session.StateActive,
-				Channel:   "builders",
+				ID:                   "sess-wake",
+				AgentName:            "coder",
+				Type:                 session.SessionTypeSystem,
+				State:                session.StateActive,
+				NetworkParticipation: daemonTestLiveParticipation("", "builders"),
 			},
 		},
 	}
@@ -5056,19 +5070,19 @@ func seedDetachedHarnessRecoveryRunForTest(
 		t.Fatalf("CreateTask(%q) error = %v", taskID, err)
 	}
 	if err := db.CreateTaskRun(testutil.Context(t), taskpkg.Run{
-		ID:             runID,
-		TaskID:         taskID,
-		Status:         taskpkg.TaskRunStatusCompleted,
-		Attempt:        1,
-		Origin:         actor.Origin,
-		IdempotencyKey: "idem-" + runID,
-		NetworkChannel: "builders",
-		Metadata:       runMetadata,
-		QueuedAt:       completedAt.Add(-2 * time.Minute),
-		ClaimedAt:      completedAt.Add(-90 * time.Second),
-		StartedAt:      completedAt.Add(-time.Minute),
-		EndedAt:        completedAt,
-		Result:         json.RawMessage(`{"ok":true}`),
+		ID:              runID,
+		TaskID:          taskID,
+		Status:          taskpkg.TaskRunStatusCompleted,
+		Attempt:         1,
+		Origin:          actor.Origin,
+		IdempotencyKey:  "idem-" + runID,
+		RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: daemonTestLiveParticipation("ws-1", "builders")},
+		Metadata:        runMetadata,
+		QueuedAt:        completedAt.Add(-2 * time.Minute),
+		ClaimedAt:       completedAt.Add(-90 * time.Second),
+		StartedAt:       completedAt.Add(-time.Minute),
+		EndedAt:         completedAt,
+		Result:          json.RawMessage(`{"ok":true}`),
 	}); err != nil {
 		t.Fatalf("CreateTaskRun(%q) error = %v", runID, err)
 	}
@@ -5210,14 +5224,14 @@ func (f *fakeSessionManager) Create(_ context.Context, opts session.CreateOpts) 
 
 func (f *fakeSessionManager) Spawn(ctx context.Context, opts session.SpawnOpts) (*session.Session, error) {
 	child, err := f.Create(ctx, session.CreateOpts{
-		AgentName:     opts.AgentName,
-		Provider:      opts.Provider,
-		Name:          opts.Name,
-		Workspace:     opts.Workspace,
-		WorkspacePath: opts.WorkspacePath,
-		Channel:       opts.Channel,
-		PromptOverlay: opts.PromptOverlay,
-		Type:          session.SessionTypeSpawned,
+		AgentName:            opts.AgentName,
+		Provider:             opts.Provider,
+		Name:                 opts.Name,
+		Workspace:            opts.Workspace,
+		WorkspacePath:        opts.WorkspacePath,
+		NetworkParticipation: opts.NetworkParticipation,
+		PromptOverlay:        opts.PromptOverlay,
+		Type:                 session.SessionTypeSpawned,
 		Lineage: &store.SessionLineage{
 			ParentSessionID:  opts.ParentSessionID,
 			SpawnRole:        opts.SpawnRole,
@@ -5498,16 +5512,16 @@ func (f *fakeSessionManager) ClearConversation(
 	}
 
 	return &session.Session{
-		ID:          info.ID,
-		Name:        info.Name,
-		AgentName:   info.AgentName,
-		WorkspaceID: info.WorkspaceID,
-		Workspace:   info.Workspace,
-		Channel:     info.Channel,
-		Type:        info.Type,
-		State:       session.StateActive,
-		CreatedAt:   info.CreatedAt,
-		UpdatedAt:   info.UpdatedAt,
+		ID:                   info.ID,
+		Name:                 info.Name,
+		AgentName:            info.AgentName,
+		WorkspaceID:          info.WorkspaceID,
+		Workspace:            info.Workspace,
+		NetworkParticipation: info.NetworkParticipation,
+		Type:                 info.Type,
+		State:                session.StateActive,
+		CreatedAt:            info.CreatedAt,
+		UpdatedAt:            info.UpdatedAt,
 	}, nil
 }
 
@@ -6254,11 +6268,14 @@ func (f *fakeResourceReconcileDriver) Close(context.Context) error {
 }
 
 type recordingRegistry struct {
-	path                   string
-	onClose                func()
-	onListTaskRunsByStatus func([]taskpkg.RunStatus)
-	mu                     sync.Mutex
-	workspaces             map[string]workspacepkg.Workspace
+	path                      string
+	onClose                   func()
+	onListTaskRunsByStatus    func([]taskpkg.RunStatus)
+	mu                        sync.Mutex
+	workspaces                map[string]workspacepkg.Workspace
+	networkAvailability       store.NetworkAvailability
+	networkAvailabilityWrites []bool
+	coordinationSettings      map[string]workspacepkg.CoordinationSetting
 }
 
 var (
@@ -6457,7 +6474,66 @@ func (r *recordingRegistry) ListNetworkAudit(
 	return nil, nil
 }
 
+func (r *recordingRegistry) GetNetworkAvailability(context.Context) (store.NetworkAvailability, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.networkAvailability, nil
+}
+
+func (r *recordingRegistry) SetNetworkAvailability(
+	_ context.Context,
+	enabled bool,
+	updatedBy string,
+) (store.NetworkAvailability, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.networkAvailability.Enabled != enabled {
+		r.networkAvailability.Epoch++
+	}
+	r.networkAvailability.Enabled = enabled
+	r.networkAvailability.UpdatedAt = time.Now().UTC()
+	r.networkAvailability.UpdatedBy = strings.TrimSpace(updatedBy)
+	r.networkAvailabilityWrites = append(r.networkAvailabilityWrites, enabled)
+	return r.networkAvailability, nil
+}
+
+func (r *recordingRegistry) Get(
+	_ context.Context,
+	workspaceID string,
+) (workspacepkg.CoordinationSetting, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	id := strings.TrimSpace(workspaceID)
+	return r.coordinationSettings[id], nil
+}
+
+func (r *recordingRegistry) Set(
+	_ context.Context,
+	workspaceID string,
+	enabled bool,
+	actor string,
+) (workspacepkg.CoordinationSetting, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.coordinationSettings == nil {
+		r.coordinationSettings = make(map[string]workspacepkg.CoordinationSetting)
+	}
+	id := strings.TrimSpace(workspaceID)
+	setting := r.coordinationSettings[id]
+	setting.WorkspaceID = id
+	setting.Enabled = enabled
+	setting.Revision++
+	setting.UpdatedAt = time.Now().UTC()
+	setting.UpdatedBy = strings.TrimSpace(actor)
+	r.coordinationSettings[id] = setting
+	return setting, nil
+}
+
 func (r *recordingRegistry) WriteNetworkChannel(context.Context, store.NetworkChannelEntry) error {
+	return nil
+}
+
+func (r *recordingRegistry) CreateNetworkChannel(context.Context, store.NetworkChannelEntry) error {
 	return nil
 }
 

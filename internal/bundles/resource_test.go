@@ -143,7 +143,6 @@ func TestBundleServiceReconcileLoadsBundleResourcesOncePerRun(t *testing.T) {
 				}, nil
 			},
 		}),
-		WithConfiguredDefaultChannel("default"),
 		WithNow(func() time.Time {
 			return time.Date(2026, 4, 14, 22, 0, 0, 0, time.UTC)
 		}),
@@ -212,7 +211,6 @@ func TestBundleServiceListActivationsLoadsBundleResourcesOncePerRun(t *testing.T
 				}, nil
 			},
 		}),
-		WithConfiguredDefaultChannel("default"),
 		WithLogger(discardBundleTestLogger()),
 		WithNow(func() time.Time {
 			return time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)

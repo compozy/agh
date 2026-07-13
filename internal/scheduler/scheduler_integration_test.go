@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -31,7 +31,7 @@ func TestSchedulerWakeLeavesClaimToTaskServiceIntegration(t *testing.T) {
 		workspaceID := registerSchedulerWorkspace(t, db, "wake-claim", filepath.Join(t.TempDir(), "workspace"))
 		manager := newSchedulerTaskManager(t, db)
 		execution := createSchedulerTaskRun(t, ctx, manager, workspaceID, "Wake then claim")
-		runChannel := execution.Run.CoordinationChannelID
+		runChannel := execution.Run.NetworkSpecSnapshot().ChannelID
 		if runChannel == "" {
 			t.Fatal("execution.Run.CoordinationChannelID = empty, want derived channel")
 		}
@@ -123,7 +123,7 @@ func TestSchedulerRecoversExpiredLeaseAfterDatabaseRestartIntegration(t *testing
 		workspaceID := registerSchedulerWorkspace(t, first, "restart-recovery", filepath.Join(t.TempDir(), "workspace"))
 		firstManager := newSchedulerTaskManager(t, first)
 		execution := createSchedulerTaskRun(t, ctx, firstManager, workspaceID, "Restart recovery")
-		runChannel := execution.Run.CoordinationChannelID
+		runChannel := execution.Run.NetworkSpecSnapshot().ChannelID
 		if runChannel == "" {
 			t.Fatal("execution.Run.CoordinationChannelID = empty, want derived channel")
 		}
@@ -219,11 +219,11 @@ func TestSchedulerRecoversExpiredLeaseAfterDatabaseRestartIntegration(t *testing
 	})
 }
 
-func TestSchedulerRecoversExpiredHistoricalNetworkLeaseIntegration(t *testing.T) {
+func TestSchedulerRecoversExpiredImmutableParticipationLeaseIntegration(t *testing.T) {
 	t.Parallel()
 
 	t.Run(
-		"Should recover an expired historical network-channel lease and preserve reclaim semantics",
+		"Should recover an expired immutable participation lease and preserve reclaim semantics",
 		func(t *testing.T) {
 			ctx := testutil.Context(t)
 			base := time.Date(2027, 4, 28, 9, 46, 36, 0, time.UTC)
@@ -231,20 +231,19 @@ func TestSchedulerRecoversExpiredHistoricalNetworkLeaseIntegration(t *testing.T)
 			workspaceID := registerSchedulerWorkspace(
 				t,
 				db,
-				"historical-expiry",
+				"participation-expiry",
 				filepath.Join(t.TempDir(), "workspace"),
 			)
 			manager := newSchedulerTaskManagerWithOptions(
 				t,
 				db,
-				taskpkg.WithNetworkChannelValidator(network.ValidateChannel),
 			)
 
 			channelTimestamp := base.Add(-3 * time.Second)
 			if err := db.WriteNetworkChannel(ctx, store.NetworkChannelEntry{
 				Channel:     "scope-direct-history",
 				WorkspaceID: workspaceID,
-				Purpose:     "Historical channel lease expiry recovery validation",
+				Purpose:     "Immutable participation lease expiry recovery validation",
 				CreatedBy:   "founder",
 				CreatedAt:   channelTimestamp,
 				UpdatedAt:   channelTimestamp,
@@ -257,23 +256,21 @@ func TestSchedulerRecoversExpiredHistoricalNetworkLeaseIntegration(t *testing.T)
 				t.Fatalf("DeriveHumanActorContext() error = %v", err)
 			}
 			taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-				Scope:          taskpkg.ScopeWorkspace,
-				WorkspaceID:    workspaceID,
-				NetworkChannel: "scope-direct-history",
-				Title:          "Historical lease expiry recovery",
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: workspaceID,
+				Title:       "Immutable participation lease expiry recovery",
 			}, operator)
 			if err != nil {
 				t.Fatalf("CreateTask() error = %v", err)
 			}
-			execution, err := manager.StartTask(ctx, taskRecord.ID, taskpkg.ExecutionRequest{}, operator)
+			execution, err := manager.StartTask(ctx, taskRecord.ID, taskpkg.ExecutionRequest{
+				NetworkParticipation: schedulerNamedParticipation("scope-direct-history"),
+			}, operator)
 			if err != nil {
 				t.Fatalf("StartTask() error = %v", err)
 			}
-			if got, want := execution.Run.NetworkChannel, "scope-direct-history"; got != want {
-				t.Fatalf("execution.Run.NetworkChannel = %q, want %q", got, want)
-			}
-			if got, want := execution.Run.CoordinationChannelID, "scope-direct-history"; got != want {
-				t.Fatalf("execution.Run.CoordinationChannelID = %q, want %q", got, want)
+			if got, want := execution.Run.NetworkSpecSnapshot().ChannelID, "scope-direct-history"; got != want {
+				t.Fatalf("execution.Run.NetworkSpecSnapshot().ChannelID = %q, want %q", got, want)
 			}
 
 			oldActor, err := taskpkg.DeriveAgentSessionActorContext("sess-old")
@@ -294,11 +291,8 @@ func TestSchedulerRecoversExpiredHistoricalNetworkLeaseIntegration(t *testing.T)
 			if got, want := firstClaim.Run.ID, execution.Run.ID; got != want {
 				t.Fatalf("firstClaim.Run.ID = %q, want %q", got, want)
 			}
-			if got, want := firstClaim.Run.NetworkChannel, "scope-direct-history"; got != want {
-				t.Fatalf("firstClaim.Run.NetworkChannel = %q, want %q", got, want)
-			}
-			if got, want := firstClaim.Run.CoordinationChannelID, "scope-direct-history"; got != want {
-				t.Fatalf("firstClaim.Run.CoordinationChannelID = %q, want %q", got, want)
+			if got, want := firstClaim.Run.NetworkSpecSnapshot().ChannelID, "scope-direct-history"; got != want {
+				t.Fatalf("firstClaim.Run.NetworkSpecSnapshot().ChannelID = %q, want %q", got, want)
 			}
 			if firstClaim.ClaimToken == "" {
 				t.Fatal("firstClaim.ClaimToken = empty, want raw claim token")
@@ -324,7 +318,7 @@ func TestSchedulerRecoversExpiredHistoricalNetworkLeaseIntegration(t *testing.T)
 				t.Fatalf("RecoveredRunIDs = %v, want %q", result.RecoveredRunIDs, execution.Run.ID)
 			}
 			if got := len(waker.targetsSnapshot()); got != 0 {
-				t.Fatalf("wake targets after historical recovery = %d, want 0", got)
+				t.Fatalf("wake targets after participation recovery = %d, want 0", got)
 			}
 
 			if _, err := manager.HeartbeatRunLease(ctx, taskpkg.LeaseHeartbeat{
@@ -361,11 +355,8 @@ func TestSchedulerRecoversExpiredHistoricalNetworkLeaseIntegration(t *testing.T)
 			if got, want := secondClaim.Run.SessionID, "sess-new"; got != want {
 				t.Fatalf("secondClaim.Run.SessionID = %q, want %q", got, want)
 			}
-			if got, want := secondClaim.Run.NetworkChannel, "scope-direct-history"; got != want {
-				t.Fatalf("secondClaim.Run.NetworkChannel = %q, want %q", got, want)
-			}
-			if got, want := secondClaim.Run.CoordinationChannelID, "scope-direct-history"; got != want {
-				t.Fatalf("secondClaim.Run.CoordinationChannelID = %q, want %q", got, want)
+			if got, want := secondClaim.Run.NetworkSpecSnapshot().ChannelID, "scope-direct-history"; got != want {
+				t.Fatalf("secondClaim.Run.NetworkSpecSnapshot().ChannelID = %q, want %q", got, want)
 			}
 			if secondClaim.ClaimToken == "" {
 				t.Fatal("secondClaim.ClaimToken = empty, want raw claim token")
@@ -375,7 +366,7 @@ func TestSchedulerRecoversExpiredHistoricalNetworkLeaseIntegration(t *testing.T)
 				RunID:      secondClaim.Run.ID,
 				ClaimToken: secondClaim.ClaimToken,
 				Result: taskpkg.RunResult{
-					Value: []byte(`{"ok":true,"path":"scheduler-historical-expiry"}`),
+					Value: []byte(`{"ok":true,"path":"scheduler-participation-expiry"}`),
 				},
 			}, newActor)
 			if err != nil {
@@ -384,11 +375,8 @@ func TestSchedulerRecoversExpiredHistoricalNetworkLeaseIntegration(t *testing.T)
 			if got, want := completed.Status, taskpkg.TaskRunStatusCompleted; got != want {
 				t.Fatalf("completed.Status = %q, want %q", got, want)
 			}
-			if got, want := completed.NetworkChannel, "scope-direct-history"; got != want {
-				t.Fatalf("completed.NetworkChannel = %q, want %q", got, want)
-			}
-			if got, want := completed.CoordinationChannelID, "scope-direct-history"; got != want {
-				t.Fatalf("completed.CoordinationChannelID = %q, want %q", got, want)
+			if got, want := completed.NetworkSpecSnapshot().ChannelID, "scope-direct-history"; got != want {
+				t.Fatalf("completed.NetworkSpecSnapshot().ChannelID = %q, want %q", got, want)
 			}
 
 			storedTask, err := db.GetTask(ctx, taskRecord.ID)
@@ -423,9 +411,9 @@ func TestSchedulerRecoversExpiredHistoricalNetworkLeaseIntegration(t *testing.T)
 					schedulerIntegrationEventTypes(events),
 				)
 			}
-			if got, want := eventCounts["task.run_completed"], 1; got != want {
+			if got, want := eventCounts["task.run.completed"], 1; got != want {
 				t.Fatalf(
-					"eventCounts[task.run_completed] = %d, want %d (events=%#v)",
+					"eventCounts[task.run.completed] = %d, want %d (events=%#v)",
 					got,
 					want,
 					schedulerIntegrationEventTypes(events),
@@ -445,7 +433,7 @@ func TestSchedulerRequeuesDeadWorkerLeaseAndWakesReplacementIntegration(t *testi
 		workspaceID := registerSchedulerWorkspace(t, db, "dead-worker", filepath.Join(t.TempDir(), "workspace"))
 		manager := newSchedulerTaskManager(t, db)
 		execution := createSchedulerTaskRun(t, ctx, manager, workspaceID, "Dead worker recovery")
-		runChannel := execution.Run.CoordinationChannelID
+		runChannel := execution.Run.NetworkSpecSnapshot().ChannelID
 		if runChannel == "" {
 			t.Fatal("execution.Run.CoordinationChannelID = empty, want derived channel")
 		}
@@ -827,7 +815,11 @@ func newSchedulerTaskManager(t *testing.T, store taskpkg.Store) *taskpkg.Service
 func newSchedulerTaskManagerWithOptions(t *testing.T, store taskpkg.Store, opts ...taskpkg.Option) *taskpkg.Service {
 	t.Helper()
 
-	managerOptions := append([]taskpkg.Option{taskpkg.WithStore(store)}, opts...)
+	managerOptions := []taskpkg.Option{
+		taskpkg.WithStore(store),
+		taskpkg.WithParticipationResolver(schedulerParticipationResolver{}),
+	}
+	managerOptions = append(managerOptions, opts...)
 	manager, err := taskpkg.NewManager(managerOptions...)
 	if err != nil {
 		t.Fatalf("NewManager() error = %v", err)
@@ -896,11 +888,64 @@ func createSchedulerTaskRun(
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
 	}
-	execution, err := manager.StartTask(ctx, taskRecord.ID, taskpkg.ExecutionRequest{}, actor)
+	execution, err := manager.StartTask(ctx, taskRecord.ID, taskpkg.ExecutionRequest{
+		NetworkParticipation: schedulerNamedParticipation("scheduler-" + taskRecord.ID),
+	}, actor)
 	if err != nil {
 		t.Fatalf("StartTask() error = %v", err)
 	}
 	return execution
+}
+
+type schedulerParticipationResolver struct{}
+
+func (schedulerParticipationResolver) Resolve(
+	_ context.Context,
+	input participation.ResolveInput,
+) (participation.Spec, error) {
+	if input.Request == nil || input.Request.Mode == nil || *input.Request.Mode == participation.ModeLocal {
+		return participation.LocalSpec(), nil
+	}
+	bounds, err := participation.ResolveBounds(
+		input.Request.Bounds,
+		schedulerParticipationDefaults(),
+		participation.Limits{},
+	)
+	if err != nil {
+		return participation.Spec{}, err
+	}
+	return participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     input.WorkspaceID,
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       strings.TrimSpace(*input.Request.ChannelID),
+		Source:          participation.SourceExplicitRequest,
+		Bounds:          bounds,
+	}, nil
+}
+
+func schedulerParticipationDefaults() participation.Bounds {
+	return participation.Bounds{
+		MaxWakes:         4,
+		MaxWakeWallTime:  "30s",
+		MaxTotalWallTime: "2m",
+		MaxInputTokens:   4096,
+		MaxOutputTokens:  4096,
+		MaxWakeDepth:     4,
+		CoalesceWindow:   "250ms",
+	}
+}
+
+func schedulerNamedParticipation(channel string) *participation.Request {
+	mode := participation.ModeLive
+	strategy := participation.StrategyNamed
+	channel = strings.TrimSpace(channel)
+	return &participation.Request{
+		Mode:            &mode,
+		ChannelStrategy: &strategy,
+		ChannelID:       &channel,
+	}
 }
 
 func schedulerIntegrationHasEvent(events []taskpkg.Event, want string) bool {

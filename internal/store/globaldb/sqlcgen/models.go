@@ -102,25 +102,26 @@ type AppMetadatum struct {
 }
 
 type AutomationJob struct {
-	ID               string         `json:"id"`
-	Scope            string         `json:"scope"`
-	Name             string         `json:"name"`
-	AgentName        string         `json:"agent_name"`
-	WorkspaceID      sql.NullString `json:"workspace_id"`
-	Prompt           string         `json:"prompt"`
-	Schedule         sql.NullString `json:"schedule"`
-	Task             sql.NullString `json:"task"`
-	Enabled          bool           `json:"enabled"`
-	Retry            string         `json:"retry"`
-	FireLimit        string         `json:"fire_limit"`
-	Source           string         `json:"source"`
-	TargetKind       string         `json:"target_kind"`
-	LoopWorkspaceID  sql.NullString `json:"loop_workspace_id"`
-	LoopName         sql.NullString `json:"loop_name"`
-	LoopInputs       sql.NullString `json:"loop_inputs"`
-	LoopInputMapping sql.NullString `json:"loop_input_mapping"`
-	CreatedAt        string         `json:"created_at"`
-	UpdatedAt        string         `json:"updated_at"`
+	ID                       string         `json:"id"`
+	Scope                    string         `json:"scope"`
+	Name                     string         `json:"name"`
+	AgentName                string         `json:"agent_name"`
+	WorkspaceID              sql.NullString `json:"workspace_id"`
+	Prompt                   string         `json:"prompt"`
+	Schedule                 sql.NullString `json:"schedule"`
+	Task                     sql.NullString `json:"task"`
+	Enabled                  bool           `json:"enabled"`
+	Retry                    string         `json:"retry"`
+	FireLimit                string         `json:"fire_limit"`
+	Source                   string         `json:"source"`
+	TargetKind               string         `json:"target_kind"`
+	LoopWorkspaceID          sql.NullString `json:"loop_workspace_id"`
+	LoopName                 sql.NullString `json:"loop_name"`
+	LoopInputs               sql.NullString `json:"loop_inputs"`
+	LoopInputMapping         sql.NullString `json:"loop_input_mapping"`
+	LoopNetworkParticipation sql.NullString `json:"loop_network_participation"`
+	CreatedAt                string         `json:"created_at"`
+	UpdatedAt                string         `json:"updated_at"`
 }
 
 type AutomationJobCatalogEntry struct {
@@ -150,23 +151,24 @@ type AutomationJobOverlay struct {
 }
 
 type AutomationRun struct {
-	ID              string         `json:"id"`
-	JobID           sql.NullString `json:"job_id"`
-	TriggerID       sql.NullString `json:"trigger_id"`
-	SessionID       sql.NullString `json:"session_id"`
-	TaskID          sql.NullString `json:"task_id"`
-	TaskRunID       sql.NullString `json:"task_run_id"`
-	Status          string         `json:"status"`
-	Attempt         int64          `json:"attempt"`
-	StartedAt       sql.NullString `json:"started_at"`
-	EndedAt         sql.NullString `json:"ended_at"`
-	Error           sql.NullString `json:"error"`
-	LoopRunID       sql.NullString `json:"loop_run_id"`
-	FireID          sql.NullString `json:"fire_id"`
-	ScheduledAt     sql.NullString `json:"scheduled_at"`
-	DeliveryError   sql.NullString `json:"delivery_error"`
-	DeliveryErrorAt sql.NullString `json:"delivery_error_at"`
-	MetadataJson    string         `json:"metadata_json"`
+	ID                   string         `json:"id"`
+	JobID                sql.NullString `json:"job_id"`
+	TriggerID            sql.NullString `json:"trigger_id"`
+	SessionID            sql.NullString `json:"session_id"`
+	TaskID               sql.NullString `json:"task_id"`
+	TaskRunID            sql.NullString `json:"task_run_id"`
+	Status               string         `json:"status"`
+	Attempt              int64          `json:"attempt"`
+	StartedAt            sql.NullString `json:"started_at"`
+	EndedAt              sql.NullString `json:"ended_at"`
+	Error                sql.NullString `json:"error"`
+	LoopRunID            sql.NullString `json:"loop_run_id"`
+	FireID               sql.NullString `json:"fire_id"`
+	ScheduledAt          sql.NullString `json:"scheduled_at"`
+	DeliveryError        sql.NullString `json:"delivery_error"`
+	DeliveryErrorAt      sql.NullString `json:"delivery_error_at"`
+	NetworkParticipation sql.NullString `json:"network_participation"`
+	MetadataJson         string         `json:"metadata_json"`
 }
 
 type AutomationSchedulerState struct {
@@ -185,28 +187,29 @@ type AutomationSchedulerState struct {
 }
 
 type AutomationTrigger struct {
-	ID               string         `json:"id"`
-	Scope            string         `json:"scope"`
-	Name             string         `json:"name"`
-	AgentName        string         `json:"agent_name"`
-	WorkspaceID      sql.NullString `json:"workspace_id"`
-	Prompt           string         `json:"prompt"`
-	Event            string         `json:"event"`
-	Filter           sql.NullString `json:"filter"`
-	Enabled          bool           `json:"enabled"`
-	Retry            string         `json:"retry"`
-	FireLimit        string         `json:"fire_limit"`
-	Source           string         `json:"source"`
-	WebhookID        sql.NullString `json:"webhook_id"`
-	EndpointSlug     sql.NullString `json:"endpoint_slug"`
-	WebhookSecretRef sql.NullString `json:"webhook_secret_ref"`
-	TargetKind       string         `json:"target_kind"`
-	LoopWorkspaceID  sql.NullString `json:"loop_workspace_id"`
-	LoopName         sql.NullString `json:"loop_name"`
-	LoopInputs       sql.NullString `json:"loop_inputs"`
-	LoopInputMapping sql.NullString `json:"loop_input_mapping"`
-	CreatedAt        string         `json:"created_at"`
-	UpdatedAt        string         `json:"updated_at"`
+	ID                       string         `json:"id"`
+	Scope                    string         `json:"scope"`
+	Name                     string         `json:"name"`
+	AgentName                string         `json:"agent_name"`
+	WorkspaceID              sql.NullString `json:"workspace_id"`
+	Prompt                   string         `json:"prompt"`
+	Event                    string         `json:"event"`
+	Filter                   sql.NullString `json:"filter"`
+	Enabled                  bool           `json:"enabled"`
+	Retry                    string         `json:"retry"`
+	FireLimit                string         `json:"fire_limit"`
+	Source                   string         `json:"source"`
+	WebhookID                sql.NullString `json:"webhook_id"`
+	EndpointSlug             sql.NullString `json:"endpoint_slug"`
+	WebhookSecretRef         sql.NullString `json:"webhook_secret_ref"`
+	TargetKind               string         `json:"target_kind"`
+	LoopWorkspaceID          sql.NullString `json:"loop_workspace_id"`
+	LoopName                 sql.NullString `json:"loop_name"`
+	LoopInputs               sql.NullString `json:"loop_inputs"`
+	LoopInputMapping         sql.NullString `json:"loop_input_mapping"`
+	LoopNetworkParticipation sql.NullString `json:"loop_network_participation"`
+	CreatedAt                string         `json:"created_at"`
+	UpdatedAt                string         `json:"updated_at"`
 }
 
 type AutomationTriggerCatalogEntry struct {

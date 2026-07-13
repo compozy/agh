@@ -128,18 +128,18 @@ func TestAgentMeReturnsValidatedCallerIdentity(t *testing.T) {
 				}
 				now := time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC)
 				return &session.Info{
-					ID:          "sess-1",
-					Name:        "worker",
-					AgentName:   "coder",
-					Provider:    "test-provider",
-					Model:       "test-model",
-					WorkspaceID: "ws-1",
-					Workspace:   "/workspace",
-					Channel:     "coord",
-					Type:        session.SessionTypeUser,
-					State:       session.StateActive,
-					CreatedAt:   now,
-					UpdatedAt:   now,
+					ID:                   "sess-1",
+					Name:                 "worker",
+					AgentName:            "coder",
+					Provider:             "test-provider",
+					Model:                "test-model",
+					WorkspaceID:          "ws-1",
+					Workspace:            "/workspace",
+					NetworkParticipation: udsTestLiveParticipation("ws-1", "coord"),
+					Type:                 session.SessionTypeUser,
+					State:                session.StateActive,
+					CreatedAt:            now,
+					UpdatedAt:            now,
 				}, nil
 			},
 		}

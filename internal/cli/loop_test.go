@@ -561,7 +561,9 @@ func testLoopDefinition(name string, version int) dsl.Definition {
 				InputRef: "target",
 			}},
 		},
-		Start: []dsl.StartBinding{{Kind: dsl.StartCLI}},
+		DefinitionExtensionState: &dsl.DefinitionExtensionState{
+			Start: []dsl.StartBinding{{Kind: dsl.StartCLI}},
+		},
 	}
 }
 

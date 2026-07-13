@@ -398,7 +398,6 @@ func newServiceForExtensions(
 	}
 	store.bundles = bundles
 	options := []Option{
-		WithConfiguredDefaultChannel("default"),
 		WithNow(func() time.Time {
 			return time.Date(2026, 4, 14, 22, 0, 0, 0, time.UTC)
 		}),
@@ -462,11 +461,10 @@ func TestServiceActivateMaterializesManagedResources(t *testing.T) {
 	service := newMarketingService(store)
 
 	preview, err := service.Activate(testutil.Context(t), ActivateRequest{
-		ExtensionName:               "marketing-team",
-		BundleName:                  "marketing",
-		ProfileName:                 "default",
-		Scope:                       ScopeGlobal,
-		BindPrimaryChannelAsDefault: true,
+		ExtensionName: "marketing-team",
+		BundleName:    "marketing",
+		ProfileName:   "default",
+		Scope:         ScopeGlobal,
 	})
 	if err != nil {
 		t.Fatalf("Activate() error = %v", err)
@@ -510,9 +508,6 @@ func TestServiceActivateMaterializesManagedResources(t *testing.T) {
 	settings, err := service.NetworkSettings(testutil.Context(t))
 	if err != nil {
 		t.Fatalf("NetworkSettings() error = %v", err)
-	}
-	if got, want := settings.EffectiveDefaultChannel, "marketing"; got != want {
-		t.Fatalf("EffectiveDefaultChannel = %q, want %q", got, want)
 	}
 	if got, want := len(settings.DeclaredChannels), 1; got != want {
 		t.Fatalf("len(DeclaredChannels) = %d, want %d", got, want)
@@ -612,8 +607,7 @@ func TestServiceActivationSpecDriftUsesContentHashAndClearsOnReapply(t *testing.
 		}
 
 		reapplied, err := service.UpdateActivation(testutil.Context(t), UpdateActivationRequest{
-			ID:                          activated.Activation.ID,
-			BindPrimaryChannelAsDefault: activated.Activation.BindPrimaryChannelAsDefault,
+			ID: activated.Activation.ID,
 		})
 		if err != nil {
 			t.Fatalf("UpdateActivation() error = %v", err)
@@ -944,75 +938,6 @@ func TestFindBundleResourceRecordIndexedPreservesFirstNormalizedRecord(t *testin
 	})
 }
 
-func TestServiceRejectsMultipleDefaultChannelClaims(t *testing.T) {
-	t.Parallel()
-
-	store := newMemoryStore()
-	ext := &extensionpkg.Extension{
-		Info: extensionpkg.ExtensionInfo{Name: "ops-team"},
-		Bundles: []extensionpkg.BundleSpec{{
-			Name: "ops",
-			Profiles: []extensionpkg.BundleProfile{
-				{
-					Name: "alpha",
-					Channels: extensionpkg.BundleChannelsConfig{
-						Primary: "ops-alpha",
-						Items:   []extensionpkg.BundleChannel{{Name: "ops-alpha"}},
-					},
-				},
-				{
-					Name: "beta",
-					Channels: extensionpkg.BundleChannelsConfig{
-						Primary: "ops-beta",
-						Items:   []extensionpkg.BundleChannel{{Name: "ops-beta"}},
-					},
-				},
-			},
-		}},
-	}
-	store.bundles = []resources.Record[BundleResourceSpec]{{
-		Kind:  BundleResourceKind,
-		ID:    BundleResourceID(ext.Info.Name, ext.Bundles[0].Name),
-		Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-		Spec: BundleResourceSpec{
-			ExtensionName: ext.Info.Name,
-			Bundle:        ext.Bundles[0],
-		},
-	}}
-
-	service := NewService(
-		store,
-		staticExtensionLister{items: []extensionpkg.ExtensionInfo{{Name: "ops-team"}}},
-		func(_ context.Context, name string) (*extensionpkg.Extension, error) {
-			if name != "ops-team" {
-				return nil, extensionpkg.ErrExtensionNotFound
-			}
-			return ext, nil
-		},
-		WithConfiguredDefaultChannel("default"),
-	)
-
-	if _, err := service.Activate(testutil.Context(t), ActivateRequest{
-		ExtensionName:               "ops-team",
-		BundleName:                  "ops",
-		ProfileName:                 "alpha",
-		Scope:                       ScopeGlobal,
-		BindPrimaryChannelAsDefault: true,
-	}); err != nil {
-		t.Fatalf("Activate(alpha) error = %v", err)
-	}
-
-	if _, err := service.Activate(testutil.Context(t), ActivateRequest{
-		ExtensionName:               "ops-team",
-		BundleName:                  "ops",
-		ProfileName:                 "beta",
-		Scope:                       ScopeGlobal,
-		BindPrimaryChannelAsDefault: true,
-	}); !errors.Is(err, ErrDefaultChannelBusy) {
-		t.Fatalf("Activate(beta) error = %v, want ErrDefaultChannelBusy", err)
-	}
-}
-
 func TestServiceDeactivateCleansUpManagedResources(t *testing.T) {
 	t.Parallel()
 
@@ -1020,11 +945,10 @@ func TestServiceDeactivateCleansUpManagedResources(t *testing.T) {
 	service := newMarketingService(store)
 
 	preview, err := service.Activate(testutil.Context(t), ActivateRequest{
-		ExtensionName:               "marketing-team",
-		BundleName:                  "marketing",
-		ProfileName:                 "default",
-		Scope:                       ScopeGlobal,
-		BindPrimaryChannelAsDefault: true,
+		ExtensionName: "marketing-team",
+		BundleName:    "marketing",
+		ProfileName:   "default",
+		Scope:         ScopeGlobal,
 	})
 	if err != nil {
 		t.Fatalf("Activate() error = %v", err)
@@ -1067,84 +991,6 @@ func TestServiceDeactivateCleansUpManagedResources(t *testing.T) {
 	}
 }
 
-func TestServiceUpdateActivationRestoresRecordOnReconcileFailure(t *testing.T) {
-	t.Parallel()
-
-	store := newMemoryStore()
-	service := newMarketingService(store)
-
-	preview, err := service.Activate(testutil.Context(t), ActivateRequest{
-		ExtensionName:               "marketing-team",
-		BundleName:                  "marketing",
-		ProfileName:                 "default",
-		Scope:                       ScopeGlobal,
-		BindPrimaryChannelAsDefault: false,
-	})
-	if err != nil {
-		t.Fatalf("Activate() error = %v", err)
-	}
-
-	syncErr := errors.New("sync failed")
-	store.applyErr = syncErr
-	_, err = service.UpdateActivation(testutil.Context(t), UpdateActivationRequest{
-		ID:                          preview.Activation.ID,
-		BindPrimaryChannelAsDefault: true,
-	})
-	if !errors.Is(err, syncErr) {
-		t.Fatalf("UpdateActivation() error = %v, want sync failure", err)
-	}
-
-	stored, getErr := store.GetBundleActivation(testutil.Context(t), preview.Activation.ID)
-	if getErr != nil {
-		t.Fatalf("GetBundleActivation() error = %v", getErr)
-	}
-	if stored.BindPrimaryChannelAsDefault {
-		t.Fatal("stored.BindPrimaryChannelAsDefault = true, want rollback to false")
-	}
-}
-
-func TestServiceUpdateActivationCompensatesAppliedResourcesOnReconcileFailure(t *testing.T) {
-	t.Parallel()
-
-	store := newMemoryStore()
-	service := newMarketingService(store)
-	preview, err := service.Activate(testutil.Context(t), ActivateRequest{
-		ExtensionName:               "marketing-team",
-		BundleName:                  "marketing",
-		ProfileName:                 "default",
-		Scope:                       ScopeGlobal,
-		BindPrimaryChannelAsDefault: false,
-	})
-	if err != nil {
-		t.Fatalf("Activate() error = %v", err)
-	}
-	beforeApplyCount := len(store.applied)
-
-	syncErr := errors.New("sync failed after apply")
-	store.applyAfterErr = syncErr
-	_, err = service.UpdateActivation(testutil.Context(t), UpdateActivationRequest{
-		ID:                          preview.Activation.ID,
-		BindPrimaryChannelAsDefault: true,
-	})
-	if !errors.Is(err, syncErr) {
-		t.Fatalf("UpdateActivation() error = %v, want sync failure", err)
-	}
-	if got, want := len(store.applied), beforeApplyCount+2; got != want {
-		t.Fatalf("len(store.applied) = %d, want failed apply plus compensating apply = %d", got, want)
-	}
-	last := store.applied[len(store.applied)-1]
-	if _, ok := last.activeActivationIDs[preview.Activation.ID]; !ok {
-		t.Fatalf("last.activeActivationIDs = %#v, want restored activation", last.activeActivationIDs)
-	}
-	stored, err := store.GetBundleActivation(testutil.Context(t), preview.Activation.ID)
-	if err != nil {
-		t.Fatalf("GetBundleActivation() error = %v", err)
-	}
-	if stored.BindPrimaryChannelAsDefault {
-		t.Fatal("stored.BindPrimaryChannelAsDefault = true, want rollback to false")
-	}
-}
-
 func TestServiceDeactivateReturnsRollbackFailureWhenRestoreFails(t *testing.T) {
 	t.Parallel()
 
@@ -1152,11 +998,10 @@ func TestServiceDeactivateReturnsRollbackFailureWhenRestoreFails(t *testing.T) {
 	service := newMarketingService(store)
 
 	preview, err := service.Activate(testutil.Context(t), ActivateRequest{
-		ExtensionName:               "marketing-team",
-		BundleName:                  "marketing",
-		ProfileName:                 "default",
-		Scope:                       ScopeGlobal,
-		BindPrimaryChannelAsDefault: false,
+		ExtensionName: "marketing-team",
+		BundleName:    "marketing",
+		ProfileName:   "default",
+		Scope:         ScopeGlobal,
 	})
 	if err != nil {
 		t.Fatalf("Activate() error = %v", err)
@@ -1380,12 +1225,11 @@ func TestServiceActivateWorkspaceScopedResources(t *testing.T) {
 	service := newMarketingService(store, WithWorkspaceResolver(resolver))
 
 	preview, err := service.Activate(testutil.Context(t), ActivateRequest{
-		ExtensionName:               "marketing-team",
-		BundleName:                  "marketing",
-		ProfileName:                 "default",
-		Scope:                       ScopeWorkspace,
-		Workspace:                   "marketing-workspace",
-		BindPrimaryChannelAsDefault: false,
+		ExtensionName: "marketing-team",
+		BundleName:    "marketing",
+		ProfileName:   "default",
+		Scope:         ScopeWorkspace,
+		Workspace:     "marketing-workspace",
 	})
 	if err != nil {
 		t.Fatalf("Activate() error = %v", err)

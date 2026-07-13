@@ -94,6 +94,26 @@ describe("automation draft helpers", () => {
     });
   });
 
+  it("strips a legacy task.network_channel key when mapping a job into a draft", () => {
+    const legacyTask = {
+      title: "Audit payout drift",
+      description: "Review payout anomalies.",
+      network_channel: "ops-review",
+      owner: { kind: "pool" as const, ref: "reviewers" },
+    };
+    const draft = automationJobToDraft({
+      ...jobFixture,
+      task: legacyTask as typeof legacyTask & { network_channel?: string },
+    });
+
+    expect(draft.task).toEqual({
+      title: "Audit payout drift",
+      description: "Review payout anomalies.",
+      owner: { kind: "pool", ref: "reviewers" },
+    });
+    expect(draft.task).not.toHaveProperty("network_channel");
+  });
+
   it("creates trigger drafts with the expected defaults", () => {
     expect(createAutomationTriggerDraft()).toMatchObject({
       event: "session.stopped",

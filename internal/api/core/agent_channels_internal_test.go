@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -510,13 +511,13 @@ func TestAgentTaskClaimCriteriaIncludesSoulProvenance(t *testing.T) {
 		handlers := &BaseHandlers{}
 		caller := agentidentity.Caller{
 			Session: agentidentity.SessionSnapshot{
-				ID:             "sess-agent",
-				AgentName:      "coder",
-				WorkspaceID:    "ws-1",
-				Channel:        "builders",
-				State:          session.StateActive,
-				SoulSnapshotID: "soul-snapshot-1",
-				SoulDigest:     "sha256:resolved",
+				ID:                   "sess-agent",
+				AgentName:            "coder",
+				WorkspaceID:          "ws-1",
+				NetworkParticipation: participation.CloneSpec(coreTestLiveParticipation("ws-1", "builders")),
+				State:                session.StateActive,
+				SoulSnapshotID:       "soul-snapshot-1",
+				SoulDigest:           "sha256:resolved",
 			},
 			Actor: taskpkg.ActorContext{
 				Actor: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-agent"},
@@ -702,6 +703,10 @@ func (s agentCoreNetworkStore) WriteNetworkChannel(context.Context, store.Networ
 	return nil
 }
 
+func (s agentCoreNetworkStore) CreateNetworkChannel(context.Context, store.NetworkChannelEntry) error {
+	return nil
+}
+
 func (s agentCoreNetworkStore) PatchNetworkChannel(
 	context.Context,
 	store.NetworkChannelRef,
@@ -854,14 +859,14 @@ func agentCoreSessionManager(t *testing.T) sessionManagerStub {
 			}
 			now := time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC)
 			return &session.Info{
-				ID:          "sess-agent",
-				Name:        "worker",
-				AgentName:   "coder",
-				Provider:    "test-provider",
-				WorkspaceID: "ws-1",
-				Workspace:   "/workspace/project",
-				Channel:     "builders",
-				Type:        session.SessionTypeUser,
+				ID:                   "sess-agent",
+				Name:                 "worker",
+				AgentName:            "coder",
+				Provider:             "test-provider",
+				WorkspaceID:          "ws-1",
+				Workspace:            "/workspace/project",
+				NetworkParticipation: coreTestLiveParticipation("ws-1", "builders"),
+				Type:                 session.SessionTypeUser,
 				Lineage: &store.SessionLineage{
 					ParentSessionID: "sess-root",
 					RootSessionID:   "sess-root",
@@ -892,7 +897,7 @@ func agentCoreContextPayload(_ context.Context, info *session.Info) (contract.Ag
 		Session: contract.AgentSessionPayload{
 			ID:        info.ID,
 			State:     info.State,
-			Channel:   info.Channel,
+			Channel:   info.NetworkParticipation.ChannelID,
 			Lineage:   contract.SessionLineagePayloadFromStore(info.Lineage),
 			CreatedAt: info.CreatedAt,
 			UpdatedAt: info.UpdatedAt,

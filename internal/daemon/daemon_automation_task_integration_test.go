@@ -13,6 +13,7 @@ import (
 
 	aghcontract "github.com/compozy/agh/internal/api/contract"
 	automationpkg "github.com/compozy/agh/internal/automation"
+	"github.com/compozy/agh/internal/network/participation"
 	sessionpkg "github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -33,7 +34,6 @@ func TestDaemonE2EAutomationPromptTriggerCreatesCompletedSystemSession(t *testin
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-
 	seeded, err := harness.SeedAutomationFixtures(ctx, e2etest.AutomationFixtureSeed{
 		Triggers: []aghcontract.CreateTriggerRequest{{
 			Scope:              automationpkg.AutomationScopeGlobal,
@@ -167,6 +167,18 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	live := participation.ModeLive
+	named := participation.StrategyNamed
+	channelID := "ops-automation"
+	if _, err := harness.CreateNetworkChannel(ctx, aghcontract.CreateNetworkChannelRequest{
+		Channel:      channelID,
+		WorkspaceID:  harness.WorkspaceID,
+		Purpose:      "Automation task coordination",
+		FanoutPolicy: store.NetworkFanoutPolicyAllMembers,
+		AgentNames:   []string{automationTaskFixtureAgentName},
+	}); err != nil {
+		t.Fatalf("CreateNetworkChannel(%q) error = %v", channelID, err)
+	}
 
 	seeded, err := harness.SeedAutomationFixtures(ctx, e2etest.AutomationFixtureSeed{
 		Jobs: []aghcontract.CreateJobRequest{{
@@ -179,9 +191,13 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 				Interval: "1h",
 			},
 			Task: &automationpkg.JobTaskConfig{
-				Title:          "Investigate deploy drift",
-				Description:    "Review the latest deployment discrepancy.",
-				NetworkChannel: "ops-automation",
+				Title:       "Investigate deploy drift",
+				Description: "Review the latest deployment discrepancy.",
+				NetworkParticipation: &participation.Request{
+					Mode:            &live,
+					ChannelStrategy: &named,
+					ChannelID:       &channelID,
+				},
 				Owner: &taskpkg.Ownership{
 					Kind: taskpkg.OwnerKindAutomation,
 					Ref:  "job:triage-deploy",
@@ -221,8 +237,8 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 	if got, want := taskDetail.Task.Status, taskpkg.TaskStatusReady; got != want {
 		t.Fatalf("taskDetail.Task.Status = %q, want %q before task runtime start", got, want)
 	}
-	if got, want := taskDetail.Task.NetworkChannel, "ops-automation"; got != want {
-		t.Fatalf("taskDetail.Task.NetworkChannel = %q, want %q", got, want)
+	if got := taskDetail.Task.NetworkChannel; got != "" {
+		t.Fatalf("taskDetail.Task.NetworkChannel = %q, want empty task ingress policy", got)
 	}
 	if taskDetail.Task.Owner == nil || taskDetail.Task.Owner.Kind != taskpkg.OwnerKindAutomation {
 		t.Fatalf("taskDetail.Task.Owner = %#v, want automation ownership", taskDetail.Task.Owner)
@@ -259,6 +275,9 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 	}
 	if got, want := delegatedTaskRun.IdempotencyKey, "automation-run:"+run.ID; got != want {
 		t.Fatalf("delegatedTaskRun.IdempotencyKey = %q, want %q", got, want)
+	}
+	if got, want := delegatedTaskRun.NetworkChannel, channelID; got != want {
+		t.Fatalf("delegatedTaskRun.NetworkChannel = %q, want resolved %q", got, want)
 	}
 	if got := delegatedTaskRun.SessionID; got != "" {
 		t.Fatalf("delegatedTaskRun.SessionID = %q, want empty before start", got)

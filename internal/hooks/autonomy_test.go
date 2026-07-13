@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 func TestAutonomyPayloadsCarryCoordinationChannelID(t *testing.T) {
@@ -70,10 +72,12 @@ func TestAutonomyPayloadsCarryCoordinationChannelID(t *testing.T) {
 	if _, err := hooks.DispatchTaskRunEnqueued(t.Context(), TaskRunEnqueuedPayload{
 		PayloadBase: PayloadBase{Event: HookTaskRunEnqueued, Timestamp: time.Now().UTC()},
 		TaskRunContext: TaskRunContext{
-			TaskID:                "task-1",
-			RunID:                 "run-1",
-			WorkspaceID:           "ws-1",
-			CoordinationChannelID: channelID,
+			TaskID:      "task-1",
+			RunID:       "run-1",
+			WorkspaceID: "ws-1",
+			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
+				ChannelID: channelID,
+			}),
 		},
 	}); err != nil {
 		t.Fatalf("DispatchTaskRunEnqueued() error = %v", err)
@@ -472,10 +476,12 @@ func TestAutonomyObservationDispatchMethodsNoop(t *testing.T) {
 	taskRunLease := TaskRunLeasePayload{
 		PayloadBase: PayloadBase{Timestamp: now},
 		TaskRunContext: TaskRunContext{
-			TaskID:                "task-1",
-			RunID:                 "run-1",
-			WorkspaceID:           "ws-1",
-			CoordinationChannelID: "coord-ch-1",
+			TaskID:      "task-1",
+			RunID:       "run-1",
+			WorkspaceID: "ws-1",
+			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
+				ChannelID: "coord-ch-1",
+			}),
 		},
 	}
 	spawn := SpawnLifecyclePayload{
@@ -565,11 +571,13 @@ func TestAutonomyObservationDispatchMethodsNoop(t *testing.T) {
 func baseTaskRunPreClaimPayload() TaskRunPreClaimPayload {
 	return TaskRunPreClaimPayload{
 		PayloadBase: PayloadBase{Event: HookTaskRunPreClaim, Timestamp: time.Now().UTC()},
-		TaskRunContext: TaskRunContext{
-			TaskID:                "task-1",
-			RunID:                 "run-1",
-			WorkspaceID:           "ws-1",
-			CoordinationChannelID: "coord-ch-1",
+		TaskRunContext: &TaskRunContext{
+			TaskID:      "task-1",
+			RunID:       "run-1",
+			WorkspaceID: "ws-1",
+			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
+				ChannelID: "coord-ch-1",
+			}),
 		},
 		Criteria: TaskRunClaimCriteria{
 			WorkspaceID:           "ws-1",
@@ -672,8 +680,12 @@ func assertTaskRunChannelPayload(t *testing.T, payloads <-chan TaskRunEnqueuedPa
 
 	select {
 	case payload := <-payloads:
-		if payload.CoordinationChannelID != wantChannelID {
-			t.Fatalf("TaskRun CoordinationChannelID = %q, want %q", payload.CoordinationChannelID, wantChannelID)
+		if payload.ResolvedNetworkParticipation.ChannelID != wantChannelID {
+			t.Fatalf(
+				"TaskRun ResolvedNetworkParticipation.ChannelID = %q, want %q",
+				payload.ResolvedNetworkParticipation.ChannelID,
+				wantChannelID,
+			)
 		}
 	default:
 		t.Fatal("task-run hook did not receive payload")

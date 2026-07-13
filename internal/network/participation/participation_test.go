@@ -115,6 +115,29 @@ func TestValidateShouldEnforceParticipationContract(t *testing.T) {
 	}
 }
 
+func TestCloneRequestShouldDeepCopyIntent(t *testing.T) {
+	t.Parallel()
+
+	request := participation.Request{
+		Mode:            new(participation.ModeLive),
+		ChannelStrategy: new(participation.StrategyNamed),
+		ChannelID:       new("builders"),
+		Bounds:          completeBoundsRequest(),
+	}
+	cloned := participation.CloneRequest(&request)
+	if cloned == nil || cloned.Bounds == nil {
+		t.Fatalf("CloneRequest() = %#v, want complete copy", cloned)
+	}
+	*cloned.ChannelID = "changed"
+	*cloned.Bounds.MaxWakes = 99
+	if got := *request.ChannelID; got != "builders" {
+		t.Fatalf("source ChannelID = %q after clone mutation, want builders", got)
+	}
+	if got := *request.Bounds.MaxWakes; got == 99 {
+		t.Fatalf("source MaxWakes = %d after clone mutation, want independent value", got)
+	}
+}
+
 func TestValidateShouldRejectInvalidDurations(t *testing.T) {
 	t.Parallel()
 
@@ -235,6 +258,258 @@ func TestResolverShouldDeriveUniqueChannelIDs(t *testing.T) {
 	if repeated := resolve("Run-Release"); repeated.ChannelID != caseVariant.ChannelID {
 		t.Fatalf("same run ID derived %q then %q", caseVariant.ChannelID, repeated.ChannelID)
 	}
+}
+
+func TestResolverShouldEnforceOwnerPrecedenceAndCapabilityGates(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve explicit Local provenance", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := newTestResolver(t, participation.ResolverOptions{})
+		spec, err := resolver.Resolve(context.Background(), participation.ResolveInput{
+			Request: &participation.Request{Mode: new(participation.ModeLocal)},
+		})
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		if spec.Mode != participation.ModeLocal || spec.Source != participation.SourceExplicitRequest {
+			t.Fatalf("Resolve() = %#v, want explicit Local", spec)
+		}
+	})
+
+	t.Run("Should preserve automation job provenance for definition-owned requests", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := newTestResolver(t, participation.ResolverOptions{})
+		spec, err := resolver.Resolve(context.Background(), participation.ResolveInput{
+			Request:       &participation.Request{Mode: new(participation.ModeLocal)},
+			RequestSource: participation.SourceAutomationJob,
+		})
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		if spec.Mode != participation.ModeLocal || spec.Source != participation.SourceAutomationJob {
+			t.Fatalf("Resolve() = %#v, want automation-job Local", spec)
+		}
+	})
+
+	t.Run("Should reject non-owner request provenance", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := newTestResolver(t, participation.ResolverOptions{})
+		_, err := resolver.Resolve(context.Background(), participation.ResolveInput{
+			Request:       &participation.Request{Mode: new(participation.ModeLocal)},
+			RequestSource: participation.SourceTaskProfile,
+		})
+		if err == nil || !strings.Contains(err.Error(), "request source") {
+			t.Fatalf("Resolve() error = %v, want rejected request source", err)
+		}
+	})
+
+	t.Run("Should not consult workspace coordination for non-coordinated task runs", func(t *testing.T) {
+		t.Parallel()
+
+		coordinationReads := 0
+		resolver := newTestResolver(t, participation.ResolverOptions{
+			WorkspaceCoordination: func(context.Context, string) (bool, error) {
+				coordinationReads++
+				return true, nil
+			},
+		})
+		spec, err := resolver.Resolve(context.Background(), participation.ResolveInput{
+			WorkspaceID: "ws-1",
+			Owner:       participation.OwnerRef{Kind: participation.OwnerKindTaskRun, ID: "run-1"},
+			RunID:       "run-1",
+		})
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		if spec.Mode != participation.ModeLocal || spec.Source != participation.SourceBuiltInLocal {
+			t.Fatalf("Resolve() = %#v, want built-in Local", spec)
+		}
+		if coordinationReads != 0 {
+			t.Fatalf("workspace coordination reads = %d, want 0", coordinationReads)
+		}
+	})
+
+	t.Run("Should reject unavailable Live before channel or authority lookups", func(t *testing.T) {
+		t.Parallel()
+
+		channelReads := 0
+		authorityReads := 0
+		resolver := newTestResolver(t, participation.ResolverOptions{
+			Availability: func(context.Context) (bool, error) { return false, nil },
+			ChannelExists: func(context.Context, string, string) (bool, error) {
+				channelReads++
+				return true, nil
+			},
+			Authority: func(context.Context, participation.ResolveInput, participation.Spec) (bool, error) {
+				authorityReads++
+				return true, nil
+			},
+		})
+		_, err := resolver.Resolve(context.Background(), participation.ResolveInput{
+			WorkspaceID: "ws-1",
+			Request: &participation.Request{
+				Mode:            new(participation.ModeLive),
+				ChannelStrategy: new(participation.StrategyNamed),
+				ChannelID:       new("builders"),
+			},
+		})
+		if !errors.Is(err, participation.ErrUnavailable) {
+			t.Fatalf("Resolve() error = %v, want ErrUnavailable", err)
+		}
+		if channelReads != 0 || authorityReads != 0 {
+			t.Fatalf("post-availability reads = channel:%d authority:%d, want zero", channelReads, authorityReads)
+		}
+	})
+
+	t.Run("Should derive one loop-run conversation from loop definition intent", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := newTestResolver(t, participation.ResolverOptions{})
+		spec, err := resolver.Resolve(context.Background(), participation.ResolveInput{
+			WorkspaceID: "ws-1",
+			Owner:       participation.OwnerRef{Kind: participation.OwnerKindLoopRun, ID: "loop-run-1"},
+			LoopRunID:   "loop-run-1",
+			Definition: &participation.Request{
+				Mode:            new(participation.ModeLive),
+				ChannelStrategy: new(participation.StrategyLoopRun),
+			},
+		})
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		if spec.Mode != participation.ModeLive || spec.Source != participation.SourceLoopDefinition ||
+			spec.ChannelID == "" {
+			t.Fatalf("Resolve() = %#v, want Live loop-definition conversation", spec)
+		}
+	})
+
+	t.Run("Should reject an unknown named channel without creating it", func(t *testing.T) {
+		t.Parallel()
+
+		lookups := 0
+		resolver := newTestResolver(t, participation.ResolverOptions{
+			ChannelExists: func(context.Context, string, string) (bool, error) {
+				lookups++
+				return false, nil
+			},
+		})
+		_, err := resolver.Resolve(context.Background(), participation.ResolveInput{
+			WorkspaceID: "ws-1",
+			Request: &participation.Request{
+				Mode:            new(participation.ModeLive),
+				ChannelStrategy: new(participation.StrategyNamed),
+				ChannelID:       new("missing"),
+			},
+		})
+		if !errors.Is(err, participation.ErrChannelUnknown) {
+			t.Fatalf("Resolve() error = %v, want ErrChannelUnknown", err)
+		}
+		if lookups != 1 {
+			t.Fatalf("channel lookups = %d, want 1", lookups)
+		}
+	})
+
+	t.Run("Should apply request over profile and profile over workspace", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := newTestResolver(t, participation.ResolverOptions{
+			WorkspaceCoordination: func(context.Context, string) (bool, error) { return true, nil },
+		})
+		profileLive := &participation.Request{
+			Mode:            new(participation.ModeLive),
+			ChannelStrategy: new(participation.StrategyRun),
+		}
+		explicitLocal, err := resolver.Resolve(context.Background(), participation.ResolveInput{
+			WorkspaceID: "ws-1",
+			Owner:       participation.OwnerRef{Kind: participation.OwnerKindTaskRun, ID: "run-1"},
+			RunID:       "run-1",
+			Coordinated: true,
+			Request:     &participation.Request{Mode: new(participation.ModeLocal)},
+			Definition:  profileLive,
+		})
+		if err != nil {
+			t.Fatalf("Resolve(explicit Local) error = %v", err)
+		}
+		if explicitLocal.Source != participation.SourceExplicitRequest ||
+			explicitLocal.Mode != participation.ModeLocal {
+			t.Fatalf("Resolve(explicit Local) = %#v", explicitLocal)
+		}
+		profileLocal, err := resolver.Resolve(context.Background(), participation.ResolveInput{
+			WorkspaceID: "ws-1",
+			Owner:       participation.OwnerRef{Kind: participation.OwnerKindTaskRun, ID: "run-2"},
+			RunID:       "run-2",
+			Coordinated: true,
+			Definition:  &participation.Request{Mode: new(participation.ModeLocal)},
+		})
+		if err != nil {
+			t.Fatalf("Resolve(profile Local) error = %v", err)
+		}
+		if profileLocal.Source != participation.SourceTaskProfile || profileLocal.Mode != participation.ModeLocal {
+			t.Fatalf("Resolve(profile Local) = %#v", profileLocal)
+		}
+	})
+
+	t.Run("Should reject Live outside delegated authority", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := newTestResolver(t, participation.ResolverOptions{
+			ChannelExists: func(context.Context, string, string) (bool, error) { return true, nil },
+			Authority: func(context.Context, participation.ResolveInput, participation.Spec) (bool, error) {
+				return false, nil
+			},
+		})
+		_, err := resolver.Resolve(context.Background(), participation.ResolveInput{
+			WorkspaceID: "ws-1",
+			Owner:       participation.OwnerRef{Kind: participation.OwnerKindSession, ID: "child-1"},
+			Request: &participation.Request{
+				Mode:            new(participation.ModeLive),
+				ChannelStrategy: new(participation.StrategyNamed),
+				ChannelID:       new("private"),
+			},
+		})
+		if !errors.Is(err, participation.ErrAuthorityDenied) {
+			t.Fatalf("Resolve() error = %v, want ErrAuthorityDenied", err)
+		}
+	})
+
+	t.Run("Should keep independent children Local without parent input", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := newTestResolver(t, participation.ResolverOptions{})
+		for _, childID := range []string{"spawn-1", "review-1", "detached-1"} {
+			spec, err := resolver.Resolve(context.Background(), participation.ResolveInput{
+				Owner: participation.OwnerRef{Kind: participation.OwnerKindSession, ID: childID},
+			})
+			if err != nil {
+				t.Fatalf("Resolve(%s) error = %v", childID, err)
+			}
+			if spec.Mode != participation.ModeLocal || spec.Source != participation.SourceBuiltInLocal {
+				t.Fatalf("Resolve(%s) = %#v, want independent Local", childID, spec)
+			}
+		}
+	})
+
+	t.Run("Should reject owners that cannot honor bounded Live", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := newTestResolver(t, participation.ResolverOptions{
+			LiveSupport: func(context.Context, participation.ResolveInput) (bool, error) { return false, nil },
+		})
+		_, err := resolver.Resolve(context.Background(), participation.ResolveInput{
+			RunID: "run-unsupported",
+			Request: &participation.Request{
+				Mode:            new(participation.ModeLive),
+				ChannelStrategy: new(participation.StrategyRun),
+			},
+		})
+		if !errors.Is(err, participation.ErrLiveUnsupported) || !strings.Contains(err.Error(), "local") {
+			t.Fatalf("Resolve() error = %v, want ErrLiveUnsupported naming Local", err)
+		}
+	})
 }
 
 func TestSpecShouldRoundTripLosslessly(t *testing.T) {

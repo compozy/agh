@@ -8,6 +8,7 @@ import (
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/modelcatalog"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/sandbox"
 	"github.com/compozy/agh/internal/session/inputqueue"
 	"github.com/compozy/agh/internal/store"
@@ -17,19 +18,24 @@ import (
 
 // CreateOpts defines the inputs required to create a new session.
 type CreateOpts struct {
-	DesiredSessionID string
-	AgentName        string
-	Provider         string
-	Model            string
-	ReasoningEffort  string
-	CWD              string
-	SandboxRef       string
-	DisableSandbox   bool
-	Permissions      aghconfig.PermissionMode
-	Name             string
-	Workspace        string
-	WorkspacePath    string
-	Channel          string
+	DesiredSessionID     string
+	AgentName            string
+	Provider             string
+	Model                string
+	ReasoningEffort      string
+	CWD                  string
+	SandboxRef           string
+	DisableSandbox       bool
+	Permissions          aghconfig.PermissionMode
+	Name                 string
+	Workspace            string
+	WorkspacePath        string
+	NetworkParticipation *participation.Request
+	// ResolvedNetworkParticipation binds an internal worker session to the immutable owner snapshot.
+	// Callers must not set it together with NetworkParticipation.
+	ResolvedNetworkParticipation *participation.Spec
+	// NetworkAuthority carries the concrete delegated channel scope for child-owned resolution.
+	NetworkAuthority *participation.AuthorityScope
 	PromptOverlay    string
 	ContractOverlay  string
 	RuntimeMode      string
@@ -110,6 +116,7 @@ type Manager struct {
 	driver                       AgentDriver
 	notifier                     Notifier
 	networkPeers                 NetworkPeerLifecycle
+	participationResolver        participation.Resolver
 	turnEndNotifier              TurnEndNotifier
 	inputAugmenter               PromptInputAugmenter
 	inputQueue                   *inputqueue.Service

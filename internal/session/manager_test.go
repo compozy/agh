@@ -22,6 +22,7 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/modelcatalog"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/sandbox"
 	skillspkg "github.com/compozy/agh/internal/skills"
 	"github.com/compozy/agh/internal/store"
@@ -32,6 +33,80 @@ import (
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	skillbundled "github.com/compozy/agh/skills"
 )
+
+func testLiveParticipation(workspaceID, channelID string) participation.Spec {
+	return participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     strings.TrimSpace(workspaceID),
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       strings.TrimSpace(channelID),
+		Source:          participation.SourceExplicitRequest,
+		Bounds: participation.Bounds{
+			MaxWakes:         4,
+			MaxWakeWallTime:  "30s",
+			MaxTotalWallTime: "2m",
+			MaxInputTokens:   4096,
+			MaxOutputTokens:  4096,
+			MaxWakeDepth:     4,
+			CoalesceWindow:   "250ms",
+		},
+	}
+}
+
+func testLocalParticipation() participation.Spec {
+	return participation.LocalSpec()
+}
+
+func testLocalParticipationPtr() *participation.Spec {
+	return participation.CloneSpec(testLocalParticipation())
+}
+
+func testLiveParticipationPtr(workspaceID, channelID string) *participation.Spec {
+	spec := testLiveParticipation(workspaceID, channelID)
+	return &spec
+}
+
+type recordingSessionParticipationResolver struct {
+	inner participation.Resolver
+	calls int
+}
+
+func (r *recordingSessionParticipationResolver) Resolve(
+	ctx context.Context,
+	in participation.ResolveInput,
+) (participation.Spec, error) {
+	r.calls++
+	return r.inner.Resolve(ctx, in)
+}
+
+func newTestSessionParticipationResolver(t *testing.T, available bool) participation.Resolver {
+	t.Helper()
+	defaults := testLiveParticipation("ws-test", "builders").Bounds
+	resolver, err := participation.NewResolver(participation.ResolverOptions{
+		Defaults: defaults,
+		Limits: participation.Limits{
+			MaxWakes:          16,
+			MaxWakeWallTime:   "2m",
+			MaxTotalWallTime:  "10m",
+			MaxInputTokens:    65536,
+			MaxOutputTokens:   65536,
+			MaxWakeDepth:      16,
+			MinCoalesceWindow: "100ms",
+			MaxCoalesceWindow: "5s",
+		},
+		Availability: func(context.Context) (bool, error) {
+			return available, nil
+		},
+		ChannelExists: func(context.Context, string, string) (bool, error) {
+			return true, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("participation.NewResolver() error = %v", err)
+	}
+	return resolver
+}
 
 func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
 	t.Parallel()
@@ -74,14 +149,14 @@ func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
 	if got := session.Info().Type; got != SessionTypeUser {
 		t.Fatalf("Create() type = %q, want %q", got, SessionTypeUser)
 	}
-	if got := session.Info().Channel; got != "" {
-		t.Fatalf("Create() channel = %q, want empty", got)
+	if got, want := session.Info().NetworkParticipation, participation.LocalSpec(); got != want {
+		t.Fatalf("Create() participation = %#v, want %#v", got, want)
 	}
 	if meta := readMeta(t, session.MetaPath()); meta.SessionType != string(SessionTypeUser) {
 		t.Fatalf("meta session type = %q, want %q", meta.SessionType, SessionTypeUser)
 	}
-	if meta := readMeta(t, session.MetaPath()); meta.Channel != "" {
-		t.Fatalf("meta channel = %q, want empty", meta.Channel)
+	if meta := readMeta(t, session.MetaPath()); meta.NetworkSpecSnapshot() != participation.LocalSpec() {
+		t.Fatalf("meta participation = %#v, want Local", meta.NetworkSpecSnapshot())
 	}
 	if got := len(h.resolver.resolveCalls); got != 2 {
 		t.Fatalf("resolver Resolve() calls = %d, want 2", got)
@@ -558,25 +633,26 @@ func TestResumeLoadsMetaAndPassesStoredACPSessionID(t *testing.T) {
 	}
 }
 
-func TestCreateAndResumePreserveChannel(t *testing.T) {
+func TestCreateAndResumePreserveNetworkParticipation(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Name:      "networked",
-		Workspace: h.workspaceID,
-		Channel:   "builders",
+		AgentName:                    "coder",
+		Name:                         "networked",
+		Workspace:                    h.workspaceID,
+		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 
-	if got := session.Info().Channel; got != "builders" {
-		t.Fatalf("Create() channel = %q, want %q", got, "builders")
+	wantSpec := testLiveParticipation(h.workspaceID, "builders")
+	if got := session.Info().NetworkParticipation; got != wantSpec {
+		t.Fatalf("Create() participation = %#v, want %#v", got, wantSpec)
 	}
-	if meta := readMeta(t, session.MetaPath()); meta.Channel != "builders" {
-		t.Fatalf("meta channel = %q, want %q", meta.Channel, "builders")
+	if meta := readMeta(t, session.MetaPath()); meta.NetworkSpecSnapshot() != wantSpec {
+		t.Fatalf("meta participation = %#v, want %#v", meta.NetworkSpecSnapshot(), wantSpec)
 	}
 
 	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
@@ -587,8 +663,8 @@ func TestCreateAndResumePreserveChannel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Status(stopped) error = %v", err)
 	}
-	if got := stopped.Channel; got != "builders" {
-		t.Fatalf("Status(stopped).Channel = %q, want %q", got, "builders")
+	if got := stopped.NetworkParticipation; got != wantSpec {
+		t.Fatalf("Status(stopped).NetworkParticipation = %#v, want %#v", got, wantSpec)
 	}
 
 	resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
@@ -599,12 +675,104 @@ func TestCreateAndResumePreserveChannel(t *testing.T) {
 		_ = h.manager.Stop(testutil.Context(t), resumed.ID)
 	})
 
-	if got := resumed.Info().Channel; got != "builders" {
-		t.Fatalf("Resume() channel = %q, want %q", got, "builders")
+	if got := resumed.Info().NetworkParticipation; got != wantSpec {
+		t.Fatalf("Resume() participation = %#v, want %#v", got, wantSpec)
 	}
-	if meta := readMeta(t, resumed.MetaPath()); meta.Channel != "builders" {
-		t.Fatalf("resumed meta channel = %q, want %q", meta.Channel, "builders")
+	if meta := readMeta(t, resumed.MetaPath()); meta.NetworkSpecSnapshot() != wantSpec {
+		t.Fatalf("resumed meta participation = %#v, want %#v", meta.NetworkSpecSnapshot(), wantSpec)
 	}
+}
+
+func TestCreateParticipationResolvesBeforeWritesAndResumeReusesSnapshot(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should resolve a live request once and reuse the persisted snapshot on resume", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		resolver := &recordingSessionParticipationResolver{
+			inner: newTestSessionParticipationResolver(t, true),
+		}
+		h.manager = newManagerWithHarness(t, h, WithParticipationResolver(resolver))
+		live := participation.ModeLive
+		named := participation.StrategyNamed
+		channelID := "builders"
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+			NetworkParticipation: &participation.Request{
+				Mode:            &live,
+				ChannelStrategy: &named,
+				ChannelID:       &channelID,
+			},
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		if got, want := resolver.calls, 1; got != want {
+			t.Fatalf("resolver calls after create = %d, want %d", got, want)
+		}
+		createdSpec := session.Info().NetworkParticipation
+		if got, want := createdSpec.Source, participation.SourceExplicitRequest; got != want {
+			t.Fatalf("created source = %q, want %q", got, want)
+		}
+		if got, want := readMeta(t, session.MetaPath()).NetworkSpecSnapshot(), createdSpec; got != want {
+			t.Fatalf("persisted snapshot = %#v, want %#v", got, want)
+		}
+
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		t.Cleanup(func() {
+			_ = h.manager.Stop(testutil.Context(t), resumed.ID)
+		})
+		if got, want := resolver.calls, 1; got != want {
+			t.Fatalf("resolver calls after resume = %d, want %d", got, want)
+		}
+		if got, want := resumed.Info().NetworkParticipation, createdSpec; got != want {
+			t.Fatalf("resumed snapshot = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should reject unavailable live participation before session state exists", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		h.manager = newManagerWithHarness(
+			t,
+			h,
+			WithParticipationResolver(newTestSessionParticipationResolver(t, false)),
+		)
+		live := participation.ModeLive
+		named := participation.StrategyNamed
+		channelID := "builders"
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+			NetworkParticipation: &participation.Request{
+				Mode:            &live,
+				ChannelStrategy: &named,
+				ChannelID:       &channelID,
+			},
+		})
+		if !errors.Is(err, participation.ErrUnavailable) {
+			t.Fatalf("Create() error = %v, want %v", err, participation.ErrUnavailable)
+		}
+		if got := len(h.driver.startCalls); got != 0 {
+			t.Fatalf("driver starts = %d, want 0", got)
+		}
+		entries, readErr := os.ReadDir(h.homePaths.SessionsDir)
+		if readErr != nil {
+			t.Fatalf("ReadDir(sessions) error = %v", readErr)
+		}
+		if len(entries) != 0 {
+			t.Fatalf("session artifacts = %#v, want none", entries)
+		}
+	})
 }
 
 func TestCreateResumeAndStopInvokeLateBoundNetworkPeerLifecycle(t *testing.T) {
@@ -615,10 +783,10 @@ func TestCreateResumeAndStopInvokeLateBoundNetworkPeerLifecycle(t *testing.T) {
 	h.manager.SetNetworkPeerLifecycle(lifecycle)
 
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Name:      "networked",
-		Workspace: h.workspaceID,
-		Channel:   "builders",
+		AgentName:                    "coder",
+		Name:                         "networked",
+		Workspace:                    h.workspaceID,
+		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -713,18 +881,18 @@ func TestJoinNetworkPeerHandlesNoOpConditionsAndCapabilityProjection(t *testing.
 			{
 				name: "Should no-op when channel is blank",
 				session: &Session{
-					ID:        "sess-no-channel",
-					AgentName: "Coder",
-					Channel:   "   ",
+					ID:                   "sess-no-channel",
+					AgentName:            "Coder",
+					NetworkParticipation: participation.LocalSpec(),
 				},
 				installLifecycle: true,
 			},
 			{
 				name: "Should no-op when lifecycle is missing",
 				session: &Session{
-					ID:        "sess-no-lifecycle",
-					AgentName: "Coder",
-					Channel:   "builders",
+					ID:                   "sess-no-lifecycle",
+					AgentName:            "Coder",
+					NetworkParticipation: testLiveParticipation("ws-test", "builders"),
 				},
 				installLifecycle: false,
 			},
@@ -758,9 +926,9 @@ func TestJoinNetworkPeerHandlesNoOpConditionsAndCapabilityProjection(t *testing.
 		h.manager.SetNetworkPeerLifecycle(lifecycle)
 
 		session := &Session{
-			ID:        "sess-capabilities",
-			AgentName: "Coder",
-			Channel:   "builders",
+			ID:                   "sess-capabilities",
+			AgentName:            "Coder",
+			NetworkParticipation: testLiveParticipation("ws-test", "builders"),
 		}
 		capabilities := []NetworkPeerCapability{{
 			ID:      "review-pr",
@@ -1095,19 +1263,20 @@ func TestActivateAndWatchUpdatesStateAndStartsWatcher(t *testing.T) {
 	}
 
 	session := &Session{
-		ID:          "sess-helper",
-		Name:        "helper",
-		AgentName:   "coder",
-		WorkspaceID: h.workspaceID,
-		Workspace:   h.workspace,
-		Type:        SessionTypeUser,
-		State:       StateStarting,
-		CreatedAt:   time.Date(2026, 4, 6, 23, 0, 0, 0, time.UTC),
-		UpdatedAt:   time.Date(2026, 4, 6, 23, 0, 0, 0, time.UTC),
-		sessionDir:  sessionDir,
-		metaPath:    store.SessionMetaFile(sessionDir),
-		dbPath:      dbPath,
-		recorder:    recorder,
+		ID:                   "sess-helper",
+		Name:                 "helper",
+		AgentName:            "coder",
+		WorkspaceID:          h.workspaceID,
+		Workspace:            h.workspace,
+		NetworkParticipation: testLocalParticipation(),
+		Type:                 SessionTypeUser,
+		State:                StateStarting,
+		CreatedAt:            time.Date(2026, 4, 6, 23, 0, 0, 0, time.UTC),
+		UpdatedAt:            time.Date(2026, 4, 6, 23, 0, 0, 0, time.UTC),
+		sessionDir:           sessionDir,
+		metaPath:             store.SessionMetaFile(sessionDir),
+		dbPath:               dbPath,
+		recorder:             recorder,
 	}
 
 	if err := h.manager.reserveStart(testutil.Context(t), session.ID, h.workspaceID); err != nil {
@@ -3956,10 +4125,10 @@ func TestCreateInvokesStartupPromptOverlayWhenConfigured(t *testing.T) {
 	)
 
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Name:      "networked",
-		Workspace: h.workspaceID,
-		Channel:   "builders",
+		AgentName:                    "coder",
+		Name:                         "networked",
+		Workspace:                    h.workspaceID,
+		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -4020,10 +4189,10 @@ func TestCreateWithChannelAppendsBundledNetworkSkillAfterPromptAssembly(t *testi
 	)
 
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Name:      "networked",
-		Workspace: h.workspaceID,
-		Channel:   "builders",
+		AgentName:                    "coder",
+		Name:                         "networked",
+		Workspace:                    h.workspaceID,
+		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -4102,10 +4271,10 @@ func TestResumeWithChannelReinjectsBundledNetworkSkillOnce(t *testing.T) {
 	networkSkill = strings.TrimSpace(networkSkill)
 
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Name:      "networked",
-		Workspace: h.workspaceID,
-		Channel:   "builders",
+		AgentName:                    "coder",
+		Name:                         "networked",
+		Workspace:                    h.workspaceID,
+		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -4141,10 +4310,10 @@ func TestCreateWithChannelInjectsNetworkSessionEnv(t *testing.T) {
 	h := newHarness(t, WithPromptAssembler(nil))
 
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Name:      "networked",
-		Workspace: h.workspaceID,
-		Channel:   "builders",
+		AgentName:                    "coder",
+		Name:                         "networked",
+		Workspace:                    h.workspaceID,
+		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -4211,10 +4380,10 @@ func TestResumeWithChannelReinjectsNetworkSessionEnv(t *testing.T) {
 	h := newHarness(t, WithPromptAssembler(nil))
 
 	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Name:      "networked",
-		Workspace: h.workspaceID,
-		Channel:   "builders",
+		AgentName:                    "coder",
+		Name:                         "networked",
+		Workspace:                    h.workspaceID,
+		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)

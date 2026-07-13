@@ -531,7 +531,7 @@ func (m *Service) RecoverExpiredRunLeases(
 				SessionID:           result.PreviousSessionID,
 				LeaseUntil:          result.PreviousLeaseUntil,
 				PreviousTokenHash:   result.PreviousClaimTokenHash,
-				CoordinationChannel: result.Run.CoordinationChannelID,
+				CoordinationChannel: result.Run.NetworkSpecSnapshot().ChannelID,
 			},
 		); err != nil {
 			return nil, err
@@ -765,12 +765,11 @@ func (m *Service) dispatchTaskRunPreClaimCriteria(
 	actor ActorContext,
 ) (ClaimCriteria, error) {
 	taskContext := hookspkg.TaskRunContext{
-		WorkspaceID:           strings.TrimSpace(criteria.WorkspaceID),
-		CoordinationChannelID: strings.TrimSpace(criteria.CoordinationChannelID),
-		AgentName:             strings.TrimSpace(criteria.AgentName),
-		SessionID:             strings.TrimSpace(criteria.ClaimerSessionID),
-		ActorKind:             string(actor.Actor.Kind.Normalize()),
-		ActorID:               strings.TrimSpace(actor.Actor.Ref),
+		WorkspaceID: strings.TrimSpace(criteria.WorkspaceID),
+		AgentName:   strings.TrimSpace(criteria.AgentName),
+		SessionID:   strings.TrimSpace(criteria.ClaimerSessionID),
+		ActorKind:   string(actor.Actor.Kind.Normalize()),
+		ActorID:     strings.TrimSpace(actor.Actor.Ref),
 	}
 	if criteria.Soul != nil {
 		taskContext.SoulSnapshotID = strings.TrimSpace(criteria.Soul.SnapshotID)
@@ -781,7 +780,7 @@ func (m *Service) dispatchTaskRunPreClaimCriteria(
 			Event:     hookspkg.HookTaskRunPreClaim,
 			Timestamp: m.now().UTC(),
 		},
-		TaskRunContext: taskContext,
+		TaskRunContext: &taskContext,
 		Criteria: hookspkg.TaskRunClaimCriteria{
 			WorkspaceID:           criteria.WorkspaceID,
 			ClaimerSessionID:      criteria.ClaimerSessionID,

@@ -442,6 +442,24 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDBundlesActivate,
 				Input: json.RawMessage(
+					`{"extension_name":"ext-bundle","bundle_name":"starter","profile_name":"default","bind_primary_channel_as_default":true}`,
+				),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+		if bundleService.activateCalls != 1 {
+			t.Fatalf(
+				"Activate calls = %d, want removed default binding rejected before service",
+				bundleService.activateCalls,
+			)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDBundlesActivate,
+				Input: json.RawMessage(
 					`{"extension_name":"ext-bundle","bundle_name":"starter","profile_name":"default","scope":"workspace","workspace":"ws-2"}`,
 				),
 			},
@@ -2532,13 +2550,15 @@ func TestDaemonNativeTools(t *testing.T) {
 					WorkspaceID: "ws-1",
 				},
 				Run: taskpkg.Run{
-					ID:                    "run-1",
-					TaskID:                "task-1",
-					Status:                taskpkg.TaskRunStatusClaimed,
-					SessionID:             "sess-agent",
-					ClaimTokenHash:        hash,
-					CoordinationChannelID: "builders",
-					LeaseUntil:            time.Now().UTC().Add(time.Minute),
+					ID:             "run-1",
+					TaskID:         "task-1",
+					Status:         taskpkg.TaskRunStatusClaimed,
+					SessionID:      "sess-agent",
+					ClaimTokenHash: hash,
+					RunNetworkState: &taskpkg.RunNetworkState{
+						NetworkSpec: daemonTestLiveParticipation("ws-1", "builders"),
+					},
+					LeaseUntil: time.Now().UTC().Add(time.Minute),
 				},
 				ClaimToken: rawToken,
 			},
@@ -7582,13 +7602,12 @@ func (s *nativeBundleServiceStub) Activate(
 	s.lastActivate = req
 	return bundlepkg.ActivationPreview{
 		Activation: bundlepkg.Activation{
-			ID:                          "act-created",
-			ExtensionName:               req.ExtensionName,
-			BundleName:                  req.BundleName,
-			ProfileName:                 req.ProfileName,
-			Scope:                       req.Scope,
-			WorkspaceID:                 req.Workspace,
-			BindPrimaryChannelAsDefault: req.BindPrimaryChannelAsDefault,
+			ID:            "act-created",
+			ExtensionName: req.ExtensionName,
+			BundleName:    req.BundleName,
+			ProfileName:   req.ProfileName,
+			Scope:         req.Scope,
+			WorkspaceID:   req.Workspace,
 		},
 	}, nil
 }
@@ -8534,13 +8553,13 @@ func nativeLeaseRun(
 	handle taskpkg.AutonomyLeaseHandle,
 ) taskpkg.Run {
 	return taskpkg.Run{
-		ID:                    runID,
-		TaskID:                firstNonEmpty(handle.TaskID, "task-1"),
-		Status:                status,
-		SessionID:             handle.SessionID,
-		ClaimTokenHash:        handle.ClaimTokenHash,
-		CoordinationChannelID: "builders",
-		LeaseUntil:            handle.LeaseUntil,
+		ID:              runID,
+		TaskID:          firstNonEmpty(handle.TaskID, "task-1"),
+		Status:          status,
+		SessionID:       handle.SessionID,
+		ClaimTokenHash:  handle.ClaimTokenHash,
+		RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: daemonTestLiveParticipation("ws-1", "builders")},
+		LeaseUntil:      handle.LeaseUntil,
 	}
 }
 

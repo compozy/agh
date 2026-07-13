@@ -1,6 +1,10 @@
 package hooks
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/compozy/agh/internal/network/participation"
+)
 
 func TestHookMatcherMatchesSession(t *testing.T) {
 	t.Parallel()
@@ -380,20 +384,24 @@ func TestHookMatcherMatchesAutonomyPayloads(t *testing.T) {
 		},
 	}
 	if !taskRunMatcher.MatchesTaskRun(TaskRunContext{
-		WorkspaceID:           "ws-1",
-		TaskID:                "task-1",
-		RunID:                 "run-1",
-		CoordinationChannelID: "coord-ch-1",
-		ReleaseReason:         "timeout",
+		WorkspaceID: "ws-1",
+		TaskID:      "task-1",
+		RunID:       "run-1",
+		ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
+			ChannelID: "coord-ch-1",
+		}),
+		ReleaseReason: "timeout",
 	}) {
 		t.Fatal("MatchesTaskRun() = false, want true")
 	}
 	if taskRunMatcher.MatchesTaskRun(TaskRunContext{
-		WorkspaceID:           "ws-1",
-		TaskID:                "task-1",
-		RunID:                 "run-2",
-		CoordinationChannelID: "coord-ch-1",
-		ReleaseReason:         "timeout",
+		WorkspaceID: "ws-1",
+		TaskID:      "task-1",
+		RunID:       "run-2",
+		ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
+			ChannelID: "coord-ch-1",
+		}),
+		ReleaseReason: "timeout",
 	}) {
 		t.Fatal("MatchesTaskRun() = true, want false for run mismatch")
 	}

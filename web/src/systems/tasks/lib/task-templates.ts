@@ -43,7 +43,6 @@ export interface TaskTemplateDefaults {
   priority?: TaskPriority;
   max_attempts?: number | null;
   approval_policy?: "none" | "manual";
-  network_channel?: string;
 }
 
 export interface TaskTemplatePreview {
@@ -180,6 +179,5 @@ export function applyTemplateToCreatePayload(
     priority: base.priority ?? template.defaults.priority,
     max_attempts: base.max_attempts ?? template.defaults.max_attempts,
     approval_policy: base.approval_policy ?? template.defaults.approval_policy,
-    network_channel: base.network_channel ?? template.defaults.network_channel,
   };
 }

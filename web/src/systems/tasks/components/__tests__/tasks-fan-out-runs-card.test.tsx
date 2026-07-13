@@ -5,13 +5,14 @@ import { describe, expect, it, vi } from "vitest";
 import { TasksFanOutRunsCard } from "../tasks-fan-out-runs-card";
 
 describe("TasksFanOutRunsCard", () => {
-  it("submits network channel and one designation per non-empty line", async () => {
+  it("submits one designation per non-empty line without network_channel", async () => {
     const user = userEvent.setup();
     const onFanOut = vi.fn().mockResolvedValue({ designation_group_id: "desig_test", runs: [] });
 
-    render(<TasksFanOutRunsCard defaultNetworkChannel="general" onFanOut={onFanOut} />);
+    render(<TasksFanOutRunsCard onFanOut={onFanOut} />);
 
     await user.click(screen.getByTestId("tasks-fan-out-runs-trigger"));
+    expect(screen.queryByTestId("tasks-fan-out-network-channel")).not.toBeInTheDocument();
     await user.clear(screen.getByTestId("tasks-fan-out-designations"));
     await user.type(
       screen.getByTestId("tasks-fan-out-designations"),
@@ -20,9 +21,9 @@ describe("TasksFanOutRunsCard", () => {
     await user.click(screen.getByTestId("tasks-fan-out-runs-submit"));
 
     expect(onFanOut).toHaveBeenCalledWith({
-      network_channel: "general",
       designations: [{ brief: "Investigate data path" }, { brief: "Validate UI" }],
     });
+    expect(onFanOut.mock.calls[0]?.[0]).not.toHaveProperty("network_channel");
   });
 
   it("keeps the dialog open when no assignment is provided", async () => {

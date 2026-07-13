@@ -151,7 +151,7 @@ func agentMePayloadFromCaller(caller agentidentity.Caller) contract.AgentMePaylo
 			Name:      caller.Session.Name,
 			Type:      caller.Session.Type,
 			State:     caller.Session.State,
-			Channel:   caller.Session.Channel,
+			Channel:   caller.Session.NetworkSpecSnapshot().ChannelID,
 			Lineage:   contract.SessionLineagePayloadFromStore(caller.Session.Lineage),
 			CreatedAt: caller.Session.CreatedAt,
 			UpdatedAt: caller.Session.UpdatedAt,

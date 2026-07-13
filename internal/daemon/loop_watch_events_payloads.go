@@ -136,7 +136,7 @@ func watchEventsTaskRunTerminalEvent(
 		RunID:       strings.TrimSpace(payload.RunID),
 		LoopRunID:   strings.TrimSpace(payload.LoopRunID),
 		SessionID:   strings.TrimSpace(payload.SessionID),
-		Channel:     strings.TrimSpace(payload.NetworkChannel),
+		Channel:     strings.TrimSpace(payload.NetworkSpecSnapshot().ChannelID),
 		Payload: map[string]any{
 			"previous_run_status":      strings.TrimSpace(payload.PreviousRunStatus),
 			"previous_session_id":      strings.TrimSpace(payload.PreviousSessionID),

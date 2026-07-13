@@ -4,6 +4,7 @@ package task_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,6 +21,7 @@ import (
 
 	eventspkg "github.com/compozy/agh/internal/events"
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/store/sessiondb"
@@ -73,6 +75,28 @@ func (s *rollupPublicationFailureStore) ListDependents(
 		return nil, s.reconcileErr
 	}
 	return s.Store.ListDependents(ctx, taskID)
+}
+
+type countingParticipationResolver struct {
+	inner participation.Resolver
+	mu    sync.Mutex
+	calls int
+}
+
+func (r *countingParticipationResolver) Resolve(
+	ctx context.Context,
+	in participation.ResolveInput,
+) (participation.Spec, error) {
+	r.mu.Lock()
+	r.calls++
+	r.mu.Unlock()
+	return r.inner.Resolve(ctx, in)
+}
+
+func (r *countingParticipationResolver) CallCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.calls
 }
 
 func (e *integrationSessionExecutor) StartTaskSession(
@@ -134,7 +158,7 @@ func (r *integrationRuntimeViewReader) GetSession(
 			WorkspaceID: session.WorkspaceID,
 			AgentName:   session.AgentName,
 			Name:        session.Name,
-			Channel:     session.Channel,
+			Channel:     session.NetworkSpecSnapshot().ChannelID,
 			State:       session.State,
 			CreatedAt:   session.CreatedAt,
 			UpdatedAt:   session.UpdatedAt,
@@ -785,13 +809,17 @@ func TestTaskManagerApprovalGateAndAttemptExhaustionIntegration(t *testing.T) {
 	})
 }
 
-func TestTaskManagerStartBoundaryCreatesChannelAndClaimableRunIntegration(t *testing.T) {
+func TestTaskManagerPlainWorkspaceStartPersistsLocalParticipationIntegration(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t)
 	db := openTaskManagerGlobalDB(t)
 	workspaceID := registerTaskManagerWorkspace(t, db, "start-boundary", filepath.Join(t.TempDir(), "workspace"))
-	manager := newTaskManagerIntegration(t, db)
+	manager := newTaskManagerIntegration(
+		t,
+		db,
+		taskpkg.WithParticipationResolver(newTaskParticipationResolver(t, db, nil)),
+	)
 
 	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task start")
 	if err != nil {
@@ -824,19 +852,28 @@ func TestTaskManagerStartBoundaryCreatesChannelAndClaimableRunIntegration(t *tes
 	if err != nil {
 		t.Fatalf("StartTask() error = %v", err)
 	}
-	if execution.Run.CoordinationChannelID == "" {
-		t.Fatal("StartTask().Run.CoordinationChannelID = empty, want derived channel")
+	if got, want := execution.Run.NetworkSpecSnapshot().Mode, participation.ModeLocal; got != want {
+		t.Fatalf("StartTask().Run.NetworkSpecSnapshot().Mode = %q, want %q", got, want)
+	}
+	if got, want := execution.Run.NetworkSpecSnapshot().Source, participation.SourceBuiltInLocal; got != want {
+		t.Fatalf("StartTask().Run.NetworkSpecSnapshot().Source = %q, want %q", got, want)
 	}
 	channelsAfter, err := db.ListNetworkChannels(ctx, store.NetworkChannelQuery{WorkspaceID: workspaceID})
 	if err != nil {
 		t.Fatalf("ListNetworkChannels(after start) error = %v", err)
 	}
-	if len(channelsAfter) != 1 || channelsAfter[0].Channel != execution.Run.CoordinationChannelID {
-		t.Fatalf(
-			"channels after start = %#v, want one derived channel %q",
-			channelsAfter,
-			execution.Run.CoordinationChannelID,
-		)
+	if len(channelsAfter) != 0 {
+		t.Fatalf("channels after start = %#v, want none", channelsAfter)
+	}
+	var conversationRows int
+	if err := db.DB().QueryRowContext(
+		ctx,
+		"SELECT (SELECT COUNT(*) FROM network_timeline_log) + (SELECT COUNT(*) FROM network_threads) + (SELECT COUNT(*) FROM network_direct_rooms)",
+	).Scan(&conversationRows); err != nil {
+		t.Fatalf("count network conversation rows: %v", err)
+	}
+	if conversationRows != 0 {
+		t.Fatalf("network conversation rows = %d, want 0", conversationRows)
 	}
 
 	claimActor, err := taskpkg.DeriveAgentSessionActorContext("sess-worker")
@@ -855,12 +892,252 @@ func TestTaskManagerStartBoundaryCreatesChannelAndClaimableRunIntegration(t *tes
 	if got, want := claim.Run.ID, execution.Run.ID; got != want {
 		t.Fatalf("ClaimNextRun().Run.ID = %q, want %q", got, want)
 	}
-	if claim.CoordinationChannel == nil || claim.CoordinationChannel.ID != execution.Run.CoordinationChannelID {
-		t.Fatalf(
-			"ClaimNextRun().CoordinationChannel = %#v, want %q",
-			claim.CoordinationChannel,
-			execution.Run.CoordinationChannelID,
+	if claim.CoordinationChannel != nil {
+		t.Fatalf("ClaimNextRun().CoordinationChannel = %#v, want nil", claim.CoordinationChannel)
+	}
+}
+
+func TestTaskManagerParticipationPrecedenceAndWorkspaceToggleIntegration(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	db := openTaskManagerGlobalDB(t)
+	workspaceID := registerTaskManagerWorkspace(
+		t,
+		db,
+		"participation-precedence",
+		filepath.Join(t.TempDir(), "workspace"),
+	)
+	baseResolver := newTaskParticipationResolver(t, db, nil)
+	resolver := &countingParticipationResolver{inner: baseResolver}
+	manager := newTaskManagerIntegration(t, db, taskpkg.WithParticipationResolver(resolver))
+	actor, err := taskpkg.DeriveHumanActorContext(
+		"operator",
+		taskpkg.OriginKindCLI,
+		"agh task participation integration",
+	)
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext() error = %v", err)
+	}
+
+	live := participation.ModeLive
+	runStrategy := participation.StrategyRun
+	local := participation.ModeLocal
+	liveRequest := &participation.Request{Mode: &live, ChannelStrategy: &runStrategy}
+	localRequest := &participation.Request{Mode: &local}
+
+	t.Run("Should resolve an explicit live override once over a local task profile", func(t *testing.T) {
+		taskRecord, createErr := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: workspaceID,
+			Title:       "Explicit override",
+		}, actor)
+		if createErr != nil {
+			t.Fatalf("CreateTask() error = %v", createErr)
+		}
+		profile, profileErr := manager.GetExecutionProfile(ctx, taskRecord.ID, actor)
+		if profileErr != nil {
+			t.Fatalf("GetExecutionProfile() error = %v", profileErr)
+		}
+		profile.NetworkParticipation = localRequest
+		if _, profileErr = manager.SetExecutionProfile(ctx, taskRecord.ID, &profile, actor); profileErr != nil {
+			t.Fatalf("SetExecutionProfile() error = %v", profileErr)
+		}
+
+		callsBefore := resolver.CallCount()
+		first, startErr := manager.StartTask(ctx, taskRecord.ID, taskpkg.ExecutionRequest{
+			IdempotencyKey:       "explicit-live-override",
+			NetworkParticipation: liveRequest,
+		}, actor)
+		if startErr != nil {
+			t.Fatalf("StartTask(first) error = %v", startErr)
+		}
+		second, startErr := manager.StartTask(ctx, taskRecord.ID, taskpkg.ExecutionRequest{
+			IdempotencyKey:       "explicit-live-override",
+			NetworkParticipation: liveRequest,
+		}, actor)
+		if startErr != nil {
+			t.Fatalf("StartTask(duplicate) error = %v", startErr)
+		}
+		if got, want := second.Run.ID, first.Run.ID; got != want {
+			t.Fatalf("duplicate run id = %q, want %q", got, want)
+		}
+		if got, want := resolver.CallCount()-callsBefore, 1; got != want {
+			t.Fatalf("resolver calls = %d, want %d", got, want)
+		}
+		spec := first.Run.NetworkSpecSnapshot()
+		if got, want := spec.Mode, participation.ModeLive; got != want {
+			t.Fatalf("snapshot mode = %q, want %q", got, want)
+		}
+		if got, want := spec.Source, participation.SourceExplicitRequest; got != want {
+			t.Fatalf("snapshot source = %q, want %q", got, want)
+		}
+		if spec.ChannelID == "" {
+			t.Fatal("snapshot channel id = empty, want run-derived channel")
+		}
+		runs, listErr := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: taskRecord.ID})
+		if listErr != nil {
+			t.Fatalf("ListTaskRuns() error = %v", listErr)
+		}
+		if got, want := len(runs), 1; got != want {
+			t.Fatalf("len(runs) = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should let an explicit local request override a live task profile", func(t *testing.T) {
+		taskRecord, createErr := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: workspaceID,
+			Title:       "Explicit local override",
+		}, actor)
+		if createErr != nil {
+			t.Fatalf("CreateTask() error = %v", createErr)
+		}
+		profile, profileErr := manager.GetExecutionProfile(ctx, taskRecord.ID, actor)
+		if profileErr != nil {
+			t.Fatalf("GetExecutionProfile() error = %v", profileErr)
+		}
+		profile.NetworkParticipation = liveRequest
+		if _, profileErr = manager.SetExecutionProfile(ctx, taskRecord.ID, &profile, actor); profileErr != nil {
+			t.Fatalf("SetExecutionProfile() error = %v", profileErr)
+		}
+		execution, startErr := manager.StartTask(ctx, taskRecord.ID, taskpkg.ExecutionRequest{
+			IdempotencyKey:       "explicit-local-override",
+			NetworkParticipation: localRequest,
+		}, actor)
+		if startErr != nil {
+			t.Fatalf("StartTask() error = %v", startErr)
+		}
+		spec := execution.Run.NetworkSpecSnapshot()
+		if got, want := spec.Mode, participation.ModeLocal; got != want {
+			t.Fatalf("snapshot mode = %q, want %q", got, want)
+		}
+		if got, want := spec.Source, participation.SourceExplicitRequest; got != want {
+			t.Fatalf("snapshot source = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should reject an unauthorized override before reserving a run", func(t *testing.T) {
+		denyResolver := newTaskParticipationResolver(
+			t,
+			db,
+			func(context.Context, participation.ResolveInput, participation.Spec) (bool, error) {
+				return false, nil
+			},
 		)
+		deniedManager := newTaskManagerIntegration(
+			t,
+			db,
+			taskpkg.WithParticipationResolver(denyResolver),
+		)
+		taskRecord, createErr := deniedManager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: workspaceID,
+			Title:       "Denied override",
+		}, actor)
+		if createErr != nil {
+			t.Fatalf("CreateTask() error = %v", createErr)
+		}
+		_, startErr := deniedManager.StartTask(ctx, taskRecord.ID, taskpkg.ExecutionRequest{
+			IdempotencyKey:       "denied-live-override",
+			NetworkParticipation: liveRequest,
+		}, actor)
+		if !errors.Is(startErr, participation.ErrAuthorityDenied) {
+			t.Fatalf("StartTask() error = %v, want %v", startErr, participation.ErrAuthorityDenied)
+		}
+		runs, listErr := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: taskRecord.ID})
+		if listErr != nil {
+			t.Fatalf("ListTaskRuns() error = %v", listErr)
+		}
+		if len(runs) != 0 {
+			t.Fatalf("runs after authority denial = %#v, want none", runs)
+		}
+	})
+
+	t.Run("Should apply workspace coordination only to future runs", func(t *testing.T) {
+		if _, setErr := db.Set(ctx, workspaceID, true, "operator:enable"); setErr != nil {
+			t.Fatalf("CoordinationSettings.Set(true) error = %v", setErr)
+		}
+		firstTask, createErr := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: workspaceID,
+			Title:       "Coordination enabled",
+		}, actor)
+		if createErr != nil {
+			t.Fatalf("CreateTask(first) error = %v", createErr)
+		}
+		first, startErr := manager.StartTask(ctx, firstTask.ID, taskpkg.ExecutionRequest{
+			IdempotencyKey: "workspace-coordination-enabled",
+		}, actor)
+		if startErr != nil {
+			t.Fatalf("StartTask(first) error = %v", startErr)
+		}
+		firstSpec := first.Run.NetworkSpecSnapshot()
+		if got, want := firstSpec.Source, participation.SourceWorkspaceCoordination; got != want {
+			t.Fatalf("first source = %q, want %q", got, want)
+		}
+
+		profileTask, createErr := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: workspaceID,
+			Title:       "Profile overrides workspace",
+		}, actor)
+		if createErr != nil {
+			t.Fatalf("CreateTask(profile override) error = %v", createErr)
+		}
+		profile, profileErr := manager.GetExecutionProfile(ctx, profileTask.ID, actor)
+		if profileErr != nil {
+			t.Fatalf("GetExecutionProfile() error = %v", profileErr)
+		}
+		profile.NetworkParticipation = localRequest
+		if _, profileErr = manager.SetExecutionProfile(ctx, profileTask.ID, &profile, actor); profileErr != nil {
+			t.Fatalf("SetExecutionProfile() error = %v", profileErr)
+		}
+		profileExecution, startErr := manager.StartTask(ctx, profileTask.ID, taskpkg.ExecutionRequest{
+			IdempotencyKey: "profile-overrides-workspace",
+		}, actor)
+		if startErr != nil {
+			t.Fatalf("StartTask(profile override) error = %v", startErr)
+		}
+		if got, want := profileExecution.Run.NetworkSpecSnapshot().Source, participation.SourceTaskProfile; got != want {
+			t.Fatalf("profile source = %q, want %q", got, want)
+		}
+
+		if _, setErr := db.Set(ctx, workspaceID, false, "operator:disable"); setErr != nil {
+			t.Fatalf("CoordinationSettings.Set(false) error = %v", setErr)
+		}
+		secondTask, createErr := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: workspaceID,
+			Title:       "Coordination disabled",
+		}, actor)
+		if createErr != nil {
+			t.Fatalf("CreateTask(second) error = %v", createErr)
+		}
+		second, startErr := manager.StartTask(ctx, secondTask.ID, taskpkg.ExecutionRequest{
+			IdempotencyKey: "workspace-coordination-disabled",
+		}, actor)
+		if startErr != nil {
+			t.Fatalf("StartTask(second) error = %v", startErr)
+		}
+		if got, want := second.Run.NetworkSpecSnapshot().Source, participation.SourceBuiltInLocal; got != want {
+			t.Fatalf("second source = %q, want %q", got, want)
+		}
+		persistedFirst, readErr := db.GetTaskRun(ctx, first.Run.ID)
+		if readErr != nil {
+			t.Fatalf("GetTaskRun(first) error = %v", readErr)
+		}
+		if got, want := persistedFirst.NetworkSpecSnapshot(), firstSpec; got != want {
+			t.Fatalf("first snapshot after toggle = %#v, want %#v", got, want)
+		}
+	})
+
+	channels, err := db.ListNetworkChannels(ctx, store.NetworkChannelQuery{WorkspaceID: workspaceID})
+	if err != nil {
+		t.Fatalf("ListNetworkChannels() error = %v", err)
+	}
+	if len(channels) != 0 {
+		t.Fatalf("network channels = %#v, want none from owner resolution", channels)
 	}
 }
 
@@ -1673,8 +1950,8 @@ func TestTaskManagerAgentCreatedTaskApprovesThenClaimsIntegration(t *testing.T) 
 	if got, want := execution.Task.ApprovalState, taskpkg.ApprovalStateApproved; got != want {
 		t.Fatalf("execution.Task.ApprovalState = %q, want %q", got, want)
 	}
-	if execution.Run.CoordinationChannelID == "" {
-		t.Fatal("ApproveTask().Run.CoordinationChannelID = empty, want derived channel")
+	if got, want := execution.Run.NetworkSpecSnapshot().Source, participation.SourceBuiltInLocal; got != want {
+		t.Fatalf("ApproveTask().Run.NetworkSpecSnapshot().Source = %q, want %q", got, want)
 	}
 
 	worker, err := taskpkg.DeriveAgentSessionActorContext("sess-worker")
@@ -1730,10 +2007,9 @@ func TestTaskManagerChildAndDependencyFlowsPersistAudit(t *testing.T) {
 		t.Fatalf("CreateChildTask() error = %v", err)
 	}
 	blocker, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope:          taskpkg.ScopeWorkspace,
-		WorkspaceID:    workspaceID,
-		Title:          "Blocking task",
-		NetworkChannel: "ops",
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: workspaceID,
+		Title:       "Blocking task",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(blocker) error = %v", err)
@@ -1773,8 +2049,14 @@ func TestTaskManagerChildAndDependencyFlowsPersistAudit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTaskEvents(child) error = %v", err)
 	}
-	if !testutil.EqualStringSlices(sortedEventTypes(childEvents), []string{"task.created", "task.dependency_added"}) {
-		t.Fatalf("child event types = %#v, want task.created + task.dependency_added", sortedEventTypes(childEvents))
+	if !testutil.EqualStringSlices(
+		sortedEventTypes(childEvents),
+		[]string{"task.created", "task.dependency_added", "task.status_changed"},
+	) {
+		t.Fatalf(
+			"child event types = %#v, want task.created + task.dependency_added + task.status_changed",
+			sortedEventTypes(childEvents),
+		)
 	}
 
 	parentEvents, err := db.ListTaskEvents(ctx, taskpkg.EventQuery{TaskID: parent.ID})
@@ -2071,6 +2353,8 @@ func TestTaskManagerRunLifecyclePersistsAndReconcilesAgainstStorage(t *testing.T
 		"task.run_session_bound",
 		"task.run_started",
 		"task.run_starting",
+		"task.status_changed",
+		"task.status_changed",
 	}
 	if !testutil.EqualStringSlices(sortedEventTypes(events), wantTypes) {
 		t.Fatalf("event types = %#v, want %#v", sortedEventTypes(events), wantTypes)
@@ -2100,8 +2384,9 @@ func TestTaskManagerRecoverRunOnBootRequeuesBoundRunWithGlobalDB(t *testing.T) {
 		}
 
 		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope: taskpkg.ScopeGlobal,
-			Title: "Boot recovery integration",
+			Scope:       taskpkg.ScopeGlobal,
+			Title:       "Boot recovery integration",
+			MaxAttempts: intPtr(2),
 		}, operator)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -2122,6 +2407,10 @@ func TestTaskManagerRecoverRunOnBootRequeuesBoundRunWithGlobalDB(t *testing.T) {
 		if claim.Run.ID != run.ID || claim.Run.SessionID != "sess-stale-boot" {
 			t.Fatalf("claim.Run = %#v, want run %q bound to sess-stale-boot", claim.Run, run.ID)
 		}
+		originalSpec := run.NetworkSpecSnapshot()
+		if got, want := originalSpec.Source, participation.SourceBuiltInLocal; got != want {
+			t.Fatalf("original source = %q, want %q", got, want)
+		}
 
 		recovered, err := manager.RecoverRunOnBoot(ctx, run.ID, taskpkg.RunBootRecovery{
 			Action:       taskpkg.RunBootRecoveryRequeue,
@@ -2134,6 +2423,9 @@ func TestTaskManagerRecoverRunOnBootRequeuesBoundRunWithGlobalDB(t *testing.T) {
 		if recovered.Status != taskpkg.TaskRunStatusQueued || recovered.SessionID != "" || recovered.ClaimedBy != nil {
 			t.Fatalf("recovered = %#v, want queued run with released session binding", recovered)
 		}
+		if got, want := recovered.NetworkSpecSnapshot(), originalSpec; got != want {
+			t.Fatalf("recovered snapshot = %#v, want %#v", got, want)
+		}
 
 		stored, err := db.GetTaskRun(ctx, run.ID)
 		if err != nil {
@@ -2141,6 +2433,37 @@ func TestTaskManagerRecoverRunOnBootRequeuesBoundRunWithGlobalDB(t *testing.T) {
 		}
 		if stored.Status != taskpkg.TaskRunStatusQueued || stored.SessionID != "" || stored.ClaimedBy != nil {
 			t.Fatalf("stored = %#v, want queued run with released session binding", stored)
+		}
+		if got, want := stored.NetworkSpecSnapshot(), originalSpec; got != want {
+			t.Fatalf("stored snapshot = %#v, want %#v", got, want)
+		}
+
+		reclaimed, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-stale-boot",
+			LeaseDuration:    time.Hour,
+			Now:              time.Now().UTC(),
+		}, agent)
+		if err != nil {
+			t.Fatalf("ClaimNextRun(recovered) error = %v", err)
+		}
+		failed, err := manager.FailRunLease(ctx, taskpkg.LeaseFailure{
+			RunID:      reclaimed.Run.ID,
+			ClaimToken: reclaimed.ClaimToken,
+			Failure:    taskpkg.RunFailure{Error: "recovery probe failed"},
+		}, agent)
+		if err != nil {
+			t.Fatalf("FailRunLease() error = %v", err)
+		}
+		if got, want := failed.NetworkSpecSnapshot(), originalSpec; got != want {
+			t.Fatalf("failed snapshot = %#v, want %#v", got, want)
+		}
+		retry, err := manager.RetryRun(ctx, failed.ID, taskpkg.RetryRunRequest{}, operator)
+		if err != nil {
+			t.Fatalf("RetryRun() error = %v", err)
+		}
+		if got, want := retry.Run.NetworkSpecSnapshot(), originalSpec; got != want {
+			t.Fatalf("retry snapshot = %#v, want %#v", got, want)
 		}
 	})
 }
@@ -2346,12 +2669,12 @@ func TestTaskManagerTimelineLiveReadsIntegration(t *testing.T) {
 
 	pageTwo, err := manager.Timeline(ctx, taskRecord.ID, taskpkg.TimelineQuery{
 		AfterSequence: pageOne[len(pageOne)-1].Sequence,
-		Limit:         4,
+		Limit:         6,
 	}, actor)
 	if err != nil {
 		t.Fatalf("Timeline(page two) error = %v", err)
 	}
-	if got, want := len(pageTwo), 4; got != want {
+	if got, want := len(pageTwo), 6; got != want {
 		t.Fatalf("len(pageTwo) = %d, want %d", got, want)
 	}
 	if got, want := []string{
@@ -2359,12 +2682,27 @@ func TestTaskManagerTimelineLiveReadsIntegration(t *testing.T) {
 		pageTwo[1].EventType,
 		pageTwo[2].EventType,
 		pageTwo[3].EventType,
-	}, []string{"task.run_starting", "task.run_session_bound", "task.run_started", "task.run_completed"}; !testutil.EqualStringSlices(got, want) {
+		pageTwo[4].EventType,
+		pageTwo[5].EventType,
+	}, []string{
+		"task.status_changed",
+		"task.run_starting",
+		"task.run_session_bound",
+		"task.run_started",
+		"task.status_changed",
+		"task.run_completed",
+	}; !testutil.EqualStringSlices(got, want) {
 		t.Fatalf("pageTwo event types = %#v, want %#v", got, want)
 	}
 	for idx, item := range pageTwo {
 		if got, want := item.Sequence, int64(idx+4); got != want {
 			t.Fatalf("pageTwo[%d].Sequence = %d, want %d", idx, got, want)
+		}
+		if idx == 0 || idx == 4 {
+			if item.Run != nil {
+				t.Fatalf("pageTwo[%d].Run = %#v, want nil for task status event", idx, item.Run)
+			}
+			continue
 		}
 		if item.Run == nil || item.Run.ID != run.ID {
 			t.Fatalf("pageTwo[%d].Run = %#v, want run %q", idx, item.Run, run.ID)
@@ -2419,17 +2757,18 @@ func TestTaskManagerRunDetailUsesPersistedRuntimeDataIntegration(t *testing.T) {
 		t.Fatalf("StartRun() error = %v", err)
 	}
 
-	if err := db.RegisterSession(ctx, store.SessionInfo{
+	sessionInfo := store.SessionInfo{
 		ID:          run.SessionID,
 		Name:        "Task detail session",
 		AgentName:   "codex",
 		WorkspaceID: workspaceID,
-		Channel:     "tasks",
 		SessionType: "task",
 		State:       "running",
 		CreatedAt:   fixedNow,
 		UpdatedAt:   fixedNow.Add(5 * time.Minute),
-	}); err != nil {
+	}
+	sessionInfo.SetNetworkSpec(run.NetworkSpecSnapshot())
+	if err := db.RegisterSession(ctx, sessionInfo); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
 
@@ -2530,7 +2869,7 @@ func TestTaskManagerRunDetailUsesPersistedRuntimeDataIntegration(t *testing.T) {
 	if got, want := detail.Session.AgentName, "codex"; got != want {
 		t.Fatalf("detail.Session.AgentName = %q, want %q", got, want)
 	}
-	if got, want := detail.Session.Channel, "tasks"; got != want {
+	if got, want := detail.Session.Channel, ""; got != want {
 		t.Fatalf("detail.Session.Channel = %q, want %q", got, want)
 	}
 	if detail.Summary.ToolCallCount == nil || *detail.Summary.ToolCallCount != 2 {
@@ -2763,14 +3102,21 @@ func TestTaskManagerStreamSupportsReplayAndReconnectIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartRun() error = %v", err)
 	}
+	liveStatusChanged := awaitIntegrationTaskStreamEvent(t, stream)
 	liveStarting := awaitIntegrationTaskStreamEvent(t, stream)
 	liveBound := awaitIntegrationTaskStreamEvent(t, stream)
 	liveStarted := awaitIntegrationTaskStreamEvent(t, stream)
 	if got, want := []string{
+		liveStatusChanged.Type,
 		liveStarting.Type,
 		liveBound.Type,
 		liveStarted.Type,
-	}, []string{"task.run_starting", "task.run_session_bound", "task.run_started"}; !testutil.EqualStringSlices(got, want) {
+	}, []string{
+		"task.status_changed",
+		"task.run_starting",
+		"task.run_session_bound",
+		"task.run_started",
+	}; !testutil.EqualStringSlices(got, want) {
 		t.Fatalf("live start event types = %#v, want %#v", got, want)
 	}
 	lastSequence := liveStarted.Sequence
@@ -2789,9 +3135,28 @@ func TestTaskManagerStreamSupportsReplayAndReconnectIntegration(t *testing.T) {
 	}, actor); err != nil {
 		t.Fatalf("CompleteRun() error = %v", err)
 	}
+	liveStatusCompleted := awaitIntegrationTaskStreamEvent(t, reconnected)
+	liveParentStatusCompleted := awaitIntegrationTaskStreamEvent(t, reconnected)
 	liveCompleted := awaitIntegrationTaskStreamEvent(t, reconnected)
-	if liveCompleted.Sequence <= lastSequence {
-		t.Fatalf("liveCompleted.Sequence = %d, want > %d", liveCompleted.Sequence, lastSequence)
+	if got, want := liveStatusCompleted.Type, "task.status_changed"; got != want {
+		t.Fatalf("liveStatusCompleted.Type = %q, want %q", got, want)
+	}
+	if got, want := liveStatusCompleted.Timeline.Task.ID, child.ID; got != want {
+		t.Fatalf("liveStatusCompleted.Timeline.Task.ID = %q, want %q", got, want)
+	}
+	if got, want := liveParentStatusCompleted.Type, "task.status_changed"; got != want {
+		t.Fatalf("liveParentStatusCompleted.Type = %q, want %q", got, want)
+	}
+	if got, want := liveParentStatusCompleted.Timeline.Task.ID, root.ID; got != want {
+		t.Fatalf("liveParentStatusCompleted.Timeline.Task.ID = %q, want %q", got, want)
+	}
+	if liveStatusCompleted.Sequence <= lastSequence || liveCompleted.Sequence <= liveStatusCompleted.Sequence {
+		t.Fatalf(
+			"completion sequences = status:%d completed:%d, want both after %d in order",
+			liveStatusCompleted.Sequence,
+			liveCompleted.Sequence,
+			lastSequence,
+		)
 	}
 	if got, want := liveCompleted.Timeline.Task.ID, child.ID; got != want {
 		t.Fatalf("liveCompleted.Timeline.Task.ID = %q, want %q", got, want)
@@ -3156,6 +3521,73 @@ func newTaskManagerIntegration(t *testing.T, store taskpkg.Store, extraOpts ...t
 		t.Fatalf("NewManager() error = %v", err)
 	}
 	return manager
+}
+
+func newTaskParticipationResolver(
+	t *testing.T,
+	db *globaldb.GlobalDB,
+	authority participation.AuthorityFunc,
+) participation.Resolver {
+	t.Helper()
+
+	defaults := participation.Bounds{
+		MaxWakes:         4,
+		MaxWakeWallTime:  "30s",
+		MaxTotalWallTime: "2m",
+		MaxInputTokens:   4096,
+		MaxOutputTokens:  4096,
+		MaxWakeDepth:     4,
+		CoalesceWindow:   "250ms",
+	}
+	resolver, err := participation.NewResolver(participation.ResolverOptions{
+		Defaults: defaults,
+		Limits: participation.Limits{
+			MaxWakes:          16,
+			MaxWakeWallTime:   "2m",
+			MaxTotalWallTime:  "10m",
+			MaxInputTokens:    65536,
+			MaxOutputTokens:   65536,
+			MaxWakeDepth:      16,
+			MinCoalesceWindow: "100ms",
+			MaxCoalesceWindow: "5s",
+		},
+		Availability: func(ctx context.Context) (bool, error) {
+			state, readErr := db.GetNetworkAvailability(ctx)
+			if readErr != nil {
+				return false, readErr
+			}
+			return state.Enabled, nil
+		},
+		ChannelExists: func(ctx context.Context, workspaceID, channelID string) (bool, error) {
+			_, readErr := db.GetNetworkChannel(ctx, store.NetworkChannelRef{
+				WorkspaceID: workspaceID,
+				Channel:     channelID,
+			})
+			switch {
+			case errors.Is(readErr, sql.ErrNoRows):
+				return false, nil
+			case readErr != nil:
+				return false, readErr
+			default:
+				return true, nil
+			}
+		},
+		WorkspaceCoordination: func(ctx context.Context, workspaceID string) (bool, error) {
+			setting, readErr := db.Get(ctx, workspaceID)
+			if readErr != nil {
+				return false, readErr
+			}
+			return setting.Enabled, nil
+		},
+		LiveSupport: func(context.Context, participation.ResolveInput) (bool, error) {
+			return true, nil
+		},
+		Authority: authority,
+	})
+	if err != nil {
+		t.Fatalf("participation.NewResolver() error = %v", err)
+	}
+	return resolver
 }
 
 func registerTaskManagerWorkspace(t *testing.T, db *globaldb.GlobalDB, name string, rootDir string) string {

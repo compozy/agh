@@ -131,7 +131,6 @@ func TestTaskErrorHelpers(t *testing.T) {
 			want: http.StatusServiceUnavailable,
 		},
 		{name: "attach forbidden", err: taskpkg.ErrSessionAttachNotAllowed, want: http.StatusConflict},
-		{name: "stale network channel", err: taskpkg.ErrStaleNetworkChannel, want: http.StatusConflict},
 		{name: "default", err: errors.New("boom"), want: http.StatusInternalServerError},
 	}
 

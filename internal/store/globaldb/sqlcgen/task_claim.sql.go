@@ -198,42 +198,6 @@ func (q *Queries) GetLoopRunWorkspaceID(ctx context.Context, id string) (string,
 	return workspace_id, err
 }
 
-const getNetworkChannelForTask = `-- name: GetNetworkChannelForTask :one
-SELECT channel, workspace_id, purpose, fanout_policy,
-       COALESCE(coordinator_peer_id, '') AS coordinator_peer_id,
-       COALESCE(created_by, '') AS created_by,
-       created_at, updated_at
-FROM network_channels
-WHERE channel = ?1
-`
-
-type GetNetworkChannelForTaskRow struct {
-	Channel           string `json:"channel"`
-	WorkspaceID       string `json:"workspace_id"`
-	Purpose           string `json:"purpose"`
-	FanoutPolicy      string `json:"fanout_policy"`
-	CoordinatorPeerID string `json:"coordinator_peer_id"`
-	CreatedBy         string `json:"created_by"`
-	CreatedAt         string `json:"created_at"`
-	UpdatedAt         string `json:"updated_at"`
-}
-
-func (q *Queries) GetNetworkChannelForTask(ctx context.Context, channel string) (GetNetworkChannelForTaskRow, error) {
-	row := q.db.QueryRowContext(ctx, getNetworkChannelForTask, channel)
-	var i GetNetworkChannelForTaskRow
-	err := row.Scan(
-		&i.Channel,
-		&i.WorkspaceID,
-		&i.Purpose,
-		&i.FanoutPolicy,
-		&i.CoordinatorPeerID,
-		&i.CreatedBy,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const getTaskRunMetadataForClaim = `-- name: GetTaskRunMetadataForClaim :one
 SELECT metadata_json FROM task_runs WHERE id = ?1
 `

@@ -1553,13 +1553,10 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 	manager := stubSessionManager{
 		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
 			if opts.AgentName != "coder" || opts.Name != "demo" || opts.Workspace != "alpha" ||
-				opts.WorkspacePath != "" ||
-				opts.Channel != "builders" {
+				opts.WorkspacePath != "" || opts.NetworkParticipation != nil {
 				t.Fatalf("Create() opts = %#v", opts)
 			}
-			sess := newSession("sess-123")
-			sess.Channel = "builders"
-			return sess, nil
+			return newSession("sess-123"), nil
 		},
 	}
 	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
@@ -1570,7 +1567,7 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 		engine,
 		http.MethodPost,
 		"/api/sessions",
-		[]byte(`{"agent_name":"coder","name":"demo","workspace":"alpha","channel":"builders"}`),
+		[]byte(`{"agent_name":"coder","name":"demo","workspace":"alpha"}`),
 	)
 	if recorder.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusCreated, recorder.Body.String())
@@ -1586,8 +1583,8 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 	if response.Session.WorkspaceID != "ws-workspace" || response.Session.WorkspacePath != "/workspace" {
 		t.Fatalf("session workspace = %#v", response.Session)
 	}
-	if response.Session.Channel != "builders" {
-		t.Fatalf("session channel = %q, want %q", response.Session.Channel, "builders")
+	if response.Session.Channel != "" {
+		t.Fatalf("session channel = %q, want Local session projection", response.Session.Channel)
 	}
 }
 

@@ -74,10 +74,10 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	manager := newHarnessIntegrationManager(t, homePaths, capturedDeps, resolvedWorkspace, driver)
 
 	created, err := manager.Create(testutil.Context(t), session.CreateOpts{
-		AgentName: resolvedWorkspace.Agents[0].Name,
-		Name:      "networked",
-		Workspace: resolvedWorkspace.ID,
-		Channel:   "builders",
+		AgentName:                    resolvedWorkspace.Agents[0].Name,
+		Name:                         "networked",
+		Workspace:                    resolvedWorkspace.ID,
+		ResolvedNetworkParticipation: daemonTestLiveParticipationPtr(resolvedWorkspace.ID, "builders"),
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -107,7 +107,7 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 
 	startupResolved, err := daemonInstance.harnessResolver.ResolveStartup(session.StartupPromptContext{
 		SessionType: created.Info().Type,
-		Channel:     created.Info().Channel,
+		Channel:     created.Info().NetworkParticipation.ChannelID,
 		WorkspaceID: created.Info().WorkspaceID,
 		Workspace:   created.Info().Workspace,
 		AgentName:   created.Info().AgentName,
@@ -294,10 +294,10 @@ func TestHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 	manager := newHarnessIntegrationManager(t, homePaths, capturedDeps, resolvedWorkspace, driver)
 
 	created, err := manager.Create(testutil.Context(t), session.CreateOpts{
-		AgentName: resolvedWorkspace.Agents[0].Name,
-		Name:      "networked",
-		Workspace: resolvedWorkspace.ID,
-		Channel:   "builders",
+		AgentName:                    resolvedWorkspace.Agents[0].Name,
+		Name:                         "networked",
+		Workspace:                    resolvedWorkspace.ID,
+		ResolvedNetworkParticipation: daemonTestLiveParticipationPtr(resolvedWorkspace.ID, "builders"),
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -480,16 +480,18 @@ func seedHarnessSituationTaskRun(
 		t.Fatalf("CreateTask() error = %v", err)
 	}
 	run := taskpkg.Run{
-		ID:             "run-context",
-		TaskID:         taskRecord.ID,
-		Status:         taskpkg.TaskRunStatusRunning,
-		Attempt:        1,
-		SessionID:      sessionID,
-		Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "test"},
-		NetworkChannel: "coord-run-1",
-		Metadata:       json.RawMessage(`{"coordination_channel_id":"coord-run-1","workflow_id":"wf-run-1"}`),
-		QueuedAt:       now,
-		StartedAt:      now.Add(time.Minute),
+		ID:        "run-context",
+		TaskID:    taskRecord.ID,
+		Status:    taskpkg.TaskRunStatusRunning,
+		Attempt:   1,
+		SessionID: sessionID,
+		Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "test"},
+		RunNetworkState: &taskpkg.RunNetworkState{
+			NetworkSpec: daemonTestLiveParticipation(workspaceID, "coord-run-1"),
+		},
+		Metadata:  json.RawMessage(`{"coordination_channel_id":"coord-run-1","workflow_id":"wf-run-1"}`),
+		QueuedAt:  now,
+		StartedAt: now.Add(time.Minute),
 	}
 	if err := daemonInstance.tasks.store.CreateTaskRun(testutil.Context(t), run); err != nil {
 		t.Fatalf("CreateTaskRun() error = %v", err)

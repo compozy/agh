@@ -103,7 +103,7 @@ func DecideBootstrap(task taskpkg.Task, run taskpkg.Run, cfg aghconfig.Coordinat
 		TaskID:                strings.TrimSpace(task.ID),
 		RunID:                 strings.TrimSpace(run.ID),
 		WorkflowID:            workflowIDFromMetadata(run.Metadata),
-		CoordinationChannelID: strings.TrimSpace(run.CoordinationChannelID),
+		CoordinationChannelID: strings.TrimSpace(run.NetworkSpecSnapshot().ChannelID),
 	}
 	if !cfg.Enabled {
 		decision.Reason = DecisionDisabled

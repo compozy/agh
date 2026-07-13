@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
@@ -398,21 +399,21 @@ func TestSessionSnapshotFromInfo(t *testing.T) {
 
 		now := time.Date(2026, 4, 26, 11, 0, 0, 0, time.UTC)
 		info := &session.Info{
-			ID:               "sess-1",
-			Name:             "worker",
-			AgentName:        "coder",
-			Provider:         "provider",
-			Model:            "gpt-5.4",
-			WorkspaceID:      "ws-1",
-			Workspace:        "/workspace",
-			Channel:          "main",
-			Type:             session.SessionTypeUser,
-			State:            session.StateActive,
-			SoulSnapshotID:   "soul-1",
-			SoulDigest:       "digest-1",
-			ParentSoulDigest: "digest-parent",
-			CreatedAt:        now,
-			UpdatedAt:        now,
+			ID:                   "sess-1",
+			Name:                 "worker",
+			AgentName:            "coder",
+			Provider:             "provider",
+			Model:                "gpt-5.4",
+			WorkspaceID:          "ws-1",
+			Workspace:            "/workspace",
+			NetworkParticipation: participation.LocalSpec(),
+			Type:                 session.SessionTypeUser,
+			State:                session.StateActive,
+			SoulSnapshotID:       "soul-1",
+			SoulDigest:           "digest-1",
+			ParentSoulDigest:     "digest-parent",
+			CreatedAt:            now,
+			UpdatedAt:            now,
 		}
 
 		got := SessionSnapshotFromInfo(info)
@@ -423,7 +424,7 @@ func TestSessionSnapshotFromInfo(t *testing.T) {
 			got.Model != info.Model ||
 			got.WorkspaceID != info.WorkspaceID ||
 			got.WorkspacePath != info.Workspace ||
-			got.Channel != info.Channel ||
+			got.NetworkSpecSnapshot() != info.NetworkParticipation ||
 			got.Type != info.Type ||
 			got.State != info.State ||
 			got.SoulSnapshotID != info.SoulSnapshotID ||

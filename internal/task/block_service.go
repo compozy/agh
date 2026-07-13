@@ -339,6 +339,7 @@ func (m *Service) RecoverTask(ctx context.Context, id string, note string, actor
 	recoveredAt := m.now().UTC()
 	cleared, err := m.store.ClearTaskNeedsAttention(ctx, NeedsAttentionClearMutation{
 		TaskID:    trimmedID,
+		Note:      normalizedNote,
 		ClearedBy: actor.Actor,
 		ClearedAt: recoveredAt,
 		Origin:    actor.Origin,
@@ -709,18 +710,16 @@ func (m *Service) taskHookContext(
 	release *BlockTaskAndReleaseRunResult,
 ) hookspkg.TaskContext {
 	contextPayload := hookspkg.TaskContext{
-		TaskID:                strings.TrimSpace(taskRecord.ID),
-		ParentTaskID:          strings.TrimSpace(taskRecord.ParentTaskID),
-		WorkspaceID:           strings.TrimSpace(taskRecord.WorkspaceID),
-		WorkflowID:            taskRunMetadataString(taskRecord.Metadata, "workflow_id"),
-		CoordinationChannelID: taskRunMetadataString(taskRecord.Metadata, "coordination_channel_id"),
-		NetworkChannel:        strings.TrimSpace(taskRecord.NetworkChannel),
-		AgentName:             taskHookAgentName(taskRecord, actor),
-		ActorKind:             string(actor.Actor.Kind.Normalize()),
-		ActorID:               strings.TrimSpace(actor.Actor.Ref),
-		OriginKind:            string(actor.Origin.Kind.Normalize()),
-		OriginRef:             strings.TrimSpace(actor.Origin.Ref),
-		TaskStatus:            string(taskRecord.Status.Normalize()),
+		TaskID:       strings.TrimSpace(taskRecord.ID),
+		ParentTaskID: strings.TrimSpace(taskRecord.ParentTaskID),
+		WorkspaceID:  strings.TrimSpace(taskRecord.WorkspaceID),
+		WorkflowID:   taskRunMetadataString(taskRecord.Metadata, "workflow_id"),
+		AgentName:    taskHookAgentName(taskRecord, actor),
+		ActorKind:    string(actor.Actor.Kind.Normalize()),
+		ActorID:      strings.TrimSpace(actor.Actor.Ref),
+		OriginKind:   string(actor.Origin.Kind.Normalize()),
+		OriginRef:    strings.TrimSpace(actor.Origin.Ref),
+		TaskStatus:   string(taskRecord.Status.Normalize()),
 	}
 	if release != nil {
 		contextPayload.RunID = strings.TrimSpace(release.Run.ID)

@@ -27,7 +27,7 @@ func (m *Manager) persistSessionLifecycleState(ctx context.Context, session *Ses
 	info := session.Info()
 	if register {
 		meta := session.Meta()
-		if identity := creationIdentityFromMeta(meta); identity != nil {
+		if identity := creationIdentityFromMeta(meta); identity != nil && m.creationStore != nil {
 			if err := m.registerSessionCreation(ctx, info, meta, *identity); err != nil {
 				return err
 			}
@@ -79,7 +79,7 @@ func (m *Manager) persistSessionCatalogFromMeta(ctx context.Context, meta store.
 	if info == nil {
 		return nil
 	}
-	if identity := creationIdentityFromMeta(meta); identity != nil {
+	if identity := creationIdentityFromMeta(meta); identity != nil && m.creationStore != nil {
 		return m.registerSessionCreation(ctx, info, meta, *identity)
 	}
 	if err := m.sessionCatalog.RegisterSession(ctx, sessionCatalogInfoFromRuntime(info)); err != nil {
@@ -118,13 +118,12 @@ func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
 	if info == nil {
 		return store.SessionInfo{}
 	}
-	return store.SessionInfo{
+	result := store.SessionInfo{
 		ID:               info.ID,
 		Name:             info.Name,
 		AgentName:        info.AgentName,
 		Provider:         info.Provider,
 		WorkspaceID:      info.WorkspaceID,
-		Channel:          info.Channel,
 		SessionType:      string(info.Type),
 		Lineage:          store.CloneSessionLineage(info.Lineage),
 		State:            string(info.State),
@@ -141,6 +140,8 @@ func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
 		CreatedAt:        info.CreatedAt,
 		UpdatedAt:        info.UpdatedAt,
 	}
+	result.SetNetworkSpec(info.NetworkParticipation)
+	return result
 }
 
 func sessionCatalogStateUpdate(info *Info) store.SessionStateUpdate {

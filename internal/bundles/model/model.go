@@ -43,16 +43,15 @@ func (s Scope) Validate(workspaceID string) error {
 }
 
 type Activation struct {
-	ID                          string
-	ExtensionName               string
-	BundleName                  string
-	ProfileName                 string
-	Scope                       Scope
-	WorkspaceID                 string
-	SpecContentHash             string
-	BindPrimaryChannelAsDefault bool
-	CreatedAt                   time.Time
-	UpdatedAt                   time.Time
+	ID              string
+	ExtensionName   string
+	BundleName      string
+	ProfileName     string
+	Scope           Scope
+	WorkspaceID     string
+	SpecContentHash string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 func (a Activation) Normalize() Activation {

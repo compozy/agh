@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/events"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/sessiondb"
 	"github.com/compozy/agh/internal/testutil"
@@ -75,10 +76,10 @@ func TestManagerListAllMergesActiveAndStoppedSessions(t *testing.T) {
 	})
 
 	stopped, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Name:      "networked-stopped",
-		Workspace: h.workspaceID,
-		Channel:   "builders",
+		AgentName:                    "coder",
+		Name:                         "networked-stopped",
+		Workspace:                    h.workspaceID,
+		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
 	})
 	if err != nil {
 		t.Fatalf("Create(networked stopped) error = %v", err)
@@ -120,8 +121,8 @@ func TestManagerListAllMergesActiveAndStoppedSessions(t *testing.T) {
 	if got := infos[0].State; got != StateActive {
 		t.Fatalf("ListAll()[0].State = %q, want %q", got, StateActive)
 	}
-	if got := infos[0].Channel; got != "" {
-		t.Fatalf("ListAll()[0].Channel = %q, want empty", got)
+	if got, want := infos[0].NetworkParticipation, participation.LocalSpec(); got != want {
+		t.Fatalf("ListAll()[0].NetworkParticipation = %#v, want %#v", got, want)
 	}
 	if got := infos[1].ID; got != stopped.ID {
 		t.Fatalf("ListAll()[1].ID = %q, want %q", got, stopped.ID)
@@ -129,8 +130,8 @@ func TestManagerListAllMergesActiveAndStoppedSessions(t *testing.T) {
 	if got := infos[1].State; got != StateStopped {
 		t.Fatalf("ListAll()[1].State = %q, want %q", got, StateStopped)
 	}
-	if got := infos[1].Channel; got != "builders" {
-		t.Fatalf("ListAll()[1].Channel = %q, want %q", got, "builders")
+	if got, want := infos[1].NetworkParticipation, testLiveParticipation(h.workspaceID, "builders"); got != want {
+		t.Fatalf("ListAll()[1].NetworkParticipation = %#v, want %#v", got, want)
 	}
 }
 
@@ -479,14 +480,14 @@ func TestSessionMatchesListQuery(t *testing.T) {
 	t.Parallel()
 
 	base := &Info{
-		ID:          "sess-visible",
-		Name:        "Review launch",
-		AgentName:   "coder",
-		Provider:    "codex",
-		WorkspaceID: "ws-alpha",
-		Channel:     "builders",
-		Type:        SessionTypeUser,
-		State:       StateActive,
+		ID:                   "sess-visible",
+		Name:                 "Review launch",
+		AgentName:            "coder",
+		Provider:             "codex",
+		WorkspaceID:          "ws-alpha",
+		NetworkParticipation: testLiveParticipation("ws-alpha", "builders"),
+		Type:                 SessionTypeUser,
+		State:                StateActive,
 	}
 	now := time.Date(2026, 7, 10, 15, 0, 0, 0, time.UTC)
 
@@ -629,8 +630,8 @@ func TestManagerStatusReturnsActiveAndStoredSessions(t *testing.T) {
 	if got := info.State; got != StateActive {
 		t.Fatalf("Status(active).State = %q, want %q", got, StateActive)
 	}
-	if got := info.Channel; got != "" {
-		t.Fatalf("Status(active).Channel = %q, want empty", got)
+	if got, want := info.NetworkParticipation, participation.LocalSpec(); got != want {
+		t.Fatalf("Status(active).NetworkParticipation = %#v, want %#v", got, want)
 	}
 
 	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
@@ -644,8 +645,8 @@ func TestManagerStatusReturnsActiveAndStoredSessions(t *testing.T) {
 	if got := info.State; got != StateStopped {
 		t.Fatalf("Status(stopped).State = %q, want %q", got, StateStopped)
 	}
-	if got := info.Channel; got != "" {
-		t.Fatalf("Status(stopped).Channel = %q, want empty", got)
+	if got, want := info.NetworkParticipation, participation.LocalSpec(); got != want {
+		t.Fatalf("Status(stopped).NetworkParticipation = %#v, want %#v", got, want)
 	}
 
 	var nilCtx context.Context
@@ -804,14 +805,15 @@ func TestManagerStatusDoesNotRepairPendingStartMetadata(t *testing.T) {
 
 	acpSessionID := "acp-pending"
 	meta := store.SessionMeta{
-		ID:           sessionID,
-		Name:         "pending",
-		AgentName:    "coder",
-		WorkspaceID:  h.workspaceID,
-		State:        string(StateStarting),
-		ACPSessionID: stringPointer(acpSessionID),
-		CreatedAt:    time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC),
-		UpdatedAt:    time.Date(2026, 4, 20, 12, 0, 1, 0, time.UTC),
+		ID:                   sessionID,
+		Name:                 "pending",
+		AgentName:            "coder",
+		WorkspaceID:          h.workspaceID,
+		NetworkParticipation: testLocalParticipationPtr(),
+		State:                string(StateStarting),
+		ACPSessionID:         stringPointer(acpSessionID),
+		CreatedAt:            time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC),
+		UpdatedAt:            time.Date(2026, 4, 20, 12, 0, 1, 0, time.UTC),
 	}
 	metaPath := store.SessionMetaFile(sessionDir)
 	if err := store.WriteSessionMeta(metaPath, meta); err != nil {
@@ -1425,19 +1427,20 @@ func TestReadMetaAndQueryHelpers(t *testing.T) {
 	createdAt := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 	updatedAt := createdAt.Add(time.Minute)
 	info := sessionInfoFromMeta(store.SessionMeta{
-		ID:              "sess-1",
-		Name:            "stored",
-		AgentName:       "coder",
-		Provider:        "codex",
-		Model:           "  gpt-4o  ",
-		ReasoningEffort: "  high  ",
-		WorkspaceID:     "ws-1",
-		State:           string(StateStopped),
-		StopReason:      &stopReason,
-		StopDetail:      "deadline exceeded",
-		ACPSessionID:    &acpID,
-		CreatedAt:       createdAt,
-		UpdatedAt:       updatedAt,
+		ID:                   "sess-1",
+		Name:                 "stored",
+		AgentName:            "coder",
+		Provider:             "codex",
+		Model:                "  gpt-4o  ",
+		ReasoningEffort:      "  high  ",
+		WorkspaceID:          "ws-1",
+		NetworkParticipation: testLocalParticipationPtr(),
+		State:                string(StateStopped),
+		StopReason:           &stopReason,
+		StopDetail:           "deadline exceeded",
+		ACPSessionID:         &acpID,
+		CreatedAt:            createdAt,
+		UpdatedAt:            updatedAt,
 	})
 	if got := info.ACPSessionID; got != "acp-123" {
 		t.Fatalf("sessionInfoFromMeta().ACPSessionID = %q, want %q", got, "acp-123")
@@ -1464,20 +1467,21 @@ func TestReadMetaAndQueryHelpers(t *testing.T) {
 		t.Fatalf("sessionInfoFromMeta().StopDetail = %q, want %q", got, "deadline exceeded")
 	}
 
-	t.Run("Should keep stop fields empty for legacy metadata", func(t *testing.T) {
-		legacyInfo := sessionInfoFromMeta(store.SessionMeta{
-			ID:          "sess-legacy",
-			AgentName:   "coder",
-			WorkspaceID: "ws-1",
-			State:       string(StateStopped),
-			CreatedAt:   createdAt,
-			UpdatedAt:   updatedAt,
+	t.Run("Should keep stop fields empty when omitted", func(t *testing.T) {
+		infoWithoutStop := sessionInfoFromMeta(store.SessionMeta{
+			ID:                   "sess-legacy",
+			AgentName:            "coder",
+			WorkspaceID:          "ws-1",
+			NetworkParticipation: testLocalParticipationPtr(),
+			State:                string(StateStopped),
+			CreatedAt:            createdAt,
+			UpdatedAt:            updatedAt,
 		})
-		if got := legacyInfo.StopReason; got != "" {
-			t.Fatalf("sessionInfoFromMeta(legacy).StopReason = %q, want empty", got)
+		if got := infoWithoutStop.StopReason; got != "" {
+			t.Fatalf("sessionInfoFromMeta().StopReason = %q, want empty", got)
 		}
-		if got := legacyInfo.StopDetail; got != "" {
-			t.Fatalf("sessionInfoFromMeta(legacy).StopDetail = %q, want empty", got)
+		if got := infoWithoutStop.StopDetail; got != "" {
+			t.Fatalf("sessionInfoFromMeta().StopDetail = %q, want empty", got)
 		}
 	})
 
@@ -1585,13 +1589,14 @@ func writeStoppedSessionArtifacts(t *testing.T, h *harness, id string, withDB bo
 
 	now := time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC)
 	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
-		ID:          id,
-		Name:        "stored",
-		AgentName:   "coder",
-		WorkspaceID: h.workspaceID,
-		State:       string(StateStopped),
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		ID:                   id,
+		Name:                 "stored",
+		AgentName:            "coder",
+		WorkspaceID:          h.workspaceID,
+		NetworkParticipation: testLocalParticipationPtr(),
+		State:                string(StateStopped),
+		CreatedAt:            now,
+		UpdatedAt:            now,
 	}); err != nil {
 		t.Fatalf("WriteSessionMeta(%q) error = %v", id, err)
 	}
@@ -1617,14 +1622,15 @@ func createEscapedStoredSession(t *testing.T, h *harness) string {
 
 	now := time.Now().UTC()
 	if err := store.WriteSessionMeta(store.SessionMetaFile(escapedDir), store.SessionMeta{
-		ID:          escapedID,
-		Name:        "escaped",
-		AgentName:   "coder",
-		WorkspaceID: h.workspaceID,
-		SessionType: string(SessionTypeUser),
-		State:       string(StateStopped),
-		CreatedAt:   now.Add(-time.Minute),
-		UpdatedAt:   now,
+		ID:                   escapedID,
+		Name:                 "escaped",
+		AgentName:            "coder",
+		WorkspaceID:          h.workspaceID,
+		NetworkParticipation: testLocalParticipationPtr(),
+		SessionType:          string(SessionTypeUser),
+		State:                string(StateStopped),
+		CreatedAt:            now.Add(-time.Minute),
+		UpdatedAt:            now,
 	}); err != nil {
 		t.Fatalf("WriteSessionMeta(%q) error = %v", escapedDir, err)
 	}

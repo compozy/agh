@@ -38,7 +38,6 @@ func TestAgentTaskClaimNextUsesCallerIdentityAndReturnsCoordinationChannel(t *te
 			run := agentTaskRun(taskpkg.TaskRunStatusClaimed)
 			run.ClaimTokenHash = claimHash
 			run.LeaseUntil = leaseUntil
-			run.CoordinationChannelID = "builders"
 			return &taskpkg.ClaimResult{
 				Task:       agentTaskRecord(),
 				Run:        run,
@@ -443,18 +442,19 @@ func agentTaskRecord() taskpkg.Task {
 
 func agentTaskRun(status taskpkg.RunStatus) taskpkg.Run {
 	now := time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC)
-	return taskpkg.Run{
-		ID:                    "run-1",
-		TaskID:                "task-1",
-		Status:                status,
-		Attempt:               1,
-		SessionID:             "sess-agent",
-		ClaimedBy:             &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-agent"},
-		CoordinationChannelID: "builders",
-		QueuedAt:              now,
-		ClaimedAt:             now,
-		LeaseUntil:            now.Add(5 * time.Minute),
+	run := taskpkg.Run{
+		ID:         "run-1",
+		TaskID:     "task-1",
+		Status:     status,
+		Attempt:    1,
+		SessionID:  "sess-agent",
+		ClaimedBy:  &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-agent"},
+		QueuedAt:   now,
+		ClaimedAt:  now,
+		LeaseUntil: now.Add(5 * time.Minute),
 	}
+	run.SetNetworkState(udsTestLiveParticipation("ws-1", "builders"), "", "", "")
+	return run
 }
 
 func containsString(values []string, expected string) bool {

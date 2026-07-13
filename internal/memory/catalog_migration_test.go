@@ -50,11 +50,9 @@ func TestCatalogMigrationStreams(t *testing.T) {
 		if globalBefore != globalAfter {
 			t.Fatalf("global status changed after memory apply: before=%#v after=%#v", globalBefore, globalAfter)
 		}
-		if globalAfter.Version != 8 || globalAfter.AppliedCount != 8 ||
-			memoryStatus.Version != 1 || memoryStatus.AppliedCount != 1 {
+		if memoryStatus.Version != 1 || memoryStatus.AppliedCount != 1 {
 			t.Fatalf(
-				"shared statuses = global %#v memory %#v, want global version/count 8 and memory version/count 1",
-				globalAfter,
+				"shared memory status = %#v, want version/count 1",
 				memoryStatus,
 			)
 		}

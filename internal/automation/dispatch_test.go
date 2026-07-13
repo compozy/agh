@@ -15,6 +15,7 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
@@ -121,9 +122,9 @@ func TestDispatchTaskBackedJobDelegatesToTaskServiceWithoutSessionRuntime(t *tes
 
 	job := testJob(AutomationScopeWorkspace, "job-task-backed", "ws_alpha")
 	job.Task = &JobTaskConfig{
-		Title:          "Review automation findings",
-		Description:    "Create a durable review task.",
-		NetworkChannel: "ops-automation",
+		Title:                "Review automation findings",
+		Description:          "Create a durable review task.",
+		NetworkParticipation: testNamedParticipation("ops-automation"),
 		Owner: &taskpkg.Ownership{
 			Kind: taskpkg.OwnerKindAutomation,
 			Ref:  "job-task-backed",
@@ -182,10 +183,6 @@ func TestDispatchTaskBackedJobDelegatesToTaskServiceWithoutSessionRuntime(t *tes
 	if got, want := createCall.spec.WorkspaceID, "ws_alpha"; got != want {
 		t.Fatalf("CreateTask().workspace_id = %q, want %q", got, want)
 	}
-	if got, want := createCall.spec.NetworkChannel, "ops-automation"; got != want {
-		t.Fatalf("CreateTask().network_channel = %q, want %q", got, want)
-	}
-
 	if got, want := len(tasks.enqueueCalls), 1; got != want {
 		t.Fatalf("len(EnqueueRun calls) = %d, want %d", got, want)
 	}
@@ -196,9 +193,11 @@ func TestDispatchTaskBackedJobDelegatesToTaskServiceWithoutSessionRuntime(t *tes
 	if got, want := enqueueCall.spec.IdempotencyKey, "automation-run:"+run.ID; got != want {
 		t.Fatalf("EnqueueRun().idempotency_key = %q, want %q", got, want)
 	}
-	if got, want := enqueueCall.spec.NetworkChannel, "ops-automation"; got != want {
-		t.Fatalf("EnqueueRun().network_channel = %q, want %q", got, want)
+	assertNamedParticipation(t, enqueueCall.spec.NetworkParticipation, "ops-automation")
+	if got, want := enqueueCall.spec.NetworkParticipationSource, participation.SourceAutomationJob; got != want {
+		t.Fatalf("EnqueueRun().network_participation_source = %q, want %q", got, want)
 	}
+	assertNamedParticipation(t, run.NetworkParticipation, "ops-automation")
 }
 
 func TestDispatchLoopTargetJobDelegatesToLoopStarterWithoutSessionRuntime(t *testing.T) {
@@ -277,6 +276,13 @@ func TestDispatchLoopTargetJobDelegatesToLoopStarterWithoutSessionRuntime(t *tes
 	if got, want := call.Inputs["tasks"], "task-ref"; got != want {
 		t.Fatalf("StartLoop().Inputs[tasks] = %v, want %v", got, want)
 	}
+	if call.NetworkParticipation != nil || run.NetworkParticipation != nil {
+		t.Fatalf(
+			"participation = call:%#v run:%#v, want no declaration and no implicit enrollment",
+			call.NetworkParticipation,
+			run.NetworkParticipation,
+		)
+	}
 }
 
 func TestDispatchLoopTargetWebhookTriggerPassesPayloadToLoopStarter(t *testing.T) {
@@ -292,15 +298,17 @@ func TestDispatchLoopTargetWebhookTriggerPassesPayloadToLoopStarter(t *testing.T
 	trigger.Prompt = ""
 	trigger.TargetKind = TargetKindLoop
 	trigger.LoopTarget = &LoopTarget{
-		WorkspaceID: "ws_alpha",
-		LoopName:    "deploy",
+		WorkspaceID:          "ws_alpha",
+		LoopName:             "deploy",
+		NetworkParticipation: testNamedParticipation("definition-channel"),
 		InputMapping: map[string]string{
 			"title": "{{ .trigger.payload.title }}",
 		},
 	}
 	envelope := testEnvelope(AutomationScopeWorkspace, "ws_alpha")
 	envelope.Data = map[string]any{
-		"title": "Deploy release",
+		"title":                 "Deploy release",
+		"network_participation": testNamedParticipation("payload-channel"),
 	}
 
 	run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
@@ -342,6 +350,8 @@ func TestDispatchLoopTargetWebhookTriggerPassesPayloadToLoopStarter(t *testing.T
 	if got, want := call.Actor.Origin.Ref, "run:"+run.ID; got != want {
 		t.Fatalf("StartLoop().Actor.Origin.Ref = %q, want %q", got, want)
 	}
+	assertNamedParticipation(t, call.NetworkParticipation, "definition-channel")
+	assertNamedParticipation(t, run.NetworkParticipation, "definition-channel")
 }
 
 func TestDispatchLoopTargetFailsRunWhenLoopStarterRejects(t *testing.T) {
@@ -442,6 +452,57 @@ func TestDispatchLoopTargetCatchUpConflictRecordsMetadata(t *testing.T) {
 			startCalls[0].CatchUp,
 			startCalls[0].CatchUpPolicy,
 		)
+	}
+}
+
+func TestDispatchLoopTargetRetryShouldReuseDefinitionParticipation(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryRunStore()
+	starter := &recordingLoopStarter{
+		runID:       "looprun-retried",
+		startErrors: []error{errors.New("transient loop start failure"), nil},
+	}
+	dispatcher := newTestDispatcher(
+		t,
+		newRecordingSessionCreator(),
+		store,
+		WithDispatcherLoopStarter(starter),
+		WithDispatcherSleep(func(context.Context, time.Duration) error { return nil }),
+	)
+	job := testJob(AutomationScopeWorkspace, "job-loop-retry", "ws_alpha")
+	job.AgentName = ""
+	job.Prompt = ""
+	job.TargetKind = TargetKindLoop
+	job.LoopTarget = &LoopTarget{
+		WorkspaceID:          "ws_alpha",
+		LoopName:             "triage",
+		NetworkParticipation: testNamedParticipation("retry-channel"),
+	}
+	job.Retry = RetryConfig{Strategy: RetryStrategyBackoff, MaxRetries: 1, BaseDelay: "1ms"}
+
+	run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+		Kind: DispatchKindSchedule,
+		Job:  &job,
+	})
+	if err != nil {
+		t.Fatalf("Dispatch() error = %v", err)
+	}
+	if run == nil || run.Status != RunDelegated {
+		t.Fatalf("Dispatch() run = %#v, want delegated retry", run)
+	}
+	calls := starter.startCallSnapshot()
+	if got, want := len(calls), 2; got != want {
+		t.Fatalf("len(StartLoop calls) = %d, want %d", got, want)
+	}
+	for index, call := range calls {
+		assertNamedParticipation(t, call.NetworkParticipation, "retry-channel")
+		if strings.TrimSpace(call.AutomationRunID) == "" {
+			t.Fatalf("StartLoop call %d AutomationRunID = empty", index)
+		}
+	}
+	for _, stored := range store.listRuns() {
+		assertNamedParticipation(t, stored.NetworkParticipation, "retry-channel")
 	}
 }
 
@@ -1617,11 +1678,10 @@ func (s *recordingTaskService) CreateTask(
 		return nil, s.createErr
 	}
 	return &taskpkg.Task{
-		ID:             "task-1",
-		Scope:          spec.Scope,
-		WorkspaceID:    spec.WorkspaceID,
-		NetworkChannel: spec.NetworkChannel,
-		Owner:          cloneTaskOwnership(spec.Owner),
+		ID:          "task-1",
+		Scope:       spec.Scope,
+		WorkspaceID: spec.WorkspaceID,
+		Owner:       cloneTaskOwnership(spec.Owner),
 	}, nil
 }
 
@@ -1639,8 +1699,30 @@ func (s *recordingTaskService) EnqueueRun(
 		TaskID:         spec.TaskID,
 		Origin:         actor.Origin,
 		IdempotencyKey: spec.IdempotencyKey,
-		NetworkChannel: spec.NetworkChannel,
 	}, nil
+}
+
+func testNamedParticipation(channelID string) *participation.Request {
+	mode := participation.ModeLive
+	strategy := participation.StrategyNamed
+	return &participation.Request{
+		Mode:            &mode,
+		ChannelStrategy: &strategy,
+		ChannelID:       &channelID,
+	}
+}
+
+func assertNamedParticipation(t *testing.T, request *participation.Request, channelID string) {
+	t.Helper()
+	if request == nil || request.Mode == nil || *request.Mode != participation.ModeLive {
+		t.Fatalf("network participation = %#v, want live", request)
+	}
+	if request.ChannelStrategy == nil || *request.ChannelStrategy != participation.StrategyNamed {
+		t.Fatalf("network participation strategy = %#v, want named", request.ChannelStrategy)
+	}
+	if request.ChannelID == nil || *request.ChannelID != channelID {
+		t.Fatalf("network participation channel_id = %#v, want %q", request.ChannelID, channelID)
+	}
 }
 
 type recordingLoopStarter struct {
@@ -1649,6 +1731,7 @@ type recordingLoopStarter struct {
 	startCalls    []LoopStartRequest
 	validateErr   error
 	startErr      error
+	startErrors   []error
 	runID         string
 }
 
@@ -1675,7 +1758,11 @@ func (s *recordingLoopStarter) StartLoop(ctx context.Context, req LoopStartReque
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	callIndex := len(s.startCalls)
 	s.startCalls = append(s.startCalls, cloneLoopStartRequest(req))
+	if callIndex < len(s.startErrors) && s.startErrors[callIndex] != nil {
+		return LoopStartResult{}, s.startErrors[callIndex]
+	}
 	if s.startErr != nil {
 		return LoopStartResult{}, s.startErr
 	}
@@ -1720,17 +1807,18 @@ func cloneLoopTargetValidationRequest(req LoopTargetValidationRequest) LoopTarge
 
 func cloneLoopStartRequest(req LoopStartRequest) LoopStartRequest {
 	return LoopStartRequest{
-		WorkspaceID:     strings.TrimSpace(req.WorkspaceID),
-		LoopName:        strings.TrimSpace(req.LoopName),
-		Kind:            req.Kind,
-		Inputs:          cloneJSONMap(req.Inputs),
-		InputMapping:    cloneStringMap(req.InputMapping),
-		TriggerPayload:  cloneJSONMap(req.TriggerPayload),
-		Actor:           req.Actor,
-		AutomationRunID: strings.TrimSpace(req.AutomationRunID),
-		ScheduledAt:     cloneTimePointer(req.ScheduledAt),
-		CatchUp:         req.CatchUp,
-		CatchUpPolicy:   req.CatchUpPolicy,
+		WorkspaceID:          strings.TrimSpace(req.WorkspaceID),
+		LoopName:             strings.TrimSpace(req.LoopName),
+		Kind:                 req.Kind,
+		Inputs:               cloneJSONMap(req.Inputs),
+		InputMapping:         cloneStringMap(req.InputMapping),
+		TriggerPayload:       cloneJSONMap(req.TriggerPayload),
+		NetworkParticipation: cloneParticipationRequest(req.NetworkParticipation),
+		Actor:                req.Actor,
+		AutomationRunID:      strings.TrimSpace(req.AutomationRunID),
+		ScheduledAt:          cloneTimePointer(req.ScheduledAt),
+		CatchUp:              req.CatchUp,
+		CatchUpPolicy:        req.CatchUpPolicy,
 	}
 }
 

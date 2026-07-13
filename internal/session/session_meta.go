@@ -1,6 +1,9 @@
 package session
 
-import "github.com/compozy/agh/internal/store"
+import (
+	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/agh/internal/store"
+)
 
 // Meta returns the current metadata snapshot for persistence.
 func (s *Session) Meta() store.SessionMeta {
@@ -23,7 +26,7 @@ func (s *Session) Meta() store.SessionMeta {
 		ReasoningEffort:      s.ReasoningEffort,
 		EffectivePermissions: s.EffectivePermissions,
 		WorkspaceID:          s.WorkspaceID,
-		Channel:              s.Channel,
+		NetworkParticipation: participation.CloneSpec(s.NetworkParticipation),
 		SessionType:          string(normalizeSessionType(s.Type)),
 		Lineage:              store.NormalizeSessionLineage(s.ID, s.Lineage),
 		State:                string(s.State),

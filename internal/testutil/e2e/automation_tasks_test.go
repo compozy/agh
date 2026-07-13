@@ -14,6 +14,7 @@ import (
 	aghcontract "github.com/compozy/agh/internal/api/contract"
 	coreapi "github.com/compozy/agh/internal/api/core"
 	automationpkg "github.com/compozy/agh/internal/automation"
+	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -89,6 +90,9 @@ func TestSeedAutomationFixturesRegistersDefinitionsWithoutHiddenDefaults(t *test
 		Kind: taskpkg.OwnerKindAutomation,
 		Ref:  "job:triage-deploy",
 	}
+	liveMode := participation.ModeLive
+	namedStrategy := participation.StrategyNamed
+	channelID := "ops-automation"
 	seed := AutomationFixtureSeed{
 		Jobs: []aghcontract.CreateJobRequest{{
 			Scope:       automationpkg.AutomationScopeWorkspace,
@@ -100,10 +104,14 @@ func TestSeedAutomationFixturesRegistersDefinitionsWithoutHiddenDefaults(t *test
 				Interval: "1h",
 			},
 			Task: &automationpkg.JobTaskConfig{
-				Title:          "Investigate deploy drift",
-				Description:    "Review the latest deployment discrepancy.",
-				NetworkChannel: "ops-automation",
-				Owner:          taskOwner,
+				Title:       "Investigate deploy drift",
+				Description: "Review the latest deployment discrepancy.",
+				Owner:       taskOwner,
+				NetworkParticipation: &participation.Request{
+					Mode:            &liveMode,
+					ChannelStrategy: &namedStrategy,
+					ChannelID:       &channelID,
+				},
 			},
 		}},
 		Triggers: []aghcontract.CreateTriggerRequest{{
@@ -152,8 +160,17 @@ func TestSeedAutomationFixturesRegistersDefinitionsWithoutHiddenDefaults(t *test
 		t.Fatalf("seenTriggerRequest.Filter[data.branch] = %q, want %q", got, want)
 	}
 
-	if got, want := created.Jobs[0].Task.NetworkChannel, "ops-automation"; got != want {
-		t.Fatalf("created.Jobs[0].Task.NetworkChannel = %q, want %q", got, want)
+	createdParticipation := created.Jobs[0].Task.NetworkParticipation
+	if createdParticipation == nil ||
+		createdParticipation.Mode == nil || *createdParticipation.Mode != participation.ModeLive ||
+		createdParticipation.ChannelStrategy == nil ||
+		*createdParticipation.ChannelStrategy != participation.StrategyNamed ||
+		createdParticipation.ChannelID == nil || *createdParticipation.ChannelID != channelID {
+		t.Fatalf(
+			"created.Jobs[0].Task.NetworkParticipation = %#v, want live named channel %q",
+			createdParticipation,
+			channelID,
+		)
 	}
 	if got, want := created.Triggers[0].EndpointSlug, "deploy-review"; got != want {
 		t.Fatalf("created.Triggers[0].EndpointSlug = %q, want %q", got, want)

@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
@@ -491,39 +492,25 @@ func taskContextRuntimeLimits(cfg aghconfig.TaskOrchestrationConfig) taskpkg.Run
 	}
 }
 
-func taskReference(taskRecord taskpkg.Task) taskpkg.Reference {
-	return taskpkg.Reference{
-		ID:             strings.TrimSpace(taskRecord.ID),
-		Identifier:     safeTaskContextText(taskRecord.Identifier, maxReviewReasonFallback),
-		Title:          safeTaskContextText(taskRecord.Title, maxReviewReasonFallback),
-		Status:         taskRecord.Status,
-		Priority:       taskRecord.Priority,
-		Owner:          cloneOwnership(taskRecord.Owner),
-		Scope:          taskRecord.Scope,
-		WorkspaceID:    strings.TrimSpace(taskRecord.WorkspaceID),
-		LatestEventSeq: taskRecord.LatestEventSeq,
-	}
-}
-
 func runSummaryFromTaskRun(run taskpkg.Run, maxAttempts int) taskpkg.RunSummary {
 	summary := taskpkg.RunSummary{
-		ID:                    strings.TrimSpace(run.ID),
-		TaskID:                strings.TrimSpace(run.TaskID),
-		Status:                run.Status.Normalize(),
-		Attempt:               int(run.Attempt),
-		MaxAttempts:           maxAttempts,
-		SessionID:             strings.TrimSpace(run.SessionID),
-		ClaimedBy:             cloneActorIdentity(run.ClaimedBy),
-		ClaimTokenHash:        strings.TrimSpace(run.ClaimTokenHash),
-		LeaseUntil:            run.LeaseUntil.UTC(),
-		HeartbeatAt:           run.HeartbeatAt.UTC(),
-		CoordinationChannelID: strings.TrimSpace(run.CoordinationChannelID),
-		DesignationGroupID:    strings.TrimSpace(run.DesignationGroupID),
-		QueuedAt:              run.QueuedAt.UTC(),
-		ClaimedAt:             run.ClaimedAt.UTC(),
-		StartedAt:             run.StartedAt.UTC(),
-		EndedAt:               run.EndedAt.UTC(),
-		Error:                 safeTaskContextText(run.Error, maxReviewReasonFallback),
+		ID:                           strings.TrimSpace(run.ID),
+		TaskID:                       strings.TrimSpace(run.TaskID),
+		Status:                       run.Status.Normalize(),
+		Attempt:                      int(run.Attempt),
+		MaxAttempts:                  maxAttempts,
+		SessionID:                    strings.TrimSpace(run.SessionID),
+		ClaimedBy:                    cloneActorIdentity(run.ClaimedBy),
+		ClaimTokenHash:               strings.TrimSpace(run.ClaimTokenHash),
+		LeaseUntil:                   run.LeaseUntil.UTC(),
+		HeartbeatAt:                  run.HeartbeatAt.UTC(),
+		ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
+		DesignationGroupID:           strings.TrimSpace(run.DesignationGroupID),
+		QueuedAt:                     run.QueuedAt.UTC(),
+		ClaimedAt:                    run.ClaimedAt.UTC(),
+		StartedAt:                    run.StartedAt.UTC(),
+		EndedAt:                      run.EndedAt.UTC(),
+		Error:                        safeTaskContextText(run.Error, maxReviewReasonFallback),
 	}
 	if designation, ok := taskpkg.DesignationFromRun(run); ok {
 		summary.DesignationGroupID = designation.GroupID

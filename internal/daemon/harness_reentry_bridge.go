@@ -551,7 +551,7 @@ func (b *harnessReentryBridge) resolveWakeTargetSnapshot(
 		if workspaceID := strings.TrimSpace(info.WorkspaceID); workspaceID != "" {
 			target.WorkspaceID = workspaceID
 		}
-		if channel := strings.TrimSpace(info.Channel); channel != "" {
+		if channel := strings.TrimSpace(info.NetworkParticipation.ChannelID); channel != "" {
 			target.Channel = channel
 		}
 		target.Missing = false

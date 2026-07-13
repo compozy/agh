@@ -28,6 +28,10 @@ func TestNetworkChannels(t *testing.T) {
 			run:  assertGlobalDBWriteAndListNetworkChannels,
 		},
 		{
+			name: "Should reject duplicate channel creation without replacing metadata",
+			run:  assertGlobalDBCreateNetworkChannelRejectsDuplicate,
+		},
+		{
 			name: "Should isolate the same channel name between workspaces",
 			run:  assertGlobalDBNetworkChannelsRemainWorkspaceQualified,
 		},
@@ -66,6 +70,46 @@ func TestNetworkChannels(t *testing.T) {
 			t.Parallel()
 			tt.run(t)
 		})
+	}
+}
+
+func assertGlobalDBCreateNetworkChannelRejectsDuplicate(t *testing.T) {
+	t.Helper()
+
+	globalDB := openTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"ws-network-create-only",
+		filepath.Join(t.TempDir(), "ws-network-create-only"),
+	)
+	original := store.NetworkChannelEntry{
+		WorkspaceID: workspaceID,
+		Channel:     "ops",
+		Purpose:     "Original purpose",
+		CreatedBy:   "operator:first",
+	}
+	if err := globalDB.CreateNetworkChannel(ctx, original); err != nil {
+		t.Fatalf("CreateNetworkChannel(first) error = %v", err)
+	}
+
+	replacement := original
+	replacement.Purpose = "Replacement purpose"
+	replacement.CreatedBy = "operator:second"
+	if err := globalDB.CreateNetworkChannel(ctx, replacement); !errors.Is(err, store.ErrNetworkChannelExists) {
+		t.Fatalf("CreateNetworkChannel(duplicate) error = %v, want ErrNetworkChannelExists", err)
+	}
+
+	stored, err := globalDB.GetNetworkChannel(ctx, store.NetworkChannelRef{
+		WorkspaceID: workspaceID,
+		Channel:     original.Channel,
+	})
+	if err != nil {
+		t.Fatalf("GetNetworkChannel() error = %v", err)
+	}
+	if stored.Purpose != original.Purpose || stored.CreatedBy != original.CreatedBy {
+		t.Fatalf("stored channel = %#v, want original metadata preserved", stored)
 	}
 }
 

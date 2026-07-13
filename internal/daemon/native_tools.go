@@ -2126,6 +2126,9 @@ func (n *daemonNativeTools) taskCreate(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if err := nativeRejectRemovedTaskChannel(req.ToolID, input.NetworkChannel); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	actor, err := actorContextFromScope(scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -2144,6 +2147,9 @@ func (n *daemonNativeTools) taskChildCreate(
 ) (toolspkg.ToolResult, error) {
 	var input taskChildCreateInput
 	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	if err := nativeRejectRemovedTaskChannel(req.ToolID, input.NetworkChannel); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	actor, err := actorContextFromScope(scope)
@@ -2165,6 +2171,11 @@ func (n *daemonNativeTools) taskUpdate(
 	var input taskUpdateInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
+	}
+	if input.NetworkChannel != nil {
+		if err := nativeRejectRemovedTaskChannel(req.ToolID, *input.NetworkChannel); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
 	}
 	actor, err := actorContextFromScope(scope)
 	if err != nil {
@@ -2333,6 +2344,7 @@ func (n *daemonNativeTools) taskRunList(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	runs = input.filterRuns(runs)
 	return structuredResult(map[string]any{nativeToolsRunsKey: runs}, fmt.Sprintf("%d runs", len(runs)))
 }
 
@@ -2354,13 +2366,12 @@ func (n *daemonNativeTools) taskPromoteFromThread(
 		return toolspkg.ToolResult{}, err
 	}
 	spec := taskpkg.CreateTask{
-		Scope:          taskpkg.ScopeWorkspace,
-		WorkspaceID:    source.workspaceID,
-		NetworkChannel: source.channel,
-		Title:          nativePromotedThreadTaskTitle(input, source),
-		Description:    firstNonEmpty(strings.TrimSpace(input.Description), source.digest),
-		Priority:       taskpkg.Priority(strings.TrimSpace(input.Priority)).Normalize(),
-		Metadata:       cloneJSON(input.Metadata),
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: source.workspaceID,
+		Title:       nativePromotedThreadTaskTitle(input, source),
+		Description: firstNonEmpty(strings.TrimSpace(input.Description), source.digest),
+		Priority:    taskpkg.Priority(strings.TrimSpace(input.Priority)).Normalize(),
+		Metadata:    cloneJSON(input.Metadata),
 	}
 	taskRecord, err := n.deps.Tasks.CreateTask(ctx, spec, actor)
 	if err != nil {
@@ -2530,7 +2541,6 @@ func (n *daemonNativeTools) taskFanOutRuns(
 		run, enqueueErr := n.deps.Tasks.EnqueueRun(ctx, taskpkg.EnqueueRun{
 			TaskID:             taskID,
 			IdempotencyKey:     prepared[index].idempotencyKey,
-			NetworkChannel:     strings.TrimSpace(input.NetworkChannel),
 			DesignationGroupID: groupID,
 			Metadata:           prepared[index].metadata,
 		}, actor)
@@ -2562,6 +2572,9 @@ func prepareNativeFanOutDesignations(
 	input taskFanOutRunsInput,
 	maxDesignations int,
 ) ([]nativePreparedFanOutDesignation, error) {
+	if strings.TrimSpace(input.NetworkChannel) != "" {
+		return nil, errors.New("network_channel is no longer supported")
+	}
 	if len(input.Designations) == 0 {
 		return nil, errors.New("designations are required")
 	}
@@ -3420,7 +3433,6 @@ func (i taskCreateInput) spec(scope toolspkg.Scope) taskpkg.CreateTask {
 		Identifier:     strings.TrimSpace(i.Identifier),
 		Scope:          taskScope,
 		WorkspaceID:    workspaceID,
-		NetworkChannel: strings.TrimSpace(i.NetworkChannel),
 		Title:          strings.TrimSpace(i.Title),
 		Description:    strings.TrimSpace(i.Description),
 		Priority:       taskpkg.Priority(strings.TrimSpace(i.Priority)),
@@ -3465,7 +3477,6 @@ func (i taskUpdateInput) patch() taskpkg.Patch {
 		MaxAttempts:    cloneIntPtr(i.MaxAttempts),
 		ApprovalPolicy: taskApprovalPolicyPtr(i.ApprovalPolicy),
 		Metadata:       cloneRawMessagePtr(i.Metadata),
-		NetworkChannel: cloneStringPtr(i.NetworkChannel),
 		Owner:          cloneTaskOwner(i.Owner),
 		ClearOwner:     i.ClearOwner,
 	}
@@ -3526,24 +3537,6 @@ type taskFanOutRunsInput struct {
 	NetworkChannel string                                     `json:"network_channel,omitempty"`
 	Designations   []contract.TaskFanOutRunDesignationRequest `json:"designations"`
 	IdempotencyKey string                                     `json:"idempotency_key,omitempty"`
-}
-
-type taskRunListInput struct {
-	TaskID                string `json:"task_id"`
-	Status                string `json:"status,omitempty"`
-	SessionID             string `json:"session_id,omitempty"`
-	CoordinationChannelID string `json:"coordination_channel_id,omitempty"`
-	Limit                 int    `json:"limit,omitempty"`
-}
-
-func (i taskRunListInput) query() taskpkg.RunQuery {
-	return taskpkg.RunQuery{
-		TaskID:                strings.TrimSpace(i.TaskID),
-		Status:                taskpkg.ParseRunStatus(i.Status),
-		SessionID:             strings.TrimSpace(i.SessionID),
-		CoordinationChannelID: strings.TrimSpace(i.CoordinationChannelID),
-		Limit:                 i.Limit,
-	}
 }
 
 type autonomyClaimNextInput struct {

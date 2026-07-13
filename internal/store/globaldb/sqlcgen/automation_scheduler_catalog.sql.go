@@ -63,7 +63,8 @@ SELECT j.id, j.scope, j.name, j.agent_name, j.workspace_id, j.prompt, j.schedule
   CASE WHEN j.source IN ('config', 'package') AND o.enabled_override IS NOT NULL
     THEN o.enabled_override ELSE j.enabled END AS enabled,
   j.retry, j.fire_limit, j.source, j.target_kind, j.loop_workspace_id,
-  j.loop_name, j.loop_inputs, j.loop_input_mapping, j.created_at, j.updated_at
+	j.loop_name, j.loop_inputs, j.loop_input_mapping, j.loop_network_participation,
+	j.created_at, j.updated_at
 FROM requested
 JOIN automation_jobs AS j ON j.id = requested.job_id
 LEFT JOIN automation_job_overlays AS o ON o.job_id = j.id
@@ -71,25 +72,26 @@ ORDER BY requested.ordinal
 `
 
 type HydrateAutomationJobCatalogRow struct {
-	ID               string         `json:"id"`
-	Scope            string         `json:"scope"`
-	Name             string         `json:"name"`
-	AgentName        string         `json:"agent_name"`
-	WorkspaceID      sql.NullString `json:"workspace_id"`
-	Prompt           string         `json:"prompt"`
-	Schedule         sql.NullString `json:"schedule"`
-	Task             sql.NullString `json:"task"`
-	Enabled          any            `json:"enabled"`
-	Retry            string         `json:"retry"`
-	FireLimit        string         `json:"fire_limit"`
-	Source           string         `json:"source"`
-	TargetKind       string         `json:"target_kind"`
-	LoopWorkspaceID  sql.NullString `json:"loop_workspace_id"`
-	LoopName         sql.NullString `json:"loop_name"`
-	LoopInputs       sql.NullString `json:"loop_inputs"`
-	LoopInputMapping sql.NullString `json:"loop_input_mapping"`
-	CreatedAt        string         `json:"created_at"`
-	UpdatedAt        string         `json:"updated_at"`
+	ID                       string         `json:"id"`
+	Scope                    string         `json:"scope"`
+	Name                     string         `json:"name"`
+	AgentName                string         `json:"agent_name"`
+	WorkspaceID              sql.NullString `json:"workspace_id"`
+	Prompt                   string         `json:"prompt"`
+	Schedule                 sql.NullString `json:"schedule"`
+	Task                     sql.NullString `json:"task"`
+	Enabled                  any            `json:"enabled"`
+	Retry                    string         `json:"retry"`
+	FireLimit                string         `json:"fire_limit"`
+	Source                   string         `json:"source"`
+	TargetKind               string         `json:"target_kind"`
+	LoopWorkspaceID          sql.NullString `json:"loop_workspace_id"`
+	LoopName                 sql.NullString `json:"loop_name"`
+	LoopInputs               sql.NullString `json:"loop_inputs"`
+	LoopInputMapping         sql.NullString `json:"loop_input_mapping"`
+	LoopNetworkParticipation sql.NullString `json:"loop_network_participation"`
+	CreatedAt                string         `json:"created_at"`
+	UpdatedAt                string         `json:"updated_at"`
 }
 
 func (q *Queries) HydrateAutomationJobCatalog(ctx context.Context, idsJson any) ([]HydrateAutomationJobCatalogRow, error) {
@@ -119,6 +121,7 @@ func (q *Queries) HydrateAutomationJobCatalog(ctx context.Context, idsJson any) 
 			&i.LoopName,
 			&i.LoopInputs,
 			&i.LoopInputMapping,
+			&i.LoopNetworkParticipation,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -144,7 +147,7 @@ SELECT t.id, t.scope, t.name, t.agent_name, t.workspace_id, t.prompt, t.event, t
     THEN o.enabled_override ELSE t.enabled END AS enabled,
   t.retry, t.fire_limit, t.source, t.webhook_id, t.endpoint_slug, t.webhook_secret_ref,
   t.target_kind, t.loop_workspace_id, t.loop_name, t.loop_inputs, t.loop_input_mapping,
-  t.created_at, t.updated_at
+	t.loop_network_participation, t.created_at, t.updated_at
 FROM requested
 JOIN automation_triggers AS t ON t.id = requested.trigger_id
 LEFT JOIN automation_trigger_overlays AS o ON o.trigger_id = t.id
@@ -152,28 +155,29 @@ ORDER BY requested.ordinal
 `
 
 type HydrateAutomationTriggerCatalogRow struct {
-	ID               string         `json:"id"`
-	Scope            string         `json:"scope"`
-	Name             string         `json:"name"`
-	AgentName        string         `json:"agent_name"`
-	WorkspaceID      sql.NullString `json:"workspace_id"`
-	Prompt           string         `json:"prompt"`
-	Event            string         `json:"event"`
-	Filter           sql.NullString `json:"filter"`
-	Enabled          any            `json:"enabled"`
-	Retry            string         `json:"retry"`
-	FireLimit        string         `json:"fire_limit"`
-	Source           string         `json:"source"`
-	WebhookID        sql.NullString `json:"webhook_id"`
-	EndpointSlug     sql.NullString `json:"endpoint_slug"`
-	WebhookSecretRef sql.NullString `json:"webhook_secret_ref"`
-	TargetKind       string         `json:"target_kind"`
-	LoopWorkspaceID  sql.NullString `json:"loop_workspace_id"`
-	LoopName         sql.NullString `json:"loop_name"`
-	LoopInputs       sql.NullString `json:"loop_inputs"`
-	LoopInputMapping sql.NullString `json:"loop_input_mapping"`
-	CreatedAt        string         `json:"created_at"`
-	UpdatedAt        string         `json:"updated_at"`
+	ID                       string         `json:"id"`
+	Scope                    string         `json:"scope"`
+	Name                     string         `json:"name"`
+	AgentName                string         `json:"agent_name"`
+	WorkspaceID              sql.NullString `json:"workspace_id"`
+	Prompt                   string         `json:"prompt"`
+	Event                    string         `json:"event"`
+	Filter                   sql.NullString `json:"filter"`
+	Enabled                  any            `json:"enabled"`
+	Retry                    string         `json:"retry"`
+	FireLimit                string         `json:"fire_limit"`
+	Source                   string         `json:"source"`
+	WebhookID                sql.NullString `json:"webhook_id"`
+	EndpointSlug             sql.NullString `json:"endpoint_slug"`
+	WebhookSecretRef         sql.NullString `json:"webhook_secret_ref"`
+	TargetKind               string         `json:"target_kind"`
+	LoopWorkspaceID          sql.NullString `json:"loop_workspace_id"`
+	LoopName                 sql.NullString `json:"loop_name"`
+	LoopInputs               sql.NullString `json:"loop_inputs"`
+	LoopInputMapping         sql.NullString `json:"loop_input_mapping"`
+	LoopNetworkParticipation sql.NullString `json:"loop_network_participation"`
+	CreatedAt                string         `json:"created_at"`
+	UpdatedAt                string         `json:"updated_at"`
 }
 
 func (q *Queries) HydrateAutomationTriggerCatalog(ctx context.Context, idsJson any) ([]HydrateAutomationTriggerCatalogRow, error) {
@@ -206,6 +210,7 @@ func (q *Queries) HydrateAutomationTriggerCatalog(ctx context.Context, idsJson a
 			&i.LoopName,
 			&i.LoopInputs,
 			&i.LoopInputMapping,
+			&i.LoopNetworkParticipation,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/tools"
 )
@@ -96,6 +97,7 @@ type GateInput struct {
 	JudgeModel               string
 	JudgeUsageReporter       JudgeUsageReporter
 	JudgeEvidence            JudgeEvidence
+	NetworkParticipation     *participation.Spec
 }
 
 // JudgeEvidence is the authoritative completed candidate supplied to an agent judge.
@@ -246,15 +248,16 @@ type JudgeRunner interface {
 
 // JudgeRequest is the rendered agent-judge invocation.
 type JudgeRequest struct {
-	GateID        string
-	CriterionID   string
-	Attempt       int
-	CorrelationID string
-	WorkspaceID   string
-	Agent         string
-	Model         string
-	Rubric        string
-	Contract      dsl.Contract
+	GateID               string
+	CriterionID          string
+	Attempt              int
+	CorrelationID        string
+	WorkspaceID          string
+	Agent                string
+	Model                string
+	Rubric               string
+	Contract             dsl.Contract
+	NetworkParticipation *participation.Spec
 }
 
 // JudgeResponse is the raw judge response payload.

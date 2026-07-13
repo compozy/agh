@@ -220,7 +220,6 @@ export function AutomationJobForm({
                     jobName={draft.name}
                     onOwnerKind={form.onOwnerKind}
                     onOwnerRef={form.onOwnerRef}
-                    onTaskChannel={form.onTaskChannel}
                     onTaskDescription={form.onTaskDescription}
                     onTaskTitle={form.onTaskTitle}
                     task={draft.task}

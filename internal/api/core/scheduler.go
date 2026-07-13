@@ -299,7 +299,6 @@ func TaskSummaryPayloadFromTask(record *taskpkg.Task) contract.TaskSummaryPayloa
 		Scope:              record.Scope,
 		WorkspaceID:        record.WorkspaceID,
 		ParentTaskID:       record.ParentTaskID,
-		NetworkChannel:     record.NetworkChannel,
 		Title:              record.Title,
 		Priority:           record.Priority,
 		MaxAttempts:        record.MaxAttempts,

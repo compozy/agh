@@ -13,10 +13,39 @@ import (
 	"github.com/compozy/agh/internal/api/testutil"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
+
+func testLiveParticipation(workspaceID string, channelID string) participation.Spec {
+	return participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     workspaceID,
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       channelID,
+		Source:          participation.SourceExplicitRequest,
+	}
+}
+
+func testNamedParticipationRequest(channelID string) *participation.Request {
+	mode := participation.ModeLive
+	strategy := participation.StrategyNamed
+	return &participation.Request{
+		Mode:            &mode,
+		ChannelStrategy: &strategy,
+		ChannelID:       &channelID,
+	}
+}
+
+func testParticipationRequestChannel(request *participation.Request) string {
+	if request == nil || request.ChannelID == nil {
+		return ""
+	}
+	return strings.TrimSpace(*request.ChannelID)
+}
 
 type stubDreamTrigger struct {
 	Triggered bool

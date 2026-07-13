@@ -8,6 +8,7 @@ import (
 	"time"
 
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -23,12 +24,18 @@ func TestDecideBootstrap(t *testing.T) {
 		WorkspaceID: "ws-1",
 	}
 	baseRun := taskpkg.Run{
-		ID:                    "run-1",
-		TaskID:                "task-1",
-		Status:                taskpkg.TaskRunStatusQueued,
-		CoordinationChannelID: "ch-run-1",
-		Metadata:              json.RawMessage(`{"workflow_id":"wf-1"}`),
+		ID:       "run-1",
+		TaskID:   "task-1",
+		Status:   taskpkg.TaskRunStatusQueued,
+		Metadata: json.RawMessage(`{"workflow_id":"wf-1"}`),
 	}
+	baseRun.SetNetworkState(participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       "ch-run-1",
+		Source:          participation.SourceExplicitRequest,
+	}, "", "", "")
 	enabled := aghconfig.DefaultCoordinatorConfig()
 	enabled.Enabled = true
 
@@ -71,7 +78,7 @@ func TestDecideBootstrap(t *testing.T) {
 			task: baseTask,
 			run: func() taskpkg.Run {
 				run := baseRun
-				run.CoordinationChannelID = ""
+				run.SetNetworkState(participation.LocalSpec(), "", "", "")
 				return run
 			}(),
 			cfg:  enabled,

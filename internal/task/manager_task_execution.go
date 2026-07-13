@@ -67,9 +67,6 @@ func (m *Service) executeTaskBoundary(
 	if err != nil {
 		return nil, err
 	}
-	if err := m.validateNetworkChannel("task_execution.network_channel", normalizedReq.NetworkChannel); err != nil {
-		return nil, err
-	}
 	idempotencyKey := taskExecutionIdempotencyKey(trimmedID, action, normalizedReq.IdempotencyKey)
 	if existing, ok, err := m.taskExecutionFromIdempotency(ctx, trimmedID, idempotencyKey, action, actor); err != nil {
 		return nil, err
@@ -104,10 +101,10 @@ func (m *Service) executeTaskBoundary(
 	}
 
 	run, err := m.EnqueueRun(ctx, EnqueueRun{
-		TaskID:         trimmedID,
-		IdempotencyKey: idempotencyKey,
-		NetworkChannel: normalizedReq.NetworkChannel,
-		Metadata:       normalizedReq.Metadata,
+		TaskID:               trimmedID,
+		IdempotencyKey:       idempotencyKey,
+		NetworkParticipation: normalizedReq.NetworkParticipation,
+		Metadata:             normalizedReq.Metadata,
 	}, actor)
 	if err != nil {
 		return nil, err
@@ -224,10 +221,10 @@ func (m *Service) approvalAutoEnqueueExecution(
 		Ref:  approvalTask.ID,
 	}
 	run, err := m.EnqueueRun(ctx, EnqueueRun{
-		TaskID:         approvalTask.ID,
-		IdempotencyKey: trigger.idempotencyKey(approvalTask.ID),
-		NetworkChannel: req.NetworkChannel,
-		Metadata:       req.Metadata,
+		TaskID:               approvalTask.ID,
+		IdempotencyKey:       trigger.idempotencyKey(approvalTask.ID),
+		NetworkParticipation: req.NetworkParticipation,
+		Metadata:             req.Metadata,
 	}, actor)
 	if err != nil {
 		return nil, false, err

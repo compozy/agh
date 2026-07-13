@@ -7,6 +7,7 @@ package sqlcgen
 
 import (
 	"context"
+	"database/sql"
 )
 
 const deleteTaskExecutionProfile = `-- name: DeleteTaskExecutionProfile :execrows
@@ -61,30 +62,35 @@ const getTaskExecutionProfile = `-- name: GetTaskExecutionProfile :one
 SELECT task_id, coordinator_mode, coordinator_agent_name, coordinator_provider,
        coordinator_model, coordinator_guidance, worker_mode, worker_agent_name,
        worker_provider, worker_model, review_agent_name, review_provider,
-       review_model, sandbox_mode, sandbox_ref, runtime_mode, created_at, updated_at
+       review_model, sandbox_mode, sandbox_ref, runtime_mode, created_at, updated_at,
+       network_mode, network_channel_strategy, network_channel, network_bounds_json
 FROM task_execution_profiles
 WHERE task_id = ?1
 `
 
 type GetTaskExecutionProfileRow struct {
-	TaskID               string `json:"task_id"`
-	CoordinatorMode      string `json:"coordinator_mode"`
-	CoordinatorAgentName string `json:"coordinator_agent_name"`
-	CoordinatorProvider  string `json:"coordinator_provider"`
-	CoordinatorModel     string `json:"coordinator_model"`
-	CoordinatorGuidance  string `json:"coordinator_guidance"`
-	WorkerMode           string `json:"worker_mode"`
-	WorkerAgentName      string `json:"worker_agent_name"`
-	WorkerProvider       string `json:"worker_provider"`
-	WorkerModel          string `json:"worker_model"`
-	ReviewAgentName      string `json:"review_agent_name"`
-	ReviewProvider       string `json:"review_provider"`
-	ReviewModel          string `json:"review_model"`
-	SandboxMode          string `json:"sandbox_mode"`
-	SandboxRef           string `json:"sandbox_ref"`
-	RuntimeMode          string `json:"runtime_mode"`
-	CreatedAt            string `json:"created_at"`
-	UpdatedAt            string `json:"updated_at"`
+	TaskID                 string         `json:"task_id"`
+	CoordinatorMode        string         `json:"coordinator_mode"`
+	CoordinatorAgentName   string         `json:"coordinator_agent_name"`
+	CoordinatorProvider    string         `json:"coordinator_provider"`
+	CoordinatorModel       string         `json:"coordinator_model"`
+	CoordinatorGuidance    string         `json:"coordinator_guidance"`
+	WorkerMode             string         `json:"worker_mode"`
+	WorkerAgentName        string         `json:"worker_agent_name"`
+	WorkerProvider         string         `json:"worker_provider"`
+	WorkerModel            string         `json:"worker_model"`
+	ReviewAgentName        string         `json:"review_agent_name"`
+	ReviewProvider         string         `json:"review_provider"`
+	ReviewModel            string         `json:"review_model"`
+	SandboxMode            string         `json:"sandbox_mode"`
+	SandboxRef             string         `json:"sandbox_ref"`
+	RuntimeMode            string         `json:"runtime_mode"`
+	CreatedAt              string         `json:"created_at"`
+	UpdatedAt              string         `json:"updated_at"`
+	NetworkMode            string         `json:"network_mode"`
+	NetworkChannelStrategy sql.NullString `json:"network_channel_strategy"`
+	NetworkChannel         sql.NullString `json:"network_channel"`
+	NetworkBoundsJson      sql.NullString `json:"network_bounds_json"`
 }
 
 func (q *Queries) GetTaskExecutionProfile(ctx context.Context, taskID string) (GetTaskExecutionProfileRow, error) {
@@ -109,6 +115,10 @@ func (q *Queries) GetTaskExecutionProfile(ctx context.Context, taskID string) (G
 		&i.RuntimeMode,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.NetworkMode,
+		&i.NetworkChannelStrategy,
+		&i.NetworkChannel,
+		&i.NetworkBoundsJson,
 	)
 	return i, err
 }
@@ -350,14 +360,17 @@ INSERT INTO task_execution_profiles (
   task_id, coordinator_mode, coordinator_agent_name, coordinator_provider,
   coordinator_model, coordinator_guidance, worker_mode, worker_agent_name,
   worker_provider, worker_model, review_agent_name, review_provider,
-  review_model, sandbox_mode, sandbox_ref, runtime_mode, created_at, updated_at
+  review_model, sandbox_mode, sandbox_ref, runtime_mode, created_at, updated_at,
+  network_mode, network_channel_strategy, network_channel, network_bounds_json
 ) VALUES (
   ?1, ?2, ?3,
   ?4, ?5, ?6,
   ?7, ?8, ?9,
   ?10, ?11, ?12,
   ?13, ?14, ?15,
-  ?16, ?17, ?18
+  ?16, ?17, ?18,
+  ?19, ?20, ?21,
+  ?22
 )
 ON CONFLICT(task_id) DO UPDATE SET
   coordinator_mode = excluded.coordinator_mode,
@@ -375,28 +388,36 @@ ON CONFLICT(task_id) DO UPDATE SET
   sandbox_mode = excluded.sandbox_mode,
   sandbox_ref = excluded.sandbox_ref,
   runtime_mode = excluded.runtime_mode,
+  network_mode = excluded.network_mode,
+  network_channel_strategy = excluded.network_channel_strategy,
+  network_channel = excluded.network_channel,
+  network_bounds_json = excluded.network_bounds_json,
   updated_at = excluded.updated_at
 `
 
 type UpsertTaskExecutionProfileParams struct {
-	TaskID               string `json:"task_id"`
-	CoordinatorMode      string `json:"coordinator_mode"`
-	CoordinatorAgentName string `json:"coordinator_agent_name"`
-	CoordinatorProvider  string `json:"coordinator_provider"`
-	CoordinatorModel     string `json:"coordinator_model"`
-	CoordinatorGuidance  string `json:"coordinator_guidance"`
-	WorkerMode           string `json:"worker_mode"`
-	WorkerAgentName      string `json:"worker_agent_name"`
-	WorkerProvider       string `json:"worker_provider"`
-	WorkerModel          string `json:"worker_model"`
-	ReviewAgentName      string `json:"review_agent_name"`
-	ReviewProvider       string `json:"review_provider"`
-	ReviewModel          string `json:"review_model"`
-	SandboxMode          string `json:"sandbox_mode"`
-	SandboxRef           string `json:"sandbox_ref"`
-	RuntimeMode          string `json:"runtime_mode"`
-	CreatedAt            string `json:"created_at"`
-	UpdatedAt            string `json:"updated_at"`
+	TaskID                 string         `json:"task_id"`
+	CoordinatorMode        string         `json:"coordinator_mode"`
+	CoordinatorAgentName   string         `json:"coordinator_agent_name"`
+	CoordinatorProvider    string         `json:"coordinator_provider"`
+	CoordinatorModel       string         `json:"coordinator_model"`
+	CoordinatorGuidance    string         `json:"coordinator_guidance"`
+	WorkerMode             string         `json:"worker_mode"`
+	WorkerAgentName        string         `json:"worker_agent_name"`
+	WorkerProvider         string         `json:"worker_provider"`
+	WorkerModel            string         `json:"worker_model"`
+	ReviewAgentName        string         `json:"review_agent_name"`
+	ReviewProvider         string         `json:"review_provider"`
+	ReviewModel            string         `json:"review_model"`
+	SandboxMode            string         `json:"sandbox_mode"`
+	SandboxRef             string         `json:"sandbox_ref"`
+	RuntimeMode            string         `json:"runtime_mode"`
+	CreatedAt              string         `json:"created_at"`
+	UpdatedAt              string         `json:"updated_at"`
+	NetworkMode            string         `json:"network_mode"`
+	NetworkChannelStrategy sql.NullString `json:"network_channel_strategy"`
+	NetworkChannel         sql.NullString `json:"network_channel"`
+	NetworkBoundsJson      sql.NullString `json:"network_bounds_json"`
 }
 
 func (q *Queries) UpsertTaskExecutionProfile(ctx context.Context, arg UpsertTaskExecutionProfileParams) error {
@@ -419,6 +440,10 @@ func (q *Queries) UpsertTaskExecutionProfile(ctx context.Context, arg UpsertTask
 		arg.RuntimeMode,
 		arg.CreatedAt,
 		arg.UpdatedAt,
+		arg.NetworkMode,
+		arg.NetworkChannelStrategy,
+		arg.NetworkChannel,
+		arg.NetworkBoundsJson,
 	)
 	return err
 }

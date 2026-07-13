@@ -154,7 +154,6 @@ func recoveredSessionFromMeta(meta store.SessionMeta) recoveredSession {
 		AgentName:        meta.AgentName,
 		Provider:         meta.Provider,
 		WorkspaceID:      meta.WorkspaceID,
-		Channel:          meta.Channel,
 		SessionType:      meta.SessionType,
 		Lineage:          store.CloneSessionLineage(meta.Lineage),
 		State:            meta.State,
@@ -170,6 +169,7 @@ func recoveredSessionFromMeta(meta store.SessionMeta) recoveredSession {
 		CreatedAt:        meta.CreatedAt,
 		UpdatedAt:        meta.UpdatedAt,
 	}}
+	recovered.SetNetworkSpec(meta.NetworkSpecSnapshot())
 	if meta.CreationProfile != nil {
 		profile := store.NormalizeSessionCreationProfile(*meta.CreationProfile)
 		identity := store.SessionCreationIdentity{

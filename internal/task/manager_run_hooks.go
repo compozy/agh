@@ -38,19 +38,20 @@ func (m *Service) dispatchTaskRunPreClaim(
 	actor ActorContext,
 ) error {
 	contextPayload := m.taskRunHookContext(run, taskRecord, actor)
+	networkSpec := contextPayload.ResolvedNetworkParticipation
 	payload := hookspkg.TaskRunPreClaimPayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookTaskRunPreClaim,
 			Timestamp: m.now().UTC(),
 		},
-		TaskRunContext: contextPayload,
+		TaskRunContext: &contextPayload,
 		Criteria: hookspkg.TaskRunClaimCriteria{
 			WorkspaceID:           contextPayload.WorkspaceID,
 			ClaimerSessionID:      taskRunHookClaimerSessionID(run, actor),
 			AgentName:             contextPayload.AgentName,
 			RequiredCapabilities:  append([]string(nil), run.RequiredCapabilities...),
 			PriorityMin:           taskPriorityMin(taskRecord.Priority),
-			CoordinationChannelID: contextPayload.CoordinationChannelID,
+			CoordinationChannelID: networkSpec.ChannelID,
 		},
 	}
 	result, err := m.taskHooks.DispatchTaskRunPreClaim(ctx, payload)
@@ -133,31 +134,29 @@ func (m *Service) taskRunHookContext(
 	taskRecord Task,
 	actor ActorContext,
 ) hookspkg.TaskRunContext {
-	coordinationChannelID := taskRunCoordinationChannelID(run)
 	soulSnapshotID, soulDigest := taskRunSoulMetadata(run.Metadata)
 	runKind := run.RunKind.Normalize().String()
 	return hookspkg.TaskRunContext{
-		TaskID:                strings.TrimSpace(run.TaskID),
-		RunID:                 strings.TrimSpace(run.ID),
-		RunKind:               &runKind,
-		LoopRunID:             strings.TrimSpace(run.LoopRunID),
-		WorkspaceID:           strings.TrimSpace(taskRecord.WorkspaceID),
-		WorkflowID:            taskRunMetadataString(run.Metadata, "workflow_id"),
-		CoordinationChannelID: coordinationChannelID,
-		NetworkChannel:        strings.TrimSpace(run.NetworkChannel),
-		AgentName:             taskRunHookAgentName(run, actor),
-		SessionID:             strings.TrimSpace(run.SessionID),
-		ActorKind:             string(actor.Actor.Kind.Normalize()),
-		ActorID:               strings.TrimSpace(actor.Actor.Ref),
-		OriginKind:            string(actor.Origin.Kind.Normalize()),
-		OriginRef:             strings.TrimSpace(actor.Origin.Ref),
-		TaskStatus:            string(taskRecord.Status.Normalize()),
-		RunStatus:             run.Status.Normalize().String(),
-		SoulSnapshotID:        soulSnapshotID,
-		SoulDigest:            soulDigest,
-		Attempt:               int(run.Attempt),
-		LeaseUntil:            run.LeaseUntil,
-		Error:                 strings.TrimSpace(run.Error),
+		TaskID:                       strings.TrimSpace(run.TaskID),
+		RunID:                        strings.TrimSpace(run.ID),
+		RunKind:                      &runKind,
+		LoopRunID:                    strings.TrimSpace(run.LoopRunID),
+		WorkspaceID:                  strings.TrimSpace(taskRecord.WorkspaceID),
+		WorkflowID:                   taskRunMetadataString(run.Metadata, "workflow_id"),
+		ResolvedNetworkParticipation: new(run.NetworkSpecSnapshot()),
+		AgentName:                    taskRunHookAgentName(run, actor),
+		SessionID:                    strings.TrimSpace(run.SessionID),
+		ActorKind:                    string(actor.Actor.Kind.Normalize()),
+		ActorID:                      strings.TrimSpace(actor.Actor.Ref),
+		OriginKind:                   string(actor.Origin.Kind.Normalize()),
+		OriginRef:                    strings.TrimSpace(actor.Origin.Ref),
+		TaskStatus:                   string(taskRecord.Status.Normalize()),
+		RunStatus:                    run.Status.Normalize().String(),
+		SoulSnapshotID:               soulSnapshotID,
+		SoulDigest:                   soulDigest,
+		Attempt:                      int(run.Attempt),
+		LeaseUntil:                   run.LeaseUntil,
+		Error:                        strings.TrimSpace(run.Error),
 	}
 }
 
@@ -175,16 +174,6 @@ func taskRunSoulMetadata(metadata json.RawMessage) (string, string) {
 		return "", ""
 	}
 	return strings.TrimSpace(envelope.Soul.SnapshotID), strings.TrimSpace(envelope.Soul.Digest)
-}
-
-func taskRunCoordinationChannelID(run Run) string {
-	if value := strings.TrimSpace(run.CoordinationChannelID); value != "" {
-		return value
-	}
-	if value := taskRunMetadataString(run.Metadata, "coordination_channel_id"); value != "" {
-		return value
-	}
-	return strings.TrimSpace(run.NetworkChannel)
 }
 
 func taskRunHookAgentName(run Run, actor ActorContext) string {

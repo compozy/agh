@@ -435,8 +435,9 @@ func loopActionClaimerSessionID(runID string) string {
 func loopActionPayload(run taskpkg.Run) hookspkg.TaskRunEnqueuedPayload {
 	return hookspkg.TaskRunEnqueuedPayload{
 		TaskRunContext: hookspkg.TaskRunContext{
-			TaskID: run.TaskID,
-			RunID:  run.ID,
+			TaskID:                       run.TaskID,
+			RunID:                        run.ID,
+			ResolvedNetworkParticipation: new(run.NetworkSpecSnapshot()),
 		},
 	}
 }

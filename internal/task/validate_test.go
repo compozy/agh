@@ -101,7 +101,6 @@ func TestValidateImmutableTaskFields(t *testing.T) {
 			mutate: func(next *Task) {
 				next.Title = "Updated"
 				next.Description = "changed"
-				next.NetworkChannel = "network:alpha"
 				next.Owner = &Ownership{Kind: OwnerKindPool, Ref: "triage"}
 			},
 		},
@@ -475,7 +474,6 @@ func TestDomainValidationHelpers(t *testing.T) {
 		base.ClaimTokenHash = "sha256:" + strings.Repeat("a", 64)
 		base.LeaseUntil = base.ClaimedAt.Add(15 * time.Minute)
 		base.HeartbeatAt = base.ClaimedAt.Add(30 * time.Second)
-		base.CoordinationChannelID = "coord-run-1"
 		base.RequiredCapabilities = []string{"golang", "sqlite"}
 		base.PreferredCapabilities = []string{"claude", "codex"}
 		if err := base.Validate(); err != nil {
@@ -933,7 +931,6 @@ func TestRequestAndQueryValidation(t *testing.T) {
 	t.Parallel()
 
 	title := "Updated title"
-	channel := "network:alpha"
 	metadata := json.RawMessage(`{"source":"web"}`)
 	priority := PriorityUrgent
 	maxAttempts := 5
@@ -990,7 +987,6 @@ func TestRequestAndQueryValidation(t *testing.T) {
 					Priority:       &priority,
 					MaxAttempts:    &maxAttempts,
 					ApprovalPolicy: &approvalPolicy,
-					NetworkChannel: &channel,
 					Metadata:       &metadata,
 				}.Validate("patch")
 			},

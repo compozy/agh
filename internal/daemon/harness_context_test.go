@@ -544,8 +544,8 @@ func TestHarnessContextResolverResolvePromptUsesSessionInfo(t *testing.T) {
 	})
 
 	resolved, err := resolver.ResolvePrompt(&session.Info{
-		Type:    session.SessionTypeUser,
-		Channel: "builders",
+		Type:                 session.SessionTypeUser,
+		NetworkParticipation: daemonTestLiveParticipation("ws-1", "builders"),
 	}, session.TurnSourceUser, acp.PromptMeta{})
 	if err != nil {
 		t.Fatalf("ResolvePrompt() error = %v", err)

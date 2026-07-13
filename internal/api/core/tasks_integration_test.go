@@ -27,20 +27,19 @@ func TestTaskHandlersCreateTaskAndListFiltersReachManagerIntegration(t *testing.
 			capturedCreate = spec
 			capturedCreateActor = actor
 			return &taskpkg.Task{
-				ID:             "task-1",
-				Identifier:     spec.Identifier,
-				Scope:          spec.Scope,
-				WorkspaceID:    spec.WorkspaceID,
-				NetworkChannel: spec.NetworkChannel,
-				Title:          spec.Title,
-				Description:    spec.Description,
-				Status:         taskpkg.TaskStatusPending,
-				Owner:          spec.Owner,
-				CreatedBy:      actor.Actor,
-				Origin:         actor.Origin,
-				CreatedAt:      time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC),
-				UpdatedAt:      time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC),
-				Metadata:       spec.Metadata,
+				ID:          "task-1",
+				Identifier:  spec.Identifier,
+				Scope:       spec.Scope,
+				WorkspaceID: spec.WorkspaceID,
+				Title:       spec.Title,
+				Description: spec.Description,
+				Status:      taskpkg.TaskStatusPending,
+				Owner:       spec.Owner,
+				CreatedBy:   actor.Actor,
+				Origin:      actor.Origin,
+				CreatedAt:   time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC),
+				UpdatedAt:   time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC),
+				Metadata:    spec.Metadata,
 			}, nil
 		},
 		ListTasksFn: func(_ context.Context, query taskpkg.Query, actor taskpkg.ActorContext) ([]taskpkg.Summary, error) {
@@ -86,7 +85,7 @@ func TestTaskHandlersCreateTaskAndListFiltersReachManagerIntegration(t *testing.
 		"POST",
 		"/tasks",
 		[]byte(
-			`{"scope":"workspace","workspace":"alpha","identifier":"TASK-1","network_channel":"builders","title":"Review task API","description":"Check handler wiring","auto_enqueue_on_ready":true,"owner":{"kind":"pool","ref":"reviewers"},"metadata":{"priority":"high"}}`,
+			`{"scope":"workspace","workspace":"alpha","identifier":"TASK-1","title":"Review task API","description":"Check handler wiring","auto_enqueue_on_ready":true,"owner":{"kind":"pool","ref":"reviewers"},"metadata":{"priority":"high"}}`,
 		),
 	)
 	if createResp.Code != 201 {
@@ -96,8 +95,7 @@ func TestTaskHandlersCreateTaskAndListFiltersReachManagerIntegration(t *testing.
 	if capturedCreate.Scope != taskpkg.ScopeWorkspace || capturedCreate.WorkspaceID != "ws-alpha" {
 		t.Fatalf("create spec = %#v", capturedCreate)
 	}
-	if capturedCreate.NetworkChannel != "builders" || capturedCreate.Owner == nil ||
-		capturedCreate.Owner.Ref != "reviewers" {
+	if capturedCreate.Owner == nil || capturedCreate.Owner.Ref != "reviewers" {
 		t.Fatalf("create spec = %#v", capturedCreate)
 	}
 	if !capturedCreate.AutoEnqueueOnReady {
@@ -111,7 +109,7 @@ func TestTaskHandlersCreateTaskAndListFiltersReachManagerIntegration(t *testing.
 		t,
 		fixture.Engine,
 		"GET",
-		"/tasks?scope=workspace&workspace=alpha&status=ready&owner_kind=pool&owner_ref=reviewers&parent_task_id=task-root&network_channel=builders&limit=5",
+		"/tasks?scope=workspace&workspace=alpha&status=ready&owner_kind=pool&owner_ref=reviewers&parent_task_id=task-root&limit=5",
 		nil,
 	)
 	if listResp.Code != 200 {
@@ -125,8 +123,7 @@ func TestTaskHandlersCreateTaskAndListFiltersReachManagerIntegration(t *testing.
 		capturedList.OwnerRef != "reviewers" {
 		t.Fatalf("list query = %#v", capturedList)
 	}
-	if capturedList.ParentTaskID != "task-root" || capturedList.NetworkChannel != "builders" ||
-		capturedList.Limit != 5 {
+	if capturedList.ParentTaskID != "task-root" || capturedList.Limit != 5 {
 		t.Fatalf("list query = %#v", capturedList)
 	}
 	if capturedListActor.Actor.Ref != "user-1" || capturedListActor.Origin.Ref != "tasks.list" {
@@ -150,7 +147,6 @@ func TestTaskRunHandlersDelegateLifecycleSequenceIntegration(t *testing.T) {
 				Attempt:        1,
 				Origin:         actor.Origin,
 				IdempotencyKey: spec.IdempotencyKey,
-				NetworkChannel: spec.NetworkChannel,
 				QueuedAt:       now,
 			}, nil
 		},
@@ -213,7 +209,7 @@ func TestTaskRunHandlersDelegateLifecycleSequenceIntegration(t *testing.T) {
 		fixture.Engine,
 		"POST",
 		"/tasks/task-1/runs",
-		[]byte(`{"idempotency_key":"key-1","network_channel":"builders"}`),
+		[]byte(`{"idempotency_key":"key-1"}`),
 	)
 	if resp.Code != 201 {
 		t.Fatalf("enqueue status = %d, want %d; body=%s", resp.Code, 201, resp.Body.String())

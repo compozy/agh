@@ -241,7 +241,7 @@ func (r *HarnessContextResolver) ResolvePrompt(
 		Surface: ResolutionSurfaceTurn,
 		Session: HarnessSessionInput{
 			Type:        info.Type,
-			Channel:     info.Channel,
+			Channel:     info.NetworkParticipation.ChannelID,
 			WorkspaceID: info.WorkspaceID,
 			Workspace:   info.Workspace,
 			AgentName:   info.AgentName,

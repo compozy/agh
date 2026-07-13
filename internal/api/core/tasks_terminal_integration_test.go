@@ -23,7 +23,7 @@ type taskRunTerminalIntegrationCapture struct {
 	actorContext taskpkg.ActorContext
 }
 
-func TestTaskRunTerminalHandlersPreserveHistoricalChannelBindingsIntegration(t *testing.T) {
+func TestTaskRunTerminalHandlersProjectImmutableParticipationSnapshotsIntegration(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -39,26 +39,26 @@ func TestTaskRunTerminalHandlersPreserveHistoricalChannelBindingsIntegration(t *
 		wantResultJSON   string
 	}{
 		{
-			name: "Should preserve historical channel bindings in complete responses",
+			name: "Should project immutable participation snapshots in complete responses",
 			path: "/task-runs/run-2/complete",
-			body: []byte(`{"result":{"ok":true,"path":"historical-http-complete"}}`),
+			body: []byte(`{"result":{"ok":true,"path":"participation-http-complete"}}`),
 			buildTaskManager: func(t *testing.T, capture *taskRunTerminalIntegrationCapture, now time.Time) *testutil.StubTaskManager {
 				t.Helper()
+				networkSpec := testLiveParticipation("ws-alpha", "builders")
 				return &testutil.StubTaskManager{
 					CompleteRunFn: func(_ context.Context, runID string, result taskpkg.RunResult, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
 						capture.runID = runID
 						capture.actorContext = actor
 						return &taskpkg.Run{
-							ID:                    runID,
-							TaskID:                "task-1",
-							Status:                taskpkg.TaskRunStatusCompleted,
-							Attempt:               2,
-							Origin:                actor.Origin,
-							QueuedAt:              now,
-							EndedAt:               now.Add(time.Minute),
-							Result:                result.Value,
-							NetworkChannel:        "builders",
-							CoordinationChannelID: "builders",
+							ID:              runID,
+							TaskID:          "task-1",
+							Status:          taskpkg.TaskRunStatusCompleted,
+							Attempt:         2,
+							Origin:          actor.Origin,
+							QueuedAt:        now,
+							EndedAt:         now.Add(time.Minute),
+							Result:          result.Value,
+							RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: networkSpec},
 						}, nil
 					},
 				}
@@ -76,31 +76,31 @@ func TestTaskRunTerminalHandlersPreserveHistoricalChannelBindingsIntegration(t *
 			wantStatus:       taskpkg.TaskRunStatusCompleted,
 			wantOriginRef:    "tasks.complete_run",
 			wantMetadataJSON: "",
-			wantResultJSON:   `{"ok":true,"path":"historical-http-complete"}`,
+			wantResultJSON:   `{"ok":true,"path":"participation-http-complete"}`,
 		},
 		{
-			name: "Should preserve historical channel bindings in fail responses",
+			name: "Should project immutable participation snapshots in fail responses",
 			path: "/task-runs/run-2/fail",
-			body: []byte(`{"error":"boom","metadata":{"step":"claim","mode":"historical-http"}}`),
+			body: []byte(`{"error":"boom","metadata":{"step":"claim","mode":"participation-http"}}`),
 			buildTaskManager: func(t *testing.T, capture *taskRunTerminalIntegrationCapture, now time.Time) *testutil.StubTaskManager {
 				t.Helper()
+				networkSpec := testLiveParticipation("ws-alpha", "builders")
 				return &testutil.StubTaskManager{
 					FailRunFn: func(_ context.Context, runID string, failure taskpkg.RunFailure, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
 						capture.runID = runID
 						capture.failure = failure
 						capture.actorContext = actor
 						return &taskpkg.Run{
-							ID:                    runID,
-							TaskID:                "task-1",
-							Status:                taskpkg.TaskRunStatusFailed,
-							Attempt:               2,
-							Origin:                actor.Origin,
-							QueuedAt:              now,
-							EndedAt:               now.Add(time.Minute),
-							Error:                 failure.Error,
-							Metadata:              failure.Metadata,
-							NetworkChannel:        "builders",
-							CoordinationChannelID: "builders",
+							ID:              runID,
+							TaskID:          "task-1",
+							Status:          taskpkg.TaskRunStatusFailed,
+							Attempt:         2,
+							Origin:          actor.Origin,
+							QueuedAt:        now,
+							EndedAt:         now.Add(time.Minute),
+							Error:           failure.Error,
+							Metadata:        failure.Metadata,
+							RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: networkSpec},
 						}, nil
 					},
 				}
@@ -117,7 +117,7 @@ func TestTaskRunTerminalHandlersPreserveHistoricalChannelBindingsIntegration(t *
 					t,
 					"failure metadata",
 					capture.failure.Metadata,
-					`{"step":"claim","mode":"historical-http"}`,
+					`{"step":"claim","mode":"participation-http"}`,
 				)
 				if capture.actorContext.Actor.Ref != "user-1" || capture.actorContext.Origin.Ref != "tasks.fail_run" {
 					t.Fatalf("actorContext = %#v", capture.actorContext)
@@ -126,30 +126,30 @@ func TestTaskRunTerminalHandlersPreserveHistoricalChannelBindingsIntegration(t *
 			wantStatus:       taskpkg.TaskRunStatusFailed,
 			wantOriginRef:    "tasks.fail_run",
 			wantError:        "boom",
-			wantMetadataJSON: `{"step":"claim","mode":"historical-http"}`,
+			wantMetadataJSON: `{"step":"claim","mode":"participation-http"}`,
 		},
 		{
-			name: "Should preserve historical channel bindings in cancel responses",
+			name: "Should project immutable participation snapshots in cancel responses",
 			path: "/task-runs/run-2/cancel",
-			body: []byte(`{"reason":"operator canceled","metadata":{"step":"cancel","mode":"historical-http"}}`),
+			body: []byte(`{"reason":"operator canceled","metadata":{"step":"cancel","mode":"participation-http"}}`),
 			buildTaskManager: func(t *testing.T, capture *taskRunTerminalIntegrationCapture, now time.Time) *testutil.StubTaskManager {
 				t.Helper()
+				networkSpec := testLiveParticipation("ws-alpha", "builders")
 				return &testutil.StubTaskManager{
 					CancelRunFn: func(_ context.Context, runID string, req taskpkg.CancelRun, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
 						capture.runID = runID
 						capture.cancel = req
 						capture.actorContext = actor
 						return &taskpkg.Run{
-							ID:                    runID,
-							TaskID:                "task-1",
-							Status:                taskpkg.TaskRunStatusCanceled,
-							Attempt:               2,
-							Origin:                actor.Origin,
-							QueuedAt:              now,
-							EndedAt:               now.Add(time.Minute),
-							Metadata:              req.Metadata,
-							NetworkChannel:        "builders",
-							CoordinationChannelID: "builders",
+							ID:              runID,
+							TaskID:          "task-1",
+							Status:          taskpkg.TaskRunStatusCanceled,
+							Attempt:         2,
+							Origin:          actor.Origin,
+							QueuedAt:        now,
+							EndedAt:         now.Add(time.Minute),
+							Metadata:        req.Metadata,
+							RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: networkSpec},
 						}, nil
 					},
 				}
@@ -166,7 +166,7 @@ func TestTaskRunTerminalHandlersPreserveHistoricalChannelBindingsIntegration(t *
 					t,
 					"cancel metadata",
 					capture.cancel.Metadata,
-					`{"step":"cancel","mode":"historical-http"}`,
+					`{"step":"cancel","mode":"participation-http"}`,
 				)
 				if capture.actorContext.Actor.Ref != "user-1" || capture.actorContext.Origin.Ref != "tasks.cancel_run" {
 					t.Fatalf("actorContext = %#v", capture.actorContext)
@@ -174,7 +174,7 @@ func TestTaskRunTerminalHandlersPreserveHistoricalChannelBindingsIntegration(t *
 			},
 			wantStatus:       taskpkg.TaskRunStatusCanceled,
 			wantOriginRef:    "tasks.cancel_run",
-			wantMetadataJSON: `{"step":"cancel","mode":"historical-http"}`,
+			wantMetadataJSON: `{"step":"cancel","mode":"participation-http"}`,
 		},
 	}
 
@@ -210,7 +210,7 @@ func TestTaskRunTerminalHandlersPreserveHistoricalChannelBindingsIntegration(t *
 				t.Fatalf("payload.Run.Status = %q, want %q", payload.Run.Status, tc.wantStatus)
 			}
 			if payload.Run.NetworkChannel != "builders" || payload.Run.CoordinationChannelID != "builders" {
-				t.Fatalf("payload.Run = %#v, want preserved historical channel bindings", payload.Run)
+				t.Fatalf("payload.Run = %#v, want projected immutable participation snapshot", payload.Run)
 			}
 			if payload.Run.Origin.Ref != tc.wantOriginRef {
 				t.Fatalf("payload.Run.Origin.Ref = %q, want %q", payload.Run.Origin.Ref, tc.wantOriginRef)

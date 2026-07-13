@@ -24,6 +24,8 @@ func hydrateExecutedDefinitionSnapshot(
 		return resolved, nil
 	}
 	definition := resolved.Definition
+	definition.Normalize()
+	resolved.Definition = definition
 	context := newLintContext(definition, &DefinitionLinter{})
 	context.indexGraphTrusted()
 	if err := compileContract(resolved, definition, context, context.namespace(false, false)); err != nil {

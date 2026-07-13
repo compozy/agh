@@ -367,7 +367,7 @@ func (h *BaseHandlers) enrichAgentMePayload(
 	service, err := h.networkServiceRequired()
 	if err != nil {
 		if callerChannel := strings.TrimSpace(
-			caller.Session.Channel,
+			caller.Session.NetworkSpecSnapshot().ChannelID,
 		); callerChannel != "" &&
 			len(payload.Channels) == 0 {
 			payload.Channels = []contract.CoordinationChannelPayload{
@@ -404,7 +404,8 @@ func (h *BaseHandlers) agentChannelPayloads(
 			continue
 		}
 		entry, hasEntry := metadata[channel]
-		if len(metadata) > 0 && !hasEntry && channel != strings.TrimSpace(caller.Session.Channel) {
+		if len(metadata) > 0 && !hasEntry &&
+			channel != strings.TrimSpace(caller.Session.NetworkSpecSnapshot().ChannelID) {
 			continue
 		}
 		payloadByID[channel] = coordinationChannelFromNetwork(channel, caller.Session.WorkspaceID, entry)
@@ -415,7 +416,7 @@ func (h *BaseHandlers) agentChannelPayloads(
 		}
 		payloadByID[channel] = coordinationChannelFromNetwork(channel, caller.Session.WorkspaceID, entry)
 	}
-	if callerChannel := strings.TrimSpace(caller.Session.Channel); callerChannel != "" {
+	if callerChannel := strings.TrimSpace(caller.Session.NetworkSpecSnapshot().ChannelID); callerChannel != "" {
 		if _, ok := payloadByID[callerChannel]; !ok {
 			payloadByID[callerChannel] = coordinationChannelFromNetwork(
 				callerChannel,
@@ -829,36 +830,24 @@ func envelopeFromNetworkMessage(entry store.NetworkMessageEntry) (network.Envelo
 	return envelope, nil
 }
 
-func extensionMapFromNetworkMessage(entry store.NetworkMessageEntry) (network.ExtensionMap, error) {
-	trimmed := strings.TrimSpace(string(entry.ExtJSON))
-	if trimmed == "" || trimmed == "{}" {
-		return nil, nil
-	}
-	var ext network.ExtensionMap
-	if err := json.Unmarshal([]byte(trimmed), &ext); err != nil {
-		return nil, fmt.Errorf("decode network message ext_json: %w", err)
-	}
-	return ext, nil
-}
-
 func sessionInfoFromAgentCaller(caller agentidentity.Caller) *session.Info {
 	return &session.Info{
-		ID:               strings.TrimSpace(caller.Session.ID),
-		Name:             strings.TrimSpace(caller.Session.Name),
-		AgentName:        strings.TrimSpace(caller.Session.AgentName),
-		Provider:         strings.TrimSpace(caller.Session.Provider),
-		Model:            strings.TrimSpace(caller.Session.Model),
-		WorkspaceID:      strings.TrimSpace(caller.Session.WorkspaceID),
-		Workspace:        strings.TrimSpace(caller.Session.WorkspacePath),
-		Channel:          strings.TrimSpace(caller.Session.Channel),
-		Type:             caller.Session.Type,
-		Lineage:          store.CloneSessionLineage(caller.Session.Lineage),
-		State:            caller.Session.State,
-		SoulSnapshotID:   strings.TrimSpace(caller.Session.SoulSnapshotID),
-		SoulDigest:       strings.TrimSpace(caller.Session.SoulDigest),
-		ParentSoulDigest: strings.TrimSpace(caller.Session.ParentSoulDigest),
-		CreatedAt:        caller.Session.CreatedAt,
-		UpdatedAt:        caller.Session.UpdatedAt,
+		ID:                   strings.TrimSpace(caller.Session.ID),
+		Name:                 strings.TrimSpace(caller.Session.Name),
+		AgentName:            strings.TrimSpace(caller.Session.AgentName),
+		Provider:             strings.TrimSpace(caller.Session.Provider),
+		Model:                strings.TrimSpace(caller.Session.Model),
+		WorkspaceID:          strings.TrimSpace(caller.Session.WorkspaceID),
+		Workspace:            strings.TrimSpace(caller.Session.WorkspacePath),
+		NetworkParticipation: caller.Session.NetworkSpecSnapshot(),
+		Type:                 caller.Session.Type,
+		Lineage:              store.CloneSessionLineage(caller.Session.Lineage),
+		State:                caller.Session.State,
+		SoulSnapshotID:       strings.TrimSpace(caller.Session.SoulSnapshotID),
+		SoulDigest:           strings.TrimSpace(caller.Session.SoulDigest),
+		ParentSoulDigest:     strings.TrimSpace(caller.Session.ParentSoulDigest),
+		CreatedAt:            caller.Session.CreatedAt,
+		UpdatedAt:            caller.Session.UpdatedAt,
 	}
 }
 

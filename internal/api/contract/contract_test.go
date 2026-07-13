@@ -12,6 +12,7 @@ import (
 	automationpkg "github.com/compozy/agh/internal/automation"
 	"github.com/compozy/agh/internal/loop/dsl"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -591,6 +592,9 @@ func TestAutomationJobPayloadJSONShape(t *testing.T) {
 		t.Parallel()
 
 		nextRun := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
+		liveMode := participation.ModeLive
+		namedStrategy := participation.StrategyNamed
+		channelID := "ops-automation"
 		payload := contract.JobPayload{
 			ID:          "job-1",
 			Scope:       automationpkg.AutomationScopeWorkspace,
@@ -603,11 +607,15 @@ func TestAutomationJobPayloadJSONShape(t *testing.T) {
 				Interval: "1h",
 			},
 			Task: &automationpkg.JobTaskConfig{
-				Title:          "Review findings",
-				NetworkChannel: "ops-automation",
+				Title: "Review findings",
 				Owner: &taskpkg.Ownership{
 					Kind: taskpkg.OwnerKindAutomation,
 					Ref:  "rule:nightly-review",
+				},
+				NetworkParticipation: &participation.Request{
+					Mode:            &liveMode,
+					ChannelStrategy: &namedStrategy,
+					ChannelID:       &channelID,
 				},
 			},
 			Enabled: true,
@@ -639,8 +647,18 @@ func TestAutomationJobPayloadJSONShape(t *testing.T) {
 			t.Fatalf("source = %#v, want %q", got["source"], automationpkg.JobSourceDynamic)
 		}
 		taskValue, ok := got["task"].(map[string]any)
-		if !ok || taskValue["title"] != "Review findings" || taskValue["network_channel"] != "ops-automation" {
+		if !ok || taskValue["title"] != "Review findings" {
 			t.Fatalf("task = %#v, want populated task config", got["task"])
+		}
+		participationValue, ok := taskValue["network_participation"].(map[string]any)
+		if !ok ||
+			participationValue["mode"] != string(participation.ModeLive) ||
+			participationValue["channel_strategy"] != string(participation.StrategyNamed) ||
+			participationValue["channel_id"] != channelID {
+			t.Fatalf("task.network_participation = %#v, want live named channel %q", participationValue, channelID)
+		}
+		if _, exists := taskValue["network_channel"]; exists {
+			t.Fatalf("task contains removed network_channel: %#v", taskValue)
 		}
 		if _, exists := got["next_run"]; !exists {
 			t.Fatalf("job payload missing next_run: %#v", got)

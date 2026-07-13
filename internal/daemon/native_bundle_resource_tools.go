@@ -118,17 +118,19 @@ func (n *daemonNativeTools) bundlesActivate(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if input.BindPrimaryChannelAsDefault {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, bundlepkg.ErrDefaultChannelRemoved)
+	}
 	activationScope, workspaceID, err := nativeBundleActivationScope(req.ToolID, input, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	activation, err := n.bundleService().Activate(ctx, bundlepkg.ActivateRequest{
-		ExtensionName:               strings.TrimSpace(input.ExtensionName),
-		BundleName:                  strings.TrimSpace(input.BundleName),
-		ProfileName:                 strings.TrimSpace(input.ProfileName),
-		Scope:                       activationScope,
-		Workspace:                   workspaceID,
-		BindPrimaryChannelAsDefault: input.BindPrimaryChannelAsDefault,
+		ExtensionName: strings.TrimSpace(input.ExtensionName),
+		BundleName:    strings.TrimSpace(input.BundleName),
+		ProfileName:   strings.TrimSpace(input.ProfileName),
+		Scope:         activationScope,
+		Workspace:     workspaceID,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeBundleToolError(req.ToolID, err)
@@ -189,10 +191,7 @@ func (n *daemonNativeTools) bundlesStatus(
 		"bundle_count":     len(catalog),
 		"activation_count": len(activations),
 		nativeToolsNetworkKey: contract.BundleNetworkSettingsPayload{
-			ConfiguredDefaultChannel: strings.TrimSpace(network.ConfiguredDefaultChannel),
-			EffectiveDefaultChannel:  strings.TrimSpace(network.EffectiveDefaultChannel),
-			EffectiveDefaultSource:   strings.TrimSpace(network.EffectiveDefaultSource),
-			DeclaredChannels:         core.DeclaredNetworkChannelPayloads(network.DeclaredChannels),
+			DeclaredChannels: core.DeclaredNetworkChannelPayloads(network.DeclaredChannels),
 		},
 	}
 	return structuredResult(payload, fmt.Sprintf("%d active bundles", len(activations)))

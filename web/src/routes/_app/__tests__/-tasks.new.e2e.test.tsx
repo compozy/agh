@@ -456,6 +456,7 @@ describe("TaskCreateRoute create modal", () => {
     fireEvent.click(screen.getByTestId("task-mode-advanced"));
     expect(screen.getByTestId("task-parent-input")).toBeInTheDocument();
     expect(screen.getByTestId("task-execution-toggle")).toBeInTheDocument();
+    expect(screen.queryByTestId("task-network-input")).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId("task-title-input"), {
       target: { value: "Create API contract" },
@@ -470,9 +471,6 @@ describe("TaskCreateRoute create modal", () => {
 
     fireEvent.change(screen.getByTestId("task-owner-kind"), { target: { value: "agent_session" } });
     fireEvent.change(screen.getByTestId("task-owner-ref"), { target: { value: "writer" } });
-    fireEvent.change(screen.getByTestId("task-network-input"), {
-      target: { value: "launch-room" },
-    });
     fireEvent.click(screen.getByTestId("task-execution-toggle"));
     fireEvent.click(screen.getByTestId("task-save-draft-toggle"));
     expect(screen.getByTestId("task-editor-modal-submit")).toHaveTextContent("Save draft");
@@ -486,7 +484,6 @@ describe("TaskCreateRoute create modal", () => {
       expect.objectContaining({
         description: "Draft the contract payload.",
         draft: true,
-        network_channel: "launch-room",
         owner: { kind: "agent_session", ref: "writer" },
         priority: "urgent",
         scope: "workspace",
@@ -494,6 +491,7 @@ describe("TaskCreateRoute create modal", () => {
         workspace: "ws_beta",
       })
     );
+    expect(createTaskRequests[0]).not.toHaveProperty("network_channel");
     expect(enqueuedTaskIds).toEqual([]);
     expect(navigateMock).toHaveBeenCalledWith({
       params: { id: "task_create_api_contract" },
@@ -889,7 +887,6 @@ describe("TaskCreateRoute create modal", () => {
       clear_owner: true,
       description: "Preserve every mutable field while clearing ownership.",
       max_attempts: 3,
-      network_channel: "launch-room",
       priority: "urgent",
       title: "Release exact owner",
     });
@@ -904,7 +901,6 @@ describe("TaskCreateRoute create modal", () => {
     expect(screen.getByTestId("task-description-input")).toHaveValue(
       "Preserve every mutable field while clearing ownership."
     );
-    expect(screen.getByTestId("task-network-input")).toHaveValue("launch-room");
   });
 
   it("Should preserve a non-clear owner edit and omit the clear operation", async () => {

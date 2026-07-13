@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
@@ -75,6 +76,7 @@ func buildBenchmarkTaskSnapshot(count int) taskSnapshot {
 	audits := make([]store.NetworkAuditEntry, 0, count*2)
 	tasksByID := make(map[string]taskpkg.Summary, count)
 	runsByID := make(map[string]taskpkg.Run, count)
+	taskChannels := make(map[string]string, count)
 
 	owners := []taskpkg.OwnerKind{
 		taskpkg.OwnerKindHuman,
@@ -108,17 +110,28 @@ func buildBenchmarkTaskSnapshot(count int) taskSnapshot {
 		runID := fmt.Sprintf("run-%04d", i)
 		origin := taskpkg.Origin{Kind: origins[i%len(origins)], Ref: fmt.Sprintf("origin-%d", i)}
 		channel := channels[i%len(channels)]
+		workspaceID := fmt.Sprintf("ws-%02d", i%32)
+		networkSpec := participation.LocalSpec()
+		if channel != "" {
+			networkSpec = participation.Spec{
+				Version:         participation.SpecVersion,
+				Mode:            participation.ModeLive,
+				WorkspaceID:     workspaceID,
+				ChannelStrategy: participation.StrategyNamed,
+				ChannelID:       channel,
+				Source:          participation.SourceExplicitRequest,
+			}
+		}
 		task := taskpkg.Summary{
-			ID:             taskID,
-			Scope:          []taskpkg.Scope{taskpkg.ScopeGlobal, taskpkg.ScopeWorkspace}[i%2],
-			WorkspaceID:    fmt.Sprintf("ws-%02d", i%32),
-			NetworkChannel: channel,
-			Title:          fmt.Sprintf("Task %04d", i),
-			Status:         taskStatuses[i%len(taskStatuses)],
-			CreatedBy:      taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user"},
-			Origin:         origin,
-			CreatedAt:      benchmarkObserveNow.Add(-time.Duration(i+1) * time.Minute),
-			UpdatedAt:      benchmarkObserveNow.Add(-time.Duration(i) * time.Minute),
+			ID:          taskID,
+			Scope:       []taskpkg.Scope{taskpkg.ScopeGlobal, taskpkg.ScopeWorkspace}[i%2],
+			WorkspaceID: workspaceID,
+			Title:       fmt.Sprintf("Task %04d", i),
+			Status:      taskStatuses[i%len(taskStatuses)],
+			CreatedBy:   taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user"},
+			Origin:      origin,
+			CreatedAt:   benchmarkObserveNow.Add(-time.Duration(i+1) * time.Minute),
+			UpdatedAt:   benchmarkObserveNow.Add(-time.Duration(i) * time.Minute),
 		}
 		if kind := owners[i%len(owners)]; kind != taskpkg.OwnerKindPool {
 			task.Owner = &taskpkg.Ownership{Kind: kind, Ref: fmt.Sprintf("owner-%d", i%64)}
@@ -127,19 +140,20 @@ func buildBenchmarkTaskSnapshot(count int) taskSnapshot {
 		}
 		tasks = append(tasks, task)
 		tasksByID[taskID] = task
+		taskChannels[taskID] = channel
 
 		run := taskpkg.Run{
-			ID:             runID,
-			TaskID:         taskID,
-			Status:         runStatuses[i%len(runStatuses)],
-			Attempt:        int32((i % 3) + 1),
-			SessionID:      fmt.Sprintf("sess-%04d", i%128),
-			Origin:         origin,
-			NetworkChannel: channel,
-			QueuedAt:       benchmarkObserveNow.Add(-time.Duration(i+10) * time.Minute),
-			ClaimedAt:      benchmarkObserveNow.Add(-time.Duration(i+8) * time.Minute),
-			StartedAt:      benchmarkObserveNow.Add(-time.Duration(i+6) * time.Minute),
-			EndedAt:        benchmarkObserveNow.Add(-time.Duration(i+3) * time.Minute),
+			ID:              runID,
+			TaskID:          taskID,
+			Status:          runStatuses[i%len(runStatuses)],
+			Attempt:         int32((i % 3) + 1),
+			SessionID:       fmt.Sprintf("sess-%04d", i%128),
+			Origin:          origin,
+			RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: networkSpec},
+			QueuedAt:        benchmarkObserveNow.Add(-time.Duration(i+10) * time.Minute),
+			ClaimedAt:       benchmarkObserveNow.Add(-time.Duration(i+8) * time.Minute),
+			StartedAt:       benchmarkObserveNow.Add(-time.Duration(i+6) * time.Minute),
+			EndedAt:         benchmarkObserveNow.Add(-time.Duration(i+3) * time.Minute),
 		}
 		runs = append(runs, run)
 		runsByID[runID] = run
@@ -196,12 +210,13 @@ func buildBenchmarkTaskSnapshot(count int) taskSnapshot {
 	}
 
 	return taskSnapshot{
-		tasks:     tasks,
-		runs:      runs,
-		events:    events,
-		audits:    audits,
-		tasksByID: tasksByID,
-		runsByID:  runsByID,
+		tasks:        tasks,
+		runs:         runs,
+		events:       events,
+		audits:       audits,
+		tasksByID:    tasksByID,
+		runsByID:     runsByID,
+		taskChannels: taskChannels,
 	}
 }
 

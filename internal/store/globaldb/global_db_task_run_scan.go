@@ -123,7 +123,6 @@ func (fields *taskRunScanFields) record(run taskpkg.Run) (taskpkg.Run, error) {
 		fields.sessionID,
 		fields.originKind,
 		fields.idempotencyKey,
-		fields.networkChannel,
 		fields.designationGroupID,
 		fields.claimToken,
 		fields.claimTokenHash,
@@ -247,7 +246,6 @@ func assignScannedTaskRunRecord(
 	sessionID sql.NullString,
 	originKind string,
 	idempotencyKey sql.NullString,
-	networkChannel sql.NullString,
 	designationGroupID string,
 	_ sql.NullString,
 	claimTokenHash sql.NullString,
@@ -267,7 +265,6 @@ func assignScannedTaskRunRecord(
 	run.SessionID = taskNullStringValue(sessionID)
 	run.Origin.Kind = taskpkg.OriginKind(strings.TrimSpace(originKind))
 	run.IdempotencyKey = taskNullStringValue(idempotencyKey)
-	run.NetworkChannel = taskNullStringValue(networkChannel)
 	run.DesignationGroupID = strings.TrimSpace(designationGroupID)
 	run.ClaimTokenHash = taskNullStringValue(claimTokenHash)
 	run.Error = taskNullStringValue(runErr)

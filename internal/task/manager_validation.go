@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	"strings"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 func requireReadAuthority(actor ActorContext) error {
@@ -55,7 +57,6 @@ func normalizeCreateTaskSpec(spec CreateTask) (CreateTask, error) {
 	normalized.Scope = normalized.Scope.Normalize()
 	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
 	normalized.ParentTaskID = strings.TrimSpace(normalized.ParentTaskID)
-	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
 	normalized.Title = strings.TrimSpace(normalized.Title)
 	normalized.Description = strings.TrimSpace(normalized.Description)
 	normalized.Priority = normalizePriorityOrDefault(normalized.Priority)
@@ -115,10 +116,6 @@ func normalizeTaskPatch(patch Patch) (Patch, error) {
 		metadata := normalizeRawJSON(*normalized.Metadata)
 		normalized.Metadata = &metadata
 	}
-	if normalized.NetworkChannel != nil {
-		channel := strings.TrimSpace(*normalized.NetworkChannel)
-		normalized.NetworkChannel = &channel
-	}
 	if normalized.Owner != nil {
 		normalized.Owner = normalizeOwnership(normalized.Owner)
 	}
@@ -152,7 +149,13 @@ func normalizeCancelTask(req CancelTask) (CancelTask, error) {
 func normalizeTaskExecutionRequest(req ExecutionRequest) (ExecutionRequest, error) {
 	normalized := req
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
-	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
+	if normalized.NetworkParticipation != nil {
+		request, err := participation.NormalizeIntent(*normalized.NetworkParticipation)
+		if err != nil {
+			return ExecutionRequest{}, fmt.Errorf("task_execution.network_participation: %w", err)
+		}
+		normalized.NetworkParticipation = &request
+	}
 	normalized.Metadata = normalizeRawJSON(normalized.Metadata)
 	if err := normalized.Validate("task_execution"); err != nil {
 		return ExecutionRequest{}, err
@@ -173,7 +176,16 @@ func normalizeEnqueueRunSpec(spec EnqueueRun) (EnqueueRun, error) {
 	normalized.RunKind = normalizeRunKindOrDefault(normalized.RunKind)
 	normalized.LoopRunID = strings.TrimSpace(normalized.LoopRunID)
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
-	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
+	normalized.NetworkParticipationSource = participation.Source(strings.TrimSpace(
+		string(normalized.NetworkParticipationSource),
+	))
+	if normalized.NetworkParticipation != nil {
+		request, err := participation.NormalizeIntent(*normalized.NetworkParticipation)
+		if err != nil {
+			return EnqueueRun{}, fmt.Errorf("enqueue_run.network_participation: %w", err)
+		}
+		normalized.NetworkParticipation = &request
+	}
 	normalized.DesignationGroupID = strings.TrimSpace(normalized.DesignationGroupID)
 	normalized.Metadata = normalizeRawJSON(normalized.Metadata)
 	if err := normalized.Validate("enqueue_run"); err != nil {

@@ -15,6 +15,7 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/network/participation"
 	observepkg "github.com/compozy/agh/internal/observe"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
@@ -104,7 +105,7 @@ func TestStatusForBundleErrorAndChannelHelpers(t *testing.T) {
 		{name: "bundle missing", err: bundlepkg.ErrBundleNotFound, want: http.StatusNotFound},
 		{name: "profile missing", err: bundlepkg.ErrProfileNotFound, want: http.StatusNotFound},
 		{name: "extension missing", err: extensionpkg.ErrExtensionNotFound, want: http.StatusNotFound},
-		{name: "default channel busy", err: bundlepkg.ErrDefaultChannelBusy, want: http.StatusConflict},
+		{name: "default channel removed", err: bundlepkg.ErrDefaultChannelRemoved, want: http.StatusBadRequest},
 		{name: "agent conflict", err: bundlepkg.ErrAgentConflict, want: http.StatusConflict},
 		{
 			name: "agent reference missing",
@@ -136,16 +137,16 @@ func TestStatusForBundleErrorAndChannelHelpers(t *testing.T) {
 
 		sessions := []*session.Info{
 			{
-				ID:          "sess-visible",
-				WorkspaceID: networkCoreTestWorkspaceID,
-				Channel:     " builders ",
-				State:       session.StateActive,
+				ID:                   "sess-visible",
+				WorkspaceID:          networkCoreTestWorkspaceID,
+				NetworkParticipation: coreTestLiveParticipation(networkCoreTestWorkspaceID, "builders"),
+				State:                session.StateActive,
 			},
 			{
-				ID:          "sess-stopped",
-				WorkspaceID: networkCoreTestWorkspaceID,
-				Channel:     "builders",
-				State:       session.StateStopped,
+				ID:                   "sess-stopped",
+				WorkspaceID:          networkCoreTestWorkspaceID,
+				NetworkParticipation: coreTestLiveParticipation(networkCoreTestWorkspaceID, "builders"),
+				State:                session.StateStopped,
 			},
 		}
 		peers := []network.PeerInfo{{PeerID: "peer-1", WorkspaceID: networkCoreTestWorkspaceID, Channel: "operators"}}
@@ -191,6 +192,17 @@ func TestStatusForBundleErrorAndChannelHelpers(t *testing.T) {
 			t.Fatal("isNetworkChannelNotFound() = false, want true")
 		}
 	})
+}
+
+func coreTestLiveParticipation(workspaceID string, channelID string) participation.Spec {
+	return participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     workspaceID,
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       channelID,
+		Source:          participation.SourceExplicitRequest,
+	}
 }
 
 func TestNetworkChannelAggregateKeepsConversationActivitySeparateFromMetadata(t *testing.T) {
@@ -614,10 +626,16 @@ func TestCoreTimeAndSessionHelpers(t *testing.T) {
 		if networkChannelSessionVisible(nil) {
 			t.Fatal("networkChannelSessionVisible(nil) = true, want false")
 		}
-		if networkChannelSessionVisible(&session.Info{State: session.StateStopped, Channel: "builders"}) {
+		if networkChannelSessionVisible(&session.Info{
+			State:                session.StateStopped,
+			NetworkParticipation: coreTestLiveParticipation(networkCoreTestWorkspaceID, "builders"),
+		}) {
 			t.Fatal("networkChannelSessionVisible(stopped) = true, want false")
 		}
-		if !networkChannelSessionVisible(&session.Info{State: session.StateActive, Channel: " builders "}) {
+		if !networkChannelSessionVisible(&session.Info{
+			State:                session.StateActive,
+			NetworkParticipation: coreTestLiveParticipation(networkCoreTestWorkspaceID, "builders"),
+		}) {
 			t.Fatal("networkChannelSessionVisible(active) = false, want true")
 		}
 	})

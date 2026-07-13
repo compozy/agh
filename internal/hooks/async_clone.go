@@ -247,25 +247,6 @@ func cloneAutomationTriggerPreFirePayload(payload AutomationTriggerPreFirePayloa
 	return payload
 }
 
-func cloneTaskRunEnqueuedPayload(payload TaskRunEnqueuedPayload) TaskRunEnqueuedPayload {
-	payload.TaskRunContext = cloneTaskRunContext(payload.TaskRunContext)
-	return payload
-}
-
-func cloneTaskRunPreClaimPayload(payload TaskRunPreClaimPayload) TaskRunPreClaimPayload {
-	payload.TaskRunContext = cloneTaskRunContext(payload.TaskRunContext)
-	payload.Criteria.RequiredCapabilities = cloneStringSlice(payload.Criteria.RequiredCapabilities)
-	return payload
-}
-
-func cloneTaskRunContext(payload TaskRunContext) TaskRunContext {
-	if payload.RunKind != nil {
-		runKind := *payload.RunKind
-		payload.RunKind = &runKind
-	}
-	return payload
-}
-
 func cloneSpawnPreCreatePayload(payload SpawnPreCreatePayload) SpawnPreCreatePayload {
 	payload.ParentPermissions = clonePermissionSet(payload.ParentPermissions)
 	payload.ChildPermissions = clonePermissionSet(payload.ChildPermissions)

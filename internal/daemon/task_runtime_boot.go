@@ -251,21 +251,25 @@ func newTaskRuntimeManager(
 	reviewRequests taskpkg.RunReviewRequestedObserver,
 	coordinatorRunner taskpkg.CoordinatorRunner,
 ) (*taskpkg.Service, error) {
-	return taskpkg.NewManager(
-		taskManagerOptions(
-			store,
-			bridge,
-			wakeBridge,
-			eventObserver,
-			state.notifier,
-			reviewRequests,
-			coordinatorRunner,
-			looppkg.NewStoreFinalizer(),
-			state.cfg.Task.Recovery,
-			state.cfg.Autonomy.Scheduler,
-			state.cfg.Autonomy.BlockRecurrenceLimit,
-		)...,
+	resolver, err := ensureDaemonParticipationResolver(state, store)
+	if err != nil {
+		return nil, err
+	}
+	options := taskManagerOptions(
+		store,
+		bridge,
+		wakeBridge,
+		eventObserver,
+		state.notifier,
+		reviewRequests,
+		coordinatorRunner,
+		looppkg.NewStoreFinalizer(),
+		state.cfg.Task.Recovery,
+		state.cfg.Autonomy.Scheduler,
+		state.cfg.Autonomy.BlockRecurrenceLimit,
 	)
+	options = append(options, taskpkg.WithParticipationResolver(resolver))
+	return taskpkg.NewManager(options...)
 }
 
 func recoverDetachedHarnessReentry(ctx context.Context, reentry *harnessReentryBridge) error {

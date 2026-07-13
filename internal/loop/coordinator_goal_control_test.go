@@ -562,6 +562,8 @@ func goalCoordinatorDefinition() dsl.Definition {
 			}},
 			Edges: []dsl.Edge{},
 		},
-		Start: []dsl.StartBinding{{Kind: dsl.StartManual}},
+		DefinitionExtensionState: &dsl.DefinitionExtensionState{
+			Start: []dsl.StartBinding{{Kind: dsl.StartManual}},
+		},
 	}
 }

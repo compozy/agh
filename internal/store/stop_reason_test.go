@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 func TestValidStopReason(t *testing.T) {
@@ -71,13 +73,14 @@ func TestSessionMetaValidateStopReason(t *testing.T) {
 			t.Parallel()
 
 			meta := SessionMeta{
-				ID:          "sess-meta",
-				AgentName:   "coder",
-				WorkspaceID: "ws-meta",
-				State:       "stopped",
-				StopReason:  tt.reason,
-				CreatedAt:   now,
-				UpdatedAt:   now,
+				ID:                   "sess-meta",
+				AgentName:            "coder",
+				WorkspaceID:          "ws-meta",
+				NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
+				State:                "stopped",
+				StopReason:           tt.reason,
+				CreatedAt:            now,
+				UpdatedAt:            now,
 			}
 
 			err := meta.Validate()

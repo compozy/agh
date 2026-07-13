@@ -71,10 +71,10 @@ func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetw
 	manager := newHarnessIntegrationManager(t, homePaths, capturedDeps, resolvedWorkspace, driver)
 
 	created, err := manager.Create(testutil.Context(t), session.CreateOpts{
-		AgentName: resolvedWorkspace.Agents[0].Name,
-		Name:      "networked",
-		Workspace: resolvedWorkspace.ID,
-		Channel:   "builders",
+		AgentName:                    resolvedWorkspace.Agents[0].Name,
+		Name:                         "networked",
+		Workspace:                    resolvedWorkspace.ID,
+		ResolvedNetworkParticipation: daemonTestLiveParticipationPtr(resolvedWorkspace.ID, "builders"),
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)

@@ -115,7 +115,6 @@ function buildEditDraft(): TaskEditorDraft {
     description: "Compress the escalation thread into five bullets the launch room can act on.",
     priority: "high",
     maxAttempts: 3,
-    networkChannel: "launch-room",
   };
 }
 

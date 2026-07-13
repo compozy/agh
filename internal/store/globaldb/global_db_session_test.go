@@ -565,9 +565,7 @@ func TestGlobalDBDeleteSession(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(upgraded global DB) error = %v", err)
 		}
-		if status.Version != 8 || status.AppliedCount != 8 {
-			t.Fatalf("Status(upgraded global DB) = %#v, want version/applied count 8", status)
-		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
 
 		if err := globalDB.DeleteSession(ctx, targetID); err != nil {
 			t.Fatalf("DeleteSession(upgraded target) error = %v", err)

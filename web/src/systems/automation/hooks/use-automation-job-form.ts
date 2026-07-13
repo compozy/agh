@@ -310,7 +310,6 @@ export function useAutomationJobForm({
     onPromptChange: (prompt: string) => patch({ prompt }),
     onTaskTitle: (title: string) => patchTask({ title }),
     onTaskDescription: (description: string) => patchTask({ description }),
-    onTaskChannel: (network_channel: string) => patchTask({ network_channel }),
     onOwnerKind: handleOwnerKind,
     onOwnerRef: handleOwnerRef,
 

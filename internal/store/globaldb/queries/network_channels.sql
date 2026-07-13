@@ -1,3 +1,12 @@
+-- name: CreateNetworkChannel :exec
+INSERT INTO network_channels (
+  channel, workspace_id, purpose, fanout_policy, coordinator_peer_id,
+  created_by, created_at, updated_at
+) VALUES (
+  sqlc.arg(channel), sqlc.arg(workspace_id), sqlc.arg(purpose), sqlc.arg(fanout_policy),
+  sqlc.arg(coordinator_peer_id), sqlc.arg(created_by), sqlc.arg(created_at), sqlc.arg(updated_at)
+);
+
 -- name: UpsertNetworkChannel :exec
 INSERT INTO network_channels (
   channel, workspace_id, purpose, fanout_policy, coordinator_peer_id,

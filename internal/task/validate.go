@@ -1366,7 +1366,6 @@ func taskPatchHasMutableFields(p Patch) bool {
 		p.AutoEnqueueOnReady != nil ||
 		p.ApprovalPolicy != nil ||
 		p.Metadata != nil ||
-		p.NetworkChannel != nil ||
 		p.Owner != nil ||
 		p.ClearOwner
 }

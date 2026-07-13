@@ -23,7 +23,7 @@ func taskSummaryIndex(
 	return tasksByID, taskIDs
 }
 
-func projectTaskParticipationChannels(tasks []taskpkg.Summary, runs []taskpkg.Run) []taskpkg.Summary {
+func taskParticipationChannels(tasks []taskpkg.Summary, runs []taskpkg.Run) map[string]string {
 	selectedRuns := make(map[string]taskpkg.Run, len(tasks))
 	currentRunIDs := make(map[string]string, len(tasks))
 	for idx := range tasks {
@@ -49,16 +49,11 @@ func projectTaskParticipationChannels(tasks []taskpkg.Summary, runs []taskpkg.Ru
 		}
 	}
 
-	for idx := range tasks {
-		item := &tasks[idx]
-		selected, ok := selectedRuns[strings.TrimSpace(item.ID)]
-		if !ok {
-			item.NetworkChannel = ""
-			continue
-		}
-		item.NetworkChannel = taskRunParticipationChannel(selected)
+	channels := make(map[string]string, len(selectedRuns))
+	for taskID, selected := range selectedRuns {
+		channels[taskID] = taskRunParticipationChannel(selected)
 	}
-	return tasks
+	return channels
 }
 
 func taskRunParticipationChannel(run taskpkg.Run) string {
@@ -88,7 +83,11 @@ func prefersTaskParticipationRun(candidate, selected taskpkg.Run, currentRunID s
 	return strings.TrimSpace(candidate.ID) > strings.TrimSpace(selected.ID)
 }
 
-func filterTasksByNetworkChannel(tasks []taskpkg.Summary, channel string) []taskpkg.Summary {
+func filterTasksByNetworkChannel(
+	tasks []taskpkg.Summary,
+	channels map[string]string,
+	channel string,
+) []taskpkg.Summary {
 	channel = strings.TrimSpace(channel)
 	if channel == "" {
 		return tasks
@@ -97,9 +96,13 @@ func filterTasksByNetworkChannel(tasks []taskpkg.Summary, channel string) []task
 	filtered := make([]taskpkg.Summary, 0, len(tasks))
 	for idx := range tasks {
 		item := &tasks[idx]
-		if strings.TrimSpace(item.NetworkChannel) == channel {
+		if taskParticipationChannel(channels, item.ID) == channel {
 			filtered = append(filtered, *item)
 		}
 	}
 	return filtered
+}
+
+func taskParticipationChannel(channels map[string]string, taskID string) string {
+	return strings.TrimSpace(channels[strings.TrimSpace(taskID)])
 }

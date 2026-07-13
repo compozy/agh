@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 )
 
@@ -383,67 +384,27 @@ func (m *Service) timelineItemsFromRecords(
 	return items, nil
 }
 
-func (m *Service) loadTaskLiveContext(
-	ctx context.Context,
-	taskID string,
-	cache map[string]*taskLiveContext,
-) (*taskLiveContext, error) {
-	if cached, ok := cache[taskID]; ok {
-		return cached, nil
-	}
-
-	record, err := m.store.GetTask(ctx, taskID)
-	if err != nil {
-		return nil, err
-	}
-	dependencies, err := m.store.ListDependencies(ctx, record.ID)
-	if err != nil {
-		return nil, err
-	}
-	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: record.ID})
-	if err != nil {
-		return nil, err
-	}
-	status, err := m.canonicalTaskStatus(ctx, record, dependencies, runs)
-	if err != nil {
-		return nil, err
-	}
-
-	runsByID := make(map[string]Run, len(runs))
-	for _, run := range runs {
-		runsByID[run.ID] = run
-	}
-
-	cached := &taskLiveContext{
-		record:    record,
-		reference: taskReferenceFromTask(record, status),
-		runsByID:  runsByID,
-	}
-	cache[taskID] = cached
-	return cached, nil
-}
-
 func runSummaryFromRun(run Run, maxAttempts int) *RunSummary {
 	summary := &RunSummary{
-		ID:                    run.ID,
-		TaskID:                run.TaskID,
-		Status:                run.Status,
-		Attempt:               int(run.Attempt),
-		PreviousRunID:         run.PreviousRunID,
-		FailureKind:           run.FailureKind,
-		MaxAttempts:           maxAttempts,
-		SessionID:             run.SessionID,
-		ClaimedBy:             cloneActorIdentity(run.ClaimedBy),
-		ClaimTokenHash:        run.ClaimTokenHash,
-		LeaseUntil:            run.LeaseUntil,
-		HeartbeatAt:           run.HeartbeatAt,
-		CoordinationChannelID: run.CoordinationChannelID,
-		DesignationGroupID:    run.DesignationGroupID,
-		QueuedAt:              run.QueuedAt,
-		ClaimedAt:             run.ClaimedAt,
-		StartedAt:             run.StartedAt,
-		EndedAt:               run.EndedAt,
-		Error:                 run.Error,
+		ID:                           run.ID,
+		TaskID:                       run.TaskID,
+		Status:                       run.Status,
+		Attempt:                      int(run.Attempt),
+		PreviousRunID:                run.PreviousRunID,
+		FailureKind:                  run.FailureKind,
+		MaxAttempts:                  maxAttempts,
+		SessionID:                    run.SessionID,
+		ClaimedBy:                    cloneActorIdentity(run.ClaimedBy),
+		ClaimTokenHash:               run.ClaimTokenHash,
+		LeaseUntil:                   run.LeaseUntil,
+		HeartbeatAt:                  run.HeartbeatAt,
+		ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
+		DesignationGroupID:           run.DesignationGroupID,
+		QueuedAt:                     run.QueuedAt,
+		ClaimedAt:                    run.ClaimedAt,
+		StartedAt:                    run.StartedAt,
+		EndedAt:                      run.EndedAt,
+		Error:                        run.Error,
 	}
 	ApplyRunDesignationSummary(summary, run)
 	return summary

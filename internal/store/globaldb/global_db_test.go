@@ -14,7 +14,9 @@ import (
 	"reflect"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -223,9 +225,7 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(global) error = %v", err)
 		}
-		if status.Version != 8 || status.AppliedCount != 8 {
-			t.Fatalf("Status(global) = %#v, want version/applied count 8", status)
-		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
 		workspaces, err := globalDB.ListWorkspaces(testutil.Context(t))
 		if err != nil {
 			t.Fatalf("ListWorkspaces() error = %v", err)
@@ -366,9 +366,7 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(first post-cut) error = %v", err)
 		}
-		if firstStatus.Version != 8 || firstStatus.AppliedCount != 8 {
-			t.Fatalf("Status(first post-cut) = %#v, want version/applied count 8", firstStatus)
-		}
+		assertCompleteMigrationStream(t, firstStatus, MigrationStream())
 		if err := first.Close(ctx); err != nil {
 			t.Fatalf("Close(first post-cut) error = %v", err)
 		}
@@ -392,6 +390,41 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 			t.Fatalf("Status(second post-cut) = %#v, want unchanged %#v", secondStatus, firstStatus)
 		}
 	})
+}
+
+func assertCompleteMigrationStream(t *testing.T, status store.StreamStatus, stream store.MigrationStream) {
+	t.Helper()
+
+	entries, err := fs.ReadDir(stream.FS, stream.Dir)
+	if err != nil {
+		t.Fatalf("read %s migration directory: %v", stream.Name, err)
+	}
+	wantVersion := int64(0)
+	wantAppliedCount := 0
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".sql" {
+			continue
+		}
+		separator := strings.IndexByte(entry.Name(), '_')
+		if separator <= 0 {
+			t.Fatalf("%s migration filename %q has no version prefix", stream.Name, entry.Name())
+		}
+		version, err := strconv.ParseInt(entry.Name()[:separator], 10, 64)
+		if err != nil {
+			t.Fatalf("parse %s migration version: %v", stream.Name, err)
+		}
+		wantVersion = max(wantVersion, version)
+		wantAppliedCount++
+	}
+	if status.Version != wantVersion || status.AppliedCount != wantAppliedCount {
+		t.Fatalf(
+			"Status(%s) = %#v, want version %d with %d applied migrations",
+			stream.Name,
+			status,
+			wantVersion,
+			wantAppliedCount,
+		)
+	}
 }
 
 func createPreCutNetworkParticipationFixture(ctx context.Context, t *testing.T, path string) {
@@ -1357,6 +1390,101 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 		t.Fatalf("GetWorkspace(updated) error = %v", err)
 	}
 	assertWorkspaceEqual(t, gotUpdated, updated)
+
+	t.Run("Should persist revisioned network coordination with availability fencing", func(t *testing.T) {
+		ctx := testutil.Context(t)
+		initial, getErr := globalDB.Get(ctx, updated.ID)
+		if getErr != nil {
+			t.Fatalf("Get(initial coordination) error = %v", getErr)
+		}
+		if initial.Enabled || initial.Revision != 0 || initial.WorkspaceID != updated.ID {
+			t.Fatalf("Get(initial coordination) = %#v, want disabled revision zero", initial)
+		}
+
+		firstTime := time.Date(2026, 4, 3, 13, 0, 0, 0, time.UTC)
+		globalDB.now = func() time.Time { return firstTime }
+		first, setErr := globalDB.Set(ctx, updated.ID, true, "operator:first")
+		if setErr != nil {
+			t.Fatalf("Set(first coordination) error = %v", setErr)
+		}
+		if !first.Enabled || first.Revision != 1 || first.UpdatedBy != "operator:first" {
+			t.Fatalf("Set(first coordination) = %#v, want enabled revision one", first)
+		}
+
+		second, setErr := globalDB.Set(ctx, updated.ID, false, "operator:second")
+		if setErr != nil {
+			t.Fatalf("Set(second coordination) error = %v", setErr)
+		}
+		if second.Enabled || second.Revision != 2 || second.UpdatedBy != "operator:second" {
+			t.Fatalf("Set(second coordination) = %#v, want disabled revision two", second)
+		}
+		if !second.UpdatedAt.After(first.UpdatedAt) {
+			t.Fatalf("second.UpdatedAt = %s, want after %s", second.UpdatedAt, first.UpdatedAt)
+		}
+
+		if _, disableErr := globalDB.SetNetworkAvailability(ctx, false, "operator:disable"); disableErr != nil {
+			t.Fatalf("SetNetworkAvailability(false) error = %v", disableErr)
+		}
+		if _, setErr = globalDB.Set(ctx, updated.ID, true, "operator:blocked"); !errors.Is(
+			setErr,
+			participation.ErrUnavailable,
+		) {
+			t.Fatalf("Set(while unavailable) error = %v, want %v", setErr, participation.ErrUnavailable)
+		}
+		unchanged, getErr := globalDB.Get(ctx, updated.ID)
+		if getErr != nil {
+			t.Fatalf("Get(after blocked Set) error = %v", getErr)
+		}
+		if unchanged.Revision != second.Revision || unchanged.UpdatedBy != second.UpdatedBy {
+			t.Fatalf("Get(after blocked Set) = %#v, want unchanged %#v", unchanged, second)
+		}
+		if _, enableErr := globalDB.SetNetworkAvailability(ctx, true, "operator:enable"); enableErr != nil {
+			t.Fatalf("SetNetworkAvailability(true) error = %v", enableErr)
+		}
+
+		var clockCalls atomic.Int64
+		firstHasWriteLock := make(chan struct{})
+		releaseFirst := make(chan struct{})
+		globalDB.now = func() time.Time {
+			call := clockCalls.Add(1)
+			if call == 1 {
+				close(firstHasWriteLock)
+				<-releaseFirst
+			}
+			return firstTime.Add(time.Duration(call) * time.Minute)
+		}
+		type setResult struct {
+			setting aghworkspace.CoordinationSetting
+			err     error
+		}
+		firstResult := make(chan setResult, 1)
+		secondResult := make(chan setResult, 1)
+		go func() {
+			setting, callErr := globalDB.Set(ctx, updated.ID, true, "operator:concurrent-first")
+			firstResult <- setResult{setting: setting, err: callErr}
+		}()
+		<-firstHasWriteLock
+		go func() {
+			setting, callErr := globalDB.Set(ctx, updated.ID, false, "operator:concurrent-second")
+			secondResult <- setResult{setting: setting, err: callErr}
+		}()
+		close(releaseFirst)
+		firstConcurrent := <-firstResult
+		if firstConcurrent.err != nil {
+			t.Fatalf("Set(concurrent first) error = %v", firstConcurrent.err)
+		}
+		secondConcurrent := <-secondResult
+		if secondConcurrent.err != nil {
+			t.Fatalf("Set(concurrent second) error = %v", secondConcurrent.err)
+		}
+		winner, getErr := globalDB.Get(ctx, updated.ID)
+		if getErr != nil {
+			t.Fatalf("Get(concurrent winner) error = %v", getErr)
+		}
+		if winner.Enabled || winner.UpdatedBy != "operator:concurrent-second" || winner.Revision != 4 {
+			t.Fatalf("Get(concurrent winner) = %#v, want second writer at revision four", winner)
+		}
+	})
 
 	if err := globalDB.DeleteWorkspace(testutil.Context(t), updated.ID); err != nil {
 		t.Fatalf("DeleteWorkspace() error = %v", err)

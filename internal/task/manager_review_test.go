@@ -128,12 +128,11 @@ func (s *inMemoryManagerStore) RecordRunReview(
 		return result, nil
 	}
 	continuation := Run{
-		ID:             strings.TrimSpace(continuationRunID),
-		TaskID:         review.TaskID,
-		Status:         TaskRunStatusQueued,
-		Attempt:        int32(continuationAttempt),
-		Origin:         actor.Origin,
-		NetworkChannel: run.NetworkChannel,
+		ID:      strings.TrimSpace(continuationRunID),
+		TaskID:  review.TaskID,
+		Status:  TaskRunStatusQueued,
+		Attempt: int32(continuationAttempt),
+		Origin:  actor.Origin,
 		Review: &RunReviewLineage{
 			ParentRunID:        run.ID,
 			ReviewID:           review.ReviewID,
@@ -146,6 +145,8 @@ func (s *inMemoryManagerStore) RecordRunReview(
 		RequiredCapabilities:  append([]string(nil), run.RequiredCapabilities...),
 		PreferredCapabilities: append([]string(nil), run.PreferredCapabilities...),
 	}
+	wakeID, targetSessionID, ownerKey := run.NetworkWakeCorrelation()
+	continuation.SetNetworkState(run.NetworkSpecSnapshot(), wakeID, targetSessionID, ownerKey)
 	if err := continuation.Validate(); err != nil {
 		return RunReviewResult{}, err
 	}

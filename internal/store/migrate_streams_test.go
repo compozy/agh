@@ -3,6 +3,7 @@ package store_test
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"io/fs"
 	"path"
 	"path/filepath"
@@ -75,29 +76,10 @@ func TestProductionMigrationStreams(t *testing.T) {
 				t.Fatalf("version table %q shared by %s and %s", item.stream.VersionTable, owner, item.name)
 			}
 			seenTables[item.stream.VersionTable] = item.name
-			entries, err := fs.ReadDir(item.stream.FS, item.stream.Dir)
-			if err != nil {
-				t.Fatalf("read %s migration directory: %v", item.name, err)
-			}
-			versions := make([]int, 0)
+			versions := embeddedMigrationVersions(t, item.stream)
 			foundBaseline := false
-			for _, entry := range entries {
-				if entry.IsDir() || filepath.Ext(entry.Name()) != ".sql" {
-					continue
-				}
-				separator := strings.IndexByte(entry.Name(), '_')
-				if separator <= 0 {
-					t.Fatalf("%s migration filename %q has no version prefix", item.name, entry.Name())
-				}
-				version, err := strconv.Atoi(entry.Name()[:separator])
-				if err != nil {
-					t.Fatalf("parse %s migration version: %v", item.name, err)
-				}
-				versions = append(versions, version)
+			for _, version := range versions {
 				if version == 1 {
-					if entry.Name() != "00001_baseline.sql" {
-						t.Fatalf("%s first migration = %q, want 00001_baseline.sql", item.name, entry.Name())
-					}
 					foundBaseline = true
 				}
 			}
@@ -147,23 +129,20 @@ func TestProductionMigrationStreams(t *testing.T) {
 		if err := store.Apply(ctx, db, memoryStream); err != nil {
 			t.Fatalf("Apply(memory) error = %v", err)
 		}
-		wantStatus := map[string]store.StreamStatus{
-			globalStream.Name: {Version: 8, AppliedCount: 8},
-			memoryStream.Name: {Version: 1, AppliedCount: 1},
-		}
 		for _, stream := range []store.MigrationStream{globalStream, memoryStream} {
 			status, err := store.Status(ctx, db, stream)
 			if err != nil {
 				t.Fatalf("Status(%s) error = %v", stream.Name, err)
 			}
-			want := wantStatus[stream.Name]
-			if status.Version != want.Version || status.AppliedCount != want.AppliedCount {
+			versions := embeddedMigrationVersions(t, stream)
+			wantVersion := int64(versions[len(versions)-1])
+			if status.Version != wantVersion || status.AppliedCount != len(versions) {
 				t.Fatalf(
-					"Status(%s) = %#v, want version %d with %d applied",
+					"Status(%s) = %#v, want version %d with %d applied migrations",
 					stream.Name,
 					status,
-					want.Version,
-					want.AppliedCount,
+					wantVersion,
+					len(versions),
 				)
 			}
 		}
@@ -171,6 +150,38 @@ func TestProductionMigrationStreams(t *testing.T) {
 			t.Fatal("memory_events missing after shared-file baseline application")
 		}
 	})
+}
+
+func embeddedMigrationVersions(t *testing.T, stream store.MigrationStream) []int {
+	t.Helper()
+
+	entries, err := fs.ReadDir(stream.FS, stream.Dir)
+	if err != nil {
+		t.Fatalf("read %s migration directory: %v", stream.Name, err)
+	}
+	versions := make([]int, 0)
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".sql" {
+			continue
+		}
+		separator := strings.IndexByte(entry.Name(), '_')
+		if separator <= 0 {
+			t.Fatalf("%s migration filename %q has no version prefix", stream.Name, entry.Name())
+		}
+		version, err := strconv.Atoi(entry.Name()[:separator])
+		if err != nil {
+			t.Fatalf("parse %s migration version: %v", stream.Name, err)
+		}
+		if version == 1 && entry.Name() != "00001_baseline.sql" {
+			t.Fatalf("%s first migration = %q, want 00001_baseline.sql", stream.Name, entry.Name())
+		}
+		versions = append(versions, version)
+	}
+	if len(versions) == 0 {
+		t.Fatalf("%s migration directory contains no SQL migrations", stream.Name)
+	}
+	sort.Ints(versions)
+	return versions
 }
 
 func TestMigrationSchemaEquivalence(t *testing.T) {
@@ -380,48 +391,35 @@ func openStreamTestDB(t *testing.T, name string) *sql.DB {
 	return db
 }
 
-func inspectSQLiteRealm(t *testing.T, db *sql.DB) (atlasschema.Differ, *atlasschema.Realm) {
+func normalizedSQLiteSchema(t *testing.T, db *sql.DB, excludedVersionTable string) string {
 	t.Helper()
-	driver, err := atlassqlite.Open(db)
+	rows, err := db.QueryContext(testutil.Context(t), `SELECT type, name, sql FROM sqlite_master
+		WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' ORDER BY type, name`)
 	if err != nil {
-		t.Fatalf("open Atlas SQLite driver: %v", err)
+		t.Fatalf("query sqlite_master: %v", err)
 	}
-	realm, err := driver.InspectRealm(testutil.Context(t), nil)
-	if err != nil {
-		t.Fatalf("inspect SQLite realm: %v", err)
-	}
-	return driver, realm
-}
-
-func normalizeSQLiteGeneratedIndexes(realm *atlasschema.Realm) {
-	for _, schemaObject := range realm.Schemas {
-		for _, table := range schemaObject.Tables {
-			for _, index := range table.Indexes {
-				if !strings.HasPrefix(index.Name, "sqlite_autoindex_") || sqliteIndexOrigin(index) != "u" {
-					continue
-				}
-				parts := make([]string, 0, len(index.Parts)+1)
-				parts = append(parts, table.Name)
-				for _, part := range index.Parts {
-					if part.C != nil {
-						parts = append(parts, part.C.Name)
-					}
-				}
-				if len(parts) > 1 {
-					index.Name = strings.Join(parts, "_")
-				}
-			}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			t.Errorf("close sqlite_master rows: %v", err)
 		}
-	}
-}
-
-func sqliteIndexOrigin(index *atlasschema.Index) string {
-	for _, attribute := range index.Attrs {
-		if origin, ok := attribute.(*atlassqlite.IndexOrigin); ok {
-			return origin.O
+	}()
+	objects := make([]string, 0)
+	for rows.Next() {
+		var kind string
+		var name string
+		var statement string
+		if err := rows.Scan(&kind, &name, &statement); err != nil {
+			t.Fatalf("scan sqlite_master: %v", err)
 		}
+		if name == excludedVersionTable {
+			continue
+		}
+		objects = append(objects, fmt.Sprintf("%s|%s|%s", kind, name, normalizeSchemaSQL(statement)))
 	}
-	return ""
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate sqlite_master: %v", err)
+	}
+	return strings.Join(objects, "\n")
 }
 
 func normalizedSQLiteObjects(t *testing.T, db *sql.DB, objectTypes ...string) string {

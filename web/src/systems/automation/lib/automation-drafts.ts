@@ -77,9 +77,24 @@ export function jobOutputMode(draft: CreateAutomationJobRequest): JobOutputMode 
   return draft.task ? "task" : "agent";
 }
 
-/** A blank task object for entering task mode. `network_channel` stays undefined. */
+/** A blank task object for entering task mode. */
 export function emptyJobTask(): NonNullable<CreateAutomationJobRequest["task"]> {
   return { title: "", description: "", owner: null };
+}
+
+type JobTaskDraft = NonNullable<CreateAutomationJobRequest["task"]>;
+
+/**
+ * Drop a legacy raw network_channel key if a daemon payload still carries one.
+ * Draft write surfaces must not re-emit execution state owned by the daemon.
+ */
+export function omitTaskNetworkChannel(task: JobTaskDraft): JobTaskDraft {
+  if (!Object.hasOwn(task, "network_channel")) {
+    return task;
+  }
+  const next = { ...task } as JobTaskDraft & { network_channel?: string };
+  delete next.network_channel;
+  return next;
 }
 
 /**
@@ -114,7 +129,7 @@ export function automationJobToDraft(job: AutomationJob): CreateAutomationJobReq
     target_kind: job.target_kind,
     loop_target: job.loop_target ?? undefined,
     workspace_id: job.workspace_id,
-    task: job.task ?? undefined,
+    task: job.task ? omitTaskNetworkChannel(job.task) : undefined,
     enabled: job.enabled,
     retry: normalizeAutomationRetry(job.retry),
     fire_limit: {

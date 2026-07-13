@@ -9,7 +9,6 @@ const DEFAULT_DESIGNATIONS = [
 ].join("\n");
 
 export interface UseTasksFanOutRunsCardParams {
-  defaultNetworkChannel?: string | null;
   onFanOut: (data: FanOutTaskRunsRequest) => Promise<FanOutTaskRunsResponse | void>;
 }
 
@@ -21,26 +20,15 @@ function parseDesignations(value: string): FanOutTaskRunsRequest["designations"]
     .map(brief => ({ brief }));
 }
 
-function trimOrUndefined(value: string): string | undefined {
-  const trimmed = value.trim();
-  return trimmed === "" ? undefined : trimmed;
-}
-
-export function useTasksFanOutRunsCard({
-  defaultNetworkChannel,
-  onFanOut,
-}: UseTasksFanOutRunsCardParams) {
+export function useTasksFanOutRunsCard({ onFanOut }: UseTasksFanOutRunsCardParams) {
   const [open, setOpen] = useState(false);
-  const [networkChannel, setNetworkChannel] = useState(defaultNetworkChannel ?? "");
   const [designationsText, setDesignationsText] = useState(DEFAULT_DESIGNATIONS);
   const [formError, setFormError] = useState<string | null>(null);
   const designations = parseDesignations(designationsText);
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
-    if (nextOpen) {
-      setNetworkChannel(defaultNetworkChannel ?? "");
-    } else {
+    if (!nextOpen) {
       setFormError(null);
       setDesignationsText(DEFAULT_DESIGNATIONS);
     }
@@ -59,7 +47,6 @@ export function useTasksFanOutRunsCard({
 
     const payload: FanOutTaskRunsRequest = {
       designations,
-      network_channel: trimOrUndefined(networkChannel),
     };
 
     try {
@@ -76,10 +63,8 @@ export function useTasksFanOutRunsCard({
     formError,
     handleOpenChange,
     handleSubmit,
-    networkChannel,
     open,
     openDialog,
     setDesignationsText,
-    setNetworkChannel,
   };
 }

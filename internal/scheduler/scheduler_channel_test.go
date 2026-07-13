@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
 	"github.com/jonboulle/clockwork"
@@ -17,7 +18,7 @@ func TestRunOnceHonorsCoordinationChannel(t *testing.T) {
 
 		base := time.Date(2026, 4, 26, 13, 30, 0, 0, time.UTC)
 		work := workSnapshot("task-1", "run-1", taskpkg.ScopeWorkspace, "ws-1", []string{"go"}, base)
-		work.Run.CoordinationChannelID = "finance"
+		setRunParticipationChannel(&work.Run, "finance")
 		source := &fakeTaskSource{pending: []RunSnapshot{work}}
 		sessions := &fakeSessionSource{sessions: []SessionSnapshot{
 			{
@@ -62,7 +63,7 @@ func TestRunOnceHonorsCoordinationChannel(t *testing.T) {
 
 		base := time.Date(2026, 4, 26, 13, 45, 0, 0, time.UTC)
 		work := workSnapshot("task-1", "run-1", taskpkg.ScopeWorkspace, "ws-1", []string{"go"}, base)
-		work.Run.CoordinationChannelID = "finance"
+		setRunParticipationChannel(&work.Run, "finance")
 		source := &fakeTaskSource{pending: []RunSnapshot{work}}
 		sessions := &fakeSessionSource{sessions: []SessionSnapshot{
 			{
@@ -96,7 +97,7 @@ func TestRunOnceHonorsCoordinationChannel(t *testing.T) {
 
 			base := time.Date(2026, 4, 26, 14, 0, 0, 0, time.UTC)
 			work := workSnapshot("task-1", "run-1", taskpkg.ScopeWorkspace, "ws-1", []string{"go"}, base)
-			work.Run.CoordinationChannelID = "finance"
+			setRunParticipationChannel(&work.Run, "finance")
 			source := &fakeTaskSource{pending: []RunSnapshot{work}}
 			sessions := &fakeSessionSource{sessions: []SessionSnapshot{
 				{
@@ -123,4 +124,14 @@ func TestRunOnceHonorsCoordinationChannel(t *testing.T) {
 			}
 		},
 	)
+}
+
+func setRunParticipationChannel(run *taskpkg.Run, channelID string) {
+	run.SetNetworkState(participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       channelID,
+		Source:          participation.SourceExplicitRequest,
+	}, "", "", "")
 }

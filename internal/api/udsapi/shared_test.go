@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	core "github.com/compozy/agh/internal/api/core"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 )
 
@@ -28,6 +29,26 @@ type memoryDreamTriggerResponse = contract.MemoryDreamTriggerResponse
 type memoryHealthPayload = contract.MemoryHealthPayload
 type memoryLocation = core.MemoryLocation
 type workspacePayload = contract.WorkspacePayload
+
+func udsTestLiveParticipation(workspaceID, channelID string) participation.Spec {
+	return participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     workspaceID,
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       channelID,
+		Source:          participation.SourceExplicitRequest,
+		Bounds: participation.Bounds{
+			MaxWakes:         1,
+			MaxWakeWallTime:  "1m",
+			MaxTotalWallTime: "5m",
+			MaxInputTokens:   1_000,
+			MaxOutputTokens:  1_000,
+			MaxWakeDepth:     1,
+			CoalesceWindow:   "1s",
+		},
+	}
+}
 
 func statusForMemoryError(err error) int {
 	return core.StatusForMemoryError(err)

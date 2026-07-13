@@ -251,7 +251,7 @@ function buildRunDigest(draft: Draft): JobRunDigest {
       task: {
         title: task.title?.trim() ? task.title : draft.name,
         owner: ownerLabel(task.owner) ?? "unassigned",
-        channel: task.network_channel?.trim() ? task.network_channel : null,
+        channel: null,
         description: task.description?.trim() ? task.description : draft.prompt,
         runStatus: "delegated",
       },

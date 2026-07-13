@@ -64,12 +64,6 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		return
 	}
 
-	channel, err := h.defaultSessionChannel(c.Request.Context(), strings.TrimSpace(req.Channel))
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-
 	sess, err := h.Sessions.Create(c.Request.Context(), session.CreateOpts{
 		AgentName:       req.AgentName,
 		Provider:        strings.TrimSpace(req.Provider),
@@ -78,7 +72,6 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		Name:            req.Name,
 		Workspace:       strings.TrimSpace(req.Workspace),
 		WorkspacePath:   strings.TrimSpace(req.WorkspacePath),
-		Channel:         channel,
 		Type:            session.SessionTypeUser,
 	})
 	if err != nil {
@@ -716,9 +709,6 @@ func (h *BaseHandlers) networkStatusPayload(ctx context.Context) (*contract.Netw
 	if err != nil {
 		return nil, fmt.Errorf("api: load bundle network settings: %w", err)
 	}
-	payload.ConfiguredDefaultChannel = strings.TrimSpace(settings.ConfiguredDefaultChannel)
-	payload.EffectiveDefaultChannel = strings.TrimSpace(settings.EffectiveDefaultChannel)
-	payload.EffectiveDefaultSource = strings.TrimSpace(settings.EffectiveDefaultSource)
 	payload.DeclaredChannels = DeclaredNetworkChannelPayloads(settings.DeclaredChannels)
 	return payload, nil
 }

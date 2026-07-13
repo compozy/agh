@@ -16,6 +16,7 @@ import (
 
 var _ store.SessionRegistry = (*GlobalDB)(nil)
 var _ aghworkspace.Store = (*WorkspaceRepo)(nil)
+var _ aghworkspace.CoordinationSettings = (*WorkspaceRepo)(nil)
 
 // OpenGlobalDB opens or creates the global AGH index database.
 func OpenGlobalDB(ctx context.Context, path string) (*GlobalDB, error) {

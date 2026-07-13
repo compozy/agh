@@ -413,7 +413,7 @@ func storeSessionInfoFromRuntime(info *session.Info) store.SessionInfo {
 		AgentName:        info.AgentName,
 		Provider:         info.Provider,
 		WorkspaceID:      info.WorkspaceID,
-		Channel:          info.Channel,
+		Channel:          info.NetworkParticipation.ChannelID,
 		SessionType:      string(info.Type),
 		Lineage:          info.Lineage,
 		State:            string(info.State),

@@ -9,6 +9,7 @@ import (
 
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -429,7 +430,9 @@ context_nudge_ratio = 0.0
 	}
 	sessionID := "session-goal-command"
 	creationDigest, err := profile.CreationDigest(store.SessionCreationOptions{
-		SessionID: sessionID, SessionType: string(session.SessionTypeUser),
+		SessionID:            sessionID,
+		NetworkParticipation: participation.LocalSpec(),
+		SessionType:          string(session.SessionTypeUser),
 	})
 	if err != nil {
 		t.Fatalf("CreationDigest() error = %v", err)
@@ -441,8 +444,10 @@ context_nudge_ratio = 0.0
 	}
 	if _, err := db.RegisterSessionWithCreationIdentity(ctx, store.SessionInfo{
 		ID: sessionID, AgentName: profile.AgentName, Provider: profile.Provider,
-		WorkspaceID: workspaceID, SessionType: string(session.SessionTypeUser),
-		State: string(session.StateActive), CreatedAt: now, UpdatedAt: now,
+		WorkspaceID:         workspaceID,
+		SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
+		SessionType:         string(session.SessionTypeUser), State: string(session.StateActive),
+		CreatedAt: now, UpdatedAt: now,
 	}, identity); err != nil {
 		t.Fatalf("RegisterSessionWithCreationIdentity() error = %v", err)
 	}
@@ -478,7 +483,8 @@ context_nudge_ratio = 0.0
 	status := &goalCommandSessionStatus{info: &session.Info{
 		ID: sessionID, AgentName: profile.AgentName, Provider: profile.Provider,
 		Model:       activeModel,
-		WorkspaceID: workspaceID, Type: session.SessionTypeUser, State: session.StateActive,
+		WorkspaceID: workspaceID, NetworkParticipation: participation.LocalSpec(),
+		Type: session.SessionTypeUser, State: session.StateActive,
 	}}
 	return goalCommandHandlerFixture{
 		service: &daemonLoopAPIService{

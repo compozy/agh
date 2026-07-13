@@ -144,8 +144,10 @@ type Registry interface {
 	store.NetworkConversationStore
 	store.NetworkMessageStore
 	store.NetworkPreferenceStore
+	store.NetworkAvailabilityStore
 	store.OnboardingStore
 	workspacepkg.Store
+	workspacepkg.CoordinationSettings
 }
 
 // Server is a daemon-owned runtime component with explicit start and shutdown phases.
@@ -227,17 +229,6 @@ type extensionRuntime interface {
 	Reload(context.Context) error
 	Get(string) (*extensionpkg.Extension, error)
 	HookDeclarations(context.Context) ([]hookspkg.HookDecl, error)
-}
-
-func bridgeObserveSource(service core.BridgeService) observe.BridgeSource {
-	if service == nil {
-		return nil
-	}
-	source, ok := service.(observe.BridgeSource)
-	if !ok {
-		return nil
-	}
-	return source
 }
 
 type extensionManagerDeps struct {
@@ -644,6 +635,7 @@ func (d *Daemon) applyAutomationManagerFactoryDefault() {
 			deps.ToolRegistry,
 			d.homePaths,
 			deps.WorkspaceResolver,
+			deps.ParticipationResolver,
 		)
 		if err != nil {
 			return nil, err

@@ -794,31 +794,6 @@ func (m *Manager) logSandboxLifecycle(event SandboxLifecycleEvent) {
 	}
 }
 
-func sandboxStartOpts(
-	opts acp.StartOpts,
-	prepared envpkg.Prepared,
-	state envpkg.SessionState,
-) acp.StartOpts {
-	next := opts
-	if command := strings.TrimSpace(prepared.Launch.Command); command != "" {
-		next.Command = command
-	}
-	if prepared.Launch.Env != nil {
-		next.Env = append([]string(nil), prepared.Launch.Env...)
-	}
-	next.Cwd = strings.TrimSpace(prepared.RuntimeRootDir)
-	if next.Cwd == "" {
-		next.Cwd = strings.TrimSpace(state.RuntimeRootDir)
-	}
-	next.AdditionalDirs = append([]string(nil), prepared.RuntimeAdditionalDirs...)
-	if next.AdditionalDirs == nil {
-		next.AdditionalDirs = append([]string(nil), state.RuntimeAdditionalDirs...)
-	}
-	next.Launcher = prepared.Launcher
-	next.ToolHost = prepared.ToolHost
-	return next
-}
-
 func initialSessionSandboxMeta(
 	sandboxID string,
 	resolved envpkg.Resolved,

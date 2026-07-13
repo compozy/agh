@@ -18,7 +18,6 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	loopdsl "github.com/compozy/agh/internal/loop/dsl"
 	watchpkg "github.com/compozy/agh/internal/loop/watch"
-	"github.com/compozy/agh/internal/network"
 	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/procutil"
 	"github.com/compozy/agh/internal/resources"
@@ -52,14 +51,15 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 				Owner:       &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "frontend-engineer-agent"},
 			},
 			run: taskpkg.Run{
-				ID:                    "run-1",
-				TaskID:                "task-workspace",
-				Status:                taskpkg.TaskRunStatusStarting,
-				Attempt:               2,
-				Origin:                taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
-				NetworkChannel:        "builders",
-				CoordinationChannelID: "coord-builders",
-				QueuedAt:              time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
+				ID:      "run-1",
+				TaskID:  "task-workspace",
+				Status:  taskpkg.TaskRunStatusStarting,
+				Attempt: 2,
+				Origin:  taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				RunNetworkState: &taskpkg.RunNetworkState{
+					NetworkSpec: daemonTestLiveParticipation("ws-123", "coord-builders"),
+				},
+				QueuedAt: time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
 			},
 			wantWorkspace: "ws-123",
 			wantChannel:   "coord-builders",
@@ -73,13 +73,13 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 				Title: "Global Task",
 			},
 			run: taskpkg.Run{
-				ID:             "run-1",
-				TaskID:         "task-global",
-				Status:         taskpkg.TaskRunStatusStarting,
-				Attempt:        2,
-				Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
-				NetworkChannel: "builders",
-				QueuedAt:       time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
+				ID:              "run-1",
+				TaskID:          "task-global",
+				Status:          taskpkg.TaskRunStatusStarting,
+				Attempt:         2,
+				Origin:          taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: daemonTestLiveParticipation("", "builders")},
+				QueuedAt:        time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
 			},
 			wantPath:    globalPath,
 			wantChannel: "builders",
@@ -96,9 +96,16 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 				t.Fatalf("newTaskSessionBridge() error = %v", err)
 			}
 
+			run := tc.run
+			run.SetNetworkState(
+				daemonTestLiveParticipation(tc.taskRecord.WorkspaceID, tc.wantChannel),
+				"",
+				"",
+				"",
+			)
 			ref, err := bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
 				Task: tc.taskRecord,
-				Run:  tc.run,
+				Run:  run,
 			})
 			if err != nil {
 				t.Fatalf("StartTaskSession() error = %v", err)
@@ -118,8 +125,10 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 			if got := createCall.Provider; got != "" {
 				t.Fatalf("createCall.Provider = %q, want explicit empty provider", got)
 			}
-			if got, want := createCall.Channel, tc.wantChannel; got != want {
-				t.Fatalf("createCall.Channel = %q, want %q", got, want)
+			if got, want := participationSnapshotValue(
+				createCall.ResolvedNetworkParticipation,
+			).ChannelID, tc.wantChannel; got != want {
+				t.Fatalf("createCall resolved participation channel = %q, want %q", got, want)
 			}
 			if got, want := createCall.AgentName, tc.wantAgentName; got != want {
 				t.Fatalf("createCall.AgentName = %q, want %q", got, want)
@@ -1048,6 +1057,7 @@ func TestBootTasksBuildsRuntimeWhenDependenciesAreAvailable(t *testing.T) {
 		homePaths: homePaths,
 	}
 	state := &bootState{
+		cfg:      aghconfig.Config{Network: aghconfig.DefaultNetworkConfig()},
 		logger:   discardLogger(),
 		registry: db,
 		sessions: &fakeSessionManager{},
@@ -1350,12 +1360,12 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 	sessions := &fakeSessionManager{
 		infos: []*session.Info{
 			{
-				ID:          "sess-live",
-				Type:        session.SessionTypeSystem,
-				State:       session.StateActive,
-				WorkspaceID: "global",
-				Workspace:   homePaths.HomeDir,
-				Channel:     "builders",
+				ID:                   "sess-live",
+				Type:                 session.SessionTypeSystem,
+				State:                session.StateActive,
+				WorkspaceID:          "global",
+				Workspace:            homePaths.HomeDir,
+				NetworkParticipation: daemonTestLiveParticipation("global", "builders"),
 			},
 		},
 	}
@@ -1366,7 +1376,6 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 	seedManager, err := taskpkg.NewManager(
 		taskpkg.WithStore(db),
 		taskpkg.WithSessionExecutor(sessionBridge),
-		taskpkg.WithNetworkChannelValidator(network.ValidateChannel),
 		taskpkg.WithCancelGracePeriod(defaultTaskCancelGrace),
 	)
 	if err != nil {
@@ -1386,7 +1395,6 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 	runRecord, err := seedManager.EnqueueRun(context.Background(), taskpkg.EnqueueRun{
 		TaskID:         taskRecord.ID,
 		IdempotencyKey: "enqueue-boot-recovery",
-		NetworkChannel: "builders",
 	}, seedActor)
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
@@ -1405,6 +1413,7 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 		homePaths: homePaths,
 	}
 	state := &bootState{
+		cfg:      aghconfig.Config{Network: aghconfig.DefaultNetworkConfig()},
 		logger:   discardLogger(),
 		registry: db,
 		sessions: sessions,
@@ -1610,20 +1619,20 @@ func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotenc
 	workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
 	sessions.infos = []*session.Info{
 		{
-			ID:          "sess-owner",
-			Type:        session.SessionTypeSystem,
-			State:       session.StateActive,
-			WorkspaceID: workspace.ID,
-			Workspace:   workspace.RootDir,
-			Channel:     "builders",
+			ID:                   "sess-owner",
+			Type:                 session.SessionTypeSystem,
+			State:                session.StateActive,
+			WorkspaceID:          workspace.ID,
+			Workspace:            workspace.RootDir,
+			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 		{
-			ID:          "sess-wake",
-			Type:        session.SessionTypeSystem,
-			State:       session.StateActive,
-			WorkspaceID: workspace.ID,
-			Workspace:   workspace.RootDir,
-			Channel:     "builders",
+			ID:                   "sess-wake",
+			Type:                 session.SessionTypeSystem,
+			State:                session.StateActive,
+			WorkspaceID:          workspace.ID,
+			Workspace:            workspace.RootDir,
+			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 	}
 
@@ -1795,20 +1804,20 @@ func TestTaskRuntimeDetachedHarnessSubmissionValidationErrors(t *testing.T) {
 	sessions := &fakeSessionManager{
 		infos: []*session.Info{
 			{
-				ID:          "sess-owner",
-				Type:        session.SessionTypeSystem,
-				State:       session.StateActive,
-				WorkspaceID: "ws-owner",
-				Workspace:   "/tmp/ws-owner",
-				Channel:     "builders",
+				ID:                   "sess-owner",
+				Type:                 session.SessionTypeSystem,
+				State:                session.StateActive,
+				WorkspaceID:          "ws-owner",
+				Workspace:            "/tmp/ws-owner",
+				NetworkParticipation: daemonTestLiveParticipation("ws-owner", "builders"),
 			},
 			{
-				ID:          "sess-other-workspace",
-				Type:        session.SessionTypeSystem,
-				State:       session.StateActive,
-				WorkspaceID: "ws-other",
-				Workspace:   "/tmp/ws-other",
-				Channel:     "builders",
+				ID:                   "sess-other-workspace",
+				Type:                 session.SessionTypeSystem,
+				State:                session.StateActive,
+				WorkspaceID:          "ws-other",
+				Workspace:            "/tmp/ws-other",
+				NetworkParticipation: daemonTestLiveParticipation("ws-other", "builders"),
 			},
 		},
 	}
@@ -1876,28 +1885,28 @@ func TestRecoverTaskRunsOnBootPreservesDetachedHarnessMetadata(t *testing.T) {
 	workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
 	sessions.infos = []*session.Info{
 		{
-			ID:          "sess-owner",
-			Type:        session.SessionTypeSystem,
-			State:       session.StateActive,
-			WorkspaceID: workspace.ID,
-			Workspace:   workspace.RootDir,
-			Channel:     "builders",
+			ID:                   "sess-owner",
+			Type:                 session.SessionTypeSystem,
+			State:                session.StateActive,
+			WorkspaceID:          workspace.ID,
+			Workspace:            workspace.RootDir,
+			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 		{
-			ID:          "sess-wake",
-			Type:        session.SessionTypeSystem,
-			State:       session.StateActive,
-			WorkspaceID: workspace.ID,
-			Workspace:   workspace.RootDir,
-			Channel:     "builders",
+			ID:                   "sess-wake",
+			Type:                 session.SessionTypeSystem,
+			State:                session.StateActive,
+			WorkspaceID:          workspace.ID,
+			Workspace:            workspace.RootDir,
+			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 		{
-			ID:          "sess-runtime",
-			Type:        session.SessionTypeSystem,
-			State:       session.StateActive,
-			WorkspaceID: workspace.ID,
-			Workspace:   workspace.RootDir,
-			Channel:     "builders",
+			ID:                   "sess-runtime",
+			Type:                 session.SessionTypeSystem,
+			State:                session.StateActive,
+			WorkspaceID:          workspace.ID,
+			Workspace:            workspace.RootDir,
+			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 	}
 
@@ -1977,36 +1986,36 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 	workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
 
 	ownerInfo := &session.Info{
-		ID:          "sess-owner",
-		Type:        session.SessionTypeSystem,
-		State:       session.StateActive,
-		WorkspaceID: workspace.ID,
-		Workspace:   workspace.RootDir,
-		Channel:     "builders",
+		ID:                   "sess-owner",
+		Type:                 session.SessionTypeSystem,
+		State:                session.StateActive,
+		WorkspaceID:          workspace.ID,
+		Workspace:            workspace.RootDir,
+		NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 	}
 	wakeInfo := &session.Info{
-		ID:          "sess-wake",
-		Type:        session.SessionTypeSystem,
-		State:       session.StateActive,
-		WorkspaceID: workspace.ID,
-		Workspace:   workspace.RootDir,
-		Channel:     "builders",
+		ID:                   "sess-wake",
+		Type:                 session.SessionTypeSystem,
+		State:                session.StateActive,
+		WorkspaceID:          workspace.ID,
+		Workspace:            workspace.RootDir,
+		NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 	}
 	liveInfo := &session.Info{
-		ID:          "sess-live",
-		Type:        session.SessionTypeSystem,
-		State:       session.StateActive,
-		WorkspaceID: workspace.ID,
-		Workspace:   workspace.RootDir,
-		Channel:     "builders",
+		ID:                   "sess-live",
+		Type:                 session.SessionTypeSystem,
+		State:                session.StateActive,
+		WorkspaceID:          workspace.ID,
+		Workspace:            workspace.RootDir,
+		NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 	}
 	failedInfo := &session.Info{
-		ID:          "sess-fail",
-		Type:        session.SessionTypeSystem,
-		State:       session.StateActive,
-		WorkspaceID: workspace.ID,
-		Workspace:   workspace.RootDir,
-		Channel:     "builders",
+		ID:                   "sess-fail",
+		Type:                 session.SessionTypeSystem,
+		State:                session.StateActive,
+		WorkspaceID:          workspace.ID,
+		Workspace:            workspace.RootDir,
+		NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 	}
 	sessions.infos = []*session.Info{ownerInfo, wakeInfo, liveInfo, failedInfo}
 
@@ -2170,20 +2179,20 @@ func TestTaskRuntimeDetachedHarnessSubmissionRejectsExistingMismatches(t *testin
 	workspace := resolveDaemonWorkspace(t, resolver, filepath.Join(t.TempDir(), "workspace"))
 	sessions.infos = []*session.Info{
 		{
-			ID:          "sess-owner",
-			Type:        session.SessionTypeSystem,
-			State:       session.StateActive,
-			WorkspaceID: workspace.ID,
-			Workspace:   workspace.RootDir,
-			Channel:     "builders",
+			ID:                   "sess-owner",
+			Type:                 session.SessionTypeSystem,
+			State:                session.StateActive,
+			WorkspaceID:          workspace.ID,
+			Workspace:            workspace.RootDir,
+			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 		{
-			ID:          "sess-wake",
-			Type:        session.SessionTypeSystem,
-			State:       session.StateActive,
-			WorkspaceID: workspace.ID,
-			Workspace:   workspace.RootDir,
-			Channel:     "builders",
+			ID:                   "sess-wake",
+			Type:                 session.SessionTypeSystem,
+			State:                session.StateActive,
+			WorkspaceID:          workspace.ID,
+			Workspace:            workspace.RootDir,
+			NetworkParticipation: daemonTestLiveParticipation(workspace.ID, "builders"),
 		},
 	}
 
@@ -2369,7 +2378,6 @@ func TestDetachedHarnessMatchValidatorsRejectConflicts(t *testing.T) {
 		ID:             req.TaskID,
 		Scope:          req.Scope,
 		WorkspaceID:    req.WorkspaceID,
-		NetworkChannel: req.NetworkChannel,
 		Title:          req.Summary,
 		Description:    req.Description,
 		Status:         taskpkg.TaskStatusPending,
@@ -2411,7 +2419,6 @@ func TestDetachedHarnessMatchValidatorsRejectConflicts(t *testing.T) {
 		Attempt:        1,
 		Origin:         actor.Origin,
 		IdempotencyKey: req.SubmissionKey,
-		NetworkChannel: req.NetworkChannel,
 		Metadata:       runMetadataJSON,
 		QueuedAt:       time.Date(2026, 4, 18, 11, 5, 0, 0, time.UTC),
 	}
@@ -3452,17 +3459,18 @@ func newDetachedHarnessTaskRuntimeForTest(
 		if agentName == "" {
 			agentName = "daemon-test-agent"
 		}
-		if err := db.RegisterSession(testutil.Context(t), store.SessionInfo{
+		storedInfo := store.SessionInfo{
 			ID:          info.ID,
 			Name:        info.Name,
 			AgentName:   agentName,
 			WorkspaceID: workspaceID,
-			Channel:     strings.TrimSpace(info.Channel),
 			SessionType: string(info.Type),
 			State:       string(info.State),
 			CreatedAt:   time.Now().UTC(),
 			UpdatedAt:   time.Now().UTC(),
-		}); err != nil {
+		}
+		storedInfo.SetNetworkSpec(info.NetworkParticipation)
+		if err := db.RegisterSession(testutil.Context(t), storedInfo); err != nil {
 			t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
 		}
 	}
@@ -3493,7 +3501,6 @@ func newDetachedHarnessTaskRuntimeForTest(
 		taskpkg.WithStore(db),
 		taskpkg.WithSessionExecutor(sessionBridge),
 		taskpkg.WithEventObserver(reentry),
-		taskpkg.WithNetworkChannelValidator(network.ValidateChannel),
 		taskpkg.WithCancelGracePeriod(defaultTaskCancelGrace),
 	)
 	if err != nil {

@@ -24,9 +24,6 @@ func (m *Service) CreateTask(
 	if err := m.validateParentConstraints(ctx, normalizedSpec); err != nil {
 		return nil, err
 	}
-	if err := m.validateNetworkChannel("create_task.network_channel", normalizedSpec.NetworkChannel); err != nil {
-		return nil, err
-	}
 
 	now := m.now().UTC()
 	record := Task{
@@ -35,7 +32,6 @@ func (m *Service) CreateTask(
 		Scope:              normalizedSpec.Scope,
 		WorkspaceID:        normalizedSpec.WorkspaceID,
 		ParentTaskID:       normalizedSpec.ParentTaskID,
-		NetworkChannel:     normalizedSpec.NetworkChannel,
 		Title:              normalizedSpec.Title,
 		Description:        normalizedSpec.Description,
 		Priority:           normalizedSpec.Priority,
@@ -62,12 +58,11 @@ func (m *Service) CreateTask(
 		return nil, err
 	}
 	if err := m.recordTaskEvent(ctx, record.ID, "", taskEventCreated, actor, createdTaskPayload{
-		Scope:          record.Scope,
-		WorkspaceID:    record.WorkspaceID,
-		ParentTaskID:   record.ParentTaskID,
-		Status:         record.Status,
-		NetworkChannel: record.NetworkChannel,
-		Owner:          cloneOwnership(record.Owner),
+		Scope:        record.Scope,
+		WorkspaceID:  record.WorkspaceID,
+		ParentTaskID: record.ParentTaskID,
+		Status:       record.Status,
+		Owner:        cloneOwnership(record.Owner),
 	}); err != nil {
 		return nil, err
 	}
@@ -190,12 +185,6 @@ func (m *Service) UpdateTask(
 	if err != nil {
 		return nil, err
 	}
-	if normalizedPatch.NetworkChannel != nil {
-		if err := m.validateNetworkChannel("task_patch.network_channel", *normalizedPatch.NetworkChannel); err != nil {
-			return nil, err
-		}
-	}
-
 	current, err := m.store.GetTask(ctx, trimmedID)
 	if err != nil {
 		return nil, err
@@ -316,10 +305,6 @@ func applyTaskPatchReferences(updated Task, patch Patch, changedFields []string)
 	if patch.Metadata != nil && !sameRawJSON(updated.Metadata, *patch.Metadata) {
 		updated.Metadata = cloneRawJSON(*patch.Metadata)
 		changedFields = append(changedFields, TaskFieldMetadata)
-	}
-	if patch.NetworkChannel != nil && updated.NetworkChannel != *patch.NetworkChannel {
-		updated.NetworkChannel = *patch.NetworkChannel
-		changedFields = append(changedFields, TaskFieldNetworkChannel)
 	}
 	if patch.Owner != nil && !sameOwnership(updated.Owner, patch.Owner) {
 		updated.Owner = cloneOwnership(patch.Owner)

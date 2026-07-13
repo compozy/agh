@@ -3292,7 +3292,6 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 			Kind: taskpkg.OwnerKindExtension,
 			Ref:  "ops",
 		},
-		NetworkChannel: "tasks_ops",
 	}, actor)
 	if err != nil {
 		t.Fatalf("tasks.CreateTask(parent) error = %v", err)
@@ -3309,7 +3308,6 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 			Kind: taskpkg.OwnerKindExtension,
 			Ref:  "ops",
 		},
-		NetworkChannel: "tasks_ops",
 	}, actor)
 	if err != nil {
 		t.Fatalf("tasks.CreateChildTask(filtered) error = %v", err)
@@ -3324,7 +3322,6 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 			Kind: taskpkg.OwnerKindExtension,
 			Ref:  "ops",
 		},
-		NetworkChannel: "tasks_ops",
 	}, actor); err != nil {
 		t.Fatalf("tasks.CreateChildTask(draft) error = %v", err)
 	}
@@ -3337,7 +3334,6 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 			Kind: taskpkg.OwnerKindPool,
 			Ref:  "backlog",
 		},
-		NetworkChannel: "tasks_other",
 	}, actor); err != nil {
 		t.Fatalf("tasks.CreateChildTask(other) error = %v", err)
 	}
@@ -3544,7 +3540,6 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 			Kind: taskpkg.OwnerKindExtension,
 			Ref:  "ext-reader",
 		},
-		NetworkChannel: "builders",
 	}, actor)
 	if err != nil {
 		t.Fatalf("tasks.CreateChildTask(child) error = %v", err)
@@ -3567,7 +3562,6 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 	queued, err := env.tasks.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{
 		TaskID:         child.ID,
 		IdempotencyKey: "host-api-read-run",
-		NetworkChannel: "builders",
 	}, actor)
 	if err != nil {
 		t.Fatalf("tasks.EnqueueRun() error = %v", err)
@@ -3697,7 +3691,6 @@ func TestHostAPIHandlerTasksUpdateAndCancelMutateTask(t *testing.T) {
 		"priority":        taskpkg.PriorityLow,
 		"max_attempts":    2,
 		"approval_policy": taskpkg.ApprovalPolicyManual,
-		"network_channel": "tasks_initial",
 		"owner": map[string]any{
 			"kind": taskpkg.OwnerKindPool,
 			"ref":  "triage",
@@ -3718,7 +3711,6 @@ func TestHostAPIHandlerTasksUpdateAndCancelMutateTask(t *testing.T) {
 		"priority":        taskpkg.PriorityHigh,
 		"max_attempts":    5,
 		"approval_policy": taskpkg.ApprovalPolicyNone,
-		"network_channel": "tasks_updated",
 		"owner": map[string]any{
 			"kind": taskpkg.OwnerKindExtension,
 			"ref":  "ext-writer",
@@ -3745,9 +3737,6 @@ func TestHostAPIHandlerTasksUpdateAndCancelMutateTask(t *testing.T) {
 	}
 	if got, want := updated.ApprovalPolicy, taskpkg.ApprovalPolicyNone; got != want {
 		t.Fatalf("tasks/update approval_policy = %q, want %q", got, want)
-	}
-	if got, want := updated.NetworkChannel, "tasks_updated"; got != want {
-		t.Fatalf("tasks/update network_channel = %q, want %q", got, want)
 	}
 	if updated.Owner == nil {
 		t.Fatal("tasks/update owner = nil, want extension owner")
@@ -4527,14 +4516,6 @@ func TestMapTaskRPCErrorTranslatesKnownErrors(t *testing.T) {
 			wantText: "permission denied",
 		},
 		{
-			name:     "ShouldMapStaleNetworkChannel",
-			resource: "task_run",
-			id:       "run-1",
-			err:      taskpkg.ErrStaleNetworkChannel,
-			wantCode: HostAPIInvalidParamsCode,
-			wantText: "stale network channel",
-		},
-		{
 			name:     "ShouldPassThroughUnknownErrors",
 			resource: "task",
 			id:       "task-1",
@@ -4829,11 +4810,12 @@ func (e *hostAPITestTaskSessionExecutor) StartTaskSession(
 		return nil, fmt.Errorf("%w: start task session spec is required", taskpkg.ErrValidation)
 	}
 
+	networkSpec := spec.Run.NetworkSpecSnapshot()
 	opts := session.CreateOpts{
-		AgentName: "coder",
-		Name:      "task:" + strings.TrimSpace(spec.Task.Title),
-		Channel:   strings.TrimSpace(spec.Run.NetworkChannel),
-		Type:      session.SessionTypeSystem,
+		AgentName:                    "coder",
+		Name:                         "task:" + strings.TrimSpace(spec.Task.Title),
+		ResolvedNetworkParticipation: &networkSpec,
+		Type:                         session.SessionTypeSystem,
 	}
 	switch spec.Task.Scope.Normalize() {
 	case taskpkg.ScopeWorkspace:

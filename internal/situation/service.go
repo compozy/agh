@@ -277,7 +277,7 @@ func (s *Service) ContextForSession(
 	payload.Task = taskContext
 	payload.CoordinationChannel = channelContext
 
-	networkChannel := firstTrimmed(activeChannel, info.Channel)
+	networkChannel := firstTrimmed(activeChannel, info.NetworkParticipation.ChannelID)
 	inbox, peers, err := s.networkSections(
 		ctx,
 		info.ID,
@@ -859,7 +859,7 @@ func sessionPayload(info *session.Info) contract.AgentSessionPayload {
 		Name:      strings.TrimSpace(info.Name),
 		Type:      info.Type,
 		State:     info.State,
-		Channel:   strings.TrimSpace(info.Channel),
+		Channel:   strings.TrimSpace(info.NetworkParticipation.ChannelID),
 		Lineage:   contract.SessionLineagePayloadFromStore(info.Lineage),
 		CreatedAt: info.CreatedAt.UTC(),
 		UpdatedAt: info.UpdatedAt.UTC(),
@@ -944,25 +944,11 @@ func workspaceRoot(workspace *workspacepkg.ResolvedWorkspace) string {
 	return strings.TrimSpace(workspace.RootDir)
 }
 
-func taskReferencePayload(taskRecord taskpkg.Task) *contract.TaskReferencePayload {
-	reference := taskReference(taskRecord)
-	return &contract.TaskReferencePayload{
-		ID:             reference.ID,
-		Identifier:     reference.Identifier,
-		Title:          reference.Title,
-		Status:         reference.Status,
-		Priority:       reference.Priority,
-		Owner:          reference.Owner,
-		Scope:          reference.Scope,
-		WorkspaceID:    reference.WorkspaceID,
-		LatestEventSeq: reference.LatestEventSeq,
-	}
-}
-
 func coordinationChannelPayload(taskRecord taskpkg.Task, run taskpkg.Run) contract.CoordinationChannelPayload {
 	metadata := runMetadata(run.Metadata)
-	channelID := firstTrimmed(run.CoordinationChannelID, metadata["coordination_channel_id"], run.NetworkChannel)
-	channelName := firstTrimmed(run.NetworkChannel, channelID)
+	networkSpec := run.NetworkSpecSnapshot()
+	channelID := firstTrimmed(networkSpec.ChannelID, metadata["coordination_channel_id"])
+	channelName := firstTrimmed(networkSpec.ChannelID, channelID)
 	lastActivity := latestTime(
 		run.QueuedAt,
 		run.ClaimedAt,

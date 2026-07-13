@@ -1183,7 +1183,9 @@ func loopDefinition() dsl.Definition {
 			TerminalStates:   []dsl.TerminalState{dsl.TerminalDone, dsl.TerminalFailed},
 		},
 		Graph: dsl.Graph{Nodes: []dsl.Node{{ID: "draft", Class: dsl.NodeClassAction, Kind: "run-agent"}}},
-		Start: []dsl.StartBinding{{Kind: dsl.StartHTTP}},
+		DefinitionExtensionState: &dsl.DefinitionExtensionState{
+			Start: []dsl.StartBinding{{Kind: dsl.StartHTTP}},
+		},
 	}
 	def.Normalize()
 	return def

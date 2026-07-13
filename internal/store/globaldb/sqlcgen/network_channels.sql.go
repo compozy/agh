@@ -10,6 +10,41 @@ import (
 	"database/sql"
 )
 
+const createNetworkChannel = `-- name: CreateNetworkChannel :exec
+INSERT INTO network_channels (
+  channel, workspace_id, purpose, fanout_policy, coordinator_peer_id,
+  created_by, created_at, updated_at
+) VALUES (
+  ?1, ?2, ?3, ?4,
+  ?5, ?6, ?7, ?8
+)
+`
+
+type CreateNetworkChannelParams struct {
+	Channel           string `json:"channel"`
+	WorkspaceID       string `json:"workspace_id"`
+	Purpose           string `json:"purpose"`
+	FanoutPolicy      string `json:"fanout_policy"`
+	CoordinatorPeerID string `json:"coordinator_peer_id"`
+	CreatedBy         string `json:"created_by"`
+	CreatedAt         string `json:"created_at"`
+	UpdatedAt         string `json:"updated_at"`
+}
+
+func (q *Queries) CreateNetworkChannel(ctx context.Context, arg CreateNetworkChannelParams) error {
+	_, err := q.db.ExecContext(ctx, createNetworkChannel,
+		arg.Channel,
+		arg.WorkspaceID,
+		arg.Purpose,
+		arg.FanoutPolicy,
+		arg.CoordinatorPeerID,
+		arg.CreatedBy,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
 const deleteNetworkChannel = `-- name: DeleteNetworkChannel :exec
 DELETE FROM network_channels
 WHERE workspace_id = ?1 AND channel = ?2

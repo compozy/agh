@@ -30,6 +30,7 @@ import (
 	localprovider "github.com/compozy/agh/internal/memory/provider/local"
 	"github.com/compozy/agh/internal/memory/provider/local/memstore"
 	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/notifications"
 	presetspkg "github.com/compozy/agh/internal/notifications/presets"
 	"github.com/compozy/agh/internal/observe"
@@ -94,6 +95,7 @@ type bootState struct {
 	scheduler              *schedulerRuntime
 	coordinator            *coordinatorRuntime
 	network                networkRuntime
+	participationResolver  participation.Resolver
 	toolRegistry           toolspkg.Registry
 	toolsets               core.ToolsetRegistry
 	toolApprovals          toolspkg.ApprovalTokenIssuer
@@ -483,6 +485,9 @@ func (d *Daemon) bootRegistryState(
 		return fmt.Errorf("daemon: create workspace resolver: %w", err)
 	}
 	state.registry = registry
+	if err := reconcileBootNetworkAvailability(ctx, state); err != nil {
+		return err
+	}
 	if state.skillsRegistry != nil {
 		state.skillsRegistry.SetEventSummaryStore(registry)
 	}
@@ -633,6 +638,11 @@ func (d *Daemon) bootMemorySessionRuntime(ctx context.Context, state *bootState)
 		return err
 	}
 	state.ledgerMaterializer = ledgerMaterializer
+	resolver, err := ensureDaemonParticipationResolver(state, state.registry)
+	if err != nil {
+		return err
+	}
+	state.participationResolver = resolver
 
 	sessions, err := d.newSessionManager(ctx, d.sessionManagerDeps(state))
 	if err != nil {
@@ -1356,19 +1366,20 @@ func (d *Daemon) bootAutomation(ctx context.Context, state *bootState, cleanup *
 	}
 
 	manager, err := d.newAutomationManager(automationManagerDeps{
-		Store:               store,
-		Sessions:            state.sessions,
-		Tasks:               tasks,
-		WorkspaceResolver:   state.workspaceResolver,
-		Config:              state.cfg.Automation,
-		Hooks:               state.hooks,
-		WebhookSecrets:      state.providerVault,
-		Logger:              state.logger.With("component", "automation"),
-		GlobalWorkspacePath: d.homePaths.HomeDir,
-		ResourceStore:       resourceRawStore(state.resourceKernel),
-		ResourceCodecs:      state.resourceCodecs,
-		LoopCatalog:         state.loopCatalog,
-		ToolRegistry:        state.deps.ToolRegistry,
+		Store:                 store,
+		Sessions:              state.sessions,
+		Tasks:                 tasks,
+		WorkspaceResolver:     state.workspaceResolver,
+		Config:                state.cfg.Automation,
+		Hooks:                 state.hooks,
+		WebhookSecrets:        state.providerVault,
+		Logger:                state.logger.With("component", "automation"),
+		GlobalWorkspacePath:   d.homePaths.HomeDir,
+		ResourceStore:         resourceRawStore(state.resourceKernel),
+		ResourceCodecs:        state.resourceCodecs,
+		LoopCatalog:           state.loopCatalog,
+		ToolRegistry:          state.deps.ToolRegistry,
+		ParticipationResolver: state.participationResolver,
 		ResourceTrigger: func(ctx context.Context, kind resources.ResourceKind, reason resources.ReconcileReason) error {
 			if state.resourceReconcile == nil {
 				return nil

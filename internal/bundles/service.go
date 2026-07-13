@@ -23,19 +23,14 @@ import (
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
-const (
-	serviceConfigKey  = "config"
-	serviceDefaultKey = "default"
-)
-
 var (
 	ErrActivationNotFound     = modelpkg.ErrActivationNotFound
 	ErrBundleNotFound         = errors.New("bundles: bundle not found")
 	ErrProfileNotFound        = errors.New("bundles: profile not found")
-	ErrDefaultChannelBusy     = errors.New("bundles: effective default channel is already claimed")
 	ErrWebhookUnsupported     = errors.New("bundles: bundle webhook triggers are not supported")
 	ErrAgentConflict          = errors.New("bundles: bundle agent conflicts with an existing agent")
 	ErrAgentReferenceNotFound = errors.New("bundles: bundle automation references an unavailable agent")
+	ErrDefaultChannelRemoved  = errors.New("bundles: default-channel binding is no longer supported")
 )
 
 type Scope = modelpkg.Scope
@@ -60,10 +55,7 @@ type DeclaredChannel struct {
 }
 
 type NetworkSettings struct {
-	ConfiguredDefaultChannel string
-	EffectiveDefaultChannel  string
-	EffectiveDefaultSource   string
-	DeclaredChannels         []DeclaredChannel
+	DeclaredChannels []DeclaredChannel
 }
 
 type CatalogEntry struct {
@@ -102,7 +94,6 @@ type Service struct {
 	extensions        ExtensionInfoLister
 	loadExtension     ExtensionLoader
 	workspaceResolver workspacepkg.RuntimeResolver
-	configuredDefault string
 	logger            *slog.Logger
 	now               func() time.Time
 
@@ -116,12 +107,6 @@ type Option func(*Service)
 func WithWorkspaceResolver(resolver workspacepkg.RuntimeResolver) Option {
 	return func(s *Service) {
 		s.workspaceResolver = resolver
-	}
-}
-
-func WithConfiguredDefaultChannel(channel string) Option {
-	return func(s *Service) {
-		s.configuredDefault = strings.TrimSpace(channel)
 	}
 }
 
@@ -145,11 +130,10 @@ func NewService(store Store, extensions ExtensionInfoLister, loadExtension Exten
 	}
 
 	service := &Service{
-		store:             store,
-		extensions:        extensions,
-		loadExtension:     loadExtension,
-		configuredDefault: serviceDefaultKey,
-		logger:            slog.New(slog.NewTextHandler(io.Discard, nil)),
+		store:         store,
+		extensions:    extensions,
+		loadExtension: loadExtension,
+		logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -163,17 +147,15 @@ func NewService(store Store, extensions ExtensionInfoLister, loadExtension Exten
 }
 
 type ActivateRequest struct {
-	ExtensionName               string
-	BundleName                  string
-	ProfileName                 string
-	Scope                       Scope
-	Workspace                   string
-	BindPrimaryChannelAsDefault bool
+	ExtensionName string
+	BundleName    string
+	ProfileName   string
+	Scope         Scope
+	Workspace     string
 }
 
 type UpdateActivationRequest struct {
-	ID                          string
-	BindPrimaryChannelAsDefault bool
+	ID string
 }
 
 func (s *Service) Catalog(ctx context.Context) ([]CatalogEntry, error) {
@@ -240,15 +222,6 @@ func (s *Service) Activate(ctx context.Context, req ActivateRequest) (Activation
 	case errors.Is(err, ErrActivationNotFound):
 		createNew = true
 	default:
-		return ActivationPreview{}, err
-	}
-
-	previousActs, err := s.store.ListBundleActivations(ctx)
-	if err != nil {
-		return ActivationPreview{}, err
-	}
-	nextActs := replaceActivation(previousActs, resolved.activation)
-	if err := validatePrimaryChannelClaim(nextActs, resolved.activation); err != nil {
 		return ActivationPreview{}, err
 	}
 
@@ -330,11 +303,6 @@ func (s *Service) NetworkSettings(ctx context.Context) (NetworkSettings, error) 
 	s.settingsMu.RLock()
 	settings := cloneNetworkSettings(s.settings)
 	s.settingsMu.RUnlock()
-	if strings.TrimSpace(settings.EffectiveDefaultChannel) == "" {
-		settings.ConfiguredDefaultChannel = strings.TrimSpace(s.configuredDefault)
-		settings.EffectiveDefaultChannel = strings.TrimSpace(s.configuredDefault)
-		settings.EffectiveDefaultSource = serviceConfigKey
-	}
 	return settings, nil
 }
 
@@ -396,7 +364,7 @@ func (s *Service) reconcileLocked(ctx context.Context) error {
 	}); syncErr != nil {
 		return syncErr
 	}
-	s.applyNetworkSettings(state.effectiveDefault, state.effectiveSource, state.declaredChannels)
+	s.applyNetworkSettings(state.declaredChannels)
 	return nil
 }
 
@@ -433,8 +401,6 @@ type reconcileState struct {
 	desiredBridges        []bridgepkg.BridgeInstance
 	inventoryByActivation map[string][]InventoryItem
 	declaredChannels      []DeclaredChannel
-	effectiveDefault      string
-	effectiveSource       string
 }
 
 type materializedActivationResources struct {
@@ -495,12 +461,11 @@ func (s *Service) resolveRequest(
 			scope,
 			workspaceID,
 		),
-		ExtensionName:               strings.TrimSpace(req.ExtensionName),
-		BundleName:                  strings.TrimSpace(req.BundleName),
-		ProfileName:                 strings.TrimSpace(req.ProfileName),
-		Scope:                       scope,
-		WorkspaceID:                 workspaceID,
-		BindPrimaryChannelAsDefault: req.BindPrimaryChannelAsDefault,
+		ExtensionName: strings.TrimSpace(req.ExtensionName),
+		BundleName:    strings.TrimSpace(req.BundleName),
+		ProfileName:   strings.TrimSpace(req.ProfileName),
+		Scope:         scope,
+		WorkspaceID:   workspaceID,
 	}
 	resolved, err := s.resolveActivation(ctx, activation)
 	if err != nil {
@@ -560,41 +525,7 @@ func (s *Service) collectDesiredState(ctx context.Context, activations []Activat
 	return s.collectDesiredStateFromBundleRecords(ctx, activations, bundleRecords)
 }
 
-func resolveActivationDefaultChannel(
-	activation Activation,
-	profile extensionpkg.BundleProfile,
-	claimedActivation string,
-	effectiveDefault string,
-	effectiveSource string,
-) (string, string, string, error) {
-	if !activation.BindPrimaryChannelAsDefault {
-		return claimedActivation, effectiveDefault, effectiveSource, nil
-	}
-
-	primary := strings.TrimSpace(profile.Channels.Primary)
-	switch {
-	case primary == "":
-		return claimedActivation, effectiveDefault, effectiveSource, fmt.Errorf(
-			"bundles: activation %q cannot bind an empty primary channel",
-			activation.ID,
-		)
-	case claimedActivation != "" && claimedActivation != activation.ID:
-		return claimedActivation, effectiveDefault, effectiveSource, fmt.Errorf(
-			"%w: %s and %s",
-			ErrDefaultChannelBusy,
-			claimedActivation,
-			activation.ID,
-		)
-	default:
-		return activation.ID, primary, activation.ID, nil
-	}
-}
-
-func (s *Service) applyNetworkSettings(
-	effectiveDefault string,
-	effectiveSource string,
-	declaredChannels []DeclaredChannel,
-) {
+func (s *Service) applyNetworkSettings(declaredChannels []DeclaredChannel) {
 	slices.SortFunc(declaredChannels, func(left, right DeclaredChannel) int {
 		if cmp := strings.Compare(left.ExtensionName, right.ExtensionName); cmp != 0 {
 			return cmp
@@ -610,10 +541,7 @@ func (s *Service) applyNetworkSettings(
 
 	s.settingsMu.Lock()
 	s.settings = NetworkSettings{
-		ConfiguredDefaultChannel: strings.TrimSpace(s.configuredDefault),
-		EffectiveDefaultChannel:  effectiveDefault,
-		EffectiveDefaultSource:   effectiveSource,
-		DeclaredChannels:         append([]DeclaredChannel(nil), declaredChannels...),
+		DeclaredChannels: append([]DeclaredChannel(nil), declaredChannels...),
 	}
 	s.settingsMu.Unlock()
 }
@@ -1316,21 +1244,6 @@ func materializeTrigger(
 	return trigger, nil
 }
 
-func validatePrimaryChannelClaim(activations []Activation, current Activation) error {
-	if !current.BindPrimaryChannelAsDefault {
-		return nil
-	}
-	for _, activation := range activations {
-		if activation.ID == current.ID {
-			continue
-		}
-		if activation.BindPrimaryChannelAsDefault {
-			return fmt.Errorf("%w: %s", ErrDefaultChannelBusy, activation.ID)
-		}
-	}
-	return nil
-}
-
 func managedAutomationName(
 	activation Activation,
 	bundle extensionpkg.BundleSpec,
@@ -1344,23 +1257,6 @@ func managedAutomationName(
 		strings.TrimSpace(name),
 	}
 	return strings.Join(parts, "/")
-}
-
-func replaceActivation(items []Activation, next Activation) []Activation {
-	replaced := false
-	out := make([]Activation, 0, len(items)+1)
-	for _, item := range items {
-		if item.ID == next.ID {
-			out = append(out, next)
-			replaced = true
-			continue
-		}
-		out = append(out, item)
-	}
-	if !replaced {
-		out = append(out, next)
-	}
-	return out
 }
 
 func automationScopeFromActivation(scope Scope) automationpkg.Scope {

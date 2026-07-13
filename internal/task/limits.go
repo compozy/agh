@@ -44,8 +44,6 @@ const (
 	TaskFieldApprovalPolicy = "approval_policy"
 	// TaskFieldMetadata identifies the mutable task metadata field.
 	TaskFieldMetadata = "metadata"
-	// TaskFieldNetworkChannel identifies the mutable network channel field.
-	TaskFieldNetworkChannel = "network_channel"
 	// TaskFieldOwner identifies the mutable ownership field.
 	TaskFieldOwner = "owner"
 )
@@ -71,7 +69,6 @@ func MutableTaskFields() []string {
 		TaskFieldAutoEnqueueOnReady,
 		TaskFieldApprovalPolicy,
 		TaskFieldMetadata,
-		TaskFieldNetworkChannel,
 		TaskFieldOwner,
 	}
 }
@@ -96,7 +93,6 @@ func IsMutableTaskField(field string) bool {
 		TaskFieldAutoEnqueueOnReady,
 		TaskFieldApprovalPolicy,
 		TaskFieldMetadata,
-		TaskFieldNetworkChannel,
 		TaskFieldOwner:
 		return true
 	default:

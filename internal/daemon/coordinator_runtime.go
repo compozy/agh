@@ -13,6 +13,7 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/coordinator"
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
@@ -263,7 +264,11 @@ func (r *coordinatorRuntime) recoverWorkspace(ctx context.Context, workspaceID s
 		taskRecord, err := r.store.GetTask(ctx, run.TaskID)
 		if err != nil {
 			r.logCoordinatorError("daemon: load task for coordinator recovery", err, hookspkg.TaskRunEnqueuedPayload{
-				TaskRunContext: hookspkg.TaskRunContext{RunID: run.ID, TaskID: run.TaskID},
+				TaskRunContext: hookspkg.TaskRunContext{
+					RunID:                        run.ID,
+					TaskID:                       run.TaskID,
+					ResolvedNetworkParticipation: new(run.NetworkSpecSnapshot()),
+				},
 			})
 			continue
 		}
@@ -276,10 +281,10 @@ func (r *coordinatorRuntime) recoverWorkspace(ctx context.Context, workspaceID s
 				err,
 				hookspkg.TaskRunEnqueuedPayload{
 					TaskRunContext: hookspkg.TaskRunContext{
-						RunID:                 run.ID,
-						TaskID:                run.TaskID,
-						WorkspaceID:           taskRecord.WorkspaceID,
-						CoordinationChannelID: run.CoordinationChannelID,
+						RunID:                        run.ID,
+						TaskID:                       run.TaskID,
+						WorkspaceID:                  taskRecord.WorkspaceID,
+						ResolvedNetworkParticipation: new(run.NetworkSpecSnapshot()),
 					},
 				},
 			)
@@ -667,13 +672,20 @@ func (r *coordinatorRuntime) startCoordinatorSession(
 		}
 		promptOverlay = joinPromptOverlays(taskOverlay, promptOverlay)
 	}
+	live := participation.ModeLive
+	named := participation.StrategyNamed
+	channelID := strings.TrimSpace(decision.CoordinationChannelID)
 	created, err := r.sessions.Create(ctx, session.CreateOpts{
-		AgentName:     cfg.AgentName,
-		Provider:      cfg.Provider,
-		Model:         cfg.Model,
-		Name:          coordinatorSessionName(decision.WorkspaceID),
-		Workspace:     decision.WorkspaceID,
-		Channel:       decision.CoordinationChannelID,
+		AgentName: cfg.AgentName,
+		Provider:  cfg.Provider,
+		Model:     cfg.Model,
+		Name:      coordinatorSessionName(decision.WorkspaceID),
+		Workspace: decision.WorkspaceID,
+		NetworkParticipation: &participation.Request{
+			Mode:            &live,
+			ChannelStrategy: &named,
+			ChannelID:       &channelID,
+		},
 		PromptOverlay: promptOverlay,
 		Type:          session.SessionTypeCoordinator,
 		Lineage:       coordinator.Lineage(now, cfg, policy),
@@ -849,26 +861,6 @@ func (r *coordinatorRuntime) preSpawnPayload(
 		},
 		Reason: reason,
 	}
-}
-
-func (r *coordinatorRuntime) logCoordinatorError(
-	message string,
-	err error,
-	payload hookspkg.TaskRunEnqueuedPayload,
-) {
-	if r == nil {
-		return
-	}
-	args := []any{
-		coordinatorRuntimeTaskIDKey, strings.TrimSpace(payload.TaskID),
-		daemonLogRunIDKey, strings.TrimSpace(payload.RunID),
-		coordinatorRuntimeWorkspaceIDKey, strings.TrimSpace(payload.WorkspaceID),
-		"coordination_channel_id", strings.TrimSpace(payload.CoordinationChannelID),
-	}
-	if err != nil {
-		args = append(args, "error", err)
-	}
-	r.logger.Warn(message, args...)
 }
 
 func defaultEnabledCoordinatorConfig() aghconfig.CoordinatorConfig {

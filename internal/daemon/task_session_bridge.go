@@ -104,11 +104,11 @@ func (b *taskSessionBridge) StartTaskSession(
 	}
 
 	opts := session.CreateOpts{
-		AgentName: taskSessionAgentName(spec.Task),
-		Provider:  "",
-		Name:      taskSessionName(spec),
-		Channel:   taskRunSessionChannel(spec.Run),
-		Type:      session.SessionTypeSystem,
+		AgentName:                    taskSessionAgentName(spec.Task),
+		Provider:                     "",
+		Name:                         taskSessionName(spec),
+		ResolvedNetworkParticipation: participationSnapshotPointer(spec.Run.NetworkSpecSnapshot()),
+		Type:                         session.SessionTypeSystem,
 	}
 	applyTaskSessionWorkerProfile(&opts, spec.ExecutionProfile)
 	policy := sessionPolicyFromTaskExecutionProfile(spec.ExecutionProfile)

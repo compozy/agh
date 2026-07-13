@@ -27,6 +27,7 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 	toolCalls := int64(3)
 	totalCost := 1.75
 	currency := "USD"
+	liveSpec := testLiveParticipation("ws-alpha", "builders")
 
 	summary := taskpkg.Summary{
 		ID:              "task-1",
@@ -34,7 +35,6 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 		Scope:           taskpkg.ScopeWorkspace,
 		WorkspaceID:     "ws-alpha",
 		ParentTaskID:    "task-root",
-		NetworkChannel:  "builders",
 		Title:           "Review handlers",
 		Priority:        taskpkg.PriorityHigh,
 		MaxAttempts:     4,
@@ -70,14 +70,15 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 			},
 		}},
 		ActiveRun: &taskpkg.RunSummary{
-			ID:                 "run-1",
-			TaskID:             "task-1",
-			Status:             taskpkg.TaskRunStatusRunning,
-			Attempt:            2,
-			MaxAttempts:        4,
-			SessionID:          "sess-1",
-			ClaimTokenHash:     "sha256:catalog-verifier",
-			DesignationGroupID: "designation-group",
+			ID:                           "run-1",
+			TaskID:                       "task-1",
+			Status:                       taskpkg.TaskRunStatusRunning,
+			Attempt:                      2,
+			MaxAttempts:                  4,
+			SessionID:                    "sess-1",
+			ResolvedNetworkParticipation: &liveSpec,
+			ClaimTokenHash:               "sha256:catalog-verifier",
+			DesignationGroupID:           "designation-group",
 			Designation: &taskpkg.RunDesignationSummary{
 				Index: 2,
 				Brief: "private fan-out brief",
@@ -117,7 +118,6 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 			Scope:          taskpkg.ScopeWorkspace,
 			WorkspaceID:    "ws-alpha",
 			ParentTaskID:   "task-root",
-			NetworkChannel: "builders",
 			Title:          "Review handlers",
 			Description:    "Deep detail",
 			Priority:       taskpkg.PriorityHigh,
@@ -692,13 +692,15 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 			return &taskpkg.Execution{
 				Task: taskRecord,
 				Run: taskpkg.Run{
-					ID:                    "run-publish",
-					TaskID:                id,
-					Status:                taskpkg.TaskRunStatusQueued,
-					Attempt:               1,
-					Origin:                actor.Origin,
-					CoordinationChannelID: "coord-run-publish",
-					QueuedAt:              now,
+					ID:      "run-publish",
+					TaskID:  id,
+					Status:  taskpkg.TaskRunStatusQueued,
+					Attempt: 1,
+					Origin:  actor.Origin,
+					RunNetworkState: &taskpkg.RunNetworkState{
+						NetworkSpec: testLiveParticipation("ws-alpha", "coord-run-publish"),
+					},
+					QueuedAt: now,
 				},
 			}, nil
 		},
@@ -725,13 +727,15 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 			return &taskpkg.Execution{
 				Task: taskRecord,
 				Run: taskpkg.Run{
-					ID:                    "run-start",
-					TaskID:                id,
-					Status:                taskpkg.TaskRunStatusQueued,
-					Attempt:               1,
-					Origin:                actor.Origin,
-					CoordinationChannelID: "coord-run-start",
-					QueuedAt:              now,
+					ID:      "run-start",
+					TaskID:  id,
+					Status:  taskpkg.TaskRunStatusQueued,
+					Attempt: 1,
+					Origin:  actor.Origin,
+					RunNetworkState: &taskpkg.RunNetworkState{
+						NetworkSpec: testLiveParticipation("ws-alpha", "coord-run-start"),
+					},
+					QueuedAt: now,
 				},
 			}, nil
 		},
@@ -868,13 +872,15 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 			return &taskpkg.Execution{
 				Task: taskRecord,
 				Run: taskpkg.Run{
-					ID:                    "run-approve",
-					TaskID:                id,
-					Status:                taskpkg.TaskRunStatusQueued,
-					Attempt:               1,
-					Origin:                actor.Origin,
-					CoordinationChannelID: "coord-run-approve",
-					QueuedAt:              now,
+					ID:      "run-approve",
+					TaskID:  id,
+					Status:  taskpkg.TaskRunStatusQueued,
+					Attempt: 1,
+					Origin:  actor.Origin,
+					RunNetworkState: &taskpkg.RunNetworkState{
+						NetworkSpec: testLiveParticipation("ws-alpha", "coord-run-approve"),
+					},
+					QueuedAt: now,
 				},
 			}, nil
 		},

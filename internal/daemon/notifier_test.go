@@ -293,13 +293,13 @@ func TestHooksNotifierLifecycleForwarding(t *testing.T) {
 		})
 		notifier.setRuntime(&fakeHookRuntime{}, downstream)
 		child := &session.Session{
-			ID:          "sess-child",
-			Name:        "spawned worker",
-			AgentName:   "reviewer",
-			Provider:    "codex",
-			WorkspaceID: "ws-1",
-			Channel:     "default",
-			Type:        session.SessionTypeSpawned,
+			ID:                   "sess-child",
+			Name:                 "spawned worker",
+			AgentName:            "reviewer",
+			Provider:             "codex",
+			WorkspaceID:          "ws-1",
+			NetworkParticipation: daemonTestLiveParticipation("ws-1", "default"),
+			Type:                 session.SessionTypeSpawned,
 			Lineage: &store.SessionLineage{
 				ParentSessionID: "sess-parent",
 				RootSessionID:   "sess-parent",

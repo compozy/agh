@@ -70,6 +70,7 @@ type StubNetworkStore struct {
 		store.NetworkChannelRef,
 	) ([]store.NetworkChannelKindCount, error)
 	ListNetworkRecentsFn       func(context.Context, store.NetworkRecentQuery) ([]store.NetworkRecentSummary, error)
+	CreateNetworkChannelFn     func(context.Context, store.NetworkChannelEntry) error
 	WriteNetworkChannelFn      func(context.Context, store.NetworkChannelEntry) error
 	PatchNetworkChannelFn      func(context.Context, store.NetworkChannelRef, store.NetworkChannelPatch) error
 	DeleteNetworkChannelFn     func(context.Context, store.NetworkChannelRef) error
@@ -220,6 +221,16 @@ func (s StubNetworkStore) WriteNetworkChannel(
 		return s.WriteNetworkChannelFn(ctx, entry)
 	}
 	return nil
+}
+
+func (s StubNetworkStore) CreateNetworkChannel(
+	ctx context.Context,
+	entry store.NetworkChannelEntry,
+) error {
+	if s.CreateNetworkChannelFn != nil {
+		return s.CreateNetworkChannelFn(ctx, entry)
+	}
+	return s.WriteNetworkChannel(ctx, entry)
 }
 
 func (s StubNetworkStore) PatchNetworkChannel(

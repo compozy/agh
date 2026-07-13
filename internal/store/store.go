@@ -41,6 +41,8 @@ var (
 	ErrNetworkWorkClosed = errors.New("store: network work closed")
 	// ErrNetworkCursorInvalid reports a malformed or query-mismatched network list cursor.
 	ErrNetworkCursorInvalid = errors.New("store: network cursor invalid")
+	// ErrNetworkChannelExists reports an attempted create for an existing workspace channel.
+	ErrNetworkChannelExists = errors.New("store: network channel already exists")
 )
 
 // EventRecorder captures session events and token usage in the per-session database.
@@ -94,6 +96,7 @@ type NetworkAuditStore interface {
 
 // NetworkChannelStore manages durable network channel metadata.
 type NetworkChannelStore interface {
+	CreateNetworkChannel(ctx context.Context, entry NetworkChannelEntry) error
 	WriteNetworkChannel(ctx context.Context, entry NetworkChannelEntry) error
 	GetNetworkChannel(ctx context.Context, ref NetworkChannelRef) (NetworkChannelEntry, error)
 	ListNetworkChannels(ctx context.Context, query NetworkChannelQuery) ([]NetworkChannelEntry, error)

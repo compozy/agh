@@ -185,7 +185,6 @@ func (b *harnessDetachedWorkBridge) submit(
 	run, err := b.tasks.EnqueueRun(ctx, taskpkg.EnqueueRun{
 		TaskID:         taskRecord.ID,
 		IdempotencyKey: normalized.SubmissionKey,
-		NetworkChannel: normalized.NetworkChannel,
 		Metadata:       runMetadataJSON,
 	}, actor)
 	if err != nil {
@@ -250,17 +249,17 @@ func (b *harnessDetachedWorkBridge) normalizeSubmitRequest(
 		WorkspaceID:      workspaceID,
 		Summary:          detachedHarnessSummary(req.Summary),
 		Description:      strings.TrimSpace(req.Description),
-		NetworkChannel:   detachedHarnessChannel(req.NetworkChannel, ownerInfo.Channel),
+		NetworkChannel:   detachedHarnessChannel(req.NetworkChannel, ""),
 		TurnSource:       normalizeDetachedHarnessTurnSource(req.TurnSource),
 		OwnerSessionID:   strings.TrimSpace(ownerInfo.ID),
 		OwnerSessionType: string(ownerInfo.Type),
 		OwnerWorkspaceID: strings.TrimSpace(ownerInfo.WorkspaceID),
-		OwnerChannel:     strings.TrimSpace(ownerInfo.Channel),
+		OwnerChannel:     strings.TrimSpace(ownerInfo.NetworkParticipation.ChannelID),
 		WakeTarget: detachedHarnessWakeTarget{
 			SessionID:   strings.TrimSpace(wakeInfo.ID),
 			SessionType: string(wakeInfo.Type),
 			WorkspaceID: strings.TrimSpace(wakeInfo.WorkspaceID),
-			Channel:     strings.TrimSpace(wakeInfo.Channel),
+			Channel:     strings.TrimSpace(wakeInfo.NetworkParticipation.ChannelID),
 		},
 	}, nil
 }
@@ -372,12 +371,11 @@ func (b *harnessDetachedWorkBridge) ensureTask(
 	}
 
 	created, err := b.tasks.CreateTask(ctx, taskpkg.CreateTask{
-		ID:             req.TaskID,
-		Scope:          req.Scope,
-		WorkspaceID:    req.WorkspaceID,
-		NetworkChannel: req.NetworkChannel,
-		Title:          req.Summary,
-		Description:    req.Description,
+		ID:          req.TaskID,
+		Scope:       req.Scope,
+		WorkspaceID: req.WorkspaceID,
+		Title:       req.Summary,
+		Description: req.Description,
 		Owner: &taskpkg.Ownership{
 			Kind: taskpkg.OwnerKindAgentSession,
 			Ref:  req.OwnerSessionID,

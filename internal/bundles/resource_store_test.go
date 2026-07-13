@@ -193,9 +193,16 @@ func TestResourceStoreActivationCRUDInventoryAndApply(t *testing.T) {
 	if got, want := loaded.ID, activation.ID; got != want {
 		t.Fatalf("loaded.ID = %q, want %q", got, want)
 	}
-	loaded.BindPrimaryChannelAsDefault = true
+	loaded.SpecContentHash = "updated-hash"
 	if err := h.resourceStore.UpdateBundleActivation(h.ctx, loaded); err != nil {
 		t.Fatalf("UpdateBundleActivation() error = %v", err)
+	}
+	updated, err := h.resourceStore.GetBundleActivation(h.ctx, activation.ID)
+	if err != nil {
+		t.Fatalf("GetBundleActivation(updated) error = %v", err)
+	}
+	if got, want := updated.SpecContentHash, "updated-hash"; got != want {
+		t.Fatalf("updated.SpecContentHash = %q, want %q", got, want)
 	}
 	activations, err := h.resourceStore.ListBundleActivations(h.ctx)
 	if err != nil {

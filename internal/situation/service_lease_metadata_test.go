@@ -16,15 +16,15 @@ func TestContextForSessionActiveLeaseMetadataContract(t *testing.T) {
 		leaseUntil := fixedTime().Add(10 * time.Minute)
 		heartbeatAt := fixedTime().Add(5 * time.Minute)
 		run := taskpkg.Run{
-			ID:                    "run-1",
-			TaskID:                "task-1",
-			Status:                taskpkg.TaskRunStatusRunning,
-			SessionID:             "sess-1",
-			ClaimedBy:             &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-1"},
-			ClaimTokenHash:        "sha256:claim-token",
-			LeaseUntil:            leaseUntil,
-			HeartbeatAt:           heartbeatAt,
-			CoordinationChannelID: "coord-structured",
+			ID:              "run-1",
+			TaskID:          "task-1",
+			Status:          taskpkg.TaskRunStatusRunning,
+			SessionID:       "sess-1",
+			ClaimedBy:       &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-1"},
+			ClaimTokenHash:  "sha256:claim-token",
+			LeaseUntil:      leaseUntil,
+			HeartbeatAt:     heartbeatAt,
+			RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: situationLiveSpec("coord-structured")},
 		}
 		service := NewService(Deps{
 			Now: fixedNow,

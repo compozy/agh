@@ -13,7 +13,6 @@ import {
   Field,
   FieldDescription,
   FieldLabel,
-  Input,
   Section,
   Spinner,
   Textarea,
@@ -23,17 +22,12 @@ import { useTasksFanOutRunsCard } from "../hooks/use-tasks-fan-out-runs-card";
 import type { FanOutTaskRunsRequest, FanOutTaskRunsResponse } from "../types";
 
 export interface TasksFanOutRunsCardProps {
-  defaultNetworkChannel?: string | null;
   isPending?: boolean;
   onFanOut: (data: FanOutTaskRunsRequest) => Promise<FanOutTaskRunsResponse | void>;
 }
 
-export function TasksFanOutRunsCard({
-  defaultNetworkChannel = null,
-  isPending = false,
-  onFanOut,
-}: TasksFanOutRunsCardProps) {
-  const state = useTasksFanOutRunsCard({ defaultNetworkChannel, onFanOut });
+export function TasksFanOutRunsCard({ isPending = false, onFanOut }: TasksFanOutRunsCardProps) {
+  const state = useTasksFanOutRunsCard({ onFanOut });
 
   return (
     <Section
@@ -82,21 +76,6 @@ export function TasksFanOutRunsCard({
                   <AlertDescription>{state.formError}</AlertDescription>
                 </Alert>
               ) : null}
-
-              <Field>
-                <FieldLabel htmlFor="tasks-fan-out-network-channel">Network channel</FieldLabel>
-                <FieldDescription>
-                  Optional channel for coordinated runs and thread status-back.
-                </FieldDescription>
-                <Input
-                  className="font-mono"
-                  data-testid="tasks-fan-out-network-channel"
-                  id="tasks-fan-out-network-channel"
-                  onChange={event => state.setNetworkChannel(event.target.value)}
-                  placeholder="general"
-                  value={state.networkChannel}
-                />
-              </Field>
 
               <Field>
                 <FieldLabel htmlFor="tasks-fan-out-designations">Assignments</FieldLabel>

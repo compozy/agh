@@ -87,14 +87,15 @@ func BenchmarkManagerListAllLarge(b *testing.B) {
 			b.Fatalf("MkdirAll(%q) error = %v", sessionDir, err)
 		}
 		if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
-			ID:          fmt.Sprintf("sess-%03d", idx),
-			Name:        fmt.Sprintf("Session %03d", idx),
-			AgentName:   "coder",
-			WorkspaceID: "ws-bench",
-			SessionType: string(SessionTypeUser),
-			State:       string(StateStopped),
-			CreatedAt:   benchmarkSessionTime.Add(-time.Duration(idx) * time.Minute),
-			UpdatedAt:   benchmarkSessionTime.Add(-time.Duration(idx) * time.Second),
+			ID:                   fmt.Sprintf("sess-%03d", idx),
+			Name:                 fmt.Sprintf("Session %03d", idx),
+			AgentName:            "coder",
+			WorkspaceID:          "ws-bench",
+			NetworkParticipation: testLocalParticipationPtr(),
+			SessionType:          string(SessionTypeUser),
+			State:                string(StateStopped),
+			CreatedAt:            benchmarkSessionTime.Add(-time.Duration(idx) * time.Minute),
+			UpdatedAt:            benchmarkSessionTime.Add(-time.Duration(idx) * time.Second),
 		}); err != nil {
 			b.Fatalf("WriteSessionMeta(%d) error = %v", idx, err)
 		}
@@ -119,15 +120,15 @@ func BenchmarkManagerListAllLarge(b *testing.B) {
 
 func BenchmarkSessionInfo(b *testing.B) {
 	session := &Session{
-		ID:           "sess-bench",
-		Name:         "bench",
-		AgentName:    "coder",
-		WorkspaceID:  "ws-bench",
-		Workspace:    "/tmp/workspace",
-		Channel:      "builders",
-		Type:         SessionTypeUser,
-		State:        StateActive,
-		ACPSessionID: "acp-bench",
+		ID:                   "sess-bench",
+		Name:                 "bench",
+		AgentName:            "coder",
+		WorkspaceID:          "ws-bench",
+		Workspace:            "/tmp/workspace",
+		NetworkParticipation: testLiveParticipation("ws-bench", "builders"),
+		Type:                 SessionTypeUser,
+		State:                StateActive,
+		ACPSessionID:         "acp-bench",
 		ACPCaps: acp.Caps{
 			SupportsLoadSession: true,
 			SupportedModes:      []string{"chat", "agentic"},

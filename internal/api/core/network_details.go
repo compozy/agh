@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -134,33 +135,23 @@ func (h *BaseHandlers) CreateNetworkChannel(c *gin.Context) {
 		return
 	}
 
-	createdIDs, err := h.createNetworkChannelSessions(
-		c.Request.Context(),
-		channel,
-		networkWorkspaceID,
-		agentNames,
-	)
-	if err != nil {
-		h.respondError(c, StatusForSessionError(err), err)
-		return
+	entry := store.NetworkChannelEntry{
+		Channel:           channel,
+		WorkspaceID:       networkWorkspaceID,
+		Purpose:           purpose,
+		FanoutPolicy:      fanoutPolicy,
+		CoordinatorPeerID: coordinatorPeerID,
+		CreatedBy:         agentNames[0],
 	}
-
-	detail, err := h.finalizeCreatedNetworkChannel(
+	detail, status, err := h.provisionNetworkChannel(
 		c.Request.Context(),
 		service,
 		networkStore,
-		store.NetworkChannelEntry{
-			Channel:           channel,
-			WorkspaceID:       networkWorkspaceID,
-			Purpose:           purpose,
-			FanoutPolicy:      fanoutPolicy,
-			CoordinatorPeerID: coordinatorPeerID,
-			CreatedBy:         agentNames[0],
-		},
-		createdIDs,
+		entry,
+		agentNames,
 	)
 	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
+		h.respondError(c, status, err)
 		return
 	}
 
@@ -770,7 +761,11 @@ func applyNetworkChannelSessions(
 		if !networkChannelSessionVisible(info) || strings.TrimSpace(info.WorkspaceID) != workspaceID {
 			continue
 		}
-		aggregate := ensureNetworkChannelAggregate(aggregates, workspaceID, info.Channel)
+		aggregate := ensureNetworkChannelAggregate(
+			aggregates,
+			workspaceID,
+			info.NetworkParticipation.ChannelID,
+		)
 		aggregate.sessionCount++
 	}
 }
@@ -856,6 +851,8 @@ func statusForCreateNetworkChannelError(err error) int {
 		return StatusForWorkspaceError(err)
 	case errors.Is(err, workspacepkg.ErrAgentNotAvailable):
 		return StatusForSessionError(err)
+	case errors.Is(err, store.ErrNetworkChannelExists):
+		return http.StatusConflict
 	case errors.Is(err, network.ErrInvalidField):
 		return StatusForNetworkError(err)
 	default:
@@ -872,11 +869,11 @@ func (h *BaseHandlers) createNetworkChannelSessions(
 	createdIDs := make([]string, 0, len(agentNames))
 	for _, agentName := range agentNames {
 		sess, err := h.Sessions.Create(ctx, session.CreateOpts{
-			AgentName: agentName,
-			Provider:  "",
-			Workspace: workspaceID,
-			Channel:   channel,
-			Type:      session.SessionTypeUser,
+			AgentName:            agentName,
+			Provider:             "",
+			Workspace:            workspaceID,
+			NetworkParticipation: namedParticipationRequest(channel),
+			Type:                 session.SessionTypeUser,
 		})
 		if err != nil {
 			if rollbackErr := rollbackCreatedNetworkSessions(ctx, h.Sessions, createdIDs); rollbackErr != nil {
@@ -889,46 +886,6 @@ func (h *BaseHandlers) createNetworkChannelSessions(
 		}
 	}
 	return createdIDs, nil
-}
-
-func (h *BaseHandlers) finalizeCreatedNetworkChannel(
-	ctx context.Context,
-	service NetworkService,
-	networkStore NetworkStore,
-	entry store.NetworkChannelEntry,
-	createdIDs []string,
-) (contract.NetworkChannelDetailPayload, error) {
-	if err := networkStore.WriteNetworkChannel(ctx, entry); err != nil {
-		return contract.NetworkChannelDetailPayload{}, rollbackCreatedNetworkChannel(
-			ctx,
-			h.Sessions,
-			networkStore,
-			store.NetworkChannelRef{
-				WorkspaceID: strings.TrimSpace(entry.WorkspaceID),
-				Channel:     strings.TrimSpace(entry.Channel),
-			},
-			createdIDs,
-			err,
-			false,
-		)
-	}
-
-	detail, err := h.networkChannelDetailPayload(ctx, service, entry.WorkspaceID, entry.Channel)
-	if err != nil {
-		return contract.NetworkChannelDetailPayload{}, rollbackCreatedNetworkChannel(
-			ctx,
-			h.Sessions,
-			networkStore,
-			store.NetworkChannelRef{
-				WorkspaceID: strings.TrimSpace(entry.WorkspaceID),
-				Channel:     strings.TrimSpace(entry.Channel),
-			},
-			createdIDs,
-			err,
-			true,
-		)
-	}
-	return detail, nil
 }
 
 func rollbackCreatedNetworkChannel(
@@ -1080,7 +1037,7 @@ func sessionsForChannel(sessions []*session.Info, workspaceID string, channel st
 	for _, info := range sessions {
 		if !networkChannelSessionVisible(info) ||
 			strings.TrimSpace(info.WorkspaceID) != strings.TrimSpace(workspaceID) ||
-			strings.TrimSpace(info.Channel) != channel {
+			strings.TrimSpace(info.NetworkParticipation.ChannelID) != channel {
 			continue
 		}
 		filtered = append(filtered, info)
@@ -1101,7 +1058,7 @@ func networkChannelExists(
 	for _, info := range sessions {
 		if networkChannelSessionVisible(info) &&
 			strings.TrimSpace(info.WorkspaceID) == strings.TrimSpace(workspaceID) &&
-			strings.TrimSpace(info.Channel) == channel {
+			strings.TrimSpace(info.NetworkParticipation.ChannelID) == channel {
 			return true
 		}
 	}
@@ -1121,7 +1078,18 @@ func networkChannelSessionVisible(info *session.Info) bool {
 	if info.State == session.StateStopped {
 		return false
 	}
-	return strings.TrimSpace(info.Channel) != ""
+	return info.NetworkParticipation.Mode == participation.ModeLive
+}
+
+func namedParticipationRequest(channelID string) *participation.Request {
+	live := participation.ModeLive
+	named := participation.StrategyNamed
+	trimmed := strings.TrimSpace(channelID)
+	return &participation.Request{
+		Mode:            &live,
+		ChannelStrategy: &named,
+		ChannelID:       &trimmed,
+	}
 }
 
 func isNetworkChannelNotFound(err error) bool {

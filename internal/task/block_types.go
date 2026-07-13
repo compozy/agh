@@ -53,6 +53,7 @@ type NeedsAttentionMutation struct {
 // NeedsAttentionClearMutation clears task-level escalation metadata.
 type NeedsAttentionClearMutation struct {
 	TaskID    string        `json:"task_id"`
+	Note      string        `json:"note,omitempty"`
 	ClearedBy ActorIdentity `json:"cleared_by"`
 	ClearedAt time.Time     `json:"cleared_at"`
 	Origin    Origin        `json:"origin"`

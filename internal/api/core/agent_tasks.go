@@ -375,7 +375,7 @@ func (h *BaseHandlers) agentTaskClaimCriteria(
 		AgentName:             strings.TrimSpace(caller.Session.AgentName),
 		RequiredCapabilities:  capabilities,
 		PriorityMin:           req.PriorityMin,
-		CoordinationChannelID: strings.TrimSpace(caller.Session.Channel),
+		CoordinationChannelID: strings.TrimSpace(caller.Session.NetworkSpecSnapshot().ChannelID),
 		Soul:                  soulClaimProvenanceFromCaller(caller),
 		LeaseDuration:         leaseDuration,
 	}, nil
@@ -489,7 +489,7 @@ func AgentTaskLeasePayloadFromRun(
 		ClaimTokenHash:        run.ClaimTokenHash,
 		LeaseUntil:            optionalTime(run.LeaseUntil),
 		HeartbeatAt:           optionalTime(run.HeartbeatAt),
-		CoordinationChannelID: run.CoordinationChannelID,
+		CoordinationChannelID: run.NetworkSpecSnapshot().ChannelID,
 		CoordinationChannel:   channel,
 	}
 	if channel != nil && strings.TrimSpace(payload.CoordinationChannelID) == "" {

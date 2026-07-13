@@ -32,7 +32,10 @@ type taskInboxScanFields struct {
 	runSessionID             sql.NullString
 	runLeaseUntil            sql.NullString
 	runHeartbeatAt           sql.NullString
-	runCoordinationChannel   sql.NullString
+	runNetworkSpecJSON       sql.NullString
+	runNetworkMode           sql.NullString
+	runNetworkChannel        sql.NullString
+	runNetworkSource         sql.NullString
 	runQueuedAt              sql.NullString
 	runClaimedAt             sql.NullString
 	runStartedAt             sql.NullString
@@ -126,7 +129,10 @@ func scanTaskInboxFields(
 		&fields.runSessionID,
 		&fields.runLeaseUntil,
 		&fields.runHeartbeatAt,
-		&fields.runCoordinationChannel,
+		&fields.runNetworkSpecJSON,
+		&fields.runNetworkMode,
+		&fields.runNetworkChannel,
+		&fields.runNetworkSource,
 		&fields.runQueuedAt,
 		&fields.runClaimedAt,
 		&fields.runStartedAt,
@@ -147,22 +153,25 @@ func scanTaskInboxFields(
 
 func taskInboxRunScanFields(fields *taskInboxScanFields) taskCatalogScanFields {
 	return taskCatalogScanFields{
-		activeRunID:                  fields.runID,
-		activeRunStatus:              fields.runStatus,
-		activeRunAttempt:             fields.runAttempt,
-		activeRunPreviousRunID:       fields.runPreviousRunID,
-		activeRunFailureKind:         fields.runFailureKind,
-		activeRunClaimedByKind:       fields.runClaimedByKind,
-		activeRunClaimedByRef:        fields.runClaimedByRef,
-		activeRunSessionID:           fields.runSessionID,
-		activeRunLeaseUntil:          fields.runLeaseUntil,
-		activeRunHeartbeatAt:         fields.runHeartbeatAt,
-		activeRunCoordinationChannel: fields.runCoordinationChannel,
-		activeRunQueuedAt:            fields.runQueuedAt,
-		activeRunClaimedAt:           fields.runClaimedAt,
-		activeRunStartedAt:           fields.runStartedAt,
-		activeRunEndedAt:             fields.runEndedAt,
-		activeRunError:               fields.runError,
+		activeRunID:              fields.runID,
+		activeRunStatus:          fields.runStatus,
+		activeRunAttempt:         fields.runAttempt,
+		activeRunPreviousRunID:   fields.runPreviousRunID,
+		activeRunFailureKind:     fields.runFailureKind,
+		activeRunClaimedByKind:   fields.runClaimedByKind,
+		activeRunClaimedByRef:    fields.runClaimedByRef,
+		activeRunSessionID:       fields.runSessionID,
+		activeRunLeaseUntil:      fields.runLeaseUntil,
+		activeRunHeartbeatAt:     fields.runHeartbeatAt,
+		activeRunNetworkSpecJSON: fields.runNetworkSpecJSON,
+		activeRunNetworkMode:     fields.runNetworkMode,
+		activeRunNetworkChannel:  fields.runNetworkChannel,
+		activeRunNetworkSource:   fields.runNetworkSource,
+		activeRunQueuedAt:        fields.runQueuedAt,
+		activeRunClaimedAt:       fields.runClaimedAt,
+		activeRunStartedAt:       fields.runStartedAt,
+		activeRunEndedAt:         fields.runEndedAt,
+		activeRunError:           fields.runError,
 	}
 }
 

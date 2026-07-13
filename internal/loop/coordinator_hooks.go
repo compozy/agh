@@ -150,6 +150,7 @@ func deniedCoordinatorTerminal(status Status, reason string) *task.CoordinatorTe
 }
 
 func coordinatorLoopContext(taskRun task.Run, run Run, generation int) hookspkg.LoopContext {
+	networkSpec := taskRun.NetworkSpecSnapshot()
 	return hookspkg.LoopContext{
 		LoopRunID:             string(run.ID),
 		ParentLoopRunID:       string(run.ParentLoopRunID),
@@ -159,8 +160,8 @@ func coordinatorLoopContext(taskRun task.Run, run Run, generation int) hookspkg.
 		TaskID:                strings.TrimSpace(taskRun.TaskID),
 		RunID:                 strings.TrimSpace(taskRun.ID),
 		RunKind:               taskRun.RunKind.Normalize().String(),
-		CoordinationChannelID: strings.TrimSpace(taskRun.CoordinationChannelID),
-		NetworkChannel:        strings.TrimSpace(taskRun.NetworkChannel),
+		CoordinationChannelID: strings.TrimSpace(networkSpec.ChannelID),
+		NetworkChannel:        strings.TrimSpace(networkSpec.ChannelID),
 		SessionID:             strings.TrimSpace(taskRun.SessionID),
 		OriginKind:            string(taskRun.Origin.Kind.Normalize()),
 		OriginRef:             strings.TrimSpace(taskRun.Origin.Ref),

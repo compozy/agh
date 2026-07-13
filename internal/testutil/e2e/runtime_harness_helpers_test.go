@@ -15,6 +15,7 @@ import (
 
 	aghcontract "github.com/compozy/agh/internal/api/contract"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/agh/internal/network/participation"
 	sessionpkg "github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -65,10 +66,11 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 
 	metaPath := store.SessionMetaFile(filepath.Join(homePaths.SessionsDir, "sess-1"))
 	if err := store.WriteSessionMeta(metaPath, store.SessionMeta{
-		ID:          "sess-1",
-		AgentName:   "coder",
-		WorkspaceID: "ws-1",
-		State:       "stopped",
+		ID:                   "sess-1",
+		AgentName:            "coder",
+		WorkspaceID:          "ws-1",
+		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
+		State:                "stopped",
 		Sandbox: &store.SessionSandboxMeta{
 			SandboxID:      "env-1",
 			Backend:        "local",

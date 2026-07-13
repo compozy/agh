@@ -16,6 +16,7 @@ import (
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/heartbeat"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/soul"
 )
 
@@ -437,8 +438,10 @@ func (j BundleJob) Validate(bundleName string, profileName string, channelNames 
 		return fmt.Errorf("%w: bundle %q profile %q job %q: %w", ErrBundleInvalid, bundleName, profileName, j.Name, err)
 	}
 	if j.Task != nil {
-		channel := strings.TrimSpace(j.Task.NetworkChannel)
-		if channel != "" {
+		request := j.Task.NetworkParticipation
+		if request != nil && request.ChannelStrategy != nil &&
+			*request.ChannelStrategy == participation.StrategyNamed && request.ChannelID != nil {
+			channel := strings.TrimSpace(*request.ChannelID)
 			if _, ok := channelNames[channel]; !ok {
 				return fmt.Errorf(
 					"%w: bundle %q profile %q job %q references undeclared channel %q",
@@ -881,16 +884,4 @@ func normalizeBundleBridges(values []BundleBridgePreset) []BundleBridgePreset {
 		normalized = append(normalized, next)
 	}
 	return normalized
-}
-
-func cloneBundleTaskConfig(config *automationpkg.JobTaskConfig) *automationpkg.JobTaskConfig {
-	if config == nil {
-		return nil
-	}
-	cloned := *config
-	if config.Owner != nil {
-		owner := *config.Owner
-		cloned.Owner = &owner
-	}
-	return &cloned
 }

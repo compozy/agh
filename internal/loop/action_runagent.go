@@ -55,16 +55,17 @@ func (e *RunAgentActionExecutor) Execute(
 		model = strings.TrimSpace(in.WorkerModel)
 	}
 	binding, err := e.binder.BindActionSession(runCtx, ActionSessionBindRequest{
-		WorkspaceID:   in.WorkspaceID,
-		Agent:         strings.TrimSpace(spec.Agent),
-		CWD:           strings.TrimSpace(spec.CWD),
-		Handle:        actionSessionHandle(node.Session),
-		ItemIndex:     in.ItemIndex,
-		Isolated:      node.Session != nil && node.Session.Isolated,
-		Model:         model,
-		AllowedTools:  append([]string(nil), spec.AllowedTools...),
-		MaxTurns:      spec.MaxTurns,
-		ContractBlock: contractBlock,
+		WorkspaceID:          in.WorkspaceID,
+		Agent:                strings.TrimSpace(spec.Agent),
+		CWD:                  strings.TrimSpace(spec.CWD),
+		Handle:               actionSessionHandle(node.Session),
+		ItemIndex:            in.ItemIndex,
+		Isolated:             node.Session != nil && node.Session.Isolated,
+		Model:                model,
+		AllowedTools:         append([]string(nil), spec.AllowedTools...),
+		MaxTurns:             spec.MaxTurns,
+		ContractBlock:        contractBlock,
+		NetworkParticipation: in.NetworkParticipation,
 	})
 	if err != nil {
 		return ActionRawResult{}, fmt.Errorf("bind run-agent session: %w", err)

@@ -5,6 +5,7 @@ import (
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/soul"
 	"github.com/compozy/agh/internal/store"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -23,7 +24,7 @@ type sessionStartSpec struct {
 	sandboxDisabled         bool
 	workspace               workspacepkg.ResolvedWorkspace
 	cwd                     string
-	channel                 string
+	networkParticipation    participation.Spec
 	promptOverlay           string
 	contractOverlay         string
 	runtimeMode             string

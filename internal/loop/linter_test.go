@@ -1161,7 +1161,9 @@ func validDefinition() dsl.Definition {
 				{From: "fan", To: "agent"},
 			},
 		},
-		Start: []dsl.StartBinding{{Kind: dsl.StartManual}},
+		DefinitionExtensionState: &dsl.DefinitionExtensionState{
+			Start: []dsl.StartBinding{{Kind: dsl.StartManual}},
+		},
 	}
 }
 
@@ -1245,7 +1247,9 @@ func singleNodeDefinition(node dsl.Node) dsl.Definition {
 			Nodes: []dsl.Node{node},
 			Edges: []dsl.Edge{},
 		},
-		Start: []dsl.StartBinding{{Kind: dsl.StartManual}},
+		DefinitionExtensionState: &dsl.DefinitionExtensionState{
+			Start: []dsl.StartBinding{{Kind: dsl.StartManual}},
+		},
 	}
 }
 

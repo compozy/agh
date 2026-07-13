@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 var (
@@ -947,28 +949,29 @@ type TaskRunClaimCriteria struct {
 
 // TaskRunContext carries task-run identifiers shared across task-run hooks.
 type TaskRunContext struct {
-	TaskID                string    `json:"task_id,omitempty"`
-	RunID                 string    `json:"run_id,omitempty"`
-	RunKind               *string   `json:"run_kind,omitempty"`
-	LoopRunID             string    `json:"loop_run_id,omitempty"`
-	WorkspaceID           string    `json:"workspace_id,omitempty"`
-	WorkflowID            string    `json:"workflow_id,omitempty"`
-	CoordinationChannelID string    `json:"coordination_channel_id,omitempty"`
-	NetworkChannel        string    `json:"network_channel,omitempty"`
-	AgentName             string    `json:"agent_name,omitempty"`
-	SessionID             string    `json:"session_id,omitempty"`
-	ActorKind             string    `json:"actor_kind,omitempty"`
-	ActorID               string    `json:"actor_id,omitempty"`
-	OriginKind            string    `json:"origin_kind,omitempty"`
-	OriginRef             string    `json:"origin_ref,omitempty"`
-	TaskStatus            string    `json:"task_status,omitempty"`
-	RunStatus             string    `json:"run_status,omitempty"`
-	SoulSnapshotID        string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest            string    `json:"soul_digest,omitempty"`
-	Attempt               int       `json:"attempt,omitempty"`
-	LeaseUntil            time.Time `json:"lease_until"`
-	ReleaseReason         string    `json:"release_reason,omitempty"`
-	Error                 string    `json:"error,omitempty"`
+	TaskID                       string              `json:"task_id,omitempty"`
+	RunID                        string              `json:"run_id,omitempty"`
+	RunKind                      *string             `json:"run_kind,omitempty"`
+	LoopRunID                    string              `json:"loop_run_id,omitempty"`
+	WorkspaceID                  string              `json:"workspace_id,omitempty"`
+	WorkflowID                   string              `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation"`
+	CoordinationChannelID        string              `json:"coordination_channel_id,omitempty"`
+	NetworkChannel               string              `json:"network_channel,omitempty"`
+	AgentName                    string              `json:"agent_name,omitempty"`
+	SessionID                    string              `json:"session_id,omitempty"`
+	ActorKind                    string              `json:"actor_kind,omitempty"`
+	ActorID                      string              `json:"actor_id,omitempty"`
+	OriginKind                   string              `json:"origin_kind,omitempty"`
+	OriginRef                    string              `json:"origin_ref,omitempty"`
+	TaskStatus                   string              `json:"task_status,omitempty"`
+	RunStatus                    string              `json:"run_status,omitempty"`
+	SoulSnapshotID               string              `json:"soul_snapshot_id,omitempty"`
+	SoulDigest                   string              `json:"soul_digest,omitempty"`
+	Attempt                      int                 `json:"attempt,omitempty"`
+	LeaseUntil                   time.Time           `json:"lease_until"`
+	ReleaseReason                string              `json:"release_reason,omitempty"`
+	Error                        string              `json:"error,omitempty"`
 }
 
 // TaskRunEnqueuedPayload is delivered after a task run is enqueued and its audit event is committed.
@@ -981,7 +984,7 @@ type TaskRunEnqueuedPayload struct {
 // TaskRunPreClaimPayload is delivered before a task run claim commits.
 type TaskRunPreClaimPayload struct {
 	PayloadBase
-	TaskRunContext
+	*TaskRunContext
 	Criteria   TaskRunClaimCriteria `json:"criteria"`
 	Denied     bool                 `json:"denied,omitempty"`
 	DenyReason string               `json:"deny_reason,omitempty"`
@@ -1310,22 +1313,6 @@ func (p TaskStatusChangedPayload) hookSessionContext() SessionContext {
 	return taskSessionContext(p.TaskContext)
 }
 
-func (p TaskRunEnqueuedPayload) hookSessionContext() SessionContext {
-	return taskRunSessionContext(p.TaskRunContext)
-}
-
-func (p TaskRunPreClaimPayload) hookSessionContext() SessionContext {
-	return taskRunSessionContext(p.TaskRunContext)
-}
-
-func (p TaskRunPostClaimPayload) hookSessionContext() SessionContext {
-	return taskRunSessionContext(p.TaskRunContext)
-}
-
-func (p TaskRunLeasePayload) hookSessionContext() SessionContext {
-	return taskRunSessionContext(p.TaskRunContext)
-}
-
 func (p LoopLifecyclePayload) hookSessionContext() SessionContext {
 	return loopSessionContext(p.LoopContext)
 }
@@ -1354,15 +1341,6 @@ func taskSessionContext(ctx TaskContext) SessionContext {
 	return SessionContext{
 		AgentName:   ctx.AgentName,
 		WorkspaceID: ctx.WorkspaceID,
-	}
-}
-
-func taskRunSessionContext(ctx TaskRunContext) SessionContext {
-	return SessionContext{
-		SessionID:          ctx.SessionID,
-		AgentName:          ctx.AgentName,
-		WorkspaceID:        ctx.WorkspaceID,
-		SessionSoulContext: optionalSessionSoulContext(ctx.SoulSnapshotID, ctx.SoulDigest),
 	}
 }
 

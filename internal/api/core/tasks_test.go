@@ -30,21 +30,20 @@ func TestTaskPayloadBuildersPreserveIdentityOwnershipAndRunBindings(t *testing.T
 
 	view := &taskpkg.View{
 		Task: taskpkg.Task{
-			ID:             "task-1",
-			Identifier:     "TASK-1",
-			Scope:          taskpkg.ScopeWorkspace,
-			WorkspaceID:    "ws-alpha",
-			ParentTaskID:   "task-root",
-			NetworkChannel: "builders",
-			Title:          "Review task API",
-			Description:    "Check handler wiring",
-			Status:         taskpkg.TaskStatusInProgress,
-			Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "reviewers"},
-			CreatedBy:      taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
-			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.create"},
-			CreatedAt:      time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC),
-			UpdatedAt:      time.Date(2026, 4, 14, 10, 1, 0, 0, time.UTC),
-			Metadata:       taskMetadata,
+			ID:           "task-1",
+			Identifier:   "TASK-1",
+			Scope:        taskpkg.ScopeWorkspace,
+			WorkspaceID:  "ws-alpha",
+			ParentTaskID: "task-root",
+			Title:        "Review task API",
+			Description:  "Check handler wiring",
+			Status:       taskpkg.TaskStatusInProgress,
+			Owner:        &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "reviewers"},
+			CreatedBy:    taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+			Origin:       taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.create"},
+			CreatedAt:    time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC),
+			UpdatedAt:    time.Date(2026, 4, 14, 10, 1, 0, 0, time.UTC),
+			Metadata:     taskMetadata,
 		},
 		Children: []taskpkg.Summary{{
 			ID:        "task-child",
@@ -63,18 +62,18 @@ func TestTaskPayloadBuildersPreserveIdentityOwnershipAndRunBindings(t *testing.T
 			CreatedAt:       time.Date(2026, 4, 14, 10, 3, 0, 0, time.UTC),
 		}},
 		Runs: []taskpkg.Run{{
-			ID:             "run-1",
-			TaskID:         "task-1",
-			Status:         taskpkg.TaskRunStatusRunning,
-			Attempt:        2,
-			ClaimedBy:      &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
-			SessionID:      "sess-1",
-			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.start_run"},
-			IdempotencyKey: "key-1",
-			NetworkChannel: "builders",
-			QueuedAt:       time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC),
-			StartedAt:      time.Date(2026, 4, 14, 10, 4, 0, 0, time.UTC),
-			Result:         runResult,
+			ID:              "run-1",
+			TaskID:          "task-1",
+			Status:          taskpkg.TaskRunStatusRunning,
+			Attempt:         2,
+			ClaimedBy:       &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+			SessionID:       "sess-1",
+			Origin:          taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.start_run"},
+			IdempotencyKey:  "key-1",
+			RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: testLiveParticipation("ws-alpha", "builders")},
+			QueuedAt:        time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC),
+			StartedAt:       time.Date(2026, 4, 14, 10, 4, 0, 0, time.UTC),
+			Result:          runResult,
 		}},
 		Events: []taskpkg.Event{{
 			ID:        "evt-1",
@@ -136,7 +135,6 @@ func TestStatusForTaskError(t *testing.T) {
 		{name: "task not found", err: taskpkg.ErrTaskNotFound, want: http.StatusNotFound},
 		{name: "workspace missing", err: workspacepkg.ErrWorkspaceNotFound, want: http.StatusNotFound},
 		{name: "invalid transition", err: taskpkg.ErrInvalidStatusTransition, want: http.StatusConflict},
-		{name: "stale network channel", err: taskpkg.ErrStaleNetworkChannel, want: http.StatusConflict},
 	}
 
 	for _, tc := range testCases {
@@ -1540,7 +1538,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 
 	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
 
-	var listedQuery taskpkg.Query
+	var listedQuery taskpkg.CatalogQuery
 	var createdSpec taskpkg.CreateTask
 	var childSpec taskpkg.CreateTask
 	var deletedTaskID string
@@ -1569,19 +1567,18 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 
 	taskView := &taskpkg.View{
 		Task: taskpkg.Task{
-			ID:             "task-1",
-			Scope:          taskpkg.ScopeWorkspace,
-			WorkspaceID:    "ws-alpha",
-			NetworkChannel: "builders",
-			Title:          "Review task API",
-			Description:    "Check handler wiring",
-			Status:         taskpkg.TaskStatusInProgress,
-			Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "reviewers"},
-			CreatedBy:      taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
-			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.create"},
-			CreatedAt:      now,
-			UpdatedAt:      now,
-			Metadata:       json.RawMessage(`{"priority":"high"}`),
+			ID:          "task-1",
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: "ws-alpha",
+			Title:       "Review task API",
+			Description: "Check handler wiring",
+			Status:      taskpkg.TaskStatusInProgress,
+			Owner:       &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "reviewers"},
+			CreatedBy:   taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+			Origin:      taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.create"},
+			CreatedAt:   now,
+			UpdatedAt:   now,
+			Metadata:    json.RawMessage(`{"priority":"high"}`),
 		},
 		Dependencies: []taskpkg.Dependency{{
 			TaskID:          "task-1",
@@ -1621,22 +1618,32 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 
 	getTaskCalls := 0
 	tasks := &testutil.StubTaskManager{
-		ListTasksFn: func(_ context.Context, query taskpkg.Query, _ taskpkg.ActorContext) ([]taskpkg.Summary, error) {
+		ListTaskCatalogFn: func(
+			_ context.Context,
+			query taskpkg.CatalogQuery,
+			_ taskpkg.ActorContext,
+		) (taskpkg.CatalogPage, error) {
 			listedQuery = query
-			return []taskpkg.Summary{{
-				ID:             "task-1",
-				Scope:          query.Scope,
-				WorkspaceID:    query.WorkspaceID,
-				ParentTaskID:   query.ParentTaskID,
-				NetworkChannel: query.NetworkChannel,
-				Title:          "Review task API",
-				Status:         query.Status,
-				Owner:          &taskpkg.Ownership{Kind: query.OwnerKind, Ref: query.OwnerRef},
-				CreatedBy:      taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
-				Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.list"},
-				CreatedAt:      now,
-				UpdatedAt:      now,
-			}}, nil
+			liveSpec := testLiveParticipation("ws-alpha", "builders")
+			return taskpkg.CatalogPage{Tasks: []taskpkg.Summary{{
+				ID:           "task-1",
+				Scope:        taskpkg.Scope(query.Scope),
+				WorkspaceID:  query.WorkspaceID,
+				ParentTaskID: query.ParentTaskID,
+				Title:        "Review task API",
+				Status:       query.Status,
+				Owner:        &taskpkg.Ownership{Kind: query.OwnerKind, Ref: query.OwnerRef},
+				CreatedBy:    taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+				Origin:       taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.list"},
+				CreatedAt:    now,
+				UpdatedAt:    now,
+				ActiveRun: &taskpkg.RunSummary{
+					ID:                           "run-1",
+					TaskID:                       "task-1",
+					Status:                       taskpkg.TaskRunStatusRunning,
+					ResolvedNetworkParticipation: &liveSpec,
+				},
+			}}, Total: 1, Limit: query.Limit}, nil
 		},
 		CreateTaskFn: func(_ context.Context, spec taskpkg.CreateTask, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
 			createdSpec = spec
@@ -1719,7 +1726,6 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 				Attempt:            int32(len(enqueuedRuns) + 2),
 				Origin:             actor.Origin,
 				IdempotencyKey:     spec.IdempotencyKey,
-				NetworkChannel:     spec.NetworkChannel,
 				DesignationGroupID: spec.DesignationGroupID,
 				Metadata:           spec.Metadata,
 				QueuedAt:           now,
@@ -1767,45 +1773,42 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		CompleteRunFn: func(_ context.Context, _ string, result taskpkg.RunResult, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
 			completedRun = result
 			return &taskpkg.Run{
-				ID:                    "run-1",
-				TaskID:                "task-1",
-				Status:                taskpkg.TaskRunStatusCompleted,
-				Attempt:               1,
-				Origin:                actor.Origin,
-				QueuedAt:              now,
-				EndedAt:               now,
-				Result:                result.Value,
-				NetworkChannel:        "builders",
-				CoordinationChannelID: "builders",
+				ID:              "run-1",
+				TaskID:          "task-1",
+				Status:          taskpkg.TaskRunStatusCompleted,
+				Attempt:         1,
+				Origin:          actor.Origin,
+				RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: testLiveParticipation("ws-alpha", "builders")},
+				QueuedAt:        now,
+				EndedAt:         now,
+				Result:          result.Value,
 			}, nil
 		},
 		FailRunFn: func(_ context.Context, _ string, failure taskpkg.RunFailure, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
 			failedRun = failure
 			return &taskpkg.Run{
-				ID:                    "run-2",
-				TaskID:                "task-1",
-				Status:                taskpkg.TaskRunStatusFailed,
-				Attempt:               2,
-				Origin:                actor.Origin,
-				QueuedAt:              now,
-				EndedAt:               now,
-				Error:                 failure.Error,
-				NetworkChannel:        "builders",
-				CoordinationChannelID: "builders",
+				ID:              "run-2",
+				TaskID:          "task-1",
+				Status:          taskpkg.TaskRunStatusFailed,
+				Attempt:         2,
+				Origin:          actor.Origin,
+				RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: testLiveParticipation("ws-alpha", "builders")},
+				QueuedAt:        now,
+				EndedAt:         now,
+				Error:           failure.Error,
 			}, nil
 		},
 		CancelRunFn: func(_ context.Context, _ string, req taskpkg.CancelRun, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
 			cancelledRun = req
 			return &taskpkg.Run{
-				ID:                    "run-2",
-				TaskID:                "task-1",
-				Status:                taskpkg.TaskRunStatusCanceled,
-				Attempt:               2,
-				Origin:                actor.Origin,
-				QueuedAt:              now,
-				EndedAt:               now,
-				NetworkChannel:        "builders",
-				CoordinationChannelID: "builders",
+				ID:              "run-2",
+				TaskID:          "task-1",
+				Status:          taskpkg.TaskRunStatusCanceled,
+				Attempt:         2,
+				Origin:          actor.Origin,
+				RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: testLiveParticipation("ws-alpha", "builders")},
+				QueuedAt:        now,
+				EndedAt:         now,
 			}, nil
 		},
 		ForceReleaseRunFn: func(
@@ -1959,7 +1962,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		http.MethodPost,
 		"/tasks",
 		[]byte(
-			`{"scope":"workspace","workspace":"alpha","title":"Review task API","description":"Check handler wiring","network_channel":"builders","owner":{"kind":"pool","ref":"reviewers"},"metadata":{"priority":"high"}}`,
+			`{"scope":"workspace","workspace":"alpha","title":"Review task API","description":"Check handler wiring","owner":{"kind":"pool","ref":"reviewers"},"metadata":{"priority":"high"}}`,
 		),
 	)
 	if resp.Code != http.StatusCreated {
@@ -1981,7 +1984,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		fixture.Engine,
 		http.MethodPatch,
 		"/tasks/task-1",
-		[]byte(`{"title":"Renamed task","network_channel":"builders","metadata":{"priority":"medium"}}`),
+		[]byte(`{"title":"Renamed task","metadata":{"priority":"medium"}}`),
 	)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("update status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
@@ -2042,7 +2045,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		http.MethodPost,
 		"/tasks/task-1/runs",
 		[]byte(
-			`{"idempotency_key":"key-3","network_channel":"builders","metadata":{"schema":"agh.harness.detached.v1","kind":"harness_detached_run"}}`,
+			`{"idempotency_key":"key-3","metadata":{"schema":"agh.harness.detached.v1","kind":"harness_detached_run"}}`,
 		),
 	)
 	if resp.Code != http.StatusCreated {
@@ -2055,7 +2058,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		http.MethodPost,
 		"/tasks/task-1/runs/fan-out",
 		[]byte(
-			`{"network_channel":"builders","idempotency_key":"fanout-key","designations":[{"brief":"Review API handlers","metadata":{"lane":"api"}},{"brief":"Review web wiring","metadata":{"lane":"web"}}]}`,
+			`{"idempotency_key":"fanout-key","designations":[{"brief":"Review API handlers","metadata":{"lane":"api"}},{"brief":"Review web wiring","metadata":{"lane":"web"}}]}`,
 		),
 	)
 	if resp.Code != http.StatusCreated {
@@ -2078,7 +2081,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		http.MethodPost,
 		"/tasks/task-1/runs/fan-out",
 		[]byte(
-			`{"network_channel":"builders","idempotency_key":"invalid-fanout","designations":[{"brief":"Valid lane"},{"brief":"   "}]}`,
+			`{"idempotency_key":"invalid-fanout","designations":[{"brief":"Valid lane"},{"brief":"   "}]}`,
 		),
 	)
 	if resp.Code != http.StatusBadRequest {
@@ -2094,7 +2097,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		http.MethodPost,
 		"/tasks/task-1/runs/fan-out",
 		[]byte(
-			`{"network_channel":"builders","designations":[{"brief":"Missing idempotency"}]}`,
+			`{"designations":[{"brief":"Missing idempotency"}]}`,
 		),
 	)
 	if resp.Code != http.StatusBadRequest {
@@ -2328,12 +2331,12 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		}
 	})
 
-	if listedQuery.WorkspaceID != "ws-alpha" || listedQuery.Scope != taskpkg.ScopeWorkspace ||
-		listedQuery.NetworkChannel != "builders" {
+	if listedQuery.WorkspaceID != "ws-alpha" || listedQuery.Scope != taskpkg.CatalogScopeWorkspace {
 		t.Fatalf("listed query = %#v", listedQuery)
 	}
 	if listedQuery.Status != taskpkg.TaskStatusReady || listedQuery.OwnerKind != taskpkg.OwnerKindPool ||
 		listedQuery.OwnerRef != "reviewers" ||
+		listedQuery.NetworkChannel != "builders" ||
 		listedQuery.Limit != 2 {
 		t.Fatalf("listed query = %#v", listedQuery)
 	}
@@ -2347,7 +2350,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	if getTaskCalls != 4 {
 		t.Fatalf("GetTask() calls = %d, want 4 detail reads without extra run-list fetch", getTaskCalls)
 	}
-	if createdSpec.WorkspaceID != "ws-alpha" || createdSpec.NetworkChannel != "builders" || createdSpec.Owner == nil ||
+	if createdSpec.WorkspaceID != "ws-alpha" || createdSpec.Owner == nil ||
 		createdSpec.Owner.Ref != "reviewers" {
 		t.Fatalf("created spec = %#v", createdSpec)
 	}
@@ -2369,7 +2372,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	if removedTaskID != "task-1" || removedDependsOnID != "task-blocker" {
 		t.Fatalf("removed dependency = task=%q dependsOn=%q", removedTaskID, removedDependsOnID)
 	}
-	if enqueuedRun.IdempotencyKey != "key-3" || enqueuedRun.NetworkChannel != "builders" {
+	if enqueuedRun.IdempotencyKey != "key-3" || enqueuedRun.NetworkParticipation != nil {
 		t.Fatalf("enqueued run = %#v", enqueuedRun)
 	}
 	if got, want := string(
@@ -2386,7 +2389,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	}
 	for idx, run := range fanoutEnqueues {
 		if run.TaskID != "task-1" ||
-			run.NetworkChannel != "builders" ||
+			run.NetworkParticipation != nil ||
 			run.DesignationGroupID != fanoutRollup.DesignationGroupID {
 			t.Fatalf("fanout enqueue %d = %#v", idx, run)
 		}

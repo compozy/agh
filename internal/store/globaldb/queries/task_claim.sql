@@ -106,14 +106,6 @@ WHERE id = sqlc.arg(id)
   AND claim_token_hash = sqlc.arg(claim_token_hash)
   AND lease_until = sqlc.arg(lease_until);
 
--- name: GetNetworkChannelForTask :one
-SELECT channel, workspace_id, purpose, fanout_policy,
-       COALESCE(coordinator_peer_id, '') AS coordinator_peer_id,
-       COALESCE(created_by, '') AS created_by,
-       created_at, updated_at
-FROM network_channels
-WHERE channel = sqlc.arg(channel);
-
 -- name: ClaimTaskRun :execrows
 UPDATE task_runs
 SET status = sqlc.arg(claimed_status),

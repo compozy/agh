@@ -347,13 +347,6 @@ func taskSessionAgentName(taskRecord taskpkg.Task) string {
 	return strings.TrimSpace(owner.Ref)
 }
 
-func taskRunSessionChannel(run taskpkg.Run) string {
-	if channel := strings.TrimSpace(run.CoordinationChannelID); channel != "" {
-		return channel
-	}
-	return strings.TrimSpace(run.NetworkChannel)
-}
-
 func taskStopCause(reason taskpkg.StopReason) session.StopCause {
 	switch reason.Normalize() {
 	case taskpkg.StopReasonCompleted:

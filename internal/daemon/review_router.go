@@ -339,7 +339,7 @@ func (r *reviewRouter) routeRunReview(
 		SessionID:         info.ID,
 		ReviewerAgentName: info.AgentName,
 		ReviewerPeerID:    peerID,
-		ReviewerChannelID: info.Channel,
+		ReviewerChannelID: info.NetworkParticipation.ChannelID,
 	}, actor); err != nil {
 		if route.create != nil {
 			err = errors.Join(err, r.cleanupCreatedReviewerSession(ctx, info))
@@ -522,7 +522,7 @@ func (r *reviewRouter) existingCandidateScore(
 		return 0, false, nil
 	}
 	agentName := strings.TrimSpace(info.AgentName)
-	channelID := strings.TrimSpace(info.Channel)
+	channelID := strings.TrimSpace(info.NetworkParticipation.ChannelID)
 	peerID := reviewRouterPeerID(info)
 	if !selectorAllows(review.AgentName, review.AllowedAgentNames, agentName) ||
 		!selectorAllows("", review.AllowedChannelIDs, channelID) ||
@@ -574,7 +574,6 @@ func (r *reviewRouter) createRoute(
 	if err != nil || diagnostic != "" {
 		return nil, diagnostic, err
 	}
-	channelID := selectReviewChannel(taskRecord, run, review)
 	promptOverlay := reviewRouterPromptOverlay(taskRecord.ID, run.ID)
 	if r.contextOverlay != nil {
 		taskOverlay, err := r.contextOverlay.TaskRunPromptOverlay(ctx, taskRecord, run, nil)
@@ -589,7 +588,6 @@ func (r *reviewRouter) createRoute(
 		Provider:      review.Provider,
 		Model:         review.Model,
 		Workspace:     taskRecord.WorkspaceID,
-		Channel:       channelID,
 		Type:          session.SessionTypeSystem,
 		PromptOverlay: promptOverlay,
 	}, "", nil
@@ -774,27 +772,6 @@ func selectorAllows(exact string, allowed []string, value string) bool {
 		return false
 	}
 	return len(allowed) == 0 || slices.Contains(allowed, value)
-}
-
-func selectReviewChannel(
-	taskRecord taskpkg.Task,
-	run taskpkg.Run,
-	review *taskpkg.ReviewProfile,
-) string {
-	for _, value := range review.PreferredChannelIDs {
-		if len(review.AllowedChannelIDs) == 0 || slices.Contains(review.AllowedChannelIDs, value) {
-			return value
-		}
-	}
-	if len(review.AllowedChannelIDs) > 0 {
-		return review.AllowedChannelIDs[0]
-	}
-	for _, value := range []string{run.CoordinationChannelID, run.NetworkChannel, taskRecord.NetworkChannel} {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
 }
 
 func reviewRouterPeerID(info *session.Info) string {

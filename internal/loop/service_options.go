@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"time"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 // DefaultsResolver resolves the `[loops.defaults.*]` layer for one workspace.
@@ -25,6 +27,13 @@ func WithLogger(logger *slog.Logger) Option {
 func WithDefaults(defaults LoopDefaults) Option {
 	return func(s *service) {
 		s.defaults = defaults
+	}
+}
+
+// WithParticipationResolver injects the canonical execution participation resolver.
+func WithParticipationResolver(resolver participation.Resolver) Option {
+	return func(s *service) {
+		s.participationResolver = resolver
 	}
 }
 

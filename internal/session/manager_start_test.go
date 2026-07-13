@@ -20,9 +20,9 @@ func TestSessionStartEnvFiltersDaemonSecrets(t *testing.T) {
 				"PROVIDER_HOME=/tmp/provider",
 			},
 			&Session{
-				ID:        "sess-1",
-				AgentName: "coder",
-				Channel:   "ops",
+				ID:                   "sess-1",
+				AgentName:            "coder",
+				NetworkParticipation: testLiveParticipation("ws-test", "ops"),
 			},
 		)
 
@@ -59,9 +59,9 @@ func TestSessionStartEnvForProviderSupportsIsolatedPolicy(t *testing.T) {
 				"PROVIDER_HOME=/tmp/provider",
 			},
 			&Session{
-				ID:        "sess-1",
-				AgentName: "coder",
-				Channel:   "ops",
+				ID:                   "sess-1",
+				AgentName:            "coder",
+				NetworkParticipation: testLiveParticipation("ws-test", "ops"),
 			},
 			aghconfig.ProviderEnvPolicyIsolated,
 		)

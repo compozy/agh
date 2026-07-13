@@ -509,9 +509,6 @@ func TestGlobalDBTaskRoundTripPreservesNullableFields(t *testing.T) {
 	if gotParent.Owner != nil {
 		t.Fatalf("GetTask(parent).Owner = %#v, want nil", gotParent.Owner)
 	}
-	if gotParent.NetworkChannel != "" {
-		t.Fatalf("GetTask(parent).NetworkChannel = %q, want empty", gotParent.NetworkChannel)
-	}
 
 	gotChild, err := globalDB.GetTask(testutil.Context(t), child.ID)
 	if err != nil {
@@ -2312,7 +2309,6 @@ func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 			CoalesceWindow:   "500ms",
 		},
 	}
-	runningRun.NetworkChannel = "finance"
 	runningRun.ClaimedAt = queuedRun.QueuedAt.Add(30 * time.Second)
 	runningRun.StartedAt = queuedRun.QueuedAt.Add(time.Minute)
 	runningRun.ClaimTokenHash = "sha256:" + strings.Repeat("a", 64)
@@ -2554,7 +2550,6 @@ func TestGlobalDBReserveQueuedRunDeduplicatesConcurrentIdempotentRequests(t *tes
 					runIDs[i],
 					"dup-key",
 					origin,
-					"ops",
 					metadata,
 					queuedAt,
 				),
@@ -2659,7 +2654,6 @@ func TestGlobalDBReserveQueuedRunPersistsResolvedNetworkSnapshot(t *testing.T) {
 		"run-reserve-network-snapshot",
 		"network-snapshot-key",
 		taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
-		"",
 		nil,
 		time.Date(2026, 7, 13, 13, 0, 0, 0, time.UTC),
 	)
@@ -2777,7 +2771,6 @@ func TestGlobalDBReserveQueuedRunRejectsConcurrentOpenRun(t *testing.T) {
 					"run-reserved-open-a",
 					"open-key",
 					origin,
-					"ops",
 					nil,
 					queuedAt,
 				),
@@ -2806,7 +2799,6 @@ func TestGlobalDBReserveQueuedRunRejectsConcurrentOpenRun(t *testing.T) {
 					"run-reserved-open-duplicate",
 					"open-key",
 					origin,
-					"ops",
 					nil,
 					queuedAt.Add(time.Second),
 				),
@@ -2828,7 +2820,6 @@ func TestGlobalDBReserveQueuedRunRejectsConcurrentOpenRun(t *testing.T) {
 					"run-reserved-open-b",
 					"new-open-key",
 					origin,
-					"ops",
 					nil,
 					queuedAt.Add(2*time.Second),
 				),
@@ -2880,7 +2871,6 @@ func TestGlobalDBReserveQueuedRunAllowsDesignatedSiblingRuns(t *testing.T) {
 				"run-designated-sibling-a",
 				"designated-key-a",
 				origin,
-				"ops",
 				nil,
 				queuedAt,
 				"designation-group-a",
@@ -2899,7 +2889,6 @@ func TestGlobalDBReserveQueuedRunAllowsDesignatedSiblingRuns(t *testing.T) {
 				"run-designated-sibling-b",
 				"designated-key-b",
 				origin,
-				"ops",
 				nil,
 				queuedAt.Add(time.Second),
 				"designation-group-a",
@@ -2927,7 +2916,6 @@ func TestGlobalDBReserveQueuedRunAllowsDesignatedSiblingRuns(t *testing.T) {
 				"run-designated-sibling-undesignated",
 				"designated-key-undesignated",
 				origin,
-				"ops",
 				nil,
 				queuedAt.Add(2*time.Second),
 			),
@@ -2949,7 +2937,6 @@ func TestGlobalDBReserveQueuedRunAllowsDesignatedSiblingRuns(t *testing.T) {
 				"run-designated-sibling-other-group",
 				"designated-key-other-group",
 				origin,
-				"ops",
 				nil,
 				queuedAt.Add(3*time.Second),
 				"designation-group-b",
@@ -3698,7 +3685,6 @@ func assertTaskEqual(t *testing.T, got taskpkg.Task, want taskpkg.Task) {
 		got.Scope != want.Scope ||
 		got.WorkspaceID != want.WorkspaceID ||
 		got.ParentTaskID != want.ParentTaskID ||
-		got.NetworkChannel != want.NetworkChannel ||
 		got.Title != want.Title ||
 		got.Description != want.Description ||
 		got.Priority != want.Priority ||
@@ -3729,7 +3715,6 @@ func assertTaskSummaryMatchesTask(t *testing.T, got *taskpkg.Summary, want taskp
 		got.Scope != want.Scope ||
 		got.WorkspaceID != want.WorkspaceID ||
 		got.ParentTaskID != want.ParentTaskID ||
-		got.NetworkChannel != want.NetworkChannel ||
 		got.Title != want.Title ||
 		got.Priority != want.Priority ||
 		got.MaxAttempts != want.MaxAttempts ||
@@ -3873,7 +3858,6 @@ func assertTaskRunEqual(t *testing.T, got taskpkg.Run, want taskpkg.Run) {
 		got.Origin != want.Origin ||
 		got.IdempotencyKey != want.IdempotencyKey ||
 		got.NetworkSpec != want.NetworkSpec ||
-		got.NetworkChannel != want.NetworkChannel ||
 		got.ClaimTokenHash != want.ClaimTokenHash ||
 		!got.QueuedAt.Equal(want.QueuedAt) ||
 		!got.ClaimedAt.Equal(want.ClaimedAt) ||
@@ -3985,19 +3969,17 @@ func queuedRunReservationForTest(
 	runID string,
 	idempotencyKey string,
 	origin taskpkg.Origin,
-	requestedChannel string,
 	metadata json.RawMessage,
 	queuedAt time.Time,
 	designationGroupID ...string,
 ) taskpkg.QueueRunReservation {
 	reservation := taskpkg.QueueRunReservation{
-		TaskID:           taskID,
-		RunID:            runID,
-		IdempotencyKey:   idempotencyKey,
-		Origin:           origin,
-		RequestedChannel: requestedChannel,
-		Metadata:         metadata,
-		QueuedAt:         queuedAt,
+		TaskID:         taskID,
+		RunID:          runID,
+		IdempotencyKey: idempotencyKey,
+		Origin:         origin,
+		Metadata:       metadata,
+		QueuedAt:       queuedAt,
 	}
 	for _, value := range designationGroupID {
 		if trimmed := strings.TrimSpace(value); trimmed != "" {

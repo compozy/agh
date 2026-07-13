@@ -18,6 +18,7 @@ type taskBlockWatchEventPayload struct {
 }
 
 type taskAttentionWatchEventPayload struct {
+	Status          taskpkg.Status    `json:"status"`
 	Reason          string            `json:"reason,omitempty"`
 	At              time.Time         `json:"at,omitzero"`
 	BlockID         string            `json:"block_id,omitempty"`
@@ -26,7 +27,9 @@ type taskAttentionWatchEventPayload struct {
 }
 
 type taskRecoveredWatchEventPayload struct {
-	At time.Time `json:"at,omitzero"`
+	Status taskpkg.Status `json:"status"`
+	Note   string         `json:"note,omitempty"`
+	At     time.Time      `json:"at,omitzero"`
 }
 
 type taskRunCompletedWatchEventPayload struct {

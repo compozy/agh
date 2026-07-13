@@ -63,7 +63,6 @@ type EnqueueSpec struct {
 	RunKind            RunKind         `json:"run_kind,omitempty"`
 	LoopRunID          string          `json:"loop_run_id,omitempty"`
 	IdempotencyKey     string          `json:"idempotency_key,omitempty"`
-	NetworkChannel     string          `json:"network_channel,omitempty"`
 	DesignationGroupID string          `json:"designation_group_id,omitempty"`
 	Metadata           json.RawMessage `json:"metadata,omitempty"`
 }
@@ -355,7 +354,6 @@ func (s EnqueueSpec) Normalize() EnqueueSpec {
 	normalized.RunKind = normalizeRunKindOrDefault(normalized.RunKind)
 	normalized.LoopRunID = strings.TrimSpace(normalized.LoopRunID)
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
-	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
 	normalized.DesignationGroupID = strings.TrimSpace(normalized.DesignationGroupID)
 	normalized.Metadata = normalizeRawJSON(normalized.Metadata)
 	return normalized

@@ -2889,9 +2889,6 @@
                                       ],
                                       "type": "object"
                                     },
-                                    "coordination_channel_id": {
-                                      "type": "string"
-                                    },
                                     "designation": {
                                       "nullable": true,
                                       "properties": {
@@ -2944,6 +2941,73 @@
                                       "format": "date-time",
                                       "type": "string"
                                     },
+                                    "resolved_network_participation": {
+                                      "nullable": true,
+                                      "properties": {
+                                        "bounds": {
+                                          "properties": {
+                                            "coalesce_window": {
+                                              "type": "string"
+                                            },
+                                            "max_input_tokens": {
+                                              "format": "int64",
+                                              "type": "integer"
+                                            },
+                                            "max_output_tokens": {
+                                              "format": "int64",
+                                              "type": "integer"
+                                            },
+                                            "max_total_wall_time": {
+                                              "type": "string"
+                                            },
+                                            "max_wake_depth": {
+                                              "type": "integer"
+                                            },
+                                            "max_wake_wall_time": {
+                                              "type": "string"
+                                            },
+                                            "max_wakes": {
+                                              "type": "integer"
+                                            }
+                                          },
+                                          "required": [
+                                            "coalesce_window",
+                                            "max_input_tokens",
+                                            "max_output_tokens",
+                                            "max_total_wall_time",
+                                            "max_wake_depth",
+                                            "max_wake_wall_time",
+                                            "max_wakes"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "channel_id": {
+                                          "type": "string"
+                                        },
+                                        "channel_strategy": {
+                                          "type": "string"
+                                        },
+                                        "mode": {
+                                          "type": "string"
+                                        },
+                                        "source": {
+                                          "type": "string"
+                                        },
+                                        "version": {
+                                          "type": "string"
+                                        },
+                                        "workspace_id": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "bounds",
+                                        "mode",
+                                        "source",
+                                        "version"
+                                      ],
+                                      "type": "object"
+                                    },
                                     "run_kind": {
                                       "maximum": 255,
                                       "minimum": 0,
@@ -2986,6 +3050,7 @@
                                     "lease_until",
                                     "max_attempts",
                                     "queued_at",
+                                    "resolved_network_participation",
                                     "started_at",
                                     "status",
                                     "task_id"
@@ -3025,6 +3090,60 @@
                                     "created_at": {
                                       "format": "date-time",
                                       "type": "string"
+                                    },
+                                    "network_participation": {
+                                      "nullable": true,
+                                      "properties": {
+                                        "bounds": {
+                                          "nullable": true,
+                                          "properties": {
+                                            "coalesce_window": {
+                                              "nullable": true,
+                                              "type": "string"
+                                            },
+                                            "max_input_tokens": {
+                                              "format": "int64",
+                                              "nullable": true,
+                                              "type": "integer"
+                                            },
+                                            "max_output_tokens": {
+                                              "format": "int64",
+                                              "nullable": true,
+                                              "type": "integer"
+                                            },
+                                            "max_total_wall_time": {
+                                              "nullable": true,
+                                              "type": "string"
+                                            },
+                                            "max_wake_depth": {
+                                              "nullable": true,
+                                              "type": "integer"
+                                            },
+                                            "max_wake_wall_time": {
+                                              "nullable": true,
+                                              "type": "string"
+                                            },
+                                            "max_wakes": {
+                                              "nullable": true,
+                                              "type": "integer"
+                                            }
+                                          },
+                                          "type": "object"
+                                        },
+                                        "channel_id": {
+                                          "nullable": true,
+                                          "type": "string"
+                                        },
+                                        "channel_strategy": {
+                                          "nullable": true,
+                                          "type": "string"
+                                        },
+                                        "mode": {
+                                          "nullable": true,
+                                          "type": "string"
+                                        }
+                                      },
+                                      "type": "object"
                                     },
                                     "participants": {
                                       "properties": {
@@ -3308,9 +3427,6 @@
                                         ],
                                         "type": "object"
                                       },
-                                      "coordination_channel_id": {
-                                        "type": "string"
-                                      },
                                       "designation": {
                                         "nullable": true,
                                         "properties": {
@@ -3363,6 +3479,73 @@
                                         "format": "date-time",
                                         "type": "string"
                                       },
+                                      "resolved_network_participation": {
+                                        "nullable": true,
+                                        "properties": {
+                                          "bounds": {
+                                            "properties": {
+                                              "coalesce_window": {
+                                                "type": "string"
+                                              },
+                                              "max_input_tokens": {
+                                                "format": "int64",
+                                                "type": "integer"
+                                              },
+                                              "max_output_tokens": {
+                                                "format": "int64",
+                                                "type": "integer"
+                                              },
+                                              "max_total_wall_time": {
+                                                "type": "string"
+                                              },
+                                              "max_wake_depth": {
+                                                "type": "integer"
+                                              },
+                                              "max_wake_wall_time": {
+                                                "type": "string"
+                                              },
+                                              "max_wakes": {
+                                                "type": "integer"
+                                              }
+                                            },
+                                            "required": [
+                                              "coalesce_window",
+                                              "max_input_tokens",
+                                              "max_output_tokens",
+                                              "max_total_wall_time",
+                                              "max_wake_depth",
+                                              "max_wake_wall_time",
+                                              "max_wakes"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "channel_id": {
+                                            "type": "string"
+                                          },
+                                          "channel_strategy": {
+                                            "type": "string"
+                                          },
+                                          "mode": {
+                                            "type": "string"
+                                          },
+                                          "source": {
+                                            "type": "string"
+                                          },
+                                          "version": {
+                                            "type": "string"
+                                          },
+                                          "workspace_id": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "bounds",
+                                          "mode",
+                                          "source",
+                                          "version"
+                                        ],
+                                        "type": "object"
+                                      },
                                       "run_kind": {
                                         "maximum": 255,
                                         "minimum": 0,
@@ -3405,6 +3588,7 @@
                                       "lease_until",
                                       "max_attempts",
                                       "queued_at",
+                                      "resolved_network_participation",
                                       "started_at",
                                       "status",
                                       "task_id"
@@ -3509,9 +3693,6 @@
                                             ],
                                             "type": "object"
                                           },
-                                          "coordination_channel_id": {
-                                            "type": "string"
-                                          },
                                           "designation": {
                                             "nullable": true,
                                             "properties": {
@@ -3564,6 +3745,73 @@
                                             "format": "date-time",
                                             "type": "string"
                                           },
+                                          "resolved_network_participation": {
+                                            "nullable": true,
+                                            "properties": {
+                                              "bounds": {
+                                                "properties": {
+                                                  "coalesce_window": {
+                                                    "type": "string"
+                                                  },
+                                                  "max_input_tokens": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                  },
+                                                  "max_output_tokens": {
+                                                    "format": "int64",
+                                                    "type": "integer"
+                                                  },
+                                                  "max_total_wall_time": {
+                                                    "type": "string"
+                                                  },
+                                                  "max_wake_depth": {
+                                                    "type": "integer"
+                                                  },
+                                                  "max_wake_wall_time": {
+                                                    "type": "string"
+                                                  },
+                                                  "max_wakes": {
+                                                    "type": "integer"
+                                                  }
+                                                },
+                                                "required": [
+                                                  "coalesce_window",
+                                                  "max_input_tokens",
+                                                  "max_output_tokens",
+                                                  "max_total_wall_time",
+                                                  "max_wake_depth",
+                                                  "max_wake_wall_time",
+                                                  "max_wakes"
+                                                ],
+                                                "type": "object"
+                                              },
+                                              "channel_id": {
+                                                "type": "string"
+                                              },
+                                              "channel_strategy": {
+                                                "type": "string"
+                                              },
+                                              "mode": {
+                                                "type": "string"
+                                              },
+                                              "source": {
+                                                "type": "string"
+                                              },
+                                              "version": {
+                                                "type": "string"
+                                              },
+                                              "workspace_id": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "bounds",
+                                              "mode",
+                                              "source",
+                                              "version"
+                                            ],
+                                            "type": "object"
+                                          },
                                           "run_kind": {
                                             "maximum": 255,
                                             "minimum": 0,
@@ -3606,6 +3854,7 @@
                                           "lease_until",
                                           "max_attempts",
                                           "queued_at",
+                                          "resolved_network_participation",
                                           "started_at",
                                           "status",
                                           "task_id"
@@ -27692,6 +27941,60 @@
                               "loop_name": {
                                 "type": "string"
                               },
+                              "network_participation": {
+                                "nullable": true,
+                                "properties": {
+                                  "bounds": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "coalesce_window": {
+                                        "nullable": true,
+                                        "type": "string"
+                                      },
+                                      "max_input_tokens": {
+                                        "format": "int64",
+                                        "nullable": true,
+                                        "type": "integer"
+                                      },
+                                      "max_output_tokens": {
+                                        "format": "int64",
+                                        "nullable": true,
+                                        "type": "integer"
+                                      },
+                                      "max_total_wall_time": {
+                                        "nullable": true,
+                                        "type": "string"
+                                      },
+                                      "max_wake_depth": {
+                                        "nullable": true,
+                                        "type": "integer"
+                                      },
+                                      "max_wake_wall_time": {
+                                        "nullable": true,
+                                        "type": "string"
+                                      },
+                                      "max_wakes": {
+                                        "nullable": true,
+                                        "type": "integer"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "channel_id": {
+                                    "nullable": true,
+                                    "type": "string"
+                                  },
+                                  "channel_strategy": {
+                                    "nullable": true,
+                                    "type": "string"
+                                  },
+                                  "mode": {
+                                    "nullable": true,
+                                    "type": "string"
+                                  }
+                                },
+                                "type": "object"
+                              },
                               "workspace_id": {
                                 "type": "string"
                               }
@@ -27847,8 +28150,59 @@
                               "description": {
                                 "type": "string"
                               },
-                              "network_channel": {
-                                "type": "string"
+                              "network_participation": {
+                                "nullable": true,
+                                "properties": {
+                                  "bounds": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "coalesce_window": {
+                                        "nullable": true,
+                                        "type": "string"
+                                      },
+                                      "max_input_tokens": {
+                                        "format": "int64",
+                                        "nullable": true,
+                                        "type": "integer"
+                                      },
+                                      "max_output_tokens": {
+                                        "format": "int64",
+                                        "nullable": true,
+                                        "type": "integer"
+                                      },
+                                      "max_total_wall_time": {
+                                        "nullable": true,
+                                        "type": "string"
+                                      },
+                                      "max_wake_depth": {
+                                        "nullable": true,
+                                        "type": "integer"
+                                      },
+                                      "max_wake_wall_time": {
+                                        "nullable": true,
+                                        "type": "string"
+                                      },
+                                      "max_wakes": {
+                                        "nullable": true,
+                                        "type": "integer"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "channel_id": {
+                                    "nullable": true,
+                                    "type": "string"
+                                  },
+                                  "channel_strategy": {
+                                    "nullable": true,
+                                    "type": "string"
+                                  },
+                                  "mode": {
+                                    "nullable": true,
+                                    "type": "string"
+                                  }
+                                },
+                                "type": "object"
                               },
                               "owner": {
                                 "nullable": true,
@@ -28187,6 +28541,60 @@
                       "loop_name": {
                         "type": "string"
                       },
+                      "network_participation": {
+                        "nullable": true,
+                        "properties": {
+                          "bounds": {
+                            "nullable": true,
+                            "properties": {
+                              "coalesce_window": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_input_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_output_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_total_wall_time": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_wake_depth": {
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_wake_wall_time": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_wakes": {
+                                "nullable": true,
+                                "type": "integer"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "channel_id": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "channel_strategy": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "mode": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
                       "workspace_id": {
                         "type": "string"
                       }
@@ -28268,8 +28676,59 @@
                       "description": {
                         "type": "string"
                       },
-                      "network_channel": {
-                        "type": "string"
+                      "network_participation": {
+                        "nullable": true,
+                        "properties": {
+                          "bounds": {
+                            "nullable": true,
+                            "properties": {
+                              "coalesce_window": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_input_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_output_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_total_wall_time": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_wake_depth": {
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_wake_wall_time": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_wakes": {
+                                "nullable": true,
+                                "type": "integer"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "channel_id": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "channel_strategy": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "mode": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
                       },
                       "owner": {
                         "nullable": true,
@@ -28370,6 +28829,60 @@
                             },
                             "loop_name": {
                               "type": "string"
+                            },
+                            "network_participation": {
+                              "nullable": true,
+                              "properties": {
+                                "bounds": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "coalesce_window": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_input_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_output_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_total_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wake_depth": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_wake_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wakes": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "channel_id": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "channel_strategy": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "nullable": true,
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
                             },
                             "workspace_id": {
                               "type": "string"
@@ -28526,8 +29039,59 @@
                             "description": {
                               "type": "string"
                             },
-                            "network_channel": {
-                              "type": "string"
+                            "network_participation": {
+                              "nullable": true,
+                              "properties": {
+                                "bounds": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "coalesce_window": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_input_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_output_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_total_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wake_depth": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_wake_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wakes": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "channel_id": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "channel_strategy": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "nullable": true,
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
                             },
                             "owner": {
                               "nullable": true,
@@ -29273,6 +29837,60 @@
                             "loop_name": {
                               "type": "string"
                             },
+                            "network_participation": {
+                              "nullable": true,
+                              "properties": {
+                                "bounds": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "coalesce_window": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_input_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_output_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_total_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wake_depth": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_wake_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wakes": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "channel_id": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "channel_strategy": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "nullable": true,
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
+                            },
                             "workspace_id": {
                               "type": "string"
                             }
@@ -29428,8 +30046,59 @@
                             "description": {
                               "type": "string"
                             },
-                            "network_channel": {
-                              "type": "string"
+                            "network_participation": {
+                              "nullable": true,
+                              "properties": {
+                                "bounds": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "coalesce_window": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_input_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_output_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_total_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wake_depth": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_wake_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wakes": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "channel_id": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "channel_strategy": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "nullable": true,
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
                             },
                             "owner": {
                               "nullable": true,
@@ -29755,6 +30424,60 @@
                       "loop_name": {
                         "type": "string"
                       },
+                      "network_participation": {
+                        "nullable": true,
+                        "properties": {
+                          "bounds": {
+                            "nullable": true,
+                            "properties": {
+                              "coalesce_window": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_input_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_output_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_total_wall_time": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_wake_depth": {
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_wake_wall_time": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_wakes": {
+                                "nullable": true,
+                                "type": "integer"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "channel_id": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "channel_strategy": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "mode": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
                       "workspace_id": {
                         "type": "string"
                       }
@@ -29833,8 +30556,59 @@
                       "description": {
                         "type": "string"
                       },
-                      "network_channel": {
-                        "type": "string"
+                      "network_participation": {
+                        "nullable": true,
+                        "properties": {
+                          "bounds": {
+                            "nullable": true,
+                            "properties": {
+                              "coalesce_window": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_input_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_output_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_total_wall_time": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_wake_depth": {
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_wake_wall_time": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_wakes": {
+                                "nullable": true,
+                                "type": "integer"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "channel_id": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "channel_strategy": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "mode": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
                       },
                       "owner": {
                         "nullable": true,
@@ -29929,6 +30703,60 @@
                             },
                             "loop_name": {
                               "type": "string"
+                            },
+                            "network_participation": {
+                              "nullable": true,
+                              "properties": {
+                                "bounds": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "coalesce_window": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_input_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_output_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_total_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wake_depth": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_wake_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wakes": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "channel_id": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "channel_strategy": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "nullable": true,
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
                             },
                             "workspace_id": {
                               "type": "string"
@@ -30085,8 +30913,59 @@
                             "description": {
                               "type": "string"
                             },
-                            "network_channel": {
-                              "type": "string"
+                            "network_participation": {
+                              "nullable": true,
+                              "properties": {
+                                "bounds": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "coalesce_window": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_input_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_output_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_total_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wake_depth": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_wake_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wakes": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "channel_id": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "channel_strategy": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "nullable": true,
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
                             },
                             "owner": {
                               "nullable": true,
@@ -32192,6 +33071,60 @@
                               "loop_name": {
                                 "type": "string"
                               },
+                              "network_participation": {
+                                "nullable": true,
+                                "properties": {
+                                  "bounds": {
+                                    "nullable": true,
+                                    "properties": {
+                                      "coalesce_window": {
+                                        "nullable": true,
+                                        "type": "string"
+                                      },
+                                      "max_input_tokens": {
+                                        "format": "int64",
+                                        "nullable": true,
+                                        "type": "integer"
+                                      },
+                                      "max_output_tokens": {
+                                        "format": "int64",
+                                        "nullable": true,
+                                        "type": "integer"
+                                      },
+                                      "max_total_wall_time": {
+                                        "nullable": true,
+                                        "type": "string"
+                                      },
+                                      "max_wake_depth": {
+                                        "nullable": true,
+                                        "type": "integer"
+                                      },
+                                      "max_wake_wall_time": {
+                                        "nullable": true,
+                                        "type": "string"
+                                      },
+                                      "max_wakes": {
+                                        "nullable": true,
+                                        "type": "integer"
+                                      }
+                                    },
+                                    "type": "object"
+                                  },
+                                  "channel_id": {
+                                    "nullable": true,
+                                    "type": "string"
+                                  },
+                                  "channel_strategy": {
+                                    "nullable": true,
+                                    "type": "string"
+                                  },
+                                  "mode": {
+                                    "nullable": true,
+                                    "type": "string"
+                                  }
+                                },
+                                "type": "object"
+                              },
                               "workspace_id": {
                                 "type": "string"
                               }
@@ -32557,6 +33490,60 @@
                       "loop_name": {
                         "type": "string"
                       },
+                      "network_participation": {
+                        "nullable": true,
+                        "properties": {
+                          "bounds": {
+                            "nullable": true,
+                            "properties": {
+                              "coalesce_window": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_input_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_output_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_total_wall_time": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_wake_depth": {
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_wake_wall_time": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_wakes": {
+                                "nullable": true,
+                                "type": "integer"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "channel_id": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "channel_strategy": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "mode": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
                       "workspace_id": {
                         "type": "string"
                       }
@@ -32694,6 +33681,60 @@
                             },
                             "loop_name": {
                               "type": "string"
+                            },
+                            "network_participation": {
+                              "nullable": true,
+                              "properties": {
+                                "bounds": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "coalesce_window": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_input_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_output_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_total_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wake_depth": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_wake_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wakes": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "channel_id": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "channel_strategy": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "nullable": true,
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
                             },
                             "workspace_id": {
                               "type": "string"
@@ -33489,6 +34530,60 @@
                             "loop_name": {
                               "type": "string"
                             },
+                            "network_participation": {
+                              "nullable": true,
+                              "properties": {
+                                "bounds": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "coalesce_window": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_input_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_output_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_total_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wake_depth": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_wake_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wakes": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "channel_id": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "channel_strategy": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "nullable": true,
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
+                            },
                             "workspace_id": {
                               "type": "string"
                             }
@@ -33865,6 +34960,60 @@
                       "loop_name": {
                         "type": "string"
                       },
+                      "network_participation": {
+                        "nullable": true,
+                        "properties": {
+                          "bounds": {
+                            "nullable": true,
+                            "properties": {
+                              "coalesce_window": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_input_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_output_tokens": {
+                                "format": "int64",
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_total_wall_time": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_wake_depth": {
+                                "nullable": true,
+                                "type": "integer"
+                              },
+                              "max_wake_wall_time": {
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "max_wakes": {
+                                "nullable": true,
+                                "type": "integer"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "channel_id": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "channel_strategy": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "mode": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
                       "workspace_id": {
                         "type": "string"
                       }
@@ -33994,6 +35143,60 @@
                             },
                             "loop_name": {
                               "type": "string"
+                            },
+                            "network_participation": {
+                              "nullable": true,
+                              "properties": {
+                                "bounds": {
+                                  "nullable": true,
+                                  "properties": {
+                                    "coalesce_window": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_input_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_output_tokens": {
+                                      "format": "int64",
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_total_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wake_depth": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    },
+                                    "max_wake_wall_time": {
+                                      "nullable": true,
+                                      "type": "string"
+                                    },
+                                    "max_wakes": {
+                                      "nullable": true,
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "type": "object"
+                                },
+                                "channel_id": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "channel_strategy": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "mode": {
+                                  "nullable": true,
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
                             },
                             "workspace_id": {
                               "type": "string"
@@ -133582,6 +134785,60 @@
                           "format": "date-time",
                           "type": "string"
                         },
+                        "network_participation": {
+                          "nullable": true,
+                          "properties": {
+                            "bounds": {
+                              "nullable": true,
+                              "properties": {
+                                "coalesce_window": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "max_input_tokens": {
+                                  "format": "int64",
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "max_output_tokens": {
+                                  "format": "int64",
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "max_total_wall_time": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "max_wake_depth": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "max_wake_wall_time": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "max_wakes": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "channel_id": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "channel_strategy": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "mode": {
+                              "nullable": true,
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
                         "participants": {
                           "properties": {
                             "allowed_agent_names": {
@@ -134125,6 +135382,60 @@
                     "format": "date-time",
                     "type": "string"
                   },
+                  "network_participation": {
+                    "nullable": true,
+                    "properties": {
+                      "bounds": {
+                        "nullable": true,
+                        "properties": {
+                          "coalesce_window": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "max_input_tokens": {
+                            "format": "int64",
+                            "nullable": true,
+                            "type": "integer"
+                          },
+                          "max_output_tokens": {
+                            "format": "int64",
+                            "nullable": true,
+                            "type": "integer"
+                          },
+                          "max_total_wall_time": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "max_wake_depth": {
+                            "nullable": true,
+                            "type": "integer"
+                          },
+                          "max_wake_wall_time": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "max_wakes": {
+                            "nullable": true,
+                            "type": "integer"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "channel_id": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "channel_strategy": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "mode": {
+                        "nullable": true,
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
                   "participants": {
                     "properties": {
                       "allowed_agent_names": {
@@ -134386,6 +135697,60 @@
                         "created_at": {
                           "format": "date-time",
                           "type": "string"
+                        },
+                        "network_participation": {
+                          "nullable": true,
+                          "properties": {
+                            "bounds": {
+                              "nullable": true,
+                              "properties": {
+                                "coalesce_window": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "max_input_tokens": {
+                                  "format": "int64",
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "max_output_tokens": {
+                                  "format": "int64",
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "max_total_wall_time": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "max_wake_depth": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "max_wake_wall_time": {
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "max_wakes": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "channel_id": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "channel_strategy": {
+                              "nullable": true,
+                              "type": "string"
+                            },
+                            "mode": {
+                              "nullable": true,
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
                         },
                         "participants": {
                           "properties": {

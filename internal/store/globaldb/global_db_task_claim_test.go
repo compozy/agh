@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -18,6 +19,7 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
 	"github.com/compozy/agh/internal/loop/gate"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
@@ -200,6 +202,111 @@ func TestGlobalDBClaimNextRunFiltersByCapabilitiesAndScope(t *testing.T) {
 	}
 }
 
+func TestGlobalDBClaimNextRunScopesCoordinationMetadataToRunWorkspace(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	workspaceA := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"claim-channel-scope-a",
+		filepath.Join(t.TempDir(), "claim-channel-scope-a"),
+	)
+	workspaceB := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"claim-channel-scope-b",
+		filepath.Join(t.TempDir(), "claim-channel-scope-b"),
+	)
+	now := time.Date(2026, 7, 13, 17, 0, 0, 0, time.UTC)
+	for _, channel := range []store.NetworkChannelEntry{
+		{
+			Channel:     "operations",
+			WorkspaceID: workspaceA,
+			Purpose:     "Workspace A operations",
+			CreatedBy:   "agent-a",
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		},
+		{
+			Channel:     "operations",
+			WorkspaceID: workspaceB,
+			Purpose:     "Workspace B operations",
+			CreatedBy:   "agent-b",
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		},
+	} {
+		if err := globalDB.WriteNetworkChannel(ctx, channel); err != nil {
+			t.Fatalf("WriteNetworkChannel(%q) error = %v", channel.WorkspaceID, err)
+		}
+	}
+
+	createRun := func(taskID, runID, workspaceID string) {
+		t.Helper()
+		taskRecord := taskRecordForTest(taskID)
+		taskRecord.Scope = taskpkg.ScopeWorkspace
+		taskRecord.WorkspaceID = workspaceID
+		taskRecord.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask(%q) error = %v", workspaceID, err)
+		}
+		run := taskRunForTest(runID, taskID)
+		run.SetNetworkState(participation.Spec{
+			Version:         participation.SpecVersion,
+			Mode:            participation.ModeLive,
+			WorkspaceID:     workspaceID,
+			ChannelStrategy: participation.StrategyNamed,
+			ChannelID:       "operations",
+			Source:          participation.SourceExplicitRequest,
+			Bounds: participation.Bounds{
+				MaxWakes:         4,
+				MaxWakeWallTime:  "30s",
+				MaxTotalWallTime: "2m",
+				MaxInputTokens:   4096,
+				MaxOutputTokens:  4096,
+				MaxWakeDepth:     4,
+				CoalesceWindow:   "250ms",
+			},
+		}, "", "", "")
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun(%q) error = %v", workspaceID, err)
+		}
+	}
+	createRun("task-channel-scope-a", "run-channel-scope-a", workspaceA)
+	createRun("task-channel-scope-b", "run-channel-scope-b", workspaceB)
+
+	for index, expected := range []struct {
+		workspaceID string
+		purpose     string
+	}{
+		{workspaceID: workspaceA, purpose: "Workspace A operations"},
+		{workspaceID: workspaceB, purpose: "Workspace B operations"},
+	} {
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:                 taskpkg.ScopeWorkspace,
+			WorkspaceID:           expected.workspaceID,
+			ClaimerSessionID:      fmt.Sprintf("sess-channel-scope-%d", index),
+			CoordinationChannelID: "operations",
+			LeaseDuration:         time.Minute,
+			Now:                   now.Add(time.Duration(index) * time.Second),
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun(%q) error = %v", expected.workspaceID, err)
+		}
+		if claim.CoordinationChannel == nil {
+			t.Fatalf("ClaimNextRun(%q) coordination metadata = nil", expected.workspaceID)
+		}
+		if got := claim.CoordinationChannel.WorkspaceID; got != expected.workspaceID {
+			t.Fatalf("coordination workspace = %q, want %q", got, expected.workspaceID)
+		}
+		if got := claim.CoordinationChannel.Purpose; got != expected.purpose {
+			t.Fatalf("coordination purpose = %q, want %q", got, expected.purpose)
+		}
+	}
+}
+
 func TestGlobalDBClaimNextRunRespectsSchedulerPause(t *testing.T) {
 	t.Run("Should stop new claims while preserving queued runs", func(t *testing.T) {
 		globalDB := openTestGlobalDB(t)
@@ -285,7 +392,6 @@ func testGlobalDBClaimNextRunShouldFilterByRunKind(t *testing.T) {
 		"run-claim-kind-worker",
 		"claim-kind-worker",
 		taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
-		"",
 		nil,
 		now,
 	)); err != nil {
@@ -3775,7 +3881,6 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 				runID,
 				"node-terminal-"+strings.ReplaceAll(tc.name, " ", "-"),
 				taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop"},
-				"",
 				metadata,
 				now,
 			)
@@ -3999,7 +4104,6 @@ func TestGlobalDBCompleteRunLeaseShouldCommitCoordinatorControlWithoutNodeSucces
 			runID,
 			"goal-control-pending",
 			taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop"},
-			"",
 			json.RawMessage(`{"generation":1,"node_id":"converge","item_index":0}`),
 			now,
 		)
@@ -4209,7 +4313,6 @@ func TestGlobalDBHeartbeatRunLeaseShouldPersistCoalescedLoopTokenTicks(t *testin
 		runID,
 		"heartbeat-token-ticks",
 		taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop"},
-		"",
 		json.RawMessage(`{"generation":1,"node_id":"agent","item_index":0}`),
 		now,
 	)
@@ -4455,7 +4558,6 @@ func TestGlobalDBCompleteRunLeaseShouldStoreLargeLoopOutputByRef(t *testing.T) {
 			runID,
 			"large-output-ref",
 			taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop"},
-			"",
 			metadata,
 			now,
 		)

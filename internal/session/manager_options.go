@@ -6,6 +6,7 @@ import (
 	"time"
 
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/sandbox"
 	"github.com/compozy/agh/internal/store"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -201,6 +202,13 @@ func WithHomePaths(homePaths aghconfig.HomePaths) Option {
 func WithWorkspaceResolver(resolver workspacepkg.RuntimeResolver) Option {
 	return func(manager *Manager) {
 		manager.workspace = resolver
+	}
+}
+
+// WithParticipationResolver injects the shared resolver used before session creation writes.
+func WithParticipationResolver(resolver participation.Resolver) Option {
+	return func(manager *Manager) {
+		manager.participationResolver = resolver
 	}
 }
 

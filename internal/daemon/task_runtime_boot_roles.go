@@ -12,7 +12,6 @@ import (
 	loopdsl "github.com/compozy/agh/internal/loop/dsl"
 	"github.com/compozy/agh/internal/loop/gate"
 	watchpkg "github.com/compozy/agh/internal/loop/watch"
-	"github.com/compozy/agh/internal/network"
 	taskpkg "github.com/compozy/agh/internal/task"
 	toolspkg "github.com/compozy/agh/internal/tools"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -150,7 +149,6 @@ func taskManagerOptions(
 		taskpkg.WithWakeNotifier(wakeNotifier),
 		taskpkg.WithEventObserver(events),
 		taskpkg.WithRunReviewRequestedObserver(reviewRequests),
-		taskpkg.WithNetworkChannelValidator(network.ValidateChannel),
 		taskpkg.WithCancelGracePeriod(defaultTaskCancelGrace),
 		taskpkg.WithForceRecoveryOptions(taskpkg.ForceRecoveryOptions{
 			AllowAgentForce: recovery.AllowAgentForce,

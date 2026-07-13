@@ -3,8 +3,6 @@ package daemon
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -65,13 +63,13 @@ func (r *loopGateJudgeRunner) Judge(
 	}
 	contractOverlay := looppkg.RenderContractBlock(req.Contract)
 	opts := session.CreateOpts{
-		AgentName:       agent,
-		Model:           strings.TrimSpace(req.Model),
-		Name:            loopRuntimeSessionName("gate", agent, req.CriterionID),
-		Channel:         loopRuntimeSessionChannel(looppkg.WorkspaceID(req.WorkspaceID), req.GateID),
-		PromptOverlay:   contractOverlay,
-		ContractOverlay: contractOverlay,
-		Type:            session.SessionTypeSystem,
+		AgentName:                    agent,
+		Model:                        strings.TrimSpace(req.Model),
+		Name:                         loopRuntimeSessionName("gate", agent, req.CriterionID),
+		ResolvedNetworkParticipation: req.NetworkParticipation,
+		PromptOverlay:                contractOverlay,
+		ContractOverlay:              contractOverlay,
+		Type:                         session.SessionTypeSystem,
 	}
 	if workspaceID := strings.TrimSpace(req.WorkspaceID); workspaceID != "" {
 		opts.Workspace = workspaceID
@@ -325,61 +323,6 @@ func loopRuntimeSessionName(kind string, agent string, suffix string) string {
 		strings.TrimSpace(suffix),
 	}
 	return strings.Join(nonEmptyStrings(parts), " ")
-}
-
-func loopRuntimeSessionChannel(workspaceID looppkg.WorkspaceID, suffix string) string {
-	parts := []string{
-		loopRuntimeSessionPrefix,
-		loopRuntimeChannelFragment(string(workspaceID), "workspace"),
-		loopRuntimeChannelFragment(suffix, "main"),
-	}
-	return loopRuntimeBoundedChannel(parts)
-}
-
-func loopRuntimeChannelFragment(value string, fallback string) string {
-	trimmed := strings.ToLower(strings.TrimSpace(value))
-	var out strings.Builder
-	previousSeparator := false
-	for _, r := range trimmed {
-		switch {
-		case r >= 'a' && r <= 'z':
-			out.WriteRune(r)
-			previousSeparator = false
-		case r >= '0' && r <= '9':
-			out.WriteRune(r)
-			previousSeparator = false
-		case r == '_' || r == '-':
-			if out.Len() > 0 && !previousSeparator {
-				out.WriteByte('_')
-				previousSeparator = true
-			}
-		default:
-			if out.Len() > 0 && !previousSeparator {
-				out.WriteByte('_')
-				previousSeparator = true
-			}
-		}
-	}
-	fragment := strings.Trim(out.String(), "_-")
-	if fragment == "" {
-		return fallback
-	}
-	return fragment
-}
-
-func loopRuntimeBoundedChannel(parts []string) string {
-	channel := strings.Join(nonEmptyStrings(parts), "_")
-	if len(channel) <= 64 {
-		return channel
-	}
-	digest := sha256.Sum256([]byte(channel))
-	hashSuffix := hex.EncodeToString(digest[:])[:12]
-	maxPrefix := 64 - len(hashSuffix) - 1
-	prefix := strings.Trim(channel[:maxPrefix], "_-")
-	if prefix == "" {
-		prefix = loopRuntimeSessionPrefix
-	}
-	return prefix + "_" + hashSuffix
 }
 
 func nonEmptyStrings(values []string) []string {

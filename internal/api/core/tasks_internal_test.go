@@ -283,7 +283,7 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 	); err == nil {
 		t.Fatal("enqueueTaskRunFromRequest(invalid) error = nil, want non-nil")
 	} else {
-		assertTaskValidationError(t, err, `enqueue_run.network_channel: network: invalid field: channel="bad.channel"`)
+		assertTaskValidationError(t, err, "enqueue_run.network_channel is no longer supported")
 	}
 	if _, err := requiredPathID("", "task id"); err == nil {
 		t.Fatal("requiredPathID(empty) error = nil, want non-nil")
@@ -395,20 +395,20 @@ func TestTaskRunPayloadFromRunExposesLeaseStateWithoutRawClaimToken(t *testing.T
 
 		claimedAt := time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC)
 		run := taskpkg.Run{
-			ID:                    "run-lease",
-			TaskID:                "task-lease",
-			Status:                taskpkg.TaskRunStatusRunning,
-			Attempt:               1,
-			ClaimedBy:             &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "scheduler"},
-			SessionID:             "sess-lease",
-			Origin:                taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
-			ClaimTokenHash:        "sha256:" + strings.Repeat("c", 64),
-			LeaseUntil:            claimedAt.Add(15 * time.Minute),
-			HeartbeatAt:           claimedAt.Add(time.Minute),
-			CoordinationChannelID: "coord-lease",
-			QueuedAt:              claimedAt.Add(-time.Minute),
-			ClaimedAt:             claimedAt,
-			StartedAt:             claimedAt.Add(time.Minute),
+			ID:              "run-lease",
+			TaskID:          "task-lease",
+			Status:          taskpkg.TaskRunStatusRunning,
+			Attempt:         1,
+			ClaimedBy:       &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "scheduler"},
+			SessionID:       "sess-lease",
+			Origin:          taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
+			ClaimTokenHash:  "sha256:" + strings.Repeat("c", 64),
+			LeaseUntil:      claimedAt.Add(15 * time.Minute),
+			HeartbeatAt:     claimedAt.Add(time.Minute),
+			RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: coreTestLiveParticipation("ws-1", "coord-lease")},
+			QueuedAt:        claimedAt.Add(-time.Minute),
+			ClaimedAt:       claimedAt,
+			StartedAt:       claimedAt.Add(time.Minute),
 			Metadata: json.RawMessage(
 				`{"keep":"metadata","claim_token":"raw-secret-token","nested":{"claim_token":"nested-secret"}}`,
 			),
@@ -425,8 +425,12 @@ func TestTaskRunPayloadFromRunExposesLeaseStateWithoutRawClaimToken(t *testing.T
 		if payload.HeartbeatAt == nil || !payload.HeartbeatAt.Equal(run.HeartbeatAt) {
 			t.Fatalf("HeartbeatAt = %v, want %v", payload.HeartbeatAt, run.HeartbeatAt)
 		}
-		if payload.CoordinationChannelID != run.CoordinationChannelID {
-			t.Fatalf("CoordinationChannelID = %q, want %q", payload.CoordinationChannelID, run.CoordinationChannelID)
+		if payload.CoordinationChannelID != run.NetworkSpecSnapshot().ChannelID {
+			t.Fatalf(
+				"CoordinationChannelID = %q, want %q",
+				payload.CoordinationChannelID,
+				run.NetworkSpecSnapshot().ChannelID,
+			)
 		}
 
 		content, err := json.Marshal(payload)

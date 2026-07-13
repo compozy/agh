@@ -5,11 +5,11 @@ package network
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -22,7 +22,7 @@ func TestNetworkTaskIngressCreateAndEnqueueRun(t *testing.T) {
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 4, 14, 18, 30, 0, 0, time.UTC)
 	db := openNetworkTaskIngressDB(t)
-	taskManager := newNetworkTaskIntegrationManager(t, db, taskpkg.WithNetworkChannelValidator(ValidateChannel))
+	taskManager := newNetworkTaskIntegrationManager(t, db)
 	manager := newNetworkTaskIngressManager(t, ctx, now, db, taskManager)
 
 	peerID := "reviewer.sess-ops"
@@ -34,9 +34,8 @@ func TestNetworkTaskIngressCreateAndEnqueueRun(t *testing.T) {
 		Channel:     "ops",
 		RequestID:   "req-create-1",
 	}, taskpkg.CreateTask{
-		Scope:          taskpkg.ScopeGlobal,
-		Title:          "Peer-created task",
-		NetworkChannel: "ops",
+		Scope: taskpkg.ScopeGlobal,
+		Title: "Peer-created task",
 	})
 	if err != nil {
 		t.Fatalf("CreateTaskFromPeer() error = %v", err)
@@ -63,7 +62,6 @@ func TestNetworkTaskIngressCreateAndEnqueueRun(t *testing.T) {
 	}, taskpkg.EnqueueRun{
 		TaskID:         created.ID,
 		IdempotencyKey: "idem-peer-enqueue-1",
-		NetworkChannel: "ops",
 		Metadata:       json.RawMessage(`{"client":"kept"}`),
 	})
 	if err != nil {
@@ -72,19 +70,11 @@ func TestNetworkTaskIngressCreateAndEnqueueRun(t *testing.T) {
 	if got, want := run.TaskID, created.ID; got != want {
 		t.Fatalf("run.TaskID = %q, want %q", got, want)
 	}
-	if got, want := run.NetworkChannel, "ops"; got != want {
-		t.Fatalf("run.NetworkChannel = %q, want %q", got, want)
+	if got, want := run.NetworkSpecSnapshot().Mode, participation.ModeLocal; got != want {
+		t.Fatalf("run.NetworkSpecSnapshot().Mode = %q, want %q", got, want)
 	}
 	if got, want := run.Origin.Ref, "workspace:wks_test/channel:ops/peer:"+peerID; got != want {
 		t.Fatalf("run.Origin.Ref = %q, want %q", got, want)
-	}
-
-	storedTask, err := db.GetTask(ctx, created.ID)
-	if err != nil {
-		t.Fatalf("GetTask() error = %v", err)
-	}
-	if got, want := storedTask.NetworkChannel, "ops"; got != want {
-		t.Fatalf("storedTask.NetworkChannel = %q, want %q", got, want)
 	}
 
 	storedRun, err := db.GetTaskRun(ctx, run.ID)
@@ -140,13 +130,13 @@ func TestNetworkTaskIngressCreateAndEnqueueRun(t *testing.T) {
 	}
 }
 
-func TestNetworkTaskIngressMismatchRecordsAuditWithoutMutation(t *testing.T) {
+func TestNetworkTaskIngressChannelDoesNotConstrainExistingTask(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 4, 14, 18, 35, 0, 0, time.UTC)
 	db := openNetworkTaskIngressDB(t)
-	taskManager := newNetworkTaskIntegrationManager(t, db, taskpkg.WithNetworkChannelValidator(ValidateChannel))
+	taskManager := newNetworkTaskIntegrationManager(t, db)
 	manager := newNetworkTaskIngressManager(t, ctx, now, db, taskManager)
 
 	peerID := "reviewer.sess-ops"
@@ -157,59 +147,45 @@ func TestNetworkTaskIngressMismatchRecordsAuditWithoutMutation(t *testing.T) {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
 	taskRecord, err := taskManager.CreateTask(ctx, taskpkg.CreateTask{
-		Scope:          taskpkg.ScopeGlobal,
-		Title:          "Finance task",
-		NetworkChannel: "finance",
+		Scope: taskpkg.ScopeGlobal,
+		Title: "Independent task",
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
 	}
-	originalUpdatedAt := taskRecord.UpdatedAt
-
-	_, err = manager.EnqueueRunFromPeer(ctx, TaskIngressContext{
+	run, err := manager.EnqueueRunFromPeer(ctx, TaskIngressContext{
 		WorkspaceID: testWorkspaceID,
 		PeerID:      peerID,
 		Channel:     "ops",
-		RequestID:   "req-enqueue-mismatch",
+		RequestID:   "req-enqueue-independent",
 		Surface:     SurfaceThread,
-		ThreadID:    "thread_task_mismatch",
-		WorkID:      "work_task_mismatch",
+		ThreadID:    "thread_task_independent",
+		WorkID:      "work_task_independent",
 	}, taskpkg.EnqueueRun{
 		TaskID:         taskRecord.ID,
 		IdempotencyKey: "idem-mismatch",
 	})
-	if !errors.Is(err, ErrTaskChannelMismatch) {
-		t.Fatalf("EnqueueRunFromPeer() error = %v, want %v", err, ErrTaskChannelMismatch)
-	}
-
-	storedTask, err := db.GetTask(ctx, taskRecord.ID)
 	if err != nil {
-		t.Fatalf("GetTask() error = %v", err)
+		t.Fatalf("EnqueueRunFromPeer() error = %v", err)
 	}
-	if got, want := storedTask.NetworkChannel, "finance"; got != want {
-		t.Fatalf("storedTask.NetworkChannel = %q, want %q", got, want)
-	}
-	if !storedTask.UpdatedAt.Equal(originalUpdatedAt) {
-		t.Fatalf("storedTask.UpdatedAt = %s, want unchanged %s", storedTask.UpdatedAt, originalUpdatedAt)
+	if run.NetworkSpecSnapshot().Mode != participation.ModeLocal {
+		t.Fatalf("run.NetworkSpecSnapshot() = %#v, want Local", run.NetworkSpecSnapshot())
 	}
 
 	runs, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: taskRecord.ID})
 	if err != nil {
 		t.Fatalf("ListTaskRuns() error = %v", err)
 	}
-	if got := len(runs); got != 0 {
-		t.Fatalf("len(runs) = %d, want 0", got)
+	if got := len(runs); got != 1 {
+		t.Fatalf("len(runs) = %d, want 1", got)
 	}
 
-	audit := findNetworkAuditByMessageID(t, db, "req-enqueue-mismatch")
-	if got, want := audit.Direction, AuditDirectionRejected; got != want {
+	audit := findNetworkAuditByMessageID(t, db, "req-enqueue-independent")
+	if got, want := audit.Direction, AuditDirectionReceived; got != want {
 		t.Fatalf("audit.Direction = %q, want %q", got, want)
 	}
 	if got, want := audit.Kind, networkTaskActionEnqueue; got != want {
 		t.Fatalf("audit.Kind = %q, want %q", got, want)
-	}
-	if got, want := audit.Reason, "channel_mismatch"; got != want {
-		t.Fatalf("audit.Reason = %q, want %q", got, want)
 	}
 }
 
@@ -219,7 +195,7 @@ func TestNetworkTaskIngressDuplicateEnqueueUsesCanonicalRun(t *testing.T) {
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 4, 14, 18, 40, 0, 0, time.UTC)
 	db := openNetworkTaskIngressDB(t)
-	taskManager := newNetworkTaskIntegrationManager(t, db, taskpkg.WithNetworkChannelValidator(ValidateChannel))
+	taskManager := newNetworkTaskIntegrationManager(t, db)
 	manager := newNetworkTaskIngressManager(t, ctx, now, db, taskManager)
 
 	peerID := "reviewer.sess-ops"
@@ -231,9 +207,8 @@ func TestNetworkTaskIngressDuplicateEnqueueUsesCanonicalRun(t *testing.T) {
 		Channel:     "ops",
 		RequestID:   "req-create-dup",
 	}, taskpkg.CreateTask{
-		Scope:          taskpkg.ScopeGlobal,
-		Title:          "Idempotent peer task",
-		NetworkChannel: "ops",
+		Scope: taskpkg.ScopeGlobal,
+		Title: "Idempotent peer task",
 	})
 	if err != nil {
 		t.Fatalf("CreateTaskFromPeer() error = %v", err)

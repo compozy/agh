@@ -1,0 +1,21 @@
+---
+id: NB-execution-participation-defaults
+area: NB
+title: Default execution owners to Local participation
+persona: Ada
+journey: J-23
+expected: A plain session create, task run, Loop run, or task-backed automation fire resolves and persists one immutable `Local`/`built_in_local` participation snapshot without creating a Network channel. Spawn, review, and detached child sessions resolve independently and never inherit a parent conversation. Task fan-out and Web task/automation forms do not emit raw channel fields.
+entry_points: Web task and automation forms; HTTP/UDS session, task, Loop, and automation create/start surfaces; Network channel catalog
+qa_status: untested
+bug_ids:
+fix_status:
+retest_status:
+fix_commits:
+evidence:
+last_report:
+overlaps: NB-006, TA-001, TA-004, TA-052
+---
+
+Planning flag for execution-owner participation. The next targeted QA cycle should compare the channel catalog before and after each plain create/start path, inspect the persisted owner projection, and prove that a child session remains Local even when its parent is Live.
+
+The scenario does not cover authoring an explicit typed participation request or workspace-coordination controls; those public management surfaces are completed by the later Network contract tasks.

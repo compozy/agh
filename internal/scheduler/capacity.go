@@ -107,7 +107,7 @@ func coordinationChannelMatches(work *RunSnapshot, candidate SessionSnapshot) bo
 	if work == nil {
 		return false
 	}
-	runChannel := strings.TrimSpace(work.Run.CoordinationChannelID)
+	runChannel := strings.TrimSpace(work.Run.NetworkSpecSnapshot().ChannelID)
 	if runChannel == "" {
 		return true
 	}

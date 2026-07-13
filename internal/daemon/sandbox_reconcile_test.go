@@ -14,6 +14,7 @@ import (
 	"time"
 
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/sandbox"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
@@ -554,14 +555,15 @@ func newSandboxReconcileHarness(
 func writeSandboxReconcileMeta(t *testing.T, daemon *Daemon, spec sandboxReconcileMeta) {
 	t.Helper()
 	meta := store.SessionMeta{
-		ID:          spec.id,
-		AgentName:   spec.agent,
-		WorkspaceID: spec.worker,
-		SessionType: string(session.SessionTypeUser),
-		State:       string(spec.state),
-		Sandbox:     spec.env,
-		CreatedAt:   time.Date(2026, 4, 16, 10, 0, 0, 0, time.UTC),
-		UpdatedAt:   time.Date(2026, 4, 16, 10, 0, 0, 0, time.UTC),
+		ID:                   spec.id,
+		AgentName:            spec.agent,
+		WorkspaceID:          spec.worker,
+		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
+		SessionType:          string(session.SessionTypeUser),
+		State:                string(spec.state),
+		Sandbox:              spec.env,
+		CreatedAt:            time.Date(2026, 4, 16, 10, 0, 0, 0, time.UTC),
+		UpdatedAt:            time.Date(2026, 4, 16, 10, 0, 0, 0, time.UTC),
 	}
 	path := store.SessionMetaFile(filepath.Join(daemon.homePaths.SessionsDir, spec.id))
 	if err := store.WriteSessionMeta(path, meta); err != nil {

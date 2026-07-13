@@ -467,10 +467,10 @@ func TestSessionNetworkLifecycleHandling(t *testing.T) {
 		h.manager.SetNetworkPeerLifecycle(lifecycle)
 
 		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName: "coder",
-			Name:      "networked",
-			Workspace: h.workspaceID,
-			Channel:   "builders",
+			AgentName:                    "coder",
+			Name:                         "networked",
+			Workspace:                    h.workspaceID,
+			ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
 		})
 		if err == nil {
 			t.Fatal("Create() error = nil, want join failure")
@@ -494,9 +494,9 @@ func TestSessionNetworkLifecycleHandling(t *testing.T) {
 
 		h := newHarness(t)
 		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName: "coder",
-			Workspace: h.workspaceID,
-			Channel:   "builders",
+			AgentName:                    "coder",
+			Workspace:                    h.workspaceID,
+			ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
 		})
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
@@ -546,9 +546,9 @@ func TestSessionNetworkLifecycleHandling(t *testing.T) {
 			h.manager.SetNetworkPeerLifecycle(lifecycle)
 
 			session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-				AgentName: "coder",
-				Workspace: h.workspaceID,
-				Channel:   "builders",
+				AgentName:                    "coder",
+				Workspace:                    h.workspaceID,
+				ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
 			})
 			if err != nil {
 				t.Fatalf("Create() error = %v", err)

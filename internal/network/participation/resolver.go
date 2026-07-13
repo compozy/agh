@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -73,6 +74,14 @@ func (r *resolver) Resolve(ctx context.Context, in ResolveInput) (Spec, error) {
 	if err != nil {
 		return Spec{}, err
 	}
+	if !delegatedAuthorityAllows(in.Authority, spec.ChannelID) {
+		return Spec{}, newContractError(
+			ErrAuthorityDenied,
+			"channel_id",
+			"delegated authority does not include %q",
+			spec.ChannelID,
+		)
+	}
 	if r.options.Authority != nil {
 		allowed, authorityErr := r.options.Authority(ctx, in, spec)
 		if authorityErr != nil {
@@ -90,6 +99,19 @@ func (r *resolver) Resolve(ctx context.Context, in ResolveInput) (Spec, error) {
 	return spec, nil
 }
 
+func delegatedAuthorityAllows(authority *AuthorityScope, channelID string) bool {
+	if authority == nil || !authority.Enforced {
+		return true
+	}
+	allowed := make([]string, 0, len(authority.ChannelIDs))
+	for _, candidate := range authority.ChannelIDs {
+		if trimmed := strings.TrimSpace(candidate); trimmed != "" {
+			allowed = append(allowed, trimmed)
+		}
+	}
+	return slices.Contains(allowed, strings.TrimSpace(channelID))
+}
+
 func validateResolverOptions(options ResolverOptions) error {
 	if err := validateBounds(options.Defaults); err != nil {
 		return fmt.Errorf("validate participation defaults: %w", err)
@@ -105,7 +127,11 @@ func validateResolverOptions(options ResolverOptions) error {
 
 func (r *resolver) selectRequest(ctx context.Context, in ResolveInput) (*Request, Source, error) {
 	if in.Request != nil && !in.Request.isZero() {
-		return in.Request, SourceExplicitRequest, nil
+		source, err := normalizeRequestSource(in.RequestSource)
+		if err != nil {
+			return nil, "", err
+		}
+		return in.Request, source, nil
 	}
 	if in.Definition != nil && !in.Definition.isZero() {
 		return in.Definition, sourceForDefinition(in.Owner.Kind), nil
@@ -123,6 +149,17 @@ func (r *resolver) selectRequest(ctx context.Context, in ResolveInput) (*Request
 	live := ModeLive
 	strategy := StrategyRun
 	return &Request{Mode: &live, ChannelStrategy: &strategy}, SourceWorkspaceCoordination, nil
+}
+
+func normalizeRequestSource(source Source) (Source, error) {
+	switch normalized := Source(strings.TrimSpace(string(source))); normalized {
+	case "", SourceExplicitRequest:
+		return SourceExplicitRequest, nil
+	case SourceAutomationJob:
+		return SourceAutomationJob, nil
+	default:
+		return "", fmt.Errorf("network participation request source %q is not allowed", normalized)
+	}
 }
 
 func (r *resolver) checkLiveCapability(ctx context.Context, in ResolveInput) error {

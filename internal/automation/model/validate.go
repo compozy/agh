@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	networkrules "github.com/compozy/agh/internal/network/rules"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/vault"
 	cron "github.com/robfig/cron/v3"
 )
@@ -389,9 +389,9 @@ func (c SchedulerClaim) Validate(path string) error {
 
 // Validate ensures the direct task materialization configuration is internally consistent.
 func (c JobTaskConfig) Validate(path string) error {
-	if channel := strings.TrimSpace(c.NetworkChannel); channel != "" {
-		if !networkrules.ValidChannel(channel) {
-			return fmt.Errorf("%s is invalid: channel=%q", nestedPath(path, "network_channel"), channel)
+	if c.NetworkParticipation != nil {
+		if _, err := participation.NormalizeIntent(*c.NetworkParticipation); err != nil {
+			return fmt.Errorf("%s is invalid: %w", nestedPath(path, "network_participation"), err)
 		}
 	}
 	if c.Owner != nil {

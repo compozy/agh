@@ -18,7 +18,6 @@ type QueueRunReservation struct {
 	IdempotencyKey     string             `json:"idempotency_key,omitempty"`
 	Origin             Origin             `json:"origin"`
 	NetworkSpec        participation.Spec `json:"network_spec"`
-	RequestedChannel   string             `json:"requested_channel,omitempty"`
 	DesignationGroupID string             `json:"designation_group_id,omitempty"`
 	Metadata           json.RawMessage    `json:"metadata,omitempty"`
 	QueuedAt           time.Time          `json:"queued_at"`

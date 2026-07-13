@@ -190,13 +190,12 @@ func (h *BaseHandlers) createPromotedNetworkThreadTask(
 	req contract.PromoteNetworkThreadTaskRequest,
 ) (*taskpkg.Task, error) {
 	spec := taskpkg.CreateTask{
-		Scope:          taskpkg.ScopeWorkspace,
-		WorkspaceID:    source.workspaceID,
-		NetworkChannel: source.channel,
-		Title:          promotedNetworkThreadTaskTitle(req, source),
-		Description:    firstNonEmpty(strings.TrimSpace(req.Description), source.digest),
-		Priority:       taskpkg.Priority(strings.TrimSpace(req.Priority)).Normalize(),
-		Metadata:       cloneRawMessage(req.Metadata),
+		Scope:       taskpkg.ScopeWorkspace,
+		WorkspaceID: source.workspaceID,
+		Title:       promotedNetworkThreadTaskTitle(req, source),
+		Description: firstNonEmpty(strings.TrimSpace(req.Description), source.digest),
+		Priority:    taskpkg.Priority(strings.TrimSpace(req.Priority)).Normalize(),
+		Metadata:    cloneRawMessage(req.Metadata),
 	}
 	if err := spec.Validate("promote_network_thread"); err != nil {
 		return nil, err

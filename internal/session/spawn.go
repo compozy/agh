@@ -8,6 +8,7 @@ import (
 	"time"
 
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 )
 
@@ -33,21 +34,21 @@ var (
 
 // SpawnOpts defines the safe child-session creation request accepted by the manager.
 type SpawnOpts struct {
-	ParentSessionID    string
-	AgentName          string
-	Provider           string
-	Model              string
-	Name               string
-	Workspace          string
-	WorkspacePath      string
-	Channel            string
-	PromptOverlay      string
-	SpawnRole          string
-	TTL                time.Duration
-	AutoStopOnParent   bool
-	PermissionPolicy   store.SessionPermissionPolicy
-	IdempotencyKey     string
-	AllowStoppedParent bool
+	ParentSessionID      string
+	AgentName            string
+	Provider             string
+	Model                string
+	Name                 string
+	Workspace            string
+	WorkspacePath        string
+	NetworkParticipation *participation.Request
+	PromptOverlay        string
+	SpawnRole            string
+	TTL                  time.Duration
+	AutoStopOnParent     bool
+	PermissionPolicy     store.SessionPermissionPolicy
+	IdempotencyKey       string
+	AllowStoppedParent   bool
 }
 
 type permissionCategory struct {
@@ -86,13 +87,17 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 	workspaceRef, workspacePath := spawnWorkspaceCreateRefs(parent)
 
 	child, err := m.Create(ctx, CreateOpts{
-		AgentName:        normalized.AgentName,
-		Provider:         normalized.Provider,
-		Model:            normalized.Model,
-		Name:             normalized.Name,
-		Workspace:        workspaceRef,
-		WorkspacePath:    workspacePath,
-		Channel:          spawnChannel(normalized, parent),
+		AgentName:            normalized.AgentName,
+		Provider:             normalized.Provider,
+		Model:                normalized.Model,
+		Name:                 normalized.Name,
+		Workspace:            workspaceRef,
+		WorkspacePath:        workspacePath,
+		NetworkParticipation: normalized.NetworkParticipation,
+		NetworkAuthority: &participation.AuthorityScope{
+			Enforced:   true,
+			ChannelIDs: append([]string(nil), normalized.PermissionPolicy.NetworkChannels...),
+		},
 		PromptOverlay:    normalized.PromptOverlay,
 		Type:             SessionTypeSpawned,
 		Lineage:          lineage,
@@ -153,7 +158,13 @@ func normalizeSpawnOpts(opts SpawnOpts) (SpawnOpts, error) {
 	normalized.Name = strings.TrimSpace(normalized.Name)
 	normalized.Workspace = strings.TrimSpace(normalized.Workspace)
 	normalized.WorkspacePath = strings.TrimSpace(normalized.WorkspacePath)
-	normalized.Channel = strings.TrimSpace(normalized.Channel)
+	if normalized.NetworkParticipation != nil {
+		request, err := participation.NormalizeIntent(*normalized.NetworkParticipation)
+		if err != nil {
+			return SpawnOpts{}, spawnValidation(fmt.Sprintf("network_participation: %v", err))
+		}
+		normalized.NetworkParticipation = &request
+	}
 	normalized.PromptOverlay = strings.TrimSpace(normalized.PromptOverlay)
 	normalized.SpawnRole = normalizeSpawnRole(normalized.SpawnRole)
 	normalized.PermissionPolicy = store.NormalizeSessionPermissionPolicy(normalized.PermissionPolicy)
@@ -475,19 +486,6 @@ func policyFromHookPermissionSet(src *hookspkg.PermissionSet) store.SessionPermi
 		NetworkChannels: append([]string(nil), src.NetworkChannels...),
 		SandboxProfiles: append([]string(nil), src.SandboxProfiles...),
 	})
-}
-
-func spawnChannel(opts SpawnOpts, parent *Info) string {
-	if isMemoryExtractorSpawnRole(opts.SpawnRole) {
-		return ""
-	}
-	if opts.Channel != "" {
-		return opts.Channel
-	}
-	if parent == nil {
-		return ""
-	}
-	return strings.TrimSpace(parent.Channel)
 }
 
 func spawnWorkspaceCreateRefs(parent *Info) (string, string) {

@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	automationpkg "github.com/compozy/agh/internal/automation"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/gin-gonic/gin"
 )
@@ -1009,8 +1010,8 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 				Interval: "2h",
 			},
 			Task: &automationpkg.JobTaskConfig{
-				Title:          " Review repo ",
-				NetworkChannel: " ops-automation ",
+				Title:                " Review repo ",
+				NetworkParticipation: automationTestNamedParticipation(" ops-automation "),
 				Owner: &taskpkg.Ownership{
 					Kind: taskpkg.OwnerKindAutomation,
 					Ref:  " rule:build-review ",
@@ -1025,7 +1026,7 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 			createdJob.Schedule.Interval != "2h" ||
 			createdJob.Task == nil ||
 			createdJob.Task.Title != "Review repo" ||
-			createdJob.Task.NetworkChannel != "ops-automation" ||
+			automationTestParticipationChannel(createdJob.Task.NetworkParticipation) != "ops-automation" ||
 			createdJob.Task.Owner == nil ||
 			createdJob.Task.Owner.Kind != taskpkg.OwnerKindAutomation ||
 			createdJob.Task.Owner.Ref != "rule:build-review" {
@@ -1041,8 +1042,8 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 		jobEnabled := false
 		jobSchedule := automationpkg.ScheduleSpec{Mode: automationpkg.ScheduleModeCron, Expr: "0 * * * *"}
 		jobTask := automationpkg.JobTaskConfig{
-			Title:          "Delegate review",
-			NetworkChannel: "ops-queue",
+			Title:                "Delegate review",
+			NetworkParticipation: automationTestNamedParticipation("ops-queue"),
 			Owner: &taskpkg.Ownership{
 				Kind: taskpkg.OwnerKindPool,
 				Ref:  "ops-review",
@@ -1084,7 +1085,7 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 			updatedJob.Schedule.Expr != "0 * * * *" ||
 			updatedJob.Task == nil ||
 			updatedJob.Task.Title != "Delegate review" ||
-			updatedJob.Task.NetworkChannel != "ops-queue" ||
+			automationTestParticipationChannel(updatedJob.Task.NetworkParticipation) != "ops-queue" ||
 			updatedJob.Task.Owner == nil ||
 			updatedJob.Task.Owner.Kind != taskpkg.OwnerKindPool ||
 			updatedJob.Task.Owner.Ref != "ops-review" ||
@@ -1094,9 +1095,10 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 		}
 
 		jobTask.Title = "mutated"
-		jobTask.NetworkChannel = "mutated"
+		*jobTask.NetworkParticipation.ChannelID = "mutated"
 		jobTask.Owner.Ref = "mutated"
-		if updatedJob.Task.Title != "Delegate review" || updatedJob.Task.NetworkChannel != "ops-queue" ||
+		if updatedJob.Task.Title != "Delegate review" ||
+			automationTestParticipationChannel(updatedJob.Task.NetworkParticipation) != "ops-queue" ||
 			updatedJob.Task.Owner.Ref != "ops-review" {
 			t.Fatalf("applyJobPatch() task clone = %#v", updatedJob.Task)
 		}
@@ -1224,6 +1226,23 @@ func TestAutomationHelperFunctionsAndErrors(t *testing.T) {
 			t.Fatalf("StatusForAutomationError(unavailable) = %d, want %d", status, http.StatusServiceUnavailable)
 		}
 	})
+}
+
+func automationTestNamedParticipation(channelID string) *participation.Request {
+	mode := participation.ModeLive
+	strategy := participation.StrategyNamed
+	return &participation.Request{
+		Mode:            &mode,
+		ChannelStrategy: &strategy,
+		ChannelID:       &channelID,
+	}
+}
+
+func automationTestParticipationChannel(request *participation.Request) string {
+	if request == nil || request.ChannelID == nil {
+		return ""
+	}
+	return strings.TrimSpace(*request.ChannelID)
 }
 
 func TestStatusForAutomationErrorMapsAdditionalSentinels(t *testing.T) {

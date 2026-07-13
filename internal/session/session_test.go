@@ -195,15 +195,16 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 
 		now := time.Date(2026, 4, 21, 12, 0, 0, 0, time.UTC)
 		session := &Session{
-			ID:          "sess-provider",
-			Name:        "Provider Session",
-			AgentName:   "coder",
-			Provider:    "codex",
-			WorkspaceID: "ws-provider",
-			Workspace:   t.TempDir(),
-			State:       StateActive,
-			CreatedAt:   now,
-			UpdatedAt:   now,
+			ID:                   "sess-provider",
+			Name:                 "Provider Session",
+			AgentName:            "coder",
+			Provider:             "codex",
+			WorkspaceID:          "ws-provider",
+			Workspace:            t.TempDir(),
+			NetworkParticipation: testLocalParticipation(),
+			State:                StateActive,
+			CreatedAt:            now,
+			UpdatedAt:            now,
 		}
 
 		meta := session.Meta()
@@ -238,14 +239,15 @@ func TestSessionMetadataRoundTrip(t *testing.T) {
 			Input:       &store.SessionAdvertisedCommandInput{Hint: "optional focus"},
 		}}
 		session := &Session{
-			ID:                 "sess-commands",
-			AgentName:          "coder",
-			WorkspaceID:        "ws-commands",
-			Workspace:          t.TempDir(),
-			State:              StateActive,
-			AdvertisedCommands: commands,
-			CreatedAt:          now,
-			UpdatedAt:          now,
+			ID:                   "sess-commands",
+			AgentName:            "coder",
+			WorkspaceID:          "ws-commands",
+			Workspace:            t.TempDir(),
+			NetworkParticipation: testLocalParticipation(),
+			State:                StateActive,
+			AdvertisedCommands:   commands,
+			CreatedAt:            now,
+			UpdatedAt:            now,
 		}
 
 		meta := session.Meta()

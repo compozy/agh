@@ -115,6 +115,9 @@ func newDaemonLoopAPIService(
 		looppkg.WithDefaultsResolver(newLoopDefaultsResolver(homePaths, state.workspaceResolver)),
 		looppkg.WithGoalRunActivator(loopGoalRunActivator{state: state}),
 	}
+	if state.participationResolver != nil {
+		options = append(options, looppkg.WithParticipationResolver(state.participationResolver))
+	}
 	if revoker, ok := state.sessions.(loopManagedInputLeaseRevoker); ok {
 		var judges *loopGateJudgeRunner
 		if state.tasks != nil {

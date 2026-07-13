@@ -2,9 +2,7 @@ package task
 
 import (
 	"context"
-
 	"fmt"
-
 	"strings"
 )
 
@@ -25,7 +23,31 @@ func (m *Service) EnqueueRun(
 	if err := requireLifecycleIdempotency(actor, normalizedSpec.IdempotencyKey, "enqueue_run"); err != nil {
 		return nil, err
 	}
-	if err := m.validateNetworkChannel("enqueue_run.network_channel", normalizedSpec.NetworkChannel); err != nil {
+	if existing, ok, err := m.existingQueuedRun(
+		ctx,
+		normalizedSpec.TaskID,
+		normalizedSpec.IdempotencyKey,
+		actor.Origin,
+	); err != nil {
+		return nil, err
+	} else if ok {
+		return existing, nil
+	}
+	taskRecord, err := m.store.GetTask(ctx, normalizedSpec.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	runID := m.newID("run")
+	networkSpec, err := m.resolveQueuedRunParticipation(
+		ctx,
+		taskRecord,
+		runID,
+		normalizedSpec.RunKind,
+		normalizedSpec.LoopRunID,
+		normalizedSpec.NetworkParticipation,
+		normalizedSpec.NetworkParticipationSource,
+	)
+	if err != nil {
 		return nil, err
 	}
 
@@ -33,12 +55,12 @@ func (m *Service) EnqueueRun(
 		ctx,
 		QueueRunReservation{
 			TaskID:             normalizedSpec.TaskID,
-			RunID:              m.newID("run"),
+			RunID:              runID,
 			RunKind:            normalizedSpec.RunKind,
 			LoopRunID:          normalizedSpec.LoopRunID,
 			IdempotencyKey:     normalizedSpec.IdempotencyKey,
 			Origin:             actor.Origin,
-			RequestedChannel:   normalizedSpec.NetworkChannel,
+			NetworkSpec:        networkSpec,
 			DesignationGroupID: normalizedSpec.DesignationGroupID,
 			Metadata:           normalizedSpec.Metadata,
 			QueuedAt:           m.now().UTC(),
@@ -51,23 +73,33 @@ func (m *Service) EnqueueRun(
 		return &run, nil
 	}
 
-	reconciledTask, err := m.reconcileTaskCascade(ctx, normalizedSpec.TaskID, actor)
-	if err != nil {
+	if err := m.publishEnqueuedRun(ctx, run, actor, normalizedSpec.IdempotencyKey); err != nil {
 		return nil, err
 	}
-	if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunEnqueued, actor, runEnqueuedPayload{
-		Attempt:               int(run.Attempt),
-		Status:                run.Status,
-		TaskStatus:            reconciledTask.Status,
-		NetworkChannel:        run.NetworkChannel,
-		CoordinationChannelID: run.CoordinationChannelID,
-		IdempotencyKey:        run.IdempotencyKey,
-	}); err != nil {
-		return nil, err
-	}
-	m.dispatchTaskRunEnqueued(ctx, run, reconciledTask, actor, normalizedSpec.IdempotencyKey)
 
 	return &run, nil
+}
+
+func (m *Service) publishEnqueuedRun(
+	ctx context.Context,
+	run Run,
+	actor ActorContext,
+	idempotencyKey string,
+) error {
+	reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID, actor)
+	if err != nil {
+		return err
+	}
+	if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunEnqueued, actor, runEnqueuedPayload{
+		Attempt:        int(run.Attempt),
+		Status:         run.Status,
+		TaskStatus:     reconciledTask.Status,
+		IdempotencyKey: run.IdempotencyKey,
+	}); err != nil {
+		return err
+	}
+	m.dispatchTaskRunEnqueued(ctx, run, reconciledTask, actor, idempotencyKey)
+	return nil
 }
 
 func validateTaskForEnqueue(taskRecord Task) error {
@@ -201,10 +233,6 @@ func (m *Service) StartRun(
 	if err := m.ensureTaskExecutable(ctx, taskRecord); err != nil {
 		return nil, err
 	}
-	if err := m.validateRunChannelUsable(ctx, taskRecord, run, actor, "start"); err != nil {
-		return nil, err
-	}
-
 	switch run.Status.Normalize() {
 	case TaskRunStatusClaimed:
 		if run.RunKind.Normalize() == RunKindCoordinator {
@@ -272,9 +300,6 @@ func (m *Service) AttachRunSession(
 		return nil, err
 	}
 	if err := m.ensureTaskExecutable(ctx, taskRecord); err != nil {
-		return nil, err
-	}
-	if err := m.validateRunChannelUsable(ctx, taskRecord, run, actor, "attach"); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(run.SessionID) != "" {

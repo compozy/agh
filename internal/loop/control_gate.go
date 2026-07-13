@@ -88,12 +88,13 @@ func runtimeGateInput(
 		humanDecisions = map[string]gate.HumanDecision{}
 	}
 	return gate.GateInput{
-		Placement:      placement,
-		Contract:       resolved.Definition.Contract,
-		TemplateData:   namespace,
-		Revision:       max(0, generation-1),
-		HumanDecisions: humanDecisions,
-		JudgeModel:     effective.ModelDefaults.Judge,
+		Placement:            placement,
+		Contract:             resolved.Definition.Contract,
+		TemplateData:         namespace,
+		Revision:             max(0, generation-1),
+		HumanDecisions:       humanDecisions,
+		JudgeModel:           effective.ModelDefaults.Judge,
+		NetworkParticipation: new(run.NetworkSpecSnapshot()),
 		ToolScope: tools.Scope{
 			WorkspaceID: string(run.WorkspaceID),
 			ActorKind:   startLoopMetaKey,

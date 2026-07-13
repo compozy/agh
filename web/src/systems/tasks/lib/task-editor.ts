@@ -21,7 +21,6 @@ export interface TaskEditorDraft {
   parentTaskId: string;
   maxAttempts: number | null;
   approvalPolicy: "none" | "manual";
-  networkChannel: string;
   identifier: string;
   autoEnqueueOnReady: boolean;
   saveAsDraft: boolean;
@@ -38,7 +37,6 @@ export const EMPTY_TASK_EDITOR_DRAFT: TaskEditorDraft = {
   parentTaskId: "",
   maxAttempts: 1,
   approvalPolicy: "none",
-  networkChannel: "",
   identifier: "",
   autoEnqueueOnReady: false,
   saveAsDraft: false,
@@ -46,7 +44,7 @@ export const EMPTY_TASK_EDITOR_DRAFT: TaskEditorDraft = {
 
 type TaskTemplateDraftDefaults = Pick<
   TaskEditorDraft,
-  "priority" | "maxAttempts" | "approvalPolicy" | "networkChannel" | "saveAsDraft"
+  "priority" | "maxAttempts" | "approvalPolicy" | "saveAsDraft"
 >;
 
 function taskTemplateDraftDefaults(templateId: TaskTemplateId): TaskTemplateDraftDefaults {
@@ -57,7 +55,6 @@ function taskTemplateDraftDefaults(templateId: TaskTemplateId): TaskTemplateDraf
     maxAttempts:
       typeof template.defaults.max_attempts === "number" ? template.defaults.max_attempts : 1,
     approvalPolicy: template.defaults.approval_policy ?? "none",
-    networkChannel: template.defaults.network_channel ?? "",
     saveAsDraft: template.defaults.draft,
   };
 }
@@ -96,7 +93,6 @@ export function taskEditorDraftFromTask(task: TaskRecord): TaskEditorDraft {
     parentTaskId: task.parent_task_id ?? "",
     maxAttempts: task.max_attempts ?? null,
     approvalPolicy: task.approval_policy === "manual" ? "manual" : "none",
-    networkChannel: task.network_channel ?? "",
     identifier: task.identifier ?? "",
     autoEnqueueOnReady: task.auto_enqueue_on_ready ?? false,
     saveAsDraft: task.draft ?? false,
@@ -137,7 +133,6 @@ export function buildCreateTaskRequest(
     auto_enqueue_on_ready: draft.autoEnqueueOnReady || undefined,
     owner,
     approval_policy: draft.approvalPolicy === "manual" ? "manual" : undefined,
-    network_channel: draft.networkChannel.trim() || undefined,
     identifier: draft.identifier.trim() || undefined,
   };
 
@@ -164,7 +159,6 @@ export function buildCreateChildTaskRequest(
     auto_enqueue_on_ready: draft.autoEnqueueOnReady || undefined,
     owner,
     approval_policy: draft.approvalPolicy === "manual" ? "manual" : undefined,
-    network_channel: draft.networkChannel.trim() || undefined,
     identifier: draft.identifier.trim() || undefined,
   };
 
@@ -181,7 +175,6 @@ export function buildUpdateTaskRequest(draft: TaskEditorDraft): UpdateTaskReques
     ...(ownerIsEmpty ? { clear_owner: true } : { owner }),
     max_attempts: draft.maxAttempts ?? null,
     approval_policy: draft.approvalPolicy === "manual" ? "manual" : "none",
-    network_channel: draft.networkChannel.trim() || null,
     auto_enqueue_on_ready: draft.autoEnqueueOnReady,
   };
 }

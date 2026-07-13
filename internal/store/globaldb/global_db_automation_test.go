@@ -15,6 +15,7 @@ import (
 	automationmodel "github.com/compozy/agh/internal/automation/model"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/testutil"
 	aghworkspace "github.com/compozy/agh/internal/workspace"
@@ -30,6 +31,33 @@ type SchedulerState = automation.SchedulerState
 type SchedulerClaim = automation.SchedulerClaim
 type JobEnabledOverlay = automation.JobEnabledOverlay
 type TriggerEnabledOverlay = automation.TriggerEnabledOverlay
+
+func automationNamedParticipation(channelID string) *participation.Request {
+	mode := participation.ModeLive
+	strategy := participation.StrategyNamed
+	return &participation.Request{
+		Mode:            &mode,
+		ChannelStrategy: &strategy,
+		ChannelID:       &channelID,
+	}
+}
+
+func assertAutomationNamedParticipation(
+	t *testing.T,
+	request *participation.Request,
+	channelID string,
+) {
+	t.Helper()
+	if request == nil || request.Mode == nil || *request.Mode != participation.ModeLive {
+		t.Fatalf("network participation = %#v, want live", request)
+	}
+	if request.ChannelStrategy == nil || *request.ChannelStrategy != participation.StrategyNamed {
+		t.Fatalf("network participation strategy = %#v, want named", request.ChannelStrategy)
+	}
+	if request.ChannelID == nil || *request.ChannelID != channelID {
+		t.Fatalf("network participation channel_id = %#v, want %q", request.ChannelID, channelID)
+	}
+}
 
 func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 	t.Parallel()
@@ -65,6 +93,7 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"loop_name",
 		"loop_inputs",
 		"loop_input_mapping",
+		"loop_network_participation",
 		"created_at",
 		"updated_at",
 	})
@@ -89,6 +118,7 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"loop_name",
 		"loop_inputs",
 		"loop_input_mapping",
+		"loop_network_participation",
 		"created_at",
 		"updated_at",
 	})
@@ -109,6 +139,7 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"scheduled_at",
 		"delivery_error",
 		"delivery_error_at",
+		"network_participation",
 		"metadata_json",
 	})
 	assertTableColumns(t, globalDB.db, "automation_scheduler_state", []string{
@@ -1194,6 +1225,7 @@ func TestGlobalDBAutomationValidationAndDeleteBehavior(t *testing.T) {
 	run.Status = automation.RunFailed
 	run.Attempt = 2
 	run.SessionID = "sess-updated"
+	run.NetworkParticipation = automationNamedParticipation("ops-automation")
 	run.Metadata = map[string]any{
 		"catch_up":        true,
 		"catch_up_policy": "coalesce",
@@ -1222,6 +1254,7 @@ func TestGlobalDBAutomationValidationAndDeleteBehavior(t *testing.T) {
 	if got, want := loadedRun.Metadata["catch_up_policy"], "coalesce"; got != want {
 		t.Fatalf("GetRun().Metadata[catch_up_policy] = %#v, want %q", got, want)
 	}
+	assertAutomationNamedParticipation(t, loadedRun.NetworkParticipation, "ops-automation")
 
 	jobs, err := globalDB.ListJobs(
 		testutil.Context(t),
@@ -1318,8 +1351,9 @@ func TestGlobalDBAutomationLoopTargetsPersistFilterAndCorrelateRuns(t *testing.T
 		loopJob.Prompt = ""
 		loopJob.TargetKind = automation.TargetKindLoop
 		loopJob.LoopTarget = &automation.LoopTarget{
-			WorkspaceID: workspaceID,
-			LoopName:    "triage",
+			WorkspaceID:          workspaceID,
+			LoopName:             "triage",
+			NetworkParticipation: automationNamedParticipation("loop-job-channel"),
 			Inputs: map[string]any{
 				"tasks": "task-ref",
 			},
@@ -1337,6 +1371,11 @@ func TestGlobalDBAutomationLoopTargetsPersistFilterAndCorrelateRuns(t *testing.T
 		if got, want := createdLoopJob.LoopTarget.LoopName, "triage"; got != want {
 			t.Fatalf("CreateJob(loop target).LoopTarget.LoopName = %q, want %q", got, want)
 		}
+		assertAutomationNamedParticipation(
+			t,
+			createdLoopJob.LoopTarget.NetworkParticipation,
+			"loop-job-channel",
+		)
 		agentJob := automationJobForTest(
 			automation.AutomationScopeWorkspace,
 			"agent-job",
@@ -1378,8 +1417,9 @@ func TestGlobalDBAutomationLoopTargetsPersistFilterAndCorrelateRuns(t *testing.T
 		loopTrigger.Prompt = ""
 		loopTrigger.TargetKind = automation.TargetKindLoop
 		loopTrigger.LoopTarget = &automation.LoopTarget{
-			WorkspaceID: workspaceID,
-			LoopName:    "triage",
+			WorkspaceID:          workspaceID,
+			LoopName:             "triage",
+			NetworkParticipation: automationNamedParticipation("loop-trigger-channel"),
 			InputMapping: map[string]string{
 				"title": "{{ .trigger.payload.title }}",
 			},
@@ -1394,6 +1434,11 @@ func TestGlobalDBAutomationLoopTargetsPersistFilterAndCorrelateRuns(t *testing.T
 		if got, want := createdLoopTrigger.LoopTarget.InputMapping["title"], "{{ .trigger.payload.title }}"; got != want {
 			t.Fatalf("CreateTrigger(loop target).LoopTarget.InputMapping[title] = %q, want %q", got, want)
 		}
+		assertAutomationNamedParticipation(
+			t,
+			createdLoopTrigger.LoopTarget.NetworkParticipation,
+			"loop-trigger-channel",
+		)
 		agentTrigger := automationWebhookTriggerForTest(
 			automation.AutomationScopeWorkspace,
 			"agent-trigger",
@@ -1641,7 +1686,10 @@ func TestAutomationStoreHelperBranches(t *testing.T) {
 
 	var taskConfig *automation.JobTaskConfig
 	if err := decodeAutomationTaskConfig(
-		sql.NullString{Valid: true, String: `{"title":"Review findings","network_channel":"ops-automation"}`},
+		sql.NullString{
+			Valid:  true,
+			String: `{"title":"Review findings","network_participation":{"mode":"live","channel_strategy":"named","channel_id":"ops-automation"}}`,
+		},
 		&taskConfig,
 	); err != nil {
 		t.Fatalf("decodeAutomationTaskConfig(valid) error = %v", err)
@@ -1649,6 +1697,7 @@ func TestAutomationStoreHelperBranches(t *testing.T) {
 	if taskConfig == nil || taskConfig.Title != "Review findings" {
 		t.Fatalf("decodeAutomationTaskConfig(valid) = %#v, want populated task config", taskConfig)
 	}
+	assertAutomationNamedParticipation(t, taskConfig.NetworkParticipation, "ops-automation")
 	if err := decodeAutomationTaskConfig(sql.NullString{Valid: true, String: `{`}, &taskConfig); err == nil {
 		t.Fatal("decodeAutomationTaskConfig(invalid) error = nil, want non-nil")
 	}

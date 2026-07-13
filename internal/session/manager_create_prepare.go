@@ -51,6 +51,17 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
+	networkParticipation, err := m.resolveCreateParticipation(
+		ctx,
+		resolvedWorkspace.ID,
+		sessionID,
+		opts.NetworkParticipation,
+		opts.ResolvedNetworkParticipation,
+		opts.NetworkAuthority,
+	)
+	if err != nil {
+		return sessionStartSpec{}, err
+	}
 
 	return sessionStartSpec{
 		sessionID:               sessionID,
@@ -64,7 +75,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		sandboxDisabled:         sandboxDisabled,
 		workspace:               resolvedWorkspace,
 		cwd:                     cwd,
-		channel:                 strings.TrimSpace(opts.Channel),
+		networkParticipation:    networkParticipation,
 		promptOverlay:           strings.TrimSpace(opts.PromptOverlay),
 		contractOverlay:         strings.TrimSpace(opts.ContractOverlay),
 		runtimeMode:             strings.TrimSpace(opts.RuntimeMode),
@@ -74,7 +85,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		creationProfile:         cloneCreationProfile(opts.CreationProfile),
 		creationIdentity:        cloneCreationIdentity(opts.CreationIdentity),
 		creationIdentityPinned:  opts.CreationProfile != nil || opts.CreationIdentity != nil,
-		creationIdentityEnabled: m.creationStore != nil || opts.CreationProfile != nil || opts.CreationIdentity != nil,
+		creationIdentityEnabled: true,
 		parentSoulDigest:        strings.TrimSpace(opts.ParentSoulDigest),
 		postEvent:               hookspkg.HookSessionPostCreate,
 		startAction:             sessionStartActionCreate,

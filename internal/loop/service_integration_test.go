@@ -10,9 +10,11 @@ import (
 
 	"github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/testutil"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 func TestServiceIntegrationShouldPersistConfigureAndReflectEffectiveConfig(t *testing.T) {
@@ -22,6 +24,7 @@ func TestServiceIntegrationShouldPersistConfigureAndReflectEffectiveConfig(t *te
 		t.Parallel()
 
 		globalDB := openLoopServiceGlobalDB(t)
+		insertLoopServiceWorkspace(t, globalDB, "ws-1")
 		svc := newIntegrationService(t, globalDB, validDefinition())
 		ctx := testutil.Context(t)
 		onExceeded := dsl.BudgetExceededEscalate
@@ -71,6 +74,7 @@ func TestServiceIntegrationDryRunShouldCreateNoState(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openLoopServiceGlobalDB(t)
+		insertLoopServiceWorkspace(t, globalDB, "ws-1")
 		svc := newIntegrationService(t, globalDB, validDefinition())
 		ctx := testutil.Context(t)
 
@@ -90,6 +94,87 @@ func TestServiceIntegrationDryRunShouldCreateNoState(t *testing.T) {
 		}
 		if got := countRows(ctx, t, globalDB, "task_runs"); got != taskRunsBefore {
 			t.Fatalf("task_runs count = %d, want unchanged %d", got, taskRunsBefore)
+		}
+	})
+}
+
+func TestServiceIntegrationParticipationShouldPersistOneSnapshotPerLoopRun(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep a local multi-node run and dry-run free of network artifacts", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopServiceGlobalDB(t)
+		insertLoopServiceWorkspace(t, globalDB, "ws-1")
+		svc := newIntegrationService(t, globalDB, validDefinition())
+		ctx := testutil.Context(t)
+		inputs := loop.Inputs{Values: map[string]any{"tasks": "task-ref"}}
+		preview, err := svc.DryRun(ctx, "ws-1", "valid-loop", inputs)
+		if err != nil {
+			t.Fatalf("DryRun() error = %v", err)
+		}
+		if got := preview.ResolvedNetworkParticipation; got != participation.LocalSpec() {
+			t.Fatalf("DryRun participation = %#v, want canonical Local", got)
+		}
+		run, err := svc.Start(ctx, "ws-1", "valid-loop", inputs, humanActor(t))
+		if err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		if got := run.NetworkSpecSnapshot(); got != participation.LocalSpec() {
+			t.Fatalf("Run participation = %#v, want canonical Local", got)
+		}
+		for _, table := range []string{"network_channels", "network_channel_participants"} {
+			if got := countRows(ctx, t, globalDB, table); got != 0 {
+				t.Fatalf("%s rows = %d, want 0 for Local loop", table, got)
+			}
+		}
+	})
+
+	t.Run("Should isolate concurrent live loop-run snapshots", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopServiceGlobalDB(t)
+		insertLoopServiceWorkspace(t, globalDB, "ws-1")
+		definition := validDefinition()
+		definition.Concurrency = dsl.ConcurrencyAllow
+		live := participation.ModeLive
+		loopRunStrategy := participation.StrategyLoopRun
+		definition.NetworkParticipation = &participation.Request{
+			Mode:            &live,
+			ChannelStrategy: &loopRunStrategy,
+		}
+		svc := newIntegrationService(
+			t,
+			globalDB,
+			definition,
+			loop.WithParticipationResolver(loopTestParticipationResolver(t, true)),
+		)
+		ctx := testutil.Context(t)
+		inputs := loop.Inputs{Values: map[string]any{"tasks": "task-ref"}}
+		first, err := svc.Start(ctx, "ws-1", "valid-loop", inputs, humanActor(t))
+		if err != nil {
+			t.Fatalf("Start(first) error = %v", err)
+		}
+		second, err := svc.Start(ctx, "ws-1", "valid-loop", inputs, humanActor(t))
+		if err != nil {
+			t.Fatalf("Start(second) error = %v", err)
+		}
+		firstSpec := first.NetworkSpecSnapshot()
+		secondSpec := second.NetworkSpecSnapshot()
+		if firstSpec.Mode != participation.ModeLive || secondSpec.Mode != participation.ModeLive ||
+			firstSpec.ChannelID == secondSpec.ChannelID {
+			t.Fatalf("live specs = %#v / %#v, want distinct per-run conversations", firstSpec, secondSpec)
+		}
+		storedFirst, err := globalDB.GetLoopRun(ctx, "ws-1", first.ID)
+		if err != nil {
+			t.Fatalf("GetLoopRun(first) error = %v", err)
+		}
+		storedSecond, err := globalDB.GetLoopRun(ctx, "ws-1", second.ID)
+		if err != nil {
+			t.Fatalf("GetLoopRun(second) error = %v", err)
+		}
+		if storedFirst.NetworkSpecSnapshot() != firstSpec || storedSecond.NetworkSpecSnapshot() != secondSpec {
+			t.Fatalf("stored specs = %#v / %#v, want immutable start snapshots", storedFirst, storedSecond)
 		}
 	})
 }
@@ -159,10 +244,17 @@ func newIntegrationService(
 	t *testing.T,
 	loopStore loop.Store,
 	def dsl.Definition,
+	opts ...loop.Option,
 ) loop.Service {
 	t.Helper()
 
 	resolved := compileDefinition(t, def)
+	options := []loop.Option{
+		loop.WithClock(func() time.Time {
+			return time.Date(2026, 7, 4, 15, 0, 0, 0, time.UTC)
+		}),
+	}
+	options = append(options, opts...)
 	svc, err := loop.NewService(
 		loopStore,
 		loop.DefinitionResolverFunc(func(
@@ -178,9 +270,7 @@ func newIntegrationService(
 		) (*loop.GoalRunPolicy, error) {
 			return &loop.GoalRunPolicy{ContextNudgeRatio: 0.8}, nil
 		}),
-		loop.WithClock(func() time.Time {
-			return time.Date(2026, 7, 4, 15, 0, 0, 0, time.UTC)
-		}),
+		options...,
 	)
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
@@ -197,4 +287,18 @@ func countRows(ctx context.Context, t *testing.T, globalDB *globaldb.GlobalDB, t
 		t.Fatalf("count %s rows error = %v", table, err)
 	}
 	return count
+}
+
+func insertLoopServiceWorkspace(t *testing.T, globalDB *globaldb.GlobalDB, workspaceID string) {
+	t.Helper()
+	now := time.Date(2026, 7, 4, 14, 59, 0, 0, time.UTC)
+	if err := globalDB.InsertWorkspace(testutil.Context(t), workspacepkg.Workspace{
+		ID:        workspaceID,
+		RootDir:   t.TempDir(),
+		Name:      workspaceID,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("InsertWorkspace(%q) error = %v", workspaceID, err)
+	}
 }

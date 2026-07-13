@@ -20,12 +20,12 @@ type agentTaskLeaseBindingCapture struct {
 	release      taskpkg.LeaseRelease
 }
 
-func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
+func TestAgentTaskResponsesProjectImmutableParticipationSnapshots(t *testing.T) {
 	t.Parallel()
 
-	const historicalChannel = "scope-uds-history-reclaim-081526"
+	const participationChannel = "scope-uds-participation-reclaim-081526"
 
-	t.Run("Should preserve historical channel bindings in claim-next responses", func(t *testing.T) {
+	t.Run("Should project immutable participation snapshots in claim-next responses", func(t *testing.T) {
 		t.Parallel()
 
 		rawToken := "agh_claim_UDSHISTORY123"
@@ -36,7 +36,7 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 		}
 
 		var seenCriteria taskpkg.ClaimCriteria
-		handlers := newHistoricalAgentTaskHandlers(t, historicalChannel, &stubTaskManager{
+		handlers := newParticipationAgentTaskHandlers(t, participationChannel, &stubTaskManager{
 			ClaimNextRunFn: func(
 				_ context.Context,
 				criteria taskpkg.ClaimCriteria,
@@ -49,16 +49,16 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 				run := agentTaskRun(taskpkg.TaskRunStatusClaimed)
 				run.LeaseUntil = leaseUntil
 				run.ClaimTokenHash = claimHash
-				run.CoordinationChannelID = historicalChannel
+				run.SetNetworkState(udsTestLiveParticipation("ws-1", participationChannel), "", "", "")
 				return &taskpkg.ClaimResult{
 					Task:       agentTaskRecord(),
 					Run:        run,
 					ClaimToken: rawToken,
 					LeaseUntil: leaseUntil,
 					CoordinationChannel: &taskpkg.CoordinationChannelMetadata{
-						ID:                  historicalChannel,
-						Channel:             historicalChannel,
-						DisplayName:         "Historical reclaim lane",
+						ID:                  participationChannel,
+						Channel:             participationChannel,
+						DisplayName:         "Participation reclaim lane",
 						WorkspaceID:         "ws-1",
 						TaskID:              "task-1",
 						RunID:               "run-1",
@@ -70,8 +70,8 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 		})
 		handlers.AgentContextService = agentContextServiceFunc(
 			func(_ context.Context, info *session.Info) (contract.AgentContextPayload, error) {
-				if info.ID != "sess-agent" || info.Channel != historicalChannel {
-					t.Fatalf("ContextForSession info = %#v, want sess-agent on %s", info, historicalChannel)
+				if info.ID != "sess-agent" || info.NetworkParticipation.ChannelID != participationChannel {
+					t.Fatalf("ContextForSession info = %#v, want sess-agent on %s", info, participationChannel)
 				}
 				return contract.AgentContextPayload{
 					Capabilities: contract.AgentCapabilitySectionPayload{
@@ -101,24 +101,24 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 		}
 
 		if response.Claim.Lease.SessionID != "sess-agent" ||
-			response.Claim.Lease.CoordinationChannelID != historicalChannel ||
-			response.Claim.Run.CoordinationChannelID != historicalChannel {
-			t.Fatalf("claim response = %#v, want preserved historical session/channel bindings", response.Claim)
+			response.Claim.Lease.CoordinationChannelID != participationChannel ||
+			response.Claim.Run.CoordinationChannelID != participationChannel {
+			t.Fatalf("claim response = %#v, want projected participation session/channel bindings", response.Claim)
 		}
 		if response.Claim.CoordinationChannel == nil ||
-			response.Claim.CoordinationChannel.ID != historicalChannel ||
+			response.Claim.CoordinationChannel.ID != participationChannel ||
 			response.Claim.Run.CoordinationChannel == nil ||
-			response.Claim.Run.CoordinationChannel.ID != historicalChannel {
-			t.Fatalf("claim response = %#v, want historical coordination metadata", response.Claim)
+			response.Claim.Run.CoordinationChannel.ID != participationChannel {
+			t.Fatalf("claim response = %#v, want participation coordination metadata", response.Claim)
 		}
 		if seenCriteria.ClaimerSessionID != "sess-agent" ||
-			seenCriteria.CoordinationChannelID != historicalChannel ||
+			seenCriteria.CoordinationChannelID != participationChannel ||
 			seenCriteria.LeaseDuration != 90*time.Second {
-			t.Fatalf("criteria = %#v, want historical caller fencing", seenCriteria)
+			t.Fatalf("criteria = %#v, want immutable participation caller fencing", seenCriteria)
 		}
 	})
 
-	t.Run("Should preserve historical channel bindings in lease mutation responses", func(t *testing.T) {
+	t.Run("Should project immutable participation snapshots in lease mutation responses", func(t *testing.T) {
 		t.Parallel()
 
 		testCases := []struct {
@@ -130,7 +130,7 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 			wantStatus    taskpkg.RunStatus
 		}{
 			{
-				name: "Should preserve historical channel bindings in heartbeat responses",
+				name: "Should project immutable participation snapshots in heartbeat responses",
 				path: "/api/agent/tasks/run-1/heartbeat",
 				body: []byte(`{"lease_seconds":60}`),
 				buildManager: func(
@@ -161,7 +161,7 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 							capture.heartbeat = heartbeat
 							capture.actorContext = actor
 							run := agentTaskRun(taskpkg.TaskRunStatusClaimed)
-							run.CoordinationChannelID = historicalChannel
+							run.SetNetworkState(udsTestLiveParticipation("ws-1", participationChannel), "", "", "")
 							run.LeaseUntil = now.Add(time.Minute)
 							return &run, nil
 						},
@@ -182,7 +182,7 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 				wantStatus: taskpkg.TaskRunStatusClaimed,
 			},
 			{
-				name: "Should preserve historical channel bindings in release responses",
+				name: "Should project immutable participation snapshots in release responses",
 				path: "/api/agent/tasks/run-1/release",
 				body: []byte(`{"reason":"handoff"}`),
 				buildManager: func(
@@ -213,7 +213,7 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 							capture.release = release
 							capture.actorContext = actor
 							run := agentTaskRun(taskpkg.TaskRunStatusQueued)
-							run.CoordinationChannelID = historicalChannel
+							run.SetNetworkState(udsTestLiveParticipation("ws-1", participationChannel), "", "", "")
 							return &run, nil
 						},
 					}
@@ -233,7 +233,7 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 				wantStatus: taskpkg.TaskRunStatusQueued,
 			},
 			{
-				name: "Should preserve historical channel bindings in complete responses",
+				name: "Should project immutable participation snapshots in complete responses",
 				path: "/api/agent/tasks/run-1/complete",
 				body: []byte(`{"result":{"status":"done","mode":"uds-history"}}`),
 				buildManager: func(
@@ -264,7 +264,7 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 							capture.completion = completion
 							capture.actorContext = actor
 							run := agentTaskRun(taskpkg.TaskRunStatusCompleted)
-							run.CoordinationChannelID = historicalChannel
+							run.SetNetworkState(udsTestLiveParticipation("ws-1", participationChannel), "", "", "")
 							run.Result = completion.Result.Value
 							return &run, nil
 						},
@@ -285,7 +285,7 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 				wantStatus: taskpkg.TaskRunStatusCompleted,
 			},
 			{
-				name: "Should preserve historical channel bindings in fail responses",
+				name: "Should project immutable participation snapshots in fail responses",
 				path: "/api/agent/tasks/run-1/fail",
 				body: []byte(`{"error":"boom","metadata":{"step":"reclaim"}}`),
 				buildManager: func(
@@ -316,7 +316,7 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 							capture.failure = failure
 							capture.actorContext = actor
 							run := agentTaskRun(taskpkg.TaskRunStatusFailed)
-							run.CoordinationChannelID = historicalChannel
+							run.SetNetworkState(udsTestLiveParticipation("ws-1", participationChannel), "", "", "")
 							run.Error = failure.Failure.Error
 							run.Metadata = failure.Failure.Metadata
 							return &run, nil
@@ -345,9 +345,9 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 				t.Parallel()
 
 				capture := &agentTaskLeaseBindingCapture{}
-				handlers := newHistoricalAgentTaskHandlers(
+				handlers := newParticipationAgentTaskHandlers(
 					t,
-					historicalChannel,
+					participationChannel,
 					tc.buildManager(t, capture, time.Date(2026, 4, 28, 8, 17, 0, 0, time.UTC)),
 				)
 				recorder := performAgentKernelRequest(
@@ -368,8 +368,8 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 				if response.Lease.RunID != "run-1" ||
 					response.Lease.Status != tc.wantStatus ||
 					response.Lease.SessionID != "sess-agent" ||
-					response.Lease.CoordinationChannelID != historicalChannel {
-					t.Fatalf("lease = %#v, want preserved historical session/channel bindings", response.Lease)
+					response.Lease.CoordinationChannelID != participationChannel {
+					t.Fatalf("lease = %#v, want projected participation session/channel bindings", response.Lease)
 				}
 
 				tc.assertCapture(t, capture)
@@ -378,7 +378,7 @@ func TestAgentTaskResponsesPreserveHistoricalChannelBindings(t *testing.T) {
 	})
 }
 
-func newHistoricalAgentTaskHandlers(t *testing.T, channelID string, tasks *stubTaskManager) *Handlers {
+func newParticipationAgentTaskHandlers(t *testing.T, channelID string, tasks *stubTaskManager) *Handlers {
 	t.Helper()
 
 	return newTestHandlersWithRuntime(
@@ -390,17 +390,17 @@ func newHistoricalAgentTaskHandlers(t *testing.T, channelID string, tasks *stubT
 				}
 				now := time.Date(2026, 4, 28, 8, 15, 0, 0, time.UTC)
 				return &session.Info{
-					ID:          "sess-agent",
-					Name:        "worker",
-					AgentName:   "coder",
-					Provider:    "test-provider",
-					WorkspaceID: "ws-1",
-					Workspace:   "/workspace/project",
-					Channel:     channelID,
-					Type:        session.SessionTypeUser,
-					State:       session.StateActive,
-					CreatedAt:   now,
-					UpdatedAt:   now,
+					ID:                   "sess-agent",
+					Name:                 "worker",
+					AgentName:            "coder",
+					Provider:             "test-provider",
+					WorkspaceID:          "ws-1",
+					Workspace:            "/workspace/project",
+					NetworkParticipation: udsTestLiveParticipation("ws-1", channelID),
+					Type:                 session.SessionTypeUser,
+					State:                session.StateActive,
+					CreatedAt:            now,
+					UpdatedAt:            now,
 				}, nil
 			},
 		},

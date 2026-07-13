@@ -29,13 +29,14 @@ describe("buildCreateTaskRequest", () => {
 
     expect(payload.workspace).toBe("ws_signalforge");
     expect(payload.network_channel).toBeUndefined();
+    expect("network_channel" in payload).toBe(false);
     expect(payload.identifier).toBeUndefined();
     expect("parent_task_id" in payload).toBe(false);
   });
 });
 
 describe("buildCreateChildTaskRequest", () => {
-  it("builds the child-task payload when the editor draft provides a parent task id", () => {
+  it("builds the child-task payload without serializing network_channel", () => {
     const payload = buildCreateChildTaskRequest(
       {
         ...EMPTY_TASK_EDITOR_DRAFT,
@@ -44,7 +45,6 @@ describe("buildCreateChildTaskRequest", () => {
         scope: "workspace",
         workspaceId: "ws_signalforge",
         parentTaskId: " task-44a84096bb3e51ea ",
-        networkChannel: " launch-sprint-0425 ",
         identifier: " WEB-CHILD-0425 ",
       },
       {
@@ -54,7 +54,8 @@ describe("buildCreateChildTaskRequest", () => {
     );
 
     expect(payload.workspace).toBe("ws_signalforge");
-    expect(payload.network_channel).toBe("launch-sprint-0425");
+    expect(payload.network_channel).toBeUndefined();
+    expect("network_channel" in payload).toBe(false);
     expect(payload.identifier).toBe("WEB-CHILD-0425");
     expect("parent_task_id" in payload).toBe(false);
   });

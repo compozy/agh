@@ -271,7 +271,18 @@ func insertAutomationRunTx(ctx context.Context, tx *sql.Tx, run automation.Run) 
 	if err != nil {
 		return err
 	}
-	if err := sqlcgen.New(tx).InsertAutomationRun(ctx, automationRunParams(run, metadataJSON)); err != nil {
+	networkParticipation, err := encodeOptionalAutomationParticipation(
+		run.NetworkParticipation,
+		run.NetworkParticipation == nil,
+		"run.network_participation",
+	)
+	if err != nil {
+		return err
+	}
+	if err := sqlcgen.New(tx).InsertAutomationRun(
+		ctx,
+		automationRunParams(run, networkParticipation, metadataJSON),
+	); err != nil {
 		if isSQLiteUniqueConstraint(err) {
 			return fmt.Errorf(
 				"store: automation scheduled fire %q: %w",

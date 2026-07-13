@@ -6,7 +6,40 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
+
+func TestTaskRunContextNetworkSpecSnapshot(t *testing.T) {
+	t.Run("Should project an absent typed snapshot as Local without reading compatibility fields", func(t *testing.T) {
+		t.Parallel()
+
+		context := TaskRunContext{
+			CoordinationChannelID: "legacy-coordination",
+			NetworkChannel:        "legacy-network",
+		}
+		if got, want := context.NetworkSpecSnapshot(), participation.LocalSpec(); got != want {
+			t.Fatalf("NetworkSpecSnapshot() = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should return the immutable typed snapshot by value", func(t *testing.T) {
+		t.Parallel()
+
+		want := participation.Spec{
+			Version:         participation.SpecVersion,
+			Mode:            participation.ModeLive,
+			WorkspaceID:     "ws-hooks",
+			ChannelStrategy: participation.StrategyNamed,
+			ChannelID:       "operations",
+			Source:          participation.SourceExplicitRequest,
+		}
+		context := TaskRunContext{ResolvedNetworkParticipation: participation.CloneSpec(want)}
+		if got := context.NetworkSpecSnapshot(); got != want {
+			t.Fatalf("NetworkSpecSnapshot() = %#v, want %#v", got, want)
+		}
+	})
+}
 
 func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 	t.Parallel()

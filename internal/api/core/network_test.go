@@ -1747,19 +1747,18 @@ func TestBaseHandlersPromoteNetworkThreadTask(t *testing.T) {
 			CreateTaskFn: func(_ context.Context, spec taskpkg.CreateTask, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
 				createdSpec = spec
 				return &taskpkg.Task{
-					ID:             "task-promoted",
-					Scope:          spec.Scope,
-					WorkspaceID:    spec.WorkspaceID,
-					NetworkChannel: spec.NetworkChannel,
-					Title:          spec.Title,
-					Description:    spec.Description,
-					Priority:       spec.Priority,
-					Status:         taskpkg.TaskStatusReady,
-					CreatedBy:      actor.Actor,
-					Origin:         actor.Origin,
-					CreatedAt:      now,
-					UpdatedAt:      now,
-					Metadata:       spec.Metadata,
+					ID:          "task-promoted",
+					Scope:       spec.Scope,
+					WorkspaceID: spec.WorkspaceID,
+					Title:       spec.Title,
+					Description: spec.Description,
+					Priority:    spec.Priority,
+					Status:      taskpkg.TaskStatusReady,
+					CreatedBy:   actor.Actor,
+					Origin:      actor.Origin,
+					CreatedAt:   now,
+					UpdatedAt:   now,
+					Metadata:    spec.Metadata,
 				}, nil
 			},
 		}
@@ -1831,14 +1830,13 @@ func TestBaseHandlersPromoteNetworkThreadTask(t *testing.T) {
 		var payload contract.PromoteNetworkThreadTaskResponse
 		testutil.DecodeJSONResponse(t, resp, &payload)
 		if payload.Task.ID != "task-promoted" ||
-			payload.Task.NetworkChannel != "builders" ||
+			payload.Task.NetworkChannel != "" ||
 			payload.Origin.OriginMessageID != "msg-followup" ||
 			payload.Origin.TaskID != "task-promoted" {
 			t.Fatalf("promote payload = %#v", payload)
 		}
 		if createdSpec.Scope != taskpkg.ScopeWorkspace ||
 			createdSpec.WorkspaceID != "ws-workspace" ||
-			createdSpec.NetworkChannel != "builders" ||
 			createdSpec.Title != "Token optimization" ||
 			createdSpec.Priority != taskpkg.PriorityHigh {
 			t.Fatalf("created promoted task spec = %#v", createdSpec)
@@ -1966,18 +1964,18 @@ func TestBaseHandlersNetworkPeerOrderingUsesEffectiveRecency(t *testing.T) {
 			ListAllFn: func(context.Context) ([]*session.Info, error) {
 				return []*session.Info{
 					{
-						ID:        backendSessionID,
-						Name:      "Backend",
-						AgentName: "backend",
-						Channel:   "builders",
-						State:     session.StateActive,
+						ID:                   backendSessionID,
+						Name:                 "Backend",
+						AgentName:            "backend",
+						NetworkParticipation: testLiveParticipation("", "builders"),
+						State:                session.StateActive,
 					},
 					{
-						ID:        coderSessionID,
-						Name:      "Coder",
-						AgentName: "coder",
-						Channel:   "builders",
-						State:     session.StateActive,
+						ID:                   coderSessionID,
+						Name:                 "Coder",
+						AgentName:            "coder",
+						NetworkParticipation: testLiveParticipation("", "builders"),
+						State:                session.StateActive,
 					},
 				}, nil
 			},
@@ -2200,24 +2198,32 @@ func TestBaseHandlersNetworkPeerMessages(t *testing.T) {
 	})
 }
 
-func TestBaseHandlersCreateNetworkChannelRollsBackWhenDetailReadbackFails(t *testing.T) {
+func TestBaseHandlersCreateNetworkChannelRollsBackPartialProvisioning(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should roll back created sessions when channel readback fails", func(t *testing.T) {
 		createdAt := time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC)
 		var rolledBack []string
+		channelPersisted := false
 		manager := testutil.StubSessionManager{
 			CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
+				if !channelPersisted {
+					t.Fatal("Create() called before durable channel authority was persisted")
+				}
+				channelID := ""
+				if opts.NetworkParticipation != nil && opts.NetworkParticipation.ChannelID != nil {
+					channelID = *opts.NetworkParticipation.ChannelID
+				}
 				return &session.Session{
-					ID:          "sess-" + opts.AgentName,
-					Name:        strings.ToUpper(opts.AgentName),
-					AgentName:   opts.AgentName,
-					WorkspaceID: opts.Workspace,
-					Channel:     opts.Channel,
-					Type:        session.SessionTypeUser,
-					State:       session.StateActive,
-					CreatedAt:   createdAt,
-					UpdatedAt:   createdAt,
+					ID:                   "sess-" + opts.AgentName,
+					Name:                 strings.ToUpper(opts.AgentName),
+					AgentName:            opts.AgentName,
+					WorkspaceID:          opts.Workspace,
+					NetworkParticipation: testLiveParticipation(opts.Workspace, channelID),
+					Type:                 session.SessionTypeUser,
+					State:                session.StateActive,
+					CreatedAt:            createdAt,
+					UpdatedAt:            createdAt,
 				}, nil
 			},
 			ListAllFn: func(context.Context) ([]*session.Info, error) {
@@ -2253,7 +2259,16 @@ func TestBaseHandlersCreateNetworkChannelRollsBackWhenDetailReadbackFails(t *tes
 				return nil, nil
 			},
 		}
-		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			CreateNetworkChannelFn: func(_ context.Context, _ store.NetworkChannelEntry) error {
+				channelPersisted = true
+				return nil
+			},
+			DeleteNetworkChannelFn: func(_ context.Context, _ store.NetworkChannelRef) error {
+				channelPersisted = false
+				return nil
+			},
+		}
 
 		resp := performRequest(
 			t,
@@ -2267,9 +2282,90 @@ func TestBaseHandlersCreateNetworkChannelRollsBackWhenDetailReadbackFails(t *tes
 		if resp.Code != http.StatusInternalServerError {
 			t.Fatalf("create channel code = %d, want %d", resp.Code, http.StatusInternalServerError)
 		}
+		if !strings.Contains(resp.Body.String(), "readback failed") {
+			t.Fatalf("create channel body = %q, want readback failure", resp.Body.String())
+		}
 
 		sort.Strings(rolledBack)
 		if got, want := strings.Join(rolledBack, ","), "sess-coder,sess-reviewer"; got != want {
+			t.Fatalf("rolled back sessions = %q, want %q", got, want)
+		}
+		if channelPersisted {
+			t.Fatal("network channel still persisted after readback rollback")
+		}
+	})
+
+	t.Run("Should remove channel authority when a member session fails", func(t *testing.T) {
+		channelPersisted := false
+		createCalls := 0
+		var rolledBack []string
+		manager := testutil.StubSessionManager{
+			CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
+				if !channelPersisted {
+					t.Fatal("Create() called before durable channel authority was persisted")
+				}
+				createCalls++
+				if createCalls == 2 {
+					return nil, errors.New("member create failed")
+				}
+				return &session.Session{
+					ID:                   "sess-" + opts.AgentName,
+					AgentName:            opts.AgentName,
+					WorkspaceID:          opts.Workspace,
+					NetworkParticipation: testLiveParticipation(opts.Workspace, "builders"),
+					Type:                 session.SessionTypeUser,
+					State:                session.StateActive,
+				}, nil
+			},
+			StopWithCauseFn: func(_ context.Context, id string, _ session.StopCause, _ string) error {
+				rolledBack = append(rolledBack, id)
+				return nil
+			},
+		}
+		workspaces := testutil.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{ID: ref, Name: "Workspace"},
+					Agents: []aghconfig.AgentDef{
+						{Name: "coder"},
+						{Name: "reviewer"},
+					},
+				}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			CreateNetworkChannelFn: func(_ context.Context, _ store.NetworkChannelEntry) error {
+				channelPersisted = true
+				return nil
+			},
+			DeleteNetworkChannelFn: func(_ context.Context, _ store.NetworkChannelRef) error {
+				channelPersisted = false
+				return nil
+			},
+		}
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces/ws-workspace/network/channels",
+			[]byte(
+				`{"channel":"builders","workspace_id":"ws-workspace","purpose":"Cross-agent coordination","agent_names":["coder","reviewer"]}`,
+			),
+		)
+		if resp.Code != http.StatusInternalServerError {
+			t.Fatalf("create channel code = %d, want %d", resp.Code, http.StatusInternalServerError)
+		}
+		if !strings.Contains(resp.Body.String(), "member create failed") {
+			t.Fatalf("create channel body = %q, want member failure", resp.Body.String())
+		}
+		if channelPersisted {
+			t.Fatal("network channel still persisted after member creation failure")
+		}
+		if got, want := strings.Join(rolledBack, ","), "sess-coder"; got != want {
 			t.Fatalf("rolled back sessions = %q, want %q", got, want)
 		}
 	})
@@ -4497,26 +4593,26 @@ func TestBaseHandlersNetworkChannelEndpointsIgnoreStoppedSessions(t *testing.T) 
 			ListAllFn: func(context.Context) ([]*session.Info, error) {
 				return []*session.Info{
 					{
-						ID:          coderSessionID,
-						Name:        "Coder",
-						AgentName:   "coder",
-						WorkspaceID: "ws-workspace",
-						Channel:     "builders",
-						Type:        session.SessionTypeUser,
-						State:       session.StateActive,
-						CreatedAt:   createdAt,
-						UpdatedAt:   createdAt,
+						ID:                   coderSessionID,
+						Name:                 "Coder",
+						AgentName:            "coder",
+						WorkspaceID:          "ws-workspace",
+						NetworkParticipation: testLiveParticipation("ws-workspace", "builders"),
+						Type:                 session.SessionTypeUser,
+						State:                session.StateActive,
+						CreatedAt:            createdAt,
+						UpdatedAt:            createdAt,
 					},
 					{
-						ID:          reviewerSessionID,
-						Name:        "Reviewer",
-						AgentName:   "reviewer",
-						WorkspaceID: "ws-workspace",
-						Channel:     "retro",
-						Type:        session.SessionTypeUser,
-						State:       session.StateStopped,
-						CreatedAt:   createdAt.Add(time.Minute),
-						UpdatedAt:   createdAt.Add(time.Minute),
+						ID:                   reviewerSessionID,
+						Name:                 "Reviewer",
+						AgentName:            "reviewer",
+						WorkspaceID:          "ws-workspace",
+						NetworkParticipation: testLiveParticipation("ws-workspace", "retro"),
+						Type:                 session.SessionTypeUser,
+						State:                session.StateStopped,
+						CreatedAt:            createdAt.Add(time.Minute),
+						UpdatedAt:            createdAt.Add(time.Minute),
 					},
 				}, nil
 			},
@@ -4804,26 +4900,26 @@ func TestBaseHandlersNetworkChannelEndpointsIgnoreStoppedSessions(t *testing.T) 
 			ListAllFn: func(context.Context) ([]*session.Info, error) {
 				return []*session.Info{
 					{
-						ID:          "sess-founder",
-						Name:        "Founder",
-						AgentName:   "founder",
-						WorkspaceID: "ws-workspace",
-						Channel:     "handoff",
-						Type:        session.SessionTypeUser,
-						State:       session.StateStopped,
-						CreatedAt:   createdAt,
-						UpdatedAt:   createdAt,
+						ID:                   "sess-founder",
+						Name:                 "Founder",
+						AgentName:            "founder",
+						WorkspaceID:          "ws-workspace",
+						NetworkParticipation: testLiveParticipation("ws-workspace", "handoff"),
+						Type:                 session.SessionTypeUser,
+						State:                session.StateStopped,
+						CreatedAt:            createdAt,
+						UpdatedAt:            createdAt,
 					},
 					{
-						ID:          "sess-coder",
-						Name:        "Coder",
-						AgentName:   "coder",
-						WorkspaceID: "ws-workspace",
-						Channel:     "handoff",
-						Type:        session.SessionTypeUser,
-						State:       session.StateStopped,
-						CreatedAt:   createdAt.Add(time.Minute),
-						UpdatedAt:   createdAt.Add(time.Minute),
+						ID:                   "sess-coder",
+						Name:                 "Coder",
+						AgentName:            "coder",
+						WorkspaceID:          "ws-workspace",
+						NetworkParticipation: testLiveParticipation("ws-workspace", "handoff"),
+						Type:                 session.SessionTypeUser,
+						State:                session.StateStopped,
+						CreatedAt:            createdAt.Add(time.Minute),
+						UpdatedAt:            createdAt.Add(time.Minute),
 					},
 				}, nil
 			},
@@ -5021,15 +5117,15 @@ func TestBaseHandlersNetworkChannelMessagesPreserveRemoteAuthors(t *testing.T) {
 			manager := testutil.StubSessionManager{
 				ListAllFn: func(context.Context) ([]*session.Info, error) {
 					return []*session.Info{{
-						ID:          localSessionID,
-						Name:        "Coder",
-						AgentName:   "coder",
-						WorkspaceID: "ws-workspace",
-						Channel:     "builders",
-						Type:        session.SessionTypeUser,
-						State:       session.StateActive,
-						CreatedAt:   createdAt,
-						UpdatedAt:   createdAt,
+						ID:                   localSessionID,
+						Name:                 "Coder",
+						AgentName:            "coder",
+						WorkspaceID:          "ws-workspace",
+						NetworkParticipation: testLiveParticipation("ws-workspace", "builders"),
+						Type:                 session.SessionTypeUser,
+						State:                session.StateActive,
+						CreatedAt:            createdAt,
+						UpdatedAt:            createdAt,
 					}}, nil
 				},
 			}
@@ -5374,34 +5470,40 @@ func TestBaseHandlersCreateNetworkChannelCreatesSessionsPerAgent(t *testing.T) {
 		"Should create one session per requested agent and return the aggregated channel payload",
 		func(t *testing.T) {
 			var createCalls []session.CreateOpts
+			channelPersisted := false
 			manager := testutil.StubSessionManager{
 				CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
+					if !channelPersisted {
+						t.Fatal("Create() called before durable channel authority was persisted")
+					}
 					createCalls = append(createCalls, opts)
+					channelID := testParticipationRequestChannel(opts.NetworkParticipation)
 					return &session.Session{
-						ID:          "sess-" + opts.AgentName,
-						Name:        strings.ToUpper(opts.AgentName),
-						AgentName:   opts.AgentName,
-						WorkspaceID: opts.Workspace,
-						Channel:     opts.Channel,
-						Type:        session.SessionTypeUser,
-						State:       session.StateActive,
-						CreatedAt:   time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC),
-						UpdatedAt:   time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC),
+						ID:                   "sess-" + opts.AgentName,
+						Name:                 strings.ToUpper(opts.AgentName),
+						AgentName:            opts.AgentName,
+						WorkspaceID:          opts.Workspace,
+						NetworkParticipation: testLiveParticipation(opts.Workspace, channelID),
+						Type:                 session.SessionTypeUser,
+						State:                session.StateActive,
+						CreatedAt:            time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC),
+						UpdatedAt:            time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC),
 					}, nil
 				},
 				ListAllFn: func(_ context.Context) ([]*session.Info, error) {
 					infos := make([]*session.Info, 0, len(createCalls))
 					for _, call := range createCalls {
+						channelID := testParticipationRequestChannel(call.NetworkParticipation)
 						infos = append(infos, &session.Info{
-							ID:          "sess-" + call.AgentName,
-							Name:        strings.ToUpper(call.AgentName),
-							AgentName:   call.AgentName,
-							WorkspaceID: call.Workspace,
-							Channel:     call.Channel,
-							Type:        session.SessionTypeUser,
-							State:       session.StateActive,
-							CreatedAt:   time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC),
-							UpdatedAt:   time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC),
+							ID:                   "sess-" + call.AgentName,
+							Name:                 strings.ToUpper(call.AgentName),
+							AgentName:            call.AgentName,
+							WorkspaceID:          call.Workspace,
+							NetworkParticipation: testLiveParticipation(call.Workspace, channelID),
+							Type:                 session.SessionTypeUser,
+							State:                session.StateActive,
+							CreatedAt:            time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC),
+							UpdatedAt:            time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC),
 						})
 					}
 					return infos, nil
@@ -5453,10 +5555,11 @@ func TestBaseHandlersCreateNetworkChannelCreatesSessionsPerAgent(t *testing.T) {
 				},
 			}
 			fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
-				WriteNetworkChannelFn: func(_ context.Context, entry store.NetworkChannelEntry) error {
+				CreateNetworkChannelFn: func(_ context.Context, entry store.NetworkChannelEntry) error {
 					if got, want := entry.WorkspaceID, "ws-workspace"; got != want {
-						t.Fatalf("WriteNetworkChannel() workspace_id = %q, want %q", got, want)
+						t.Fatalf("CreateNetworkChannel() workspace_id = %q, want %q", got, want)
 					}
+					channelPersisted = true
 					return nil
 				},
 				ListNetworkMessagesFn: func(_ context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
@@ -5503,7 +5606,7 @@ func TestBaseHandlersCreateNetworkChannelCreatesSessionsPerAgent(t *testing.T) {
 				if got := call.Provider; got != "" {
 					t.Fatalf("Create() provider = %q, want explicit empty provider", got)
 				}
-				if got, want := call.Channel, "builders"; got != want {
+				if got, want := testParticipationRequestChannel(call.NetworkParticipation), "builders"; got != want {
 					t.Fatalf("Create() channel = %q, want %q", got, want)
 				}
 			}
@@ -5694,15 +5797,15 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 		manager := testutil.StubSessionManager{
 			ListAllFn: func(context.Context) ([]*session.Info, error) {
 				return []*session.Info{{
-					ID:          coderSessionID,
-					Name:        "Coder",
-					AgentName:   "coder",
-					WorkspaceID: "ws-workspace",
-					Channel:     "builders",
-					Type:        session.SessionTypeUser,
-					State:       session.StateActive,
-					CreatedAt:   time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC),
-					UpdatedAt:   time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC),
+					ID:                   coderSessionID,
+					Name:                 "Coder",
+					AgentName:            "coder",
+					WorkspaceID:          "ws-workspace",
+					NetworkParticipation: testLiveParticipation("ws-workspace", "builders"),
+					Type:                 session.SessionTypeUser,
+					State:                session.StateActive,
+					CreatedAt:            time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC),
+					UpdatedAt:            time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC),
 				}}, nil
 			},
 		}

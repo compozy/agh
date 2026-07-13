@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 func TestScheduleSpecValidate(t *testing.T) {
@@ -867,11 +869,12 @@ func TestRunAndEnvelopeValidate(t *testing.T) {
 	}
 
 	if err := (JobTaskConfig{
-		NetworkChannel: "bad channel",
+		NetworkParticipation: testNamedParticipation("bad channel"),
 	}).Validate("job.task"); err == nil {
 		t.Fatal("JobTaskConfig.Validate(invalid channel) error = nil, want non-nil")
-	} else if got := err.Error(); !strings.Contains(got, "job.task.network_channel is invalid") {
-		t.Fatalf("JobTaskConfig.Validate(invalid channel) error = %q, want network_channel validation", got)
+	} else if got := err.Error(); !strings.Contains(got, "job.task.network_participation is invalid") ||
+		!strings.Contains(got, participation.ErrStrategyInvalid.Error()) {
+		t.Fatalf("JobTaskConfig.Validate(invalid channel) error = %q, want participation validation", got)
 	}
 
 	envelope := ActivationEnvelope{

@@ -23,7 +23,7 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 
 	now := time.Date(2026, 4, 17, 14, 0, 0, 0, time.UTC)
 	lastActivity := now.Add(-time.Minute)
-	var listQuery taskpkg.Query
+	var listQuery taskpkg.CatalogQuery
 	var listActor taskpkg.ActorContext
 	var detailActor taskpkg.ActorContext
 	var runDetailActor taskpkg.ActorContext
@@ -35,23 +35,15 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 	var inboxActor taskpkg.ActorIdentity
 
 	tasks := &testutil.StubTaskManager{
-		ListTasksFn: func(_ context.Context, query taskpkg.Query, actor taskpkg.ActorContext) ([]taskpkg.Summary, error) {
+		ListTaskCatalogFn: func(
+			_ context.Context,
+			query taskpkg.CatalogQuery,
+			actor taskpkg.ActorContext,
+		) (taskpkg.CatalogPage, error) {
 			listQuery = query
 			listActor = actor
-			return []taskpkg.Summary{
-				{
-					ID:          "task-draft",
-					Title:       "Draft task",
-					Scope:       taskpkg.ScopeWorkspace,
-					WorkspaceID: "ws-alpha",
-					Status:      taskpkg.TaskStatusDraft,
-					Draft:       true,
-					CreatedBy:   actor.Actor,
-					Origin:      actor.Origin,
-					CreatedAt:   now.Add(-2 * time.Hour),
-					UpdatedAt:   now.Add(-time.Hour),
-				},
-				{
+			return taskpkg.CatalogPage{
+				Tasks: []taskpkg.Summary{{
 					ID:             "task-1",
 					Identifier:     "TASK-1",
 					Title:          "Review handlers",
@@ -60,13 +52,14 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 					Priority:       taskpkg.PriorityHigh,
 					Status:         taskpkg.TaskStatusReady,
 					ApprovalState:  taskpkg.ApprovalStatePending,
-					NetworkChannel: "builders",
 					CreatedBy:      actor.Actor,
 					Origin:         actor.Origin,
 					CreatedAt:      now.Add(-2 * time.Hour),
 					UpdatedAt:      now,
 					LastActivityAt: lastActivity,
-				},
+				}},
+				Total: 1,
+				Limit: query.Limit,
 			}, nil
 		},
 		GetTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.View, error) {
@@ -294,7 +287,7 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 		t.Fatalf("inbox status = %d, want %d; body=%s", inboxResp.Code, http.StatusOK, inboxResp.Body.String())
 	}
 	if inboxQuery.WorkspaceID != "ws-alpha" || inboxQuery.Lane != observe.TaskInboxLaneApprovals ||
-		!inboxQuery.Unread ||
+		inboxQuery.Unread == nil || !*inboxQuery.Unread ||
 		inboxQuery.Search != "review" ||
 		inboxActor.Ref != "user-1" {
 		t.Fatalf("inbox query/actor = %#v / %#v", inboxQuery, inboxActor)
@@ -341,7 +334,6 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 				Attempt:        1,
 				Origin:         actor.Origin,
 				IdempotencyKey: req.IdempotencyKey,
-				NetworkChannel: req.NetworkChannel,
 				Metadata:       req.Metadata,
 				QueuedAt:       now,
 			}}, nil
@@ -372,7 +364,6 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 				Attempt:        1,
 				Origin:         actor.Origin,
 				IdempotencyKey: req.IdempotencyKey,
-				NetworkChannel: req.NetworkChannel,
 				Metadata:       req.Metadata,
 				QueuedAt:       now,
 			}}, nil
@@ -405,7 +396,6 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 				Attempt:        1,
 				Origin:         actor.Origin,
 				IdempotencyKey: req.IdempotencyKey,
-				NetworkChannel: req.NetworkChannel,
 				Metadata:       req.Metadata,
 				QueuedAt:       now,
 			}}, nil
@@ -467,30 +457,27 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 			name:         "Should return 200 for task publish and forward execution request",
 			call:         "publish",
 			path:         "/tasks/task-1/publish",
-			body:         []byte(`{"idempotency_key":"publish-1","network_channel":"builders","metadata":{"action":"publish"}}`),
+			body:         []byte(`{"idempotency_key":"publish-1","metadata":{"action":"publish"}}`),
 			want:         http.StatusOK,
 			wantKey:      "publish-1",
-			wantChannel:  "builders",
 			wantMetadata: `{"action":"publish"}`,
 		},
 		{
 			name:         "Should return 201 for task start and forward execution request",
 			call:         "start",
 			path:         "/tasks/task-1/start",
-			body:         []byte(`{"idempotency_key":"start-1","network_channel":"builders","metadata":{"action":"start"}}`),
+			body:         []byte(`{"idempotency_key":"start-1","metadata":{"action":"start"}}`),
 			want:         http.StatusCreated,
 			wantKey:      "start-1",
-			wantChannel:  "builders",
 			wantMetadata: `{"action":"start"}`,
 		},
 		{
 			name:         "Should return 201 for task approve and forward execution request",
 			call:         "approve",
 			path:         "/tasks/task-1/approve",
-			body:         []byte(`{"idempotency_key":"approve-1","network_channel":"builders","metadata":{"action":"approve"}}`),
+			body:         []byte(`{"idempotency_key":"approve-1","metadata":{"action":"approve"}}`),
 			want:         http.StatusCreated,
 			wantKey:      "approve-1",
-			wantChannel:  "builders",
 			wantMetadata: `{"action":"approve"}`,
 		},
 		{name: "Should return 200 for task reject", call: "reject", path: "/tasks/task-1/reject", want: http.StatusOK},
@@ -545,9 +532,7 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 			if !ok {
 				t.Fatalf("%s request was not recorded", tc.call)
 			}
-			if got.IdempotencyKey != tc.wantKey ||
-				got.NetworkChannel != tc.wantChannel ||
-				string(got.Metadata) != tc.wantMetadata {
+			if got.IdempotencyKey != tc.wantKey || string(got.Metadata) != tc.wantMetadata {
 				t.Fatalf("%s request = %#v, want key=%q channel=%q metadata=%s",
 					tc.call,
 					got,

@@ -14,6 +14,7 @@ import (
 
 type normalizedNeedsAttentionClear struct {
 	taskID    string
+	note      string
 	clearedAt time.Time
 	actor     taskpkg.ActorContext
 }
@@ -60,7 +61,11 @@ func (g *TaskRepo) ClearTaskNeedsAttention(
 			string(hookspkg.HookTaskRecovered),
 			normalized.actor,
 			normalized.clearedAt,
-			taskRecoveredWatchEventPayload{At: normalized.clearedAt},
+			taskRecoveredWatchEventPayload{
+				Status: taskpkg.TaskStatusReady,
+				Note:   normalized.note,
+				At:     normalized.clearedAt,
+			},
 		)
 		if err != nil {
 			return err
@@ -104,5 +109,10 @@ func normalizeNeedsAttentionClear(
 	if err := actor.Origin.Validate("task.needs_attention_clear_origin"); err != nil {
 		return normalizedNeedsAttentionClear{}, err
 	}
-	return normalizedNeedsAttentionClear{taskID: taskID, clearedAt: clearedAt, actor: actor}, nil
+	return normalizedNeedsAttentionClear{
+		taskID:    taskID,
+		note:      strings.TrimSpace(mutation.Note),
+		clearedAt: clearedAt,
+		actor:     actor,
+	}, nil
 }

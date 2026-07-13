@@ -13,6 +13,7 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/coordinator"
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	storepkg "github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -56,8 +57,13 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 			call.Model,
 		)
 	}
-	if call.Workspace != "ws-1" || call.Channel != "ch-run-1" {
-		t.Fatalf("CreateOpts workspace/channel = %q/%q, want ws-1/ch-run-1", call.Workspace, call.Channel)
+	if call.Workspace != "ws-1" || call.NetworkParticipation == nil ||
+		call.NetworkParticipation.ChannelID == nil || *call.NetworkParticipation.ChannelID != "ch-run-1" {
+		t.Fatalf(
+			"CreateOpts workspace/participation = %q/%#v, want ws-1/live ch-run-1",
+			call.Workspace,
+			call.NetworkParticipation,
+		)
 	}
 	if call.Lineage == nil || call.Lineage.SpawnRole != string(session.SessionTypeCoordinator) {
 		t.Fatalf("CreateOpts.Lineage = %#v, want coordinator root lineage", call.Lineage)
@@ -173,7 +179,7 @@ func TestCoordinatorRuntimeSkipsIneligibleRuns(t *testing.T) {
 			task: coordinatorRuntimeTask(),
 			run: func() taskpkg.Run {
 				run := coordinatorRuntimeRun()
-				run.CoordinationChannelID = ""
+				run.SetNetworkState(participation.LocalSpec(), "", "", "")
 				return run
 			}(),
 			cfg:        coordinatorRuntimeConfig(),
@@ -640,13 +646,14 @@ func coordinatorRuntimeTask() taskpkg.Task {
 }
 
 func coordinatorRuntimeRun() taskpkg.Run {
-	return taskpkg.Run{
-		ID:                    "run-1",
-		TaskID:                "task-1",
-		Status:                taskpkg.TaskRunStatusQueued,
-		CoordinationChannelID: "ch-run-1",
-		Metadata:              json.RawMessage(`{"workflow_id":"wf-1"}`),
+	run := taskpkg.Run{
+		ID:       "run-1",
+		TaskID:   "task-1",
+		Status:   taskpkg.TaskRunStatusQueued,
+		Metadata: json.RawMessage(`{"workflow_id":"wf-1"}`),
 	}
+	run.SetNetworkState(daemonTestLiveParticipation("ws-1", "ch-run-1"), "", "", "")
+	return run
 }
 
 type staticCoordinatorConfigResolver struct {
@@ -774,33 +781,33 @@ func (s *coordinatorRuntimeSessions) Create(ctx context.Context, opts session.Cr
 	s.createCalls = append(s.createCalls, opts)
 	id := fmt.Sprintf("coord-%d", len(s.createCalls))
 	info := &session.Info{
-		ID:          id,
-		Name:        opts.Name,
-		AgentName:   opts.AgentName,
-		Provider:    opts.Provider,
-		Model:       opts.Model,
-		WorkspaceID: opts.Workspace,
-		Workspace:   opts.Workspace,
-		Channel:     opts.Channel,
-		Type:        opts.Type,
-		Lineage:     opts.Lineage,
-		State:       session.StateActive,
-		CreatedAt:   time.Now().UTC(),
+		ID:                   id,
+		Name:                 opts.Name,
+		AgentName:            opts.AgentName,
+		Provider:             opts.Provider,
+		Model:                opts.Model,
+		WorkspaceID:          opts.Workspace,
+		Workspace:            opts.Workspace,
+		NetworkParticipation: daemonTestParticipationFromCreateOpts(opts),
+		Type:                 opts.Type,
+		Lineage:              opts.Lineage,
+		State:                session.StateActive,
+		CreatedAt:            time.Now().UTC(),
 	}
 	s.infos = append(s.infos, info)
 	return &session.Session{
-		ID:          info.ID,
-		Name:        info.Name,
-		AgentName:   info.AgentName,
-		Provider:    info.Provider,
-		Model:       info.Model,
-		WorkspaceID: info.WorkspaceID,
-		Workspace:   info.Workspace,
-		Channel:     info.Channel,
-		Type:        info.Type,
-		Lineage:     info.Lineage,
-		State:       info.State,
-		CreatedAt:   info.CreatedAt,
+		ID:                   info.ID,
+		Name:                 info.Name,
+		AgentName:            info.AgentName,
+		Provider:             info.Provider,
+		Model:                info.Model,
+		WorkspaceID:          info.WorkspaceID,
+		Workspace:            info.Workspace,
+		NetworkParticipation: info.NetworkParticipation,
+		Type:                 info.Type,
+		Lineage:              info.Lineage,
+		State:                info.State,
+		CreatedAt:            info.CreatedAt,
 	}, nil
 }
 

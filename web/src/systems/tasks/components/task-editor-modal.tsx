@@ -12,9 +12,6 @@ import {
   DialogHeader,
   DialogTitle,
   Eyebrow,
-  Field,
-  FieldLabel,
-  Input,
   Spinner,
 } from "@agh/ui";
 
@@ -223,14 +220,12 @@ export function TaskEditorModal({
                 </NumberedSection>
                 <NumberedSection
                   index="06"
-                  subtitle="Optional — for peer ingress and stable references."
-                  title="Ingress &amp; identity"
+                  subtitle="Optional — stable identifier override."
+                  title="Identity"
                 >
                   <IngressIdentitySection
                     identifier={draft.identifier}
-                    networkChannel={draft.networkChannel}
                     onIdentifier={setField("identifier")}
-                    onNetworkChannel={setField("networkChannel")}
                   />
                 </NumberedSection>
                 <ExecutionCollapsible
@@ -243,37 +238,22 @@ export function TaskEditorModal({
             ) : null}
 
             {!isNewMode ? (
-              <>
-                <NumberedSection
-                  index="03"
-                  subtitle="Who runs it, and how retries behave."
-                  title="Queue &amp; ownership"
-                >
-                  <QueueOwnershipSection
-                    approvalPolicy={draft.approvalPolicy}
-                    maxAttempts={draft.maxAttempts}
-                    onApprovalPolicy={form.updateApprovalPolicy}
-                    onMaxAttempts={form.updateMaxAttempts}
-                    onOwnerKind={form.updateOwnerKind}
-                    onOwnerRef={setField("ownerRef")}
-                    ownerKind={draft.ownerKind}
-                    ownerRef={draft.ownerRef}
-                  />
-                </NumberedSection>
-                <NumberedSection index="04" subtitle="Peer ingress channel." title="Channel">
-                  <Field>
-                    <FieldLabel htmlFor="task-editor-network-input">Network channel</FieldLabel>
-                    <Input
-                      className="font-mono"
-                      data-testid="task-network-input"
-                      id="task-editor-network-input"
-                      onChange={event => setField("networkChannel")(event.target.value)}
-                      placeholder="ingress channel"
-                      value={draft.networkChannel}
-                    />
-                  </Field>
-                </NumberedSection>
-              </>
+              <NumberedSection
+                index="03"
+                subtitle="Who runs it, and how retries behave."
+                title="Queue &amp; ownership"
+              >
+                <QueueOwnershipSection
+                  approvalPolicy={draft.approvalPolicy}
+                  maxAttempts={draft.maxAttempts}
+                  onApprovalPolicy={form.updateApprovalPolicy}
+                  onMaxAttempts={form.updateMaxAttempts}
+                  onOwnerKind={form.updateOwnerKind}
+                  onOwnerRef={setField("ownerRef")}
+                  ownerKind={draft.ownerKind}
+                  ownerRef={draft.ownerRef}
+                />
+              </NumberedSection>
             ) : null}
           </div>
 

@@ -128,12 +128,12 @@ func activationDispatchPayload(run taskpkg.Run) hookspkg.TaskRunEnqueuedPayload 
 	kind := run.RunKind.Normalize().String()
 	return hookspkg.TaskRunEnqueuedPayload{
 		TaskRunContext: hookspkg.TaskRunContext{
-			TaskID:                strings.TrimSpace(run.TaskID),
-			RunID:                 strings.TrimSpace(run.ID),
-			RunKind:               &kind,
-			LoopRunID:             strings.TrimSpace(run.LoopRunID),
-			CoordinationChannelID: strings.TrimSpace(run.CoordinationChannelID),
-			RunStatus:             string(run.Status.Normalize()),
+			TaskID:                       strings.TrimSpace(run.TaskID),
+			RunID:                        strings.TrimSpace(run.ID),
+			RunKind:                      &kind,
+			LoopRunID:                    strings.TrimSpace(run.LoopRunID),
+			ResolvedNetworkParticipation: new(run.NetworkSpecSnapshot()),
+			RunStatus:                    string(run.Status.Normalize()),
 		},
 	}
 }
