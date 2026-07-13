@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "AGH · Workspace v4 (Linear-refined)",
+  "entry": "agh-refined-4-2.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-05-08T17:38:38.349Z",
+  "updatedAt": "2026-05-08T17:38:38.355Z",
+  "designSystemId": "linear-app",
+  "metadata": {
+    "identifier": "agh-refined-4",
+    "artifactType": "text/html",
+    "inferred": false
+  }
+}

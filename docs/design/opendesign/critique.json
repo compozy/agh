@@ -1,0 +1,26 @@
+{
+  "kind": "critique-panel",
+  "score": 4,
+  "axes": {
+    "clarity": {
+      "score": 4,
+      "notes": "Session notices now read as neutral operator chrome with signal only on icons/pills; titles and body no longer compete in the same hue."
+    },
+    "hierarchy": {
+      "score": 4,
+      "notes": "Alert title = small-body/fg-strong; description = form-input/muted; meta = eyebrow/subtle. ThinkingBlock label uses form-label medium instead of italic wash."
+    },
+    "typography": {
+      "score": 4,
+      "notes": "Aligned to DESIGN.md type roles (small-body, form-input, form-label, eyebrow). Markdown links are fg-strong with accent on hover only."
+    },
+    "motion": {
+      "score": 4,
+      "notes": "No new motion; existing ThinkingBlock chevron/hover transitions unchanged and still respect reduced-motion."
+    },
+    "brand": {
+      "score": 5,
+      "notes": "Matches web/CLAUDE.md signal rule (information, not solid semantic banners) and Synara/T3 restrained chrome: neutral surface, hairline border, icon-only signal."
+    }
+  }
+}

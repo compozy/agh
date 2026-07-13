@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Extension · AGH</title>
+<link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+
+  :root{
+    color-scheme: dark;
+    --rail:#0c0b0b; --canvas:#131211; --canvas-soft:#1a1918; --canvas-tint:#1c1b1a; --elevated:#232220;
+    --fg:#ececef; --fg-strong:#f6f6f8; --muted:#9a9a9f; --subtle:#76767c; --faint:#545458;
+    --line:rgba(255,255,255,.055); --line-soft:rgba(255,255,255,.03); --line-strong:rgba(255,255,255,.09);
+    --accent:#e8572a; --accent-hover:#d14e25; --accent-strong:#f6874f; --accent-ink:#17110f;
+    --accent-tint:rgba(232,87,42,.10); --accent-dim:rgba(232,87,42,.24);
+    --success:#5fbf85; --success-tint:rgba(95,191,133,.08);
+    --warning:#d6a647; --warning-tint:rgba(214,166,71,.08);
+    --danger:#e0635a;  --danger-tint:rgba(224,99,90,.09);
+    --info:#8e8eb5;    --info-tint:rgba(142,142,181,.12);
+    --neutral:#7a7a80; --neutral-tint:rgba(150,150,155,.06);
+    --row-hover:rgba(255,255,255,.022); --row-selected:rgba(255,255,255,.03);
+    --input-fill:rgba(255,255,255,.025); --badge-fill:rgba(255,255,255,.05);
+    --btn-fill:rgba(255,255,255,.04); --btn-hover:rgba(255,255,255,.07);
+    --surface-glaze:rgba(255,255,255,.04);
+    --scrim:rgba(0,0,0,.55);
+    --radius-xs:4px; --radius-sm:5px; --radius:6px; --radius-md:8px; --radius-lg:10px; --radius-xl:14px; --radius-pill:9999px;
+    --font-sans:"Inter Variable","Inter",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace;
+    --dur:140ms; --ease:cubic-bezier(.2,0,0,1);
+    --shadow-overlay:0 24px 48px -12px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.045);
+    --highlight:inset 0 1px 0 rgba(255,255,255,.035);
+    --focus-line:rgba(255,255,255,.5);
+    --focus-ring:0 0 0 2px var(--focus-line);
+    --focus-ring-inset:inset 0 0 0 2px var(--focus-line);
+    --size-catalog-logo:24px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--canvas);color:var(--fg);font-family:var(--font-sans);font-feature-settings:"cv01","ss03","cv11";
+    font-size:13.5px;line-height:1.5;letter-spacing:-.006em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+  a{color:inherit;text-decoration:none}
+  button,input,textarea,select{font-family:inherit}
+  ::selection{background:var(--accent-tint);color:var(--fg-strong)}
+  svg{display:block}
+  .hide{display:none!important}
+  code,kbd,pre,.mono,.topbar__count,.count-chip,.pill[data-mono="true"],.kv__v code,.toast,.inv-table{
+    -webkit-font-smoothing:subpixel-antialiased;-moz-osx-font-smoothing:auto;font-feature-settings:normal}
+  :is(.btn,.head-close,.switch,.menu button):focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  .shell{height:100vh}
+  .main{display:flex;flex-direction:column;min-width:0;height:100vh;overflow:hidden}
+  .topbar{display:flex;align-items:center;gap:12px;height:48px;padding:0 16px;border-bottom:1px solid var(--line);flex:none;background:var(--canvas);min-width:0;overflow:hidden}
+  .topbar__trailing{display:flex;align-items:center;gap:8px;margin-left:auto;flex:none}
+  .crumb{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted);min-width:0}
+  .crumb a:hover{color:var(--fg-strong)}
+  .crumb b{color:var(--fg-strong);font-weight:560}
+  .crumb svg{width:13px;height:13px;color:var(--faint);flex:none}
+  .btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:var(--radius-md);font-size:12px;
+    font-weight:500;letter-spacing:-.005em;border:1px solid var(--line);background:var(--btn-fill);color:var(--fg);cursor:pointer;white-space:nowrap;
+    transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease)}
+  .btn svg{width:14px;height:14px}
+  .btn:hover{background:var(--btn-hover);border-color:var(--line-strong);color:var(--fg-strong)}
+  .btn:active:not(:disabled){transform:translateY(1px)}
+  .btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-ink);box-shadow:var(--highlight)}
+  .btn--primary:hover{background:var(--accent-hover);color:var(--accent-ink)}
+  .btn--ghost{background:transparent;border-color:transparent;color:var(--fg)}
+  .btn--ghost:hover{background:var(--row-hover);color:var(--fg);border-color:transparent}
+  .btn--danger{background:var(--danger-tint);border-color:transparent;color:var(--danger)}
+  .btn:disabled,.btn[aria-disabled="true"]{opacity:.5;cursor:not-allowed}
+  .btn--sm{height:22px;padding:0 10px;font-size:11px}
+  .btn--sm svg{width:12px;height:12px}
+  .btn--icon{width:26px;padding:0;justify-content:center}
+  .btn--spin svg{animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .scroll{flex:1;min-height:0;overflow-y:auto}
+  .page{max-width:1320px;margin:0 auto;padding:28px 36px 80px}
+  .pill{display:inline-flex;align-items:center;gap:6px;height:19px;padding:0 8px;border-radius:var(--radius-xs);
+    font-size:11px;font-weight:500;letter-spacing:-.005em;line-height:1;width:max-content;background:var(--neutral-tint);color:var(--muted)}
+  .pill[data-mono="true"]{font-family:var(--font-mono);font-size:10.5px;font-weight:600;letter-spacing:0}
+  .pill[data-tone="success"]{background:var(--success-tint);color:var(--success)}
+  .pill[data-tone="warning"]{background:var(--warning-tint);color:var(--warning)}
+  .pill[data-tone="danger"]{background:var(--danger-tint);color:var(--danger)}
+  .pill[data-tone="info"]{background:var(--info-tint);color:var(--info)}
+  .switch{position:relative;width:32px;height:18px;border-radius:999px;background:var(--elevated);border:1px solid var(--line);cursor:pointer;flex:none}
+  .switch[aria-checked="true"]{background:var(--success-tint);border-color:color-mix(in srgb,var(--success) 35%,transparent)}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:var(--muted);transition:transform var(--dur) var(--ease),background var(--dur) var(--ease)}
+  .switch[aria-checked="true"]::after{transform:translateX(14px);background:var(--success)}
+  .switch:disabled{opacity:.5;cursor:default}
+  .scrim{position:fixed;inset:0;background:var(--scrim);backdrop-filter:blur(3px);display:grid;place-items:center;padding:28px;z-index:40}
+  .modal{width:min(560px,100%);max-height:min(720px,92vh);background:var(--canvas-soft);border-radius:var(--radius-lg);
+    box-shadow:var(--shadow-overlay);display:grid;grid-template-rows:auto 1fr auto;overflow:hidden}
+  .modal__head{display:flex;align-items:flex-start;gap:14px;padding:18px 20px 16px;border-bottom:1px solid var(--line-soft)}
+  .head-icon{flex:none;width:34px;height:34px;border-radius:var(--radius-lg);display:grid;place-items:center;background:var(--surface-glaze);color:var(--muted)}
+  .head-icon svg{width:17px;height:17px}
+  .head-txt{flex:1;min-width:0}
+  .eyebrow{font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--subtle)}
+  .modal__title{font-size:15px;font-weight:500;color:var(--fg-strong);letter-spacing:-.014em;margin-top:3px}
+  .modal__sub{font-size:13px;color:var(--muted);margin-top:5px;line-height:1.45}
+  .head-close{flex:none;width:30px;height:30px;border-radius:var(--radius);border:1px solid var(--line);background:transparent;color:var(--muted);display:grid;place-items:center;cursor:pointer}
+  .head-close:hover{background:var(--row-hover);color:var(--fg)}
+  .head-close svg{width:16px;height:16px}
+  .modal__body{overflow-y:auto;padding:18px 20px 20px;min-height:0}
+  .modal__foot{display:flex;align-items:center;gap:10px;padding:13px 20px;border-top:1px solid var(--line-soft);background:var(--canvas-tint)}
+  .foot-pad{flex:1}
+  .field{margin-bottom:16px}
+  .field:last-child{margin-bottom:0}
+  .field__label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:500;color:var(--fg);margin-bottom:6px}
+  .input{width:100%;height:32px;padding:0 11px;color:var(--fg);background:var(--elevated);border:1px solid var(--line);
+    border-radius:var(--radius-md);font-size:12.5px;outline:none}
+  .input.mono{font-family:var(--font-mono);font-size:12px}
+  .input:focus{border-color:var(--line-strong);box-shadow:var(--focus-ring);background:var(--canvas)}
+  .input::placeholder{color:var(--faint)}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:50;display:flex;align-items:center;gap:10px;
+    padding:10px 14px;border-radius:var(--radius-md);background:var(--elevated);box-shadow:var(--shadow-overlay);font-size:12.5px;color:var(--fg)}
+  .toast a{color:var(--accent-strong);font-weight:500}
+  .kv{display:flex;flex-direction:column}
+  .kv__row{padding:14px 16px;border-top:1px solid var(--line-soft)}
+  .kv__row:first-child{border-top:0}
+  .kv__k{font-size:11px;font-weight:600;letter-spacing:-.005em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .kv__v{font-size:13px;line-height:1.55;color:var(--fg)}
+  .kv__v code{font-family:var(--font-mono);font-size:12px}
+  .kv__v a.link{color:var(--fg);text-decoration:underline;text-underline-offset:2px;text-decoration-color:var(--line-strong);font-family:var(--font-mono);font-size:12px;word-break:break-all}
+  .kv__v a.link:hover{color:var(--accent-strong)}
+  .menu{position:fixed;z-index:60;min-width:190px;padding:5px;background:var(--elevated);border:1px solid var(--line-strong);border-radius:var(--radius-md);box-shadow:var(--shadow-overlay)}
+  .menu button{display:flex;align-items:center;gap:9px;width:100%;padding:7px 9px;border:0;background:transparent;color:var(--fg);font-size:12.5px;text-align:left;border-radius:var(--radius-sm);cursor:pointer}
+  .menu button:hover{background:var(--row-hover)}
+  .menu button svg{width:14px;height:14px;color:var(--subtle);flex:none}
+  .menu button.is-danger{color:var(--danger)}
+  .menu button.is-danger svg{color:var(--danger)}
+  .menu__sep{height:1px;margin:4px 2px;background:var(--line-soft)}
+  .spin-inline{width:16px;height:16px;flex:none;color:var(--subtle);animation:spin .8s linear infinite}
+  .dh{display:flex;align-items:flex-start;gap:14px;padding-bottom:22px;border-bottom:1px solid var(--line);margin-bottom:24px}
+  .dh__icon{width:42px;height:42px;border-radius:var(--radius-lg);display:grid;place-items:center;flex:none;background:var(--elevated);color:var(--muted)}
+  .dh__icon svg{width:21px;height:21px}
+  .dh__main{min-width:0;flex:1}
+  .dh__namerow{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .dh__name{font-size:1.4rem;font-weight:600;letter-spacing:-.028em;color:var(--fg-strong)}
+  .dh__meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--muted)}
+  .dh__actions{display:flex;align-items:center;gap:10px;flex:none}
+  .dh__enable{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:32px}
+  .panelbox{background:var(--canvas-soft);border:1px solid var(--line);border-radius:var(--radius-lg)}
+  .section{margin-bottom:28px}
+  .section__label{display:flex;align-items:center;gap:8px;padding-bottom:10px;font-size:11px;font-weight:600;letter-spacing:-.005em;color:var(--subtle);text-transform:uppercase}
+  .section__count{font-family:var(--font-mono);font-size:11px;font-weight:400;color:var(--muted);font-variant-numeric:tabular-nums}
+  .prose{padding:16px 18px;font-size:13.5px;line-height:1.65;color:var(--muted)}
+  .taglist{display:flex;flex-wrap:wrap;gap:6px;padding:12px 16px}
+  .empty-inline{padding:16px 18px;font-size:12.5px;color:var(--subtle)}
+  .env-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 16px;border-top:1px solid var(--line-soft)}
+  .env-row:first-child{border-top:0}
+  .env-row__key{font-family:var(--font-mono);font-size:12px;color:var(--fg)}
+  .env-row.is-missing{background:var(--warning-tint)}
+  .diag-list{display:flex;flex-direction:column;gap:10px}
+  .diag-item{padding:12px 14px;border-radius:var(--radius-md);border:1px solid var(--line-soft);background:var(--canvas-tint)}
+  .diag-item[data-sev="warning"]{background:var(--warning-tint);border-color:color-mix(in srgb,var(--warning) 22%,transparent)}
+  .diag-item[data-sev="danger"],.diag-item[data-sev="error"]{background:var(--danger-tint);border-color:color-mix(in srgb,var(--danger) 22%,transparent)}
+  .diag-item__head{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+  .diag-item b{font-size:12.5px;color:var(--fg-strong)}
+  .diag-item[data-sev="warning"] b{color:var(--warning)}
+  .diag-item p{font-size:12px;color:var(--muted);line-height:1.5}
+  .group-list__row{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:14px;align-items:center;padding:12px 16px;border-top:1px solid var(--line-soft)}
+  .group-list__row:first-child{border-top:0}
+  .group-list__row:hover{background:var(--row-hover)}
+  .group-list__row .licon{width:34px;height:34px;border-radius:var(--radius-md);background:var(--elevated);color:var(--muted);display:grid;place-items:center;flex:none}
+  .group-list__row .licon svg{width:16px;height:16px}
+  .group-list__row .nm{font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--fg-strong);letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .group-list__row .sub{font-size:12px;font-weight:500;color:var(--muted);white-space:nowrap}
+  .group-list__row .sub:hover{color:var(--fg-strong)}
+  .danger-text{color:var(--danger)}
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:56px 24px;text-align:center;color:var(--subtle)}
+  .empty b{font-size:18px;font-weight:500;color:var(--fg-strong);letter-spacing:-.022em}
+  .empty p{font-size:13px;max-width:28rem;line-height:1.6;color:var(--muted)}
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms!important;animation-delay:.001ms!important;transition-duration:.001ms!important}
+  }
+  @media(max-width:920px){
+    .page{padding:22px 18px 64px}
+    .layout{grid-template-columns:1fr}
+    .dh{flex-direction:column}
+    .dh__actions{width:100%;justify-content:flex-start}
+  }
+
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <div class="main">
+    <header class="topbar" data-od-id="ext-detail-topbar">
+      <div class="crumb" id="crumb">
+        <a href="extensions.html">Extensions</a>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        <b id="crumb-name">…</b>
+      </div>
+      <div class="topbar__trailing" id="top-trailing"></div>
+    </header>
+    <div class="scroll">
+      <div class="page" id="root" data-od-id="ext-detail-page"></div>
+    </div>
+  </div>
+</div>
+
+<div class="scrim hide" id="remove-scrim" role="dialog" aria-modal="true" aria-labelledby="remove-title">
+  <div class="modal">
+    <div class="modal__head">
+      <div class="head-icon" style="background:var(--danger-tint);color:var(--danger)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></div>
+      <div class="head-txt">
+        <div class="eyebrow" style="color:var(--danger)">Destructive</div>
+        <h2 class="modal__title" id="remove-title">Remove extension</h2>
+        <p class="modal__sub">Removes the installed package and its registered hooks from this daemon.</p>
+      </div>
+      <button type="button" class="head-close" id="remove-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal__body">
+      <div style="font-size:12.5px;line-height:1.55;color:var(--subtle);padding:11px 12px;border:1px solid var(--line-soft);border-radius:var(--radius-md);background:var(--canvas-tint)">This deletes local extension files known to provenance. Type the extension name to confirm.</div>
+      <div class="field" style="margin-top:16px">
+        <label class="field__label" for="remove-confirm">Confirmation</label>
+        <input class="input mono" id="remove-confirm" autocomplete="off" />
+      </div>
+    </div>
+    <div class="modal__foot">
+      <button type="button" class="btn btn--ghost" id="remove-cancel">Cancel</button>
+      <span class="foot-pad"></span>
+      <button type="button" class="btn btn--danger" id="remove-submit" disabled>Remove extension</button>
+    </div>
+  </div>
+</div>
+<div class="toast hide" id="toast" role="status"></div>
+
+<script>
+(function(){
+
+  var INSTALLED_EXT = [
+    { id:"cost-guard", name:"cost-guard", type:"hook", slug:"cost-guard", desc:"Cap token spend per workspace and pause agents that breach the budget.", version:"0.3.2", source:"registry", installed:"2d ago", enabled:true, update:false,
+      state:"running", health:"healthy", health_message:"Hook registered",
+      capabilities:["session.budget","agent.pause"], actions:["pause","resume"], requires_env:[], missing_env:[],
+      diagnostics:[], bundles:["ops-starter"],
+      runtime:{ daemon_running:true, pid:18421, uptime_seconds:86400, last_error:null },
+      provenance:{ installed_from:"registry", source_url:"registry.agh.network/cost-guard", checksum:"sha256:9f2c…a71b", checksum_verified:true, registry_tier:"verified", permissions:["hooks.write"], installed_at:"2026-07-06T14:22:00Z", installed_by:"pedro" } },
+    { id:"session-trace", name:"session-trace", type:"tool", slug:"session-trace", desc:"Attach trace IDs to session events for downstream collectors.", version:"1.0.1", source:"local", installed:"1w ago", enabled:false, update:true, updateTo:"1.1.0", toggleFails:true,
+      state:"stopped", health:"degraded", health_message:"Missing OTEL_ENDPOINT",
+      capabilities:["events.annotate"], actions:["annotate"], requires_env:[{key:"OTEL_ENDPOINT", state:"missing"}], missing_env:["OTEL_ENDPOINT"],
+      diagnostics:[{severity:"warning", title:"Collector unreachable", message:"Last probe timed out after 2s."}], bundles:[],
+      runtime:{ daemon_running:false, pid:null, uptime_seconds:0, last_error:"collector timeout" },
+      provenance:{ installed_from:"local", source_url:"file:///opt/agh/ext/session-trace", checksum:"sha256:3ab0…ee54", checksum_verified:false, registry_tier:"unverified", permissions:["events.write"], installed_at:"2026-07-01T09:10:00Z", installed_by:"pedro" } }
+  ];
+
+  var p = new URLSearchParams(location.search);
+  var nameQ = p.get("name") || "cost-guard";
+  var item = INSTALLED_EXT.find(function(x){ return x.name === nameQ || x.id === nameQ; }) || INSTALLED_EXT[0];
+  var menuEl = null;
+  var root = document.getElementById("root");
+
+  function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+  function spinnerSvg(){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.2-8.5"/></svg>'; }
+  function showToast(msg){
+    var t=document.getElementById("toast"); if(!t) return;
+    t.innerHTML=esc(msg); t.classList.remove("hide");
+    clearTimeout(window.__toastTimer); window.__toastTimer=setTimeout(function(){ t.classList.add("hide"); }, 4200);
+  }
+  function section(label, body, count){
+    return '<section class="section" data-od-id="sec-'+label.toLowerCase().replace(/\s+/g,"-")+'"><div class="section__label">'+esc(label)+(count!=null?' <span class="section__count">'+count+'</span>':'')+'</div>'+body+'</section>';
+  }
+  function kvRow(k,v){ return '<div class="kv__row"><div class="kv__k">'+esc(k)+'</div><div class="kv__v">'+v+'</div></div>'; }
+  function healthTone(h){
+    if(h==="healthy") return "success";
+    if(h==="degraded") return "warning";
+    return "danger";
+  }
+  function stateTone(s){
+    if(s==="running") return "success";
+    if(s==="stopped") return "neutral";
+    return "warning";
+  }
+  function fmtUptime(sec){
+    if(!sec) return "—";
+    if(sec < 60) return sec+"s";
+    if(sec < 3600) return Math.floor(sec/60)+"m";
+    if(sec < 86400) return Math.floor(sec/3600)+"h "+Math.floor((sec%3600)/60)+"m";
+    return Math.floor(sec/86400)+"d "+Math.floor((sec%86400)/3600)+"h";
+  }
+  function iconSvg(){
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="3"/></svg>';
+  }
+
+  function closeMenu(){ if(menuEl){ menuEl.remove(); menuEl=null; } }
+  function openMenu(anchor){
+    closeMenu();
+    menuEl=document.createElement("div");
+    menuEl.className="menu"; menuEl.setAttribute("role","menu");
+    menuEl.innerHTML='<button type="button" role="menuitem" class="is-danger" data-mi="remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>Remove…</button>';
+    document.body.appendChild(menuEl);
+    var rect=anchor.getBoundingClientRect();
+    menuEl.style.top=(rect.bottom+4)+"px";
+    menuEl.style.left=Math.max(8, rect.right-menuEl.offsetWidth)+"px";
+    menuEl.querySelector('[data-mi="remove"]').onclick=function(){ closeMenu(); openRemove(); };
+    var first=menuEl.querySelector("button"); if(first) first.focus();
+  }
+
+  function openRemove(){
+    document.getElementById("remove-title").textContent="Remove "+item.name;
+    document.getElementById("remove-confirm").value="";
+    document.getElementById("remove-submit").disabled=true;
+    document.getElementById("remove-scrim").classList.remove("hide");
+    setTimeout(function(){ document.getElementById("remove-confirm").focus(); }, 30);
+  }
+  function closeRemove(){ document.getElementById("remove-scrim").classList.add("hide"); }
+
+  function toggleEnabled(){
+    if(item._busy) return;
+    var prev=item.enabled;
+    item.enabled=!prev;
+    item._busy=true;
+    render();
+    setTimeout(function(){
+      item._busy=false;
+      if(item.toggleFails && item.enabled){
+        item.enabled=prev;
+        render();
+        showToast("Could not enable "+item.name+" · change reverted");
+      } else {
+        render();
+        showToast(item.name+(item.enabled?" enabled":" disabled"));
+      }
+    }, 700);
+  }
+
+  function runUpdate(){
+    if(!item.update || item._busy) return;
+    item._busy=true;
+    render();
+    setTimeout(function(){
+      item._busy=false;
+      item.update=false;
+      item.version=item.updateTo||item.version;
+      render();
+      showToast(item.name+" updated to v"+item.version);
+    }, 700);
+  }
+
+  function mainBlock(){
+    var caps = item.capabilities||[];
+    var capsBody = caps.length
+      ? '<div class="panelbox"><div class="taglist">'+caps.map(function(c){ return '<span class="pill" data-mono="true">'+esc(c)+'</span>'; }).join("")+'</div></div>'
+      : '<div class="panelbox"><div class="empty-inline">No capabilities registered.</div></div>';
+
+    var acts = item.actions||[];
+    var actsBody = acts.length
+      ? '<div class="panelbox"><div class="taglist">'+acts.map(function(a){ return '<span class="pill" data-mono="true">'+esc(a)+'</span>'; }).join("")+'</div></div>'
+      : '<div class="panelbox"><div class="empty-inline">No actions exposed.</div></div>';
+
+    var env = item.requires_env||[];
+    var missing = item.missing_env||[];
+    var envBody;
+    if(!env.length){
+      envBody='<div class="panelbox"><div class="empty-inline">No environment variables required.</div></div>';
+    } else {
+      envBody='<div class="panelbox">'+env.map(function(e){
+        var key = typeof e === "string" ? e : e.key;
+        var isMissing = missing.indexOf(key)>=0 || (e.state==="missing");
+        return '<div class="env-row'+(isMissing?' is-missing':'')+'"><span class="env-row__key">'+esc(key)+'</span>'
+          +(isMissing?'<span class="pill" data-tone="warning" data-mono="true">missing</span>':'<span class="pill" data-tone="success" data-mono="true">set</span>')
+          +'</div>';
+      }).join("")+'</div>';
+    }
+
+    var diags = item.diagnostics||[];
+    var diagBody;
+    if(!diags.length){
+      diagBody='<div class="panelbox"><div class="empty-inline">No diagnostics.</div></div>';
+    } else {
+      diagBody='<div class="diag-list">'+diags.map(function(d){
+        var sev=d.severity||"warning";
+        return '<div class="diag-item" data-sev="'+esc(sev)+'"><div class="diag-item__head"><span class="pill" data-mono="true" data-tone="'+(sev==="warning"?"warning":sev==="info"?"info":"danger")+'">'+esc(sev)+'</span><b>'+esc(d.title)+'</b></div><p>'+esc(d.message)+'</p></div>';
+      }).join("")+'</div>';
+    }
+
+    return section("Description", '<div class="panelbox"><div class="prose">'+esc(item.desc)+'</div></div>')
+      + section("Capabilities", capsBody, caps.length)
+      + section("Actions", actsBody, acts.length)
+      + section("Environment", envBody, env.length)
+      + section("Diagnostics", diagBody, diags.length);
+  }
+
+  function railBlock(){
+    var rt=item.runtime||{};
+    var pv=item.provenance||{};
+    var runtimeKv = kvRow("Daemon", rt.daemon_running ? '<span class="pill" data-tone="success" data-mono="true">running</span>' : '<span class="pill" data-mono="true">stopped</span>')
+      + kvRow("PID", rt.pid != null ? '<code>'+esc(rt.pid)+'</code>' : '<code>—</code>')
+      + kvRow("Uptime", '<code>'+esc(fmtUptime(rt.uptime_seconds))+'</code>')
+      + kvRow("Last error", rt.last_error ? '<span class="danger-text">'+esc(rt.last_error)+'</span>' : '<code>—</code>');
+
+    var provKv = kvRow("Installed from", '<code>'+esc(pv.installed_from||"—")+'</code>')
+      + kvRow("Source", '<code>'+esc(pv.source_url||"—")+'</code>')
+      + kvRow("Checksum", '<code>'+esc(pv.checksum||"—")+'</code>')
+      + kvRow("Verified", pv.checksum_verified ? '<span class="pill" data-tone="success" data-mono="true">verified</span>' : '<span class="pill" data-tone="warning" data-mono="true">unverified</span>')
+      + kvRow("Registry tier", '<code>'+esc(pv.registry_tier||"—")+'</code>')
+      + kvRow("Permissions", '<code>'+esc((pv.permissions||[]).join(", ")||"—")+'</code>')
+      + kvRow("Installed at", '<code>'+esc(pv.installed_at||"—")+'</code>')
+      + kvRow("Installed by", '<code>'+esc(pv.installed_by||"—")+'</code>');
+
+    var trustKv = kvRow("Decision", pv.checksum_verified ? "trusted" : "unverified")
+      + kvRow("Registry tier", '<code>'+esc(pv.registry_tier||"—")+'</code>')
+      + kvRow("Checksum", pv.checksum_verified ? '<span class="pill" data-tone="success" data-mono="true">verified</span>' : '<span class="pill" data-tone="warning" data-mono="true">unverified</span>');
+
+    var bundles = item.bundles||[];
+    var bunBody;
+    if(!bundles.length){
+      bunBody='<div class="panelbox"><div class="empty-inline">Not provided by a bundle.</div></div>';
+    } else {
+      bunBody='<div class="panelbox">'+bundles.map(function(b){
+        return '<div class="group-list__row" data-od-id="ext-bundle-'+esc(b)+'">'
+          +'<div class="licon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7L12 12l8.7-5"/><path d="M12 22V12"/></svg></div>'
+          +'<a class="nm" href="bundle-activation-detail.html?id='+encodeURIComponent(b)+'">'+esc(b)+'</a>'
+          +'<a class="sub" href="extensions.html?tab=bundles">Open</a></div>';
+      }).join("")+'</div>';
+    }
+
+    return section("Runtime", '<div class="panelbox"><div class="kv">'+runtimeKv+'</div></div>')
+      + section("Provenance", '<div class="panelbox"><div class="kv">'+provKv+'</div></div>')
+      + section("Trust", '<div class="panelbox"><div class="kv">'+trustKv+'</div></div>')
+      + section("Bundles provided", bunBody, bundles.length);
+  }
+
+  function renderTop(){
+    document.getElementById("crumb-name").textContent=item.name;
+    document.title=item.name+" · Extension · AGH";
+    var trail=document.getElementById("top-trailing");
+    var html="";
+    if(item._busy){
+      html='<svg class="spin-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.2-8.5"/></svg>';
+    } else {
+      if(item.update) html+='<button type="button" class="btn btn--sm" id="btn-update">Update</button>';
+      html+='<a class="btn btn--ghost btn--sm" href="marketplace-detail.html?kind=extensions&name='+encodeURIComponent(item.name)+'">View in marketplace →</a>';
+      html+='<button type="button" class="btn btn--ghost btn--icon" id="btn-more" aria-haspopup="menu" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>';
+    }
+    trail.innerHTML=html;
+    var up=document.getElementById("btn-update"); if(up) up.onclick=runUpdate;
+    var more=document.getElementById("btn-more"); if(more) more.onclick=function(e){ e.stopPropagation(); openMenu(more); };
+  }
+
+  function render(){
+    closeMenu();
+    renderTop();
+    var stTone=stateTone(item.state);
+    var hlTone=healthTone(item.health);
+    root.innerHTML=
+      '<div class="dh" data-od-id="ext-detail-header">'
+      +'<div class="dh__icon">'+iconSvg()+'</div>'
+      +'<div class="dh__main"><div class="dh__namerow">'
+      +'<h1 class="dh__name">'+esc(item.name)+'</h1>'
+      +'<span class="pill" data-mono="true">'+esc(item.type)+'</span>'
+      +'<span class="pill" data-mono="true">v'+esc(item.version)+'</span>'
+      +'<span class="pill" data-mono="true"'+(stTone!=="neutral"?' data-tone="'+stTone+'"':'')+'>'+esc(item.state)+'</span>'
+      +'<span class="pill" data-mono="true" data-tone="'+hlTone+'">'+esc(item.health)+'</span>'
+      +'</div>'
+      +'<div class="dh__meta"><span>'+esc(item.health_message||"")+'</span><span>·</span><span>'+esc(item.source)+'</span><span>·</span><span>installed '+esc(item.installed)+'</span></div>'
+      +'</div>'
+      +'<div class="dh__actions" data-od-id="ext-detail-enable">'
+      +(item._busy
+        ? '<svg class="spin-inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.2-8.5"/></svg>'
+        : '<div class="dh__enable"><span>'+(item.enabled?"Enabled":"Disabled")+'</span><button type="button" class="switch" role="switch" aria-checked="'+(item.enabled?"true":"false")+'" id="enable-switch" aria-label="Enable '+esc(item.name)+'"></button></div>')
+      +'</div></div>'
+      +'<div class="layout" data-od-id="ext-detail-body"><div data-od-id="ext-detail-main">'+mainBlock()+'</div><aside data-od-id="ext-detail-rail">'+railBlock()+'</aside></div>';
+
+    var sw=document.getElementById("enable-switch");
+    if(sw) sw.onclick=toggleEnabled;
+  }
+
+  document.getElementById("remove-confirm").addEventListener("input", function(){
+    document.getElementById("remove-submit").disabled = this.value.trim()!==item.name;
+  });
+  document.getElementById("remove-close").onclick=closeRemove;
+  document.getElementById("remove-cancel").onclick=closeRemove;
+  document.getElementById("remove-scrim").addEventListener("click", function(e){ if(e.target.id==="remove-scrim") closeRemove(); });
+  document.getElementById("remove-submit").onclick=function(){
+    var n=item.name;
+    closeRemove();
+    showToast(n+" removed");
+    setTimeout(function(){ location.href="extensions.html"; }, 600);
+  };
+
+  document.addEventListener("click", function(e){ if(menuEl && !menuEl.contains(e.target) && !e.target.closest("#btn-more")) closeMenu(); });
+  window.addEventListener("resize", closeMenu);
+  document.querySelector(".scroll").addEventListener("scroll", closeMenu);
+  document.addEventListener("keydown", function(e){
+    if(e.key==="Escape"){ closeMenu(); closeRemove(); }
+  });
+
+  render();
+
+})();
+</script>
+</body>
+</html>

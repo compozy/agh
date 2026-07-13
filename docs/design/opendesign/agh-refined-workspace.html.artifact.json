@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "AGH · Workspace redesign",
+  "entry": "agh-refined-workspace.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-05-08T16:21:10.873Z",
+  "updatedAt": "2026-05-08T16:21:10.960Z",
+  "designSystemId": "linear-app",
+  "metadata": {
+    "identifier": "agh-refined-workspace",
+    "artifactType": "text/html",
+    "inferred": false
+  }
+}

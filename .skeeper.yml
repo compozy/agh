@@ -22,5 +22,4 @@ namespaces:
       - .compozy/_archived/**
       - .compozy/_research/**
       - docs/qa/evidence/**
-      - docs/design/**
       - docs/tweets/**

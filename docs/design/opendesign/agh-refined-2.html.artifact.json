@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "AGH · Refined operator surface (Task list + detail)",
+  "entry": "agh-refined-2.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-05-08T03:54:21.903Z",
+  "updatedAt": "2026-05-08T03:54:21.908Z",
+  "designSystemId": "linear-app",
+  "metadata": {
+    "identifier": "agh-refined",
+    "artifactType": "text/html",
+    "inferred": false
+  }
+}

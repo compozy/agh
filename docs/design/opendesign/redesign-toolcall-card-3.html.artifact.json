@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "ToolCallCard — single-row collapsed variations",
+  "entry": "redesign-toolcall-card-3.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-05-13T23:19:51.246Z",
+  "updatedAt": "2026-05-13T23:19:51.249Z",
+  "designSystemId": "linear-app",
+  "metadata": {
+    "identifier": "redesign-toolcall-card",
+    "artifactType": "text/html",
+    "inferred": false
+  }
+}

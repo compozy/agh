@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "catalog-design-system.html",
+  "entry": "catalog-design-system.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-07-08T21:21:11.247Z",
+  "updatedAt": "2026-07-08T21:21:11.247Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}
