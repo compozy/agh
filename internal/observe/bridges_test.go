@@ -497,7 +497,7 @@ func registerObserveDelivery(
 func observeDeliveryEvent(
 	snapshot bridgepkg.DeliverySnapshot,
 	seq int64,
-	eventType string,
+	eventType bridgepkg.DeliveryEventType,
 	text string,
 	final bool,
 ) bridgepkg.DeliveryEvent {
