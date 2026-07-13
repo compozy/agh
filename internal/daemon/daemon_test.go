@@ -6187,6 +6187,10 @@ func (r *recordingRegistry) UpdateSessionState(context.Context, store.SessionSta
 	return nil
 }
 
+func (r *recordingRegistry) DeleteSession(context.Context, string) error {
+	return nil
+}
+
 func (r *recordingRegistry) ListSessions(context.Context, store.SessionListQuery) ([]store.SessionInfo, error) {
 	return nil, nil
 }

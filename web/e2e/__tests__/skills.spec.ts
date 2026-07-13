@@ -231,15 +231,15 @@ test("operator manages Skills against a real daemon and proves next-session prom
   const routeState = await readRouteState(runtime);
   expect(routeState).toMatchObject({
     pathname: `/skills/${contextSkillName}`,
+    skills_active_tab: "installed",
     skills_content_visible: true,
     skills_detail_visible: true,
     skills_enabled_state: "enabled",
     skills_item_count: 0,
     skills_search_active: false,
+    skills_selected_item: contextSkillName,
     skills_view_visible: true,
   });
-  expect(routeState.skills_active_tab).toBeUndefined();
-  expect(routeState.skills_selected_item).toBeUndefined();
 
   const baselineSession = await createSessionThroughBrowser(
     appPage,

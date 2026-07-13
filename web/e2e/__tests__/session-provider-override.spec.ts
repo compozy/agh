@@ -60,7 +60,7 @@ interface WorkspaceDetailPayload {
 
 test.use({
   runtimeOptions: {
-    env: { PATH: "" },
+    env: { PATH: ["/usr/bin", "/bin"].join(path.delimiter) },
     modelsDevEnabled: false,
     seed: {
       mockAgents: [

@@ -484,6 +484,60 @@ func TestGlobalDBRegisterSessionPreservesTranscriptEpoch(t *testing.T) {
 	})
 }
 
+func TestGlobalDBDeleteSession(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should remove the session and non-cascading dependent rows", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		sessionID := "sess-delete"
+		registerSessionForGlobalTests(t, globalDB, sessionID)
+		writeSessionDeleteDependents(t, globalDB, sessionID)
+
+		if err := globalDB.DeleteSession(testutil.Context(t), sessionID); err != nil {
+			t.Fatalf("DeleteSession() error = %v", err)
+		}
+
+		assertSessionDeleteRowCounts(t, globalDB, sessionID, 0, 0, 0)
+	})
+
+	t.Run("Should return session not found when the catalog row is absent", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		err := globalDB.DeleteSession(testutil.Context(t), "sess-missing-delete")
+		if !errors.Is(err, store.ErrSessionNotFound) {
+			t.Fatalf("DeleteSession(missing) error = %v, want ErrSessionNotFound", err)
+		}
+	})
+
+	t.Run("Should roll back dependent deletes when the session row cannot be deleted", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		sessionID := "sess-delete-rollback"
+		registerSessionForGlobalTests(t, globalDB, sessionID)
+		writeSessionDeleteDependents(t, globalDB, sessionID)
+		if _, err := globalDB.db.ExecContext(testutil.Context(t), `
+			CREATE TRIGGER prevent_session_delete
+			BEFORE DELETE ON sessions
+			WHEN OLD.id = 'sess-delete-rollback'
+			BEGIN
+				SELECT RAISE(ABORT, 'forced session delete failure');
+			END`); err != nil {
+			t.Fatalf("create delete failure trigger error = %v", err)
+		}
+
+		err := globalDB.DeleteSession(testutil.Context(t), sessionID)
+		if err == nil || !strings.Contains(err.Error(), "forced session delete failure") {
+			t.Fatalf("DeleteSession() error = %v, want forced delete failure", err)
+		}
+
+		assertSessionDeleteRowCounts(t, globalDB, sessionID, 1, 1, 1)
+	})
+}
+
 func TestGlobalDBEnsureSessionTranscriptEpoch(t *testing.T) {
 	t.Parallel()
 
@@ -621,4 +675,66 @@ func openScanSessionInfoDB(t *testing.T) *sql.DB {
 		}
 	})
 	return db
+}
+
+func writeSessionDeleteDependents(t *testing.T, globalDB *GlobalDB, sessionID string) {
+	t.Helper()
+
+	inputTokens := int64(7)
+	if err := globalDB.UpdateTokenStats(testutil.Context(t), store.TokenStatsUpdate{
+		SessionID:   sessionID,
+		AgentName:   "coder",
+		InputTokens: &inputTokens,
+		Turns:       1,
+	}); err != nil {
+		t.Fatalf("UpdateTokenStats() error = %v", err)
+	}
+	if err := globalDB.WritePermissionLog(testutil.Context(t), store.PermissionLogEntry{
+		ID:         "perm-" + sessionID,
+		SessionID:  sessionID,
+		AgentName:  "coder",
+		Action:     "fs/read",
+		Resource:   "README.md",
+		Decision:   "allow",
+		PolicyUsed: "approve-reads",
+		Timestamp:  time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("WritePermissionLog() error = %v", err)
+	}
+}
+
+func assertSessionDeleteRowCounts(
+	t *testing.T,
+	globalDB *GlobalDB,
+	sessionID string,
+	wantSessions int,
+	wantTokenStats int,
+	wantPermissionLogs int,
+) {
+	t.Helper()
+
+	sessions, err := globalDB.ListSessions(testutil.Context(t), store.SessionListQuery{ID: sessionID})
+	if err != nil {
+		t.Fatalf("ListSessions() error = %v", err)
+	}
+	if len(sessions) != wantSessions {
+		t.Fatalf("len(sessions) = %d, want %d", len(sessions), wantSessions)
+	}
+	stats, err := globalDB.ListTokenStats(testutil.Context(t), store.TokenStatsQuery{SessionID: sessionID})
+	if err != nil {
+		t.Fatalf("ListTokenStats() error = %v", err)
+	}
+	if len(stats) != wantTokenStats {
+		t.Fatalf("len(token stats) = %d, want %d", len(stats), wantTokenStats)
+	}
+	entries, err := globalDB.ListPermissionLog(
+		testutil.Context(t),
+		store.PermissionLogQuery{SessionID: sessionID},
+	)
+	if err != nil {
+		t.Fatalf("ListPermissionLog() error = %v", err)
+	}
+	if len(entries) != wantPermissionLogs {
+		t.Fatalf("len(permission logs) = %d, want %d", len(entries), wantPermissionLogs)
+	}
 }
