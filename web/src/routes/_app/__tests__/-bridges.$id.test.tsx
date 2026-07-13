@@ -228,6 +228,7 @@ function makeBridge(overrides: Partial<BridgesListResponse["bridges"][number]> =
     scope: "workspace" as const,
     status: "ready" as const,
     updated_at: "2026-04-13T12:30:00Z",
+    webhook_public_url: "https://example.test/webhook",
     workspace_id: "ws_test",
     ...overrides,
   };
