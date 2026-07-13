@@ -33,6 +33,7 @@ const (
 	bridgeSetupRoutingShapeKey      = "routing_shape"
 	bridgeSetupScopeKey             = "scope"
 	bridgeSetupVerifyTokenKey       = "verify_token"
+	bridgeSetupWebhookConfigKey     = "webhook"
 	bridgeSetupWebhookPathKey       = "webhook_path"
 	bridgeSetupWebhookPublicURLKey  = "webhook_public_url" //nolint:gosec // Public URL contract key, not credential data.
 	bridgeSetupWebhookSecretKey     = "webhook_secret"
@@ -41,6 +42,7 @@ const (
 
 const (
 	bridgeSetupDiscordDefaultPermissions   = uint64(68672)
+	bridgeSetupDiscordBotScope             = "bot"
 	bridgeSetupMaskedSecret                = "********"
 	bridgeSetupTelegramRoutingShapePrivate = "private"
 	bridgeSetupTelegramRoutingShapeGroup   = "group"
@@ -365,7 +367,7 @@ func validateRequiredSetupValue(label string) func(string) error {
 
 func validateBridgeSetupWebhookPublicURL(value string) error {
 	providerConfig, err := json.Marshal(map[string]any{
-		"webhook": map[string]string{"public_url": strings.TrimSpace(value)},
+		bridgeSetupWebhookConfigKey: map[string]string{"public_url": strings.TrimSpace(value)},
 	})
 	if err != nil {
 		return fmt.Errorf("encode webhook public URL for validation: %w", err)
@@ -417,7 +419,7 @@ func normalizeDiscordInviteScopes(scopes []string) []string {
 			normalized = append(normalized, value)
 		}
 	}
-	for _, required := range []string{"bot", "applications.commands"} {
+	for _, required := range []string{bridgeSetupDiscordBotScope, "applications.commands"} {
 		if _, ok := seen[required]; !ok {
 			normalized = append(normalized, required)
 		}

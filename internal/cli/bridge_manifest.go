@@ -15,6 +15,7 @@ import (
 const (
 	bridgeManifestDefaultFile = "slack-manifest.json"
 	bridgeManifestEpilogue    = "paste into api.slack.com → From an app manifest"
+	bridgeManifestPlatform    = "slack"
 )
 
 func newBridgeManifestCommand(deps commandDeps) *cobra.Command {
@@ -36,7 +37,7 @@ func newBridgeSlackManifestCommand(deps commandDeps) *cobra.Command {
 	var outputPath string
 
 	cmd := &cobra.Command{
-		Use:   "slack",
+		Use:   bridgeManifestPlatform,
 		Short: "Generate a Slack app manifest for one bridge instance",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {

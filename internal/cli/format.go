@@ -41,6 +41,7 @@ const (
 	cliPIDKey          = "pid"
 	cliPIDValue        = "PID"
 	cliSeverityValue   = "Severity"
+	cliStatusHeader    = "STATUS"
 	cliUptimeValue     = "Uptime"
 )
 

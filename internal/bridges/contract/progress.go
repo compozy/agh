@@ -17,6 +17,9 @@ import (
 const (
 	defaultProgressPreviewLimit = 160
 	defaultProgressEditInterval = 1500 * time.Millisecond
+	bridgePlatformDiscord       = "discord"
+	bridgePlatformSlack         = "slack"
+	bridgePlatformTelegram      = "telegram"
 	maxToolProgressErrorRunes   = 160
 	// MaxToolProgressErrorRunes caps provider-facing progress error details.
 	MaxToolProgressErrorRunes = maxToolProgressErrorRunes
@@ -241,7 +244,7 @@ func ResolveProgressConfig(instance *BridgeInstance, platform string) ProgressCo
 		Grouping:     ProgressGroupingAccumulate,
 	}
 	switch strings.ToLower(strings.TrimSpace(platform)) {
-	case "slack", "telegram", "discord":
+	case bridgePlatformSlack, bridgePlatformTelegram, bridgePlatformDiscord:
 		config.ToolProgress = ProgressModeNew
 		config.Typing = true
 		config.Reactions = true

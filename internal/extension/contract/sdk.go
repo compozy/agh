@@ -198,7 +198,7 @@ var sdkRootTypes = []NamedType{
 	{Name: "RoutingPolicy", Value: bridgepkg.RoutingPolicy{}},
 	{Name: "RoutingKey", Value: bridgepkg.RoutingKey{}},
 	{Name: "InboundEventFamily", Value: bridgepkg.InboundEventFamily("")},
-	{Name: "InboundMessageEnvelope", Value: bridgepkg.InboundMessageEnvelope{}},
+	{Name: inboundMessageEnvelopeTypeName, Value: bridgepkg.InboundMessageEnvelope{}},
 	{Name: "InboundCommand", Value: bridgepkg.InboundCommand{}},
 	{Name: "InboundAction", Value: bridgepkg.InboundAction{}},
 	{Name: "InboundReaction", Value: bridgepkg.InboundReaction{}},

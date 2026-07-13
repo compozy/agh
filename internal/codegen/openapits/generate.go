@@ -35,6 +35,8 @@ type execRunner struct{}
 
 var _ commandRunner = execRunner{}
 
+const openAPITypescriptTool = "openapi-typescript"
+
 //go:embed generate.mjs
 var openAPITSTypeGenerator string
 
@@ -42,7 +44,7 @@ var openAPITSTypeGenerator string
 // an embedded Bun wrapper so marked mixed-shape maps remain assignable in the
 // generated TypeScript without weakening the source OpenAPI schema.
 func (execRunner) Run(ctx context.Context, tool string, args ...string) error {
-	if tool == "openapi-typescript" {
+	if tool == openAPITypescriptTool {
 		argv := append([]string{"--eval", openAPITSTypeGenerator, "--"}, args...)
 		return runCommand(ctx, "bun", argv...)
 	}
@@ -83,7 +85,7 @@ func generateWithRunner(ctx context.Context, artifact Artifact, runner commandRu
 		artifact.OutputPath,
 		createOSTemporaryOutput,
 		func(tempPath string) error {
-			if err := runner.Run(ctx, "openapi-typescript", artifact.SpecPath, "-o", tempPath); err != nil {
+			if err := runner.Run(ctx, openAPITypescriptTool, artifact.SpecPath, "-o", tempPath); err != nil {
 				return fmt.Errorf("generate %q from %q: %w", artifact.OutputPath, artifact.SpecPath, err)
 			}
 

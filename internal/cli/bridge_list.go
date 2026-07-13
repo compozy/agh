@@ -78,7 +78,7 @@ func bridgeListTableBundle(result BridgeListRecord, now func() time.Time) output
 			"id",
 			bridgeDisplayNameKey,
 			bridgePlatformKey,
-			"extension_name",
+			bridgeSetupExtensionNameKey,
 			bridgeScopeKey,
 			bridgeWorkspaceIDKey,
 			bridgeStatusKey,

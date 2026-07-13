@@ -2,14 +2,19 @@ package contract
 
 import "slices"
 
+const (
+	slackAppMentionsReadScope = "app_mentions:read"
+	slackReactionsReadScope   = "reactions:read"
+)
+
 var slackRequiredScopesByEvent = map[string][]string{
-	"app_mention":      {"app_mentions:read"},
+	"app_mention":      {slackAppMentionsReadScope},
 	"message.channels": {"channels:history"},
 	"message.groups":   {"groups:history"},
 	"message.im":       {"im:history"},
 	"message.mpim":     {"mpim:history"},
-	"reaction_added":   {"reactions:read"},
-	"reaction_removed": {"reactions:read"},
+	"reaction_added":   {slackReactionsReadScope},
+	"reaction_removed": {slackReactionsReadScope},
 }
 
 var slackAdditionalBotScopes = []string{

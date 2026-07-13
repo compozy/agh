@@ -115,8 +115,8 @@ func bridgeSetupWizardDefaults(
 		if err != nil {
 			return nil, err
 		}
-		values[bridgeSetupWebhookPublicURLKey] = providerConfigString(config, "webhook", "public_url")
-		values[bridgeSetupWebhookPathKey] = providerConfigString(config, "webhook", "path")
+		values[bridgeSetupWebhookPublicURLKey] = providerConfigString(config, bridgeSetupWebhookConfigKey, "public_url")
+		values[bridgeSetupWebhookPathKey] = providerConfigString(config, bridgeSetupWebhookConfigKey, "path")
 		values[bridgeSetupPhoneNumberIDKey] = providerConfigString(config, "phone_number_id")
 		values[bridgeSetupApplicationIDKey] = providerConfigString(config, "application_id")
 		if descriptor.Platform == bridgeSetupPlatformTelegram {
@@ -158,22 +158,22 @@ func buildBridgeSetupProviderDetails(
 
 	publicURL := firstBridgeSetupValue(
 		input.WebhookPublicURL,
-		providerConfigString(config, "webhook", "public_url"),
+		providerConfigString(config, bridgeSetupWebhookConfigKey, "public_url"),
 	)
 	if err := validateBridgeSetupWebhookPublicURL(publicURL); err != nil {
 		return bridgeSetupProviderDetails{}, fmt.Errorf("cli: invalid public webhook URL: %w", err)
 	}
 	webhookPath := firstBridgeSetupValue(
 		input.WebhookPath,
-		providerConfigString(config, "webhook", "path"),
+		providerConfigString(config, bridgeSetupWebhookConfigKey, "path"),
 	)
 	if err := validateBridgeSetupWebhookPath(webhookPath); err != nil {
 		return bridgeSetupProviderDetails{}, fmt.Errorf("cli: invalid internal webhook path: %w", err)
 	}
-	if err := setProviderConfigString(config, publicURL, "webhook", "public_url"); err != nil {
+	if err := setProviderConfigString(config, publicURL, bridgeSetupWebhookConfigKey, "public_url"); err != nil {
 		return bridgeSetupProviderDetails{}, err
 	}
-	if err := setProviderConfigString(config, webhookPath, "webhook", "path"); err != nil {
+	if err := setProviderConfigString(config, webhookPath, bridgeSetupWebhookConfigKey, "path"); err != nil {
 		return bridgeSetupProviderDetails{}, err
 	}
 

@@ -12,12 +12,13 @@ type DeliveryMode string
 const (
 	DeliveryModeDirectSend DeliveryMode = "direct-send"
 	DeliveryModeReply      DeliveryMode = "reply"
+	deliveryModeSendAlias               = "send"
 )
 
 // Normalize returns the canonical delivery mode.
 func (m DeliveryMode) Normalize() DeliveryMode {
 	switch normalized := strings.ToLower(strings.TrimSpace(string(m))); normalized {
-	case "direct", "direct-send", "direct_send", "send":
+	case "direct", "direct-send", "direct_send", deliveryModeSendAlias:
 		return DeliveryModeDirectSend
 	case "reply", "reply-send", "reply_send":
 		return DeliveryModeReply

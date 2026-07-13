@@ -120,7 +120,7 @@ func readBridgeSetupPromptValue(
 	file, terminalInput := input.(*os.File)
 	terminalFD := -1
 	if terminalInput {
-		terminalFD = int(file.Fd()) //nolint:gosec // Terminal APIs accept OS file descriptors as int.
+		terminalFD = int(file.Fd())
 	}
 	if secret && terminalInput && term.IsTerminal(terminalFD) {
 		value, err := term.ReadPassword(terminalFD)

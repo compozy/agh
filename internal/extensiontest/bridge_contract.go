@@ -9,15 +9,24 @@ import (
 
 func bridgeInstanceDomain(instance bridgecontract.BridgeInstance) bridgepkg.BridgeInstance {
 	converted := bridgepkg.BridgeInstance{
-		ID: instance.ID, Scope: bridgepkg.Scope(instance.Scope), WorkspaceID: instance.WorkspaceID,
-		Platform: instance.Platform, ExtensionName: instance.ExtensionName, DisplayName: instance.DisplayName,
-		Source: bridgepkg.BridgeInstanceSource(instance.Source), Enabled: instance.Enabled,
-		Status: bridgepkg.BridgeStatus(instance.Status), DMPolicy: bridgepkg.BridgeDMPolicy(instance.DMPolicy),
+		ID:            instance.ID,
+		Scope:         bridgepkg.Scope(instance.Scope),
+		WorkspaceID:   instance.WorkspaceID,
+		Platform:      instance.Platform,
+		ExtensionName: instance.ExtensionName,
+		DisplayName:   instance.DisplayName,
+		Source:        bridgepkg.BridgeInstanceSource(instance.Source),
+		Enabled:       instance.Enabled,
+		Status:        bridgepkg.BridgeStatus(instance.Status),
+		DMPolicy:      bridgepkg.BridgeDMPolicy(instance.DMPolicy),
 		RoutingPolicy: bridgepkg.RoutingPolicy{
-			IncludePeer: instance.RoutingPolicy.IncludePeer, IncludeThread: instance.RoutingPolicy.IncludeThread,
-			IncludeGroup: instance.RoutingPolicy.IncludeGroup,
+			IncludePeer:   instance.RoutingPolicy.IncludePeer,
+			IncludeThread: instance.RoutingPolicy.IncludeThread,
+			IncludeGroup:  instance.RoutingPolicy.IncludeGroup,
 		},
-		NotificationSuppress: instance.NotificationSuppress, CreatedAt: instance.CreatedAt, UpdatedAt: instance.UpdatedAt,
+		NotificationSuppress: instance.NotificationSuppress,
+		CreatedAt:            instance.CreatedAt,
+		UpdatedAt:            instance.UpdatedAt,
 	}
 	converted.ProviderConfig = append(json.RawMessage(nil), instance.ProviderConfig...)
 	converted.DeliveryDefaults = append(json.RawMessage(nil), instance.DeliveryDefaults...)
@@ -34,6 +43,7 @@ func bridgeDegradationDomain(degradation *bridgecontract.BridgeDegradation) *bri
 		return nil
 	}
 	return &bridgepkg.BridgeDegradation{
-		Reason: bridgepkg.BridgeDegradationReason(degradation.Reason), Message: degradation.Message,
+		Reason:  bridgepkg.BridgeDegradationReason(degradation.Reason),
+		Message: degradation.Message,
 	}
 }

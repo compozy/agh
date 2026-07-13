@@ -531,7 +531,7 @@ func toolListBundle(response ToolsResponseRecord) outputBundle {
 		response,
 		response.Tools,
 		toolOperatorToolsValue,
-		[]string{"TOOL ID", "BACKEND", "SOURCE", "STATUS", "CALLABLE", "REASONS"},
+		[]string{"TOOL ID", "BACKEND", "SOURCE", cliStatusHeader, "CALLABLE", "REASONS"},
 		"tools",
 		[]string{
 			toolOperatorToolIDKey,
@@ -685,7 +685,7 @@ func toolsetListBundle(response ToolsetsResponseRecord) outputBundle {
 		response,
 		response.Toolsets,
 		"Toolsets",
-		[]string{"TOOLSET ID", "STATUS", "EXPANDED TOOLS", "REASONS"},
+		[]string{"TOOLSET ID", cliStatusHeader, "EXPANDED TOOLS", "REASONS"},
 		"toolsets",
 		[]string{"id", automationStatusKey, "expanded_tools", toolOperatorReasonsKey},
 		func(item ToolsetRecord) []string {

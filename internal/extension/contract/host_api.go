@@ -1092,7 +1092,7 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 	},
 	{
 		Method: extensionprotocol.HostAPIMethodBridgesMessagesIngest,
-		Params: NamedType{Name: "InboundMessageEnvelope", Value: bridgepkg.InboundMessageEnvelope{}},
+		Params: NamedType{Name: inboundMessageEnvelopeTypeName, Value: bridgepkg.InboundMessageEnvelope{}},
 		Result: NamedType{Name: "BridgesMessagesIngestResult", Value: bridgepkg.BridgesMessagesIngestResult{}},
 	},
 	{

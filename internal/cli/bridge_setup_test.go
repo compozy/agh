@@ -218,7 +218,7 @@ func TestBridgeSetupJSONCreatesWhatsAppInstanceAndMasksSecrets(t *testing.T) {
 			bridgeID      = "brg-whatsapp"
 			accessToken   = "EAA" + "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 			appSecret     = "0123456789abcdef0123456789abcdef"
-			generated     = "generated-verify-token"
+			verifyToken   = "operator-supplied-verify-token"
 			phoneNumberID = "123456789012345"
 		)
 		bound := make(map[string]string)
@@ -277,7 +277,6 @@ func TestBridgeSetupJSONCreatesWhatsAppInstanceAndMasksSecrets(t *testing.T) {
 			},
 		}}
 		deps := newTestDeps(t, client)
-		deps.generateBridgeSetupSecret = func() (string, error) { return generated, nil }
 		deps.runBridgeSetupWizard = func(
 			context.Context,
 			bridgeSetupWizardInput,
@@ -292,6 +291,7 @@ func TestBridgeSetupJSONCreatesWhatsAppInstanceAndMasksSecrets(t *testing.T) {
 			"phone_number_id":    phoneNumberID,
 			"access_token":       accessToken,
 			"app_secret":         appSecret,
+			"verify_token":       verifyToken,
 			"webhook_public_url": "https://bridge.example.com/whatsapp/support",
 			"webhook_path":       "/whatsapp/support",
 		})
@@ -306,10 +306,10 @@ func TestBridgeSetupJSONCreatesWhatsAppInstanceAndMasksSecrets(t *testing.T) {
 			t.Fatalf("bridge setup whatsapp --json error = %v", err)
 		}
 		if bound["access_token"] != accessToken || bound["app_secret"] != appSecret ||
-			bound["verify_token"] != generated {
-			t.Fatalf("bound secrets = %#v, want supplied and generated values", bound)
+			bound["verify_token"] != verifyToken {
+			t.Fatalf("bound secrets = %#v, want supplied values", bound)
 		}
-		for _, secret := range []string{accessToken, appSecret, generated} {
+		for _, secret := range []string{accessToken, appSecret, verifyToken} {
 			if strings.Contains(stdout, secret) {
 				t.Fatalf("bridge setup stdout leaked secret %q: %s", secret, stdout)
 			}

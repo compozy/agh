@@ -91,9 +91,9 @@ func bridgeVerifyBundle(result BridgeVerifyRecord) outputBundle {
 		result,
 		result.Checks,
 		"Bridge Verification",
-		[]string{"CHECK", "STATUS", "REMEDIATION"},
+		[]string{"CHECK", cliStatusHeader, "REMEDIATION"},
 		"bridge_checks",
-		[]string{"check", "status", "remediation"},
+		[]string{"check", lifecycleStatusKey, "remediation"},
 		func(check bridgepkg.BridgeCheckRecord) []string {
 			return []string{
 				check.Check,
