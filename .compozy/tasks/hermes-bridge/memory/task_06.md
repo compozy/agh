@@ -47,7 +47,7 @@
 - `extensions/bridges/{slack,telegram,gchat}/`: typed edit/delete mapping and bounded reply caches; Discord evidence-only skip.
 - Generated SDK TypeScript contracts and exact bridge E2E fixtures; OpenAPI changes only if the actual REST source contract exposes these inbound fields.
 - `packages/site` routing family note and `skills/agh/` runtime reference if public behavior requires it.
-- `docs/qa/state.csv`: flag new/changed user-visible edit, reply-context, and restart-recovery behavior as `untested`; do not run QA here.
+- `docs/qa/scenarios/`: flag new/changed user-visible edit, reply-context, and restart-recovery behavior as `untested`; do not run QA here. Never edit or commit the generated `state.csv` view.
 
 ## Errors / Corrections
 

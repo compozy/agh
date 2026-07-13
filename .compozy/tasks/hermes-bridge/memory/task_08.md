@@ -45,6 +45,7 @@
 
 ## Completion Evidence
 
+- Safe scoped checkpoint: `5d716befa17f3173a1e71fb5c53af5675f35ac4c`; unrelated modified Daytona sidecar assets remained unstaged and skip-worktree was removed immediately after commit.
 - `bunx oxfmt --check` passed on all 13 changed documentation and skill artifacts.
 - `go test -race ./internal/extension -run '^TestBridgeProviderDocsConformance$' -count=1` passed all four conformance cases.
 - `bunx turbo run typecheck test --filter=./packages/site` passed typecheck and 50 suites / 247 tests. The route-owner test caught an external Bot Framework path that looked like an undocumented AGH API route; the prose was corrected and the full lane then passed.

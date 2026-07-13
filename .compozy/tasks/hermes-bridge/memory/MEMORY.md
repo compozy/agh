@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Phase B, Tasks 01–07 are checkpointed at `66880e5`, `b103482`, `2be5ddf`, `d362403`, `c8ebbcaf`, `2b00ab3`, and `7494982`. Task 08 is complete and ready for its checkpoint; Task 09 is next.
+- Phase B, Tasks 01–08 are checkpointed at `66880e5`, `b103482`, `2be5ddf`, `d362403`, `c8ebbcaf`, `2b00ab3`, `7494982`, and `5d716befa`. Task 09 planning is complete and awaiting its safe checkpoint; Task 10 is next.
 - Per-task evidence is focused and proportional. Global tests and the single `make verify` are deferred until all ten tasks, QA, and review remediation are complete per user direction.
 
 ## Shared Decisions
@@ -40,7 +40,7 @@
 
 - Unchanged `internal/api/httpapi/static.go` currently reports three `gosec G703` findings during an unfiltered scoped lint. Preserve it as unrelated until its owning workstream resolves it; the final global gate will expose any remaining blocker.
 - Modified Daytona sidecar assets are unrelated worktree changes and must not be included in any workflow checkpoint.
-- Task 09 QA seeds must be reminted above `NB-054` before tracker insertion.
+- Task 09 consciously merged all 27 provisional QA seeds into the seven content-addressed Hermes scenarios and reset the affected `NB-024..NB-039` scenarios; duplicate tracker rows are no longer an open risk.
 - No live Slack/Telegram/etc. accounts are available; later QA must continue using isolated fake-provider and public-surface scenarios.
 - The checkpoint-only ledger intentionally does not replay multichunk text after restart. Universal visible fail-open avoids prefix duplication and stale-anchor dependence; future exact multichunk resume would require a separate explicit ordered-handle/content contract.
 
@@ -53,4 +53,5 @@
 - Task 06 provides typed Slack/Telegram edits, bounded Slack/Telegram/GChat reply context, a workspace-isolated checkpoint/metric ledger, boot admission fencing, and universal visible fail-open recovery. `NB-053` and `NB-054` are `untested` inputs to the QA tail.
 - Task 07 provides shared provider lifecycle/Host/reconcile/routes/delivery/HTTP/marker/command owners, eight migrated providers, auto-discovered manifest/schema/binary/runtime conformance, and docs↔code invariants. Task 08 turned its former setup/slots red lane green. NB-029 and NB-031 are reset to `untested` for the discovered lifecycle fixes.
 - Task 08 provides exact 8/8 manifest-slot/setup parity, deep operator journeys for Teams/WhatsApp/GChat/GitHub/Linear, CLI-first shared setup, truthful Discord docs, bridge-author guides, and official-skill management guidance. The docs conformance suite, site typecheck/247 tests, and 1,578-page build are green; `NB-051` already owns the untested QA journey.
-- Task 09/10 own living QA planning/execution and tracker retests.
+- Task 09 provides bridge personas, seven content-addressed journeys, nine immutable content-addressed charters, living-scenario mapping/reset for 17 changed/canonical behaviors, explicit reconciliation of all 27 provisional seeds, TTFM/risk/taxonomy ownership, four per-file automation candidates, and the executable Task 10 contract in `docs/qa/reports/2026-07-12-hermes-bridge-plan.md`.
+- Task 10 owns the fresh isolated QA execution, evidence-backed tracker verdicts, required runtime/Web E2E lanes, browser walk, bug registry, and clean teardown.

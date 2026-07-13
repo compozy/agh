@@ -2,7 +2,7 @@
 
 Project personas for AGH QA. Derived from the seed catalog (`.agents/skills/qa-report/references/personas.md`) and grounded in AGH's real audience: operators who run/observe/configure durable agent work, autonomous agents that manage that work through structured surfaces, and the humans who evaluate and approve it. Personas are durable instance data — update when the audience changes, not per cycle. The `Persona Affected:` field in bug reports and the `persona` field in scenario files use each persona's `name`.
 
-Two persona families share this tree because AGH has two high-value surfaces: the **Loops** surface (Bruno / Lea / Marina / Ada / Sol) and the **Session experience** — the ACP agent conversation/transcript thread rewired by the session-improvements program (Théo / Nia / Rafa, with Ada driving it headless and Sol/Marina as accessibility/mobile lenses). A persona is defined by its goal on a surface, not just its archetype: Théo is the session-surface Power User the way Bruno is the Loop-surface one; the same human wears a different hat on a different surface.
+Three persona families share this tree: the **Loops** surface (Bruno / Lea / Marina / Ada / Sol), **Bridge operations** (Tessa / Maya / Omar, with Ada driving structured surfaces), and the **Session experience** — the ACP agent conversation/transcript thread (Théo / Nia / Rafa, with Ada driving it headless and Sol/Marina as accessibility/mobile lenses). A persona is defined by its goal on a surface, not just its archetype: the same human can wear a different operating role on each surface.
 
 > **Mobile & accessibility coverage.** A dedicated mobile persona is not maintained because AGH's primary surface is a desktop web SPA + CLI; mobile is covered as a device *lens* on Marina (the read/approve surfaces are the realistic phone use — approving a merge gate, or glancing at a running session, between meetings). The **loop visual editor canvas is explicitly desktop-only** (DAG canvas, drag, inspector) — mobile is a recorded skip for that surface, not a gap. Accessibility is a first-class persona (Sol), whose lens extends over the redesigned session thread (live SSE announcements, status never color-only, reduced-motion streaming pulse — see J-13/CH-020).
 
@@ -77,8 +77,8 @@ persona:
 ```
 
 - **Who:** an ACP agent (PRD primary persona "Autonomous agent") driving Loops via `agh__loop_*` native tools over CLI/HTTP/UDS. **Ada is a non-human actor** — QA role-plays her to verify AGH's agent-manageability premise: every web action has a structured equivalent, output is deterministic, and the capability gates hold. Zero patience for ambiguous or non-parseable output.
-- **What they reveal:** CLI↔HTTP↔UDS↔native-tool parity gaps, status values that don't map 1:1 to the 11-state enum, coercion in structured output, the approve capability gate (an agent must not approve its own gate), `Unavailable(ReasonDependencyMissing)` contracts before the service is ready, non-deterministic `ReasonCode`s. **On the session surface** (session-improvements program): bounded REST tail/older pages, stable pagination cursors, cold bounded snapshots, fenced reconnect via `after_sequence` + `epoch`/`generation`, explicit reset reasons, empty-delta cursor advancement, keep-alive cadence, byte-identical `frames=raw` follow, and list/detail/status lifecycle parity through spawn→background→stop→restart.
-- **Owns journeys:** J-07 agent-operated-run (Loops); **J-15 operate-session-via-cli-api** (session experience — the Automation Agent role in `_qa.md` §2 maps to Ada; not a new persona). **Goal:** J-29 structured operation and recovery.
+- **What they reveal:** CLI↔HTTP↔UDS↔native-tool parity gaps, status values that don't map 1:1 to the 11-state enum, coercion in structured output, the approve capability gate (an agent must not approve its own gate), `Unavailable(ReasonDependencyMissing)` contracts before the service is ready, non-deterministic `ReasonCode`s`. **On the session surface** (session-improvements program): bounded REST tail/older pages, stable pagination cursors, cold bounded snapshots, fenced reconnect via `after_sequence` + `epoch`/`generation`, explicit reset reasons, empty-delta cursor advancement, keep-alive cadence, byte-identical `frames=raw` follow, and list/detail/status lifecycle parity through spawn→background→stop→restart. **On bridges:** strict JSON setup, HTTP/UDS parity, explicit skipped checks, deterministic exit codes, and a complete setup with no TTY or browser.
+- **Owns journeys:** J-07 agent-operated-run (Loops); **J-15 operate-session-via-cli-api** (session experience — the Automation Agent role in `_qa.md` §2 maps to Ada; not a new persona); **J-connect-bridge-provider** and **J-diagnose-repair-bridge** (structured bridge operation). **Goal:** J-29 structured operation and recovery.
 
 ## Sol — Accessibility-Reliant Operator
 
@@ -97,6 +97,80 @@ persona:
 - **Who:** an operator who relies on VoiceOver/NVDA and keyboard-only interaction. AGH's truthful-UI rule ("color carries state") is an accessibility risk if state is signalled by **color alone** — Sol is the leash that keeps status legible without sight.
 - **What they reveal:** status pills that are color-only (the 11 states must be announced/labelled, not just tinted), focus traps and escape in the Configure sheet + approval dialog, reduced-motion honored on the running/watching pulse, keyboard reachability of the editor canvas and its inspector, unannounced live SSE updates (dynamic content), missing labels on auto-generated input fields.
 - **Owns journeys:** cross-cutting a11y lens on J-03 observe-and-approve and J-05 configure (see CH-011); also informs J-01 run-form and J-06 editor; **model-selector:** a11y lens on J-17 start-a-session-through-the-unified-runtime-selector (see CH-034). **On the session surface:** cross-cutting a11y lens on J-13 follow-a-live-run (see CH-020) — live SSE updates must be announced, the 11 lifecycle states legible without color, the streaming/working pulse gated by reduced-motion, and the redesigned tool rows/composer keyboard-reachable. **On Goal:** J-27 chip/timeline/editor accessibility (CH-040).
+
+---
+
+# Bridge Operations personas
+
+Personas for the Hermes bridge-parity cycle. These roles cover the user who connects a provider,
+the teammate who experiences agent work inside a channel, and the operator who keeps several
+providers healthy. Ada above owns the non-human structured-output lane. Security is applied as a
+tour lens across these personas, not modeled as a separate user.
+
+## Tessa — First-time Bridge Operator
+
+```yaml
+persona:
+  name: Tessa
+  base: New User
+  goal: "Connect one external provider to an AGH workspace and see the first real agent response without having to infer a missing dashboard or CLI step."
+  device: laptop
+  network: wifi-fast
+  modality: mouse-keyboard
+  locale: en-US
+  patience_seconds: 90
+```
+
+- **Who:** a developer or operations generalist connecting Slack, WhatsApp, Telegram, Discord,
+  Teams, Google Chat, GitHub, or Linear for the first time. She can follow provider-console
+  instructions but does not know AGH's bridge lifecycle yet.
+- **What they reveal:** time-to-first-message friction, wizard false-accepts, missing credential
+  provenance, unclear public-to-local webhook mapping, non-actionable verification, and Web
+  checklist state that looks complete before the daemon can prove it.
+- **Owns journeys:** J-connect-bridge-provider, J-diagnose-repair-bridge, and J-complete-web-bridge-setup.
+
+## Maya — Channel Teammate
+
+```yaml
+persona:
+  name: Maya
+  base: Casual User
+  goal: "Ask the team agent for help, understand what it is doing without channel spam, and correct or contextualize my request in the same thread."
+  device: laptop
+  network: wifi-slow
+  modality: mouse-keyboard
+  locale: en-US
+  patience_seconds: 30
+```
+
+- **Who:** a teammate who never administers the bridge. She encounters AGH only through a channel,
+  issue, or agent-session thread and judges it by routing, readable progress, and the final answer.
+- **What they reveal:** progress spam, rate-limit stalls, typing that never clears, cross-thread or
+  cross-user misrouting, progress chrome in transcript history, edits ignored as new messages, and
+  reply context attributed to the wrong author.
+- **Owns journeys:** J-watch-agent-work-channel and J-edit-reply-context.
+
+## Omar — Bridge Fleet Operator
+
+```yaml
+persona:
+  name: Omar
+  base: Power User
+  goal: "Keep an eight-provider bridge fleet predictable through long replies, provider limits, credential failures, and daemon restarts."
+  device: desktop
+  network: wifi-fast
+  modality: mouse-keyboard
+  locale: en-US
+  patience_seconds: 20
+```
+
+- **Who:** the operator responsible for steady-state bridge reliability. He uses CLI/HTTP health,
+  metrics, fake-provider labs, and provider consoles to distinguish AGH failures from upstream
+  policy or credential failures.
+- **What they reveal:** broken markdown or UTF-16 boundaries, missing or duplicate chunks, silent
+  half-answers after restart, non-durable metrics, secrets in progress previews, redirect/SSRF
+  mistakes, and check results that mutate lifecycle state.
+- **Owns journeys:** J-diagnose-repair-bridge, J-deliver-long-formatted-reply, and J-recover-mid-turn-restart.
 
 ---
 
