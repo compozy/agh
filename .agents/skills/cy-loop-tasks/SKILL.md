@@ -1,6 +1,6 @@
 ---
 name: cy-loop-tasks
-description: Drives end-to-end execution of a Compozy techspec by detecting the current phase from state.yaml plus .compozy/tasks/<slug>/, running exactly one phase action per iteration, printing the iteration summary, then continuing immediately into the next iteration until Phase E or a blocker — task execution with atomic checkpoint commits, QA, then consecutive cy-impl-peer-review rounds until SHIP. Use when running a Compozy techspec under the codex-loop plugin in goal mode, when shipping a techspec end-to-end in one session, or when frontend tasks must be orchestrated through herdr worker TUIs via the --frontend parameter. Do not use for one-off tasks without a .compozy/tasks/<slug>/ directory, or for techspec authoring (use cy-create-techspec).
+description: Resumable checkpoint loop for shipping a Compozy techspec end to end with one CodeRabbit review and atomic commit per Phase B task or slice, QA, then cy-impl-peer-review until SHIP. Use for codex-loop goal runs over .compozy/tasks/<slug> or --frontend herdr delegation. Do not use for one-off tasks or PRD/TechSpec authoring.
 ---
 
 # Loop Tasks Driver
@@ -16,7 +16,7 @@ The loop is a five-phase state machine:
 | Phase | Action | Executor |
 |-------|--------|----------|
 | 0 | bootstrap | orchestrator |
-| B | one task or slice + checkpoint commit | orchestrator, or herdr frontend worker |
+| B | one task or slice + one CodeRabbit review + checkpoint commit | orchestrator, or herdr frontend worker |
 | C | `qa_report`, then `qa_execution` | Fable 5 herdr worker, then orchestrator |
 | D | `cy-impl-peer-review` rounds until SHIP + checkpoint commit per round | orchestrator |
 | E | done-signature | orchestrator |
@@ -40,12 +40,13 @@ Stop→restart — restarts are a resume safety net, not the driver.
 
 ## Helper scripts
 
-Bundled under `.agents/skills/compozy/cy-loop-tasks/scripts/` — stdlib-only
+Bundled under `.agents/skills/cy-loop-tasks/scripts/` — stdlib-only
 Python 3.11+, no network, no model calls. Invoke by the explicit repo-root
 paths shown in the workflow steps.
 
 | Script | Role | Phase |
 |--------|------|-------|
+| `_state_io.py` | private strict state codec (imported, not invoked) | all state helpers |
 | `init-state.py` | bootstrap (mutating once) | 0 |
 | `detect-phase.py` | read-only | every iteration |
 | `update-state.py` | mutating | every iteration |
@@ -81,9 +82,12 @@ session between rounds.
    directory containing `.compozy/tasks/`); on mismatch, stop and report.
 2. Activate `cy-workflow-memory` so its protocol is loaded for later use
    (once per session is enough; re-activate only if context was dropped).
-3. Run `python3 .agents/skills/compozy/cy-loop-tasks/scripts/detect-phase.py <slug>`.
+3. Run `python3 .agents/skills/cy-loop-tasks/scripts/detect-phase.py <slug>`.
    The printed line decides the whole iteration; the output catalog and
    entry/exit conditions are in `references/phase-transitions.md`.
+
+Done when: detect-phase emitted exactly one supported phase/action line and
+the matching branch below is selected.
 
 **Step 2 — Run exactly one phase branch.**
 
@@ -94,7 +98,7 @@ session between rounds.
    blocker under `## Open Risks`, print the iteration summary with
    `outcome=blocked`, and stop (`state.yaml` does not exist yet, so there is
    no update-state call).
-2. Run `python3 .agents/skills/compozy/cy-loop-tasks/scripts/init-state.py <slug> --goal "<goal_text>"`,
+2. Run `python3 .agents/skills/cy-loop-tasks/scripts/init-state.py <slug> --goal "<goal_text>"`,
    adding `--frontend <claude|cursor>` when the invocation text carries the
    parameter. Mode auto-detects: `tasks` when `_tasks.md` plus at least one
    `task_*.md` exist, else `free`.
@@ -102,10 +106,53 @@ session between rounds.
    (`tasks`, or `task-body` when a single concrete file is next).
 4. Scaffold `.compozy/tasks/<slug>/memory/MEMORY.md` with the canonical
    sections from `references/memory-protocol.md`.
-5. Run `python3 .agents/skills/compozy/cy-loop-tasks/scripts/update-state.py <slug> --phase 0 --action "bootstrap (mode=<mode>)" --outcome completed --memory-written "memory/MEMORY.md"`.
+5. Run `python3 .agents/skills/cy-loop-tasks/scripts/update-state.py <slug> --phase 0 --action "bootstrap (mode=<mode>)" --outcome completed --memory-written "memory/MEMORY.md"`.
 
 Done when: `state.yaml` exists and `memory/MEMORY.md` has the canonical
 sections.
+
+### Phase B shared CodeRabbit gate
+
+Run this gate once per task or slice after scoped validation and before final
+verification, memory completion, state updates, or commits. Set `<checkpoint>`
+to `<stem>` in tasks mode or `free-iter-<NNN>` in free mode, and use the
+current-memory path resolved for that mode.
+
+1. Create `.codex/reviews/` and resolve the canonical log as
+   `.codex/reviews/cr-review-<slug>-<checkpoint>.log`. A completed log ends
+   with `CODEX_CODERABBIT_REVIEW_COMPLETE exit=0 head=<review-head>`, where
+   `<review-head>` is the current `git rev-parse HEAD`. Reuse a matching log on
+   resume; treat any existing log with a missing or different sentinel as a
+   blocker.
+2. Run exactly one provider review with shell `pipefail` enabled so a
+   successful `tee` cannot mask a failed reviewer:
+
+   ```bash
+   mkdir -p .codex/reviews
+   set -o pipefail
+   review_log=".codex/reviews/cr-review-<slug>-<checkpoint>.log"
+   review_head="$(git rev-parse HEAD)"
+   sentinel="CODEX_CODERABBIT_REVIEW_COMPLETE exit=0 head=$review_head"
+   if test -e "$review_log"; then
+     test "$(tail -n 1 "$review_log")" = "$sentinel"
+   else
+     coderabbit review --type uncommitted --plain --config .coderabbit.yaml \
+       2>&1 | tee "$review_log" &&
+       printf '\n%s\n' "$sentinel" | tee -a "$review_log"
+   fi
+   ```
+
+3. Read the canonical log, remediate every actionable finding, and record
+   each disposition (`fixed` or `rejected` with a concrete justification) in
+   current memory; record `no findings` when the review returned none. Do not
+   run CodeRabbit again after remediation. A blocker or incomplete review
+   keeps the Phase B action open.
+4. Run `cy-final-verify` after remediation and capture fresh PASS/FAIL
+   evidence. A delegated worker report must also name the canonical log and
+   finding dispositions.
+
+Done when: the canonical log ends with the success sentinel, every finding
+has a recorded disposition, and post-remediation `cy-final-verify` passed.
 
 ### Phase B mode=tasks — execute one task
 
@@ -120,17 +167,23 @@ sections.
    `references/memory-protocol.md` and pass them into the lane that executes
    the work.
 4. **Frontend lane** — when detect-phase printed `lane=frontend agent=<x>`:
-   dispatch the task to that worker per `references/herdr-delegation.md` and
-   skip step 5. The worker owns implementation, memory updates, validation,
-   and `cy-final-verify` evidence; it never commits.
+   dispatch the task to that worker per `references/herdr-delegation.md`. Add
+   the shared CodeRabbit gate above to the worker packet with
+   `<checkpoint>=<stem>`; the worker owns implementation, CodeRabbit
+   remediation, memory updates, validation, and `cy-final-verify` evidence. It
+   never commits. Skip step 5.
 5. **Local lane** — activate `cy-execute-task` on the picked file with
-   auto-commit disabled, then `cy-final-verify`; capture its PASS/FAIL
-   evidence for the iteration summary. Skip any per-task peer-review step the
-   task file requests — peer review is Phase D (see Critical Rules).
-6. Confirm memory is updated (written locally, or verified from the worker)
+   auto-commit disabled. Run the task's scoped validation, but defer
+   `cy-final-verify` until after the CodeRabbit remediation. Skip any
+   per-task `cy-impl-peer-review` step the task file requests — that review is
+   Phase D (see Critical Rules).
+6. Run the shared CodeRabbit gate with `<checkpoint>=<stem>` and current
+   memory `memory/<stem>.md`. For the frontend lane, verify the worker's gate
+   evidence instead of running a second review.
+7. Confirm memory is updated (written locally, or verified from the worker)
    before any state flip.
-7. Run `python3 .agents/skills/compozy/cy-loop-tasks/scripts/update-state.py <slug> --phase B --task-completed <stem> --action "executed <stem>" --outcome completed --memory-written "memory/<stem>.md,memory/MEMORY.md" --verify-pass`.
-8. Run `python3 .agents/skills/compozy/cy-loop-tasks/scripts/commit-checkpoint.py <slug> --task <stem>`.
+8. Run `python3 .agents/skills/cy-loop-tasks/scripts/update-state.py <slug> --phase B --task-completed <stem> --action "executed <stem>" --outcome completed --memory-written "memory/<stem>.md,memory/MEMORY.md" --verify-pass`.
+9. Run `python3 .agents/skills/cy-loop-tasks/scripts/commit-checkpoint.py <slug> --task <stem>`.
    Stdout is a commit SHA or `SKIP: no changes`; copy it into the iteration
    summary. On exit 1, record `--verify-fail --blocker
    "checkpoint-commit-failed: <stderr summary>"` via update-state and stop —
@@ -145,22 +198,29 @@ all reflect the same completed task.
    against `state.progress.checklist[]`.
 2. Pick the smallest coherent slice (≤ ~4 hours) that advances at least one
    acceptance criterion; capture its text exactly.
-3. Run `python3 .agents/skills/compozy/cy-loop-tasks/scripts/update-state.py <slug> --add-progress "<slice text>" --action "slice picked" --outcome completed`.
+3. Run `python3 .agents/skills/cy-loop-tasks/scripts/update-state.py <slug> --add-progress "<slice text>" --action "slice picked" --outcome completed`.
 4. Re-read `state.yaml`; the current memory file is
    `memory/free-iter-<NNN>.md`, `<NNN>` = the new checklist entry's
    `iteration`, zero-padded to three digits.
 5. **Frontend lane** — when `state.frontend_agent` is set AND the slice's
    owned paths are exclusively frontend surfaces (classification in
-   `references/herdr-delegation.md`): dispatch per that reference and skip
-   step 6.
+   `references/herdr-delegation.md`): dispatch per that reference and add the
+   shared CodeRabbit gate with `<checkpoint>=free-iter-<NNN>` to the worker
+   packet. The worker owns the CodeRabbit remediation and final verification;
+   it never commits. Skip step 6.
 6. **Local lane** — implement the slice, record decisions and learnings in
-   the current memory file, then run `cy-final-verify`.
-7. Acceptance self-check: when every techspec criterion has a completed
-   checklist entry, add `--deliverables-complete` to the step 8 call.
-8. Run `python3 .agents/skills/compozy/cy-loop-tasks/scripts/update-state.py <slug> --phase B --complete-progress "<slice text>" [--deliverables-complete] --action "slice <text>" --outcome completed --memory-written "memory/free-iter-<NNN>.md,memory/MEMORY.md" --verify-pass`.
-9. Run `python3 .agents/skills/compozy/cy-loop-tasks/scripts/commit-checkpoint.py <slug> --slice "<slice text>"`
+   the current memory file, and run scoped validation. Defer
+   `cy-final-verify` until after the CodeRabbit remediation.
+7. Run the shared CodeRabbit gate with
+   `<checkpoint>=free-iter-<NNN>` and current memory
+   `memory/free-iter-<NNN>.md`. For the frontend lane, verify the worker's
+   gate evidence instead of running a second review.
+8. Acceptance self-check: when every techspec criterion has a completed
+   checklist entry, add `--deliverables-complete` to the step 9 call.
+9. Run `python3 .agents/skills/cy-loop-tasks/scripts/update-state.py <slug> --phase B --complete-progress "<slice text>" [--deliverables-complete] --action "slice <text>" --outcome completed --memory-written "memory/free-iter-<NNN>.md,memory/MEMORY.md" --verify-pass`.
+10. Run `python3 .agents/skills/cy-loop-tasks/scripts/commit-checkpoint.py <slug> --slice "<slice text>"`
    with the exact step 3 text — same SKIP / exit-1 semantics as mode=tasks
-   step 8.
+   step 9.
 
 Done when: the slice's checklist entry is `completed` and the checkpoint
 result is recorded.
@@ -179,14 +239,14 @@ Run only the printed action.
    `qa-docs-path=docs/qa` and updates journey flows, `docs/qa/scenarios/`
    files, and cycle charters.
 3. Verify the worker evidence (each reported artifact exists, no worker
-   commit), then run `python3 .agents/skills/compozy/cy-loop-tasks/scripts/update-state.py <slug> --phase C --qa-report-done --action "qa-report produced" --outcome completed --memory-written "memory/qa-report.md,memory/MEMORY.md"`.
+   commit), then run `python3 .agents/skills/cy-loop-tasks/scripts/update-state.py <slug> --phase C --qa-report-done --action "qa-report produced" --outcome completed --memory-written "memory/qa-report.md,memory/MEMORY.md"`.
 
 `qa_execution` — local:
 
 1. Activate `qa-execution` with `qa-docs-path=docs/qa`; it writes the dated
    run report at `docs/qa/reports/<YYYY-MM-DD>-<slug>.md` and updates
    scenario-file verdicts.
-2. Run `python3 .agents/skills/compozy/cy-loop-tasks/scripts/update-state.py <slug> --phase C --qa-execution-done --action "qa-execution produced" --outcome completed --memory-written "memory/qa-execution.md,memory/MEMORY.md"`,
+2. Run `python3 .agents/skills/cy-loop-tasks/scripts/update-state.py <slug> --phase C --qa-execution-done --action "qa-execution produced" --outcome completed --memory-written "memory/qa-execution.md,memory/MEMORY.md"`,
    adding `--verify-fail` when the report's Final Status is "not ready" or
    any Blocks-Completion/Data-Loss bug is open, else `--verify-pass`.
 
@@ -201,7 +261,10 @@ Done when: the printed QA artifact exists on disk and its flag is recorded in
 ### Phase D — peer-review rounds until SHIP
 
 One round per iteration; detect-phase re-emits `peer_review` until the
-verdict is SHIP on a verify-PASS tree.
+verdict is SHIP on a verify-PASS tree. Enter this phase only after every
+Phase B task or slice has a sentinel-complete CodeRabbit log and recorded
+finding dispositions; the incremental CodeRabbit reviews always precede this
+full-diff peer review.
 
 1. Activate `cy-impl-peer-review` for the round number printed by
    detect-phase, scoped to the loop's full diff (`--base` = the ref the loop
@@ -211,10 +274,10 @@ verdict is SHIP on a verify-PASS tree.
    remediate **every blocker and every nit** from the round's findings in
    this same iteration, then re-run the project verification gate.
 3. Update `memory/peer-review.md` (a `## Round <N>` section per round), then
-   run `python3 .agents/skills/compozy/cy-loop-tasks/scripts/update-state.py <slug> --phase D --review-round-done <SHIP|FIX_BEFORE_SHIP|REWORK> --action "peer-review round <N> (<verdict>)" --outcome completed --memory-written "memory/peer-review.md,memory/MEMORY.md" --verify-pass|--verify-fail`.
+   run `python3 .agents/skills/cy-loop-tasks/scripts/update-state.py <slug> --phase D --review-round-done <SHIP|FIX_BEFORE_SHIP|REWORK> --action "peer-review round <N> (<verdict>)" --outcome completed --memory-written "memory/peer-review.md,memory/MEMORY.md" --verify-pass|--verify-fail`.
    `--review-round-done SHIP` is valid only with `--verify-pass` — a SHIP
    verdict on a failing tree is void.
-4. Run `python3 .agents/skills/compozy/cy-loop-tasks/scripts/commit-checkpoint.py <slug> --review-round <N>`
+4. Run `python3 .agents/skills/cy-loop-tasks/scripts/commit-checkpoint.py <slug> --review-round <N>`
    — same SKIP / exit-1 semantics as Phase B.
 
 Done when: the round's findings artifact exists, every blocker and nit from
@@ -235,6 +298,9 @@ round.
    — the codex-loop goal-check confirmation scans for it.
 5. Stop — Phase E is the only successful terminal.
 
+Done when: the Phase E checklist passes, the iteration summary is printed,
+and the done-signature is the final output line.
+
 **Step 3 — Self-audit, summarize, then continue.**
 
 1. Walk `references/checklist.md` for the phase just executed; every box must
@@ -245,6 +311,9 @@ round.
 3. **Continue gate:** if `outcome=blocked` or `phase_out=E`, stop. Otherwise
    re-enter Step 1 immediately — the summary marks the round; it does not
    end the session.
+
+Done when: the phase checklist passes, its summary is printed, and control
+either returned to Step 1 or stopped at a permitted terminal.
 
 ## Memory protocol
 
@@ -276,9 +345,15 @@ The canonical `[[CODEX_LOOP ...]]` header, the manual invocation text, and
   `references/herdr-delegation.md`.
 - `qa_report` is always produced by the Fable 5 worker; `qa_execution` always
   runs locally.
+- Every Phase B task or slice runs exactly one local CodeRabbit review before
+  its final verification and checkpoint commit. Remediate from that canonical
+  log without rerunning CodeRabbit; technical or review failures block the
+  iteration instead of opening an attempt loop.
 - `cy-impl-peer-review` runs only in Phase D. Per-task peer-review
   instructions inside task files or specs are superseded by this loop's phase
-  machine — note "deferred to Phase D" in the task memory and move on.
+  machine — note "deferred to Phase D" in the task memory and move on. The
+  Phase B CodeRabbit review is incremental provider review, not a
+  `cy-impl-peer-review` round.
 - Phase D repeats in consecutive rounds until SHIP; every non-SHIP round
   remediates all blockers and nits before the next round starts.
 - Checkpoint commits (Phases B and D) belong to the orchestrator:
@@ -320,6 +395,15 @@ The canonical `[[CODEX_LOOP ...]]` header, the manual invocation text, and
 - **Delegated run lacks PASS evidence or artifacts, or committed anyway** —
   keep the phase open and record blocked/`--verify-fail` naming the missing
   item. A worker commit is a contract breach: report it, do not advance.
+- **CodeRabbit unavailable, over its file limit, exits non-zero, or leaves an
+  incomplete canonical log** — keep the Phase B task or slice open, record
+  the blocker in current and shared memory, print the iteration summary, and
+  stop. Do not retry the reviewer in the same task/slice iteration; decompose
+  an over-limit task before resuming.
+- **CodeRabbit log already exists on resume** — inspect and reuse it when it
+  ends with `CODEX_CODERABBIT_REVIEW_COMPLETE exit=0 head=<current-HEAD>`.
+  Any other ending is a blocker, not permission to overwrite the log or spend
+  a second review.
 - **Invalid peer-review round** (missing or malformed findings artifact) —
   the round does not count; follow `cy-impl-peer-review` error handling and
   re-run it.

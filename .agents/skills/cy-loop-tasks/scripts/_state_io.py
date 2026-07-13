@@ -52,7 +52,7 @@ def dump(state: dict, path: Path) -> None:
     out: list[str] = []
     out.append(
         "# cy-loop-tasks state.yaml -- managed by "
-        ".agents/skills/compozy/cy-loop-tasks/scripts/update-state.py. "
+        ".agents/skills/cy-loop-tasks/scripts/update-state.py. "
         "Do not hand-edit."
     )
     for key in (

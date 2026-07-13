@@ -1,5 +1,5 @@
-# cy-loop-tasks state file. Created by .agents/skills/compozy/cy-loop-tasks/scripts/init-state.py.
-# All fields are mutated only by .agents/skills/compozy/cy-loop-tasks/scripts/update-state.py. Never hand-edit.
+# cy-loop-tasks state file. Created by .agents/skills/cy-loop-tasks/scripts/init-state.py.
+# All fields are mutated only by .agents/skills/cy-loop-tasks/scripts/update-state.py. Never hand-edit.
 slug: ""
 created_at: ""        # RFC3339 UTC
 last_updated: ""      # RFC3339 UTC

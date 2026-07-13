@@ -1,6 +1,6 @@
 # Phase transitions — detect-phase contract
 
-`.agents/skills/compozy/cy-loop-tasks/scripts/detect-phase.py` (read-only) is
+`.agents/skills/cy-loop-tasks/scripts/detect-phase.py` (read-only) is
 the single source of truth for "what phase am I in right now?". It reads
 `state.yaml` plus the filesystem under `.compozy/tasks/<slug>/` and prints
 exactly one line:
@@ -54,7 +54,7 @@ When a step fails irrecoverably (techspec missing, contradictory specs,
 verify FAIL with no fix path, two-touch limit hit):
 
 1. Record the blocker in `memory/MEMORY.md` `## Open Risks`.
-2. Run `.agents/skills/compozy/cy-loop-tasks/scripts/update-state.py <slug> --blocker "<text>"`
+2. Run `.agents/skills/cy-loop-tasks/scripts/update-state.py <slug> --blocker "<text>"`
    (skip when `state.yaml` does not exist yet — bootstrap failures record in
    memory and the summary only).
 3. Print the iteration summary with `outcome=blocked` and stop **without**

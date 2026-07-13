@@ -4,8 +4,8 @@ Authoritative schema for `.compozy/tasks/<slug>/state.yaml`. The file is the
 orchestration layer that lets `cy-loop-tasks` continue across iterations and
 resume mid-flight if a session ends. The file is mutated **only** by:
 
-- `.agents/skills/compozy/cy-loop-tasks/scripts/init-state.py` (bootstrap)
-- `.agents/skills/compozy/cy-loop-tasks/scripts/update-state.py` (every iteration)
+- `.agents/skills/cy-loop-tasks/scripts/init-state.py` (bootstrap)
+- `.agents/skills/cy-loop-tasks/scripts/update-state.py` (every iteration)
 
 No other writer is permitted. Hand-editing voids resume guarantees.
 

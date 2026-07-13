@@ -11,9 +11,9 @@ For a feature with slug `<slug>` whose techspec lives at
 `.compozy/tasks/<slug>/_techspec.md`:
 
 ```text
-[[CODEX_LOOP name="<slug>" goal="ship <slug> end-to-end via cy-loop-tasks: every iteration runs .agents/skills/compozy/cy-loop-tasks/scripts/detect-phase.py and executes the printed action; continue across iterations until qa-report and qa-execution are complete, consecutive cy-impl-peer-review rounds reach SHIP, and make verify is PASS"]]
+[[CODEX_LOOP name="<slug>" goal="ship <slug> end-to-end via cy-loop-tasks: every iteration runs .agents/skills/cy-loop-tasks/scripts/detect-phase.py and executes the printed action; every Phase B checkpoint gets one logged CodeRabbit review before Phase D; continue until qa-report and qa-execution are complete, consecutive cy-impl-peer-review rounds reach SHIP, and make verify is PASS"]]
 
-Use the cy-loop-tasks skill at .agents/skills/compozy/cy-loop-tasks/SKILL.md.
+Use the cy-loop-tasks skill at .agents/skills/cy-loop-tasks/SKILL.md.
 The skill is a continue loop — one phase action per iteration, then the next, until Phase E or a blocker. Slug: <slug>.
 ```
 
@@ -28,7 +28,7 @@ To orchestrate frontend tasks through herdr worker TUIs, append the
 parameter to the invocation line:
 
 ```text
-Use the cy-loop-tasks skill at .agents/skills/compozy/cy-loop-tasks/SKILL.md.
+Use the cy-loop-tasks skill at .agents/skills/cy-loop-tasks/SKILL.md.
 The skill is a continue loop — one phase action per iteration, then the next, until Phase E or a blocker. Slug: <slug>. --frontend claude
 ```
 
@@ -41,22 +41,10 @@ Bootstrap passes the value to `init-state.py --frontend`; it lands in
 `state.yaml.frontend_agent` and holds for the whole loop. Omit the parameter
 to run every task locally.
 
-## Tunable confirm/interpret models
-
-The plugin's confirm/interpret defaults work for this skill, but for long
-features (>30 iterations) raising the confirm reasoning effort yields better
-verdict quality:
-
-```text
-[[CODEX_LOOP name="<slug>" goal="..." confirm_model="gpt-5.5" confirm_reasoning_effort="xhigh"]]
-```
-
-This does not affect the skill itself — only the plugin's verdict quality.
-
 ## Invoking without the plugin (manual run)
 
 ```
-Activate the cy-loop-tasks skill at .agents/skills/compozy/cy-loop-tasks/SKILL.md
+Activate the cy-loop-tasks skill at .agents/skills/cy-loop-tasks/SKILL.md
 for slug <slug>. Continue until Phase E or a blocker.
 ```
 

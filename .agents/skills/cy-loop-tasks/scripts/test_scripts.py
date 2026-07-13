@@ -2,7 +2,7 @@
 """Self-test for the cy-loop-tasks helper scripts (read-only, tmpdir-scoped).
 
 Run from anywhere:
-    python3 .agents/skills/compozy/cy-loop-tasks/scripts/test_scripts.py
+    python3 .agents/skills/cy-loop-tasks/scripts/test_scripts.py
 """
 from __future__ import annotations
 
