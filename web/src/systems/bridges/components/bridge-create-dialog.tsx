@@ -67,7 +67,7 @@ function BridgeWizardStepNav({ currentIndex }: { currentIndex: number }) {
   return (
     <nav
       aria-label="Bridge create steps"
-      className="flex items-center gap-2 border-b border-line bg-canvas-tint px-5 py-2.5 text-eyebrow"
+      className="grid min-w-0 grid-cols-3 items-center gap-1 border-b border-line bg-canvas-tint px-3 py-2.5 text-eyebrow sm:flex sm:gap-2 sm:px-5"
       data-testid="bridge-wizard-stepper"
     >
       {WIZARD_STEPS.map((item, index) => {
@@ -75,7 +75,7 @@ function BridgeWizardStepNav({ currentIndex }: { currentIndex: number }) {
         return (
           <span
             aria-current={status === "current" ? "step" : undefined}
-            className="flex items-center gap-2"
+            className="flex min-w-0 items-center justify-center gap-1.5 sm:justify-start sm:gap-2"
             data-status={status}
             data-testid={item.testId}
             key={item.id}
@@ -91,13 +91,15 @@ function BridgeWizardStepNav({ currentIndex }: { currentIndex: number }) {
                 <span className="font-mono text-eyebrow">{index + 1}</span>
               )}
             </span>
-            <Eyebrow className={status === "current" ? "text-fg-strong" : "text-muted"}>
+            <Eyebrow
+              className={`min-w-0 truncate ${status === "current" ? "text-fg-strong" : "text-muted"}`}
+            >
               {item.label}
             </Eyebrow>
             {index < WIZARD_STEPS.length - 1 ? (
               <ChevronRight
                 aria-hidden="true"
-                className="ml-1 text-faint"
+                className="ml-1 hidden shrink-0 text-faint sm:block"
                 height={12}
                 strokeWidth={1.75}
                 width={12}
@@ -200,15 +202,15 @@ export function BridgeCreateDialog({
         aria-labelledby={titleId}
         className={
           committedManifestState
-            ? "w-(--width-modal-lg) max-w-[calc(100vw-2rem)] sm:max-w-(--width-modal-lg) grid-rows-[auto_1fr] max-h-[min(var(--height-modal-tall),calc(100vh-2rem))]"
-            : "w-(--width-modal-lg) max-w-[calc(100vw-2rem)] sm:max-w-(--width-modal-lg) grid-rows-[auto_auto_1fr_auto] max-h-[min(var(--height-modal-tall),calc(100vh-2rem))]"
+            ? "w-(--width-modal-lg) min-w-0 max-w-[calc(100vw-2rem)] grid-cols-[minmax(0,1fr)] grid-rows-[auto_1fr] max-h-[min(var(--height-modal-tall),calc(100vh-2rem))] sm:max-w-(--width-modal-lg)"
+            : "w-(--width-modal-lg) min-w-0 max-w-[calc(100vw-2rem)] grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_1fr_auto] max-h-[min(var(--height-modal-tall),calc(100vh-2rem))] sm:max-w-(--width-modal-lg)"
         }
         data-testid="bridge-create-dialog"
         showCloseButton={false}
         unframed
       >
         <header
-          className="flex items-center justify-between gap-3 border-b border-line px-5 py-3.5"
+          className="flex min-w-0 items-center justify-between gap-3 border-b border-line px-3 py-3 sm:px-5 sm:py-3.5"
           data-slot="bridge-wizard-head"
         >
           <DialogTitle
@@ -218,20 +220,20 @@ export function BridgeCreateDialog({
           >
             {committedManifestState ? "Set up Slack app" : "Create bridge"}
           </DialogTitle>
-          <span className="font-mono text-form-label text-muted">
+          <span className="min-w-0 truncate font-mono text-form-label text-muted">
             {committedManifestState?.bridgeId ?? selectedProvider?.display_name}
           </span>
         </header>
 
         {committedManifestState ? (
-          <div className="min-h-0 overflow-y-auto p-5">
+          <div className="min-h-0 min-w-0 overflow-y-auto p-3 sm:p-5">
             <BridgeManifestHandoff state={committedManifestState} />
           </div>
         ) : (
           <>
             <BridgeWizardStepNav currentIndex={currentIndex} />
             <div
-              className="flex min-h-0 flex-col gap-4 overflow-y-auto p-5"
+              className="flex min-h-0 min-w-0 flex-col gap-4 overflow-y-auto p-3 sm:p-5"
               data-testid="bridge-wizard-body"
             >
               {step === "provider" ? (
@@ -260,16 +262,16 @@ export function BridgeCreateDialog({
               ) : null}
             </div>
             <footer
-              className="flex flex-wrap items-center gap-3 border-t border-line bg-canvas-soft px-5 py-3.5"
+              className="flex min-w-0 flex-wrap items-center gap-2 border-t border-line bg-canvas-soft px-3 py-3 sm:gap-3 sm:px-5 sm:py-3.5"
               data-slot="bridge-wizard-footer"
             >
               <span
-                className="font-mono text-form-label text-muted"
+                className="shrink-0 font-mono text-form-label text-muted"
                 data-testid="bridge-wizard-progress"
               >
                 Step {currentIndex + 1} of {WIZARD_STEPS.length}
               </span>
-              <div className="ml-auto flex flex-wrap items-center gap-2">
+              <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
                 <Button
                   data-testid="bridge-wizard-cancel"
                   disabled={isPending}

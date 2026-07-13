@@ -44,7 +44,10 @@ func (t *RouteTable[C]) Replace(next map[string]C, merge RouteMergeFunc[C]) []C 
 	if t == nil {
 		return nil
 	}
-	removed, _ := t.replace(next, merge, nil)
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	replacement, removed := t.prepareReplacementLocked(next, merge)
+	t.publishReplacementLocked(replacement)
 	return removed
 }
 
@@ -57,18 +60,24 @@ func (t *RouteTable[C]) ReplaceWithCleanup(
 	if t == nil {
 		return nil
 	}
-	_, err := t.replace(next, merge, cleanup)
-	return err
-}
-
-func (t *RouteTable[C]) replace(
-	next map[string]C,
-	merge RouteMergeFunc[C],
-	cleanup func(C) error,
-) ([]C, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	replacement, removed := t.prepareReplacementLocked(next, merge)
+	if cleanup != nil {
+		for _, config := range removed {
+			if err := cleanup(config); err != nil {
+				return err
+			}
+		}
+	}
+	t.publishReplacementLocked(replacement)
+	return nil
+}
 
+func (t *RouteTable[C]) prepareReplacementLocked(
+	next map[string]C,
+	merge RouteMergeFunc[C],
+) (map[string]C, []C) {
 	replacement := make(map[string]C, len(next))
 	for instanceID, config := range next {
 		instanceID = strings.TrimSpace(instanceID)
@@ -86,18 +95,14 @@ func (t *RouteTable[C]) replace(
 			removed = append(removed, config)
 		}
 	}
-	if cleanup != nil {
-		for _, config := range removed {
-			if err := cleanup(config); err != nil {
-				return nil, err
-			}
-		}
-	}
+	return replacement, removed
+}
+
+func (t *RouteTable[C]) publishReplacementLocked(replacement map[string]C) {
 	t.routes = replacement
 	t.reindexLocked()
 	close(t.changed)
 	t.changed = make(chan struct{})
-	return removed, nil
 }
 
 // Get returns one config by bridge instance id.

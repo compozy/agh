@@ -909,7 +909,9 @@ func TestGitHubProviderAfterInitializeSyncsOwnedInstancesAndReportsState(t *test
 	}
 	t.Cleanup(func() {
 		provider.lifecycle.Stop()
-		_ = provider.http.Shutdown(context.Background())
+		if err := provider.http.Shutdown(context.Background()); err != nil {
+			t.Errorf("Shutdown() error = %v", err)
+		}
 	})
 
 	if err := provider.lifecycle.Initialize(context.Background(), session); err != nil {

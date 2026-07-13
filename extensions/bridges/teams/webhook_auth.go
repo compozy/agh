@@ -15,6 +15,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
+	"github.com/compozy/agh/internal/bridgesdk"
 )
 
 func allowTeamsDirectMessage(cfg resolvedInstanceConfig, user teamsUserIdentity, direct bool) bool {
@@ -203,7 +204,7 @@ func fetchTeamsOpenIDMetadata(
 func fetchTeamsOpenIDMetadataUncached(
 	ctx context.Context,
 	endpoint string,
-) (*teamsOpenIDMetadata, error) {
+) (metadataResult *teamsOpenIDMetadata, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)
 	if err != nil {
 		return nil, err
@@ -212,7 +213,9 @@ func fetchTeamsOpenIDMetadataUncached(
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		err = errors.Join(err, bridgesdk.DrainAndCloseHTTPResponseBody(resp.Body))
+	}()
 	if resp.StatusCode != http.StatusOK {
 		return nil, classifyTeamsHTTPError(
 			resp.StatusCode,
@@ -262,7 +265,7 @@ func refreshTeamsJWKS(ctx context.Context, jwksURL string) (*teamsJWKS, error) {
 	return cloneTeamsJWKS(keys), nil
 }
 
-func fetchTeamsJWKSUncached(ctx context.Context, endpoint string) (*teamsJWKS, error) {
+func fetchTeamsJWKSUncached(ctx context.Context, endpoint string) (keysResult *teamsJWKS, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)
 	if err != nil {
 		return nil, err
@@ -271,7 +274,9 @@ func fetchTeamsJWKSUncached(ctx context.Context, endpoint string) (*teamsJWKS, e
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		err = errors.Join(err, bridgesdk.DrainAndCloseHTTPResponseBody(resp.Body))
+	}()
 	if resp.StatusCode != http.StatusOK {
 		return nil, classifyTeamsHTTPError(
 			resp.StatusCode,

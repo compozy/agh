@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/compozy/agh/internal/bridgesdk"
 )
 
 type discordAPI interface {
@@ -56,9 +58,10 @@ type discordReactionRequest struct {
 }
 
 type discordBotClient struct {
-	baseURL    string
-	botToken   string
-	httpClient *http.Client
+	baseURL               string
+	botToken              string
+	httpClient            *http.Client
+	reportResponseCleanup func(error)
 }
 
 var _ discordProgressAPI = (*discordBotClient)(nil)
@@ -73,6 +76,8 @@ func (c *discordBotClient) SetTyping(ctx context.Context, req discordTypingReque
 		"/channels/"+strings.TrimSpace(req.ChannelID)+"/typing",
 		nil,
 		nil,
+		bridgesdk.HTTPResponseCommitOnSuccessStatus,
+		nil,
 	)
 }
 
@@ -84,6 +89,8 @@ func (c *discordBotClient) AddReaction(ctx context.Context, req discordReactionR
 			"/messages/"+strings.TrimSpace(req.MessageID)+
 			"/reactions/"+url.PathEscape(strings.TrimSpace(req.Reaction))+"/@me",
 		nil,
+		nil,
+		bridgesdk.HTTPResponseCommitOnSuccessStatus,
 		nil,
 	)
 }

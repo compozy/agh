@@ -247,8 +247,9 @@ type teamsAPI interface {
 }
 
 type teamsBotClient struct {
-	cfg        resolvedInstanceConfig
-	httpClient *http.Client
+	cfg                   resolvedInstanceConfig
+	httpClient            *http.Client
+	reportResponseCleanup func(error)
 
 	mu          sync.Mutex
 	cachedToken string
@@ -325,12 +326,7 @@ func newTeamsProvider(stderr io.Writer) (*teamsProvider, error) {
 		userContexts:   make(map[string]teamsUserContext),
 	}
 	provider.apiFactory = func(cfg resolvedInstanceConfig) teamsAPI {
-		return &teamsBotClient{
-			cfg: cfg,
-			httpClient: &http.Client{
-				Timeout: 10 * time.Second,
-			},
-		}
+		return newTeamsBotClient(&cfg, provider.markers)
 	}
 
 	lifecycle, err := bridgesdk.NewProviderLifecycle(bridgesdk.ProviderLifecycleConfig{

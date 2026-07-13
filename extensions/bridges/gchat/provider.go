@@ -325,8 +325,9 @@ type gchatHTTPDoer interface {
 type validatedGChatURL string
 
 type gchatBotClient struct {
-	cfg        resolvedInstanceConfig
-	httpClient gchatHTTPDoer
+	cfg                   resolvedInstanceConfig
+	httpClient            gchatHTTPDoer
+	reportResponseCleanup func(error)
 
 	mu          sync.Mutex
 	cachedToken string
@@ -479,12 +480,7 @@ func (p *gchatProvider) apiForConfig(cfg *resolvedInstanceConfig) gchatAPI {
 	if cached, ok := p.apiClients[instanceID]; ok && cached.key == cacheKey {
 		return cached.client
 	}
-	client := &gchatBotClient{
-		cfg: *cfg,
-		httpClient: &http.Client{
-			Timeout: 10 * time.Second,
-		},
-	}
+	client := newGChatBotClient(cfg, p.markers)
 	p.apiClients[instanceID] = cachedGChatAPIClient{key: cacheKey, client: client}
 	return client
 }

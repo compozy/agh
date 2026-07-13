@@ -71,6 +71,7 @@ export const bridgesListFixture: BridgesListResponse = {
         },
         workspace: "northstar-launch",
       },
+      webhook_public_url: "https://bridge.example.test/slack/launch-room",
       routing_policy: {
         include_group: true,
         include_peer: true,

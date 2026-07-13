@@ -177,43 +177,28 @@ describe("projectBridgeSetup", () => {
     });
   });
 
-  it.each([
-    [undefined, "action-needed"],
-    [{ webhook: {} }, "action-needed"],
-    [{ webhook: { public_url: "not a URL" } }, "action-needed"],
-    [{ webhook: { public_url: "http://hooks.example.com/slack" } }, "action-needed"],
-    [{ webhook: { public_url: "https://localhost/slack" } }, "action-needed"],
-    [{ webhook: { public_url: "https://hooks.example.com/slack" } }, "complete"],
-  ] as const)(
-    "Should derive webhook state from canonical provider_config.webhook.public_url %#",
-    (providerConfig, expected) => {
-      const result = projectBridgeSetup(
-        makeSlackInput({ bridge: makeBridge({ provider_config: providerConfig }) })
-      );
-
-      expect(stateOf(result, "webhook")).toBe(expected);
-    }
-  );
-
-  it.each([
-    ["https://127.0.0.1/hooks", "action-needed"],
-    ["https://10.0.0.1/hooks", "action-needed"],
-    ["https://169.254.1.2/hooks", "action-needed"],
-    ["https://192.0.2.1/hooks", "action-needed"],
-    ["https://[::1]/hooks", "action-needed"],
-    ["https://[fc00::1]/hooks", "action-needed"],
-    ["https://[fe80::1]/hooks", "action-needed"],
-    ["https://[2001:db8::1]/hooks", "action-needed"],
-    ["https://8.8.8.8/hooks", "complete"],
-    ["https://[2606:4700:4700::1111]/hooks", "complete"],
-  ] as const)("Should classify literal webhook destination %s as %s", (publicUrl, expected) => {
-    const result = projectBridgeSetup(
+  it("Should derive webhook readiness only from the daemon-owned public URL", () => {
+    const missing = projectBridgeSetup(
       makeSlackInput({
-        bridge: makeBridge({ provider_config: { webhook: { public_url: publicUrl } } }),
+        bridge: makeBridge({
+          webhook_public_url: undefined,
+          provider_config: { webhook: { public_url: "https://plausible.example.test/slack" } },
+        }),
+      })
+    );
+    const configured = projectBridgeSetup(
+      makeSlackInput({
+        bridge: makeBridge({
+          webhook_public_url: "https://hooks.example.test/slack",
+          provider_config: { webhook: { public_url: "not browser-validated" } },
+        }),
       })
     );
 
-    expect(stateOf(result, "webhook")).toBe(expected);
+    expect(stateOf(missing, "webhook")).toBe("action-needed");
+    expect(missing.facts.webhookPublicUrl).toBeNull();
+    expect(stateOf(configured, "webhook")).toBe("complete");
+    expect(configured.facts.webhookPublicUrl).toBe("https://hooks.example.test/slack");
   });
 
   it.each([
@@ -448,6 +433,7 @@ function makeBridge(overrides: Partial<Bridge> = {}): Bridge {
     notification_suppress: false,
     platform: "slack",
     provider_config: { webhook: { public_url: "https://hooks.example.com/bridge-setup" } },
+    webhook_public_url: "https://hooks.example.com/bridge-setup",
     routing_policy: {
       include_group: true,
       include_peer: true,

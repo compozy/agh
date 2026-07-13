@@ -8,7 +8,6 @@ import type {
   BridgeVerifyResponse,
   BridgeWebhookRegistrationResponse,
 } from "../types";
-import { readWebhookPublicUrl } from "./bridge-webhook-url";
 
 export type BridgeSetupState =
   | "complete"
@@ -203,7 +202,7 @@ export function projectBridgeSetup(input: BridgeSetupProjectionInput): BridgeSet
     : missingRequiredSecretSlots.length === 0
       ? "complete"
       : "action-needed";
-  const webhookPublicUrl = readWebhookPublicUrl(bridge.provider_config);
+  const webhookPublicUrl = bridge.webhook_public_url ?? null;
   const verificationCurrent = verification?.bridge_instance_id === bridge.id;
   const registrationCurrent =
     profile?.webhookRegistration === "telegram" && registration?.bridge_instance_id === bridge.id;

@@ -42,6 +42,8 @@ func (c *gchatBotClient) CreateMessage(ctx context.Context, req gchatCreateMessa
 		query,
 		body,
 		&out,
+		bridgesdk.HTTPResponseCommitOnMaterializedResult,
+		func() string { return out.Name },
 	); err != nil {
 		return nil, err
 	}
@@ -61,6 +63,8 @@ func (c *gchatBotClient) UpdateMessage(ctx context.Context, req gchatUpdateMessa
 			providerTextKey: req.Text,
 		},
 		&out,
+		bridgesdk.HTTPResponseCommitOnSuccessStatus,
+		nil,
 	); err != nil {
 		return nil, err
 	}
@@ -75,6 +79,8 @@ func (c *gchatBotClient) DeleteMessage(ctx context.Context, messageName string) 
 		nil,
 		nil,
 		nil,
+		bridgesdk.HTTPResponseCommitOnSuccessStatus,
+		nil,
 	)
 }
 
@@ -87,13 +93,28 @@ func (c *gchatBotClient) GetMessage(ctx context.Context, messageName string) (*g
 		nil,
 		nil,
 		&out,
+		bridgesdk.HTTPResponseNoCommit,
+		nil,
 	); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-func (c *gchatBotClient) accessToken(ctx context.Context) (string, error) {
+func newGChatBotClient(
+	cfg *resolvedInstanceConfig,
+	markers *bridgesdk.AdapterMarkers,
+) *gchatBotClient {
+	return &gchatBotClient{
+		cfg:        *cfg,
+		httpClient: &http.Client{Timeout: 10 * time.Second},
+		reportResponseCleanup: func(err error) {
+			markers.ReportError("clean up Google Chat API response", err)
+		},
+	}
+}
+
+func (c *gchatBotClient) accessToken(ctx context.Context) (result string, err error) {
 	c.mu.Lock()
 	if c.cachedToken != "" && c.tokenExpiry.After(time.Now().UTC().Add(30*time.Second)) {
 		token := c.cachedToken
@@ -138,7 +159,9 @@ func (c *gchatBotClient) accessToken(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		err = errors.Join(err, bridgesdk.DrainAndCloseHTTPResponseBody(resp.Body))
+	}()
 	if resp.StatusCode != http.StatusOK {
 		return "", classifyGChatHTTPError(resp.StatusCode, resp.Header.Get("Retry-After"), readResponseBody(resp.Body))
 	}
@@ -168,7 +191,9 @@ func (c *gchatBotClient) callJSON(
 	query url.Values,
 	payload any,
 	out any,
-) error {
+	commitPolicy bridgesdk.HTTPResponseCommitPolicy,
+	materializedRemoteID func() string,
+) (err error) {
 	token, err := c.accessToken(ctx)
 	if err != nil {
 		return err
@@ -204,18 +229,30 @@ func (c *gchatBotClient) callJSON(
 	if err != nil {
 		return err
 	}
-	defer func() { _ = resp.Body.Close() }()
+	commitEvidence := bridgesdk.HTTPResponseCommitUnconfirmed
+	defer func() {
+		err = bridgesdk.FinalizeHTTPResponseBody(
+			resp.Body,
+			err,
+			commitEvidence,
+			c.reportResponseCleanup,
+		)
+	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return classifyGChatHTTPError(resp.StatusCode, resp.Header.Get("Retry-After"), readResponseBody(resp.Body))
 	}
+	commitEvidence = commitPolicy.Evidence(false)
 	if out == nil || resp.StatusCode == http.StatusNoContent {
-		if _, err := io.Copy(io.Discard, resp.Body); err != nil {
-			return err
-		}
 		return nil
 	}
-	return json.NewDecoder(resp.Body).Decode(out)
+	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+		return err
+	}
+	materializedResult := materializedRemoteID != nil &&
+		strings.TrimSpace(materializedRemoteID()) != ""
+	commitEvidence = commitPolicy.Evidence(materializedResult)
+	return nil
 }
 
 func (c *gchatBotClient) client() gchatHTTPDoer {

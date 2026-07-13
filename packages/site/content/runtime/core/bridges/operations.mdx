@@ -165,10 +165,10 @@ agh bridge verify "$BRIDGE_ID" --json
 
 <OperatorNote>
   The generic command accepts secret material only through `--secret-value-stdin` or
-  `--secret-value-file <path>`; the retired inline `--secret-value` flag is rejected. Prefer the
-  guided hidden-input setup for WhatsApp, Telegram, and Discord. For generic providers, expand a
-  short-lived environment variable into `printf` or point at a permission-restricted file. The file
-  path may appear in process arguments, but its contents do not.
+  `--secret-value-file <path>`. Prefer the guided hidden-input setup for WhatsApp, Telegram, and
+  Discord. For generic providers, expand a short-lived environment variable into `printf` or point
+  at a permission-restricted file. The file path may appear in process arguments, but its contents
+  do not.
 </OperatorNote>
 
 The daemon stores only the write-only value behind the scoped binding and never returns it in bridge

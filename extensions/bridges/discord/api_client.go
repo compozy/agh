@@ -9,13 +9,22 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/compozy/agh/internal/bridgesdk"
 )
 
 func (c *discordBotClient) GetBotUser(ctx context.Context) (*discordBotIdentity, error) {
 	var result discordBotIdentity
-	if err := c.callJSON(ctx, http.MethodGet, "/users/@me", nil, &result); err != nil {
+	if err := c.callJSON(
+		ctx,
+		http.MethodGet,
+		"/users/@me",
+		nil,
+		&result,
+		bridgesdk.HTTPResponseNoCommit,
+		nil,
+	); err != nil {
 		return nil, err
 	}
 	return &result, nil
@@ -32,6 +41,8 @@ func (c *discordBotClient) PostMessage(
 		"/channels/"+strings.TrimSpace(req.ChannelID)+"/messages",
 		req,
 		&result,
+		bridgesdk.HTTPResponseCommitOnMaterializedResult,
+		func() string { return result.ID },
 	); err != nil {
 		return nil, err
 	}
@@ -45,6 +56,8 @@ func (c *discordBotClient) UpdateMessage(ctx context.Context, req discordUpdateM
 		"/channels/"+strings.TrimSpace(req.ChannelID)+"/messages/"+strings.TrimSpace(req.MessageID),
 		req,
 		nil,
+		bridgesdk.HTTPResponseCommitOnSuccessStatus,
+		nil,
 	)
 }
 
@@ -55,10 +68,34 @@ func (c *discordBotClient) DeleteMessage(ctx context.Context, req discordDeleteM
 		"/channels/"+strings.TrimSpace(req.ChannelID)+"/messages/"+strings.TrimSpace(req.MessageID),
 		nil,
 		nil,
+		bridgesdk.HTTPResponseCommitOnSuccessStatus,
+		nil,
 	)
 }
 
-func (c *discordBotClient) callJSON(ctx context.Context, method string, path string, payload any, out any) error {
+func newDiscordBotClient(
+	cfg *resolvedInstanceConfig,
+	markers *bridgesdk.AdapterMarkers,
+) *discordBotClient {
+	return &discordBotClient{
+		baseURL:    cfg.apiBaseURL,
+		botToken:   cfg.botToken,
+		httpClient: &http.Client{Timeout: 10 * time.Second},
+		reportResponseCleanup: func(err error) {
+			markers.ReportError("clean up Discord API response", err)
+		},
+	}
+}
+
+func (c *discordBotClient) callJSON(
+	ctx context.Context,
+	method string,
+	path string,
+	payload any,
+	out any,
+	commitPolicy bridgesdk.HTTPResponseCommitPolicy,
+	materializedRemoteID func() string,
+) (err error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -90,8 +127,14 @@ func (c *discordBotClient) callJSON(ctx context.Context, method string, path str
 	if err != nil {
 		return err
 	}
+	commitEvidence := bridgesdk.HTTPResponseCommitUnconfirmed
 	defer func() {
-		_ = resp.Body.Close()
+		err = bridgesdk.FinalizeHTTPResponseBody(
+			resp.Body,
+			err,
+			commitEvidence,
+			c.reportResponseCleanup,
+		)
 	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -103,11 +146,15 @@ func (c *discordBotClient) callJSON(ctx context.Context, method string, path str
 		}
 		return httpErr
 	}
+	commitEvidence = commitPolicy.Evidence(false)
 	if out == nil || resp.StatusCode == http.StatusNoContent {
 		return nil
 	}
 	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
 		return fmt.Errorf("discord: decode response: %w", err)
 	}
+	materializedResult := materializedRemoteID != nil &&
+		strings.TrimSpace(materializedRemoteID()) != ""
+	commitEvidence = commitPolicy.Evidence(materializedResult)
 	return nil
 }

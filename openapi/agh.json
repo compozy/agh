@@ -35275,6 +35275,9 @@
                             "format": "date-time",
                             "type": "string"
                           },
+                          "webhook_public_url": {
+                            "type": "string"
+                          },
                           "workspace_id": {
                             "type": "string"
                           }
@@ -36014,6 +36017,9 @@
                         },
                         "updated_at": {
                           "format": "date-time",
+                          "type": "string"
+                        },
+                        "webhook_public_url": {
                           "type": "string"
                         },
                         "workspace_id": {
@@ -37903,6 +37909,9 @@
                           "format": "date-time",
                           "type": "string"
                         },
+                        "webhook_public_url": {
+                          "type": "string"
+                        },
                         "workspace_id": {
                           "type": "string"
                         }
@@ -38609,6 +38618,9 @@
                           "format": "date-time",
                           "type": "string"
                         },
+                        "webhook_public_url": {
+                          "type": "string"
+                        },
                         "workspace_id": {
                           "type": "string"
                         }
@@ -39243,6 +39255,9 @@
                           "format": "date-time",
                           "type": "string"
                         },
+                        "webhook_public_url": {
+                          "type": "string"
+                        },
                         "workspace_id": {
                           "type": "string"
                         }
@@ -39875,6 +39890,9 @@
                         },
                         "updated_at": {
                           "format": "date-time",
+                          "type": "string"
+                        },
+                        "webhook_public_url": {
                           "type": "string"
                         },
                         "workspace_id": {
@@ -41268,6 +41286,9 @@
                         },
                         "updated_at": {
                           "format": "date-time",
+                          "type": "string"
+                        },
+                        "webhook_public_url": {
                           "type": "string"
                         },
                         "workspace_id": {

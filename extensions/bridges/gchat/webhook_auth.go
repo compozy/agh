@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+
+	"github.com/compozy/agh/internal/bridgesdk"
 )
 
 func verifyGChatWebhookBearer(ctx context.Context, req *http.Request, body []byte, cfg *resolvedInstanceConfig) error {
@@ -173,7 +175,7 @@ func (c *googleX509KeyCache) fetch(ctx context.Context, certsURL string) (map[st
 func (c *googleX509KeyCache) fetchRemote(
 	ctx context.Context,
 	certsURL string,
-) (map[string]*rsa.PublicKey, time.Time, error) {
+) (keys map[string]*rsa.PublicKey, expiresAt time.Time, err error) {
 	endpoint, err := newValidatedGChatURL(certsURL)
 	if err != nil {
 		return nil, time.Time{}, err
@@ -187,7 +189,9 @@ func (c *googleX509KeyCache) fetchRemote(
 	if err != nil {
 		return nil, time.Time{}, err
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		err = errors.Join(err, bridgesdk.DrainAndCloseHTTPResponseBody(resp.Body))
+	}()
 	if resp.StatusCode != http.StatusOK {
 		return nil, time.Time{}, classifyGChatHTTPError(
 			resp.StatusCode,
@@ -202,7 +206,7 @@ func (c *googleX509KeyCache) fetchRemote(
 	if len(certs) == 0 {
 		return nil, time.Time{}, errors.New("gchat: x509 cert document omitted keys")
 	}
-	keys := make(map[string]*rsa.PublicKey, len(certs))
+	keysByID := make(map[string]*rsa.PublicKey, len(certs))
 	for keyID, pemCert := range certs {
 		block, _ := pem.Decode([]byte(strings.TrimSpace(pemCert)))
 		if block == nil {
@@ -216,9 +220,9 @@ func (c *googleX509KeyCache) fetchRemote(
 		if !ok {
 			return nil, time.Time{}, fmt.Errorf("gchat: x509 cert %q did not contain an rsa public key", keyID)
 		}
-		keys[strings.TrimSpace(keyID)] = publicKey
+		keysByID[strings.TrimSpace(keyID)] = publicKey
 	}
-	return keys, cacheExpiryFromHeaders(c.now(), resp.Header, c.fallbackTTL), nil
+	return keysByID, cacheExpiryFromHeaders(c.now(), resp.Header, c.fallbackTTL), nil
 }
 
 func resolveAllowedGoogleURLOverride(

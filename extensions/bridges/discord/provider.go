@@ -255,13 +255,7 @@ func newDiscordProvider(stderr io.Writer) (*discordProvider, error) {
 		deliveries: bridgesdk.NewDeliveryStateStore[deliveryState](),
 	}
 	provider.apiFactory = func(cfg resolvedInstanceConfig) discordAPI {
-		return &discordBotClient{
-			baseURL:  cfg.apiBaseURL,
-			botToken: cfg.botToken,
-			httpClient: &http.Client{
-				Timeout: 10 * time.Second,
-			},
-		}
+		return newDiscordBotClient(&cfg, provider.markers)
 	}
 
 	lifecycle, err := bridgesdk.NewProviderLifecycle(bridgesdk.ProviderLifecycleConfig{

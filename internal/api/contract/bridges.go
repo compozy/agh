@@ -355,6 +355,7 @@ type BridgePayload struct {
 	DMPolicy             bridgepkg.BridgeDMPolicy       `json:"dm_policy,omitempty"`
 	RoutingPolicy        bridgepkg.RoutingPolicy        `json:"routing_policy"`
 	ProviderConfig       BridgeProviderConfigPayload    `json:"provider_config,omitempty"`
+	WebhookPublicURL     string                         `json:"webhook_public_url,omitempty"`
 	DeliveryDefaults     BridgeDeliveryDefaultsPayload  `json:"delivery_defaults,omitempty"`
 	NotificationSuppress bool                           `json:"notification_suppress"`
 	Degradation          *bridgepkg.BridgeDegradation   `json:"degradation,omitempty"`

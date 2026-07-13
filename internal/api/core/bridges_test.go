@@ -80,16 +80,18 @@ func TestBridgeHandlersCreateListGetAndUpdate(t *testing.T) {
 			},
 			GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
 				return &bridgepkg.BridgeInstance{
-					ID:               id,
-					Scope:            bridgepkg.ScopeGlobal,
-					Platform:         "telegram",
-					ExtensionName:    "ext-telegram",
-					DisplayName:      "Support",
-					Enabled:          true,
-					Status:           bridgepkg.BridgeStatusReady,
-					DMPolicy:         bridgepkg.BridgeDMPolicyOpen,
-					RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true},
-					ProviderConfig:   []byte(`{"mode":"bot","tenant":"acme"}`),
+					ID:            id,
+					Scope:         bridgepkg.ScopeGlobal,
+					Platform:      "telegram",
+					ExtensionName: "ext-telegram",
+					DisplayName:   "Support",
+					Enabled:       true,
+					Status:        bridgepkg.BridgeStatusReady,
+					DMPolicy:      bridgepkg.BridgeDMPolicyOpen,
+					RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+					ProviderConfig: []byte(
+						`{"mode":"bot","webhook":{"public_url":"https://hooks.example.test/telegram"}}`,
+					),
 					DeliveryDefaults: []byte(`{"peer_id":"peer-default","mode":"reply"}`),
 					Degradation: &bridgepkg.BridgeDegradation{
 						Reason: bridgepkg.BridgeDegradationReasonProviderTimeout,
@@ -104,7 +106,9 @@ func TestBridgeHandlersCreateListGetAndUpdate(t *testing.T) {
 				if req.DMPolicy == nil || *req.DMPolicy != bridgepkg.BridgeDMPolicyAllowlist {
 					t.Fatalf("UpdateInstance().DMPolicy = %#v", req.DMPolicy)
 				}
-				if req.ProviderConfig == nil || string(*req.ProviderConfig) != `{"mode":"comments"}` {
+				if req.ProviderConfig == nil ||
+					string(*req.ProviderConfig) !=
+						`{"mode":"comments","webhook":{"public_url":"http://localhost/telegram"}}` {
 					t.Fatalf("UpdateInstance().ProviderConfig = %#v", req.ProviderConfig)
 				}
 				if req.DeliveryDefaults == nil ||
@@ -161,6 +165,9 @@ func TestBridgeHandlersCreateListGetAndUpdate(t *testing.T) {
 		if got, want := string(listPayload.Bridges[0].ProviderConfig), `{"mode":"bot","tenant":"acme"}`; got != want {
 			t.Fatalf("list provider_config = %s, want %s", got, want)
 		}
+		if got := listPayload.Bridges[0].WebhookPublicURL; got != "" {
+			t.Fatalf("list webhook_public_url = %q, want omitted", got)
+		}
 		if got, want := string(
 			listPayload.Bridges[0].DeliveryDefaults,
 		), `{"mode":"reply","peer_id":"peer-default"}`; got != want {
@@ -180,6 +187,9 @@ func TestBridgeHandlersCreateListGetAndUpdate(t *testing.T) {
 			getPayload.Bridge.Degradation.Reason != bridgepkg.BridgeDegradationReasonProviderTimeout {
 			t.Fatalf("get bridge degradation = %#v", getPayload.Bridge.Degradation)
 		}
+		if got, want := getPayload.Bridge.WebhookPublicURL, "https://hooks.example.test/telegram"; got != want {
+			t.Fatalf("get bridge webhook_public_url = %q, want %q", got, want)
+		}
 
 		updateResp := performRequest(
 			t,
@@ -187,7 +197,7 @@ func TestBridgeHandlersCreateListGetAndUpdate(t *testing.T) {
 			http.MethodPatch,
 			"/bridges/brg-core",
 			[]byte(
-				`{"display_name":"Renamed","dm_policy":"allowlist","provider_config":{"mode":"comments"},"delivery_defaults":{"group_id":"ops","mode":"direct-send"},"degradation":{"reason":"auth_failed"}}`,
+				`{"display_name":"Renamed","dm_policy":"allowlist","provider_config":{"mode":"comments","webhook":{"public_url":"http://localhost/telegram"}},"delivery_defaults":{"group_id":"ops","mode":"direct-send"},"degradation":{"reason":"auth_failed"}}`,
 			),
 		)
 		if updateResp.Code != http.StatusOK || !updateCalled {
@@ -197,6 +207,11 @@ func TestBridgeHandlersCreateListGetAndUpdate(t *testing.T) {
 				updateCalled,
 				updateResp.Body.String(),
 			)
+		}
+		var updatePayload contract.BridgeResponse
+		testutil.DecodeJSONResponse(t, updateResp, &updatePayload)
+		if got := updatePayload.Bridge.WebhookPublicURL; got != "" {
+			t.Fatalf("update webhook_public_url = %q, want omitted for invalid callback", got)
 		}
 	})
 }

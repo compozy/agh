@@ -2087,16 +2087,12 @@ export interface InitializeBridgeRuntime {
   managed_instances?: InitializeBridgeManagedInstance[];
 }
 
-export type ResourceKind = string;
-
-export type ResourceScopeKind = string;
-
 export interface InitializeCapabilities {
   provides: string[];
   granted_actions: HostAPIMethod[];
   granted_security: string[];
-  granted_resource_kinds: ResourceKind[];
-  granted_resource_scopes: ResourceScopeKind[];
+  granted_resource_kinds: string[];
+  granted_resource_scopes: string[];
 }
 
 export interface InitializeExtension {
@@ -3611,6 +3607,8 @@ export interface ProviderModelStatusResponse {
   sources: ModelCatalogSourceStatusPayload[];
 }
 
+export type ResourceKind = string;
+
 export interface ResourceGetParams {
   kind: ResourceKind;
   id: string;
@@ -3622,6 +3620,8 @@ export interface ResourceOwner {
   kind: ResourceOwnerKind;
   id: string;
 }
+
+export type ResourceScopeKind = string;
 
 export interface ResourceScope {
   kind: ResourceScopeKind;

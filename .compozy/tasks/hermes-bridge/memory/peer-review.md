@@ -7,6 +7,20 @@
 - Mandatory scope: remediate B-001..B-005 and N-001..N-008 in this iteration; validate every risk and fix each locally confirmed correctness, security, durability, or cleanup defect before the next review.
 - Verification policy: focused owner suites during remediation; one workflow-wide `make verify` only after the source freeze, followed by the next implementation review round.
 
+## Round 2
+
+- Verdict: `SHIP` with 0 blockers, 4 non-blocking risks, and 2 nits.
+- Findings source: `.peer-reviews/hermes-bridge-20260713T054134Z/impl-review-findings-round2.md`.
+- Contract parity: confirmed across the Hermes TechSpec/test/QA context, the standalone `BUG-20260712-reasoning-evidence-attribution` TechSpec/ADR, round-1 findings/remediation, the provider wire leaf, all public bridge routes, the declarative bridge schema plus `internal/store/globaldb/migrations/00002_schema.sql`, generated contracts, QA report, and official docs/skill surfaces.
+- Accepted follow-ups: provider-wide delivery-state TTL/capacity backstop; separate `BUG-20260713-telegram-route-shapes` alternative-shape TechSpec; grandfathered over-cap owner splits before next touch; two small clarity/normalization nits.
+- Completion rule: the SHIP verdict is provisional until the sequenced source-freeze gate passes. Any source change driven by runtime E2E, Web E2E, or `make verify` invalidates this verdict and requires round 3.
+
+## Round 3
+
+- Status: mandatory and pending. Round-2 SHIP became stale after the post-review deslop audit required source changes.
+- Remediation scope: shared HTTP response cleanup with surfaced drain/close errors; fail-closed Linear signature handling; daemon-owned `webhook_public_url` projection and removal of the browser security-policy clone; one shared bridge provider-card composite; two factual docs corrections; structural extraction of bridge payload converters from the over-cap legacy conversions file.
+- Current status: source freeze is ready. The 320px create-dialog grid min-content defect is fixed and six desktop/mobile captures are clean with teardown confirmed. HTTP cleanup now distinguishes uncommitted reads/auth, `2xx`-committed mutations, and creates with materialized remote IDs; deterministic create/delete regressions prove one transport attempt and reported cleanup. The stale fixture, branch-added error discards, daemon/Web ownership, generated co-ship, docs truth, QA flag, god-file extraction, and formatting/lint residues are closed. Focused race/API/Web/site/codegen evidence is green; global runtime/Web E2E and the single `make verify` remain intentionally deferred until round 3 returns SHIP.
+
 ## Test Placement
 
 - B-001 invariant: the UDS golden registry exactly matches all registered public routes. Owning layer: UDS route integration. Canonical suite: `internal/api/udsapi/handlers_test.go`.
@@ -26,6 +40,8 @@
 
 ## Progress
 
+- Round 2 readiness initially stopped before external review: the aggregate `make codegen-check` was masked by the two unrelated modified Daytona sidecars, while the direct canonical generator check exposed stale `sdk/typescript/src/generated/contracts.ts` after the leaf-contract hard cut. `go run ./cmd/agh-codegen all` regenerated the artifact; canonical formatting reduced the delta to the six intended alias-placement/type-use lines. Direct Go→TS, OpenAPI→TypeScript, DESIGN sync, and formatting checks pass, and the root Turbo extension-SDK lane passes typecheck plus 49/49 tests with the already-proven non-Daytona codegen marker. The Daytona blobs remain untouched and excluded.
+- Round 2 external review completed successfully from the repository parent after the installed Compozy 0.1.12 failed to decode the repo's newer workspace defaults before model launch. The retry used absolute contract/diff/findings paths, changed no source, passed the findings validator, preserved identical pre/post status, and returned SHIP.
 - Round 1 findings and required skill references loaded.
 - B-001..B-005 are remediated with focused red/green evidence: UDS route parity, truthful daemon-owned Web metrics, opt-in bridge doctor probes, selectable Telegram route shapes, and a canonical store-free provider wire leaf. B-004 closes direct and transitive dependency paths from bridgesdk, subprocess, all eight providers, and the Telegram reference into daemon bridge/store/resource/task implementations.
 - N-001..N-008 are remediated. The new regressions prove Slack UTF-16 chunk limits, fractional Discord retry delays, and one reaction per phase transition; metadata errors are explicit, spec/Web type drift is removed, and the real CLI verbs are documented.
@@ -46,3 +62,4 @@
 - Complete QA impact reconciliation now resets `NB-037`, `NB-bridge-tool-progress`, `NB-long-bridge-replies`, `NB-provider-progress-rendering`, `NB-bridge-provider-setup`, `NB-web-bridge-setup`, and `NB-bridge-restart-recovery` to `untested`, retains all historical evidence, and records no QA rerun. `NB-web-bridge-setup` was reset only after the separate 320px setup reflow changed its secret/config surface. Slack progress and terminal delivery now consistently use 40,000 UTF-16 code units.
 - B-002's required Storybook capture passes for the six truthful metrics. The same 320px surface exposed and closed a separate 36px overflow below them: scroller width is now `318/318`, metadata/Fields/cards have zero overflow, desktop remains unchanged, same-story captures were inspected, focused Web gates pass, and teardown is clean.
 - The deterministic projection test failure was a stale R-006 assertion, not a production regression: canonical `ToolInput` stays redacted while heuristic terminal chrome is intentionally command-name-only. Existing extension/bridges owners now assert exact safe previews and absence of arguments/secrets; focused race lanes pass.
+- The final post-review residue pass is closed. Daemon-owned `webhook_public_url` replaces the browser security-policy clone; bridge cards share one domain component; the create dialog reflows at 320px; docs import the leaf contract and match the real secret/Discord requirements; bridge payload conversion left the over-cap legacy file; response cleanup cannot retry a committed create/update/delete/affordance; Linear HMAC fails closed; `RouteTable.Replace` and GitHub test teardown no longer discard errors. Independent docs and API/Web audits returned SHIP, the focused Go owner passed 23 tests across five packages under `-race`, Web passed 51/51, site truth passed 24/24, docs conformance passed 4/4, and direct codegen check is clean.

@@ -2029,6 +2029,8 @@ func testGChatTransportAndClassificationHelpers(t *testing.T) {
 		nil,
 		nil,
 		&map[string]any{},
+		bridgesdk.HTTPResponseNoCommit,
+		nil,
 	); err == nil {
 		t.Fatal("callJSON(missing) error = nil, want non-nil")
 	}

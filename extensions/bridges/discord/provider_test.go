@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1059,6 +1060,107 @@ func TestHandleInteractionWebhookAcknowledgesImmediately(t *testing.T) {
 func TestDiscordBotClientRoutesRequestsAndClassifiesFailures(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve a materialized message when response cleanup fails", func(t *testing.T) {
+		t.Parallel()
+
+		closeErr := &net.OpError{
+			Op:  "close",
+			Net: "tcp",
+			Err: errors.New("connection reset by peer"),
+		}
+		attempts := 0
+		reported := make([]error, 0, 1)
+		client := &discordBotClient{
+			baseURL:  "https://discord.test",
+			botToken: "discord-bot-token",
+			httpClient: &http.Client{Transport: discordRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				attempts++
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     make(http.Header),
+					Body: &discordResponseBody{
+						Reader:   strings.NewReader(`{"id":"msg-committed"}`),
+						closeErr: closeErr,
+					},
+					Request: req,
+				}, nil
+			})},
+			reportResponseCleanup: func(err error) {
+				reported = append(reported, err)
+			},
+		}
+
+		message, err := postDiscordDeliveryMessage(t.Context(), client, discordPostMessageRequest{
+			ChannelID: "thread-committed",
+			Content:   "hello",
+		})
+		if err != nil {
+			t.Fatalf("postDiscordDeliveryMessage() error = %v", err)
+		}
+		if message == nil || message.ID != "msg-committed" {
+			t.Fatalf("postDiscordDeliveryMessage() message = %#v, want materialized message", message)
+		}
+		if attempts != 1 {
+			t.Fatalf("transport attempts = %d, want 1", attempts)
+		}
+		if len(reported) != 1 || !errors.Is(reported[0], closeErr) {
+			t.Fatalf("reported cleanup errors = %#v, want close failure", reported)
+		}
+	})
+
+	t.Run("Should preserve a status-confirmed deletion when response cleanup fails", func(t *testing.T) {
+		t.Parallel()
+
+		closeErr := &net.OpError{
+			Op:  "close",
+			Net: "tcp",
+			Err: errors.New("connection reset by peer"),
+		}
+		attempts := 0
+		reported := make([]error, 0, 1)
+		client := &discordBotClient{
+			baseURL:  "https://discord.test",
+			botToken: "discord-bot-token",
+			httpClient: &http.Client{Transport: discordRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				attempts++
+				if attempts > 1 {
+					return &http.Response{
+						StatusCode: http.StatusNotFound,
+						Header:     make(http.Header),
+						Body:       io.NopCloser(strings.NewReader("already deleted")),
+						Request:    req,
+					}, nil
+				}
+				return &http.Response{
+					StatusCode: http.StatusNoContent,
+					Header:     make(http.Header),
+					Body: &discordResponseBody{
+						Reader:   strings.NewReader(""),
+						closeErr: closeErr,
+					},
+					Request: req,
+				}, nil
+			})},
+			reportResponseCleanup: func(err error) {
+				reported = append(reported, err)
+			},
+		}
+
+		err := deleteDiscordDeliveryMessage(t.Context(), client, discordDeleteMessageRequest{
+			ChannelID: "thread-committed",
+			MessageID: "msg-deleted",
+		})
+		if err != nil {
+			t.Fatalf("deleteDiscordDeliveryMessage() error = %v", err)
+		}
+		if attempts != 1 {
+			t.Fatalf("transport attempts = %d, want 1", attempts)
+		}
+		if len(reported) != 1 || !errors.Is(reported[0], closeErr) {
+			t.Fatalf("reported cleanup errors = %#v, want close failure", reported)
+		}
+	})
+
 	var mu sync.Mutex
 	var paths []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1155,6 +1257,21 @@ func TestDiscordBotClientRoutesRequestsAndClassifiesFailures(t *testing.T) {
 			t.Fatalf("paths = %#v, want %q", paths, want)
 		}
 	}
+}
+
+type discordRoundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f discordRoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+type discordResponseBody struct {
+	io.Reader
+	closeErr error
+}
+
+func (b *discordResponseBody) Close() error {
+	return b.closeErr
 }
 
 func TestServeWebhookHTTPHandlesSignedMessageWebhookWithBatching(t *testing.T) {

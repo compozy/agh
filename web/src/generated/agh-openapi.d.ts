@@ -17534,6 +17534,7 @@ export interface operations {
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
               updated_at: string;
+              webhook_public_url?: string;
               workspace_id?: string;
             }[];
             facets: {
@@ -17822,6 +17823,7 @@ export interface operations {
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
               updated_at: string;
+              webhook_public_url?: string;
               workspace_id?: string;
             };
             health: {
@@ -18542,6 +18544,7 @@ export interface operations {
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
               updated_at: string;
+              webhook_public_url?: string;
               workspace_id?: string;
             };
             health: {
@@ -18822,6 +18825,7 @@ export interface operations {
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
               updated_at: string;
+              webhook_public_url?: string;
               workspace_id?: string;
             };
             health: {
@@ -19068,6 +19072,7 @@ export interface operations {
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
               updated_at: string;
+              webhook_public_url?: string;
               workspace_id?: string;
             };
             health: {
@@ -19314,6 +19319,7 @@ export interface operations {
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
               updated_at: string;
+              webhook_public_url?: string;
               workspace_id?: string;
             };
             health: {
@@ -19818,6 +19824,7 @@ export interface operations {
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
               updated_at: string;
+              webhook_public_url?: string;
               workspace_id?: string;
             };
             health: {

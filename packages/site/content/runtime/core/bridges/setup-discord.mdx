@@ -32,7 +32,7 @@ Gateway socket or privileged message-content intent for its HTTP webhook path.
 | Public callback URL    | yes      | Stable public HTTPS route to the Discord provider listener.                               |
 | Local listener address | yes      | `provider_config.webhook.listen_addr` or `AGH_BRIDGE_DISCORD_LISTEN_ADDR`.                |
 | AGH workspace ID       | yes      | Workspace whose default agent receives accepted Discord events.                           |
-| Server permissions     | servers  | Permission to install an app in the test server and configure its webhook/event settings. |
+| Server permissions     | yes      | Permission to install an app in the test server and configure its webhook/event settings. |
 
 Keep the public key and bot token distinct. The public key verifies inbound requests; the bot token
 authorizes outbound REST calls.
