@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	watchpkg "github.com/compozy/agh/internal/loop/watch"
 	"github.com/compozy/agh/internal/subprocess"
 	"github.com/compozy/agh/internal/testutil"

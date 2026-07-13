@@ -21,10 +21,9 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -1043,8 +1042,12 @@ func TestExecuteTeamsDeliveryChunksTerminalContent(t *testing.T) {
 		if !errors.As(err, &transient) {
 			t.Fatalf("executeTeamsDelivery() error = %v, want TransientError", err)
 		}
-		if ack != (bridgepkg.DeliveryAck{}) || state != (deliveryState{}) {
-			t.Fatalf("unacknowledged delivery = ack:%#v state:%#v, want zero values", ack, state)
+		if ack != (bridgepkg.DeliveryAck{}) ||
+			state.LastSeq != 0 ||
+			state.RemoteMessageID != "" ||
+			state.ReplaceRemoteMessageID != "" ||
+			state.Chunks.NextChunk() != 0 {
+			t.Fatalf("unacknowledged delivery = ack:%#v state:%#v, want no committed chunk", ack, state)
 		}
 	})
 
@@ -1074,8 +1077,68 @@ func TestExecuteTeamsDeliveryChunksTerminalContent(t *testing.T) {
 		if !errors.Is(err, sendErr) {
 			t.Fatalf("executeTeamsDelivery() error = %v, want wrapped continuation error", err)
 		}
-		if ack != (bridgepkg.DeliveryAck{}) || state != initialState {
-			t.Fatalf("failed delivery = ack:%#v state:%#v, want zero ack and unchanged state", ack, state)
+		if ack != (bridgepkg.DeliveryAck{}) ||
+			state.LastSeq != initialState.LastSeq ||
+			state.RemoteMessageID != initialState.RemoteMessageID ||
+			state.ReplaceRemoteMessageID != initialState.ReplaceRemoteMessageID {
+			t.Fatalf("failed delivery = ack:%#v state:%#v, want zero ack and no committed final state", ack, state)
+		}
+		if got, want := state.Chunks.NextChunk(), 1; got != want {
+			t.Fatalf("completed chunk prefix = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should resume at the first unsent chunk after exhausting Retry-After attempts", func(t *testing.T) {
+		t.Parallel()
+
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "delivery-partial-chunk",
+			BridgeInstanceID: "brg-teams",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              1,
+			EventType:        bridgepkg.DeliveryEventTypeFinal,
+			Final:            true,
+			Content:          bridgepkg.MessageContent{Text: longText},
+		}}
+		chunks := teamsDeliveryChunks(request.Event)
+		if len(chunks) < 2 {
+			t.Fatalf("teamsDeliveryChunks() returned %d chunk, want at least 2", len(chunks))
+		}
+
+		api := &fakeTeamsAPI{
+			nextActivityID: 1_100,
+			sendErrorText:  chunks[1],
+			sendErr: &bridgesdk.RateLimitError{
+				Err:        errors.New("rate limited continuation"),
+				RetryAfter: time.Nanosecond,
+			},
+		}
+		_, partialState, err := executeTeamsDelivery(
+			context.Background(), api, cfg, request, deliveryState{}, nil, lookup,
+		)
+		if err == nil {
+			t.Fatal("executeTeamsDelivery(partial) error = nil, want exhausted rate limit")
+		}
+		if got, want := countTeamsSendCalls(api.sendAttempts, chunks[1]), bridgesdk.DefaultRetryConfig().Attempts; got != want {
+			t.Fatalf("failed continuation attempts = %d, want %d", got, want)
+		}
+		if got, want := countTeamsSendCalls(api.sendCalls, chunks[0]), 1; got != want {
+			t.Fatalf("successful first-chunk sends = %d, want %d", got, want)
+		}
+
+		api.sendErr = nil
+		resume := testTeamsResumeRequest(request)
+		if _, _, err := executeTeamsDelivery(
+			context.Background(), api, cfg, resume, partialState, nil, lookup,
+		); err != nil {
+			t.Fatalf("executeTeamsDelivery(resume) error = %v", err)
+		}
+		if got, want := countTeamsSendCalls(api.sendCalls, chunks[0]), 1; got != want {
+			t.Fatalf("successful first-chunk sends after resume = %d, want %d", got, want)
+		}
+		if got, want := len(api.sendCalls), len(chunks); got != want {
+			t.Fatalf("successful chunk sends = %d, want %d", got, want)
 		}
 	})
 }
@@ -1333,7 +1396,7 @@ func TestWebhookAuthorizationRejectsInvalidTokenAndIngestsActivities(t *testing.
 			mu.Lock()
 			ingested = append(ingested, envelope)
 			mu.Unlock()
-			return extensioncontract.BridgesMessagesIngestResult{
+			return bridgepkg.BridgesMessagesIngestResult{
 				SessionID:    "sess-1",
 				RouteCreated: true,
 				RoutingKey: bridgepkg.RoutingKey{
@@ -1757,7 +1820,7 @@ func TestDispatchInboundBatchAndEnvelopeCoverage(t *testing.T) {
 			mu.Lock()
 			ingested = append(ingested, envelope)
 			mu.Unlock()
-			return extensioncontract.BridgesMessagesIngestResult{
+			return bridgepkg.BridgesMessagesIngestResult{
 				SessionID:    "sess-1",
 				RouteCreated: true,
 				RoutingKey: bridgepkg.RoutingKey{
@@ -2433,13 +2496,15 @@ type fakeTeamsAPI struct {
 	nextActivityID       int
 	validateErr          error
 	sendErr              error
+	sendErrorText        string
 	sendEmptyActivityID  bool
 	deleteErr            error
 
-	createCalls []teamsCreateConversationRequest
-	sendCalls   []teamsSendCall
-	updateCalls []teamsUpdateCall
-	deleteCalls []teamsDeleteCall
+	createCalls  []teamsCreateConversationRequest
+	sendCalls    []teamsSendCall
+	sendAttempts []teamsSendCall
+	updateCalls  []teamsUpdateCall
+	deleteCalls  []teamsDeleteCall
 }
 
 type teamsSendCall struct {
@@ -2482,21 +2547,54 @@ func (f *fakeTeamsAPI) SendActivity(
 	replyToID string,
 	activity teamsOutboundActivity,
 ) (*teamsResourceResponse, error) {
-	f.sendCalls = append(f.sendCalls, teamsSendCall{
+	call := teamsSendCall{
 		ServiceURL:     serviceURL,
 		ConversationID: conversationID,
 		ReplyToID:      replyToID,
 		Activity:       activity,
-	})
-	if f.sendErr != nil {
+	}
+	f.sendAttempts = append(f.sendAttempts, call)
+	if f.sendErr != nil && (f.sendErrorText == "" || activity.Text == f.sendErrorText) {
 		return nil, f.sendErr
 	}
+	f.sendCalls = append(f.sendCalls, call)
 	if f.sendEmptyActivityID {
 		return &teamsResourceResponse{}, nil
 	}
 	id := fmt.Sprintf("activity-%d", f.nextActivityID)
 	f.nextActivityID++
 	return &teamsResourceResponse{ID: id}, nil
+}
+
+func countTeamsSendCalls(calls []teamsSendCall, text string) int {
+	count := 0
+	for _, call := range calls {
+		if call.Activity.Text == text {
+			count++
+		}
+	}
+	return count
+}
+
+func testTeamsResumeRequest(request bridgepkg.DeliveryRequest) bridgepkg.DeliveryRequest {
+	resume := request
+	resume.Event.EventType = bridgepkg.DeliveryEventTypeResume
+	resume.Event.Resume = &bridgepkg.DeliveryResumeState{LatestEventType: bridgepkg.DeliveryEventTypeFinal}
+	resume.Snapshot = &bridgepkg.DeliverySnapshot{
+		DeliveryID:       request.Event.DeliveryID,
+		SessionID:        "sess-resume",
+		TurnID:           "turn-resume",
+		BridgeInstanceID: request.Event.BridgeInstanceID,
+		RoutingKey:       request.Event.RoutingKey,
+		DeliveryTarget:   request.Event.DeliveryTarget,
+		LatestSeq:        request.Event.Seq,
+		LatestEventType:  bridgepkg.DeliveryEventTypeFinal,
+		CurrentContent:   request.Event.Content,
+		Operation:        request.Event.Operation,
+		Final:            true,
+		UpdatedAt:        time.Date(2026, 7, 13, 9, 0, 0, 0, time.UTC),
+	}
+	return resume
 }
 
 func (f *fakeTeamsAPI) UpdateActivity(
@@ -2816,7 +2914,7 @@ func mustHandleLifecycle(
 		peer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgeInstanceTargetParams
+			var payload bridgepkg.BridgeInstanceTargetParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -2833,7 +2931,7 @@ func mustHandleLifecycle(
 		peer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}

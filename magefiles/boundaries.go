@@ -9,14 +9,65 @@ import (
 	"go/token"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 )
 
-// Boundaries verifies that package import rules are not violated.
-// Rules: no package may import daemon/, api/httpapi/, api/udsapi/, or cli/.
+const aghModulePath = "github.com/compozy/agh/"
+
+type dependencyClosureRule struct {
+	root              string
+	allowedPrefixes   []string
+	forbiddenExact    []string
+	forbiddenPrefixes []string
+}
+
+type dependencyClosureViolation struct {
+	root       string
+	dependency string
+}
+
+var bridgeDependencyClosureRules = func() []dependencyClosureRule {
+	allowedPrefixes := []string{aghModulePath + "internal/bridges/contract"}
+	forbiddenPrefixes := []string{
+		aghModulePath + "internal/bridges",
+		aghModulePath + "internal/store",
+		aghModulePath + "internal/resources",
+		aghModulePath + "internal/task",
+		aghModulePath + "internal/session",
+		aghModulePath + "internal/automation",
+		aghModulePath + "internal/observe",
+		aghModulePath + "internal/extension",
+		aghModulePath + "internal/daemon",
+	}
+	roots := []string{
+		"./internal/bridgesdk",
+		"./internal/subprocess",
+		"./extensions/bridges/slack",
+		"./extensions/bridges/telegram",
+		"./extensions/bridges/discord",
+		"./extensions/bridges/teams",
+		"./extensions/bridges/gchat",
+		"./extensions/bridges/whatsapp",
+		"./extensions/bridges/github",
+		"./extensions/bridges/linear",
+		"./sdk/examples/telegram-reference",
+	}
+	rules := make([]dependencyClosureRule, 0, len(roots))
+	for _, root := range roots {
+		rules = append(rules, dependencyClosureRule{
+			allowedPrefixes:   allowedPrefixes,
+			root:              root,
+			forbiddenPrefixes: forbiddenPrefixes,
+		})
+	}
+	return rules
+}()
+
+// Boundaries verifies direct package rules, strict leaf imports, and bridge dependency closures.
 func Boundaries() error {
 	forbidden := []struct {
 		importer string
@@ -148,30 +199,92 @@ func Boundaries() error {
 		}
 	}
 
+	prefixForbidden := []struct {
+		importer string
+		imported string
+	}{
+		// In-tree platform implementations live under extensions/bridges. The
+		// daemon bridge domain must not depend on either that exact package or
+		// any provider sibling below it; provider composition points inward.
+		{"internal/bridges", "extensions/bridges"},
+		{"internal/bridges", "internal/bridgesdk"},
+		{"internal/bridges", "internal/extension"},
+		{"internal/bridges", "internal/daemon"},
+		{"internal/bridgesdk", "internal/extension"},
+		{"internal/bridgesdk", "internal/daemon"},
+		{"internal/bridgesdk", "internal/store"},
+		{"internal/bridgesdk", "internal/session"},
+	}
+	for _, rule := range prefixForbidden {
+		importerDir := rule.importer
+		if _, err := os.Stat(importerDir); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return fmt.Errorf("inspect boundary importer %q: %w", importerDir, err)
+		}
+		importPath := "github.com/compozy/agh/" + rule.imported
+		files, err := filesImportingPrefix(importerDir, importPath)
+		if err != nil {
+			return fmt.Errorf("check whether %q imports %q or a subpackage: %w", importerDir, importPath, err)
+		}
+		if len(files) == 0 {
+			continue
+		}
+		fmt.Printf("VIOLATION: %s imports %s or a subpackage\n", rule.importer, rule.imported)
+		for _, file := range files {
+			fmt.Printf("  %s\n", file)
+		}
+		violations++
+	}
+
 	leafRules := []struct {
 		importer string
 		allowed  map[string]struct{}
 	}{
 		{importer: "internal/redact", allowed: map[string]struct{}{}},
+		{importer: "internal/extensionprotocol", allowed: map[string]struct{}{}},
 		{
 			importer: "internal/toolmeta",
 			allowed: map[string]struct{}{
 				"github.com/compozy/agh/internal/redact": {},
 			},
 		},
+		{
+			importer: "internal/bridges/contract",
+			allowed: map[string]struct{}{
+				"github.com/compozy/agh/internal/redact": {},
+			},
+		},
 	}
 	for _, rule := range leafRules {
-		files, err := productionFilesImportingInternalExcept(rule.importer, rule.allowed)
+		files, err := productionFilesImportingOutsideLeaf(rule.importer, rule.allowed)
 		if err != nil {
 			return fmt.Errorf("inspect leaf boundary importer %q: %w", rule.importer, err)
 		}
 		if len(files) == 0 {
 			continue
 		}
-		fmt.Printf("VIOLATION: %s imports a forbidden internal package\n", rule.importer)
+		fmt.Printf("VIOLATION: %s imports a non-leaf dependency\n", rule.importer)
 		for _, file := range files {
 			fmt.Printf("  %s\n", file)
 		}
+		violations++
+	}
+
+	closureViolations, err := inspectDependencyClosures(
+		bridgeDependencyClosureRules,
+		listPackageDependencies,
+	)
+	if err != nil {
+		return fmt.Errorf("inspect bridge dependency closures: %w", err)
+	}
+	for _, violation := range closureViolations {
+		fmt.Printf(
+			"VIOLATION: %s transitively depends on %s\n",
+			violation.root,
+			violation.dependency,
+		)
 		violations++
 	}
 
@@ -182,7 +295,7 @@ func Boundaries() error {
 	return nil
 }
 
-func productionFilesImportingInternalExcept(
+func productionFilesImportingOutsideLeaf(
 	root string,
 	allowed map[string]struct{},
 ) ([]string, error) {
@@ -193,7 +306,6 @@ func productionFilesImportingInternalExcept(
 		return nil, err
 	}
 
-	const internalPrefix = "github.com/compozy/agh/internal/"
 	fset := token.NewFileSet()
 	files := make([]string, 0)
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
@@ -212,7 +324,7 @@ func productionFilesImportingInternalExcept(
 			if err != nil {
 				return fmt.Errorf("decode Go import in %q: %w", path, err)
 			}
-			if !strings.HasPrefix(importPath, internalPrefix) {
+			if isStandardLibraryImport(importPath) {
 				continue
 			}
 			if _, ok := allowed[importPath]; ok {
@@ -230,7 +342,82 @@ func productionFilesImportingInternalExcept(
 	return files, nil
 }
 
+func isStandardLibraryImport(importPath string) bool {
+	first, _, _ := strings.Cut(importPath, "/")
+	return !strings.Contains(first, ".")
+}
+
+func inspectDependencyClosures(
+	rules []dependencyClosureRule,
+	listDependencies func(string) ([]string, error),
+) ([]dependencyClosureViolation, error) {
+	violations := make([]dependencyClosureViolation, 0)
+	for _, rule := range rules {
+		dependencies, err := listDependencies(rule.root)
+		if err != nil {
+			return nil, fmt.Errorf("list dependencies for %q: %w", rule.root, err)
+		}
+		for _, dependency := range dependencies {
+			if !dependencyForbiddenByClosureRule(dependency, rule) {
+				continue
+			}
+			violations = append(violations, dependencyClosureViolation{
+				root: rule.root, dependency: dependency,
+			})
+		}
+	}
+	sort.Slice(violations, func(left int, right int) bool {
+		if violations[left].root == violations[right].root {
+			return violations[left].dependency < violations[right].dependency
+		}
+		return violations[left].root < violations[right].root
+	})
+	return violations, nil
+}
+
+func dependencyForbiddenByClosureRule(dependency string, rule dependencyClosureRule) bool {
+	for _, prefix := range rule.allowedPrefixes {
+		if dependency == prefix || strings.HasPrefix(dependency, prefix+"/") {
+			return false
+		}
+	}
+	for _, exact := range rule.forbiddenExact {
+		if dependency == exact {
+			return true
+		}
+	}
+	for _, prefix := range rule.forbiddenPrefixes {
+		if dependency == prefix || strings.HasPrefix(dependency, prefix+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+func listPackageDependencies(root string) ([]string, error) {
+	command := exec.Command("go", "list", "-deps", root)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("go list -deps %s: %w: %s", root, err, strings.TrimSpace(string(output)))
+	}
+	dependencies := strings.Fields(string(output))
+	sort.Strings(dependencies)
+	return dependencies, nil
+}
+
 func filesImporting(root string, target string) ([]string, error) {
+	return filesImportingMatching(root, func(importPath string) bool {
+		return importPath == target
+	})
+}
+
+func filesImportingPrefix(root string, target string) ([]string, error) {
+	return filesImportingMatching(root, func(importPath string) bool {
+		return importPath == target || strings.HasPrefix(importPath, target+"/")
+	})
+}
+
+func filesImportingMatching(root string, matches func(string) bool) ([]string, error) {
 	fset := token.NewFileSet()
 	files := make([]string, 0)
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
@@ -249,7 +436,7 @@ func filesImporting(root string, target string) ([]string, error) {
 			if err != nil {
 				return fmt.Errorf("decode Go import in %q: %w", path, err)
 			}
-			if importPath == target {
+			if matches(importPath) {
 				files = append(files, path)
 				break
 			}

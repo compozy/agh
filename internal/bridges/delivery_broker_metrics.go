@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	redactpkg "github.com/compozy/agh/internal/redact"
 )
 
 // LoadDeliveryMetrics hydrates one exact durable scope before health surfaces become available.
@@ -71,6 +73,16 @@ func (b *Broker) DeliveryMetrics() map[string]BridgeDeliveryMetrics {
 	return b.deliveryMetricsForIDsLocked(ids)
 }
 
+// DeliveryMetricPersistenceError returns accumulated durable-metric write failures.
+func (b *Broker) DeliveryMetricPersistenceError() error {
+	if b == nil {
+		return nil
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.metricPersistErr
+}
+
 // DeliveryMetricsFor returns telemetry for one bounded set of bridge IDs.
 func (b *Broker) DeliveryMetricsFor(
 	bridgeInstanceIDs []string,
@@ -116,6 +128,20 @@ func (b *Broker) deliveryMetricsForIDsLocked(ids []string) map[string]BridgeDeli
 			entry := snapshot[bridgeInstanceID]
 			entry.BridgeInstanceID = bridgeInstanceID
 			entry.DeliveryBacklog += len(route.queue)
+			snapshot[bridgeInstanceID] = entry
+		}
+		if issue, ok := b.metricPersistIssues[bridgeInstanceID]; ok && issue.err != nil {
+			entry := snapshot[bridgeInstanceID]
+			entry.BridgeInstanceID = bridgeInstanceID
+			persistenceError := redactpkg.String("delivery metric persistence: " + issue.err.Error())
+			if entry.LastError == "" {
+				entry.LastError = persistenceError
+			} else {
+				entry.LastError += "; " + persistenceError
+			}
+			if entry.LastErrorAt.Before(issue.at) {
+				entry.LastErrorAt = issue.at
+			}
 			snapshot[bridgeInstanceID] = entry
 		}
 	}

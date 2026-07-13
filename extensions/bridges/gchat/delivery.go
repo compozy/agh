@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
 )
 
@@ -23,6 +23,7 @@ type deliveryState struct {
 	LastSeq                int64
 	RemoteMessageID        string
 	ReplaceRemoteMessageID string
+	Chunks                 bridgesdk.DeliveryChunkCursor
 	Progress               *bridgesdk.ProgressDispatcher
 }
 
@@ -76,6 +77,7 @@ func (p *gchatProvider) handleBridgesDeliver(
 		state,
 	)
 	if err != nil {
+		p.storeDeliveryRetryState(cfg.instanceID, request.Event.DeliveryID, state)
 		return p.failGChatDelivery(ctx, session, &cfg, marker, err)
 	}
 
@@ -144,6 +146,17 @@ func (p *gchatProvider) storeDeliveryState(
 	p.deliveries.Store(key, state)
 }
 
+func (p *gchatProvider) storeDeliveryRetryState(
+	instanceID string,
+	deliveryID string,
+	state deliveryState,
+) {
+	if !state.Chunks.Active() {
+		return
+	}
+	p.deliveries.Store(deliveryStateKey(instanceID, deliveryID), state)
+}
+
 func isTerminalGChatDeliveryEvent(event bridgepkg.DeliveryEvent) bool {
 	if event.Operation.Normalize() == bridgepkg.DeliveryOperationDelete {
 		return true
@@ -208,7 +221,7 @@ func executeGChatDelete(
 	if messageName == "" {
 		return bridgepkg.DeliveryAck{}, state, errors.New("gchat: delete delivery requires a remote message id")
 	}
-	if err := api.DeleteMessage(ctx, messageName); err != nil {
+	if err := deleteGChatDeliveryMessage(ctx, api, messageName); err != nil {
 		return bridgepkg.DeliveryAck{}, state, fmt.Errorf("gchat: delete message: %w", err)
 	}
 	state.LastSeq = event.Seq
@@ -236,11 +249,22 @@ func executeGChatCreate(
 	if !event.Final {
 		chunks = chunks[:1]
 	}
-	remoteID, err := postGChatChunks(ctx, api, target, chunks)
+	state.Chunks = bridgesdk.BeginDeliveryChunks(
+		state.Chunks,
+		event.Seq,
+		bridgesdk.DeliveryChunkModeCreate,
+		len(chunks),
+		text,
+		"",
+		state.RemoteMessageID,
+	)
+	state.Chunks, err = postGChatChunksWithCursor(ctx, api, target, chunks, state.Chunks)
 	if err != nil {
 		return bridgepkg.DeliveryAck{}, state, err
 	}
-	previousRemoteID := strings.TrimSpace(state.RemoteMessageID)
+	remoteID := state.Chunks.LastRemoteMessageID()
+	previousRemoteID := state.Chunks.ReplaceRemoteMessageID()
+	state.Chunks = bridgesdk.DeliveryChunkCursor{}
 	state.LastSeq = event.Seq
 	state.RemoteMessageID = remoteID
 	state.ReplaceRemoteMessageID = previousRemoteID
@@ -264,31 +288,49 @@ func executeGChatUpdate(
 	}
 
 	chunks := gchatDeliveryChunks(text)
-	updated, err := api.UpdateMessage(ctx, gchatUpdateMessageRequest{
-		MessageName: messageName,
-		Text:        chunks[0],
-	})
-	if err != nil {
-		return bridgepkg.DeliveryAck{}, state, fmt.Errorf("gchat: update message: %w", err)
+	if !event.Final {
+		chunks = chunks[:1]
 	}
-	remoteID := messageName
-	if updated != nil && strings.TrimSpace(updated.Name) != "" {
-		remoteID = strings.TrimSpace(updated.Name)
+	state.Chunks = bridgesdk.BeginDeliveryChunks(
+		state.Chunks,
+		event.Seq,
+		bridgesdk.DeliveryChunkModeUpdate,
+		len(chunks),
+		text,
+		messageName,
+		messageName,
+	)
+	if state.Chunks.NextChunk() == 0 {
+		updated, updateErr := updateGChatDeliveryMessage(ctx, api, gchatUpdateMessageRequest{
+			MessageName: messageName,
+			Text:        chunks[0],
+		})
+		if updateErr != nil {
+			return bridgepkg.DeliveryAck{}, state, fmt.Errorf("gchat: update message: %w", updateErr)
+		}
+		remoteID := messageName
+		if updated != nil && strings.TrimSpace(updated.Name) != "" {
+			remoteID = strings.TrimSpace(updated.Name)
+		}
+		state.Chunks = state.Chunks.Advance(remoteID)
 	}
-	if event.Final && len(chunks) > 1 {
+	if len(chunks) > 1 {
 		target, targetErr := resolveGChatDeliveryTarget(event)
 		if targetErr != nil {
 			return bridgepkg.DeliveryAck{}, state, fmt.Errorf("gchat: resolve continuation target: %w", targetErr)
 		}
-		remoteID, err = postGChatChunks(ctx, api, target, chunks[1:])
+		state.Chunks, err = postGChatChunksWithCursor(ctx, api, target, chunks, state.Chunks)
 		if err != nil {
 			return bridgepkg.DeliveryAck{}, state, err
 		}
 	}
 
+	remoteID := state.Chunks.LastRemoteMessageID()
+	replaceRemoteID := state.Chunks.ReplaceRemoteMessageID()
+	state.Chunks = bridgesdk.DeliveryChunkCursor{}
 	state.LastSeq = event.Seq
 	state.RemoteMessageID = remoteID
-	state.ReplaceRemoteMessageID = messageName
+	state.ReplaceRemoteMessageID = replaceRemoteID
 	return validateGChatDeliveryAck(event, state)
 }
 
@@ -298,24 +340,47 @@ func postGChatChunks(
 	target gchatResolvedTarget,
 	chunks []string,
 ) (string, error) {
-	remoteID := ""
-	for index, chunk := range chunks {
-		message, err := api.CreateMessage(ctx, gchatCreateMessageRequest{
+	cursor := bridgesdk.BeginDeliveryChunks(
+		bridgesdk.DeliveryChunkCursor{},
+		1,
+		bridgesdk.DeliveryChunkModeCreate,
+		len(chunks),
+		strings.Join(chunks, "\x00"),
+		"",
+		"",
+	)
+	cursor, err := postGChatChunksWithCursor(ctx, api, target, chunks, cursor)
+	if err != nil {
+		return "", err
+	}
+	return cursor.LastRemoteMessageID(), nil
+}
+
+func postGChatChunksWithCursor(
+	ctx context.Context,
+	api gchatAPI,
+	target gchatResolvedTarget,
+	chunks []string,
+	cursor bridgesdk.DeliveryChunkCursor,
+) (bridgesdk.DeliveryChunkCursor, error) {
+	for index := cursor.NextChunk(); index < len(chunks); index++ {
+		chunk := chunks[index]
+		message, err := createGChatDeliveryMessage(ctx, api, gchatCreateMessageRequest{
 			SpaceName:  target.SpaceName,
 			ThreadName: target.ThreadName,
 			Text:       chunk,
 		})
 		if err != nil {
-			return "", fmt.Errorf("gchat: create message chunk %d: %w", index+1, err)
+			return cursor, fmt.Errorf("gchat: create message chunk %d: %w", index+1, err)
 		}
 		if message == nil || strings.TrimSpace(message.Name) == "" {
-			return "", &bridgesdk.TransientError{
+			return cursor, &bridgesdk.TransientError{
 				Err: errors.New("gchat: create message response omitted name"),
 			}
 		}
-		remoteID = strings.TrimSpace(message.Name)
+		cursor = cursor.Advance(strings.TrimSpace(message.Name))
 	}
-	return remoteID, nil
+	return cursor, nil
 }
 
 func validateGChatDeliveryAck(

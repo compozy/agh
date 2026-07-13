@@ -1,40 +1,28 @@
-import { Metric, Section } from "@agh/ui";
+import { Metric, MetricGrid, Section } from "@agh/ui";
 
 import { formatBridgeRelativeTime } from "../lib/bridge-formatters";
 import type { BridgeHealth, BridgeRoute } from "../types";
 
 interface BridgeMetrics {
-  activeRoutes: string;
-  eventsTotal: string;
+  activeRoutes: number;
+  authFailures: number;
+  deliveryBacklog: number;
+  deliveryDropped: number;
+  deliveryFailures: number;
   lastDelivery: string;
-  successRate: string;
-  successTone: "default" | "accent" | "success" | "warning" | "danger";
 }
 
 function computeBridgeMetrics(
   health: BridgeHealth | undefined,
   routes: BridgeRoute[]
 ): BridgeMetrics {
-  const backlog = health?.delivery_backlog ?? 0;
-  const failures = health?.delivery_failures_total ?? 0;
-  const dropped = health?.delivery_dropped_total ?? 0;
-  const active = health?.route_count ?? routes.length;
-  const total = backlog + failures + dropped + active;
-  let successRate = "--";
-  let successTone: BridgeMetrics["successTone"] = "default";
-
-  if (total > 0) {
-    const percentage = (active / total) * 100;
-    successRate = `${Math.round(percentage)}%`;
-    successTone = percentage >= 90 ? "success" : percentage >= 70 ? "default" : "warning";
-  }
-
   return {
-    activeRoutes: String(active),
-    eventsTotal: String(total),
+    activeRoutes: health?.route_count ?? routes.length,
+    authFailures: health?.auth_failures_total ?? 0,
+    deliveryBacklog: health?.delivery_backlog ?? 0,
+    deliveryDropped: health?.delivery_dropped_total ?? 0,
+    deliveryFailures: health?.delivery_failures_total ?? 0,
     lastDelivery: formatBridgeRelativeTime(health?.last_success_at),
-    successRate,
-    successTone,
   };
 }
 
@@ -49,19 +37,34 @@ export function BridgeDetailMetrics({
 
   return (
     <Section label="Delivery metrics">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <MetricGrid columns={3}>
         <Metric
-          data-testid="bridge-metric-events-24h"
-          label="Events (24h)"
-          subtext="backlog + failures + active"
-          value={metrics.eventsTotal}
+          data-testid="bridge-metric-delivery-backlog"
+          label="Delivery backlog"
+          subtext="currently queued"
+          tone={metrics.deliveryBacklog > 0 ? "warning" : "default"}
+          value={metrics.deliveryBacklog}
         />
         <Metric
-          data-testid="bridge-metric-success-rate"
-          label="Success rate"
-          subtext="active vs. backlog"
-          tone={metrics.successTone}
-          value={metrics.successRate}
+          data-testid="bridge-metric-delivery-failures"
+          label="Delivery failures"
+          subtext="recorded total"
+          tone={metrics.deliveryFailures > 0 ? "danger" : "default"}
+          value={metrics.deliveryFailures}
+        />
+        <Metric
+          data-testid="bridge-metric-delivery-dropped"
+          label="Dropped deliveries"
+          subtext="recorded total"
+          tone={metrics.deliveryDropped > 0 ? "danger" : "default"}
+          value={metrics.deliveryDropped}
+        />
+        <Metric
+          data-testid="bridge-metric-auth-failures"
+          label="Authentication failures"
+          subtext="recorded total"
+          tone={metrics.authFailures > 0 ? "danger" : "default"}
+          value={metrics.authFailures}
         />
         <Metric
           data-testid="bridge-metric-last-delivery"
@@ -73,10 +76,9 @@ export function BridgeDetailMetrics({
           data-testid="bridge-metric-active-routes"
           label="Active routes"
           subtext="sessions mapped"
-          tone="accent"
           value={metrics.activeRoutes}
         />
-      </div>
+      </MetricGrid>
     </Section>
   );
 }

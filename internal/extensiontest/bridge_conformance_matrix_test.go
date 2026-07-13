@@ -13,8 +13,8 @@ func TestSummarizeConformanceReportBuildsStableMultiInstanceMatrixRow(t *testing
 	report.Handshake.Request.Runtime.Bridge.Provider = "github"
 	report.Handshake.Request.Runtime.Bridge.Platform = "github"
 	report.Handshake.Request.Runtime.Bridge.ManagedInstances = []subprocesspkg.InitializeBridgeManagedInstance{
-		{Instance: testBridgeInstanceWithID("brg-b")},
-		{Instance: testBridgeInstanceWithID("brg-a")},
+		{Instance: bridgepkg.BridgeInstanceToContract(testBridgeInstanceWithID("brg-b"))},
+		{Instance: bridgepkg.BridgeInstanceToContract(testBridgeInstanceWithID("brg-a"))},
 	}
 	report.Ownership = &OwnershipRecord{
 		Listed: []bridgepkg.BridgeInstance{

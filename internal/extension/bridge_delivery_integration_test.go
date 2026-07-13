@@ -19,6 +19,7 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/session"
@@ -142,7 +143,7 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 			t *testing.T,
 			env *deliveryIntegrationEnv,
 			driver *scriptedPromptDriver,
-			ingest hostAPIBridgesMessagesIngestResult,
+			ingest bridgecontract.BridgesMessagesIngestResult,
 			markers []managerDeliveryMarker,
 		)
 	}{
@@ -246,7 +247,7 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 				t *testing.T,
 				env *deliveryIntegrationEnv,
 				_ *scriptedPromptDriver,
-				ingest hostAPIBridgesMessagesIngestResult,
+				ingest bridgecontract.BridgesMessagesIngestResult,
 				_ []managerDeliveryMarker,
 			) {
 				t.Helper()
@@ -401,7 +402,7 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 				t *testing.T,
 				env *deliveryIntegrationEnv,
 				driver *scriptedPromptDriver,
-				ingest hostAPIBridgesMessagesIngestResult,
+				ingest bridgecontract.BridgesMessagesIngestResult,
 				markers []managerDeliveryMarker,
 			) {
 				t.Helper()
@@ -471,7 +472,7 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Handle(bridges/messages/ingest) error = %v", err)
 			}
-			var ingest hostAPIBridgesMessagesIngestResult
+			var ingest bridgecontract.BridgesMessagesIngestResult
 			decodeResult(t, result, &ingest)
 
 			waitForDeliveryMarkers(t, markerPath, tc.waitFor)
@@ -1207,7 +1208,7 @@ func assertBridgeTurnContextPreserved(
 	t *testing.T,
 	env *deliveryIntegrationEnv,
 	driver *scriptedPromptDriver,
-	ingest hostAPIBridgesMessagesIngestResult,
+	ingest bridgecontract.BridgesMessagesIngestResult,
 	markers []managerDeliveryMarker,
 	wantInboundText string,
 	wantOutboundText string,

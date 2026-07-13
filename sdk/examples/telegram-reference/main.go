@@ -13,9 +13,8 @@ import (
 	"sync"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
 	"github.com/compozy/agh/internal/fileutil"
 	"github.com/compozy/agh/internal/subprocess"
 )
@@ -164,9 +163,9 @@ type stateMarker struct {
 }
 
 type ingestMarker struct {
-	Envelope bridgepkg.InboundMessageEnvelope              `json:"envelope"`
-	Result   extensioncontract.BridgesMessagesIngestResult `json:"result"`
-	Error    string                                        `json:"error,omitempty"`
+	Envelope bridgepkg.InboundMessageEnvelope      `json:"envelope"`
+	Result   bridgepkg.BridgesMessagesIngestResult `json:"result"`
+	Error    string                                `json:"error,omitempty"`
 }
 
 func newTelegramReferenceRuntime(stderr io.Writer) (*telegramReferenceRuntime, error) {
@@ -451,7 +450,7 @@ func (r *telegramReferenceRuntime) reportState(
 	var result *bridgepkg.BridgeInstance
 	err := r.retryHostCall(ctx, func(callCtx context.Context) error {
 		instance, callErr := session.HostAPI().
-			ReportBridgeInstanceState(callCtx, extensioncontract.BridgesInstancesReportStateParams{
+			ReportBridgeInstanceState(callCtx, bridgepkg.BridgesInstancesReportStateParams{
 				BridgeInstanceID: strings.TrimSpace(bridgeInstanceID),
 				Status:           status,
 			})
@@ -481,8 +480,8 @@ func (r *telegramReferenceRuntime) ingestBridgeMessage(
 	ctx context.Context,
 	session *bridgesdk.Session,
 	envelope bridgepkg.InboundMessageEnvelope,
-) (*extensioncontract.BridgesMessagesIngestResult, error) {
-	var result *extensioncontract.BridgesMessagesIngestResult
+) (*bridgepkg.BridgesMessagesIngestResult, error) {
+	var result *bridgepkg.BridgesMessagesIngestResult
 	err := r.retryHostCall(ctx, func(callCtx context.Context) error {
 		ingestResult, callErr := session.HostAPI().IngestBridgeMessage(callCtx, envelope)
 		if callErr == nil {

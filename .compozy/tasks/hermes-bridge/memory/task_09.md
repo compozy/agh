@@ -14,7 +14,7 @@
 
 - `_qa.md` provisional `NB-047..NB-073` seeds collide with live rows. Tasks 01–06 already created content-addressed canaries `NB-bridge-tool-progress`, `NB-long-bridge-replies`, `NB-provider-progress-rendering`, `NB-bridge-provider-setup`, `NB-web-bridge-setup`, `NB-bridge-edit-reply`, and `NB-bridge-restart-recovery`. Keep those canonical scenarios, map every provisional seed to them in the planning report, and do not mint 27 duplicated invariants.
 - Use the exact final-diff reset set from `_qa.md` (`NB-024`, `025`, `026`, `028`, `036`, `037`, `038`, `039`) plus Task 07's realized `NB-029` and `NB-031` resets. Preserve historical bugs, fixes, retests, evidence, and reports.
-- J-30 must branch across all eight providers: Slack manifest; WhatsApp/Telegram/Discord guided setup; Teams/GChat/GitHub/Linear generic create/bind/configure. GitHub/Linear finish with issue/comment behavior, not a fabricated chat-message path.
+- `J-connect-bridge-provider` must branch across all eight providers: Slack manifest; WhatsApp/Telegram/Discord guided setup; Teams/GChat/GitHub/Linear generic create/bind/configure. GitHub/Linear finish with issue/comment behavior, not a fabricated chat-message path.
 - Telegram `setWebhook` is a Telegram-only decision branch. WhatsApp and Discord require their distinct manual provider-console handoffs.
 - Every journey needs a persona abandonment/resume path; valid mode-off, capability boundaries, and product failures are not abandonment by themselves.
 - Do not freeze “6000 chars on Discord = 3 chunks.” Suffix/fence overhead is inside the 2,000-code-point wire cap. Assert bounded ordered numbered chunks, lossless content, valid fences, and a runtime-computed count across all six chat providers.

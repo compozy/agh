@@ -12,9 +12,8 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -382,13 +381,13 @@ func TestRuntimeFinalDeliveryRouting(t *testing.T) {
 func TestSessionReportClassifiedErrorReportsStateThroughHostAPI(t *testing.T) {
 	t.Parallel()
 
-	reported := extensioncontract.BridgesInstancesReportStateParams{}
+	reported := bridgepkg.BridgesInstancesReportStateParams{}
 	session := &Session{
 		host: NewHostAPIClientFromCall(func(_ context.Context, method string, params any, result any) error {
 			if got, want := method, "bridges/instances/report_state"; got != want {
 				t.Fatalf("method = %q, want %q", got, want)
 			}
-			reported = params.(extensioncontract.BridgesInstancesReportStateParams)
+			reported = params.(bridgepkg.BridgesInstancesReportStateParams)
 			target := result.(*bridgepkg.BridgeInstance)
 			*target = testBridgeInstance(reported.BridgeInstanceID)
 			target.Status = reported.Status

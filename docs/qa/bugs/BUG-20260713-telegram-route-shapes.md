@@ -1,60 +1,56 @@
-# BUG-20260713-telegram-route-shapes: Telegram guided setup rejects documented direct-message and ordinary-group routes
+# BUG-20260713-telegram-route-shapes: One Telegram bridge cannot accept all route shapes with exact isolation
 
 - **Status:** open
-- **Impact (user-side):** Blocks-Completion
-- **Severity:** High · **Priority:** P1
+- **Impact (user-side):** Friction
+- **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Tessa and Maya while connecting Telegram through the supported setup flow
 - **Journey Step:** J-connect-bridge-provider, connect one supported provider with correct secrets and routing
 - **Scenarios:** NB-bridge-provider-setup; NB-025; NB-029
 - **Found:** 2026-07-13 · **Report:** docs/qa/reports/2026-07-12-hermes-bridge.md
 - **Origin:** n/a
+- **Scope updated:** 2026-07-13 Phase D remediation fixed one-shape setup expressibility; this record now owns only the remaining single-instance alternative-shape contract.
 
 ## Summary
 
-`agh bridge setup telegram` always creates a routing policy that requires both `group_id` and `thread_id`. The public Telegram guide separately documents a direct-message send with only `--peer-id` and an ordinary group flow where Telegram may provide a group without a forum topic. Both valid provider shapes are rejected before delivery because every dimension enabled by the fixed policy is mandatory.
+Guided and strict-JSON Telegram setup can create a bridge for exactly one explicit routing shape: private chat (`peer`), ordinary group (`group`), or forum topic (`group + thread`). The guided default remains forum-topic routing.
 
-One Telegram bridge therefore cannot accept the provider's documented direct-message, ordinary-group, and forum-topic shapes. Changing the instance to a peer-only or group-only policy merely moves the failure to another supported Telegram context.
+The remaining gap is structural. `RoutingPolicy` is one conjunction of required dimensions, so one Telegram bridge cannot select the route identity from the actual inbound shape. Operators who need private chats, ordinary groups, and isolated forum topics must provision separate bridge instances. A group-only instance can accept a forum event only by omitting the thread from its routing identity, which collapses topics in the same group.
 
-## Reproduction
+## Remaining reproduction
 
 - **Charter:** CH-guided-setup-credentials / CH-structured-telegram-setup · **Tour:** Task Tour and Integration Tour
 - **Environment:** isolated local daemon, current-source CLI, rebuilt Telegram extension, deterministic fake Telegram Bot API
 
-1. Run `agh bridge setup telegram --json` with valid bot and webhook inputs.
-2. Inspect the created instance. Its routing policy is `include_group=true`, `include_thread=true`, `include_peer=false`.
-3. Enable the bridge and run the public-guide direct-message command:
+1. Create and enable a Telegram bridge with the `private` shape.
+2. Confirm a `peer_id` target works.
+3. Send to a group-only target and observe rejection because that instance requires `peer_id`.
+4. Create a `group` instance and send from two forum topics in the same group. Both events use the group-only route identity, so topic isolation is not preserved.
+5. Create a `forum` instance. A forum target works, while an ordinary group without `thread_id` and a private chat without `group_id` or `thread_id` are rejected.
+6. Observe that no single current `routing_policy` accepts all three shapes while preserving each shape's actual identity.
 
-   ```bash
-   agh bridge send-test "$BRIDGE_ID" \
-     --message "AGH Telegram connection check" \
-     --peer-id "123456789" \
-     --json
-   ```
+**Expected:** One Telegram instance can represent alternative route shapes and build the routing key from the dimensions present in the actual event: peer for private chats, group for ordinary groups, and group plus thread for forum topics.
 
-4. Observe that AGH rejects the request before the provider call.
-5. Repeat with a non-forum group target that has a group ID but no `message_thread_id`.
-
-**Expected:** Guided setup produces a routing contract that accepts Telegram direct messages, ordinary groups, and forum topics while preserving isolation between their actual identities.
-
-**Actual:** The direct-message send fails with `bridges: routing policy requires thread id`; an ordinary group without a topic also lacks the required thread dimension. Only a group-plus-topic target succeeds.
+**Actual:** Setup can select any one shape, but the stored policy remains a single conjunction. Covering all shapes with exact isolation requires multiple bridge instances.
 
 ## Evidence
 
-- Guided policy owner: `internal/cli/bridge_setup_helpers.go` returns `RoutingPolicy{IncludeThread: true, IncludeGroup: true}` for Telegram.
-- Core validation owner: `internal/bridges/dimensions.go` requires every enabled policy dimension on every route.
-- Public direct-message command: `packages/site/content/runtime/core/bridges/setup-telegram.mdx` uses only `--peer-id`.
-- QA instance `brg-d7bb61e3599d428a` reproduced the direct-message failure; the same instance delivered only after using group `424242` plus thread `1` (`del-1f277481f33d99a4`).
-- The HTTP/UDS parity instance `brg-b10140d065561772` likewise delivered only with group `515151` plus thread `2` (`del-4fbd9bf86c6ae814`).
-- No provider request was emitted for the rejected direct-message target.
+- One-shape setup owner: `internal/cli/bridge_setup_platforms.go` maps `private`, `group`, and `forum` to three closed policies.
+- Strict-JSON and guided owner: `internal/cli/bridge_setup_config.go` accepts typed `routing_policy` and wizard `routing_shape`.
+- Focused regression: `internal/cli/bridge_setup_test.go::TestBridgeSetupTelegramRoutingShapes`.
+- Remaining core owner: `internal/bridges/dimensions.go::validateRoutingDimensions` requires every enabled dimension on every route.
+- Routing-key owner: `internal/bridges/routing.go::BuildRoutingKey` includes only the dimensions selected by the single stored policy.
+- Public truth: `packages/site/content/runtime/core/bridges/setup-telegram.mdx` states that one instance selects one shape.
+- Historical QA artifacts remain attached as evidence of the original fixed-policy behavior.
 
 ## Fix
 
-- **Root cause:** `RoutingPolicy` models enabled dimensions as a single conjunction, but Telegram has alternative route shapes: peer, group, or group plus optional topic. The guided setup selected the most specific conjunction and then advertised all provider shapes as supported.
-- **Fix commit:** pending. This requires a structural routing-contract design rather than changing the wizard to a different fixed conjunction.
-- **Regression test:** extend the canonical routing/CLI setup suites to prove one guided Telegram instance accepts and isolates direct-message, ordinary-group, and forum-topic identities without fabricating missing dimensions.
+- **Partial remediation:** Phase D setup now accepts one explicit private, ordinary-group, or forum shape through guided and strict-JSON paths.
+- **Remaining root cause:** `RoutingPolicy` cannot express alternative shape-specific routing keys for one instance.
+- **Remaining fix:** deferred pending a structural routing-contract TechSpec. The design must preserve direct-chat, ordinary-group, and forum-topic isolation without fabricating missing dimensions or silently collapsing topics.
+- **Future regression:** prove one Telegram instance accepts all three actual event shapes and generates distinct canonical route identities for private chats, ordinary groups, and individual forum topics.
 
 ## Verification
 
-- **Retested:** not yet
-- **Result:** Open. Group-plus-topic delivery is green; the documented direct-message and ordinary-group paths remain blocked by the instance policy.
-
+- **Retested:** not through persona QA.
+- **Focused implementation evidence:** `TestBridgeSetupTelegramRoutingShapes` proves that each single shape can be selected and persisted.
+- **Result:** the original fixed `group + thread` setup defect is remediated; BUG-20260713-telegram-route-shapes remains open only for the broader single-instance alternative-shape contract.

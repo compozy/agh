@@ -10,8 +10,7 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -22,8 +21,8 @@ type providerHostSessionStub struct {
 	syncFailures  int
 	syncCalls     int
 	getCalls      int
-	reported      []extensioncontract.BridgesInstancesReportStateParams
-	ingestResults []*extensioncontract.BridgesMessagesIngestResult
+	reported      []bridgepkg.BridgesInstancesReportStateParams
+	ingestResults []*bridgepkg.BridgesMessagesIngestResult
 }
 
 func (s *providerHostSessionStub) SyncInstances(context.Context) ([]subprocess.InitializeBridgeManagedInstance, error) {
@@ -60,7 +59,7 @@ func (s *providerHostSessionStub) GetBridgeInstance(
 
 func (s *providerHostSessionStub) ReportBridgeInstanceState(
 	_ context.Context,
-	params extensioncontract.BridgesInstancesReportStateParams,
+	params bridgepkg.BridgesInstancesReportStateParams,
 ) (*bridgepkg.BridgeInstance, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -73,7 +72,7 @@ func (s *providerHostSessionStub) ReportBridgeInstanceState(
 func (s *providerHostSessionStub) IngestBridgeMessage(
 	_ context.Context,
 	_ bridgepkg.InboundMessageEnvelope,
-) (*extensioncontract.BridgesMessagesIngestResult, error) {
+) (*bridgepkg.BridgesMessagesIngestResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if len(s.ingestResults) == 0 {
@@ -100,7 +99,7 @@ func TestProviderHostRetriesStartupAndOwnsStateTransitions(t *testing.T) {
 		stub := &providerHostSessionStub{
 			managed:       []subprocess.InitializeBridgeManagedInstance{{Instance: testBridgeInstance("brg-1")}},
 			syncFailures:  2,
-			ingestResults: []*extensioncontract.BridgesMessagesIngestResult{{SessionID: "sess-1"}},
+			ingestResults: []*bridgepkg.BridgesMessagesIngestResult{{SessionID: "sess-1"}},
 		}
 
 		managed, err := host.SyncOwnedInstances(t.Context(), stub)
@@ -291,5 +290,61 @@ func TestProviderLifecycleReconcilesOwnershipAndStopsCleanly(t *testing.T) {
 			t.Fatalf("Session()/CachedInstances() = (%p, %d)", lifecycle.Session(), len(session.CachedInstances()))
 		}
 		lifecycle.Stop()
+	})
+
+	t.Run("Should cancel and join initialization before shutdown returns", func(t *testing.T) {
+		t.Parallel()
+
+		request := testInitializeRequest()
+		host := NewHostAPIClientFromCall(func(_ context.Context, method string, _ any, result any) error {
+			switch method {
+			case "bridges/instances/list":
+				instances := result.(*[]bridgepkg.BridgeInstance)
+				*instances = []bridgepkg.BridgeInstance{request.Runtime.Bridge.ManagedInstances[0].Instance}
+				return nil
+			case "bridges/instances/get":
+				instance := result.(*bridgepkg.BridgeInstance)
+				*instance = request.Runtime.Bridge.ManagedInstances[0].Instance
+				return nil
+			default:
+				return fmt.Errorf("unexpected Host API method %q", method)
+			}
+		})
+		session := &Session{
+			request:  request,
+			response: subprocess.InitializeResponse{ProtocolVersion: "1"},
+			host:     host,
+			cache:    NewInstanceCache(request.Runtime.Bridge),
+		}
+		reconcileStarted := make(chan struct{})
+		reconcileExited := make(chan struct{})
+		lifecycle, err := NewProviderLifecycle(ProviderLifecycleConfig{
+			ProviderName: "test",
+			Reconcile: func(ctx context.Context, _ []subprocess.InitializeBridgeManagedInstance) ([]ProviderInitialState, error) {
+				close(reconcileStarted)
+				<-ctx.Done()
+				close(reconcileExited)
+				return nil, ctx.Err()
+			},
+		})
+		if err != nil {
+			t.Fatalf("NewProviderLifecycle() error = %v", err)
+		}
+		if err := lifecycle.Initialize(t.Context(), session); err != nil {
+			t.Fatalf("Initialize() error = %v", err)
+		}
+		<-reconcileStarted
+		if err := lifecycle.Shutdown(
+			t.Context(),
+			nil,
+			subprocess.ShutdownRequest{DeadlineMS: 1000},
+		); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+		select {
+		case <-reconcileExited:
+		default:
+			t.Fatal("Shutdown() returned before initialization exited")
+		}
 	})
 }

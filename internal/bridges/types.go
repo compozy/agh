@@ -1,13 +1,13 @@
 package bridges
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/vault"
 )
 
@@ -48,14 +48,14 @@ type Scope string
 
 const (
 	// ScopeGlobal identifies a daemon-global bridge resource.
-	ScopeGlobal Scope = "global"
+	ScopeGlobal Scope = Scope(bridgecontract.ScopeGlobal)
 	// ScopeWorkspace identifies a workspace-owned bridge resource.
-	ScopeWorkspace Scope = "workspace"
+	ScopeWorkspace Scope = Scope(bridgecontract.ScopeWorkspace)
 )
 
 // Normalize returns the normalized representation of the scope.
 func (s Scope) Normalize() Scope {
-	return Scope(strings.ToLower(strings.TrimSpace(string(s))))
+	return Scope(bridgecontract.Scope(s).Normalize())
 }
 
 // BridgeInstanceSource identifies where a persisted bridge instance originated.
@@ -63,60 +63,29 @@ type BridgeInstanceSource string
 
 const (
 	// BridgeInstanceSourceDynamic identifies a regular operator-created bridge instance.
-	BridgeInstanceSourceDynamic BridgeInstanceSource = "dynamic"
+	BridgeInstanceSourceDynamic BridgeInstanceSource = BridgeInstanceSource(bridgecontract.BridgeInstanceSourceDynamic)
 	// BridgeInstanceSourcePackage identifies an extension bundle-managed bridge instance.
-	BridgeInstanceSourcePackage BridgeInstanceSource = "package"
+	BridgeInstanceSourcePackage BridgeInstanceSource = BridgeInstanceSource(bridgecontract.BridgeInstanceSourcePackage)
 )
 
 // Normalize returns the normalized representation of the source.
 func (s BridgeInstanceSource) Normalize() BridgeInstanceSource {
-	return BridgeInstanceSource(strings.ToLower(strings.TrimSpace(string(s))))
+	return BridgeInstanceSource(bridgecontract.BridgeInstanceSource(s).Normalize())
 }
 
 // Validate reports whether the bridge-instance source is supported.
 func (s BridgeInstanceSource) Validate() error {
-	switch s.Normalize() {
-	case BridgeInstanceSourceDynamic, BridgeInstanceSourcePackage:
-		return nil
-	case "":
-		return errors.New("bridges: bridge instance source is required")
-	default:
-		return fmt.Errorf("bridges: unsupported bridge instance source %q", s)
-	}
+	return bridgecontract.BridgeInstanceSource(s).Validate()
 }
 
 // Validate reports whether the scope is supported.
 func (s Scope) Validate() error {
-	switch s.Normalize() {
-	case ScopeGlobal, ScopeWorkspace:
-		return nil
-	case "":
-		return errors.New("bridges: scope is required")
-	default:
-		return fmt.Errorf("bridges: unsupported scope %q", s)
-	}
+	return bridgecontract.Scope(s).Validate()
 }
 
 // ValidateScopeWorkspaceID enforces the canonical scope and workspace invariant.
 func ValidateScopeWorkspaceID(scope Scope, workspaceID string) error {
-	normalizedScope := scope.Normalize()
-	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
-	if err := normalizedScope.Validate(); err != nil {
-		return err
-	}
-
-	switch normalizedScope {
-	case ScopeGlobal:
-		if trimmedWorkspaceID != "" {
-			return errors.New("bridges: global scope cannot include workspace id")
-		}
-	case ScopeWorkspace:
-		if trimmedWorkspaceID == "" {
-			return errors.New("bridges: workspace scope requires workspace id")
-		}
-	}
-
-	return nil
+	return bridgecontract.ValidateScopeWorkspaceID(bridgecontract.Scope(scope), workspaceID)
 }
 
 // BridgeStatus reports the operator-visible lifecycle state of a bridge instance.
@@ -124,39 +93,27 @@ type BridgeStatus string
 
 const (
 	// BridgeStatusDisabled reports an instance that is intentionally disabled.
-	BridgeStatusDisabled BridgeStatus = "disabled"
+	BridgeStatusDisabled BridgeStatus = BridgeStatus(bridgecontract.BridgeStatusDisabled)
 	// BridgeStatusStarting reports an instance that is launching or reconnecting.
-	BridgeStatusStarting BridgeStatus = "starting"
+	BridgeStatusStarting BridgeStatus = BridgeStatus(bridgecontract.BridgeStatusStarting)
 	// BridgeStatusReady reports an instance that is healthy and ready to ingest/deliver.
-	BridgeStatusReady BridgeStatus = "ready"
+	BridgeStatusReady BridgeStatus = BridgeStatus(bridgecontract.BridgeStatusReady)
 	// BridgeStatusDegraded reports an instance that is partially working with known issues.
-	BridgeStatusDegraded BridgeStatus = "degraded"
+	BridgeStatusDegraded BridgeStatus = BridgeStatus(bridgecontract.BridgeStatusDegraded)
 	// BridgeStatusAuthRequired reports an instance that cannot operate until authentication is refreshed.
-	BridgeStatusAuthRequired BridgeStatus = "auth_required"
+	BridgeStatusAuthRequired BridgeStatus = BridgeStatus(bridgecontract.BridgeStatusAuthRequired)
 	// BridgeStatusError reports an instance that is unhealthy due to a terminal or repeated fault.
-	BridgeStatusError BridgeStatus = "error"
+	BridgeStatusError BridgeStatus = BridgeStatus(bridgecontract.BridgeStatusError)
 )
 
 // Normalize returns the normalized representation of the status.
 func (s BridgeStatus) Normalize() BridgeStatus {
-	return BridgeStatus(strings.ToLower(strings.TrimSpace(string(s))))
+	return BridgeStatus(bridgecontract.BridgeStatus(s).Normalize())
 }
 
 // Validate reports whether the status belongs to the closed bridge status set.
 func (s BridgeStatus) Validate() error {
-	switch s.Normalize() {
-	case BridgeStatusDisabled,
-		BridgeStatusStarting,
-		BridgeStatusReady,
-		BridgeStatusDegraded,
-		BridgeStatusAuthRequired,
-		BridgeStatusError:
-		return nil
-	case "":
-		return errors.New("bridges: bridge status is required")
-	default:
-		return fmt.Errorf("bridges: unsupported bridge status %q", s)
-	}
+	return bridgecontract.BridgeStatus(s).Validate()
 }
 
 // BridgeDMPolicy controls how direct messages from unpaired senders are handled.
@@ -164,58 +121,52 @@ type BridgeDMPolicy string
 
 const (
 	// BridgeDMPolicyOpen accepts direct messages from any sender.
-	BridgeDMPolicyOpen BridgeDMPolicy = "open"
+	BridgeDMPolicyOpen BridgeDMPolicy = BridgeDMPolicy(bridgecontract.BridgeDMPolicyOpen)
 	// BridgeDMPolicyAllowlist accepts direct messages only from approved senders.
-	BridgeDMPolicyAllowlist BridgeDMPolicy = "allowlist"
+	BridgeDMPolicyAllowlist BridgeDMPolicy = BridgeDMPolicy(bridgecontract.BridgeDMPolicyAllowlist)
 	// BridgeDMPolicyPairing requires an explicit pairing flow before accepting direct messages.
-	BridgeDMPolicyPairing BridgeDMPolicy = "pairing"
+	BridgeDMPolicyPairing BridgeDMPolicy = BridgeDMPolicy(bridgecontract.BridgeDMPolicyPairing)
 )
 
 // Normalize returns the normalized representation of the DM policy.
 func (p BridgeDMPolicy) Normalize() BridgeDMPolicy {
-	return BridgeDMPolicy(strings.ToLower(strings.TrimSpace(string(p))))
+	return BridgeDMPolicy(bridgecontract.BridgeDMPolicy(p).Normalize())
 }
 
 // Validate reports whether the DM policy belongs to the supported bridge v1 set.
 func (p BridgeDMPolicy) Validate() error {
-	switch p.Normalize() {
-	case "", BridgeDMPolicyOpen, BridgeDMPolicyAllowlist, BridgeDMPolicyPairing:
-		return nil
-	default:
-		return fmt.Errorf("bridges: unsupported dm policy %q", p)
-	}
+	return bridgecontract.BridgeDMPolicy(p).Validate()
 }
 
 // BridgeDegradationReason reports the structured operational cause for a degraded bridge instance.
 type BridgeDegradationReason string
 
 const (
-	BridgeDegradationReasonAuthFailed          BridgeDegradationReason = "auth_failed"
-	BridgeDegradationReasonRateLimited         BridgeDegradationReason = "rate_limited"
-	BridgeDegradationReasonWebhookInvalid      BridgeDegradationReason = "webhook_invalid"
-	BridgeDegradationReasonProviderTimeout     BridgeDegradationReason = "provider_timeout"
-	BridgeDegradationReasonTenantConfigInvalid BridgeDegradationReason = "tenant_config_invalid"
+	BridgeDegradationReasonAuthFailed BridgeDegradationReason = BridgeDegradationReason(
+		bridgecontract.BridgeDegradationReasonAuthFailed,
+	)
+	BridgeDegradationReasonRateLimited BridgeDegradationReason = BridgeDegradationReason(
+		bridgecontract.BridgeDegradationReasonRateLimited,
+	)
+	BridgeDegradationReasonWebhookInvalid BridgeDegradationReason = BridgeDegradationReason(
+		bridgecontract.BridgeDegradationReasonWebhookInvalid,
+	)
+	BridgeDegradationReasonProviderTimeout BridgeDegradationReason = BridgeDegradationReason(
+		bridgecontract.BridgeDegradationReasonProviderTimeout,
+	)
+	BridgeDegradationReasonTenantConfigInvalid BridgeDegradationReason = BridgeDegradationReason(
+		bridgecontract.BridgeDegradationReasonTenantConfigInvalid,
+	)
 )
 
 // Normalize returns the normalized representation of the degradation reason.
 func (r BridgeDegradationReason) Normalize() BridgeDegradationReason {
-	return BridgeDegradationReason(strings.ToLower(strings.TrimSpace(string(r))))
+	return BridgeDegradationReason(bridgecontract.BridgeDegradationReason(r).Normalize())
 }
 
 // Validate reports whether the degradation reason belongs to the supported bridge v1 set.
 func (r BridgeDegradationReason) Validate() error {
-	switch r.Normalize() {
-	case BridgeDegradationReasonAuthFailed,
-		BridgeDegradationReasonRateLimited,
-		BridgeDegradationReasonWebhookInvalid,
-		BridgeDegradationReasonProviderTimeout,
-		BridgeDegradationReasonTenantConfigInvalid:
-		return nil
-	case "":
-		return errors.New("bridges: bridge degradation reason is required")
-	default:
-		return fmt.Errorf("bridges: unsupported bridge degradation reason %q", r)
-	}
+	return bridgecontract.BridgeDegradationReason(r).Validate()
 }
 
 // BridgeDegradation captures the structured degradation metadata persisted for a bridge instance.
@@ -226,20 +177,12 @@ type BridgeDegradation struct {
 
 // IsZero reports whether the degradation payload carries any values.
 func (d BridgeDegradation) IsZero() bool {
-	normalized := d.normalize()
-	return normalized.Reason == "" && normalized.Message == ""
+	return bridgeDegradationToContract(d).IsZero()
 }
 
 // Validate reports whether the degradation payload is internally consistent.
 func (d BridgeDegradation) Validate() error {
-	normalized := d.normalize()
-	if normalized.IsZero() {
-		return nil
-	}
-	if err := normalized.Reason.Validate(); err != nil {
-		return err
-	}
-	return nil
+	return bridgeDegradationToContract(d).Validate()
 }
 
 // BridgeSecretSlot describes one provider-declared secret requirement.
@@ -301,10 +244,9 @@ type RoutingPolicy struct {
 
 // Validate reports whether the routing policy is internally consistent.
 func (p RoutingPolicy) Validate() error {
-	if p.IncludeThread && !p.IncludePeer && !p.IncludeGroup {
-		return errors.New("bridges: routing policy cannot include thread without peer or group")
-	}
-	return nil
+	return (bridgecontract.RoutingPolicy{
+		IncludePeer: p.IncludePeer, IncludeThread: p.IncludeThread, IncludeGroup: p.IncludeGroup,
+	}).Validate()
 }
 
 // BridgeProvider describes one installed bridge-capable extension that can be
@@ -350,54 +292,7 @@ func (i BridgeInstance) Normalized() BridgeInstance {
 
 // Validate reports whether the persisted bridge instance shape is complete and valid.
 func (i BridgeInstance) Validate() error {
-	normalized := i.normalize()
-	if err := requireField(normalized.ID, "bridge instance id"); err != nil {
-		return err
-	}
-	if err := ValidateScopeWorkspaceID(normalized.Scope, normalized.WorkspaceID); err != nil {
-		return err
-	}
-	if err := requireField(normalized.Platform, "bridge instance platform"); err != nil {
-		return err
-	}
-	if err := requireField(normalized.ExtensionName, "bridge instance extension name"); err != nil {
-		return err
-	}
-	if err := requireField(normalized.DisplayName, "bridge instance display name"); err != nil {
-		return err
-	}
-	if err := normalized.Source.Validate(); err != nil {
-		return err
-	}
-	if err := normalized.Status.Validate(); err != nil {
-		return err
-	}
-	if err := validateInstanceLifecycle(normalized.Enabled, normalized.Status); err != nil {
-		return err
-	}
-	if err := normalized.DMPolicy.Validate(); err != nil {
-		return err
-	}
-	if err := normalized.RoutingPolicy.Validate(); err != nil {
-		return err
-	}
-	if _, err := normalizeProviderConfigJSON(normalized.ProviderConfig); err != nil {
-		return err
-	}
-	if _, err := NormalizeDeliveryDefaultsJSON(normalized.DeliveryDefaults); err != nil {
-		return err
-	}
-	if normalized.Degradation != nil {
-		if err := normalized.Degradation.Validate(); err != nil {
-			return err
-		}
-		if normalized.Status.Normalize() != BridgeStatusDegraded &&
-			normalized.Status.Normalize() != BridgeStatusAuthRequired &&
-			normalized.Status.Normalize() != BridgeStatusError {
-			return errors.New("bridges: bridge degradation requires degraded, auth_required, or error status")
-		}
-	}
-	return nil
+	return BridgeInstanceToContract(i).Validate()
 }
 
 // BridgeSecretBinding binds one named bridge secret slot to a daemon-managed secret reference.
@@ -443,41 +338,12 @@ type DeliveryTarget struct {
 // Validate reports whether the delivery target contains a supported mode and
 // the identity fields required by that mode.
 func (t DeliveryTarget) Validate() error {
-	normalized := t.normalize()
-	if err := requireField(normalized.BridgeInstanceID, "delivery target bridge instance id"); err != nil {
-		return err
-	}
-	if err := normalized.Mode.Validate(); err != nil {
-		return err
-	}
-	if normalized.ThreadID != "" && normalized.PeerID == "" && normalized.GroupID == "" {
-		return fmt.Errorf(
-			"bridges: delivery target thread id requires peer id or group id for mode %q",
-			normalized.Mode,
-		)
-	}
-
-	switch normalized.Mode {
-	case DeliveryModeDirectSend, DeliveryModeReply:
-		if normalized.PeerID == "" && normalized.GroupID == "" {
-			return fmt.Errorf(
-				"bridges: delivery target mode %q requires peer id or group id",
-				normalized.Mode,
-			)
-		}
-	}
-
-	return nil
+	return deliveryTargetToContract(t).Validate()
 }
 
 // IsZero reports whether the target carries any values.
 func (t DeliveryTarget) IsZero() bool {
-	normalized := t.normalize()
-	return normalized.BridgeInstanceID == "" &&
-		normalized.PeerID == "" &&
-		normalized.ThreadID == "" &&
-		normalized.GroupID == "" &&
-		normalized.Mode == ""
+	return deliveryTargetToContract(t).IsZero()
 }
 
 // MessageSender identifies the upstream actor that produced an inbound message.
@@ -506,26 +372,21 @@ type DeliveryOperation string
 
 const (
 	// DeliveryOperationPost creates or continues a new daemon-owned delivery.
-	DeliveryOperationPost DeliveryOperation = "post"
+	DeliveryOperationPost DeliveryOperation = DeliveryOperation(bridgecontract.DeliveryOperationPost)
 	// DeliveryOperationEdit updates a previously delivered message in-place.
-	DeliveryOperationEdit DeliveryOperation = "edit"
+	DeliveryOperationEdit DeliveryOperation = DeliveryOperation(bridgecontract.DeliveryOperationEdit)
 	// DeliveryOperationDelete removes a previously delivered message.
-	DeliveryOperationDelete DeliveryOperation = "delete"
+	DeliveryOperationDelete DeliveryOperation = DeliveryOperation(bridgecontract.DeliveryOperationDelete)
 )
 
 // Normalize returns the canonical delivery-operation representation.
 func (o DeliveryOperation) Normalize() DeliveryOperation {
-	return DeliveryOperation(strings.ToLower(strings.TrimSpace(string(o))))
+	return DeliveryOperation(bridgecontract.DeliveryOperation(o).Normalize())
 }
 
 // Validate reports whether the delivery operation belongs to the supported set.
 func (o DeliveryOperation) Validate() error {
-	switch o.Normalize() {
-	case "", DeliveryOperationPost, DeliveryOperationEdit, DeliveryOperationDelete:
-		return nil
-	default:
-		return fmt.Errorf("bridges: unsupported delivery operation %q", strings.TrimSpace(string(o)))
-	}
+	return bridgecontract.DeliveryOperation(o).Validate()
 }
 
 // IngestDedupRecord tracks inbound idempotency keys with an explicit TTL.
@@ -558,40 +419,13 @@ func (r IngestDedupRecord) Validate() error {
 }
 
 func (i BridgeInstance) normalize() BridgeInstance {
-	normalized := i
-	normalized.ID = strings.TrimSpace(normalized.ID)
-	normalized.Scope = normalized.Scope.Normalize()
-	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
-	normalized.Platform = strings.TrimSpace(normalized.Platform)
-	normalized.ExtensionName = strings.TrimSpace(normalized.ExtensionName)
-	normalized.DisplayName = strings.TrimSpace(normalized.DisplayName)
-	normalized.Source = normalized.Source.Normalize()
-	if normalized.Source == "" {
-		normalized.Source = BridgeInstanceSourceDynamic
-	}
-	normalized.Status = normalized.Status.Normalize()
-	normalized.DMPolicy = normalized.DMPolicy.Normalize()
-	if normalized.DMPolicy == "" {
-		normalized.DMPolicy = BridgeDMPolicyOpen
-	}
-	normalized.ProviderConfig = bytes.TrimSpace(normalized.ProviderConfig)
-	normalized.DeliveryDefaults = bytes.TrimSpace(normalized.DeliveryDefaults)
-	if normalized.Degradation != nil {
-		degradation := normalized.Degradation.normalize()
-		if degradation.IsZero() {
-			normalized.Degradation = nil
-		} else {
-			normalized.Degradation = &degradation
-		}
-	}
-	return normalized
+	return bridgeInstanceFromContract(bridgecontract.NormalizeBridgeInstance(BridgeInstanceToContract(i)))
 }
 
 func (d BridgeDegradation) normalize() BridgeDegradation {
-	normalized := d
-	normalized.Reason = normalized.Reason.Normalize()
-	normalized.Message = strings.TrimSpace(normalized.Message)
-	return normalized
+	return bridgeDegradationFromContract(
+		bridgecontract.NormalizeBridgeDegradation(bridgeDegradationToContract(d)),
+	)
 }
 
 func (s BridgeSecretSlot) normalize() BridgeSecretSlot {
@@ -618,13 +452,7 @@ func (b BridgeSecretBinding) normalize() BridgeSecretBinding {
 }
 
 func (t DeliveryTarget) normalize() DeliveryTarget {
-	normalized := t
-	normalized.BridgeInstanceID = strings.TrimSpace(normalized.BridgeInstanceID)
-	normalized.PeerID = strings.TrimSpace(normalized.PeerID)
-	normalized.ThreadID = strings.TrimSpace(normalized.ThreadID)
-	normalized.GroupID = strings.TrimSpace(normalized.GroupID)
-	normalized.Mode = normalized.Mode.Normalize()
-	return normalized
+	return deliveryTargetFromContract(bridgecontract.NormalizeDeliveryTarget(deliveryTargetToContract(t)))
 }
 
 func (r IngestDedupRecord) normalize() IngestDedupRecord {
@@ -639,35 +467,4 @@ func requireField(value string, label string) error {
 		return fmt.Errorf("bridges: %s is required", label)
 	}
 	return nil
-}
-
-func normalizeRawJSON(value json.RawMessage, label string) (json.RawMessage, error) {
-	trimmed := bytes.TrimSpace(value)
-	if len(trimmed) == 0 {
-		return nil, nil
-	}
-	if !json.Valid(trimmed) {
-		return nil, fmt.Errorf("bridges: %s must be valid JSON", label)
-	}
-
-	var compacted bytes.Buffer
-	if err := json.Compact(&compacted, trimmed); err != nil {
-		return nil, fmt.Errorf("bridges: compact %s: %w", label, err)
-	}
-
-	return compacted.Bytes(), nil
-}
-
-func normalizeJSONObject(value json.RawMessage, label string) (json.RawMessage, error) {
-	normalized, err := normalizeRawJSON(value, label)
-	if err != nil {
-		return nil, err
-	}
-	if len(normalized) == 0 || bytes.Equal(normalized, []byte("null")) {
-		return nil, nil
-	}
-	if normalized[0] != '{' {
-		return nil, fmt.Errorf("bridges: %s must be a JSON object or null", label)
-	}
-	return normalized, nil
 }

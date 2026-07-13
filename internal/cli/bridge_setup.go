@@ -265,6 +265,10 @@ func buildBridgeSetupPlan(
 			slots[field.BindingName] = bridgeSetupMaskedSecret
 		}
 	}
+	routingPolicy, err := bridgeSetupRoutingPolicy(descriptor.Platform, input.RoutingPolicy, existing.Bridge)
+	if err != nil {
+		return bridgeSetupPlan{}, err
+	}
 
 	request := CreateBridgeRequest{
 		Scope:          bridgepkg.Scope(input.Scope),
@@ -274,7 +278,7 @@ func buildBridgeSetupPlan(
 		DisplayName:    strings.TrimSpace(input.DisplayName),
 		Enabled:        false,
 		DMPolicy:       bridgepkg.BridgeDMPolicyOpen,
-		RoutingPolicy:  bridgeSetupRoutingPolicy(descriptor.Platform),
+		RoutingPolicy:  routingPolicy,
 		ProviderConfig: contract.BridgeProviderConfigPayload(providerDetails.ProviderConfig),
 	}
 	if existing.Bridge == nil {

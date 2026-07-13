@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -76,9 +76,10 @@ func mapDiscordMessageEvent(
 		providerMessageIDKey:   strings.TrimSpace(event.ID),
 		providerParentIDKey:    strings.TrimSpace(event.ParentID),
 	})
-	if err == nil {
-		envelope.ProviderMetadata = metadata
+	if err != nil {
+		return discordMappedInbound{}, false, fmt.Errorf("discord: encode message metadata: %w", err)
 	}
+	envelope.ProviderMetadata = metadata
 	if err := envelope.Validate(); err != nil {
 		return discordMappedInbound{}, false, err
 	}
@@ -137,9 +138,10 @@ func mapDiscordInteractionCommand(
 		"interaction_id":       strings.TrimSpace(interaction.ID),
 		"kind":                 "application_command",
 	})
-	if err == nil {
-		envelope.ProviderMetadata = metadata
+	if err != nil {
+		return discordMappedInbound{}, fmt.Errorf("discord: encode command metadata: %w", err)
 	}
+	envelope.ProviderMetadata = metadata
 	if err := envelope.Validate(); err != nil {
 		return discordMappedInbound{}, err
 	}
@@ -206,9 +208,10 @@ func mapDiscordInteractionAction(
 		"interaction_id":       strings.TrimSpace(interaction.ID),
 		"kind":                 "message_component",
 	})
-	if err == nil {
-		envelope.ProviderMetadata = metadata
+	if err != nil {
+		return discordMappedInbound{}, fmt.Errorf("discord: encode action metadata: %w", err)
 	}
+	envelope.ProviderMetadata = metadata
 	if err := envelope.Validate(); err != nil {
 		return discordMappedInbound{}, err
 	}
@@ -288,9 +291,10 @@ func mapDiscordReactionEvent(
 		providerGuildIDKey:     strings.TrimSpace(event.GuildID),
 		providerParentIDKey:    strings.TrimSpace(event.ParentID),
 	})
-	if err == nil {
-		envelope.ProviderMetadata = metadata
+	if err != nil {
+		return discordMappedInbound{}, fmt.Errorf("discord: encode reaction metadata: %w", err)
 	}
+	envelope.ProviderMetadata = metadata
 	if err := envelope.Validate(); err != nil {
 		return discordMappedInbound{}, err
 	}

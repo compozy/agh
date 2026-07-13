@@ -11,7 +11,7 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/subprocess"
 	"github.com/compozy/agh/internal/testutil"
@@ -118,9 +118,12 @@ func TestBridgeDeliveryProjectionUsesOneCanonicalPath(t *testing.T) {
 		if calls[0].Event.Progress == nil {
 			t.Fatal("seeded delivery progress = nil, want typed progress")
 		}
-		if got := calls[0].Event.Progress.Preview; strings.Contains(got, "sk-live-replay-secret") ||
-			!strings.Contains(got, "[REDACTED]") {
-			t.Fatalf("seeded delivery preview = %q, want redacted", got)
+		preview := calls[0].Event.Progress.Preview
+		if got, want := preview, `"echo"`; got != want {
+			t.Fatalf("seeded delivery preview = %q, want command-name-only %q", got, want)
+		}
+		if strings.Contains(preview, "sk-live-replay-secret") {
+			t.Fatalf("seeded delivery preview = %q, want no terminal arguments", preview)
 		}
 	})
 

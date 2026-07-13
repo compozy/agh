@@ -16,10 +16,9 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/subprocess"
 	"github.com/compozy/agh/internal/testutil"
 )
@@ -554,30 +553,34 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 		t.Parallel()
 
 		cases := []struct {
-			name        string
-			content     string
-			sendResults []*telegramSentMessage
+			name                string
+			content             string
+			sendResults         []*telegramSentMessage
+			wantCompletedChunks int
 		}{
 			{
 				name:        "Should reject a nil send response",
 				content:     "hello",
-				sendResults: []*telegramSentMessage{nil},
+				sendResults: []*telegramSentMessage{nil, nil, nil},
 			},
 			{
 				name:        "Should reject a zero message id",
 				content:     "hello",
-				sendResults: []*telegramSentMessage{{MessageID: 0}},
+				sendResults: []*telegramSentMessage{{MessageID: 0}, {MessageID: 0}, {MessageID: 0}},
 			},
 			{
 				name:        "Should reject a negative message id",
 				content:     "hello",
-				sendResults: []*telegramSentMessage{{MessageID: -1}},
+				sendResults: []*telegramSentMessage{{MessageID: -1}, {MessageID: -1}, {MessageID: -1}},
 			},
 			{
-				name:    "Should reject a non-positive continuation message id",
-				content: strings.Repeat("continuation ", telegramMaxMessageLen),
+				name:                "Should reject a non-positive continuation message id",
+				content:             strings.Repeat("continuation ", telegramMaxMessageLen),
+				wantCompletedChunks: 1,
 				sendResults: []*telegramSentMessage{
 					{MessageID: 901},
+					{MessageID: 0},
+					{MessageID: 0},
 					{MessageID: 0},
 				},
 			},
@@ -601,10 +604,62 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 				if !errors.As(err, &transientErr) {
 					t.Fatalf("executeDelivery() error = %T %v, want TransientError", err, err)
 				}
-				if gotState != (deliveryState{}) {
-					t.Fatalf("executeDelivery() state = %#v, want unchanged", gotState)
+				if gotState.LastSeq != 0 || gotState.RemoteMessageID != "" || gotState.ReplaceRemoteMessageID != "" {
+					t.Fatalf("executeDelivery() committed state = %#v, want no final acknowledgement", gotState)
+				}
+				if got, want := gotState.Chunks.NextChunk(), testCase.wantCompletedChunks; got != want {
+					t.Fatalf("completed chunk prefix = %d, want %d", got, want)
 				}
 			})
+		}
+	})
+
+	t.Run("Should honor Retry-After for edit and delete operations", func(t *testing.T) {
+		t.Parallel()
+
+		rateLimit := &bridgesdk.RateLimitError{
+			Err:        errors.New("rate limited primary operation"),
+			RetryAfter: time.Nanosecond,
+		}
+		api := &fakeTelegramAPI{
+			editErrors:   []error{rateLimit, nil},
+			deleteErrors: []error{rateLimit, nil},
+		}
+		state := deliveryState{
+			LastSeq:         1,
+			LastContent:     "before",
+			RemoteMessageID: encodeRemoteMessageID("peer-1", 901),
+		}
+		update := testDeliveryRequest(
+			"brg-1",
+			"delivery-primary-retry",
+			2,
+			bridgepkg.DeliveryEventTypeDelta,
+			false,
+		)
+		update.Event.Operation = bridgepkg.DeliveryOperationEdit
+		update.Event.Reference = &bridgepkg.DeliveryMessageReference{RemoteMessageID: state.RemoteMessageID}
+		update.Event.Content.Text = "updated after rate limit"
+
+		ack, state, err := executeDelivery(context.Background(), api, update, state)
+		if err != nil {
+			t.Fatalf("executeDelivery(update) error = %v", err)
+		}
+		if got, want := len(api.editRequests), 2; got != want {
+			t.Fatalf("edit attempts = %d, want %d", got, want)
+		}
+
+		deleteRequest := testDeleteRequest(
+			"brg-1",
+			"delivery-primary-retry",
+			3,
+			ack.RemoteMessageID,
+		)
+		if _, _, err := executeDelivery(context.Background(), api, deleteRequest, state); err != nil {
+			t.Fatalf("executeDelivery(delete) error = %v", err)
+		}
+		if got, want := len(api.deleteRequests), 2; got != want {
+			t.Fatalf("delete attempts = %d, want %d", got, want)
 		}
 	})
 }
@@ -1080,8 +1135,16 @@ func TestExecuteDeliveryFormatsAndChunksCumulativeText(t *testing.T) {
 			sendErrors: []error{
 				&telegramMarkdownParseError{err: errors.New("can't parse entities")},
 				nil,
+				&telegramMarkdownParseError{err: errors.New("can't parse entities")},
+				nil,
+				&telegramMarkdownParseError{err: errors.New("can't parse entities")},
+				nil,
 			},
 			sendResults: []*telegramSentMessage{
+				nil,
+				{MessageID: 0},
+				nil,
+				{MessageID: 0},
 				nil,
 				{MessageID: 0},
 			},
@@ -1100,8 +1163,8 @@ func TestExecuteDeliveryFormatsAndChunksCumulativeText(t *testing.T) {
 		if !errors.As(err, &transientErr) {
 			t.Fatalf("executeDelivery() error = %T %v, want TransientError", err, err)
 		}
-		if gotState != (deliveryState{}) {
-			t.Fatalf("executeDelivery() state = %#v, want unchanged", gotState)
+		if gotState.LastSeq != 0 || gotState.RemoteMessageID != "" || gotState.Chunks.NextChunk() != 0 {
+			t.Fatalf("executeDelivery() state = %#v, want no committed chunk", gotState)
 		}
 	})
 
@@ -1155,6 +1218,54 @@ func TestExecuteDeliveryFormatsAndChunksCumulativeText(t *testing.T) {
 		}
 		if got, want := len(api.sendRequests), 1; got != want {
 			t.Fatalf("SendMessage calls = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should resume at the first unsent chunk after exhausting Retry-After attempts", func(t *testing.T) {
+		t.Parallel()
+
+		request := testDeliveryRequest(
+			"brg-1",
+			"delivery-partial-chunk",
+			1,
+			bridgepkg.DeliveryEventTypeFinal,
+			true,
+		)
+		request.Event.Content.Text = strings.Repeat("partial Telegram delivery ", 400)
+		chunks, _ := telegramDeliveryChunks(request.Event)
+		if len(chunks) < 2 {
+			t.Fatalf("telegramDeliveryChunks() returned %d chunk, want at least 2", len(chunks))
+		}
+
+		api := &fakeTelegramAPI{
+			nextMessageID: 900,
+			sendErrorText: chunks[1].Text,
+			sendError: &bridgesdk.RateLimitError{
+				Err:        errors.New("rate limited continuation"),
+				RetryAfter: time.Nanosecond,
+			},
+		}
+		_, partialState, err := executeDelivery(context.Background(), api, request, deliveryState{})
+		if err == nil {
+			t.Fatal("executeDelivery(partial) error = nil, want exhausted rate limit")
+		}
+		if got, want := countTelegramSendRequests(api.sendRequests, chunks[1].Text), bridgesdk.DefaultRetryConfig().Attempts; got != want {
+			t.Fatalf("failed continuation attempts = %d, want %d", got, want)
+		}
+		if got, want := countTelegramSendRequests(api.successfulSendRequests, chunks[0].Text), 1; got != want {
+			t.Fatalf("successful first-chunk sends = %d, want %d", got, want)
+		}
+
+		api.sendError = nil
+		resume := testTelegramResumeRequest(request)
+		if _, _, err := executeDelivery(context.Background(), api, resume, partialState); err != nil {
+			t.Fatalf("executeDelivery(resume) error = %v", err)
+		}
+		if got, want := countTelegramSendRequests(api.successfulSendRequests, chunks[0].Text), 1; got != want {
+			t.Fatalf("successful first-chunk sends after resume = %d, want %d", got, want)
+		}
+		if got, want := len(api.successfulSendRequests), len(chunks); got != want {
+			t.Fatalf("successful chunk sends = %d, want %d", got, want)
 		}
 	})
 }
@@ -1215,7 +1326,7 @@ func TestRuntimeInitializeStartsWebhookServerAndWritesMarkers(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgeInstanceTargetParams
+			var payload bridgepkg.BridgeInstanceTargetParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -1234,7 +1345,7 @@ func TestRuntimeInitializeStartsWebhookServerAndWritesMarkers(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -1319,7 +1430,7 @@ func TestWebhookIngressRejectsInvalidSecretAndIngestsMessage(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -1340,7 +1451,7 @@ func TestWebhookIngressRejectsInvalidSecretAndIngestsMessage(t *testing.T) {
 			mu.Lock()
 			ingested = append(ingested, envelope)
 			mu.Unlock()
-			return extensioncontract.BridgesMessagesIngestResult{
+			return bridgepkg.BridgesMessagesIngestResult{
 				SessionID:    "sess-1",
 				RouteCreated: true,
 				RoutingKey: bridgepkg.RoutingKey{
@@ -1468,7 +1579,7 @@ func TestRuntimeDeliveriesCallTelegramBotAPI(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -1617,7 +1728,7 @@ func TestHandleShutdownWritesMarker(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -1688,7 +1799,7 @@ func TestResolveInstanceConfigAndHelperNormalization(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -2105,7 +2216,7 @@ func TestWebhookShortCircuitsAndBatchDispatch(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -2126,7 +2237,7 @@ func TestWebhookShortCircuitsAndBatchDispatch(t *testing.T) {
 			mu.Lock()
 			ingested = append(ingested, envelope)
 			mu.Unlock()
-			return extensioncontract.BridgesMessagesIngestResult{
+			return bridgepkg.BridgesMessagesIngestResult{
 				SessionID: "sess-1",
 				RoutingKey: bridgepkg.RoutingKey{
 					Scope:            envelope.Scope,
@@ -2265,15 +2376,20 @@ func TestRunServeReturnsOnEOF(t *testing.T) {
 }
 
 type fakeTelegramAPI struct {
-	methods       []string
-	nextMessageID int64
-	sendRequests  []telegramSendMessageRequest
-	editRequests  []telegramEditMessageTextRequest
-	chatActions   []telegramSendChatActionRequest
-	reactions     []telegramSetMessageReactionRequest
-	sendErrors    []error
-	editErrors    []error
-	sendResults   []*telegramSentMessage
+	methods                []string
+	nextMessageID          int64
+	sendRequests           []telegramSendMessageRequest
+	successfulSendRequests []telegramSendMessageRequest
+	editRequests           []telegramEditMessageTextRequest
+	chatActions            []telegramSendChatActionRequest
+	reactions              []telegramSetMessageReactionRequest
+	deleteRequests         []telegramDeleteMessageRequest
+	sendErrors             []error
+	sendErrorText          string
+	sendError              error
+	editErrors             []error
+	deleteErrors           []error
+	sendResults            []*telegramSentMessage
 }
 
 func (f *fakeTelegramAPI) GetMe(context.Context) (*telegramBotIdentity, error) {
@@ -2288,15 +2404,50 @@ func (f *fakeTelegramAPI) SendMessage(
 	f.methods = append(f.methods, "sendMessage")
 	f.sendRequests = append(f.sendRequests, request)
 	callIndex := len(f.sendRequests) - 1
+	if f.sendError != nil && (f.sendErrorText == "" || request.Text == f.sendErrorText) {
+		return nil, f.sendError
+	}
 	if callIndex < len(f.sendErrors) && f.sendErrors[callIndex] != nil {
 		return nil, f.sendErrors[callIndex]
 	}
+	f.successfulSendRequests = append(f.successfulSendRequests, request)
 	if callIndex < len(f.sendResults) {
 		return f.sendResults[callIndex], nil
 	}
 	messageID := f.nextMessageID
 	f.nextMessageID++
 	return &telegramSentMessage{MessageID: messageID}, nil
+}
+
+func countTelegramSendRequests(requests []telegramSendMessageRequest, text string) int {
+	count := 0
+	for _, request := range requests {
+		if request.Text == text {
+			count++
+		}
+	}
+	return count
+}
+
+func testTelegramResumeRequest(request bridgepkg.DeliveryRequest) bridgepkg.DeliveryRequest {
+	resume := request
+	resume.Event.EventType = bridgepkg.DeliveryEventTypeResume
+	resume.Event.Resume = &bridgepkg.DeliveryResumeState{LatestEventType: bridgepkg.DeliveryEventTypeFinal}
+	resume.Snapshot = &bridgepkg.DeliverySnapshot{
+		DeliveryID:       request.Event.DeliveryID,
+		SessionID:        "sess-resume",
+		TurnID:           "turn-resume",
+		BridgeInstanceID: request.Event.BridgeInstanceID,
+		RoutingKey:       request.Event.RoutingKey,
+		DeliveryTarget:   request.Event.DeliveryTarget,
+		LatestSeq:        request.Event.Seq,
+		LatestEventType:  bridgepkg.DeliveryEventTypeFinal,
+		CurrentContent:   request.Event.Content,
+		Operation:        request.Event.Operation,
+		Final:            true,
+		UpdatedAt:        time.Date(2026, 7, 13, 9, 0, 0, 0, time.UTC),
+	}
+	return resume
 }
 
 func (f *fakeTelegramAPI) EditMessageText(
@@ -2312,8 +2463,13 @@ func (f *fakeTelegramAPI) EditMessageText(
 	return nil
 }
 
-func (f *fakeTelegramAPI) DeleteMessage(_ context.Context, _ telegramDeleteMessageRequest) error {
+func (f *fakeTelegramAPI) DeleteMessage(_ context.Context, request telegramDeleteMessageRequest) error {
 	f.methods = append(f.methods, "deleteMessage")
+	f.deleteRequests = append(f.deleteRequests, request)
+	callIndex := len(f.deleteRequests) - 1
+	if callIndex < len(f.deleteErrors) {
+		return f.deleteErrors[callIndex]
+	}
 	return nil
 }
 

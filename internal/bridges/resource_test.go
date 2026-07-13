@@ -142,22 +142,6 @@ func TestBridgeInstanceResourceCodecAllowsProviderSpecificDeliveryDefaults(t *te
 func TestBridgeProgressConfigValidationAndResolution(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should canonicalize common defaults and preserve provider strings", func(t *testing.T) {
-		t.Parallel()
-
-		got, err := bridgepkg.NormalizeDeliveryDefaultsJSON([]byte(
-			`{"progress":{"tool_progress":" ALL ","grouping":" Separate ","typing":true,"reactions":false},"parse_mode":"MarkdownV2","mode":" DIRECT_SEND "}`,
-		))
-		if err != nil {
-			t.Fatalf("NormalizeDeliveryDefaultsJSON() error = %v", err)
-		}
-
-		want := `{"mode":"direct-send","parse_mode":"MarkdownV2","progress":{"tool_progress":"all","grouping":"separate","typing":true,"reactions":false}}`
-		if string(got) != want {
-			t.Fatalf("NormalizeDeliveryDefaultsJSON() = %s, want %s", got, want)
-		}
-	})
-
 	t.Run("Should validate a typed progress block alongside provider defaults", func(t *testing.T) {
 		t.Parallel()
 
@@ -192,71 +176,6 @@ func TestBridgeProgressConfigValidationAndResolution(t *testing.T) {
 			got.Grouping != bridgepkg.ProgressGroupingSeparate ||
 			!got.Typing || !got.Reactions {
 			t.Fatalf("ResolveProgressConfig(instance) = %#v, want explicit override", got)
-		}
-	})
-
-	invalid := []struct {
-		name     string
-		progress string
-	}{
-		{
-			name:     "Should reject unsupported tool progress mode",
-			progress: `{"tool_progress":"log","grouping":"accumulate","typing":false,"reactions":false}`,
-		},
-		{
-			name:     "Should reject unsupported grouping",
-			progress: `{"tool_progress":"all","grouping":"bubble","typing":false,"reactions":false}`,
-		},
-		{
-			name:     "Should reject non boolean typing",
-			progress: `{"tool_progress":"all","grouping":"accumulate","typing":"yes","reactions":false}`,
-		},
-		{
-			name:     "Should reject non boolean reactions",
-			progress: `{"tool_progress":"all","grouping":"accumulate","typing":false,"reactions":1}`,
-		},
-		{
-			name:     "Should reject unknown progress fields",
-			progress: `{"tool_progress":"all","grouping":"accumulate","typing":false,"reactions":false,"raw_args":true}`,
-		},
-	}
-	for _, tc := range invalid {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			_, err := bridgepkg.NormalizeDeliveryDefaultsJSON(
-				[]byte(`{"progress":` + tc.progress + `}`),
-			)
-			if err == nil {
-				t.Fatal("NormalizeDeliveryDefaultsJSON() error = nil, want typed validation failure")
-			}
-		})
-	}
-
-	t.Run("Should resolve shipped platform defaults and global fallback", func(t *testing.T) {
-		t.Parallel()
-
-		for _, platform := range []string{"slack", "telegram", "discord"} {
-			got := bridgepkg.ResolveProgressConfig(nil, platform)
-			if got.ToolProgress != bridgepkg.ProgressModeNew ||
-				got.Grouping != bridgepkg.ProgressGroupingAccumulate ||
-				!got.Typing ||
-				!got.Reactions {
-				t.Fatalf(
-					"ResolveProgressConfig(nil, %q) = %#v, want new+accumulate with affordances",
-					platform,
-					got,
-				)
-			}
-		}
-		for _, platform := range []string{"teams", "whatsapp", "gchat", "github", "linear", "unknown"} {
-			got := bridgepkg.ResolveProgressConfig(nil, platform)
-			if got.ToolProgress != bridgepkg.ProgressModeOff ||
-				got.Grouping != bridgepkg.ProgressGroupingAccumulate ||
-				got.Typing ||
-				got.Reactions {
-				t.Fatalf("ResolveProgressConfig(nil, %q) = %#v, want off+accumulate without affordances", platform, got)
-			}
 		}
 	})
 }

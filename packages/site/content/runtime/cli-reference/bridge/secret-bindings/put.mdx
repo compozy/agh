@@ -14,10 +14,11 @@ agh bridge secret-bindings put <id> <binding-name> [flags]
 ### Options
 
 ```
-  -h, --help                  help for put
-      --kind string           Binding kind
-      --secret-ref string     Vault secret ref
-      --secret-value string   Optional secret value to persist
+  -h, --help                       help for put
+      --kind string                Binding kind
+      --secret-ref string          Vault secret ref
+      --secret-value-file string   Read the optional write-only secret value from a file
+      --secret-value-stdin         Read the optional write-only secret value from stdin
 ```
 
 ### Options inherited from parent commands

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -122,6 +123,128 @@ func TestFilesImporting(t *testing.T) {
 		writeTestFile(t, root, "broken.go", "package fixture\nimport (\n")
 		if _, err := filesImporting(root, "github.com/compozy/agh/internal/session"); err == nil {
 			t.Fatal("filesImporting(malformed) error = nil, want parse failure")
+		}
+	})
+
+	t.Run("Should match an imported package and its subpackages by prefix", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		writeTestFile(
+			t,
+			root,
+			"root.go",
+			"package fixture\nimport _ \"github.com/compozy/agh/internal/extension\"\n",
+		)
+		writeTestFile(
+			t,
+			root,
+			"child.go",
+			"package fixture\nimport _ \"github.com/compozy/agh/internal/extension/contract\"\n",
+		)
+		writeTestFile(
+			t,
+			root,
+			"neighbor.go",
+			"package fixture\nimport _ \"github.com/compozy/agh/internal/extensionprotocol\"\n",
+		)
+
+		files, err := filesImportingPrefix(root, "github.com/compozy/agh/internal/extension")
+		if err != nil {
+			t.Fatalf("filesImportingPrefix() error = %v", err)
+		}
+		want := []string{filepath.Join(root, "child.go"), filepath.Join(root, "root.go")}
+		if !slices.Equal(files, want) {
+			t.Fatalf("filesImportingPrefix() = %#v, want %#v", files, want)
+		}
+	})
+
+	t.Run("Should reject exact and provider-sibling platform implementation imports", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		writeTestFile(
+			t,
+			root,
+			"root.go",
+			"package fixture\nimport _ \"github.com/compozy/agh/extensions/bridges\"\n",
+		)
+		writeTestFile(
+			t,
+			root,
+			"provider.go",
+			"package fixture\nimport _ \"github.com/compozy/agh/extensions/bridges/slack\"\n",
+		)
+		writeTestFile(
+			t,
+			root,
+			"neighbor.go",
+			"package fixture\nimport _ \"github.com/compozy/agh/extensions/bridgekit\"\n",
+		)
+
+		files, err := filesImportingPrefix(root, "github.com/compozy/agh/extensions/bridges")
+		if err != nil {
+			t.Fatalf("filesImportingPrefix() error = %v", err)
+		}
+		want := []string{filepath.Join(root, "provider.go"), filepath.Join(root, "root.go")}
+		if !slices.Equal(files, want) {
+			t.Fatalf("filesImportingPrefix() = %#v, want exact and provider-sibling imports %#v", files, want)
+		}
+	})
+}
+
+func TestDependencyClosureBoundaries(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject forbidden exact and transitive package families", func(t *testing.T) {
+		t.Parallel()
+
+		rules := []dependencyClosureRule{{
+			root:            "./fixture",
+			allowedPrefixes: []string{aghModulePath + "internal/bridges/contract"},
+			forbiddenPrefixes: []string{
+				aghModulePath + "internal/bridges",
+				aghModulePath + "internal/store",
+				aghModulePath + "internal/extension",
+			},
+		}}
+		violations, err := inspectDependencyClosures(rules, func(root string) ([]string, error) {
+			if root != "./fixture" {
+				t.Fatalf("dependency root = %q, want ./fixture", root)
+			}
+			return []string{
+				"fmt",
+				aghModulePath + "internal/bridges/contract",
+				aghModulePath + "internal/extensionprotocol",
+				aghModulePath + "internal/store/globaldb",
+				aghModulePath + "internal/extension/contract",
+				aghModulePath + "internal/bridges",
+				aghModulePath + "internal/bridges/experimental",
+			}, nil
+		})
+		if err != nil {
+			t.Fatalf("inspectDependencyClosures() error = %v", err)
+		}
+		want := []dependencyClosureViolation{
+			{root: "./fixture", dependency: aghModulePath + "internal/bridges"},
+			{root: "./fixture", dependency: aghModulePath + "internal/bridges/experimental"},
+			{root: "./fixture", dependency: aghModulePath + "internal/extension/contract"},
+			{root: "./fixture", dependency: aghModulePath + "internal/store/globaldb"},
+		}
+		if !slices.Equal(violations, want) {
+			t.Fatalf("inspectDependencyClosures() = %#v, want %#v", violations, want)
+		}
+	})
+
+	t.Run("Should fail closed when dependency listing fails", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := inspectDependencyClosures(
+			[]dependencyClosureRule{{root: "./fixture"}},
+			func(string) ([]string, error) { return nil, errors.New("go list failed") },
+		)
+		if err == nil || !strings.Contains(err.Error(), "go list failed") {
+			t.Fatalf("inspectDependencyClosures() error = %v, want go list failure", err)
 		}
 	})
 }

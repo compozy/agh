@@ -28,7 +28,7 @@ func TestBridgeControlHandlersReturnTypedPayloadsOverUDS(t *testing.T) {
 				bridgepkg.BridgeCheckRequest,
 			) (bridgepkg.BridgeCheckResponse, error) {
 				return bridgepkg.BridgeCheckResponse{Checks: []bridgepkg.BridgeCheckRecord{
-					bridgepkg.PassCheck("provider.identity"),
+					{Check: "provider.identity", Status: bridgepkg.BridgeCheckStatusPass},
 				}}, nil
 			},
 		})

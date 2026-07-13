@@ -4,9 +4,9 @@ area: NB
 title: Recover unfinished bridge delivery after restart
 persona: Omar
 journey: J-recover-mid-turn-restart
-expected: After a daemon restart, every durable active bridge delivery is reconciled within its exact scope and workspace before new prompt or delivery registration side effects; the channel receives a visible standard terminal error post without replaying persisted text, even for append-only providers or a stale remote anchor, and durable metrics survive the restart.
+expected: After a daemon restart, every durable active bridge delivery is reconciled within its exact scope and workspace before new prompt or delivery registration side effects; the channel receives a visible standard terminal error post without replaying persisted text, even for append-only providers or a stale remote anchor; recovery never advances `last_success_at`; a terminal metric-persistence error for one removed or conflicting instance is exposed through redacted health without stopping later healthy-instance metric writes; and the Web detail renders only daemon-owned backlog, failure, drop, authentication-failure, last-success, and active-route values.
 entry_points: Daemon restart during public bridge response delivery; bridge channel; delivery health metrics
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -22,3 +22,5 @@ restart instead of being silently abandoned.
 Added by the Hermes bridge Task 06 impact flag. Task 09 assigned it to `J-recover-mid-turn-restart` and `CH-mid-turn-bridge-restart`; Task 10 owns execution. Planning flag only; no QA session ran.
 
 QA 2026-07-13: broker, GlobalDB, boot, fresh-broker, and exact daemon restart evidence produced one visible terminal post, no text replay, durable metrics, and reconciled ownership. The full provider matrix remains in the automation backlog.
+
+Phase D impact flag 2026-07-13: restart reconciliation no longer fabricates a successful-delivery timestamp; terminal persistence errors for deleted or conflicting instances no longer stop metrics for healthy instances and are exposed as redacted health errors. The Web removed fabricated `Events (24h)` and `Success rate` tiles and now renders only daemon-owned values. Status reset to `untested`; historical restart evidence remains intact. No QA retest ran.

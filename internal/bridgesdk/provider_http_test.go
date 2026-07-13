@@ -2,7 +2,9 @@ package bridgesdk
 
 import (
 	"context"
+	"errors"
 	"io"
+	"net"
 	"net/http"
 	"sync"
 	"testing"
@@ -106,6 +108,34 @@ func TestProviderHTTPServerOwnsListenerLifecycle(t *testing.T) {
 			Handler: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
 		}); err == nil {
 			t.Fatal("NewProviderHTTPServer(without Go) error = nil")
+		}
+	})
+
+	t.Run("Should release the listener when lifecycle ownership rejects startup", func(t *testing.T) {
+		t.Parallel()
+
+		var boundAddress string
+		var server *ProviderHTTPServer
+		var err error
+		server, err = NewProviderHTTPServer(ProviderHTTPConfig{
+			Handler: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
+			Go: func(func()) bool {
+				boundAddress = server.Address()
+				return false
+			},
+		})
+		if err != nil {
+			t.Fatalf("NewProviderHTTPServer() error = %v", err)
+		}
+		if err := server.Start("127.0.0.1:0"); !errors.Is(err, ErrProviderStopped) {
+			t.Fatalf("Start() error = %v, want ErrProviderStopped", err)
+		}
+		listener, err := net.Listen("tcp", boundAddress)
+		if err != nil {
+			t.Fatalf("Listen(%q) after rejected startup error = %v", boundAddress, err)
+		}
+		if err := listener.Close(); err != nil {
+			t.Fatalf("Close(rebound listener) error = %v", err)
 		}
 	})
 }

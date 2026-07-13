@@ -160,6 +160,37 @@ func TestRunner(t *testing.T) {
 }
 
 func TestBridgeProbeCategoryFilter(t *testing.T) {
+	t.Run("Should skip bridge checks without an explicit bridge filter", func(t *testing.T) {
+		t.Parallel()
+
+		source := &bridgeProbeSourceStub{
+			instances: []bridgepkg.BridgeInstance{{
+				ID:            "brg-slack",
+				Platform:      "slack",
+				ExtensionName: "slack",
+			}},
+		}
+		registry := NewRegistry()
+		if err := registry.Register(&BridgeProbe{Source: source}); err != nil {
+			t.Fatalf("Register(bridge) error = %v", err)
+		}
+		runner, err := NewRunner(registry)
+		if err != nil {
+			t.Fatalf("NewRunner() error = %v", err)
+		}
+
+		items, err := runner.Run(context.Background(), RunOptions{})
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if source.listCalls != 0 || source.checkCalls != 0 {
+			t.Fatalf("bridge source calls = list:%d check:%d, want 0/0", source.listCalls, source.checkCalls)
+		}
+		if len(items) != 0 {
+			t.Fatalf("bridge diagnostic count = %d, want 0", len(items))
+		}
+	})
+
 	t.Run("Should run only bridge checks and preserve failing secret remediation", func(t *testing.T) {
 		t.Parallel()
 
@@ -215,6 +246,19 @@ func TestBridgeProbeCategoryFilter(t *testing.T) {
 		}
 		if item.SuggestedCommand != "agh bridge verify brg-slack" {
 			t.Fatalf("SuggestedCommand = %q, want bridge verify follow-up", item.SuggestedCommand)
+		}
+	})
+
+	t.Run("Should never describe a failed check without remediation as passed", func(t *testing.T) {
+		t.Parallel()
+
+		item := bridgeCheckDiagnosticItem(
+			bridgepkg.BridgeInstance{ID: "brg-slack", Platform: "slack", ExtensionName: "slack"},
+			bridgepkg.BridgeCheckRecord{Check: "provider.identity", Status: bridgepkg.BridgeCheckStatusFail},
+		)
+		if item.Severity != contract.SeverityError || strings.Contains(strings.ToLower(item.Message), "passed") ||
+			!strings.Contains(strings.ToLower(item.Message), "no remediation") {
+			t.Fatalf("bridge failure diagnostic = %#v, want explicit missing-remediation error", item)
 		}
 	})
 }

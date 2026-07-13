@@ -8,9 +8,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/agh/internal/bridges"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
-	"github.com/compozy/agh/internal/resources"
+	bridges "github.com/compozy/agh/internal/bridges/contract"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 )
 
 // CloneInitializeRequest returns a deep copy safe to expose to callers.
@@ -29,8 +28,8 @@ func cloneInitializeCapabilities(src InitializeCapabilities) InitializeCapabilit
 	cloned.Provides = append([]string(nil), src.Provides...)
 	cloned.GrantedActions = append([]extensionprotocol.HostAPIMethod(nil), src.GrantedActions...)
 	cloned.GrantedSecurity = append([]string(nil), src.GrantedSecurity...)
-	cloned.GrantedResourceKinds = append([]resources.ResourceKind(nil), src.GrantedResourceKinds...)
-	cloned.GrantedResourceScopes = append([]resources.ResourceScopeKind(nil), src.GrantedResourceScopes...)
+	cloned.GrantedResourceKinds = append([]string(nil), src.GrantedResourceKinds...)
+	cloned.GrantedResourceScopes = append([]string(nil), src.GrantedResourceScopes...)
 	return cloned
 }
 
@@ -58,8 +57,8 @@ type InitializeCapabilities struct {
 	Provides              []string                          `json:"provides"`
 	GrantedActions        []extensionprotocol.HostAPIMethod `json:"granted_actions"`
 	GrantedSecurity       []string                          `json:"granted_security"`
-	GrantedResourceKinds  []resources.ResourceKind          `json:"granted_resource_kinds"`
-	GrantedResourceScopes []resources.ResourceScopeKind     `json:"granted_resource_scopes"`
+	GrantedResourceKinds  []string                          `json:"granted_resource_kinds"`
+	GrantedResourceScopes []string                          `json:"granted_resource_scopes"`
 }
 
 // InitializeMethods lists callable method families for the session.

@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
 	"github.com/compozy/agh/internal/subprocess"
 )
@@ -388,9 +388,7 @@ func (p *discordProvider) handleBridgesDeliver(
 		state,
 	)
 	if err != nil {
-		marker.Error = err.Error()
-		p.markers.RecordDelivery(marker)
-		p.reportDiscordDeliveryError(ctx, session, cfg.instanceID, err)
+		p.recordDeliveryFailure(ctx, session, cfg.instanceID, request, state, marker, err)
 		return bridgepkg.DeliveryAck{}, err
 	}
 

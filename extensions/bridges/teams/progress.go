@@ -8,7 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
 )
 
@@ -58,11 +58,15 @@ func (p *teamsProvider) handleBridgesProgress(
 		return bridgepkg.DeliveryAck{}, errors.New("teams: progress payload is required")
 	}
 
-	state := p.deliveryState(cfg.instanceID, request.Event.DeliveryID)
-	if state.Progress == nil {
-		state.Progress = p.newTeamsProgressDispatcher(cfg, request.Event, progressConfig)
-		p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, state)
-	}
+	state, _ := p.deliveries.UpdateOrCreate(
+		deliveryStateKey(cfg.instanceID, request.Event.DeliveryID),
+		func(state deliveryState, _ bool) deliveryState {
+			if state.Progress == nil {
+				state.Progress = p.newTeamsProgressDispatcher(cfg, request.Event, progressConfig)
+			}
+			return state
+		},
+	)
 	if err := state.Progress.OnProgress(ctx, *request.Event.Progress); err != nil {
 		p.reportTeamsProgressFailure(ctx, session, cfg.instanceID, err)
 		return bridgepkg.DeliveryAck{}, err

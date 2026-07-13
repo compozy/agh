@@ -143,8 +143,11 @@ func TestBridgeSetupVerifyAndSendIntegration(t *testing.T) {
 				t.Fatalf("CheckBridge() extension=%q request=%#v", extensionName, request)
 			}
 			return bridgepkg.BridgeCheckResponse{Checks: []bridgepkg.BridgeCheckRecord{
-				bridgepkg.PassCheck("provider.identity"),
-				bridgepkg.SkippedCheck("webhook.reachability", "Enable the bridge before testing reachability."),
+				{Check: "provider.identity", Status: bridgepkg.BridgeCheckStatusPass},
+				{
+					Check: "webhook.reachability", Status: bridgepkg.BridgeCheckStatusSkipped,
+					Remediation: "Enable the bridge before testing reachability.",
+				},
 			}}, nil
 		}
 		verifyOut := mustExecuteRoot(

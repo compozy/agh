@@ -3,9 +3,10 @@ package bridges
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
+
+	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
 )
 
 // DeliveryMode identifies the daemon-owned outbound delivery behavior requested
@@ -14,33 +15,19 @@ type DeliveryMode string
 
 const (
 	// DeliveryModeDirectSend sends a fresh outbound message into the target conversation.
-	DeliveryModeDirectSend DeliveryMode = "direct-send"
+	DeliveryModeDirectSend DeliveryMode = DeliveryMode(bridgecontract.DeliveryModeDirectSend)
 	// DeliveryModeReply sends an outbound reply within the resolved conversation context.
-	DeliveryModeReply DeliveryMode = "reply"
+	DeliveryModeReply DeliveryMode = DeliveryMode(bridgecontract.DeliveryModeReply)
 )
 
 // Normalize returns the canonical delivery mode representation.
 func (m DeliveryMode) Normalize() DeliveryMode {
-	switch normalized := strings.ToLower(strings.TrimSpace(string(m))); normalized {
-	case "direct", "direct-send", "direct_send", "send":
-		return DeliveryModeDirectSend
-	case "reply", "reply-send", "reply_send":
-		return DeliveryModeReply
-	default:
-		return DeliveryMode(normalized)
-	}
+	return DeliveryMode(bridgecontract.DeliveryMode(m).Normalize())
 }
 
 // Validate reports whether the delivery mode belongs to the supported mode set.
 func (m DeliveryMode) Validate() error {
-	switch normalized := m.Normalize(); normalized {
-	case DeliveryModeDirectSend, DeliveryModeReply:
-		return nil
-	case "":
-		return errors.New("bridges: delivery target mode is required")
-	default:
-		return fmt.Errorf("bridges: unsupported delivery target mode %q", strings.TrimSpace(string(m)))
-	}
+	return bridgecontract.DeliveryMode(m).Validate()
 }
 
 // ResolveDeliveryTargetRequest captures one outbound target request before

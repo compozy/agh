@@ -17,6 +17,7 @@ var ErrProviderStopped = errors.New("bridgesdk: provider stopped")
 type RoutePathFunc[C any] func(C) []string
 
 // RouteMergeFunc carries provider-owned resources from an existing config into its replacement.
+// It must be deterministic and safe to invoke again when reconciliation publishes a finalized snapshot.
 type RouteMergeFunc[C any] func(previous C, next C) C
 
 // RouteTable stores resolved configs by instance and indexes zero or more configs per path.
@@ -43,6 +44,28 @@ func (t *RouteTable[C]) Replace(next map[string]C, merge RouteMergeFunc[C]) []C 
 	if t == nil {
 		return nil
 	}
+	removed, _ := t.replace(next, merge, nil)
+	return removed
+}
+
+// ReplaceWithCleanup commits a route swap only after every removed config is cleaned successfully.
+func (t *RouteTable[C]) ReplaceWithCleanup(
+	next map[string]C,
+	merge RouteMergeFunc[C],
+	cleanup func(C) error,
+) error {
+	if t == nil {
+		return nil
+	}
+	_, err := t.replace(next, merge, cleanup)
+	return err
+}
+
+func (t *RouteTable[C]) replace(
+	next map[string]C,
+	merge RouteMergeFunc[C],
+	cleanup func(C) error,
+) ([]C, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -63,11 +86,18 @@ func (t *RouteTable[C]) Replace(next map[string]C, merge RouteMergeFunc[C]) []C 
 			removed = append(removed, config)
 		}
 	}
+	if cleanup != nil {
+		for _, config := range removed {
+			if err := cleanup(config); err != nil {
+				return nil, err
+			}
+		}
+	}
 	t.routes = replacement
 	t.reindexLocked()
 	close(t.changed)
 	t.changed = make(chan struct{})
-	return removed
+	return removed, nil
 }
 
 // Get returns one config by bridge instance id.

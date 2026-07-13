@@ -85,7 +85,7 @@ export function BridgeSecretSlotCard({
 }: BridgeSecretSlotCardProps) {
   return (
     <article
-      className="rounded-md border border-line bg-canvas-soft px-4 py-3"
+      className="min-w-0 rounded-md border border-line bg-canvas-soft px-4 py-3"
       data-testid={`bridge-secret-binding-${slot.name}`}
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -107,9 +107,9 @@ export function BridgeSecretSlotCard({
         </ul>
       ) : null}
 
-      <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-        <Field>
-          <FieldContent>
+      <div className="mt-3 grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+        <Field className="min-w-0">
+          <FieldContent className="min-w-0">
             <FieldTitle>Secret value</FieldTitle>
             <FieldDescription>
               AGH stores bridge secret values in the vault for this bridge.
@@ -124,8 +124,8 @@ export function BridgeSecretSlotCard({
             value={inputValue}
           />
           {binding ? (
-            <p className="text-xs text-muted">
-              Current ref: <span className="font-mono">{binding.secret_ref}</span>
+            <p className="min-w-0 text-xs text-muted">
+              Current ref: <span className="break-all font-mono">{binding.secret_ref}</span>
             </p>
           ) : (
             <p className="text-xs text-subtle">No secret binding stored.</p>

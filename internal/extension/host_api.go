@@ -837,16 +837,6 @@ type hostAPIResourceGetParams = extensioncontract.ResourceGetParams
 
 type hostAPIResourcesSnapshotParams = extensioncontract.ResourcesSnapshotParams
 
-type hostAPIBridgesMessagesIngestParams = extensioncontract.BridgesMessagesIngestParams
-
-type hostAPIBridgesMessagesIngestResult = extensioncontract.BridgesMessagesIngestResult
-
-type hostAPIBridgeInstanceTargetParams = extensioncontract.BridgeInstanceTargetParams
-
-type hostAPIBridgesInstancesReportStateParams = extensioncontract.BridgesInstancesReportStateParams
-
-type hostAPIBridgeInstance = bridgepkg.BridgeInstance
-
 type hostAPIResourceRecord = extensioncontract.ResourceRecord
 
 func (h *HostAPIHandler) handleSessionsList(ctx context.Context, raw json.RawMessage) (any, error) {

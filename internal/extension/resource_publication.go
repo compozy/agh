@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	aghconfig "github.com/compozy/agh/internal/config"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	toolspkg "github.com/compozy/agh/internal/tools"
 )
 

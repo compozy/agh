@@ -127,19 +127,14 @@ func TestSlackAppManifestContract(t *testing.T) {
 		}
 	})
 
-	t.Run("Should return defensive scope event and relation copies", func(t *testing.T) {
+	t.Run("Should return defensive event and relation copies", func(t *testing.T) {
 		t.Parallel()
 
-		scopes := SlackBotScopes()
 		events := SlackBotEvents()
 		required := SlackRequiredScopesForEvent("message.mpim")
-		scopes[0] = "mutated"
 		events[0] = "mutated"
 		required[0] = "mutated"
 
-		if slices.Contains(SlackBotScopes(), "mutated") {
-			t.Fatal("SlackBotScopes() retained caller mutation")
-		}
 		if slices.Contains(SlackBotEvents(), "mutated") {
 			t.Fatal("SlackBotEvents() retained caller mutation")
 		}

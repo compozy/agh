@@ -13,24 +13,25 @@ import (
 )
 
 type bridgeSetupJSONInput struct {
-	InstanceID        string          `json:"instance_id,omitempty"`
-	Scope             string          `json:"scope,omitempty"`
-	WorkspaceID       string          `json:"workspace_id,omitempty"`
-	DisplayName       string          `json:"display_name,omitempty"`
-	ExtensionName     string          `json:"extension_name,omitempty"`
-	ProviderConfig    json.RawMessage `json:"provider_config,omitempty"`
-	WebhookPublicURL  string          `json:"webhook_public_url,omitempty"`
-	WebhookPath       string          `json:"webhook_path,omitempty"`
-	PhoneNumberID     string          `json:"phone_number_id,omitempty"`
-	AccessToken       string          `json:"access_token,omitempty"`
-	AppSecret         string          `json:"app_secret,omitempty"`
-	VerifyToken       string          `json:"verify_token,omitempty"`
-	BotToken          string          `json:"bot_token,omitempty"`
-	WebhookSecret     string          `json:"webhook_secret,omitempty"`
-	ApplicationID     string          `json:"application_id,omitempty"`
-	PublicKey         string          `json:"public_key,omitempty"`
-	InviteScopes      []string        `json:"invite_scopes,omitempty"`
-	InvitePermissions uint64          `json:"invite_permissions,omitempty"`
+	InstanceID        string                   `json:"instance_id,omitempty"`
+	Scope             string                   `json:"scope,omitempty"`
+	WorkspaceID       string                   `json:"workspace_id,omitempty"`
+	DisplayName       string                   `json:"display_name,omitempty"`
+	ExtensionName     string                   `json:"extension_name,omitempty"`
+	RoutingPolicy     *bridgepkg.RoutingPolicy `json:"routing_policy,omitempty"`
+	ProviderConfig    json.RawMessage          `json:"provider_config,omitempty"`
+	WebhookPublicURL  string                   `json:"webhook_public_url,omitempty"`
+	WebhookPath       string                   `json:"webhook_path,omitempty"`
+	PhoneNumberID     string                   `json:"phone_number_id,omitempty"`
+	AccessToken       string                   `json:"access_token,omitempty"`
+	AppSecret         string                   `json:"app_secret,omitempty"`
+	VerifyToken       string                   `json:"verify_token,omitempty"`
+	BotToken          string                   `json:"bot_token,omitempty"`
+	WebhookSecret     string                   `json:"webhook_secret,omitempty"`
+	ApplicationID     string                   `json:"application_id,omitempty"`
+	PublicKey         string                   `json:"public_key,omitempty"`
+	InviteScopes      []string                 `json:"invite_scopes,omitempty"`
+	InvitePermissions uint64                   `json:"invite_permissions,omitempty"`
 }
 
 type bridgeSetupProviderDetails struct {
@@ -65,6 +66,13 @@ func bridgeSetupInputFromWizard(
 			[]string{values[bridgeSetupInviteScopesKey]},
 		),
 	}
+	if descriptor.Platform == bridgeSetupPlatformTelegram {
+		routingPolicy, err := telegramRoutingPolicyForShape(values[bridgeSetupRoutingShapeKey])
+		if err != nil {
+			return bridgeSetupJSONInput{}, err
+		}
+		input.RoutingPolicy = &routingPolicy
+	}
 	if existing != nil {
 		input.InstanceID = existing.ID
 		input.ProviderConfig = append(json.RawMessage(nil), existing.ProviderConfig...)
@@ -95,6 +103,9 @@ func bridgeSetupWizardDefaults(
 		bridgeSetupInviteScopesKey:      "bot, applications.commands",
 		bridgeSetupInvitePermissionsKey: strconv.FormatUint(bridgeSetupDiscordDefaultPermissions, 10),
 	}
+	if descriptor.Platform == bridgeSetupPlatformTelegram {
+		values[bridgeSetupRoutingShapeKey] = bridgeSetupTelegramRoutingShapeForum
+	}
 	if existing != nil {
 		values[bridgeSetupScopeKey] = string(existing.Scope.Normalize())
 		values[bridgeSetupWorkspaceIDKey] = strings.TrimSpace(existing.WorkspaceID)
@@ -108,6 +119,13 @@ func bridgeSetupWizardDefaults(
 		values[bridgeSetupWebhookPathKey] = providerConfigString(config, "webhook", "path")
 		values[bridgeSetupPhoneNumberIDKey] = providerConfigString(config, "phone_number_id")
 		values[bridgeSetupApplicationIDKey] = providerConfigString(config, "application_id")
+		if descriptor.Platform == bridgeSetupPlatformTelegram {
+			routingShape, shapeErr := telegramRoutingShapeForPolicy(existing.RoutingPolicy)
+			if shapeErr != nil {
+				return nil, shapeErr
+			}
+			values[bridgeSetupRoutingShapeKey] = routingShape
+		}
 		if scopes := providerConfigStrings(config, "invite", "scopes"); len(scopes) > 0 {
 			values[bridgeSetupInviteScopesKey] = strings.Join(scopes, ", ")
 		}

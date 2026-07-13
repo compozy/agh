@@ -15,10 +15,9 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -321,7 +320,7 @@ func TestResolveManagedInstanceRequiresExplicitSelectionForMultiplexedProvider(t
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
 		func(_ context.Context, raw json.RawMessage) (any, error) {
-			var params extensioncontract.BridgeInstanceTargetParams
+			var params bridgepkg.BridgeInstanceTargetParams
 			if err := json.Unmarshal(raw, &params); err != nil {
 				return nil, err
 			}
@@ -340,7 +339,7 @@ func TestResolveManagedInstanceRequiresExplicitSelectionForMultiplexedProvider(t
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, raw json.RawMessage) (any, error) {
-			var params extensioncontract.BridgesInstancesReportStateParams
+			var params bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(raw, &params); err != nil {
 				return nil, err
 			}
@@ -476,7 +475,7 @@ func TestRuntimeInitializeWritesOwnershipAndPerInstanceStateMarkers(t *testing.T
 
 	listedIDs := make([]string, 0)
 	gotIDs := make([]string, 0)
-	reportedStatuses := make([]extensioncontract.BridgesInstancesReportStateParams, 0)
+	reportedStatuses := make([]bridgepkg.BridgesInstancesReportStateParams, 0)
 	var mu sync.Mutex
 
 	instanceByID := map[string]bridgepkg.BridgeInstance{
@@ -499,7 +498,7 @@ func TestRuntimeInitializeWritesOwnershipAndPerInstanceStateMarkers(t *testing.T
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgeInstanceTargetParams
+			var payload bridgepkg.BridgeInstanceTargetParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -514,7 +513,7 @@ func TestRuntimeInitializeWritesOwnershipAndPerInstanceStateMarkers(t *testing.T
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -609,7 +608,7 @@ func TestRuntimePollsInboundUpdatesAndRetriesNotInitialized(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -633,7 +632,7 @@ func TestRuntimePollsInboundUpdatesAndRetriesNotInitialized(t *testing.T) {
 			if err := json.Unmarshal(params, &envelope); err != nil {
 				return nil, err
 			}
-			return extensioncontract.BridgesMessagesIngestResult{
+			return bridgepkg.BridgesMessagesIngestResult{
 				SessionID:    "sess-1",
 				RouteCreated: true,
 				RoutingKey: bridgepkg.RoutingKey{
@@ -710,7 +709,7 @@ func TestRuntimeDeliveryWritesAckAndManagedInstanceErrors(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -789,7 +788,7 @@ func TestRuntimeInitializeWritesOwnershipErrorAndStillReportsState(t *testing.T)
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}

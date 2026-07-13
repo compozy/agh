@@ -1,6 +1,6 @@
 ---
 title: Bridge Setup
-description: Choose a bundled provider, follow its operator guide, and prove the inbound and outbound path before production use.
+description: Build and install an in-tree provider, follow its operator guide, and prove the inbound and outbound path before production use.
 ---
 
 Bridge setup has two boundaries: the external platform and the AGH runtime. A complete setup proves
@@ -50,20 +50,63 @@ and Linear use `agh bridge create` followed by explicit secret bindings.
   issue/review comment or Agent Session activity, not a generic channel message.
 </OperatorNote>
 
+## Install an in-tree provider
+
+The AGH source repository contains these eight provider implementations, but released `agh`
+artifacts do not include their executables or install them automatically. Start from a trusted AGH
+source checkout with the Go toolchain available, then build and install the provider from the
+repository root:
+
+```bash
+PROVIDER=slack
+# Choose: slack, telegram, discord, whatsapp, teams, gchat, github, or linear.
+
+mkdir -p "./extensions/bridges/$PROVIDER/bin"
+go build \
+  -o "./extensions/bridges/$PROVIDER/bin/$PROVIDER" \
+  "./extensions/bridges/$PROVIDER"
+
+agh extension install \
+  "./extensions/bridges/$PROVIDER" \
+  --allow-unverified \
+  --yes \
+  -o json
+
+agh extension status "$PROVIDER" -o json
+```
+
+`--allow-unverified` is the explicit trust decision for a local source directory. `--yes` makes that
+decision non-interactive when structured output is requested. The install copies the provider into
+the AGH extension home and enables it; run `agh extension enable "$PROVIDER" -o json` only if it was
+disabled later.
+
+`GET /api/bridges/providers` returns installed extensions that declare `bridge.adapter`, including
+disabled providers. Check the response's `enabled`, `state`, and `health` fields before creating a
+bridge instance. Presence in the catalog does not mean the provider is enabled or healthy.
+
+<OperatorNote>
+  External bridge authoring is not yet a first-class public SDK workflow. The public extension SDKs
+  do not cover the complete bridge service and control handshakes, marketplace installs cannot
+  receive the required bridge grants, and there is no public bridge conformance harness. The current
+  provider author guide is for trusted in-tree contributions.
+</OperatorNote>
+
 ## Prerequisites
 
 - The AGH daemon is running.
 - The destination workspace exists and has a default agent.
-- The provider extension is installed and enabled.
+- The selected in-tree provider passes the install and status checks above.
 - You can administer the external app, bot, webhook, or repository integration.
 - A stable public HTTPS URL can reach the provider's local listener.
 - You have a secret manager or shell environment ready for provider credentials.
 
-Inspect the extension and provider catalogs before creating anything:
+Inspect the workspace, extension registry, provider catalog, and existing bridge instances before
+creating anything:
 
 ```bash
 agh workspace list -o json
 agh extension list -o json
+curl -sS http://127.0.0.1:2123/api/bridges/providers | jq
 agh bridge list --scope workspace --workspace-id ws_8f33a913d23c4fd1 -o json
 ```
 
@@ -74,8 +117,9 @@ creating the bridge:
 agh workspace edit <workspace-name-or-id> --default-agent <agent-name>
 ```
 
-The provider catalog is also available at `GET /api/bridges/providers` over HTTP and UDS. Do not
-continue with a provider that is absent or disabled; creating an instance cannot install its owner.
+The HTTP response and the equivalent UDS route expose the same provider catalog. Confirm the chosen
+row's `extension_name`, `enabled`, `state`, and `health`. Do not continue with a provider that is
+absent, disabled, or unhealthy; creating an instance cannot install or enable its owner.
 
 ## Understand the network boundary
 
@@ -140,10 +184,10 @@ Each guide names the exact slots and where their values originate. A binding wri
 once and returns only redacted metadata later:
 
 ```bash
-agh bridge secret-bindings put "$BRIDGE_ID" <slot> \
+printf '%s' "$PROVIDER_SECRET" | agh bridge secret-bindings put "$BRIDGE_ID" <slot> \
   --secret-ref "vault:bridges/$BRIDGE_ID/<slot>" \
   --kind <token-or-secret-kind> \
-  --secret-value "$PROVIDER_SECRET"
+  --secret-value-stdin
 
 agh bridge secret-bindings list "$BRIDGE_ID" -o json
 ```

@@ -108,7 +108,30 @@ func bridgeSetupBindings(state bridgeSetupExistingState) []BridgeSecretBindingRe
 	return bindings
 }
 
-func bridgeSetupRoutingPolicy(platform string) bridgepkg.RoutingPolicy {
+func bridgeSetupRoutingPolicy(
+	platform string,
+	requested *bridgepkg.RoutingPolicy,
+	existing *BridgeRecord,
+) (bridgepkg.RoutingPolicy, error) {
+	policy := bridgeSetupDefaultRoutingPolicy(platform)
+	if existing != nil {
+		policy = existing.RoutingPolicy
+	}
+	if requested != nil {
+		policy = *requested
+	}
+	if err := policy.Validate(); err != nil {
+		return bridgepkg.RoutingPolicy{}, fmt.Errorf("cli: invalid bridge setup routing policy: %w", err)
+	}
+	if platform == bridgeSetupPlatformTelegram {
+		if _, err := telegramRoutingShapeForPolicy(policy); err != nil {
+			return bridgepkg.RoutingPolicy{}, err
+		}
+	}
+	return policy, nil
+}
+
+func bridgeSetupDefaultRoutingPolicy(platform string) bridgepkg.RoutingPolicy {
 	switch platform {
 	case bridgeSetupPlatformTelegram:
 		return bridgepkg.RoutingPolicy{IncludeThread: true, IncludeGroup: true}

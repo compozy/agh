@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
 )
 
@@ -54,16 +54,26 @@ func (p *gchatProvider) handleBridgesProgress(
 		return bridgepkg.DeliveryAck{}, errors.New("gchat: progress payload is required")
 	}
 
-	state := p.deliveryState(cfg.instanceID, request.Event.DeliveryID)
-	if state.Progress == nil {
-		target, err := resolveGChatDeliveryTarget(request.Event)
-		if err != nil {
-			wrapped := fmt.Errorf("gchat: resolve progress target: %w", err)
-			p.reportGChatProgressFailure(ctx, session, cfg.instanceID, wrapped)
-			return bridgepkg.DeliveryAck{}, wrapped
-		}
-		state.Progress = p.newGChatProgressDispatcher(&cfg, request.Event, progressConfig, target)
-		p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, request.Event, state)
+	var resolveErr error
+	state, _ := p.deliveries.UpdateOrCreate(
+		deliveryStateKey(cfg.instanceID, request.Event.DeliveryID),
+		func(state deliveryState, _ bool) deliveryState {
+			if state.Progress != nil {
+				return state
+			}
+			target, err := resolveGChatDeliveryTarget(request.Event)
+			if err != nil {
+				resolveErr = err
+				return state
+			}
+			state.Progress = p.newGChatProgressDispatcher(&cfg, request.Event, progressConfig, target)
+			return state
+		},
+	)
+	if resolveErr != nil {
+		wrapped := fmt.Errorf("gchat: resolve progress target: %w", resolveErr)
+		p.reportGChatProgressFailure(ctx, session, cfg.instanceID, wrapped)
+		return bridgepkg.DeliveryAck{}, wrapped
 	}
 	if err := state.Progress.OnProgress(ctx, *request.Event.Progress); err != nil {
 		p.reportGChatProgressFailure(ctx, session, cfg.instanceID, err)

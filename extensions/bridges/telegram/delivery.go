@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
 )
 
@@ -23,6 +23,7 @@ type deliveryState struct {
 	RemoteMessageID        string
 	ReplaceRemoteMessageID string
 	PreviewOnly            bool
+	Chunks                 bridgesdk.DeliveryChunkCursor
 	Progress               *bridgesdk.ProgressDispatcher
 }
 
@@ -132,7 +133,7 @@ func executeTelegramDelete(
 	if err != nil {
 		return bridgepkg.DeliveryAck{}, state, err
 	}
-	if err := api.DeleteMessage(ctx, telegramDeleteMessageRequest{
+	if err := deleteTelegramDeliveryMessage(ctx, api, telegramDeleteMessageRequest{
 		ChatID:    chatID,
 		MessageID: messageID,
 	}); err != nil {
@@ -161,8 +162,17 @@ func executeTelegramPost(
 		return bridgepkg.DeliveryAck{}, state, err
 	}
 	chunks, previewOnly := telegramDeliveryChunks(event)
-	lastRemoteID := ""
-	for _, chunk := range chunks {
+	state.Chunks = bridgesdk.BeginDeliveryChunks(
+		state.Chunks,
+		event.Seq,
+		bridgesdk.DeliveryChunkModeCreate,
+		len(chunks),
+		event.Content.Text,
+		"",
+		state.RemoteMessageID,
+	)
+	for index := state.Chunks.NextChunk(); index < len(chunks); index++ {
+		chunk := chunks[index]
 		sent, err := sendTelegramOutbound(ctx, api, telegramSendMessageRequest{
 			ChatID:          targetChatID,
 			MessageThreadID: messageThreadID,
@@ -170,10 +180,13 @@ func executeTelegramPost(
 		if err != nil {
 			return bridgepkg.DeliveryAck{}, state, err
 		}
-		lastRemoteID = encodeRemoteMessageID(targetChatID, sent.MessageID)
+		state.Chunks = state.Chunks.Advance(encodeRemoteMessageID(targetChatID, sent.MessageID))
 	}
 
-	ack := newTelegramDeliveryAck(event, lastRemoteID, state.RemoteMessageID)
+	lastRemoteID := state.Chunks.LastRemoteMessageID()
+	replaceRemoteID := state.Chunks.ReplaceRemoteMessageID()
+	state.Chunks = bridgesdk.DeliveryChunkCursor{}
+	ack := newTelegramDeliveryAck(event, lastRemoteID, replaceRemoteID)
 	state.LastSeq = event.Seq
 	state.LastContent = event.Content.Text
 	state.ReplaceRemoteMessageID = state.RemoteMessageID
@@ -220,15 +233,29 @@ func executeTelegramEdit(
 		return bridgepkg.DeliveryAck{}, state, err
 	}
 	chunks, previewOnly := telegramDeliveryChunks(event)
-	if err := editTelegramOutbound(ctx, api, telegramEditMessageTextRequest{
-		ChatID:    chatID,
-		MessageID: messageID,
-	}, chunks[0]); err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
+	replaceRemoteID := firstNonEmpty(state.RemoteMessageID, remoteID)
+	state.Chunks = bridgesdk.BeginDeliveryChunks(
+		state.Chunks,
+		event.Seq,
+		bridgesdk.DeliveryChunkModeUpdate,
+		len(chunks),
+		event.Content.Text,
+		remoteID,
+		replaceRemoteID,
+	)
+	for index := state.Chunks.NextChunk(); index < len(chunks); index++ {
+		chunk := chunks[index]
+		if index == 0 {
+			if err := editTelegramOutbound(ctx, api, telegramEditMessageTextRequest{
+				ChatID:    chatID,
+				MessageID: messageID,
+			}, chunk); err != nil {
+				return bridgepkg.DeliveryAck{}, state, err
+			}
+			state.Chunks = state.Chunks.Advance(remoteID)
+			continue
+		}
 
-	lastRemoteID := remoteID
-	for _, chunk := range chunks[1:] {
 		sent, err := sendTelegramOutbound(ctx, api, telegramSendMessageRequest{
 			ChatID:          chatID,
 			MessageThreadID: messageThreadID,
@@ -236,79 +263,19 @@ func executeTelegramEdit(
 		if err != nil {
 			return bridgepkg.DeliveryAck{}, state, err
 		}
-		lastRemoteID = encodeRemoteMessageID(chatID, sent.MessageID)
+		state.Chunks = state.Chunks.Advance(encodeRemoteMessageID(chatID, sent.MessageID))
 	}
 
-	ack = newTelegramDeliveryAck(event, lastRemoteID, firstNonEmpty(state.RemoteMessageID, remoteID))
+	lastRemoteID := state.Chunks.LastRemoteMessageID()
+	replaceRemoteID = state.Chunks.ReplaceRemoteMessageID()
+	state.Chunks = bridgesdk.DeliveryChunkCursor{}
+	ack = newTelegramDeliveryAck(event, lastRemoteID, replaceRemoteID)
 	state.LastSeq = event.Seq
 	state.LastContent = event.Content.Text
 	state.RemoteMessageID = lastRemoteID
 	state.ReplaceRemoteMessageID = ack.ReplaceRemoteMessageID
 	state.PreviewOnly = previewOnly
 	return ack, state, ack.ValidateFor(event)
-}
-
-func sendTelegramOutbound(
-	ctx context.Context,
-	api telegramAPI,
-	request telegramSendMessageRequest,
-	outbound telegramOutboundText,
-) (*telegramSentMessage, error) {
-	request.Text = outbound.Text
-	request.ParseMode = outbound.ParseMode
-	sent, err := api.SendMessage(ctx, request)
-	if err == nil {
-		return validatedTelegramSentMessage(sent)
-	}
-	var parseErr *telegramMarkdownParseError
-	if outbound.ParseMode == "" || !errors.As(err, &parseErr) {
-		return nil, fmt.Errorf("telegram: send outbound text: %w", err)
-	}
-	request.Text = outbound.PlainText
-	request.ParseMode = ""
-	sent, err = api.SendMessage(ctx, request)
-	if err != nil {
-		return nil, fmt.Errorf("telegram: send plain-text fallback: %w", err)
-	}
-	return validatedTelegramSentMessage(sent)
-}
-
-func validatedTelegramSentMessage(message *telegramSentMessage) (*telegramSentMessage, error) {
-	if message == nil {
-		return nil, &bridgesdk.TransientError{
-			Err: errors.New("telegram: send message returned no response"),
-		}
-	}
-	if message.MessageID <= 0 {
-		return nil, &bridgesdk.TransientError{
-			Err: fmt.Errorf("telegram: send message returned invalid message id %d", message.MessageID),
-		}
-	}
-	return message, nil
-}
-
-func editTelegramOutbound(
-	ctx context.Context,
-	api telegramAPI,
-	request telegramEditMessageTextRequest,
-	outbound telegramOutboundText,
-) error {
-	request.Text = outbound.Text
-	request.ParseMode = outbound.ParseMode
-	err := api.EditMessageText(ctx, request)
-	if err == nil {
-		return nil
-	}
-	var parseErr *telegramMarkdownParseError
-	if outbound.ParseMode == "" || !errors.As(err, &parseErr) {
-		return fmt.Errorf("telegram: edit outbound text: %w", err)
-	}
-	request.Text = outbound.PlainText
-	request.ParseMode = ""
-	if err := api.EditMessageText(ctx, request); err != nil {
-		return fmt.Errorf("telegram: edit plain-text fallback: %w", err)
-	}
-	return nil
 }
 
 func telegramDeliveryChunks(event bridgepkg.DeliveryEvent) ([]telegramOutboundText, bool) {

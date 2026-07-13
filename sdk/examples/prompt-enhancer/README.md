@@ -27,13 +27,16 @@ npm run build
 
 The build emits `dist/index.js`, which is used by both the persistent subprocess runtime and the one-shot hook executor.
 
-## Install
+## Managed-install boundary
 
-Build first, then install the extension directory:
+This example uses `@agh/extension-sdk` through the repository's `workspace:*` dependency. Its
+`node_modules/@agh/extension-sdk` entry resolves outside this extension root, and the built
+JavaScript keeps that runtime import. AGH's managed installer intentionally rejects dependency
+symlinks that escape the source package.
 
-```bash
-agh extension install ./sdk/examples/prompt-enhancer
-```
+Use this directory to exercise the SDK from the repository checkout. Do not present it as an
+installable standalone package until the SDK dependency is published or materialized inside the
+extension root.
 
 ## Manifest Summary
 

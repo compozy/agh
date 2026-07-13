@@ -2,7 +2,9 @@ package bridgesdk
 
 import (
 	"context"
+	"errors"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -108,6 +110,32 @@ func TestManagedConfigReconcilerPreservesRouteTransitions(t *testing.T) {
 			t.Fatalf("removed = %#v, want [brg-a]", removed)
 		}
 	})
+
+	t.Run("Should preserve the prior route snapshot when removed-resource cleanup fails", func(t *testing.T) {
+		t.Parallel()
+
+		routes := NewRouteTable[providerReconcileTestConfig](nil)
+		routes.Replace(map[string]providerReconcileTestConfig{
+			"brg-old": {InstanceID: "brg-old", Generation: 1},
+		}, nil)
+		cleanupErr := errors.New("close listener")
+		reconciler := ManagedConfigReconciler[providerReconcileTestConfig]{
+			Routes:    routes,
+			Identity:  func(config providerReconcileTestConfig) string { return config.InstanceID },
+			OnRemoved: func(providerReconcileTestConfig) error { return cleanupErr },
+		}
+
+		err := reconciler.Publish([]providerReconcileTestConfig{{InstanceID: "brg-new", Generation: 2}})
+		if !errors.Is(err, cleanupErr) {
+			t.Fatalf("Publish() error = %v, want cleanup error", err)
+		}
+		if _, ok := routes.Get("brg-old"); !ok {
+			t.Fatal("Get(brg-old) found = false after failed cleanup")
+		}
+		if _, ok := routes.Get("brg-new"); ok {
+			t.Fatal("Get(brg-new) found = true after failed cleanup")
+		}
+	})
 }
 
 func TestRouteTableWaitAndDeliveryStateStore(t *testing.T) {
@@ -180,6 +208,62 @@ func TestRouteTableWaitAndDeliveryStateStore(t *testing.T) {
 		}
 		if _, ok := store.Load("dlv-2"); ok {
 			t.Fatal("Load(dlv-2) remained present after Drain()")
+		}
+	})
+
+	t.Run("Should create delivery state once under concurrent access", func(t *testing.T) {
+		t.Parallel()
+
+		store := NewDeliveryStateStore[providerReconcileTestConfig]()
+		var creates int
+		var createsMu sync.Mutex
+		var wg sync.WaitGroup
+		for range 32 {
+			wg.Go(func() {
+				state, _ := store.UpdateOrCreate(
+					"dlv-shared",
+					func(current providerReconcileTestConfig, exists bool) providerReconcileTestConfig {
+						if !exists {
+							createsMu.Lock()
+							creates++
+							createsMu.Unlock()
+							current.Generation = 1
+						}
+						return current
+					},
+				)
+				if state.Generation != 1 {
+					t.Errorf("UpdateOrCreate() state = %#v, want generation 1", state)
+				}
+			})
+		}
+		wg.Wait()
+		if creates != 1 {
+			t.Fatalf("state creations = %d, want 1", creates)
+		}
+	})
+
+	t.Run("Should evict delivery state by age and capacity", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Unix(1_000, 0)
+		store := NewDeliveryStateStore(
+			WithDeliveryStateRetention[providerReconcileTestConfig](2, time.Minute, func() time.Time { return now }),
+		)
+		store.Store("dlv-oldest", providerReconcileTestConfig{Generation: 1})
+		now = now.Add(time.Second)
+		store.Store("dlv-middle", providerReconcileTestConfig{Generation: 2})
+		now = now.Add(time.Second)
+		store.Store("dlv-newest", providerReconcileTestConfig{Generation: 3})
+		if _, ok := store.Load("dlv-oldest"); ok {
+			t.Fatal("Load(dlv-oldest) found = true after capacity eviction")
+		}
+		now = now.Add(time.Minute)
+		if _, ok := store.Load("dlv-middle"); ok {
+			t.Fatal("Load(dlv-middle) found = true after TTL expiry")
+		}
+		if _, ok := store.Load("dlv-newest"); ok {
+			t.Fatal("Load(dlv-newest) found = true after TTL expiry")
 		}
 	})
 

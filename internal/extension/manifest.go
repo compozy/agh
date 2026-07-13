@@ -15,8 +15,8 @@ import (
 	"github.com/BurntSushi/toml"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
 	"github.com/compozy/agh/internal/extension/surfaces"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/compozy/agh/internal/resources"
 	toolspkg "github.com/compozy/agh/internal/tools"

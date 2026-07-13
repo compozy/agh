@@ -84,6 +84,12 @@ func TestStringRedactsCanonicalSecretTaxonomy(t *testing.T) {
 			leaks: []string{"dXNlcjpwYXNz"},
 		},
 		{
+			name:  "Should redact URL userinfo credentials",
+			input: "curl https://admin:s3cr3t@example.com/private",
+			want:  "curl https://[REDACTED]@example.com/private",
+			leaks: []string{"admin", "s3cr3t"},
+		},
+		{
 			name:  "Should redact generic token assignments",
 			input: "connect: token=cause-secret",
 			leaks: []string{"cause-secret"},
@@ -164,6 +170,21 @@ func TestStringUsesDynamicSecretsAndRemainsIdempotent(t *testing.T) {
 			if IsSensitiveKey(key) {
 				t.Fatalf("IsSensitiveKey(%q) = true, want public diagnostic key", key)
 			}
+		}
+	})
+
+	t.Run("Should own task claim detection and claim-only redaction", func(t *testing.T) {
+		t.Parallel()
+
+		if !ContainsRawClaimToken("prefix AGH_CLAIM_secret-value suffix") {
+			t.Fatal("ContainsRawClaimToken() = false, want true")
+		}
+		if ContainsRawClaimToken("field name agh_claim_token") {
+			t.Fatal("ContainsRawClaimToken(placeholder) = true, want false")
+		}
+		if got, want := ClaimTokens("AGH_CLAIM_secret-value api_key=visible"),
+			"agh_claim_[REDACTED] api_key=visible"; got != want {
+			t.Fatalf("ClaimTokens() = %q, want %q", got, want)
 		}
 	})
 }

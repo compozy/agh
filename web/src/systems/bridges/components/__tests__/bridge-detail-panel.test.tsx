@@ -188,14 +188,30 @@ describe("BridgeDetailPanel", () => {
     expect(screen.getByTestId("bridge-detail-empty")).toBeInTheDocument();
   });
 
-  it("Should preserve the detail header, metrics, and event traceability", () => {
+  it("Should render only daemon-owned delivery metrics and preserve event traceability", () => {
     const route = makeRoute({ session_id: "sess_trace_123" });
-    renderPanel({ health: makeHealth({ delivery_backlog: 4, route_count: 1 }), routes: [route] });
+    renderPanel({
+      health: makeHealth({
+        auth_failures_total: 2,
+        delivery_backlog: 4,
+        delivery_dropped_total: 3,
+        delivery_failures_total: 5,
+        last_success_at: "2026-04-13T12:20:00Z",
+        route_count: 1,
+      }),
+      routes: [route],
+    });
 
     const header = screen.getByTestId("bridge-detail-header");
     expect(header).toHaveAttribute("data-slot", "detail-header");
     expect(within(header).getByRole("heading", { level: 1 })).toHaveTextContent("Support");
-    expect(document.querySelectorAll('[data-slot="metric"]')).toHaveLength(4);
+    expect(document.querySelectorAll('[data-slot="metric"]')).toHaveLength(6);
+    expect(screen.getByTestId("bridge-metric-delivery-backlog")).toHaveTextContent("4");
+    expect(screen.getByTestId("bridge-metric-delivery-failures")).toHaveTextContent("5");
+    expect(screen.getByTestId("bridge-metric-delivery-dropped")).toHaveTextContent("3");
+    expect(screen.getByTestId("bridge-metric-auth-failures")).toHaveTextContent("2");
+    expect(screen.queryByText("Events (24h)")).not.toBeInTheDocument();
+    expect(screen.queryByText("Success rate")).not.toBeInTheDocument();
     expect(screen.getByTestId("bridge-route-sess_trace_123")).toHaveTextContent("sess_trace_123");
   });
 

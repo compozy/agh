@@ -33,20 +33,16 @@ Tool progress is off by default. Enable sparse progress posts for a bridge insta
 
 The provider sends each projected status as a separate text message. The daemon applies `new`-mode tool projection before the provider receives an event. WhatsApp progress does not use edit, typing, or reaction operations. If an instance selects `grouping: "accumulate"`, updates append only the newest status line as another text message because the Cloud API cannot edit an existing text message.
 
-## Build
+## Build and install
 
-From the repository root:
+Released `agh` artifacts do not include this provider executable. From a trusted AGH source
+checkout, run this from the repository root with the daemon running:
 
 ```bash
+mkdir -p ./extensions/bridges/whatsapp/bin
 go build -o ./extensions/bridges/whatsapp/bin/whatsapp ./extensions/bridges/whatsapp
-```
-
-## Install
-
-Build the binary first, then install the extension directory:
-
-```bash
-agh extension install ./extensions/bridges/whatsapp
+agh extension install ./extensions/bridges/whatsapp --allow-unverified --yes -o json
+agh extension status whatsapp -o json
 ```
 
 ## Provider Config
@@ -58,6 +54,7 @@ The bridge instance `provider_config` JSON object currently supports:
   "api_version": "v21.0",
   "phone_number_id": "1234567890",
   "webhook": {
+    "public_url": "https://bridge.example.com/whatsapp/support",
     "listen_addr": "127.0.0.1:8080",
     "path": "/whatsapp/brg-main"
   },
@@ -83,3 +80,7 @@ Notes:
 - `AGH_BRIDGE_WHATSAPP_API_BASE_URL` is an operator-owned process override for local development and integration tests. Bridge config cannot change the credential-bearing API destination.
 - Direct-message enforcement uses the bridge instance `dm_policy` plus the provider-config allowlist or paired-user fields.
 - WhatsApp Cloud API does not support bridge-level delete semantics and the provider reports those requests as permanent unsupported operations.
+
+See the [WhatsApp operator setup guide](../../../packages/site/content/runtime/core/bridges/setup-whatsapp.mdx)
+for Meta app setup, challenge/signature verification, route access, real delivery testing, and
+troubleshooting.

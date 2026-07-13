@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
 )
 
@@ -16,6 +16,7 @@ type deliveryState struct {
 	LastSeq                int64
 	RemoteMessageID        string
 	ReplaceRemoteMessageID string
+	Chunks                 bridgesdk.DeliveryChunkCursor
 	Progress               *bridgesdk.ProgressDispatcher
 }
 
@@ -37,6 +38,17 @@ func (p *slackProvider) storeDeliveryState(
 	}
 	p.deliveries.Store(key, state)
 	return nil
+}
+
+func (p *slackProvider) storeDeliveryRetryState(
+	instanceID string,
+	deliveryID string,
+	state deliveryState,
+) {
+	if !state.Chunks.Active() {
+		return
+	}
+	p.deliveries.Store(deliveryStateKey(instanceID, deliveryID), state)
 }
 
 func (p *slackProvider) detachProgressDispatcher(
@@ -145,7 +157,11 @@ func executeSlackDelete(
 	if err != nil {
 		return bridgepkg.DeliveryAck{}, state, err
 	}
-	if err := api.DeleteMessage(ctx, slackDeleteMessageRequest{Channel: channel, TS: timestamp}); err != nil {
+	if err := deleteSlackDeliveryMessage(
+		ctx,
+		api,
+		slackDeleteMessageRequest{Channel: channel, TS: timestamp},
+	); err != nil {
 		return bridgepkg.DeliveryAck{}, state, err
 	}
 	ack := bridgepkg.DeliveryAck{
@@ -169,7 +185,7 @@ func executeSlackCreate(
 	threadTS string,
 ) (bridgepkg.DeliveryAck, deliveryState, error) {
 	event := request.Event
-	if normalizeDeliveryEventType(event.EventType) == bridgepkg.DeliveryEventTypeResume {
+	if normalizeDeliveryEventType(event.EventType) == bridgepkg.DeliveryEventTypeResume && !state.Chunks.Active() {
 		matched, err := reconcileSlackDelivery(ctx, api, event, channelID, threadTS)
 		if err != nil {
 			return bridgepkg.DeliveryAck{}, state, err
@@ -179,13 +195,30 @@ func executeSlackCreate(
 			if err != nil {
 				return bridgepkg.DeliveryAck{}, state, err
 			}
-			return slackCreateAck(event, state, channelID, matchedTimestamp)
+			return slackCreateAck(event, state, channelID, matchedTimestamp, state.RemoteMessageID)
 		}
 	}
 
 	chunks := slackDeliveryChunks(event)
+	state.Chunks = bridgesdk.BeginDeliveryChunks(
+		state.Chunks,
+		event.Seq,
+		bridgesdk.DeliveryChunkModeCreate,
+		len(chunks),
+		event.Content.Text,
+		"",
+		state.RemoteMessageID,
+	)
 	lastTimestamp := ""
-	for index, chunk := range chunks {
+	if remoteID := state.Chunks.LastRemoteMessageID(); remoteID != "" {
+		_, decodedTimestamp, err := decodeRemoteMessageID(remoteID)
+		if err != nil {
+			return bridgepkg.DeliveryAck{}, state, err
+		}
+		lastTimestamp = decodedTimestamp
+	}
+	for index := state.Chunks.NextChunk(); index < len(chunks); index++ {
+		chunk := chunks[index]
 		request := slackPostMessageRequest{
 			Channel:  channelID,
 			ThreadTS: threadTS,
@@ -195,7 +228,7 @@ func executeSlackCreate(
 		if index == len(chunks)-1 {
 			request.Metadata = slackDeliveryMetadata(event)
 		}
-		sent, err := api.PostMessage(ctx, request)
+		sent, err := postSlackDeliveryMessage(ctx, api, request)
 		if err != nil {
 			return bridgepkg.DeliveryAck{}, state, err
 		}
@@ -203,8 +236,11 @@ func executeSlackCreate(
 		if err != nil {
 			return bridgepkg.DeliveryAck{}, state, err
 		}
+		state.Chunks = state.Chunks.Advance(encodeRemoteMessageID(channelID, lastTimestamp))
 	}
-	return slackCreateAck(event, state, channelID, lastTimestamp)
+	replaceRemoteID := state.Chunks.ReplaceRemoteMessageID()
+	state.Chunks = bridgesdk.DeliveryChunkCursor{}
+	return slackCreateAck(event, state, channelID, lastTimestamp, replaceRemoteID)
 }
 
 func reconcileSlackDelivery(
@@ -218,7 +254,7 @@ func reconcileSlackDelivery(
 	if !ok {
 		return nil, nil
 	}
-	return reconciler.FindDeliveryMessage(ctx, slackFindDeliveryMessageRequest{
+	return findSlackDeliveryMessage(ctx, reconciler, slackFindDeliveryMessageRequest{
 		Channel:          channelID,
 		ThreadTS:         threadTS,
 		DeliveryID:       event.DeliveryID,
@@ -231,6 +267,7 @@ func slackCreateAck(
 	state deliveryState,
 	channelID string,
 	timestamp string,
+	replaceRemoteMessageID string,
 ) (bridgepkg.DeliveryAck, deliveryState, error) {
 	remoteID := encodeRemoteMessageID(channelID, timestamp)
 	ack := bridgepkg.DeliveryAck{
@@ -239,7 +276,7 @@ func slackCreateAck(
 		RemoteMessageID: remoteID,
 	}
 	state.LastSeq = event.Seq
-	state.ReplaceRemoteMessageID = state.RemoteMessageID
+	state.ReplaceRemoteMessageID = replaceRemoteMessageID
 	state.RemoteMessageID = remoteID
 	if state.ReplaceRemoteMessageID != "" {
 		ack.ReplaceRemoteMessageID = state.ReplaceRemoteMessageID
@@ -275,26 +312,40 @@ func executeSlackUpdate(
 	}
 
 	chunks := slackDeliveryChunks(event)
-	if err := api.UpdateMessage(ctx, slackUpdateMessageRequest{
-		Channel: channel,
-		TS:      timestamp,
-		Text:    chunks[0],
-	}); err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
+	replaceRemoteID := firstNonEmpty(state.RemoteMessageID, remoteID)
+	state.Chunks = bridgesdk.BeginDeliveryChunks(
+		state.Chunks,
+		event.Seq,
+		bridgesdk.DeliveryChunkModeUpdate,
+		len(chunks),
+		event.Content.Text,
+		remoteID,
+		replaceRemoteID,
+	)
+	for index := state.Chunks.NextChunk(); index < len(chunks); index++ {
+		chunk := chunks[index]
+		if index == 0 {
+			if err := updateSlackDeliveryMessage(ctx, api, slackUpdateMessageRequest{
+				Channel: channel,
+				TS:      timestamp,
+				Text:    chunk,
+			}); err != nil {
+				return bridgepkg.DeliveryAck{}, state, err
+			}
+			state.Chunks = state.Chunks.Advance(remoteID)
+			continue
+		}
 
-	lastRemoteID := remoteID
-	for index, chunk := range chunks[1:] {
 		post := slackPostMessageRequest{
 			Channel:  channel,
 			ThreadTS: threadTS,
 			Text:     chunk,
 			Mrkdwn:   true,
 		}
-		if index == len(chunks)-2 {
+		if index == len(chunks)-1 {
 			post.Metadata = slackDeliveryMetadata(event)
 		}
-		sent, err := api.PostMessage(ctx, post)
+		sent, err := postSlackDeliveryMessage(ctx, api, post)
 		if err != nil {
 			return bridgepkg.DeliveryAck{}, state, err
 		}
@@ -302,14 +353,17 @@ func executeSlackUpdate(
 		if err != nil {
 			return bridgepkg.DeliveryAck{}, state, err
 		}
-		lastRemoteID = encodeRemoteMessageID(channel, postedTimestamp)
+		state.Chunks = state.Chunks.Advance(encodeRemoteMessageID(channel, postedTimestamp))
 	}
 
+	lastRemoteID := state.Chunks.LastRemoteMessageID()
+	replaceRemoteID = state.Chunks.ReplaceRemoteMessageID()
+	state.Chunks = bridgesdk.DeliveryChunkCursor{}
 	ack := bridgepkg.DeliveryAck{
 		DeliveryID:             event.DeliveryID,
 		Seq:                    event.Seq,
 		RemoteMessageID:        lastRemoteID,
-		ReplaceRemoteMessageID: firstNonEmpty(state.RemoteMessageID, remoteID),
+		ReplaceRemoteMessageID: replaceRemoteID,
 	}
 	state.LastSeq = event.Seq
 	state.RemoteMessageID = lastRemoteID
@@ -333,7 +387,11 @@ func slackPostedTimestamp(message *slackPostedMessage) (string, error) {
 }
 
 func slackDeliveryChunks(event bridgepkg.DeliveryEvent) []string {
-	chunks := bridgesdk.ChunkMessage(formatOutbound(event.Content.Text), slackMaxMessageLen, nil)
+	chunks := bridgesdk.ChunkMessage(
+		formatOutbound(event.Content.Text),
+		slackMaxMessageLen,
+		bridgesdk.UTF16Len,
+	)
 	if !materializeAllSlackChunks(event) && len(chunks) > 1 {
 		return chunks[:1]
 	}

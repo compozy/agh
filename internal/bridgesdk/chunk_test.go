@@ -282,6 +282,59 @@ func TestChunkMessage(t *testing.T) {
 	})
 }
 
+func TestDeliveryChunkCursor(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should retain the acknowledged prefix only for the same delivery attempt", func(t *testing.T) {
+		t.Parallel()
+
+		cursor := BeginDeliveryChunks(
+			DeliveryChunkCursor{},
+			7,
+			DeliveryChunkModeUpdate,
+			3,
+			"current content",
+			"remote-anchor",
+			"remote-replaced",
+		)
+		cursor = cursor.Advance("remote-anchor").Advance("remote-continuation")
+		resumed := BeginDeliveryChunks(
+			cursor,
+			7,
+			DeliveryChunkModeUpdate,
+			3,
+			"current content",
+			"ignored-anchor",
+			"ignored-replaced",
+		)
+		if got, want := resumed.NextChunk(), 2; got != want {
+			t.Fatalf("NextChunk() = %d, want %d", got, want)
+		}
+		if got, want := resumed.LastRemoteMessageID(), "remote-continuation"; got != want {
+			t.Fatalf("LastRemoteMessageID() = %q, want %q", got, want)
+		}
+		if got, want := resumed.ReplaceRemoteMessageID(), "remote-replaced"; got != want {
+			t.Fatalf("ReplaceRemoteMessageID() = %q, want %q", got, want)
+		}
+
+		fresh := BeginDeliveryChunks(
+			resumed,
+			8,
+			DeliveryChunkModeCreate,
+			2,
+			"different content",
+			"",
+			"",
+		)
+		if got := fresh.NextChunk(); got != 0 {
+			t.Fatalf("fresh NextChunk() = %d, want 0", got)
+		}
+		if got := fresh.LastRemoteMessageID(); got != "" {
+			t.Fatalf("fresh LastRemoteMessageID() = %q, want empty", got)
+		}
+	})
+}
+
 func TestUTF16Len(t *testing.T) {
 	t.Parallel()
 

@@ -3,11 +3,12 @@ title: Bridges Overview
 description: How AGH bridge instances connect workspace agents to external messaging platforms.
 ---
 
-A bridge is a workspace-facing adapter between AGH sessions and an external platform. AGH ships
-providers for Slack, Discord, Telegram, WhatsApp, Microsoft Teams, Google Chat, GitHub, and Linear;
-installed extensions can add more through the `bridge.adapter` capability. The bridge instance
-stores the operator-owned configuration, while the provider extension owns webhook validation,
-message normalization, and outbound delivery.
+A bridge is a workspace-facing adapter between AGH sessions and an external platform. The AGH source
+repository contains in-tree providers for Slack, Discord, Telegram, WhatsApp, Microsoft Teams,
+Google Chat, GitHub, and Linear. They are not embedded in the released `agh` binary: build and
+install the provider from a trusted source checkout before configuring its bridge instances. The
+bridge instance stores the operator-owned configuration, while the provider extension owns webhook
+validation, message normalization, and outbound delivery.
 
 That split keeps AGH responsible for sessions, routing, persistence, and delivery bookkeeping while
 letting each platform adapter speak the platform API directly.
@@ -49,7 +50,7 @@ letting each platform adapter speak the platform API directly.
     href="/runtime/core/bridges/setup"
     label="Setup"
     title="Platform Setup"
-    description="Configure all eight bundled providers with CLI-first secret, webhook, and verification flows."
+    description="Build and install an in-tree provider, then configure credentials, webhooks, routing, and verification."
     meta="How-to"
   />
   <RouteRow
@@ -62,8 +63,8 @@ letting each platform adapter speak the platform API directly.
   <RouteRow
     href="/runtime/core/bridges/adding-a-bridge"
     label="Authoring"
-    title="Add a Bridge Provider"
-    description="Declare, implement, verify, and document a bridge.adapter extension."
+    title="Contribute an In-Tree Bridge Provider"
+    description="Declare, implement, verify, and document a provider inside the AGH repository."
     meta="Developer guide"
   />
 </RouteList>
@@ -96,10 +97,11 @@ and real outbound-delivery proofs all pass.
 | Target directory   | AGH daemon          | Stores provider-discovered immutable target identities and resolver indexes for operator-friendly names.                           |
 | Delivery target    | Delivery broker     | Identifies where a response should be posted, replied to, edited, or deleted on the platform.                                      |
 
-The provider catalog is dynamic. `GET /api/bridges/providers` returns every installed and enabled
-extension that provides `bridge.adapter`. In this repository, the catalog includes provider
-manifests for Slack, Discord, Telegram, WhatsApp, Microsoft Teams, Google Chat, GitHub, and Linear.
-The setup section covers every bundled provider and calls out mode-dependent credentials explicitly.
+The provider catalog is dynamic. `GET /api/bridges/providers` returns installed extensions that
+provide `bridge.adapter`, including disabled providers. Inspect each descriptor's `enabled`, `state`,
+and `health` before creating an instance. The source repository contains provider manifests for
+Slack, Discord, Telegram, WhatsApp, Microsoft Teams, Google Chat, GitHub, and Linear. The setup
+section covers every in-tree provider and calls out mode-dependent credentials explicitly.
 
 ## Message flow
 
@@ -163,7 +165,7 @@ Bridge instances are persisted runtime records. They are created through the bri
   "dm_policy": "allowlist",
   "routing_policy": {
     "include_peer": false,
-    "include_thread": true,
+    "include_thread": false,
     "include_group": true
   },
   "provider_config": {
@@ -178,7 +180,6 @@ Bridge instances are persisted runtime records. They are created through the bri
   },
   "delivery_defaults": {
     "group_id": "C0123456789",
-    "thread_id": "1713200000.000100",
     "mode": "direct-send"
   }
 }
@@ -220,10 +221,10 @@ plaintext only through the write-only `secret_value` field and never returns it:
 ```bash
 BRIDGE_ID=brg_123
 
-agh bridge secret-bindings put "$BRIDGE_ID" bot_token \
+printf '%s' "$SLACK_BOT_TOKEN" | agh bridge secret-bindings put "$BRIDGE_ID" bot_token \
   --secret-ref "vault:bridges/$BRIDGE_ID/bot_token" \
   --kind token \
-  --secret-value "$SLACK_BOT_TOKEN"
+  --secret-value-stdin
 ```
 
 The reference must be scoped to the edited bridge: `vault:bridges/<bridge>/<slot>`. Restart or
@@ -256,7 +257,7 @@ instance's operator-declared delivery defaults. The daemon validates snapshots, 
 `bridge_target_directory`, and records the latest successful refresh time. The directory refreshes
 when an extension runtime connects and then every five minutes while that runtime remains connected.
 
-The bundled provider walkthroughs use operator-declared delivery defaults for target snapshots.
+The in-tree provider walkthroughs use operator-declared delivery defaults for target snapshots.
 Native platform discovery such as Slack `conversations.list` is not part of the v1 target-directory
 contract.
 

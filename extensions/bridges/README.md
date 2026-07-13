@@ -1,16 +1,42 @@
 # Bridge Providers
 
-Each directory with an `extension.toml` is discovered as an in-tree bridge provider. There is no
-central provider registry.
+Each provider implementation lives in its own directory with an `extension.toml`; there is no
+central source-tree registry. Released `agh` artifacts do not include these provider executables or
+install them automatically.
 
 ## Start here
 
 - Operator setup: `packages/site/content/runtime/core/bridges/setup.mdx`
-- Provider author walkthrough: `packages/site/content/runtime/core/bridges/adding-a-bridge.mdx`
+- In-tree provider author walkthrough: `packages/site/content/runtime/core/bridges/adding-a-bridge.mdx`
 - In-repo review checklist: `internal/bridges/ADDING_A_BRIDGE.md`
 - CI-safe protocol example: `sdk/examples/telegram-reference`
 
-## Bundled providers
+## Build and install
+
+From a trusted AGH source checkout, run this from the repository root with the daemon running:
+
+```bash
+PROVIDER=slack
+# Choose: slack, telegram, discord, whatsapp, teams, gchat, github, or linear.
+
+mkdir -p "./extensions/bridges/$PROVIDER/bin"
+go build \
+  -o "./extensions/bridges/$PROVIDER/bin/$PROVIDER" \
+  "./extensions/bridges/$PROVIDER"
+
+agh extension install \
+  "./extensions/bridges/$PROVIDER" \
+  --allow-unverified \
+  --yes \
+  -o json
+
+agh extension status "$PROVIDER" -o json
+```
+
+The local install is an explicit trust decision. It copies the provider into the AGH extension home
+and enables it; use `agh extension enable "$PROVIDER" -o json` only if it was disabled later.
+
+## In-tree providers
 
 | Directory  | Platform        | Inbound model                                 | Outbound model                           |
 | ---------- | --------------- | --------------------------------------------- | ---------------------------------------- |

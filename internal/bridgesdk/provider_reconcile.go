@@ -91,13 +91,8 @@ func (r *ManagedConfigReconciler[C]) Publish(configs []C) error {
 		}
 		next[instanceID] = config
 	}
-	removed := r.Routes.Replace(next, r.Merge)
-	if r.OnRemoved != nil {
-		for _, config := range removed {
-			if err := r.OnRemoved(config); err != nil {
-				return fmt.Errorf("bridgesdk: clean removed provider config: %w", err)
-			}
-		}
+	if err := r.Routes.ReplaceWithCleanup(next, r.Merge, r.OnRemoved); err != nil {
+		return fmt.Errorf("bridgesdk: clean removed provider config: %w", err)
 	}
 	return nil
 }

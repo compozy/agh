@@ -52,7 +52,7 @@
 - `bunx turbo run build --filter=./packages/site` passed and generated 1,578 static pages. The existing Next workspace-root/multiple-lockfile warning remains unrelated.
 - The task-requested combined Turbo `lint` lane cannot exist for `@agh/site` because that package defines no `lint` task. Oxfmt is the focused owner for changed MDX/Markdown/JSON; global Bun lint remains deferred with the final workflow gate by explicit user direction.
 - Manual truth audit passed: Discord uses Ed25519 plus Discord REST; Teams uses Bot Framework identity/service URLs; GitHub uses PAT or GitHub App bindings; Linear separates comments/Agent Sessions from API-key/OAuth authentication.
-- QA tracker: `NB-051` already covers bridge-provider setup documentation as `untested`, so no duplicate row was added.
+- QA tracker: `NB-bridge-provider-setup` already covers bridge-provider setup documentation as `untested`, so no duplicate scenario was added.
 
 ## AGH Impact Audit
 

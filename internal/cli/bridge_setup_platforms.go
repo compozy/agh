@@ -30,6 +30,7 @@ const (
 	bridgeSetupInviteScopesKey      = "invite_scopes"
 	bridgeSetupPhoneNumberIDKey     = "phone_number_id"
 	bridgeSetupPublicKeyKey         = "public_key"
+	bridgeSetupRoutingShapeKey      = "routing_shape"
 	bridgeSetupScopeKey             = "scope"
 	bridgeSetupVerifyTokenKey       = "verify_token"
 	bridgeSetupWebhookPathKey       = "webhook_path"
@@ -39,8 +40,11 @@ const (
 )
 
 const (
-	bridgeSetupDiscordDefaultPermissions = uint64(68672)
-	bridgeSetupMaskedSecret              = "********"
+	bridgeSetupDiscordDefaultPermissions   = uint64(68672)
+	bridgeSetupMaskedSecret                = "********"
+	bridgeSetupTelegramRoutingShapePrivate = "private"
+	bridgeSetupTelegramRoutingShapeGroup   = "group"
+	bridgeSetupTelegramRoutingShapeForum   = "forum"
 )
 
 var (
@@ -119,12 +123,51 @@ func whatsAppBridgeSetupDescriptor() bridgeSetupDescriptor {
 	}
 }
 
+func validateTelegramRoutingShape(value string) error {
+	_, err := telegramRoutingPolicyForShape(value)
+	return err
+}
+
+func telegramRoutingPolicyForShape(value string) (bridgepkg.RoutingPolicy, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case bridgeSetupTelegramRoutingShapePrivate:
+		return bridgepkg.RoutingPolicy{IncludePeer: true}, nil
+	case bridgeSetupTelegramRoutingShapeGroup:
+		return bridgepkg.RoutingPolicy{IncludeGroup: true}, nil
+	case bridgeSetupTelegramRoutingShapeForum:
+		return bridgepkg.RoutingPolicy{IncludeGroup: true, IncludeThread: true}, nil
+	default:
+		return bridgepkg.RoutingPolicy{}, errors.New(
+			"Telegram route shape must be private, group, or forum",
+		)
+	}
+}
+
+func telegramRoutingShapeForPolicy(policy bridgepkg.RoutingPolicy) (string, error) {
+	switch policy {
+	case bridgepkg.RoutingPolicy{IncludePeer: true}:
+		return bridgeSetupTelegramRoutingShapePrivate, nil
+	case bridgepkg.RoutingPolicy{IncludeGroup: true}:
+		return bridgeSetupTelegramRoutingShapeGroup, nil
+	case bridgepkg.RoutingPolicy{IncludeGroup: true, IncludeThread: true}:
+		return bridgeSetupTelegramRoutingShapeForum, nil
+	default:
+		return "", errors.New(
+			"cli: Telegram routing_policy must select exactly one supported shape: private, group, or forum",
+		)
+	}
+}
+
 func telegramBridgeSetupDescriptor() bridgeSetupDescriptor {
 	return bridgeSetupDescriptor{
 		Platform:      bridgeSetupPlatformTelegram,
 		DisplayName:   "Telegram bridge",
 		ExtensionName: bridgeSetupPlatformTelegram,
 		Prompts: append(bridgeSetupCommonPrompts(),
+			bridgeSetupPrompt{
+				Key: bridgeSetupRoutingShapeKey, Label: "Telegram route shape (private, group, or forum)",
+				Required: true, Validate: validateTelegramRoutingShape,
+			},
 			bridgeSetupPrompt{
 				Key: bridgeSetupBotTokenKey, Label: "BotFather bot token",
 				Secret: true, Required: true, Validate: validateTelegramBotToken,

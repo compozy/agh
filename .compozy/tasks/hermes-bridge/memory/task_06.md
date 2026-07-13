@@ -59,5 +59,5 @@
 
 - Focused `-race` lanes passed for inbound/domain/broker/cache, GlobalDB migration/store/restart/isolation, Host API render/admission, Slack/Telegram/GChat mapping, the Telegram reference adapter, fresh-broker integration, daemon admission, and the two exact daemon E2Es.
 - `make codegen-check`, TypeScript SDK Host API test/typecheck, site typecheck, QA CSV validation, gofmt/diff checks, and scoped/diff-aware golangci-lint passed. Global suites and `make verify` remain intentionally deferred to the workflow tail by user direction.
-- QA impact rows `NB-053` and `NB-054` are `untested`; no QA execution occurred.
+- QA scenarios `NB-bridge-edit-reply` and `NB-bridge-restart-recovery` are `untested`; no QA execution occurred.
 - AGH Impact Audit: native tool IDs/toolsets/descriptors are unchanged; Host API JSON-RPC/SDK and bridge extensions changed; reply caches and ledger/metrics are exact workspace/instance/conversation scoped; the official `skills/agh/` runtime reference is updated; no hooks, bundles, bridge config keys, or `config.toml` defaults changed.

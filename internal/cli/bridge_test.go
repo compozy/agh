@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -763,6 +765,100 @@ func TestBridgeTargetsUseDaemonClientAndRenderDirectory(t *testing.T) {
 	}
 }
 
+func TestBridgeSecretBindingPutReadsWriteOnlyValuesOutsideArgv(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should read the optional secret value from stdin", func(t *testing.T) {
+		t.Parallel()
+
+		var captured BridgeSecretBindingRequest
+		deps := newTestDeps(t, &stubClient{
+			putBridgeSecretBindingFn: func(
+				_ context.Context,
+				id string,
+				bindingName string,
+				request BridgeSecretBindingRequest,
+			) (BridgeSecretBindingRecord, error) {
+				if id != "brg-1" || bindingName != "bot_token" {
+					t.Fatalf("PutBridgeSecretBinding() target = %q/%q", id, bindingName)
+				}
+				captured = request
+				return BridgeSecretBindingRecord{BridgeInstanceID: id, BindingName: bindingName}, nil
+			},
+		})
+		_, _, err := executeRootCommandWithInput(
+			t,
+			deps,
+			"  super-secret-token\n",
+			"bridge", "secret-bindings", "put", "brg-1", "bot_token",
+			"--secret-ref", "vault:bridges/brg-1/bot_token",
+			"--kind", "token",
+			"--secret-value-stdin",
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("bridge secret-bindings put error = %v", err)
+		}
+		if captured.SecretValue == nil || *captured.SecretValue != "super-secret-token" {
+			t.Fatalf("captured SecretValue = %#v, want trimmed stdin value", captured.SecretValue)
+		}
+	})
+
+	t.Run("Should reject the retired inline secret flag", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{})
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"bridge", "secret-bindings", "put", "brg-1", "bot_token",
+			"--secret-ref", "vault:bridges/brg-1/bot_token",
+			"--kind", "token",
+			"--secret-value", "must-not-enter-argv",
+		)
+		if err == nil || !strings.Contains(err.Error(), "unknown flag") {
+			t.Fatalf("inline --secret-value error = %v, want unknown flag", err)
+		}
+	})
+
+	t.Run("Should read multiline secret material from a bounded file", func(t *testing.T) {
+		t.Parallel()
+
+		secretPath := filepath.Join(t.TempDir(), "private-key.pem")
+		if err := os.WriteFile(secretPath, []byte("  -----BEGIN KEY-----\nmaterial\n-----END KEY-----\n"), 0o600); err != nil {
+			t.Fatalf("WriteFile(secret) error = %v", err)
+		}
+		var captured BridgeSecretBindingRequest
+		deps := newTestDeps(t, &stubClient{
+			putBridgeSecretBindingFn: func(
+				_ context.Context,
+				_ string,
+				_ string,
+				request BridgeSecretBindingRequest,
+			) (BridgeSecretBindingRecord, error) {
+				captured = request
+				return BridgeSecretBindingRecord{}, nil
+			},
+		})
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"bridge", "secret-bindings", "put", "brg-1", "private_key",
+			"--secret-ref", "vault:bridges/brg-1/private_key",
+			"--kind", "private-key",
+			"--secret-value-file", secretPath,
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("bridge secret-bindings put file error = %v", err)
+		}
+		want := "-----BEGIN KEY-----\nmaterial\n-----END KEY-----"
+		if captured.SecretValue == nil || *captured.SecretValue != want {
+			t.Fatalf("captured SecretValue = %#v, want multiline file value", captured.SecretValue)
+		}
+	})
+}
+
 func TestBridgeResolveUsesDaemonClientAndReportsAmbiguity(t *testing.T) {
 	t.Parallel()
 
@@ -884,7 +980,7 @@ func TestBridgeVerifyRendersStructuredResultsAndFailsOnProviderCheck(t *testing.
 				return BridgeVerifyRecord{
 					BridgeInstanceID: id,
 					Checks: []bridgepkg.BridgeCheckRecord{
-						bridgepkg.PassCheck("webhook.configuration"),
+						{Check: "webhook.configuration", Status: bridgepkg.BridgeCheckStatusPass},
 						{
 							Check:       "provider.identity",
 							Status:      bridgepkg.BridgeCheckStatusFail,

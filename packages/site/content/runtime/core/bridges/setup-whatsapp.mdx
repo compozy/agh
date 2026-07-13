@@ -41,6 +41,20 @@ of this page covers that handoff and the evidence to expect.
 You need a Meta Business account, a Meta app with the WhatsApp product enabled, and a WhatsApp
 Business phone number. Start in the [Meta app dashboard](https://developers.facebook.com/apps/).
 
+Before configuring Meta, prove that the locally built provider is installed and visible in the
+daemon catalog:
+
+```bash
+PROVIDER=whatsapp
+agh extension status "$PROVIDER" -o json
+curl -sS http://127.0.0.1:2123/api/bridges/providers | \
+  jq --arg provider "$PROVIDER" '.providers[] | select(.extension_name == $provider)'
+```
+
+Continue only when the extension is enabled and the catalog row is not disabled or unhealthy. If
+either command has no provider, follow [Install an in-tree
+provider](/runtime/core/bridges/setup#install-an-in-tree-provider) first.
+
 ## Step 1: Create the Meta app and collect credentials
 
 1. In the Meta app dashboard, select **Create app** and choose the WhatsApp business use case.
@@ -263,21 +277,22 @@ is operator-owned process configuration, never mutable `provider_config`.
 ```bash
 agh bridge disable "$BRIDGE_ID"
 
-agh bridge secret-bindings put "$BRIDGE_ID" access_token \
+printf '%s' "$NEW_WHATSAPP_ACCESS_TOKEN" | agh bridge secret-bindings put "$BRIDGE_ID" access_token \
   --secret-ref "vault:bridges/$BRIDGE_ID/access_token" \
   --kind token \
-  --secret-value "$NEW_WHATSAPP_ACCESS_TOKEN"
+  --secret-value-stdin
 
 agh bridge enable "$BRIDGE_ID"
 agh bridge verify "$BRIDGE_ID" --json
 ```
 
-The guided wizard uses hidden input for initial setup. The generic binding command receives
-`--secret-value` as a process argument; see the client-side exposure note in
+The guided wizard uses hidden input for initial setup. Generic rotation reads the value from stdin or
+a permission-restricted file and rejects inline secret arguments; see
 [Bridge operations](/runtime/core/bridges/operations#rotate-a-credential).
 
 ## Completion checklist
 
+- The WhatsApp extension is installed, enabled, and healthy in the provider catalog.
 - The Phone Number ID is the Meta resource ID, not the visible phone number.
 - The selected access token passes `provider.identity`.
 - Meta accepts the verification challenge and subscribes the `messages` field.

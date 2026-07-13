@@ -1,9 +1,9 @@
 # cy-loop-tasks state.yaml -- managed by .agents/skills/compozy/cy-loop-tasks/scripts/update-state.py. Do not hand-edit.
 slug: "hermes-bridge"
 created_at: "2026-07-12T01:45:53Z"
-last_updated: "2026-07-13T05:35:17Z"
+last_updated: "2026-07-13T14:42:29Z"
 mode: "tasks"
-iteration: 11
+iteration: 13
 goal_signature: "$cy-loop-tasks  você precisa implementar inteiramenta aqui a spec .compozy/tasks/hermes-bridge, a ideia aqui é tentar chegar o mais proximo em niveis de estabilidade, ux/dx e maturidade do .resources/hermes em termos de integracao com os canais de comunicao externo (slack, whatsapp, telegram, etc); não precisamos ir além e implementar os canais que nós não temos aqui (aqui chamamos de bridge), mas precisamos deixar MUITO estável, maduro e com uma UX/DX impecável os que nós temos aqui; outra coisa que estamos pecando muito é a documentacao para ensinar nossos usuário a como conectar com eles, como você pode ver o hermes tem uma doc muito boa em relaćão a isso enquanto a gente, a parte de bridge tem duas rotas ¨Bridge Routing\" e \"Bridge Setup\", isso é ruim, deveriamos assim como o hermes, ter boa explicacao do sistema e uma pagina para cada bridge ensinando a conectar com a bridge especifica; você só vai terminar a hora que tudo isso estiver devidamente implementado aqui; infelizmente eu não consigo fornecer um ambiente fiel com slack, telegram e outros providers para você testar isso, você vai ter que analisar qual a melhor forma de testar isso o mais fielmente possivel, mesmo que sem acessar essas bridges, tire referencias dos projetos .resources/hermes .resources/chat .resources/openclaw para ver; o .resources/chat é um projeto maduro para tirar referencias de improvements tb;"
 frontend_agent: null
 
@@ -22,12 +22,12 @@ qa:
   execution_done: true
 
 review:
-  rounds: 0
-  last_verdict: null
+  rounds: 1
+  last_verdict: "FIX_BEFORE_SHIP"
   ship: false
 
 verify:
-  last_run: "2026-07-13T02:20:19Z"
+  last_run: "2026-07-13T14:42:29Z"
   last_status: "PASS"
 
 iterations:
@@ -107,4 +107,18 @@ iterations:
     action: "executed task_10 QA cycle with qualified verdicts and clean teardown"
     outcome: "completed"
     memory_written: ["memory/task_10.md", "memory/MEMORY.md"]
+    blockers: []
+  - n: 12
+    timestamp: "2026-07-13T10:41:21Z"
+    phase: "D"
+    action: "peer-review round 1 blocked by R-017/BUG-20260712-reasoning-evidence-attribution structural TechSpec gate"
+    outcome: "blocked"
+    memory_written: ["memory/peer-review.md", "memory/MEMORY.md"]
+    blockers: ["R-017/BUG-20260712-reasoning-evidence-attribution requires an authorized separate structural TechSpec before a third acpmock harness change"]
+  - n: 13
+    timestamp: "2026-07-13T14:42:29Z"
+    phase: "D"
+    action: "peer-review round 1 (FIX_BEFORE_SHIP) remediated"
+    outcome: "completed"
+    memory_written: ["memory/peer-review.md", "memory/MEMORY.md"]
     blockers: []

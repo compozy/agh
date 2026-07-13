@@ -3,22 +3,7 @@ package bridges
 import "encoding/json"
 
 func cloneDeliveryEvent(event DeliveryEvent) DeliveryEvent {
-	cloned := event.normalize()
-	cloned.ProviderMetadata = cloneRawJSON(cloned.ProviderMetadata)
-	if cloned.Reference != nil {
-		reference := cloned.Reference.normalize()
-		cloned.Reference = &reference
-	}
-	if cloned.Error != nil {
-		errorDetail := cloned.Error.normalize()
-		cloned.Error = &errorDetail
-	}
-	if cloned.Resume != nil {
-		resume := cloned.Resume.normalize()
-		cloned.Resume = &resume
-	}
-	cloned.Progress = cloneToolProgress(cloned.Progress)
-	return cloned
+	return event.normalize()
 }
 
 func cloneDeliverySnapshot(snapshot DeliverySnapshot) DeliverySnapshot {

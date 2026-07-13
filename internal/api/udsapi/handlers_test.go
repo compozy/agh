@@ -201,6 +201,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/bridges/:id/secret-bindings",
 		"GET /api/bridges/:id/targets",
 		"GET /api/bridges/providers",
+		"GET /api/bridges/providers/slack/manifest",
 		"GET /api/bundles/activations",
 		"GET /api/bundles/activations/:id",
 		"GET /api/bundles/catalog",

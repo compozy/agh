@@ -146,7 +146,7 @@ func (b *Broker) reconciliationMetricRecord(
 			DeliveryFailuresTotal:   metrics.deliveryFailuresTotal + 1,
 			LastError:               sessionStoppedDeliveryMessage,
 			LastErrorAt:             updatedAt,
-			LastSuccessAt:           updatedAt,
+			LastSuccessAt:           metrics.lastSuccessAt,
 		},
 		Scope:       record.Scope,
 		WorkspaceID: record.WorkspaceID,

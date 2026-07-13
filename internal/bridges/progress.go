@@ -6,28 +6,20 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
 	redactpkg "github.com/compozy/agh/internal/redact"
 )
 
-const maxToolProgressErrorRunes = 160
+const maxToolProgressErrorRunes = bridgecontract.MaxToolProgressErrorRunes
 
 // ToolProgressPhase is one closed tool lifecycle phase sent to bridge adapters.
 type ToolProgressPhase string
 
 const (
-	ToolProgressPhaseStarted   ToolProgressPhase = "started"
-	ToolProgressPhaseCompleted ToolProgressPhase = "completed"
-	ToolProgressPhaseFailed    ToolProgressPhase = "failed"
+	ToolProgressPhaseStarted   ToolProgressPhase = ToolProgressPhase(bridgecontract.ToolProgressPhaseStarted)
+	ToolProgressPhaseCompleted ToolProgressPhase = ToolProgressPhase(bridgecontract.ToolProgressPhaseCompleted)
+	ToolProgressPhaseFailed    ToolProgressPhase = ToolProgressPhase(bridgecontract.ToolProgressPhaseFailed)
 )
-
-// ToolProgressPhaseValues returns the closed wire values in stable order.
-func ToolProgressPhaseValues() []string {
-	return []string{
-		string(ToolProgressPhaseStarted),
-		string(ToolProgressPhaseCompleted),
-		string(ToolProgressPhaseFailed),
-	}
-}
 
 const (
 	projectionEventAgentMessage = "agent_message"
@@ -39,19 +31,12 @@ const (
 
 // Normalize returns the canonical lifecycle phase.
 func (p ToolProgressPhase) Normalize() ToolProgressPhase {
-	return ToolProgressPhase(strings.ToLower(strings.TrimSpace(string(p))))
+	return ToolProgressPhase(bridgecontract.ToolProgressPhase(p).Normalize())
 }
 
 // Validate reports whether the phase belongs to the bridge progress contract.
 func (p ToolProgressPhase) Validate() error {
-	switch p.Normalize() {
-	case ToolProgressPhaseStarted, ToolProgressPhaseCompleted, ToolProgressPhaseFailed:
-		return nil
-	case "":
-		return errors.New("bridges: tool progress phase is required")
-	default:
-		return fmt.Errorf("bridges: unsupported tool progress phase %q", p)
-	}
+	return bridgecontract.ToolProgressPhase(p).Validate()
 }
 
 // ToolProgress is the presentation-only tool lifecycle payload delivered to adapters.
@@ -69,50 +54,11 @@ type ToolProgress struct {
 
 // Validate enforces the typed, redacted progress wire contract.
 func (p ToolProgress) Validate() error {
-	normalized := p.normalize()
-	if err := requireField(normalized.ToolCallID, "tool progress tool call id"); err != nil {
-		return err
-	}
-	if err := requireField(normalized.ToolID, "tool progress tool id"); err != nil {
-		return err
-	}
-	if err := normalized.Phase.Validate(); err != nil {
-		return err
-	}
-	if normalized.DurationMS < 0 {
-		return errors.New("bridges: tool progress duration cannot be negative")
-	}
-	if normalized.Index <= 0 {
-		return errors.New("bridges: tool progress index must be positive")
-	}
-	for label, value := range map[string]string{
-		"label":   normalized.Label,
-		"preview": normalized.Preview,
-		"emoji":   normalized.Emoji,
-		"error":   normalized.Error,
-	} {
-		if strings.ContainsAny(value, "\r\n") {
-			return fmt.Errorf("bridges: tool progress %s must be one line", label)
-		}
-		if redactpkg.String(value) != value {
-			return fmt.Errorf("bridges: tool progress %s contains secret-shaped material", label)
-		}
-	}
-	if utf8.RuneCountInString(normalized.Error) > maxToolProgressErrorRunes {
-		return fmt.Errorf("bridges: tool progress error exceeds %d runes", maxToolProgressErrorRunes)
-	}
-	return nil
+	return toolProgressToContract(p).Validate()
 }
 
 func (p ToolProgress) normalize() ToolProgress {
-	p.ToolCallID = strings.TrimSpace(p.ToolCallID)
-	p.ToolID = strings.TrimSpace(p.ToolID)
-	p.Phase = p.Phase.Normalize()
-	p.Label = strings.TrimSpace(p.Label)
-	p.Preview = strings.TrimSpace(p.Preview)
-	p.Emoji = strings.TrimSpace(p.Emoji)
-	p.Error = strings.TrimSpace(p.Error)
-	return p
+	return toolProgressFromContract(bridgecontract.NormalizeToolProgress(toolProgressToContract(p)))
 }
 
 func sanitizeToolProgressError(value string) string {

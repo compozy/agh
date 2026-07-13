@@ -15,7 +15,7 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/testutil"
 )
 
@@ -472,6 +472,40 @@ func TestProgressAccumulatorDrivesPhaseAffordances(t *testing.T) {
 			t.Fatalf("Typing calls = %v, want %v", got, want)
 		}
 		if got, want := sink.ReactionCalls(), []string{"👀", "✅", "❌"}; fmt.Sprint(got) != fmt.Sprint(want) {
+			t.Fatalf("Reaction calls = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("Should apply each phase reaction once per progress bubble", func(t *testing.T) {
+		t.Parallel()
+
+		sink := &progressRecordingSink{}
+		config := progressTestConfig()
+		config.Reactions = true
+		accumulator := NewProgressAccumulator(config, sink, nil)
+		ctx := testutil.Context(t)
+
+		for index, phase := range []bridgepkg.ToolProgressPhase{
+			bridgepkg.ToolProgressPhaseStarted,
+			bridgepkg.ToolProgressPhaseStarted,
+			bridgepkg.ToolProgressPhaseCompleted,
+			bridgepkg.ToolProgressPhaseCompleted,
+		} {
+			if err := accumulator.OnProgress(ctx, progressTestEventWithPhase(index+1, phase)); err != nil {
+				t.Fatalf("OnProgress(%q) error = %v", phase, err)
+			}
+		}
+		if err := accumulator.OnContent(ctx); err != nil {
+			t.Fatalf("OnContent() error = %v", err)
+		}
+		if err := accumulator.OnProgress(
+			ctx,
+			progressTestEventWithPhase(5, bridgepkg.ToolProgressPhaseStarted),
+		); err != nil {
+			t.Fatalf("OnProgress(started after reset) error = %v", err)
+		}
+
+		if got, want := sink.ReactionCalls(), []string{"👀", "✅", "👀"}; fmt.Sprint(got) != fmt.Sprint(want) {
 			t.Fatalf("Reaction calls = %v, want %v", got, want)
 		}
 	})

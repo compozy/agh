@@ -10,20 +10,16 @@ It implements:
 - outbound `chat.postMessage`, `chat.update`, and `chat.delete` behavior for bridge delivery requests
 - resume handling for the remote message recorded by the shared bridge delivery broker
 
-## Build
+## Build and install
 
-From the repository root:
+Released `agh` artifacts do not include this provider executable. From a trusted AGH source
+checkout, run this from the repository root with the daemon running:
 
 ```bash
+mkdir -p ./extensions/bridges/slack/bin
 go build -o ./extensions/bridges/slack/bin/slack ./extensions/bridges/slack
-```
-
-## Install
-
-Build the binary first, then install the extension directory:
-
-```bash
-agh extension install ./extensions/bridges/slack
+agh extension install ./extensions/bridges/slack --allow-unverified --yes -o json
+agh extension status slack -o json
 ```
 
 ## Provider Config
@@ -33,6 +29,7 @@ The bridge instance `provider_config` JSON object currently supports:
 ```json
 {
   "webhook": {
+    "public_url": "https://bridge.example.com/slack/support",
     "listen_addr": "127.0.0.1:8080",
     "path": "/slack/brg-main"
   },
@@ -59,10 +56,14 @@ Notes:
 
 ## Outbound text
 
-The provider converts common Markdown constructs to Slack mrkdwn before measuring the wire payload. Text over 40,000 Unicode code points is split on natural boundaries with numbered, fence-balanced continuations in the original thread. Streaming previews keep one mutable message; the terminal delivery posts the complete continuation set and acknowledges its last message.
+The provider converts common Markdown constructs to Slack mrkdwn before measuring the wire payload. Text over 40,000 UTF-16 code units is split on natural boundaries with numbered, fence-balanced continuations in the original thread. Streaming previews keep one mutable message; the terminal delivery posts the complete continuation set and acknowledges its last message.
 
 ## Tool progress
 
-Slack instances default to `tool_progress: new` with accumulated updates, typing status, and reactions enabled. The provider posts one progress bubble under the inbound `thread_ts`, schedules edits on the shared 1.5-second interval, and posts the answer separately in the same thread. Progress text uses the same mrkdwn formatter and 40,000-code-point limit as regular delivery.
+Slack instances default to `tool_progress: new` with accumulated updates, typing status, and reactions enabled. The provider posts one progress bubble under the inbound `thread_ts`, schedules edits on the shared 1.5-second interval, and posts the answer separately in the same thread. Progress text uses the same mrkdwn formatter and 40,000-UTF-16-code-unit limit as regular delivery.
 
 Progress uses `chat.postMessage`, `chat.update`, `assistant.threads.setStatus`, and `reactions.add`. Reactions apply to the progress bubble. Rate-limited edits honor Slack's `Retry-After` response before retrying. Set `delivery_defaults.progress.tool_progress` to `off` to acknowledge progress without Slack API calls. `chat.delete` is available for explicit delivery deletes; automatic progress cleanup is not enabled.
+
+See the [Slack operator setup guide](../../../packages/site/content/runtime/core/bridges/setup-slack.mdx)
+for app creation, manifest handoff, verification, real inbound proof, delivery testing, and
+troubleshooting.

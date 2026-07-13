@@ -2,9 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
 	"github.com/compozy/agh/internal/subprocess"
 )
@@ -1110,7 +1107,7 @@ func verifyLinearWebhookSignature(req *http.Request, body []byte, candidates []r
 		if secret == "" {
 			continue
 		}
-		if linearSignature(secret, body) == signature {
+		if validLinearWebhookSignature(secret, body, signature) {
 			return nil
 		}
 	}
@@ -1410,12 +1407,6 @@ func linearWebhookDispatchHTTPError(err error) error {
 	default:
 		return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 	}
-}
-
-func linearSignature(secret string, body []byte) string {
-	mac := hmac.New(sha256.New, []byte(strings.TrimSpace(secret)))
-	_, _ = mac.Write(body)
-	return hex.EncodeToString(mac.Sum(nil))
 }
 
 func normalizeDeliveryEventType(value bridgepkg.DeliveryEventType) bridgepkg.DeliveryEventType {

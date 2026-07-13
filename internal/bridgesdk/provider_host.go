@@ -8,8 +8,7 @@ import (
 	"sync"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -26,12 +25,12 @@ type ProviderHostSession interface {
 	GetBridgeInstance(context.Context, string) (*bridgepkg.BridgeInstance, error)
 	ReportBridgeInstanceState(
 		context.Context,
-		extensioncontract.BridgesInstancesReportStateParams,
+		bridgepkg.BridgesInstancesReportStateParams,
 	) (*bridgepkg.BridgeInstance, error)
 	IngestBridgeMessage(
 		context.Context,
 		bridgepkg.InboundMessageEnvelope,
-	) (*extensioncontract.BridgesMessagesIngestResult, error)
+	) (*bridgepkg.BridgesMessagesIngestResult, error)
 }
 
 type providerHostRetryWait func(context.Context, <-chan struct{}, time.Duration) error
@@ -131,7 +130,7 @@ func (h *ProviderHost) ReportState(
 	err := h.Retry(ctx, func(callCtx context.Context) error {
 		instance, callErr := session.ReportBridgeInstanceState(
 			callCtx,
-			extensioncontract.BridgesInstancesReportStateParams{
+			bridgepkg.BridgesInstancesReportStateParams{
 				BridgeInstanceID: bridgeInstanceID,
 				Status:           status,
 				Degradation:      cloneProviderDegradation(degradation),
@@ -207,11 +206,11 @@ func (h *ProviderHost) IngestBridgeMessage(
 	ctx context.Context,
 	session ProviderHostSession,
 	envelope bridgepkg.InboundMessageEnvelope,
-) (*extensioncontract.BridgesMessagesIngestResult, error) {
+) (*bridgepkg.BridgesMessagesIngestResult, error) {
 	if session == nil {
 		return nil, errors.New("bridgesdk: provider host session is required")
 	}
-	var result *extensioncontract.BridgesMessagesIngestResult
+	var result *bridgepkg.BridgesMessagesIngestResult
 	err := h.Retry(ctx, func(callCtx context.Context) error {
 		ingestResult, callErr := session.IngestBridgeMessage(callCtx, envelope)
 		if callErr == nil {

@@ -215,10 +215,12 @@ func seedManagedInstanceOutcomes(managedByID map[string]ManagedInstanceOutcome, 
 			}
 			outcome := ManagedInstanceOutcome{
 				InstanceID:  instanceID,
-				FinalStatus: managed.Instance.Status.Normalize(),
+				FinalStatus: bridgeStatusDomain(managed.Instance.Status.Normalize()),
 			}
 			if managed.Instance.Degradation != nil {
-				outcome.DegradationReason = managed.Instance.Degradation.Reason.Normalize()
+				outcome.DegradationReason = bridgepkg.BridgeDegradationReason(
+					managed.Instance.Degradation.Reason.Normalize(),
+				)
 			}
 			managedByID[instanceID] = outcome
 		}

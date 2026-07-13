@@ -91,7 +91,7 @@
 - React Doctor scored 100/100 for the Task 05 React surface before the final narrow evidence patch; the final hook change is covered by the 19/19 route suite and package typecheck.
 - Visual evidence was recaptured after source freeze and inspected: `/tmp/agh-ui-screenshot/task05-final/bridge-detail-configured-isolated.png` and `/tmp/agh-ui-screenshot/task05-final/bridge-slack-manifest-isolated.png`. Existing inspected failure/loading states remain under the same directory.
 - Contract-parity audit returned PASS. Final deslop re-audit returned SHIP with no P1, P2, or residual slop.
-- QA impact is flagged, not retested: `NB-039` was reset to `untested` for the changed dry-run presentation and `NB-052` records the new Web setup orchestrator as `untested`. The tracker validates at 434 unique 16-column rows.
+- QA impact is flagged, not retested: `NB-039` was reset to `untested` for the changed dry-run presentation and `NB-web-bridge-setup` records the new Web setup orchestrator as `untested` in the living scenario tree.
 - Per the user's explicit cost constraint, global Web suites and the single monorepo `make verify` remain deferred until every task, QA action, and review remediation is complete.
 
 ## Ready for Next Run

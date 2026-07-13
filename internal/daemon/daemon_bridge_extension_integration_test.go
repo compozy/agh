@@ -17,6 +17,7 @@ import (
 
 	aghcontract "github.com/compozy/agh/internal/api/contract"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	extensiontest "github.com/compozy/agh/internal/extensiontest"
@@ -369,15 +370,15 @@ func testDaemonE2EBridgeIngressCreatesAndReusesRouteThroughOptedInLowTierContrac
 	}
 	baseline := managed.Instance
 	baseline.DeliveryDefaults = nil
-	if got, want := bridgepkg.ResolveProgressConfig(&baseline, baseline.Platform).ToolProgress,
-		bridgepkg.ProgressModeOff; got != want {
+	if got, want := bridgecontract.ResolveProgressConfig(&baseline, baseline.Platform).ToolProgress,
+		bridgecontract.ProgressModeOff; got != want {
 		t.Fatalf("default low-tier progress mode = %q, want %q", got, want)
 	}
-	effectiveProgress := bridgepkg.ResolveProgressConfig(&managed.Instance, managed.Instance.Platform)
-	if got, want := effectiveProgress.ToolProgress, bridgepkg.ProgressModeAll; got != want {
+	effectiveProgress := bridgecontract.ResolveProgressConfig(&managed.Instance, managed.Instance.Platform)
+	if got, want := effectiveProgress.ToolProgress, bridgecontract.ProgressModeAll; got != want {
 		t.Fatalf("managed progress mode = %q, want %q", got, want)
 	}
-	if got, want := effectiveProgress.Grouping, bridgepkg.ProgressGroupingAccumulate; got != want {
+	if got, want := effectiveProgress.Grouping, bridgecontract.ProgressGroupingAccumulate; got != want {
 		t.Fatalf("managed progress grouping = %q, want %q", got, want)
 	}
 	if len(managed.BoundSecrets) == 0 {
@@ -464,7 +465,7 @@ func testDaemonE2EBridgeIngressCreatesAndReusesRouteThroughOptedInLowTierContrac
 	if got, want := progressDelivery.Request.Event.Progress.Label, "agh__terminal:"; got != want {
 		t.Fatalf("progress label = %q, want %q", got, want)
 	}
-	if got, want := progressDelivery.Request.Event.Progress.Preview, `"echo [REDACTED]"`; got != want {
+	if got, want := progressDelivery.Request.Event.Progress.Preview, `"echo"`; got != want {
 		t.Fatalf("progress preview = %q, want %q", got, want)
 	}
 	if strings.Contains(progressDelivery.Request.Event.Progress.Preview, bridgeIngressFixtureSecret) {
@@ -665,8 +666,16 @@ func testDaemonE2EBridgeIngressCreatesAndReusesRouteThroughOptedInLowTierContrac
 	if got, want := route.AgentName, bridgeIngressFixtureAgentName; got != want {
 		t.Fatalf("route.AgentName = %q, want %q", got, want)
 	}
-	if route.RoutingKey() != firstIngest.Result.RoutingKey {
-		t.Fatalf("route.RoutingKey() = %#v, want %#v", route.RoutingKey(), firstIngest.Result.RoutingKey)
+	routeKey, err := route.RoutingKey().Serialize()
+	if err != nil {
+		t.Fatalf("route.RoutingKey().Serialize() error = %v", err)
+	}
+	ingressKey, err := firstIngest.Result.RoutingKey.Serialize()
+	if err != nil {
+		t.Fatalf("firstIngest.Result.RoutingKey.Serialize() error = %v", err)
+	}
+	if routeKey != ingressKey {
+		t.Fatalf("route routing key = %q, want %q", routeKey, ingressKey)
 	}
 
 	bindings, err := harness.ListBridgeSecretBindings(ctx, bridgeID)

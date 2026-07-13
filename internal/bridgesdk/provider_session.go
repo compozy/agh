@@ -4,8 +4,7 @@ import (
 	"context"
 	"errors"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -31,7 +30,7 @@ func (s *Session) GetBridgeInstance(
 // ReportBridgeInstanceState reports one provider-owned bridge state through the Host API.
 func (s *Session) ReportBridgeInstanceState(
 	ctx context.Context,
-	params extensioncontract.BridgesInstancesReportStateParams,
+	params bridgepkg.BridgesInstancesReportStateParams,
 ) (*bridgepkg.BridgeInstance, error) {
 	if s == nil || s.host == nil {
 		return nil, errors.New("bridgesdk: runtime session host api is required")
@@ -43,7 +42,7 @@ func (s *Session) ReportBridgeInstanceState(
 func (s *Session) IngestBridgeMessage(
 	ctx context.Context,
 	envelope bridgepkg.InboundMessageEnvelope,
-) (*extensioncontract.BridgesMessagesIngestResult, error) {
+) (*bridgepkg.BridgesMessagesIngestResult, error) {
 	if s == nil || s.host == nil {
 		return nil, errors.New("bridgesdk: runtime session host api is required")
 	}

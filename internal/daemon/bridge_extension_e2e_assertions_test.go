@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
 )
 
 type bridgeSessionHandling string
@@ -16,7 +16,7 @@ const (
 )
 
 func classifyBridgeSessionHandling(
-	result extensioncontract.BridgesMessagesIngestResult,
+	result bridgecontract.BridgesMessagesIngestResult,
 	previousSessionID string,
 ) (bridgeSessionHandling, error) {
 	sessionID := strings.TrimSpace(result.SessionID)
@@ -44,14 +44,14 @@ func TestClassifyBridgeSessionHandling(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		result          extensioncontract.BridgesMessagesIngestResult
+		result          bridgecontract.BridgesMessagesIngestResult
 		previousSession string
 		want            bridgeSessionHandling
 		wantErrContains string
 	}{
 		{
 			name: "created session on first route",
-			result: extensioncontract.BridgesMessagesIngestResult{
+			result: bridgecontract.BridgesMessagesIngestResult{
 				SessionID:    "sess-1",
 				RouteCreated: true,
 			},
@@ -59,7 +59,7 @@ func TestClassifyBridgeSessionHandling(t *testing.T) {
 		},
 		{
 			name: "reused session on existing route",
-			result: extensioncontract.BridgesMessagesIngestResult{
+			result: bridgecontract.BridgesMessagesIngestResult{
 				SessionID:    "sess-1",
 				RouteCreated: false,
 			},
@@ -68,7 +68,7 @@ func TestClassifyBridgeSessionHandling(t *testing.T) {
 		},
 		{
 			name: "rejects missing prior session on reused route",
-			result: extensioncontract.BridgesMessagesIngestResult{
+			result: bridgecontract.BridgesMessagesIngestResult{
 				SessionID:    "sess-1",
 				RouteCreated: false,
 			},
@@ -76,7 +76,7 @@ func TestClassifyBridgeSessionHandling(t *testing.T) {
 		},
 		{
 			name: "rejects new route when prior session exists",
-			result: extensioncontract.BridgesMessagesIngestResult{
+			result: bridgecontract.BridgesMessagesIngestResult{
 				SessionID:    "sess-2",
 				RouteCreated: true,
 			},
@@ -85,7 +85,7 @@ func TestClassifyBridgeSessionHandling(t *testing.T) {
 		},
 		{
 			name: "rejects mismatched reused session",
-			result: extensioncontract.BridgesMessagesIngestResult{
+			result: bridgecontract.BridgesMessagesIngestResult{
 				SessionID:    "sess-2",
 				RouteCreated: false,
 			},
@@ -94,7 +94,7 @@ func TestClassifyBridgeSessionHandling(t *testing.T) {
 		},
 		{
 			name: "rejects empty session id",
-			result: extensioncontract.BridgesMessagesIngestResult{
+			result: bridgecontract.BridgesMessagesIngestResult{
 				RouteCreated: true,
 			},
 			wantErrContains: "empty session id",

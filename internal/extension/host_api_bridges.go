@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
@@ -51,13 +52,6 @@ const (
 	hostAPIBridgePromptRetryWindow   = 5 * time.Second
 )
 
-type hostAPIBridgeIngressContext struct {
-	params     hostAPIBridgesMessagesIngestParams
-	instance   *bridgepkg.BridgeInstance
-	routingKey bridgepkg.RoutingKey
-	lockKey    string
-}
-
 func (h *HostAPIHandler) handleBridgesInstancesList(ctx context.Context, raw json.RawMessage) (any, error) {
 	if h.bridges == nil {
 		return nil, unavailableRPCError(errors.New("bridge registry is not configured"))
@@ -72,7 +66,7 @@ func (h *HostAPIHandler) handleBridgesInstancesList(ctx context.Context, raw jso
 	if err != nil {
 		return nil, err
 	}
-	return instances, nil
+	return bridgeInstancesContract(instances), nil
 }
 
 func (h *HostAPIHandler) handleBridgesInstancesGet(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -80,7 +74,7 @@ func (h *HostAPIHandler) handleBridgesInstancesGet(ctx context.Context, raw json
 		return nil, unavailableRPCError(errors.New("bridge registry is not configured"))
 	}
 
-	var params hostAPIBridgeInstanceTargetParams
+	var params bridgecontract.BridgeInstanceTargetParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
 	}
@@ -94,7 +88,7 @@ func (h *HostAPIHandler) handleBridgesInstancesGet(ctx context.Context, raw json
 	if err != nil {
 		return nil, err
 	}
-	return *instance, nil
+	return bridgepkg.BridgeInstanceToContract(*instance), nil
 }
 
 func (h *HostAPIHandler) handleBridgesInstancesReportState(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -102,7 +96,7 @@ func (h *HostAPIHandler) handleBridgesInstancesReportState(ctx context.Context, 
 		return nil, unavailableRPCError(errors.New("bridge registry is not configured"))
 	}
 
-	var params hostAPIBridgesInstancesReportStateParams
+	var params bridgecontract.BridgesInstancesReportStateParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
 	}
@@ -113,7 +107,7 @@ func (h *HostAPIHandler) handleBridgesInstancesReportState(ctx context.Context, 
 	if err := params.Status.Validate(); err != nil {
 		return nil, invalidParamsRPCError(err)
 	}
-	if params.Status.Normalize() == bridgepkg.BridgeStatusDisabled {
+	if params.Status.Normalize() == bridgecontract.BridgeStatusDisabled {
 		return nil, invalidParamsRPCError(errors.New("bridge status disabled is operator-controlled"))
 	}
 	if params.ClearDegradation && params.Degradation != nil && !params.Degradation.IsZero() {
@@ -133,8 +127,8 @@ func (h *HostAPIHandler) handleBridgesInstancesReportState(ctx context.Context, 
 	updated, err := h.bridges.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
 		ID:               instance.ID,
 		Enabled:          instance.Enabled,
-		Status:           params.Status,
-		Degradation:      params.Degradation,
+		Status:           bridgeStatusDomain(params.Status),
+		Degradation:      bridgeDegradationDomain(params.Degradation),
 		ClearDegradation: params.ClearDegradation,
 		UpdatedAt:        h.now(),
 	})
@@ -152,7 +146,7 @@ func (h *HostAPIHandler) handleBridgesInstancesReportState(ctx context.Context, 
 			}
 		}
 	}
-	return *updated, nil
+	return bridgepkg.BridgeInstanceToContract(*updated), nil
 }
 
 func (h *HostAPIHandler) handleBridgesMessagesIngest(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -184,10 +178,10 @@ func (h *HostAPIHandler) handleBridgesMessagesIngest(ctx context.Context, raw js
 		return nil, err
 	}
 	if suppressed {
-		return hostAPIBridgesMessagesIngestResult{
+		return bridgecontract.BridgesMessagesIngestResult{
 			SessionID:    suppressedRoute.SessionID,
 			RouteCreated: false,
-			RoutingKey:   ingress.routingKey,
+			RoutingKey:   bridgeRoutingKeyContract(ingress.routingKey),
 		}, nil
 	}
 	if err := h.checkPromptDeliveryAdmission(ctx); err != nil {
@@ -215,10 +209,10 @@ func (h *HostAPIHandler) handleBridgesMessagesIngest(ctx context.Context, raw js
 		return nil, err
 	}
 
-	return hostAPIBridgesMessagesIngestResult{
+	return bridgecontract.BridgesMessagesIngestResult{
 		SessionID:    route.SessionID,
 		RouteCreated: routeCreated,
-		RoutingKey:   ingress.routingKey,
+		RoutingKey:   bridgeRoutingKeyContract(ingress.routingKey),
 	}, nil
 }
 
@@ -240,13 +234,14 @@ func (h *HostAPIHandler) prepareBridgeIngress(
 	ctx context.Context,
 	raw json.RawMessage,
 ) (hostAPIBridgeIngressContext, error) {
-	var params hostAPIBridgesMessagesIngestParams
-	if err := decodeHostAPIParams(raw, &params); err != nil {
+	var wireParams bridgecontract.InboundMessageEnvelope
+	if err := decodeHostAPIParams(raw, &wireParams); err != nil {
 		return hostAPIBridgeIngressContext{}, err
 	}
-	if err := params.Validate(); err != nil {
+	if err := wireParams.Validate(); err != nil {
 		return hostAPIBridgeIngressContext{}, invalidParamsRPCError(err)
 	}
+	params := bridgeInboundEnvelopeDomain(wireParams)
 
 	instance, err := h.authorizedBridgeInstance(ctx, params.BridgeInstanceID)
 	if err != nil {

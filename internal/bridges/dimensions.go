@@ -45,34 +45,6 @@ func (m PlatformDimensionMapping) Validate() error {
 	return nil
 }
 
-func validateRoutingDimensions(policy RoutingPolicy, dims RoutingDimensions) error {
-	normalizedPolicy := policy
-	if err := normalizedPolicy.Validate(); err != nil {
-		return err
-	}
-
-	normalizedDims := dims.normalize()
-	if normalizedPolicy.IncludePeer && normalizedDims.PeerID == "" {
-		return errors.New("bridges: routing policy requires peer id")
-	}
-	if normalizedPolicy.IncludeThread && normalizedDims.ThreadID == "" {
-		return errors.New("bridges: routing policy requires thread id")
-	}
-	if normalizedPolicy.IncludeGroup && normalizedDims.GroupID == "" {
-		return errors.New("bridges: routing policy requires group id")
-	}
-
-	return nil
-}
-
-func (d RoutingDimensions) normalize() RoutingDimensions {
-	return RoutingDimensions{
-		PeerID:   strings.TrimSpace(d.PeerID),
-		ThreadID: strings.TrimSpace(d.ThreadID),
-		GroupID:  strings.TrimSpace(d.GroupID),
-	}
-}
-
 func dimensionsFromRoutingKey(key RoutingKey) RoutingDimensions {
 	normalized := key.normalize()
 	return RoutingDimensions{

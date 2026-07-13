@@ -96,6 +96,11 @@ type instanceDeliveryMetrics struct {
 	persistedRevision     uint64
 }
 
+type deliveryMetricPersistenceIssue struct {
+	err error
+	at  time.Time
+}
+
 // Broker projects session output into ordered delivery requests for one
 // bridge-capable extension runtime.
 type Broker struct {
@@ -115,14 +120,15 @@ type Broker struct {
 
 	wg sync.WaitGroup
 
-	deliveries       map[string]*activeDelivery
-	turnIndex        map[turnIndexKey]string
-	sessionIndex     map[string]map[string]struct{}
-	routes           map[string]*routeWorker
-	bridgeRoutes     map[string]map[string]*routeWorker
-	metrics          map[string]*instanceDeliveryMetrics
-	metricWakeCh     chan struct{}
-	metricPersistErr error
+	deliveries          map[string]*activeDelivery
+	turnIndex           map[turnIndexKey]string
+	sessionIndex        map[string]map[string]struct{}
+	routes              map[string]*routeWorker
+	bridgeRoutes        map[string]map[string]*routeWorker
+	metrics             map[string]*instanceDeliveryMetrics
+	metricWakeCh        chan struct{}
+	metricPersistErr    error
+	metricPersistIssues map[string]deliveryMetricPersistenceIssue
 
 	registrationsReady bool
 }

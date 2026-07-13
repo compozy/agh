@@ -18,9 +18,10 @@ import (
 	"time"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
 	extensionpkg "github.com/compozy/agh/internal/extension"
-	protocol "github.com/compozy/agh/internal/extension/protocol"
+	protocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -172,7 +173,7 @@ func runDiscoveredProviderRuntime(
 	peerCtx, peerCancel := context.WithCancel(runCtx)
 	defer peerCancel()
 	peer := bridgesdk.NewPeer(stdout, stdin)
-	managed := subprocess.InitializeBridgeManagedInstance{Instance: bridgepkg.BridgeInstance{
+	domainInstance := bridgepkg.BridgeInstance{
 		ID:             "brg-conformance-" + provider.Name,
 		Platform:       provider.Name,
 		ExtensionName:  provider.Name,
@@ -184,12 +185,15 @@ func runDiscoveredProviderRuntime(
 		Status:         bridgepkg.BridgeStatusStarting,
 		DMPolicy:       bridgepkg.BridgeDMPolicyOpen,
 		ProviderConfig: json.RawMessage(`{}`),
-	}}
+	}
+	managed := subprocess.InitializeBridgeManagedInstance{
+		Instance: bridgepkg.BridgeInstanceToContract(domainInstance),
+	}
 	if err := peer.Handle(string(protocol.HostAPIMethodBridgesInstancesList), func(
 		context.Context,
 		json.RawMessage,
 	) (any, error) {
-		return []bridgepkg.BridgeInstance{managed.Instance}, nil
+		return []bridgecontract.BridgeInstance{managed.Instance}, nil
 	}); err != nil {
 		return fmt.Errorf("register provider %q instance-list host handler: %w", provider.Name, err)
 	}

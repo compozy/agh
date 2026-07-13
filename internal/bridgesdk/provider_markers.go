@@ -10,8 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -57,9 +56,9 @@ type StateMarker struct {
 
 // IngestMarker records one provider inbound envelope and daemon result.
 type IngestMarker struct {
-	Envelope bridgepkg.InboundMessageEnvelope              `json:"envelope"`
-	Result   extensioncontract.BridgesMessagesIngestResult `json:"result"`
-	Error    string                                        `json:"error,omitempty"`
+	Envelope bridgepkg.InboundMessageEnvelope      `json:"envelope"`
+	Result   bridgepkg.BridgesMessagesIngestResult `json:"result"`
+	Error    string                                `json:"error,omitempty"`
 }
 
 // AdapterMarkerPaths is the shared provider-harness marker destination set.

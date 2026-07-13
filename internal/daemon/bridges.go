@@ -12,7 +12,7 @@ import (
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	extensionpkg "github.com/compozy/agh/internal/extension"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/notifications"
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/subprocess"
@@ -1517,7 +1517,7 @@ func (r *bridgeRuntime) prepareManagedBridgeRuntime(
 		}
 
 		updated = append(updated, subprocess.InitializeBridgeManagedInstance{
-			Instance:     launching,
+			Instance:     bridgepkg.BridgeInstanceToContract(launching),
 			BoundSecrets: resolvedSecrets[instance.ID],
 		})
 	}

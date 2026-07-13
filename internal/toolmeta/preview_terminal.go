@@ -14,11 +14,86 @@ func terminalPreview(input map[string]any) string {
 		if len(pipeline) == 0 {
 			continue
 		}
-		if head := oneLine(pipeline[0]); head != "" {
-			result = append(result, head)
+		if commandName := terminalCommandName(pipeline[0]); commandName != "" {
+			result = append(result, commandName)
 		}
 	}
 	return strings.Join(result, " · ")
+}
+
+func terminalCommandName(value string) string {
+	for _, word := range terminalShellWords(oneLine(value)) {
+		if isShellAssignment(word) {
+			continue
+		}
+		if separator := strings.LastIndexAny(word, `/\\`); separator >= 0 {
+			word = word[separator+1:]
+		}
+		return strings.TrimSpace(word)
+	}
+	return ""
+}
+
+func terminalShellWords(value string) []string {
+	words := make([]string, 0, 2)
+	var current strings.Builder
+	var quote rune
+	escaped := false
+	flush := func() {
+		if current.Len() == 0 {
+			return
+		}
+		words = append(words, current.String())
+		current.Reset()
+	}
+	for _, char := range value {
+		if escaped {
+			current.WriteRune(char)
+			escaped = false
+			continue
+		}
+		if char == '\\' && quote != '\'' {
+			escaped = true
+			continue
+		}
+		if quote != 0 {
+			if char == quote {
+				quote = 0
+				continue
+			}
+			current.WriteRune(char)
+			continue
+		}
+		if char == '\'' || char == '"' {
+			quote = char
+			continue
+		}
+		if char == ' ' || char == '\t' || char == '\r' || char == '\n' {
+			flush()
+			continue
+		}
+		current.WriteRune(char)
+	}
+	if escaped {
+		current.WriteRune('\\')
+	}
+	flush()
+	return words
+}
+
+func isShellAssignment(value string) bool {
+	key, _, found := strings.Cut(value, "=")
+	if !found || key == "" {
+		return false
+	}
+	for index, char := range key {
+		if char == '_' || char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' ||
+			index > 0 && char >= '0' && char <= '9' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func splitShellOutsideQuotes(value string, compounds bool) []string {

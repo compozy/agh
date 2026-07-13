@@ -15,12 +15,14 @@ REST.
 
 ## Build and install
 
-From the repository root:
+Released `agh` artifacts do not include this provider executable. From a trusted AGH source
+checkout, run this from the repository root with the daemon running:
 
 ```bash
 mkdir -p ./extensions/bridges/github/bin
 go build -o ./extensions/bridges/github/bin/github ./extensions/bridges/github
-agh extension install ./extensions/bridges/github
+agh extension install ./extensions/bridges/github --allow-unverified --yes -o json
+agh extension status github -o json
 ```
 
 ## Secrets

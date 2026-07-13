@@ -23,10 +23,9 @@ import (
 	"time"
 	"unsafe"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -359,10 +358,10 @@ func TestGitHubProviderRejectsSharedPathWebhookSignedForDifferentInstance(t *tes
 		switch method {
 		case "bridges/messages/ingest":
 			ingested = append(ingested, params.(bridgepkg.InboundMessageEnvelope))
-			*(result.(*extensioncontract.BridgesMessagesIngestResult)) = extensioncontract.BridgesMessagesIngestResult{}
+			*(result.(*bridgepkg.BridgesMessagesIngestResult)) = bridgepkg.BridgesMessagesIngestResult{}
 			return nil
 		case "bridges/instances/report_state":
-			report := params.(extensioncontract.BridgesInstancesReportStateParams)
+			report := params.(bridgepkg.BridgesInstancesReportStateParams)
 			*(result.(*bridgepkg.BridgeInstance)) = bridgepkg.BridgeInstance{
 				ID:     report.BridgeInstanceID,
 				Status: report.Status,
@@ -862,7 +861,7 @@ func TestGitHubProviderAfterInitializeSyncsOwnedInstancesAndReportsState(t *test
 		},
 	}
 
-	reported := make([]extensioncontract.BridgesInstancesReportStateParams, 0)
+	reported := make([]bridgepkg.BridgesInstancesReportStateParams, 0)
 	session := newGitHubTestSession(t, managed, func(_ context.Context, method string, params any, result any) error {
 		switch method {
 		case "bridges/instances/list":
@@ -874,7 +873,7 @@ func TestGitHubProviderAfterInitializeSyncsOwnedInstancesAndReportsState(t *test
 			*target = items
 			return nil
 		case "bridges/instances/get":
-			targetParams := params.(extensioncontract.BridgeInstanceTargetParams)
+			targetParams := params.(bridgepkg.BridgeInstanceTargetParams)
 			for _, item := range managed {
 				if item.Instance.ID == targetParams.BridgeInstanceID {
 					*(result.(*bridgepkg.BridgeInstance)) = item.Instance
@@ -883,7 +882,7 @@ func TestGitHubProviderAfterInitializeSyncsOwnedInstancesAndReportsState(t *test
 			}
 			return errors.New("missing instance")
 		case "bridges/instances/report_state":
-			report := params.(extensioncontract.BridgesInstancesReportStateParams)
+			report := params.(bridgepkg.BridgesInstancesReportStateParams)
 			reported = append(reported, report)
 			*(result.(*bridgepkg.BridgeInstance)) = bridgepkg.BridgeInstance{
 				ID:            report.BridgeInstanceID,
@@ -960,13 +959,13 @@ func TestGitHubProviderServeWebhookHTTPSharedEndpointIngestsMultipleInstances(t 
 	}
 
 	ingested := make([]bridgepkg.InboundMessageEnvelope, 0)
-	reported := make([]extensioncontract.BridgesInstancesReportStateParams, 0)
+	reported := make([]bridgepkg.BridgesInstancesReportStateParams, 0)
 	session := newGitHubTestSession(t, managed, func(_ context.Context, method string, params any, result any) error {
 		switch method {
 		case "bridges/messages/ingest":
 			envelope := params.(bridgepkg.InboundMessageEnvelope)
 			ingested = append(ingested, envelope)
-			*(result.(*extensioncontract.BridgesMessagesIngestResult)) = extensioncontract.BridgesMessagesIngestResult{
+			*(result.(*bridgepkg.BridgesMessagesIngestResult)) = bridgepkg.BridgesMessagesIngestResult{
 				SessionID: "sess-" + envelope.BridgeInstanceID,
 				RoutingKey: bridgepkg.RoutingKey{
 					Scope:            envelope.Scope,
@@ -978,7 +977,7 @@ func TestGitHubProviderServeWebhookHTTPSharedEndpointIngestsMultipleInstances(t 
 			}
 			return nil
 		case "bridges/instances/report_state":
-			report := params.(extensioncontract.BridgesInstancesReportStateParams)
+			report := params.(bridgepkg.BridgesInstancesReportStateParams)
 			reported = append(reported, report)
 			*(result.(*bridgepkg.BridgeInstance)) = bridgepkg.BridgeInstance{
 				ID:     report.BridgeInstanceID,
@@ -1263,12 +1262,12 @@ func TestGitHubProviderHandleBridgesDeliverReportsReadyAndErrors(t *testing.T) {
 			},
 		},
 	}
-	reported := make([]extensioncontract.BridgesInstancesReportStateParams, 0)
+	reported := make([]bridgepkg.BridgesInstancesReportStateParams, 0)
 	session := newGitHubTestSession(t, managed, func(_ context.Context, method string, params any, result any) error {
 		if method != "bridges/instances/report_state" {
 			return errors.New("unexpected method: " + method)
 		}
-		report := params.(extensioncontract.BridgesInstancesReportStateParams)
+		report := params.(bridgepkg.BridgesInstancesReportStateParams)
 		reported = append(reported, report)
 		*(result.(*bridgepkg.BridgeInstance)) = bridgepkg.BridgeInstance{
 			ID:     report.BridgeInstanceID,
@@ -1670,7 +1669,7 @@ func TestGitHubProviderResolveDeliveryInstallationAndWebhookBranches(t *testing.
 			return errors.New("unexpected method: " + method)
 		}
 		envelope := params.(bridgepkg.InboundMessageEnvelope)
-		*(result.(*extensioncontract.BridgesMessagesIngestResult)) = extensioncontract.BridgesMessagesIngestResult{
+		*(result.(*bridgepkg.BridgesMessagesIngestResult)) = bridgepkg.BridgesMessagesIngestResult{
 			SessionID: "sess-" + envelope.BridgeInstanceID,
 		}
 		return nil

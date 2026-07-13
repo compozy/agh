@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 )
 
 type bridgeControlExtension struct {

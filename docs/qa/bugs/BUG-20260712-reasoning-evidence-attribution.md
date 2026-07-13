@@ -1,6 +1,6 @@
 # BUG-20260712-reasoning-evidence-attribution: Background ACP sessions pollute the reasoning gate's protocol evidence
 
-- **Status:** open
+- **Status:** fixed
 - **Impact (user-side):** Friction
 - **Severity:** Medium · **Priority:** P2
 - **Persona Affected:** Bruno and Ada as release operators relying on deterministic runtime gates
@@ -36,11 +36,10 @@ The release operator cannot complete the runtime E2E gate reliably because the r
 ## Fix
 
 - **Root cause:** Diagnostics ownership is agent-file scoped, while ACP session IDs emitted by separate acpmock processes are only process-local. The E2E assertion has no stable process/invocation identity with which to distinguish the user session from daemon-owned background sessions. Workspace-local memory configuration also does not disable the global extractor path used here.
-- **Fix commit:** pending; two local patch attempts (session-id filter and workspace memory disable) were disproved and removed. The two-touch rule requires a structural design before another change.
-- **Regression test:** the canonical reasoning E2E plus a full-lane reproduction that permits concurrent daemon-owned sessions and still attributes protocol records to the intended invocation.
+- **Fix commit:** pending workflow checkpoint; the approved harness-only TechSpec is `.compozy/tasks/acpmock-diagnostic-attribution/_techspec.md` with ADR-001.
+- **Regression tests:** the central writer rejects caller-forged ownership, the real ACP subprocess preserves the daemon-provided owner, and the canonical reasoning E2E launches two concurrent sessions through one fixture registration and shared JSONL. Their AGH session IDs remain distinct while their process-local ACP session IDs collide; each exact owner still yields `model → effort → prompt` in append order.
 
 ## Verification
 
-- **Retested:** not yet
-- **Result:** Open. The focused owner is stable in isolation, but the required full runtime E2E lane remains red.
-
+- **Retested:** 2026-07-13, race-enabled acpmock owners and exact daemon reasoning E2E; the reasoning E2E also passed ten consecutive stress runs.
+- **Result:** Fixed at the harness owner. The writer, subprocess propagation, exact owner filter, and concurrent shared-file regression pass under `-race`; scoped `go vet`, the TechSpec marker check, the new-test convention check, and `git diff --check` also pass. The complete runtime E2E lane remains scheduled once at the final source freeze and is not yet claimed as passing.

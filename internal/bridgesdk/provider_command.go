@@ -1,6 +1,7 @@
 package bridgesdk
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -21,7 +22,7 @@ func RunProviderCommand(
 ) error {
 	providerName = strings.TrimSpace(providerName)
 	if providerName == "" {
-		return fmt.Errorf("bridgesdk: provider command name is required")
+		return errors.New("bridgesdk: provider command name is required")
 	}
 	if serve == nil {
 		return fmt.Errorf("bridgesdk: %s serve function is required", providerName)

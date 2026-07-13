@@ -87,7 +87,7 @@ Test coverage target: >=80% for touched packages. All tests must pass under the 
 - Dry-run target resolution and real provider send-test use distinct endpoints, labels, request/result contracts, and pending states. Create/edit progress controls serialize the typed block and delete it entirely when provider default is restored.
 - Focused post-freeze evidence: 14 owner suites / 192 tests passed; exact mocked-daemon Playwright passed 3/3; Web package typecheck passed; final-patch oxfmt/oxlint passed. Contract parity returned PASS and deslop returned SHIP.
 - The task's broad Web gate is intentionally deferred by explicit user direction: global suites and the single `make verify` run once after every task, QA action, and review remediation. No global gate was repeated for this task.
-- QA impact: `NB-039` was reset to `untested`; new scenario `NB-052` is `untested`. The tracker validates at 434 unique rows with 16 columns.
+- QA impact: `NB-039` and the content-addressed scenario `NB-web-bridge-setup` are `untested` in the living scenario tree.
 
 ### Visual evidence
 

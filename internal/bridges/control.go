@@ -3,10 +3,8 @@ package bridges
 import (
 	"context"
 	"errors"
-	"fmt"
-	"strings"
 
-	redactpkg "github.com/compozy/agh/internal/redact"
+	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
 )
 
 var (
@@ -19,62 +17,29 @@ type ControlMethod string
 
 const (
 	// ControlMethodCheck asks the adapter to run read-only provider checks.
-	ControlMethodCheck ControlMethod = "bridges/check"
+	ControlMethodCheck ControlMethod = ControlMethod(bridgecontract.ControlMethodCheck)
 	// ControlMethodWebhookRegister asks the adapter to register its configured webhook.
-	ControlMethodWebhookRegister ControlMethod = "bridges/webhook/register"
+	ControlMethodWebhookRegister ControlMethod = ControlMethod(bridgecontract.ControlMethodWebhookRegister)
 )
-
-// ControlMethodValues returns the closed control method family in stable order.
-func ControlMethodValues() []string {
-	return []string{string(ControlMethodCheck), string(ControlMethodWebhookRegister)}
-}
 
 // Validate enforces the closed provider control method family.
 func (m ControlMethod) Validate() error {
-	trimmed := strings.TrimSpace(string(m))
-	if string(m) != trimmed {
-		return fmt.Errorf("bridges: unsupported control method %q", string(m))
-	}
-	switch ControlMethod(trimmed) {
-	case ControlMethodCheck, ControlMethodWebhookRegister:
-		return nil
-	default:
-		return fmt.Errorf("bridges: unsupported control method %q", strings.TrimSpace(string(m)))
-	}
+	return bridgecontract.ControlMethod(m).Validate()
 }
 
 // BridgeCheckStatus is the closed result state for one provider check.
 type BridgeCheckStatus string
 
 const (
-	BridgeCheckStatusPass    BridgeCheckStatus = "pass"
-	BridgeCheckStatusWarn    BridgeCheckStatus = "warn"
-	BridgeCheckStatusFail    BridgeCheckStatus = "fail"
-	BridgeCheckStatusSkipped BridgeCheckStatus = "skipped"
+	BridgeCheckStatusPass    BridgeCheckStatus = BridgeCheckStatus(bridgecontract.BridgeCheckStatusPass)
+	BridgeCheckStatusWarn    BridgeCheckStatus = BridgeCheckStatus(bridgecontract.BridgeCheckStatusWarn)
+	BridgeCheckStatusFail    BridgeCheckStatus = BridgeCheckStatus(bridgecontract.BridgeCheckStatusFail)
+	BridgeCheckStatusSkipped BridgeCheckStatus = BridgeCheckStatus(bridgecontract.BridgeCheckStatusSkipped)
 )
-
-// BridgeCheckStatusValues returns the closed check status family in stable order.
-func BridgeCheckStatusValues() []string {
-	return []string{
-		string(BridgeCheckStatusPass),
-		string(BridgeCheckStatusWarn),
-		string(BridgeCheckStatusFail),
-		string(BridgeCheckStatusSkipped),
-	}
-}
 
 // Validate enforces the closed public check status family.
 func (s BridgeCheckStatus) Validate() error {
-	trimmed := strings.TrimSpace(string(s))
-	if string(s) != trimmed {
-		return fmt.Errorf("bridges: unsupported bridge check status %q", string(s))
-	}
-	switch BridgeCheckStatus(trimmed) {
-	case BridgeCheckStatusPass, BridgeCheckStatusWarn, BridgeCheckStatusFail, BridgeCheckStatusSkipped:
-		return nil
-	default:
-		return fmt.Errorf("bridges: unsupported bridge check status %q", strings.TrimSpace(string(s)))
-	}
+	return bridgecontract.BridgeCheckStatus(s).Validate()
 }
 
 // BridgeCheckRecord is one stable, redacted provider check result.
@@ -87,23 +52,7 @@ type BridgeCheckRecord struct {
 
 // Validate enforces a named, closed, actionable provider check result.
 func (r BridgeCheckRecord) Validate() error {
-	if strings.TrimSpace(r.Check) == "" {
-		return errors.New("bridges: bridge check name is required")
-	}
-	if redactpkg.String(r.Check) != r.Check {
-		return errors.New("bridges: bridge check name contains sensitive data")
-	}
-	status := BridgeCheckStatus(strings.TrimSpace(string(r.Status)))
-	if err := status.Validate(); err != nil {
-		return err
-	}
-	if status != BridgeCheckStatusPass && strings.TrimSpace(r.Remediation) == "" {
-		return errors.New("bridges: bridge check remediation is required unless status is pass")
-	}
-	if redactpkg.String(r.Remediation) != r.Remediation {
-		return errors.New("bridges: bridge check remediation contains sensitive data")
-	}
-	return nil
+	return bridgeCheckRecordToContract(r).Validate()
 }
 
 // BridgeCheckRequest selects the daemon-owned bridge instance to inspect.
@@ -113,7 +62,9 @@ type BridgeCheckRequest struct {
 
 // Validate requires an explicit bridge instance.
 func (r BridgeCheckRequest) Validate() error {
-	return requireField(r.BridgeInstanceID, "bridge check instance id")
+	return (bridgecontract.BridgeCheckRequest{
+		BridgeInstanceID: r.BridgeInstanceID,
+	}).Validate()
 }
 
 // BridgeCheckResponse returns every explicit provider check record.
@@ -123,21 +74,11 @@ type BridgeCheckResponse struct {
 
 // Validate rejects empty or malformed provider responses.
 func (r BridgeCheckResponse) Validate() error {
-	if len(r.Checks) == 0 {
-		return errors.New("bridges: bridge check response checks are required")
-	}
-	seen := make(map[string]struct{}, len(r.Checks))
+	checks := make([]bridgecontract.BridgeCheckRecord, len(r.Checks))
 	for index, check := range r.Checks {
-		if err := check.Validate(); err != nil {
-			return fmt.Errorf("bridges: bridge check response check %d: %w", index, err)
-		}
-		name := strings.TrimSpace(check.Check)
-		if _, ok := seen[name]; ok {
-			return fmt.Errorf("bridges: bridge check response check %q is duplicated", name)
-		}
-		seen[name] = struct{}{}
+		checks[index] = bridgeCheckRecordToContract(check)
 	}
-	return nil
+	return (bridgecontract.BridgeCheckResponse{Checks: checks}).Validate()
 }
 
 // BridgeWebhookRegistrationRequest selects the instance whose configured webhook is registered.
@@ -147,7 +88,9 @@ type BridgeWebhookRegistrationRequest struct {
 
 // Validate requires an explicit bridge instance.
 func (r BridgeWebhookRegistrationRequest) Validate() error {
-	return requireField(r.BridgeInstanceID, "bridge webhook registration instance id")
+	return (bridgecontract.BridgeWebhookRegistrationRequest{
+		BridgeInstanceID: r.BridgeInstanceID,
+	}).Validate()
 }
 
 // BridgeWebhookRegistrationResponse is the stable result of provider webhook registration.
@@ -158,11 +101,18 @@ type BridgeWebhookRegistrationResponse struct {
 
 // Validate enforces the same closed, actionable status contract as provider checks.
 func (r BridgeWebhookRegistrationResponse) Validate() error {
-	return (BridgeCheckRecord{
-		Check:       "webhook.registration",
-		Status:      r.Status,
+	return (bridgecontract.BridgeWebhookRegistrationResponse{
+		Status:      bridgecontract.BridgeCheckStatus(r.Status),
 		Remediation: r.Remediation,
 	}).Validate()
+}
+
+func bridgeCheckRecordToContract(record BridgeCheckRecord) bridgecontract.BridgeCheckRecord {
+	return bridgecontract.BridgeCheckRecord{
+		Check:       record.Check,
+		Status:      bridgecontract.BridgeCheckStatus(record.Status),
+		Remediation: record.Remediation,
+	}
 }
 
 // BridgeControlTransport executes provider-owned control calls through isolated extension runtimes.
@@ -177,34 +127,4 @@ type BridgeControlTransport interface {
 		extensionName string,
 		req BridgeWebhookRegistrationRequest,
 	) (BridgeWebhookRegistrationResponse, error)
-}
-
-// PassCheck builds a successful public check without diagnostic prose.
-func PassCheck(check string) BridgeCheckRecord {
-	return BridgeCheckRecord{
-		Check:       strings.TrimSpace(check),
-		Status:      BridgeCheckStatusPass,
-		Remediation: "",
-	}
-}
-
-// SkippedCheck builds an explicit skipped check with the operator's next action.
-func SkippedCheck(check string, remediation string) BridgeCheckRecord {
-	return BridgeCheckRecord{
-		Check:       strings.TrimSpace(check),
-		Status:      BridgeCheckStatusSkipped,
-		Remediation: strings.TrimSpace(remediation),
-	}
-}
-
-// FailedSecretCheck reports a missing binding without accepting or exposing a raw provider error.
-func FailedSecretCheck(check string, binding string) BridgeCheckRecord {
-	return BridgeCheckRecord{
-		Check:  strings.TrimSpace(check),
-		Status: BridgeCheckStatusFail,
-		Remediation: fmt.Sprintf(
-			"Bind the required %q bridge secret and retry.",
-			strings.TrimSpace(binding),
-		),
-	}
 }

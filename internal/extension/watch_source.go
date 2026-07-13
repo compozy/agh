@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	watchpkg "github.com/compozy/agh/internal/loop/watch"
 	toolspkg "github.com/compozy/agh/internal/tools"
 )

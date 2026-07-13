@@ -8,7 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
 )
 
@@ -58,21 +58,31 @@ func (p *whatsappProvider) handleBridgesProgress(
 		return bridgepkg.DeliveryAck{}, errors.New("whatsapp: progress payload is required")
 	}
 
-	state := p.deliveryState(cfg.instanceID, request.Event.DeliveryID)
-	if state.Progress == nil {
-		targetUserID, err := resolveDeliveryTarget(request.Event)
-		if err != nil {
-			wrapped := fmt.Errorf("whatsapp: resolve progress target: %w", err)
-			p.reportWhatsAppProgressFailure(ctx, session, cfg.instanceID, wrapped)
-			return bridgepkg.DeliveryAck{}, wrapped
-		}
-		state.Progress = p.newWhatsAppProgressDispatcher(
-			cfg,
-			request.Event,
-			progressConfig,
-			targetUserID,
-		)
-		p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, state)
+	var resolveErr error
+	state, _ := p.deliveries.UpdateOrCreate(
+		deliveryStateKey(cfg.instanceID, request.Event.DeliveryID),
+		func(state deliveryState, _ bool) deliveryState {
+			if state.Progress != nil {
+				return state
+			}
+			targetUserID, err := resolveDeliveryTarget(request.Event)
+			if err != nil {
+				resolveErr = err
+				return state
+			}
+			state.Progress = p.newWhatsAppProgressDispatcher(
+				cfg,
+				request.Event,
+				progressConfig,
+				targetUserID,
+			)
+			return state
+		},
+	)
+	if resolveErr != nil {
+		wrapped := fmt.Errorf("whatsapp: resolve progress target: %w", resolveErr)
+		p.reportWhatsAppProgressFailure(ctx, session, cfg.instanceID, wrapped)
+		return bridgepkg.DeliveryAck{}, wrapped
 	}
 	if err := state.Progress.OnProgress(ctx, *request.Event.Progress); err != nil {
 		p.reportWhatsAppProgressFailure(ctx, session, cfg.instanceID, err)

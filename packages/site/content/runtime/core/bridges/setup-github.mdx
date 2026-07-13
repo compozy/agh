@@ -49,6 +49,20 @@ requirements, not as an unproven first step.
 - The exact repository full name, such as `acme/app`.
 - An AGH workspace whose default agent should receive comments.
 
+Before configuring GitHub, prove that the locally built provider is installed and visible in the
+daemon catalog:
+
+```bash
+PROVIDER=github
+agh extension status "$PROVIDER" -o json
+curl -sS http://127.0.0.1:2123/api/bridges/providers | \
+  jq --arg provider "$PROVIDER" '.providers[] | select(.extension_name == $provider)'
+```
+
+Continue only when the extension is enabled and the catalog row is not disabled or unhealthy. If
+either command has no provider, follow [Install an in-tree
+provider](/runtime/core/bridges/setup#install-an-in-tree-provider) first.
+
 The provider only accepts JSON webhook bodies up to 1 MiB and verifies `X-Hub-Signature-256` over
 the exact bytes GitHub sent.
 
@@ -159,41 +173,41 @@ BRIDGE_ID=brg_123
 Both modes need the same webhook secret configured on GitHub:
 
 ```bash
-agh bridge secret-bindings put "$BRIDGE_ID" webhook_secret \
+printf '%s' "$GITHUB_WEBHOOK_SECRET" | agh bridge secret-bindings put "$BRIDGE_ID" webhook_secret \
   --secret-ref "vault:bridges/$BRIDGE_ID/webhook_secret" \
   --kind secret \
-  --secret-value "$GITHUB_WEBHOOK_SECRET"
+  --secret-value-stdin
 ```
 
 PAT mode:
 
 ```bash
-agh bridge secret-bindings put "$BRIDGE_ID" token \
+printf '%s' "$GITHUB_TOKEN" | agh bridge secret-bindings put "$BRIDGE_ID" token \
   --secret-ref "vault:bridges/$BRIDGE_ID/token" \
   --kind token \
-  --secret-value "$GITHUB_TOKEN"
+  --secret-value-stdin
 ```
 
 GitHub App mode:
 
 ```bash
-agh bridge secret-bindings put "$BRIDGE_ID" app_id \
+printf '%s' "$GITHUB_APP_ID" | agh bridge secret-bindings put "$BRIDGE_ID" app_id \
   --secret-ref "vault:bridges/$BRIDGE_ID/app_id" \
   --kind credential \
-  --secret-value "$GITHUB_APP_ID"
+  --secret-value-stdin
 
 agh bridge secret-bindings put "$BRIDGE_ID" private_key \
   --secret-ref "vault:bridges/$BRIDGE_ID/private_key" \
   --kind private-key \
-  --secret-value "$GITHUB_APP_PRIVATE_KEY"
+  --secret-value-file "/secure/path/github-app-private-key.pem"
 ```
 
 The App ID must be numeric. The private key must be an RSA key encoded as PKCS#1 or PKCS#8 PEM.
 
 <OperatorNote>
-  PATs and PEM private keys are passed to the current generic CLI through `--secret-value`, which is
-  a process argument. Expand short-lived environment variables only on a trusted host. File/stdin
-  input is not currently exposed; see [Bridge
+  Stdin keeps short-lived PATs and identifiers out of AGH process arguments. The file form is safer
+  for multiline PEM material and places only the path in argv. Restrict file permissions and remove
+  temporary copies after the write; see [Bridge
   operations](/runtime/core/bridges/operations#rotate-a-credential).
 </OperatorNote>
 
@@ -320,6 +334,7 @@ Rotating `webhook_secret` requires changing GitHub and the AGH binding in the sa
 
 ## Completion checklist
 
+- The GitHub extension is installed, enabled, and healthy in the provider catalog.
 - The bridge owns exactly the intended `owner/repository`.
 - The webhook subscribes only to supported issue-comment and review-comment families.
 - PAT or GitHub App permissions allow the exact comment operations in use.

@@ -34,6 +34,7 @@ type recordingDeliveryLedgerStore struct {
 	checkpointFailures int
 	checkpointAttempts int
 	metricPuts         int
+	metricPutErrors    map[string]error
 	updates            chan struct{}
 }
 
@@ -41,9 +42,10 @@ var _ DeliveryLedgerStore = (*recordingDeliveryLedgerStore)(nil)
 
 func newRecordingDeliveryLedgerStore() *recordingDeliveryLedgerStore {
 	return &recordingDeliveryLedgerStore{
-		records: make(map[string]DeliveryLedgerRecord),
-		metrics: make(map[string]BridgeDeliveryMetrics),
-		updates: make(chan struct{}, 1),
+		records:         make(map[string]DeliveryLedgerRecord),
+		metrics:         make(map[string]BridgeDeliveryMetrics),
+		metricPutErrors: make(map[string]error),
+		updates:         make(chan struct{}, 1),
 	}
 }
 
@@ -140,9 +142,20 @@ func (s *recordingDeliveryLedgerStore) PutBridgeDeliveryMetrics(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.metricPuts++
+	if err := s.metricPutErrors[record.BridgeInstanceID]; err != nil {
+		s.signalLocked()
+		return err
+	}
 	s.metrics[record.BridgeInstanceID] = record.BridgeDeliveryMetrics
 	s.signalLocked()
 	return nil
+}
+
+func (s *recordingDeliveryLedgerStore) hasMetrics(bridgeInstanceID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.metrics[bridgeInstanceID]
+	return ok
 }
 
 func (s *recordingDeliveryLedgerStore) metricPutCount() int {
@@ -160,6 +173,19 @@ func waitForMetricPuts(t *testing.T, store *recordingDeliveryLedgerStore, want i
 		case <-store.updates:
 		case <-timer.C:
 			t.Fatalf("metric put count = %d, want at least %d", store.metricPutCount(), want)
+		}
+	}
+}
+
+func waitForStoredMetrics(t *testing.T, store *recordingDeliveryLedgerStore, bridgeInstanceID string) {
+	t.Helper()
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+	for !store.hasMetrics(bridgeInstanceID) {
+		select {
+		case <-store.updates:
+		case <-timer.C:
+			t.Fatalf("metrics for %q were not persisted", bridgeInstanceID)
 		}
 	}
 }
@@ -1353,6 +1379,47 @@ func TestBrokerDeliveryMetricsCaptureTerminalFailures(t *testing.T) {
 	if got, want := metrics.LastError, "boom"; got != want {
 		t.Fatalf("DeliveryMetrics().LastError = %q, want %q", got, want)
 	}
+}
+
+func TestBrokerDeliveryMetricPersistenceSurvivesDeletedInstances(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should skip a deleted instance revision and persist later instances", func(t *testing.T) {
+		t.Parallel()
+
+		store := newRecordingDeliveryLedgerStore()
+		store.metricPutErrors["brg-deleted"] = ErrBridgeInstanceNotFound
+		broker := NewBroker(
+			nil,
+			WithDeliveryLedgerStore(store),
+			WithDeliveryBrokerRetryDelay(time.Millisecond),
+		)
+		t.Cleanup(broker.Close)
+
+		broker.mu.Lock()
+		deleted := broker.metricsLocked("brg-deleted")
+		deleted.scope = ScopeGlobal
+		broker.markDeliveryMetricsDirtyLocked(deleted)
+		broker.mu.Unlock()
+		waitForMetricPuts(t, store, 1)
+
+		broker.mu.Lock()
+		healthy := broker.metricsLocked("brg-healthy")
+		healthy.scope = ScopeGlobal
+		broker.markDeliveryMetricsDirtyLocked(healthy)
+		broker.mu.Unlock()
+		waitForStoredMetrics(t, store, "brg-healthy")
+
+		if err := broker.DeliveryMetricPersistenceError(); !errors.Is(err, ErrBridgeInstanceNotFound) {
+			t.Fatalf("DeliveryMetricPersistenceError() = %v, want ErrBridgeInstanceNotFound", err)
+		}
+		if got := broker.DeliveryMetrics()["brg-deleted"].LastError; !strings.Contains(
+			got,
+			"delivery metric persistence",
+		) {
+			t.Fatalf("DeliveryMetrics().LastError = %q, want persistence health signal", got)
+		}
+	})
 }
 
 func TestBrokerProgressDeliveryFailuresRemainBestEffort(t *testing.T) {

@@ -7,7 +7,7 @@
         "internal/codegen/openapits/**",
         "internal/codegen/sdkts/**",
         "internal/extension/contract/**",
-        "internal/extension/protocol/**",
+        "internal/extensionprotocol/**",
         "internal/hooks/**",
         "internal/subprocess/handshake.go",
         "magefiles/**",

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -76,15 +77,56 @@ func (b *Broker) flushDirtyDeliveryMetrics(ctx context.Context, respectLifecycle
 			return nil
 		}
 		if err := b.persistDeliveryMetricRecord(ctx, pending.record, respectLifecycle); err != nil {
+			if isTerminalDeliveryMetricPersistenceError(err) {
+				b.setDeliveryMetricPersistenceError(err)
+				b.setDeliveryMetricPersistenceIssue(pending.record.BridgeInstanceID, err)
+				b.markDeliveryMetricRevisionPersisted(pending)
+				continue
+			}
 			return err
 		}
-		b.mu.Lock()
-		metrics := b.metrics[pending.record.BridgeInstanceID]
-		if metrics != nil && pending.revision > metrics.persistedRevision {
-			metrics.persistedRevision = pending.revision
-		}
-		b.mu.Unlock()
+		b.clearDeliveryMetricPersistenceIssue(pending.record.BridgeInstanceID)
+		b.markDeliveryMetricRevisionPersisted(pending)
 	}
+}
+
+func (b *Broker) setDeliveryMetricPersistenceIssue(bridgeInstanceID string, err error) {
+	if b == nil || strings.TrimSpace(bridgeInstanceID) == "" || err == nil {
+		return
+	}
+	b.mu.Lock()
+	if b.metricPersistIssues == nil {
+		b.metricPersistIssues = make(map[string]deliveryMetricPersistenceIssue)
+	}
+	b.metricPersistIssues[strings.TrimSpace(bridgeInstanceID)] = deliveryMetricPersistenceIssue{
+		err: err,
+		at:  b.now(),
+	}
+	b.mu.Unlock()
+}
+
+func (b *Broker) clearDeliveryMetricPersistenceIssue(bridgeInstanceID string) {
+	if b == nil {
+		return
+	}
+	b.mu.Lock()
+	delete(b.metricPersistIssues, strings.TrimSpace(bridgeInstanceID))
+	b.mu.Unlock()
+}
+
+func isTerminalDeliveryMetricPersistenceError(err error) bool {
+	return errors.Is(err, ErrDeliveryLedgerNotFound) ||
+		errors.Is(err, ErrDeliveryLedgerConflict) ||
+		errors.Is(err, ErrBridgeInstanceNotFound)
+}
+
+func (b *Broker) markDeliveryMetricRevisionPersisted(pending pendingDeliveryMetricRecord) {
+	b.mu.Lock()
+	metrics := b.metrics[pending.record.BridgeInstanceID]
+	if metrics != nil && pending.revision > metrics.persistedRevision {
+		metrics.persistedRevision = pending.revision
+	}
+	b.mu.Unlock()
 }
 
 func (b *Broker) nextPendingDeliveryMetricRecord() (pendingDeliveryMetricRecord, bool) {

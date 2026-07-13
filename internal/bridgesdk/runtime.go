@@ -11,9 +11,8 @@ import (
 	"sync"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -274,7 +273,7 @@ func (s *Session) ReportClassifiedError(
 		return nil, recovery, nil
 	}
 
-	updated, err := s.host.ReportBridgeInstanceState(ctx, extensioncontract.BridgesInstancesReportStateParams{
+	updated, err := s.host.ReportBridgeInstanceState(ctx, bridgepkg.BridgesInstancesReportStateParams{
 		BridgeInstanceID: strings.TrimSpace(bridgeInstanceID),
 		Status:           recovery.Status,
 		Degradation:      recovery.Degradation,

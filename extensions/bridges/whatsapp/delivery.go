@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
 )
 
@@ -35,6 +35,7 @@ type deliveryState struct {
 	LastSeq                int64
 	RemoteMessageID        string
 	ReplaceRemoteMessageID string
+	Chunks                 bridgesdk.DeliveryChunkCursor
 	Progress               *bridgesdk.ProgressDispatcher
 }
 
@@ -86,6 +87,7 @@ func (p *whatsappProvider) handleBridgesDeliver(
 		state,
 	)
 	if err != nil {
+		p.storeDeliveryRetryState(cfg.instanceID, request.Event.DeliveryID, state)
 		return p.failWhatsAppDelivery(ctx, session, cfg, marker, err)
 	}
 	return p.completeWhatsAppDelivery(ctx, session, cfg, request, marker, ack, state)
@@ -173,6 +175,17 @@ func (p *whatsappProvider) storeDeliveryState(
 	p.deliveries.Store(deliveryStateKey(instanceID, deliveryID), state)
 }
 
+func (p *whatsappProvider) storeDeliveryRetryState(
+	instanceID string,
+	deliveryID string,
+	state deliveryState,
+) {
+	if !state.Chunks.Active() {
+		return
+	}
+	p.deliveries.Store(deliveryStateKey(instanceID, deliveryID), state)
+}
+
 func executeWhatsAppDelivery(
 	ctx context.Context,
 	api whatsappAPI,
@@ -215,18 +228,38 @@ func executeWhatsAppDelivery(
 		}
 	}
 
-	if ack, resumed, ok := resumeWhatsAppDelivery(event, request.Snapshot, state); ok {
+	if ack, resumed, ok := resumeWhatsAppDelivery(event, request.Snapshot, state); ok && !state.Chunks.Active() {
 		if err := ack.ValidateFor(event); err != nil {
 			return bridgepkg.DeliveryAck{}, state, fmt.Errorf("whatsapp: validate resume ack: %w", err)
 		}
 		return ack, resumed, nil
 	}
 
-	remoteID, err := sendWhatsAppDeliveryChunks(ctx, api, cfg.phoneNumberID, targetUserID, text)
+	replaceRemoteID := whatsappReplacementRemoteID(event, request.Snapshot, state)
+	chunks := bridgesdk.ChunkMessage(text, whatsappMaxMessageRunes, nil)
+	state.Chunks = bridgesdk.BeginDeliveryChunks(
+		state.Chunks,
+		event.Seq,
+		bridgesdk.DeliveryChunkModeCreate,
+		len(chunks),
+		text,
+		"",
+		replaceRemoteID,
+	)
+	state.Chunks, err = sendWhatsAppDeliveryChunksWithCursor(
+		ctx,
+		api,
+		cfg.phoneNumberID,
+		targetUserID,
+		chunks,
+		state.Chunks,
+	)
 	if err != nil {
 		return bridgepkg.DeliveryAck{}, state, err
 	}
-	replaceRemoteID := whatsappReplacementRemoteID(event, request.Snapshot, state)
+	remoteID := state.Chunks.LastRemoteMessageID()
+	replaceRemoteID = state.Chunks.ReplaceRemoteMessageID()
+	state.Chunks = bridgesdk.DeliveryChunkCursor{}
 	ack := bridgepkg.DeliveryAck{
 		DeliveryID:      event.DeliveryID,
 		Seq:             event.Seq,
@@ -298,9 +331,40 @@ func sendWhatsAppDeliveryChunks(
 	targetUserID string,
 	text string,
 ) (string, error) {
-	remoteID := ""
 	chunks := bridgesdk.ChunkMessage(text, whatsappMaxMessageRunes, nil)
-	for index, chunk := range chunks {
+	cursor := bridgesdk.BeginDeliveryChunks(
+		bridgesdk.DeliveryChunkCursor{},
+		1,
+		bridgesdk.DeliveryChunkModeCreate,
+		len(chunks),
+		text,
+		"",
+		"",
+	)
+	cursor, err := sendWhatsAppDeliveryChunksWithCursor(
+		ctx,
+		api,
+		phoneNumberID,
+		targetUserID,
+		chunks,
+		cursor,
+	)
+	if err != nil {
+		return "", err
+	}
+	return cursor.LastRemoteMessageID(), nil
+}
+
+func sendWhatsAppDeliveryChunksWithCursor(
+	ctx context.Context,
+	api whatsappAPI,
+	phoneNumberID string,
+	targetUserID string,
+	chunks []string,
+	cursor bridgesdk.DeliveryChunkCursor,
+) (bridgesdk.DeliveryChunkCursor, error) {
+	for index := cursor.NextChunk(); index < len(chunks); index++ {
+		chunk := chunks[index]
 		req := whatsappSendMessageRequest{
 			MessagingProduct: providerWhatsappKey,
 			RecipientType:    whatsappRecipientTypeIndividual,
@@ -310,16 +374,17 @@ func sendWhatsAppDeliveryChunks(
 		req.Text.Body = chunk
 		req.Text.PreviewURL = false
 
-		response, err := api.SendTextMessage(ctx, phoneNumberID, req)
+		response, err := sendWhatsAppDeliveryMessage(ctx, api, phoneNumberID, req)
 		if err != nil {
-			return "", fmt.Errorf("whatsapp: send text chunk %d: %w", index+1, err)
+			return cursor, fmt.Errorf("whatsapp: send text chunk %d: %w", index+1, err)
 		}
-		remoteID, err = lastWhatsAppResponseMessageID(response)
+		remoteID, err := lastWhatsAppResponseMessageID(response)
 		if err != nil {
-			return "", err
+			return cursor, err
 		}
+		cursor = cursor.Advance(remoteID)
 	}
-	return remoteID, nil
+	return cursor, nil
 }
 
 func lastWhatsAppResponseMessageID(response *whatsappSendMessageResponse) (string, error) {

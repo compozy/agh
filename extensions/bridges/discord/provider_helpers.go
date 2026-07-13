@@ -5,12 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 )
 
 func discordUserIdentityFromInteraction(interaction discordInteraction) (discordUserIdentity, error) {
@@ -295,14 +296,16 @@ func parseRetryAfter(value string) time.Duration {
 	if trimmed == "" {
 		return 0
 	}
-	seconds, err := strconv.Atoi(trimmed)
-	if err != nil {
+	seconds, err := strconv.ParseFloat(trimmed, 64)
+	if err != nil || seconds <= 0 || math.IsNaN(seconds) || math.IsInf(seconds, 0) {
 		return 0
 	}
-	if seconds <= 0 {
+	nanoseconds := seconds * float64(time.Second)
+	const maxDuration = time.Duration(1<<63 - 1)
+	if nanoseconds > float64(maxDuration) {
 		return 0
 	}
-	return time.Duration(seconds) * time.Second
+	return time.Duration(math.Ceil(nanoseconds))
 }
 
 func normalizeWebhookPath(value string) string {

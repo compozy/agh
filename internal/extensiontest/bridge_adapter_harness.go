@@ -16,10 +16,10 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
 	extensionpkg "github.com/compozy/agh/internal/extension"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	observepkg "github.com/compozy/agh/internal/observe"
 	sandboxlocal "github.com/compozy/agh/internal/sandbox/local"
 	"github.com/compozy/agh/internal/session"
@@ -149,9 +149,9 @@ type StateRecord struct {
 
 // IngestRecord captures one fake inbound update mapped into a normalized ingest.
 type IngestRecord struct {
-	Envelope bridgepkg.InboundMessageEnvelope              `json:"envelope"`
-	Result   extensioncontract.BridgesMessagesIngestResult `json:"result"`
-	Error    string                                        `json:"error,omitempty"`
+	Envelope bridgepkg.InboundMessageEnvelope           `json:"envelope"`
+	Result   bridgecontract.BridgesMessagesIngestResult `json:"result"`
+	Error    string                                     `json:"error,omitempty"`
 }
 
 // ConformanceReport is the collected adapter evidence used by the validator.
@@ -1010,7 +1010,7 @@ func createHarnessManagedInstances(
 		}
 		instances = append(instances, *instance)
 		managedRuntime = append(managedRuntime, subprocess.InitializeBridgeManagedInstance{
-			Instance:     *instance,
+			Instance:     bridgepkg.BridgeInstanceToContract(*instance),
 			BoundSecrets: cloneBoundSecrets(managedCfg.BoundSecrets),
 		})
 	}
@@ -1625,50 +1625,6 @@ func appendJSONLine(t testing.TB, path string, value any) {
 	if err := encoder.Encode(value); err != nil {
 		t.Fatalf("encoder.Encode(%q) error = %v", target, err)
 	}
-}
-
-func recordHostStateTransition(
-	t testing.TB,
-	path string,
-	params json.RawMessage,
-	result any,
-	callErr error,
-) {
-	t.Helper()
-
-	record := StateRecord{}
-
-	var request extensioncontract.BridgesInstancesReportStateParams
-	if err := json.Unmarshal(params, &request); err == nil {
-		record.BridgeInstanceID = strings.TrimSpace(request.BridgeInstanceID)
-		record.Status = request.Status.Normalize()
-		record.Instance = bridgepkg.BridgeInstance{
-			ID:          record.BridgeInstanceID,
-			Status:      request.Status.Normalize(),
-			Degradation: cloneBridgeDegradation(request.Degradation),
-		}
-	}
-
-	switch typed := result.(type) {
-	case *bridgepkg.BridgeInstance:
-		if typed != nil {
-			record.Instance = copyBridgeInstance(*typed)
-		}
-	case bridgepkg.BridgeInstance:
-		record.Instance = copyBridgeInstance(typed)
-	}
-
-	if record.BridgeInstanceID == "" {
-		record.BridgeInstanceID = strings.TrimSpace(record.Instance.ID)
-	}
-	if record.Status == "" {
-		record.Status = record.Instance.Status.Normalize()
-	}
-	if callErr != nil {
-		record.Error = callErr.Error()
-	}
-
-	appendJSONLine(t, path, record)
 }
 
 func cloneBridgeDegradation(degradation *bridgepkg.BridgeDegradation) *bridgepkg.BridgeDegradation {

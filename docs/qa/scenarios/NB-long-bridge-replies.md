@@ -4,9 +4,9 @@ area: NB
 title: Deliver long bridge replies safely
 persona: Omar
 journey: J-deliver-long-formatted-reply
-expected: A terminal reply above the platform cap is delivered as ordered numbered messages within each provider limit, edit-capable cumulative previews remain one mutable message until terminal continuations materialize, platform markup stays readable, and the delivery acknowledgement points to the final remote message.
+expected: A terminal reply above the platform cap is delivered as ordered numbered messages whose wire bodies stay within Slack 40,000 UTF-16 code units, Telegram 4,096 UTF-16 code units, Discord 2,000 Unicode code points, Teams 28,000 Unicode code points, Google Chat 32,000 UTF-8 bytes, or WhatsApp 4,096 Unicode code points; edit-capable cumulative previews stay in one mutable message until terminal continuations materialize; after an exhausted typed provider retry, same-process redelivery resumes at the first unsent chunk without duplicating the acknowledged prefix; platform markup stays readable; and the delivery acknowledgement points to the final remote message.
 entry_points: Public bridge delivery through Slack; Telegram; Discord; Teams; Google Chat; WhatsApp adapters
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -22,4 +22,6 @@ Added by the Hermes bridge Task 02 impact flag. Task 09 assigned it to `J-delive
 
 QA 2026-07-13: the adversarial shared corpus passed all six provider wire owners under race with provider-specific units, ordered continuations, fence repair, dialect handling, and terminal acknowledgements. This is a qualified deterministic-provider verdict.
 
-Provider limits covered by this scenario are Slack 40,000 Unicode code points, Telegram 4,096 UTF-16 code units, Discord 2,000 Unicode code points, Teams 28,000 Unicode code points, Google Chat 32,000 UTF-8 bytes, and WhatsApp 4,096 Unicode code points.
+Provider limits covered by this scenario are Slack 40,000 UTF-16 code units, Telegram 4,096 UTF-16 code units, Discord 2,000 Unicode code points, Teams 28,000 Unicode code points, Google Chat 32,000 UTF-8 bytes, and WhatsApp 4,096 Unicode code points.
+
+Phase D impact flag 2026-07-13: all six chat adapters now apply typed retry/backoff to primary delivery operations, retain only the successfully acknowledged chunk prefix, and resume at the first unsent chunk after exhausted retries. Slack wire measurement changed from rune count to 40,000 UTF-16 code units. Status reset to `untested`; historical deterministic-provider evidence remains intact. No QA retest ran.

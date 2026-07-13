@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
+	bridgepkg "github.com/compozy/agh/internal/bridges"
 	aghconfig "github.com/compozy/agh/internal/config"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/subprocess"
 	"github.com/compozy/agh/internal/testutil"
@@ -383,18 +384,18 @@ func TestManagerIntegrationInitializeIncludesSessionNonceAndResourceGrants(t *te
 	if strings.TrimSpace(request.SessionNonce) == "" {
 		t.Fatal("initialize session_nonce = empty, want daemon-issued nonce")
 	}
-	if !slicesEqualResourceKinds(
+	if !slicesEqualStrings(
 		request.Capabilities.GrantedResourceKinds,
-		[]resources.ResourceKind{resources.ResourceKind("tool")},
+		[]string{"tool"},
 	) {
 		t.Fatalf(
 			"initialize granted_resource_kinds = %#v, want [tool]",
 			request.Capabilities.GrantedResourceKinds,
 		)
 	}
-	if !slicesEqualResourceScopes(
+	if !slicesEqualStrings(
 		request.Capabilities.GrantedResourceScopes,
-		[]resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace},
+		[]string{string(resources.ResourceScopeKindWorkspace)},
 	) {
 		t.Fatalf(
 			"initialize granted_resource_scopes = %#v, want [workspace]",
@@ -484,13 +485,17 @@ func TestManagerIntegrationBridgeAdapterRestartPreservesNegotiatedSurface(t *tes
 					Platform:       "telegram",
 					ManagedInstances: []subprocess.InitializeBridgeManagedInstance{
 						{
-							Instance: testBridgeRuntimeInstance("ext-bridge-restart", "brg-restart-a"),
+							Instance: bridgepkg.BridgeInstanceToContract(
+								testBridgeRuntimeInstance("ext-bridge-restart", "brg-restart-a"),
+							),
 							BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
 								{BindingName: "bot_token", Kind: "bot_token", Value: "token-restart"},
 							},
 						},
 						{
-							Instance: testBridgeRuntimeInstance("ext-bridge-restart", "brg-restart-b"),
+							Instance: bridgepkg.BridgeInstanceToContract(
+								testBridgeRuntimeInstance("ext-bridge-restart", "brg-restart-b"),
+							),
 						},
 					},
 				},

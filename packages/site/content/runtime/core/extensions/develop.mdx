@@ -252,6 +252,13 @@ the target directory, freshness timestamps, persistence, and ambiguity checks; a
 provider-derived snapshots with immutable canonical routes, display names, types, qualifiers, and
 capabilities.
 
+Bridge adapters are currently a trusted in-tree or local-source path. External bridge authoring is
+not yet a first-class public SDK workflow: the public SDKs do not cover the complete service and
+control contracts, marketplace bridge grants are unavailable, and there is no public bridge
+conformance harness. Follow the [in-tree provider guide](/runtime/core/bridges/adding-a-bridge) only
+when contributing inside the AGH repository; the registry packaging flow below is not, by itself, a
+supported third-party bridge path.
+
 Marketplace extensions run under a stricter policy. They are constrained to read-oriented grants:
 `logs.read`, `memory.read`, `model.read`, `observe.read`, `session.read`, `skills.read`, and
 `tool.read`.
@@ -306,10 +313,12 @@ work for the same provider is
 coalesced — concurrent refreshes return identical source statuses when the in-flight refresh
 finishes.
 
-Generated TypeScript SDK and Go SDK helpers (`ProviderModel*`, `ModelCatalogSource*`,
-`ModelSource*`) are published from the same OpenAPI/contract source as the daemon. Extensions
-should depend on those helpers instead of hand-rolling JSON shapes so contract drift is caught at
-typecheck time.
+The in-repository TypeScript SDK exports generated `ProviderModel*`, `ModelCatalogSource*`, and
+`ModelSource*` contracts from the daemon's OpenAPI source. The Go SDK currently exposes the generic
+`HostAPI.Request` boundary rather than generated model-catalog payload types. The TypeScript package
+is a workspace dependency in this repository and is not published by the AGH release workflow; use
+it from a version-matched repository checkout instead of assuming `@agh/extension-sdk` is available
+from a package registry.
 
 ### Authored Context Host API
 
@@ -386,17 +395,22 @@ native tool, because Soul does not need an in-prompt invocation surface.
 
 ### Authored Context SDK helpers
 
-The Go and TypeScript SDKs publish curated helpers and types for the authored-context surfaces:
-`AgentSoul*`, `AgentHeartbeat*`, `SessionHealth*`, and `AuthoredContext*` types are available
-through `@agh/extension-sdk` and the Go SDK, generated from the same OpenAPI/contract source as
-the daemon. Extensions should depend on those helpers instead of hand-rolling JSON shapes so
-contract drift is caught at typecheck time.
+The in-repository TypeScript SDK exports generated `AgentSoul*`, `AgentHeartbeat*`,
+`SessionHealth*`, and `AuthoredContext*` contracts from the same OpenAPI source as the daemon. The
+Go SDK exposes the Host API method constants and generic request boundary, but does not currently
+ship generated authored-context payload structs. Keep a TypeScript extension on the same repository
+revision as the daemon; for Go, validate local request and response structs against the public API
+contract instead of assuming SDK parity that is not present.
 
 ## Practical Example: Prompt Enhancer
 
-This example mirrors the repository's `sdk/examples/prompt-enhancer` pattern. It packages a
-`prompt.post_assemble` hook and a persistent subprocess. The hook command is intentionally a
-one-shot process: it reads payload JSON from stdin and writes a `PromptPatch` to stdout. The
+This example mirrors the repository's `sdk/examples/prompt-enhancer` pattern and can be built and
+exercised from an AGH repository checkout, where its `package.json` resolves `@agh/extension-sdk`
+with `workspace:*`. It cannot be managed-installed as written: the runtime import remains in the
+built JavaScript, and the workspace dependency is a symlink outside the example root. The managed
+installer rejects runtime dependency symlinks that escape the package boundary. The extension
+packages a `prompt.post_assemble` hook and a persistent subprocess. The hook command is intentionally
+a one-shot process: it reads payload JSON from stdin and writes a `PromptPatch` to stdout. The
 persistent process handles JSON-RPC lifecycle and Host API calls.
 
 `extension.toml`:
@@ -531,20 +545,36 @@ The important split is:
 Do not point a hook declaration at a long-running server mode unless that process still reads one
 payload from stdin and exits with a patch on stdout.
 
-## Package And Install Locally
+## Build the repository example
 
-Build the extension with your package manager, then install the extension directory:
+From the AGH repository root:
 
 ```bash
 bun install
-bun run build
-agh extension install .
-agh extension status prompt-enhancer
+bun run --cwd sdk/examples/prompt-enhancer build
 ```
 
-The install path must be a directory containing the manifest. If `package.json` is present, AGH
-copies runtime `dependencies` and `optionalDependencies` under `node_modules`; development
-dependencies are not copied into the managed install.
+This proves the repository-local SDK/example contract. Do not pass
+`sdk/examples/prompt-enhancer` to `agh extension install` until its runtime SDK dependency has been
+materialized inside the extension package rather than linked to `sdk/typescript` outside it.
+
+## Install a self-contained extension
+
+The install path must contain the manifest, built runtime, and every runtime dependency inside its
+own directory tree. Once an extension satisfies that boundary:
+
+```bash
+EXTENSION_DIR=/absolute/path/to/self-contained-extension
+EXTENSION_NAME=prompt-enhancer
+
+agh extension install "$EXTENSION_DIR" --allow-unverified --yes -o json
+agh extension status "$EXTENSION_NAME" -o json
+```
+
+If `package.json` is present, AGH copies runtime `dependencies` and `optionalDependencies` under
+`node_modules`; development dependencies are not copied. Symlinked runtime dependencies must still
+resolve within the extension root. This prevents a managed package from silently capturing files
+from the surrounding checkout.
 
 ## Publish To A Registry
 
@@ -590,7 +620,8 @@ Stop and reload behavior:
 4. If using Host API, declare both `actions.requires` and `security.capabilities`.
 5. If providing `bridge.adapter`, declare `[bridge] platform` and `display_name`.
 6. If packaging hooks, make each hook command satisfy stdin payload to stdout patch.
-7. Install locally with `agh extension install .`.
+7. Materialize every runtime dependency inside the trusted extension root, then install that
+   directory with `agh extension install <path> --allow-unverified --yes -o json`.
 8. Inspect with `agh extension status <name>` and `agh hooks list --source config` when hooks are
    included.
 
@@ -599,5 +630,5 @@ Related references:
 - [Install Extensions](/runtime/core/extensions/install)
 - [Hook Declaration Format](/runtime/core/hooks/declaration)
 - [Bridges Overview](/runtime/core/bridges)
-- [Add a Bridge Provider](/runtime/core/bridges/adding-a-bridge)
+- [Contribute an In-Tree Bridge Provider](/runtime/core/bridges/adding-a-bridge)
 - [Extension CLI Reference](/runtime/cli-reference/extension)

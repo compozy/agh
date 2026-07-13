@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
 )
 
@@ -17,6 +17,7 @@ type deliveryState struct {
 	RemoteMessageID        string
 	ReplaceRemoteMessageID string
 	LastContent            string
+	Chunks                 bridgesdk.DeliveryChunkCursor
 	Progress               *bridgesdk.ProgressDispatcher
 }
 
@@ -108,7 +109,7 @@ func executeDiscordDelete(
 	if err != nil {
 		return bridgepkg.DeliveryAck{}, state, err
 	}
-	if err := api.DeleteMessage(ctx, discordDeleteMessageRequest{
+	if err := deleteDiscordDeliveryMessage(ctx, api, discordDeleteMessageRequest{
 		ChannelID: channelID,
 		MessageID: messageID,
 	}); err != nil {
@@ -134,28 +135,41 @@ func executeDiscordCreate(
 	channelID string,
 ) (bridgepkg.DeliveryAck, deliveryState, error) {
 	chunks := discordDeliveryChunks(event)
-	remoteID := ""
-	for index, chunk := range chunks {
-		sent, err := api.PostMessage(ctx, discordPostMessageRequest{
+	state.Chunks = bridgesdk.BeginDeliveryChunks(
+		state.Chunks,
+		event.Seq,
+		bridgesdk.DeliveryChunkModeCreate,
+		len(chunks),
+		event.Content.Text,
+		"",
+		state.RemoteMessageID,
+	)
+	for index := state.Chunks.NextChunk(); index < len(chunks); index++ {
+		chunk := chunks[index]
+		sent, err := postDiscordDeliveryMessage(ctx, api, discordPostMessageRequest{
 			ChannelID: channelID,
 			Content:   chunk,
 		})
 		if err != nil {
 			return bridgepkg.DeliveryAck{}, state, fmt.Errorf("discord: post message chunk %d: %w", index+1, err)
 		}
-		remoteID, err = discordPostedRemoteID(channelID, sent)
+		remoteID, err := discordPostedRemoteID(channelID, sent)
 		if err != nil {
 			return bridgepkg.DeliveryAck{}, state, err
 		}
+		state.Chunks = state.Chunks.Advance(remoteID)
 	}
 
+	remoteID := state.Chunks.LastRemoteMessageID()
+	replaceRemoteID := state.Chunks.ReplaceRemoteMessageID()
+	state.Chunks = bridgesdk.DeliveryChunkCursor{}
 	ack := bridgepkg.DeliveryAck{
 		DeliveryID:      event.DeliveryID,
 		Seq:             event.Seq,
 		RemoteMessageID: remoteID,
 	}
 	state.LastSeq = event.Seq
-	state.ReplaceRemoteMessageID = state.RemoteMessageID
+	state.ReplaceRemoteMessageID = replaceRemoteID
 	state.RemoteMessageID = remoteID
 	state.LastContent = chunks[len(chunks)-1]
 	if state.ReplaceRemoteMessageID != "" {
@@ -181,40 +195,58 @@ func executeDiscordUpdate(
 	}
 
 	chunks := discordDeliveryChunks(event)
-	if remoteID != state.RemoteMessageID || chunks[0] != state.LastContent {
-		if err := api.UpdateMessage(ctx, discordUpdateMessageRequest{
-			ChannelID: channelID,
-			MessageID: messageID,
-			Content:   chunks[0],
-		}); err != nil {
-			return bridgepkg.DeliveryAck{}, state, fmt.Errorf("discord: update message: %w", err)
+	replaceRemoteID := firstNonEmpty(state.RemoteMessageID, remoteID)
+	state.Chunks = bridgesdk.BeginDeliveryChunks(
+		state.Chunks,
+		event.Seq,
+		bridgesdk.DeliveryChunkModeUpdate,
+		len(chunks),
+		event.Content.Text,
+		remoteID,
+		replaceRemoteID,
+	)
+	for index := state.Chunks.NextChunk(); index < len(chunks); index++ {
+		chunk := chunks[index]
+		if index == 0 {
+			if remoteID != state.RemoteMessageID || chunk != state.LastContent {
+				if err := updateDiscordDeliveryMessage(ctx, api, discordUpdateMessageRequest{
+					ChannelID: channelID,
+					MessageID: messageID,
+					Content:   chunk,
+				}); err != nil {
+					return bridgepkg.DeliveryAck{}, state, fmt.Errorf("discord: update message: %w", err)
+				}
+			}
+			state.Chunks = state.Chunks.Advance(remoteID)
+			continue
 		}
-	}
 
-	lastRemoteID := remoteID
-	for index, chunk := range chunks[1:] {
-		sent, err := api.PostMessage(ctx, discordPostMessageRequest{
+		sent, err := postDiscordDeliveryMessage(ctx, api, discordPostMessageRequest{
 			ChannelID: channelID,
 			Content:   chunk,
 		})
 		if err != nil {
-			return bridgepkg.DeliveryAck{}, state, fmt.Errorf("discord: post continuation %d: %w", index+1, err)
+			return bridgepkg.DeliveryAck{}, state, fmt.Errorf("discord: post continuation %d: %w", index, err)
 		}
-		lastRemoteID, err = discordPostedRemoteID(channelID, sent)
+		lastRemoteID, err := discordPostedRemoteID(channelID, sent)
 		if err != nil {
 			return bridgepkg.DeliveryAck{}, state, err
 		}
+		state.Chunks = state.Chunks.Advance(lastRemoteID)
 	}
 
+	lastRemoteID := state.Chunks.LastRemoteMessageID()
+	replaceRemoteID = state.Chunks.ReplaceRemoteMessageID()
+	state.Chunks = bridgesdk.DeliveryChunkCursor{}
 	ack := bridgepkg.DeliveryAck{
 		DeliveryID:             event.DeliveryID,
 		Seq:                    event.Seq,
 		RemoteMessageID:        lastRemoteID,
-		ReplaceRemoteMessageID: remoteID,
+		ReplaceRemoteMessageID: replaceRemoteID,
 	}
 	state.LastSeq = event.Seq
 	state.RemoteMessageID = lastRemoteID
-	state.ReplaceRemoteMessageID = remoteID
+	state.ReplaceRemoteMessageID = replaceRemoteID
 	state.LastContent = chunks[len(chunks)-1]
 	return ack, state, ack.ValidateFor(event)
 }

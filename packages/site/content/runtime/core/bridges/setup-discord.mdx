@@ -1,6 +1,6 @@
 ---
 title: Discord Setup
-description: Configure an Ed25519-signed Discord endpoint, install the bot with the generated invite URL, and prove channel and thread delivery.
+description: Configure an Ed25519-signed Discord endpoint, install the bot, and choose a truthful server, thread, or DM routing boundary.
 ---
 
 This guide connects a Discord application to one AGH workspace. The in-tree provider is an HTTP
@@ -9,15 +9,15 @@ for outbound messages. It does not open a Discord Gateway connection.
 
 ## How the Discord bridge behaves
 
-| Surface           | AGH behavior                                                                                                                                     |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Inbound transport | Receives Ed25519-signed interaction payloads and Application Webhook Events over public HTTPS.                                                   |
-| Routed events     | Maps `MESSAGE_CREATE`, reaction add/remove, application commands, and message components into typed bridge events.                               |
-| Event boundary    | Does not ingest ordinary `MESSAGE_UPDATE`; that event requires a Discord Gateway lifecycle outside this provider.                                |
-| Routing           | Preserves guild channels, threads, direct-message peers, and parent-channel identity.                                                            |
-| Outbound delivery | Creates, edits, and deletes Discord messages through REST.                                                                                       |
-| Long responses    | Splits terminal text at 2,000 Unicode code points with ordered, numbered continuations.                                                          |
-| Tool progress     | Defaults to `new + accumulate` with one edited progress message, typing, and phase reactions. Final text uses a separate acknowledgement anchor. |
+| Surface           | AGH behavior                                                                                                                                      |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inbound transport | Receives Ed25519-signed interaction payloads and Application Webhook Events over public HTTPS.                                                    |
+| Routed events     | Maps `MESSAGE_CREATE`, reaction add/remove, application commands, and message components into typed bridge events.                                |
+| Event boundary    | Does not ingest ordinary `MESSAGE_UPDATE`; that event requires a Discord Gateway lifecycle outside this provider.                                 |
+| Routing           | Maps guild channels, threads, and DMs into distinct dimensions; the instance policy decides which dimensions become the session and reply target. |
+| Outbound delivery | Creates, edits, and deletes Discord messages through REST.                                                                                        |
+| Long responses    | Splits terminal text at 2,000 Unicode code points with ordered, numbered continuations.                                                           |
+| Tool progress     | Defaults to `new + accumulate` with one edited progress message, typing, and phase reactions. Final text uses a separate acknowledgement anchor.  |
 
 This differs from Discord bot guides built around Gateway intents. AGH does not need a long-lived
 Gateway socket or privileged message-content intent for its HTTP webhook path.
@@ -36,6 +36,20 @@ Gateway socket or privileged message-content intent for its HTTP webhook path.
 
 Keep the public key and bot token distinct. The public key verifies inbound requests; the bot token
 authorizes outbound REST calls.
+
+Before configuring Discord, prove that the locally built provider is installed and visible in the
+daemon catalog:
+
+```bash
+PROVIDER=discord
+agh extension status "$PROVIDER" -o json
+curl -sS http://127.0.0.1:2123/api/bridges/providers | \
+  jq --arg provider "$PROVIDER" '.providers[] | select(.extension_name == $provider)'
+```
+
+Continue only when the extension is enabled and the catalog row is not disabled or unhealthy. If
+either command has no provider, follow [Install an in-tree
+provider](/runtime/core/bridges/setup#install-an-in-tree-provider) first.
 
 ## Step 1: Create the Discord application and bot
 
@@ -73,6 +87,12 @@ bot token/public key, and returns an install URL:
 agh bridge setup discord
 ```
 
+The interactive wizard creates a server-wide route with `include_group=true`. Every event in the
+same parent channel shares one AGH session, and replies target that parent channel. It accepts
+ordinary guild-channel, Group DM, and server-thread events, but does not retain the thread in the
+reply target and rejects direct DMs. Choose another policy explicitly when that is not the intended
+boundary.
+
 The default invite requests:
 
 - scopes: `bot` and `applications.commands`;
@@ -89,6 +109,11 @@ agh bridge setup discord --json <<'JSON'
 {
   "scope": "workspace",
   "workspace_id": "ws_8f33a913d23c4fd1",
+  "routing_policy": {
+    "include_peer": false,
+    "include_thread": false,
+    "include_group": true
+  },
   "webhook_public_url": "https://bridge.example.com/discord/support",
   "webhook_path": "/discord/support",
   "application_id": "111122223333444455",
@@ -108,6 +133,22 @@ Copy the returned bridge ID:
 ```bash
 BRIDGE_ID=brg_123
 ```
+
+### Choose one routing shape
+
+Route dimensions are conjunctive: every selected dimension must exist on an inbound event.
+
+| Intended traffic                 | `routing_policy`                            | Result                                                                         |
+| -------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------ |
+| Guild channels and their threads | `include_group=true`                        | One session and reply target per parent channel; this is the wizard default.   |
+| Server threads only              | `include_group=true`, `include_thread=true` | One session and reply target per thread; ordinary channel events fail routing. |
+| Direct messages only             | `include_peer=true`                         | One session and reply target per Discord DM.                                   |
+
+Do not combine peer and group. Discord emits one or the other, so a peer-plus-group policy rejects
+both DMs and guild events. If one application needs independently routed server and DM traffic, use
+separate bridge instances and callback paths, backed by separate Discord application endpoint
+configurations or an operator-owned dispatcher. Leaving all route dimensions false is not a dynamic
+reply path: the daemon cannot construct a Discord peer or group delivery target from that key.
 
 ## Step 4: Configure the Discord endpoints
 
@@ -165,7 +206,7 @@ agh bridge get "$BRIDGE_ID" -o json
 
 Then trigger a supported event:
 
-- send a message where the configured Application Webhook Events subscription applies;
+- send a server message where the configured Application Webhook Events subscription applies;
 - invoke a registered application command;
 - activate a message component the application owns; or
 - add/remove a reaction on a routed message.
@@ -176,26 +217,44 @@ Inspect the resulting route:
 agh bridge routes "$BRIDGE_ID" -o json
 ```
 
-For a server thread, the route keeps the parent channel as `group_id` and the thread channel as
-`thread_id`. For a DM, use the provider user identity as `peer_id`.
+With the wizard's default policy, the route contains only the parent channel as `group_id`; the
+reply also targets that parent channel even when the inbound event came from a thread. A
+thread-preserving instance contains both the parent `group_id` and thread-channel `thread_id`. A
+direct-DM instance uses the Discord DM channel ID as `peer_id`, not the user ID.
 
 ## Step 8: Prove outbound delivery
 
-Use real route IDs, not channel names:
+For the wizard's group-only policy, use the parent channel ID returned by the route:
 
 ```bash
 agh bridge send-test "$BRIDGE_ID" \
   --message "AGH Discord connection check" \
+  --group-id "123456789012345678" \
+  --mode reply \
+  --json
+```
+
+For an instance configured with group plus thread, pass both IDs from its route:
+
+```bash
+agh bridge send-test "$BRIDGE_ID" \
+  --message "AGH Discord thread check" \
   --group-id "123456789012345678" \
   --thread-id "234567890123456789" \
   --mode reply \
   --json
 ```
 
-Confirm the message appears in the intended channel/thread and the result contains the Discord
-remote message ID.
+Confirm the message appears in the policy-selected channel or thread and the result contains the
+Discord remote message ID.
 
 ## Configure direct-message access
+
+Direct DMs are evaluated by `dm_policy` first. Any admitted direct DM still fails the wizard's
+default group-only route because it emits `peer_id`, not `group_id`; a direct-DM instance must use
+`include_peer=true`. Use a separate callback boundary if server traffic also needs independent
+sessions. Group DMs emit `group_id`, are not evaluated as direct DMs by this policy, and follow the
+default group route instead.
 
 The bridge's `dm_policy` chooses `open`, `allowlist`, or `pairing`. Provider config accepts stable
 Discord user IDs and normalized username fallbacks:
@@ -294,7 +353,7 @@ one credential set.
 | Commands reach Discord but not AGH                   | Confirm the command is registered to this application and its interaction endpoint is the AGH public URL.                                |
 | Ordinary message edits create no new turn            | This is expected: `MESSAGE_UPDATE` is outside the HTTP-only provider contract.                                                           |
 | Discord returns missing-access or missing-permission | Check bot installation, channel overrides, requested permission bits, and the target channel/thread IDs.                                 |
-| Replies appear outside the thread                    | Inspect the parent channel and thread IDs in `agh bridge routes`; keep `include_thread` enabled.                                         |
+| Replies appear outside the thread                    | The wizard default is group-only. Use a group-plus-thread policy before ingest, then confirm both IDs in `agh bridge routes`.            |
 | Long messages fail near 2,000 characters             | Check the actual prepared payload and provider response; AGH already reserves continuation markers within each 2,000-code-point chunk.   |
 | Reactions/typing fail while text still works         | Treat them as optional affordances; disable them while repairing permissions or unsupported target behavior.                             |
 | A second Discord instance degrades                   | Use one shared listener address and a distinct path per bridge instance.                                                                 |
@@ -309,10 +368,11 @@ one credential set.
 
 ## Completion checklist
 
+- The Discord extension is installed, enabled, and healthy in the provider catalog.
 - Discord accepts the signed PING at the exact public URL.
 - The bot token identity matches the configured application ID.
 - A supported webhook event or interaction creates an AGH route.
-- Server thread routes preserve parent and thread IDs.
+- If thread-preserving routing was selected, server routes contain both parent and thread IDs.
 - `send-test` returns a Discord remote message ID.
 - Long output produces ordered messages within Discord's limit.
 - The bridge returns to `ready` after one restart.

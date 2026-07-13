@@ -8,9 +8,10 @@ import {
 } from "../lib/bridge-formatters";
 import type { BridgeSummary } from "../types";
 
-const TILE_CLASS = "rounded-md border border-line bg-canvas-soft px-4 py-3";
-const TERM_CLASS = "mb-2 text-muted";
-const VALUE_CLASS = "text-small-body text-fg";
+const TILE_CLASS =
+  "grid-cols-1 items-start rounded-md border border-line bg-canvas-soft px-4 py-3 sm:grid-cols-[7.5rem_1fr] sm:items-center";
+const TERM_CLASS = "text-muted";
+const VALUE_CLASS = "min-w-0 break-words text-small-body text-fg";
 
 export function BridgeDetailConfiguration({
   bridge,
@@ -21,7 +22,7 @@ export function BridgeDetailConfiguration({
 }) {
   return (
     <Section label="Configuration">
-      <MetadataList className="grid gap-3 lg:grid-cols-2">
+      <MetadataList className="grid gap-3 sm:grid-cols-2">
         <MetadataList.Row
           className={TILE_CLASS}
           label="Provider"

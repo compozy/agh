@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
 	"github.com/compozy/agh/internal/subprocess"
 )
@@ -318,6 +318,7 @@ func (p *telegramProvider) handleBridgesDeliver(
 
 	ack, state, err := p.executeTextDeliveryWithProgress(ctx, &cfg, request)
 	if err != nil {
+		p.storeDeliveryRetryState(cfg.instanceID, request.Event.DeliveryID, state)
 		marker.Error = err.Error()
 		p.markers.RecordDelivery(marker)
 		classified := bridgesdk.ClassifyError(err)
@@ -946,21 +947,6 @@ func resolveTelegramThreadID(threadID string, chatID string) (int64, error) {
 		return 0, fmt.Errorf("telegram: invalid thread id %q: %w", trimmedThreadID, err)
 	}
 	return value, nil
-}
-
-func verifyWebhookSecret(_ context.Context, req *http.Request, _ []byte, secret string) error {
-	trimmedSecret := strings.TrimSpace(secret)
-	if trimmedSecret == "" {
-		return errors.New("telegram: webhook secret is required")
-	}
-	if req == nil {
-		return errors.New("telegram: webhook request is required")
-	}
-	header := strings.TrimSpace(req.Header.Get("X-Telegram-Bot-Api-Secret-Token"))
-	if header == "" || header != trimmedSecret {
-		return errors.New("telegram: invalid webhook secret")
-	}
-	return nil
 }
 
 func (c *telegramBotClient) GetMe(ctx context.Context) (*telegramBotIdentity, error) {

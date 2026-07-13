@@ -4,9 +4,9 @@ area: NB
 title: Complete bridge setup in the Web
 persona: Tessa
 journey: J-complete-web-bridge-setup
-expected: A browser-first operator can create a disabled Slack bridge, copy the generated manifest, follow daemon-derived setup state and remediation, register Telegram webhooks, and distinguish dry-run target checks from real test messages.
+expected: A browser-first operator can create a disabled Slack bridge, copy its daemon-generated manifest, follow daemon-derived setup state and inline verification remediation, register Telegram webhooks, and distinguish dry-run target checks from real test sends. At 320px, the detail panel reflows secret inputs, complete secret references, and provider/config metadata without horizontal scrolling or clipping.
 entry_points: Web bridges create dialog; Web bridge detail panel
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -22,3 +22,5 @@ configuration checks and real delivery.
 Added by the Hermes bridge Task 05 impact flag. Task 09 assigned it to `J-complete-web-bridge-setup` and `CH-web-bridge-setup`; Task 10 owns execution. Planning flag only; no QA session ran.
 
 QA 2026-07-13: browser create, daemon manifest copy, bindings, inline failed-check remediation, refresh, dry-run, and real-send all completed; API/CLI/provider readbacks confirmed durable truth.
+
+Phase D responsive impact flag 2026-07-13: the bridge detail panel now reflows secret fields, complete vault references, and provider/config metadata at 320px instead of forcing horizontal overflow. Status reset to `untested`; historical browser QA evidence remains intact. No QA retest ran.

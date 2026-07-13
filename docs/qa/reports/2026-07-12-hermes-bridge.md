@@ -12,7 +12,7 @@
 
 Seven of nine bridge charters reached `Pass`. CH-guided-setup-credentials and CH-structured-telegram-setup share the same `Blocked (human decision)` cause because guided Telegram setup cannot represent the provider's alternative direct-message, ordinary-group, and forum-topic route shapes (`BUG-20260713-telegram-route-shapes`). The isolated Northstar scenario independently reproduced open autonomy failure `BUG-0028`. Provider-fake, browser, CLI, HTTP, UDS, race-enabled owner, integration, and exact daemon-E2E evidence otherwise agreed.
 
-This is not release-ready yet: the strict Northstar auditor is red, the full runtime lane still has open `BUG-20260712-reasoning-evidence-attribution`, the stale-bundle Web result must be replaced by one fresh final lane, and the workflow-wide `make verify` has not run by explicit scheduling policy.
+This is not release-ready yet: the strict Northstar auditor is red, the source-fixed `BUG-20260712-reasoning-evidence-attribution` still needs one fresh full runtime lane, the stale-bundle Web result must be replaced by one fresh final lane, and the workflow-wide `make verify` has not run by explicit scheduling policy.
 
 ## Personas
 
@@ -40,7 +40,7 @@ This is not release-ready yet: the strict Northstar auditor is red, the full run
 | Precondition | Status | Evidence |
 |---|---|---|
 | Fresh isolated bootstrap and populated `northstar-pay` charter | Pass | bootstrap manifest and validated playbook under the lab QA output path |
-| `make test-e2e-runtime` | Fail | `BUG-20260712-goal-judge-fixture-model` fixed the stale Goal fixture; `BUG-20260712-reasoning-evidence-attribution` remains open because background ACP sessions pollute the reasoning diagnostic stream. Exact Goal 6/6 and Goal+reasoning 14/14 passed; isolated reasoning stress passed 80/80. |
+| `make test-e2e-runtime` | Historical fail; source-fixed | `BUG-20260712-goal-judge-fixture-model` fixed the stale Goal fixture. The separately approved `BUG-20260712-reasoning-evidence-attribution` harness fix now stamps and selects the daemon-provided AGH session owner; its concurrent shared-file regression and exact reasoning E2E pass under `-race`, including ten stress runs. The fresh complete lane remains reserved for the final source freeze. |
 | `make test-e2e-web` | Invalidated | The first run passed 62/70 but `BUG-0037` proved it served obsolete Web assets. `BUG-20260712-bridge-e2e-retired-route` updated the Bridge owner for the current catalog/detail routes; focused current-bundle Bridge scenarios pass 2/2. The fresh full-lane rerun is reserved for the final workflow gate. |
 | Browser driver | Pass with fallback | `browser-use` required a human Chrome remote-debugging approval. The charter-prescribed `agent-browser` fallback ran headless with a registered PID and captured the complete CH-web-bridge-setup journey. |
 | Deterministic provider boundary | Pass, qualified | Slack, Telegram, Discord, and WhatsApp used local fake APIs; provider extension binaries were rebuilt from current source before evidence. No result claims a live vendor account. |
@@ -108,6 +108,13 @@ All commands below were scoped to the owners named by the charters. No monorepo-
 - **Fix:** co-shipped the configured judge value in all four Goal fixture agents; production fail-loud negotiation and assertions are unchanged.
 - **Regression test:** existing Goal E2E passed 6/6 under `-race`; combined Goal/reasoning owners passed 14/14.
 
+### BUG-20260712-reasoning-evidence-attribution: Runtime reasoning evidence had no stable invocation owner
+
+- **Symptom:** daemon-owned background ACP processes and the intended user session wrote into one per-agent diagnostics JSONL while their process-local ACP session IDs collided.
+- **Root cause:** production already supplied distinct `AGH_SESSION_ID` values, but the acpmock writer discarded that owner and the reasoning assertion projected the entire shared file.
+- **Fix:** the central writer stamps the process owner and rejects caller-forged ownership; readers select the API-returned AGH session ID exactly before semantic projection. No production launch, API, config, or memory behavior changed.
+- **Regression tests:** writer anti-forgery, real subprocess propagation, exact owner/order/fail-closed unit cases, and a concurrent two-process shared-JSONL daemon E2E all pass under `-race`; the exact reasoning owner also passes ten consecutive runs. The fresh full runtime lane remains the final completion proof.
+
 ### BUG-0037: Web E2E lane can serve a stale frontend bundle
 
 - **Symptom:** the 70-case browser lane reported eight failures while serving JavaScript older than the source tree.
@@ -127,10 +134,6 @@ All commands below were scoped to the owners named by the charters. No monorepo-
 ### BUG-20260713-telegram-route-shapes: Telegram guided setup rejects valid route shapes
 
 Guided setup always persists `include_group=true` plus `include_thread=true`, while core routing requires every selected dimension on every event. The public direct-message command supplies only a peer and ordinary groups may have no forum-topic thread. Both are rejected before a provider call; group+topic succeeds. Replacing the wizard default with another conjunction would only move the failure. The required decision is a structural route contract that supports alternative Telegram identity shapes while preserving isolation.
-
-### BUG-20260712-reasoning-evidence-attribution: Runtime reasoning evidence has no stable invocation owner
-
-The full runtime lane still cannot distinguish the intended user ACP process from daemon-owned background sessions writing the same per-agent diagnostics file. Exact isolation is stable 80/80, but the full-lane assertion is not trustworthy until diagnostics carry a stable process/invocation identity.
 
 ### BUG-0028: One kickoff does not activate the declared collaborator graph
 
@@ -179,9 +182,9 @@ The user-requested Hermes comparison materially changed the docs rather than pol
 
 ## Final Status
 
-- **Exit gate:** pending. The single workflow-wide `make verify`, fresh full runtime E2E, and fresh full Web E2E are deliberately reserved for the final tasks/review tail. Current runtime evidence remains red on BUG-20260712-reasoning-evidence-attribution; the first full Web result is invalidated by BUG-0037.
+- **Exit gate:** pending. The single workflow-wide `make verify`, fresh full runtime E2E, and fresh full Web E2E are deliberately reserved for the final tasks/review tail. `BUG-20260712-reasoning-evidence-attribution` is source-fixed with focused concurrent evidence, but no fresh complete runtime result is claimed yet; the first full Web result remains invalidated by BUG-0037.
 - **Strict scenario audit:** fail on BUG-0028 collaboration/deliverable requirements plus pending C14.
-- **Issues by user impact:** Blocks-Completion 2 open (`BUG-0028`, `BUG-20260713-telegram-route-shapes`) · Friction 1 open (`BUG-20260712-reasoning-evidence-attribution`) / 3 fixed (`BUG-20260712-goal-judge-fixture-model`, `BUG-0037`, `BUG-20260712-bridge-e2e-retired-route`) · Data-Loss 0 · Trust-Damage 0 · Cosmetic 0.
+- **Issues by user impact:** Blocks-Completion 2 open (`BUG-0028`, `BUG-20260713-telegram-route-shapes`) · Friction 0 open / 4 fixed (`BUG-20260712-goal-judge-fixture-model`, `BUG-20260712-reasoning-evidence-attribution`, `BUG-0037`, `BUG-20260712-bridge-e2e-retired-route`) · Data-Loss 0 · Trust-Damage 0 · Cosmetic 0.
 - **Coverage:** 9/9 charters terminal — 7 Pass, 2 Blocked (human decision), 0 Pending. Four non-Slack/Telegram provider TTFM measurements remain explicitly unmeasured.
 - **Teardown:** pass — `qa/teardown.json` records `"clean": true`, no survivors, and all registered daemon/Web/browser/provider/observer PIDs stopped.
 - **Verdict:** **not ready** — bridge contracts are broadly green under qualified fake-provider evidence, but Telegram routing, Northstar autonomy, the runtime gate, and the final global gate remain unresolved.

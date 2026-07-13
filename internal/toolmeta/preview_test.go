@@ -22,8 +22,15 @@ func TestRenderBuildsSafeToolPreviews(t *testing.T) {
 			name:        "Should summarize compound terminal commands without pipe tails",
 			toolID:      "terminal.command",
 			input:       json.RawMessage(`{"command":"ls -la | head -5 && git status"}`),
-			wantPreview: "ls -la · git status",
-			notContains: []string{"head -5"},
+			wantPreview: "ls · git",
+			notContains: []string{"-la", "head -5", "status"},
+		},
+		{
+			name:        "Should omit positional and URL credentials from terminal previews",
+			toolID:      "terminal.command",
+			input:       json.RawMessage(`{"command":"curl https://admin:s3cr3t@host && mysql -pHUNTER2"}`),
+			wantPreview: "curl · mysql",
+			notContains: []string{"admin", "s3cr3t", "HUNTER2", "host"},
 		},
 		{
 			name:   "Should render POSIX basename safely",

@@ -26,20 +26,16 @@ Tool progress defaults to `new` with `accumulate` grouping. The provider posts t
 
 Discord exposes a start-typing endpoint without a matching clear request. The provider stops issuing typing requests when text is delivered and closes progress state at terminal delivery. Set `delivery_defaults.progress.tool_progress` to `off` to acknowledge progress without Discord API calls.
 
-## Build
+## Build and install
 
-From the repository root:
+Released `agh` artifacts do not include this provider executable. From a trusted AGH source
+checkout, run this from the repository root with the daemon running:
 
 ```bash
+mkdir -p ./extensions/bridges/discord/bin
 go build -o ./extensions/bridges/discord/bin/discord ./extensions/bridges/discord
-```
-
-## Install
-
-Build the binary first, then install the extension directory:
-
-```bash
-agh extension install ./extensions/bridges/discord
+agh extension install ./extensions/bridges/discord --allow-unverified --yes -o json
+agh extension status discord -o json
 ```
 
 ## Provider Config
@@ -80,3 +76,7 @@ Notes:
 - `AGH_BRIDGE_DISCORD_LISTEN_ADDR` configures the process-level listener default.
 - `AGH_BRIDGE_DISCORD_API_BASE_URL` is an operator-owned process override for local development and integration tests. Bridge config cannot change the credential-bearing API destination.
 - Direct-message enforcement uses the bridge instance `dm_policy` plus the provider-config allowlist or paired-user fields.
+
+See the [Discord operator setup guide](../../../packages/site/content/runtime/core/bridges/setup-discord.mdx)
+for application setup, route selection, endpoint verification, real inbound proof, delivery testing,
+and troubleshooting.

@@ -1,6 +1,6 @@
 ---
 title: Google Chat Setup
-description: Configure a Google Chat app with direct, Pub/Sub, or hybrid ingress and verify the AGH bridge end to end.
+description: Configure a Google Chat app with direct HTTP, Pub/Sub, or hybrid ingress and verify the AGH bridge end to end.
 ---
 
 This guide creates a Google Chat app that sends interaction events to AGH and receives responses
@@ -50,6 +50,20 @@ Do not omit `mode` expecting automatic selection: an empty value becomes `direct
 - Permission to configure the Chat app and create a service account key.
 - For Pub/Sub: the Pub/Sub API, a topic, permission bindings, and an authenticated push subscription.
 - A stable public HTTPS callback plus an AGH workspace with a default agent.
+
+Before configuring Google Cloud, prove that the locally built provider is installed and visible in
+the daemon catalog:
+
+```bash
+PROVIDER=gchat
+agh extension status "$PROVIDER" -o json
+curl -sS http://127.0.0.1:2123/api/bridges/providers | \
+  jq --arg provider "$PROVIDER" '.providers[] | select(.extension_name == $provider)'
+```
+
+Continue only when the extension is enabled and the catalog row is not disabled or unhealthy. If
+either command has no provider, follow [Install an in-tree
+provider](/runtime/core/bridges/setup#install-an-in-tree-provider) first.
 
 Google's [Chat API configuration guide](https://developers.google.com/workspace/chat/configure-chat-api)
 tracks the current console fields for application info, interactive features, connection settings,
@@ -119,7 +133,30 @@ one listener address and requires unique paths for its instances.
 
 ## Step 4: Create the bridge disabled
 
-Google Chat has no guided `agh bridge setup` command. For direct mode:
+Google Chat has no guided `agh bridge setup` command. Route flags are conjunctive: every selected
+dimension must exist on an inbound event. Google Chat emits `peer_id` plus an encoded `thread_id` for
+DMs, and `group_id` plus an optional `thread_id` for spaces. It never emits peer and group together.
+
+Choose the policy that matches the events this callback accepts:
+
+| Intended traffic                | Routing flags                      | Session boundary                                                                 |
+| ------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------- |
+| Spaces collapsed by space       | `--include-group`                  | One AGH session per space; replies target the space rather than a source thread. |
+| Spaces separated by Chat thread | `--include-group --include-thread` | One AGH session and reply target per encoded Chat thread.                        |
+| Direct messages only            | `--include-peer --include-thread`  | One AGH session per DM.                                                          |
+
+For a space event without a native thread resource, the provider derives the encoded thread key from
+the message resource name, so the group-plus-thread shape remains complete.
+
+If one Chat app must accept both DMs and spaces while keeping them in distinct sessions, route the
+two event shapes to separate bridge instances with distinct callback paths. That requires separate
+Chat app configurations or an operator-owned dispatcher in front of AGH. Do not combine
+`--include-peer` and `--include-group`: the provider cannot satisfy that policy. Leaving every route
+flag off is not a dynamic-reply solution either, because the daemon cannot build a peer or group
+delivery target from that key.
+
+The primary example accepts space events and preserves their thread identity. Here,
+`mode: "direct"` means direct HTTP ingress; it does not mean a direct-message route:
 
 ```bash
 agh bridge create \
@@ -129,9 +166,8 @@ agh bridge create \
   --extension gchat \
   --display-name "Google Chat support" \
   --enabled=false \
-  --include-peer \
-  --include-thread \
   --include-group \
+  --include-thread \
   --provider-config '{
     "mode": "direct",
     "webhook": {
@@ -177,25 +213,25 @@ All modes need the complete service-account JSON:
 agh bridge secret-bindings put "$BRIDGE_ID" credentials_json \
   --secret-ref "vault:bridges/$BRIDGE_ID/credentials_json" \
   --kind json \
-  --secret-value "$GOOGLE_SERVICE_ACCOUNT_JSON"
+  --secret-value-file "/secure/path/service-account.json"
 ```
 
 Direct and hybrid modes also need the numeric project number:
 
 ```bash
-agh bridge secret-bindings put "$BRIDGE_ID" project_number \
+printf '%s' "$GOOGLE_CLOUD_PROJECT_NUMBER" | agh bridge secret-bindings put "$BRIDGE_ID" project_number \
   --secret-ref "vault:bridges/$BRIDGE_ID/project_number" \
   --kind credential \
-  --secret-value "$GOOGLE_CLOUD_PROJECT_NUMBER"
+  --secret-value-stdin
 ```
 
 Pure Pub/Sub mode does not bind `project_number`; its OIDC audience and push identity live in
 provider configuration instead.
 
 <OperatorNote>
-  Service-account JSON is passed to the current generic CLI through `--secret-value`, which is a
-  process argument. Use a short-lived environment variable only on a trusted host and clear it after
-  the write. File/stdin input is not currently exposed; see [Bridge
+  Keep the service-account file permission-restricted and remove any temporary copy after the write.
+  AGH reads the contents without placing them in process arguments. For secret managers that emit to
+  stdout, pipe into `--secret-value-stdin`; see [Bridge
   operations](/runtime/core/bridges/operations#rotate-a-credential).
 </OperatorNote>
 
@@ -226,8 +262,9 @@ agh bridge get "$BRIDGE_ID" -o json
 Open Google Chat as one of the configured test users:
 
 1. Select **New chat** and search for the app name.
-2. Open a direct message, or add the app to a permitted test space.
-3. Send a message and wait for the AGH response.
+2. Add the app to a permitted test space.
+3. Send both an unthreaded message and, if the space supports threads, one threaded reply.
+4. Wait for the AGH response to each message.
 
 If the app is absent from search, revisit **Google Chat API → Configuration → Visibility**. If Chat
 shows “App is not responding,” verify that interactive features are enabled and the connection points
@@ -245,10 +282,17 @@ Then test a real outbound message with a `spaces/...` resource:
 agh bridge send-test "$BRIDGE_ID" \
   --message "AGH Google Chat connection check" \
   --group-id "spaces/AAAA" \
+  --thread-id "<encoded-thread-id-from-route>" \
   --json
 ```
 
-Use a route's encoded thread ID when you need a reply inside an existing Chat thread.
+Use the encoded `thread_id` returned by the route; do not substitute the human-visible thread name.
+If the deployment deliberately wants one session per space, omit `--include-thread` and omit the
+thread target from `send-test`.
+
+For a DM-only deployment, create a separate instance and callback with both `--include-peer` and
+`--include-thread`, then repeat the same verification from a direct conversation. The space-wide
+instance above intentionally rejects DMs because its route requires `group_id`.
 
 ## Configuration reference
 
@@ -301,11 +345,13 @@ account used by the bridge and the service account used by authenticated push as
 
 ## Completion checklist
 
+- The Google Chat extension is installed, enabled, and healthy in the provider catalog.
 - The selected ingress mode has every conditional verification field.
 - `provider.identity` can acquire a Chat API token from the bound service account.
 - The Chat app is visible to and installed by the intended test identity.
 - Direct or Pub/Sub JWT validation accepts a real inbound event.
-- The route contains the expected `spaces/...` resource and thread identity.
+- The route contains the expected `spaces/...` resource and, when thread-preserving routing was
+  selected, the encoded thread identity.
 - `send-test` returns a Google Chat message resource name.
 - Hybrid deployments prove one logical event does not create duplicate AGH turns.
 - The bridge returns to `ready` after one restart.

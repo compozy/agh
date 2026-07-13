@@ -36,7 +36,9 @@ func TestManagerCheckBridgeUsesRestrictedTransientRuntimeAndCleansUp(t *testing.
 			}
 			response := result.(*bridgepkg.BridgeCheckResponse)
 			*response = bridgepkg.BridgeCheckResponse{
-				Checks: []bridgepkg.BridgeCheckRecord{bridgepkg.PassCheck("provider.identity")},
+				Checks: []bridgepkg.BridgeCheckRecord{{
+					Check: "provider.identity", Status: bridgepkg.BridgeCheckStatusPass,
+				}},
 			}
 			return nil
 		}
@@ -412,7 +414,9 @@ func TestManagerBridgeControlSerializesCallsForOneInstance(t *testing.T) {
 			<-release
 			response := result.(*bridgepkg.BridgeCheckResponse)
 			*response = bridgepkg.BridgeCheckResponse{
-				Checks: []bridgepkg.BridgeCheckRecord{bridgepkg.PassCheck("provider.identity")},
+				Checks: []bridgepkg.BridgeCheckRecord{{
+					Check: "provider.identity", Status: bridgepkg.BridgeCheckStatusPass,
+				}},
 			}
 			return nil
 		}
@@ -421,7 +425,9 @@ func TestManagerBridgeControlSerializesCallsForOneInstance(t *testing.T) {
 		second.callFn = func(_ context.Context, _ string, _ any, result any) error {
 			response := result.(*bridgepkg.BridgeCheckResponse)
 			*response = bridgepkg.BridgeCheckResponse{
-				Checks: []bridgepkg.BridgeCheckRecord{bridgepkg.PassCheck("provider.identity")},
+				Checks: []bridgepkg.BridgeCheckRecord{{
+					Check: "provider.identity", Status: bridgepkg.BridgeCheckStatusPass,
+				}},
 			}
 			return nil
 		}
@@ -593,7 +599,7 @@ func controlBridgeRuntime(
 		Platform:       "telegram",
 		AllowedMethods: []string{string(method)},
 		ManagedInstances: []subprocess.InitializeBridgeManagedInstance{{
-			Instance: instance,
+			Instance: bridgepkg.BridgeInstanceToContract(instance),
 			BoundSecrets: []subprocess.InitializeBridgeBoundSecret{{
 				BindingName: "bot_token",
 				Kind:        "token",

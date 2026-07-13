@@ -51,6 +51,11 @@ func TestGenerateDeterministicAndStructured(t *testing.T) {
 
 		requiredSnippets := []string{
 			generatedHeader,
+			"export interface BridgeInstance {\n",
+			"export interface BridgeInstanceTargetParams {\n",
+			"export interface BridgesInstancesReportStateParams {\n",
+			"export interface BridgesMessagesIngestResult {\n",
+			"export interface InboundMessageEnvelope {\n",
 			`export type DeliveryEventType = "start" | "delta" | "final" | "error" | "resume" | "delete" | "progress";`,
 			`export type InboundEventFamily = "message" | "command" | "action" | "reaction" | "edit";`,
 			`export type InboundEditOperation = "updated" | "deleted";`,

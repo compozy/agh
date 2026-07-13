@@ -14,20 +14,21 @@ import (
 // background workers for negotiated extension delivery.
 func NewBroker(transport DeliveryTransport, opts ...DeliveryBrokerOption) *Broker {
 	broker := &Broker{
-		transport:          transport,
-		now:                func() time.Time { return time.Now().UTC() },
-		queueCapacity:      defaultDeliveryQueueCapacity,
-		retryDelay:         defaultDeliveryRetryDelay,
-		requestTimeout:     defaultDeliveryRequestTimeout,
-		lifecycleCtx:       context.Background(),
-		deliveries:         make(map[string]*activeDelivery),
-		turnIndex:          make(map[turnIndexKey]string),
-		sessionIndex:       make(map[string]map[string]struct{}),
-		routes:             make(map[string]*routeWorker),
-		bridgeRoutes:       make(map[string]map[string]*routeWorker),
-		metrics:            make(map[string]*instanceDeliveryMetrics),
-		metricWakeCh:       make(chan struct{}, 1),
-		registrationsReady: true,
+		transport:           transport,
+		now:                 func() time.Time { return time.Now().UTC() },
+		queueCapacity:       defaultDeliveryQueueCapacity,
+		retryDelay:          defaultDeliveryRetryDelay,
+		requestTimeout:      defaultDeliveryRequestTimeout,
+		lifecycleCtx:        context.Background(),
+		deliveries:          make(map[string]*activeDelivery),
+		turnIndex:           make(map[turnIndexKey]string),
+		sessionIndex:        make(map[string]map[string]struct{}),
+		routes:              make(map[string]*routeWorker),
+		bridgeRoutes:        make(map[string]map[string]*routeWorker),
+		metrics:             make(map[string]*instanceDeliveryMetrics),
+		metricPersistIssues: make(map[string]deliveryMetricPersistenceIssue),
+		metricWakeCh:        make(chan struct{}, 1),
+		registrationsReady:  true,
 	}
 	for _, opt := range opts {
 		if opt != nil {

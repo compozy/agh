@@ -11,7 +11,7 @@ import (
 	devcycle "github.com/compozy/agh/extensions/dev-cycle"
 	aghconfig "github.com/compozy/agh/internal/config"
 	extensionpkg "github.com/compozy/agh/internal/extension"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/subprocess"

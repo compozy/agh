@@ -1,14 +1,13 @@
 package bridges
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
+	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/toolmeta"
 )
 
@@ -28,33 +27,20 @@ type DeliveryEventType string
 
 const (
 	// DeliveryEventTypeStart starts one progressive outbound delivery for a prompt turn.
-	DeliveryEventTypeStart DeliveryEventType = "start"
+	DeliveryEventTypeStart DeliveryEventType = DeliveryEventType(bridgecontract.DeliveryEventTypeStart)
 	// DeliveryEventTypeDelta updates one progressive outbound delivery with newer full text.
-	DeliveryEventTypeDelta DeliveryEventType = "delta"
+	DeliveryEventTypeDelta DeliveryEventType = DeliveryEventType(bridgecontract.DeliveryEventTypeDelta)
 	// DeliveryEventTypeFinal reports the terminal successful state for one delivery.
-	DeliveryEventTypeFinal DeliveryEventType = "final"
+	DeliveryEventTypeFinal DeliveryEventType = DeliveryEventType(bridgecontract.DeliveryEventTypeFinal)
 	// DeliveryEventTypeError reports the terminal failed state for one delivery.
-	DeliveryEventTypeError DeliveryEventType = "error"
+	DeliveryEventTypeError DeliveryEventType = DeliveryEventType(bridgecontract.DeliveryEventTypeError)
 	// DeliveryEventTypeResume rehydrates the latest delivery snapshot after adapter recovery.
-	DeliveryEventTypeResume DeliveryEventType = "resume"
+	DeliveryEventTypeResume DeliveryEventType = DeliveryEventType(bridgecontract.DeliveryEventTypeResume)
 	// DeliveryEventTypeDelete removes one previously delivered message.
-	DeliveryEventTypeDelete DeliveryEventType = "delete"
+	DeliveryEventTypeDelete DeliveryEventType = DeliveryEventType(bridgecontract.DeliveryEventTypeDelete)
 	// DeliveryEventTypeProgress carries presentation-only tool lifecycle chrome.
-	DeliveryEventTypeProgress DeliveryEventType = "progress"
+	DeliveryEventTypeProgress DeliveryEventType = DeliveryEventType(bridgecontract.DeliveryEventTypeProgress)
 )
-
-// DeliveryEventTypeValues returns the closed wire values in stable order.
-func DeliveryEventTypeValues() []string {
-	return []string{
-		string(DeliveryEventTypeStart),
-		string(DeliveryEventTypeDelta),
-		string(DeliveryEventTypeFinal),
-		string(DeliveryEventTypeError),
-		string(DeliveryEventTypeResume),
-		string(DeliveryEventTypeDelete),
-		string(DeliveryEventTypeProgress),
-	}
-}
 
 const (
 	defaultDeliveryQueueCapacity  = 4
@@ -94,30 +80,7 @@ type DeliveryRequest struct {
 
 // Validate reports whether the negotiated request is internally consistent.
 func (r DeliveryRequest) Validate() error {
-	eventType := normalizeDeliveryEventType(r.Event.EventType)
-	if err := r.Event.Validate(); err != nil {
-		return err
-	}
-	if r.Snapshot == nil {
-		if eventType == DeliveryEventTypeResume {
-			return errors.New("bridges: resume delivery request requires a snapshot")
-		}
-		return nil
-	}
-	if eventType != DeliveryEventTypeResume {
-		return errors.New("bridges: only resume delivery requests may include a snapshot")
-	}
-
-	if err := r.Snapshot.Validate(); err != nil {
-		return err
-	}
-	if r.Snapshot.DeliveryID != r.Event.DeliveryID {
-		return errors.New("bridges: delivery request snapshot must match event delivery id")
-	}
-	if r.Snapshot.BridgeInstanceID != r.Event.BridgeInstanceID {
-		return errors.New("bridges: delivery request snapshot must match event bridge instance id")
-	}
-	return nil
+	return deliveryRequestToContract(r).Validate()
 }
 
 // DeliveryAck is the negotiated extension->daemon acknowledgement payload for
@@ -132,18 +95,7 @@ type DeliveryAck struct {
 // ValidateFor reports whether the acknowledgement still belongs to the request
 // that triggered it.
 func (a DeliveryAck) ValidateFor(event DeliveryEvent) error {
-	normalized := a.normalize()
-	if normalized.DeliveryID != "" && normalized.DeliveryID != strings.TrimSpace(event.DeliveryID) {
-		return fmt.Errorf(
-			"bridges: delivery ack delivery id %q does not match event %q",
-			normalized.DeliveryID,
-			strings.TrimSpace(event.DeliveryID),
-		)
-	}
-	if normalized.Seq != 0 && normalized.Seq != event.Seq {
-		return fmt.Errorf("bridges: delivery ack sequence %d does not match event %d", normalized.Seq, event.Seq)
-	}
-	return nil
+	return deliveryAckToContract(a).ValidateFor(deliveryEventToContract(event))
 }
 
 // DeliverySnapshot captures the current progressive state for one active
@@ -173,96 +125,7 @@ type DeliverySnapshot struct {
 // Validate reports whether the snapshot contains the state needed to resume a
 // negotiated bridge delivery.
 func (s DeliverySnapshot) Validate() error {
-	normalized := s.normalize()
-	if err := normalized.validateIdentity(); err != nil {
-		return err
-	}
-	if err := normalized.validateRouting(); err != nil {
-		return err
-	}
-	if err := normalized.validateSequences(); err != nil {
-		return err
-	}
-	if err := normalized.validateOperationReference(); err != nil {
-		return err
-	}
-	if _, err := normalizeRawJSON(normalized.ProviderMetadata, "delivery snapshot provider metadata"); err != nil {
-		return err
-	}
-	if err := validateDeliveryEventType(normalized.LatestEventType, normalized.Final); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s DeliverySnapshot) validateIdentity() error {
-	if err := requireField(s.DeliveryID, "delivery snapshot id"); err != nil {
-		return err
-	}
-	if err := requireField(s.SessionID, "delivery snapshot session id"); err != nil {
-		return err
-	}
-	if err := requireField(s.TurnID, "delivery snapshot turn id"); err != nil {
-		return err
-	}
-	if err := requireField(s.BridgeInstanceID, "delivery snapshot bridge instance id"); err != nil {
-		return err
-	}
-	if s.UpdatedAt.IsZero() {
-		return errors.New("bridges: delivery snapshot updated at is required")
-	}
-	return nil
-}
-
-func (s DeliverySnapshot) validateRouting() error {
-	if err := s.RoutingKey.Validate(); err != nil {
-		return err
-	}
-	if s.RoutingKey.BridgeInstanceID != s.BridgeInstanceID {
-		return errors.New("bridges: delivery snapshot bridge instance id must match routing key")
-	}
-	if err := s.DeliveryTarget.Validate(); err != nil {
-		return err
-	}
-	if s.DeliveryTarget.BridgeInstanceID != s.BridgeInstanceID {
-		return errors.New("bridges: delivery snapshot bridge instance id must match delivery target")
-	}
-	return nil
-}
-
-func (s DeliverySnapshot) validateSequences() error {
-	if s.LatestSeq < 0 {
-		return fmt.Errorf("bridges: invalid delivery snapshot latest sequence %d", s.LatestSeq)
-	}
-	if s.LastSentSeq < 0 {
-		return fmt.Errorf("bridges: invalid delivery snapshot last sent sequence %d", s.LastSentSeq)
-	}
-	if s.LastAckedSeq < 0 {
-		return fmt.Errorf("bridges: invalid delivery snapshot last acked sequence %d", s.LastAckedSeq)
-	}
-	if s.LastAckedSeq > s.LastSentSeq {
-		return errors.New("bridges: delivery snapshot last acked sequence cannot exceed last sent sequence")
-	}
-	if s.LastSentSeq > s.LatestSeq {
-		return errors.New("bridges: delivery snapshot last sent sequence cannot exceed latest sequence")
-	}
-	return nil
-}
-
-func (s DeliverySnapshot) validateOperationReference() error {
-	if err := s.Operation.Validate(); err != nil {
-		return err
-	}
-	if s.Operation == DeliveryOperationPost {
-		if s.Reference != nil {
-			return errors.New("bridges: delivery snapshot post operation cannot include a reference")
-		}
-		return nil
-	}
-	if s.Reference == nil {
-		return fmt.Errorf("bridges: delivery snapshot %s operation requires a reference", s.Operation)
-	}
-	return s.Reference.Validate()
+	return deliverySnapshotToContract(s).Validate()
 }
 
 // PromptDeliveryRegistration binds one session prompt turn to a routed bridge
@@ -368,89 +231,21 @@ func WithDeliveryBrokerLifecycleContext(ctx context.Context) DeliveryBrokerOptio
 }
 
 func normalizeDeliveryEventType(value DeliveryEventType) DeliveryEventType {
-	return DeliveryEventType(strings.ToLower(strings.TrimSpace(string(value))))
+	return DeliveryEventType(bridgecontract.NormalizeDeliveryEventType(bridgecontract.DeliveryEventType(value)))
 }
 
 func isTerminalDeliveryEventType(value DeliveryEventType) bool {
-	switch normalizeDeliveryEventType(value) {
-	case DeliveryEventTypeFinal, DeliveryEventTypeError, DeliveryEventTypeDelete:
-		return true
-	default:
-		return false
-	}
-}
-
-func validateDeliveryEventType(value DeliveryEventType, final bool) error {
-	switch normalizeDeliveryEventType(value) {
-	case DeliveryEventTypeStart:
-		if final {
-			return errors.New("bridges: delivery start event cannot be final")
-		}
-		return nil
-	case DeliveryEventTypeDelta:
-		if final {
-			return errors.New("bridges: delivery delta event cannot be final")
-		}
-		return nil
-	case DeliveryEventTypeProgress:
-		if final {
-			return errors.New("bridges: delivery progress event cannot be final")
-		}
-		return nil
-	case DeliveryEventTypeFinal:
-		if !final {
-			return errors.New("bridges: delivery final event must set final=true")
-		}
-		return nil
-	case DeliveryEventTypeError:
-		if !final {
-			return errors.New("bridges: delivery error event must set final=true")
-		}
-		return nil
-	case DeliveryEventTypeResume:
-		return nil
-	case DeliveryEventTypeDelete:
-		if !final {
-			return errors.New("bridges: delivery delete event must set final=true")
-		}
-		return nil
-	case "":
-		return errors.New("bridges: delivery event type is required")
-	default:
-		return fmt.Errorf("bridges: unsupported delivery event type %q", strings.TrimSpace(string(value)))
-	}
+	return bridgecontract.IsTerminalDeliveryEventType(bridgecontract.DeliveryEventType(value))
 }
 
 func (a DeliveryAck) normalize() DeliveryAck {
-	normalized := a
-	normalized.DeliveryID = strings.TrimSpace(normalized.DeliveryID)
-	normalized.RemoteMessageID = strings.TrimSpace(normalized.RemoteMessageID)
-	normalized.ReplaceRemoteMessageID = strings.TrimSpace(normalized.ReplaceRemoteMessageID)
-	return normalized
+	return deliveryAckFromContract(bridgecontract.NormalizeDeliveryAck(deliveryAckToContract(a)))
 }
 
 func (s DeliverySnapshot) normalize() DeliverySnapshot {
-	normalized := s
-	normalized.DeliveryID = strings.TrimSpace(normalized.DeliveryID)
-	normalized.SessionID = strings.TrimSpace(normalized.SessionID)
-	normalized.TurnID = strings.TrimSpace(normalized.TurnID)
-	normalized.BridgeInstanceID = strings.TrimSpace(normalized.BridgeInstanceID)
-	normalized.RoutingKey = normalized.RoutingKey.normalize()
-	normalized.DeliveryTarget = normalized.DeliveryTarget.normalize()
-	normalized.LatestEventType = normalizeDeliveryEventType(normalized.LatestEventType)
-	normalized.Operation = normalized.Operation.Normalize()
-	if normalized.Operation == "" {
-		normalized.Operation = DeliveryOperationPost
-	}
-	normalized.ProviderMetadata = bytes.TrimSpace(normalized.ProviderMetadata)
-	normalized.RemoteMessageID = strings.TrimSpace(normalized.RemoteMessageID)
-	normalized.ReplaceRemoteMessageID = strings.TrimSpace(normalized.ReplaceRemoteMessageID)
-	normalized.Error = strings.TrimSpace(normalized.Error)
-	if normalized.Reference != nil {
-		reference := normalized.Reference.normalize()
-		normalized.Reference = &reference
-	}
-	return normalized
+	return deliverySnapshotFromContract(
+		bridgecontract.NormalizeDeliverySnapshot(deliverySnapshotToContract(s)),
+	)
 }
 
 func (r PromptDeliveryRegistration) normalize() PromptDeliveryRegistration {

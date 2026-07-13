@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 )
 
 // Invariant: public control diagnostics preserve provider error taxonomy without exposing provider error text.

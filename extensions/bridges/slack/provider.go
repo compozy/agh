@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
 	"github.com/compozy/agh/internal/subprocess"
 )
@@ -465,15 +465,7 @@ func (p *slackProvider) handleBridgesDeliver(
 
 	ack, state, err := p.executeTextDeliveryWithProgress(ctx, &cfg, request)
 	if err != nil {
-		marker.Error = err.Error()
-		p.markers.RecordDelivery(marker)
-		classified := bridgesdk.ClassifyError(err)
-		_, _, reportErr := session.ReportClassifiedError(ctx, cfg.instanceID, classified)
-		if reportErr != nil {
-			p.setLastError(reportErr)
-		} else {
-			p.setLastError(err)
-		}
+		p.recordDeliveryFailure(ctx, session, cfg.instanceID, request, state, marker, err)
 		return bridgepkg.DeliveryAck{}, err
 	}
 

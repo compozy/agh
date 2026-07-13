@@ -566,6 +566,178 @@ func TestBridgeSetupRerunKeepsMaskedSecretDefaults(t *testing.T) {
 	})
 }
 
+func TestBridgeSetupTelegramRoutingShapes(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name   string
+		policy bridgepkg.RoutingPolicy
+	}{
+		{
+			name:   "Should persist a private chat route from JSON input",
+			policy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		},
+		{
+			name:   "Should persist an ordinary group route from JSON input",
+			policy: bridgepkg.RoutingPolicy{IncludeGroup: true},
+		},
+		{
+			name: "Should preserve the forum route default through explicit JSON input",
+			policy: bridgepkg.RoutingPolicy{
+				IncludeGroup:  true,
+				IncludeThread: true,
+			},
+		},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var created CreateBridgeRequest
+			client := telegramRoutingSetupClient(t, &created)
+			deps := newTestDeps(t, client)
+			deps.generateBridgeSetupSecret = func() (string, error) {
+				return "generated-webhook-secret", nil
+			}
+			stdin := mustJSON(t, map[string]any{
+				"scope":              "global",
+				"display_name":       "Telegram routing",
+				"bot_token":          "123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcd",
+				"routing_policy":     test.policy,
+				"webhook_public_url": "https://bridge.example.com/telegram/routing",
+				"webhook_path":       "/telegram/routing",
+			})
+
+			if _, _, err := executeRootCommandWithInput(
+				t,
+				deps,
+				string(stdin),
+				"bridge", "setup", "telegram", "--json",
+			); err != nil {
+				t.Fatalf("bridge setup telegram error = %v", err)
+			}
+			if created.RoutingPolicy != test.policy {
+				t.Fatalf("CreateBridge() routing policy = %#v, want %#v", created.RoutingPolicy, test.policy)
+			}
+		})
+	}
+
+	t.Run("Should persist a private chat route selected by the guided wizard", func(t *testing.T) {
+		t.Parallel()
+
+		var created CreateBridgeRequest
+		client := telegramRoutingSetupClient(t, &created)
+		deps := newTestDeps(t, client)
+		deps.runBridgeSetupWizard = func(
+			_ context.Context,
+			input bridgeSetupWizardInput,
+		) (bridgeSetupWizardSelection, error) {
+			if input.Defaults["routing_shape"] != "forum" {
+				t.Fatalf("wizard routing default = %q, want forum", input.Defaults["routing_shape"])
+			}
+			return bridgeSetupWizardSelection{Values: map[string]string{
+				"scope":              "global",
+				"display_name":       "Telegram private",
+				"extension_name":     "telegram",
+				"webhook_public_url": "https://bridge.example.com/telegram/private",
+				"webhook_path":       "/telegram/private",
+				"routing_shape":      "private",
+				"bot_token":          "123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcd",
+				"webhook_secret":     "operator-webhook-secret",
+			}}, nil
+		}
+
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"bridge", "setup", "telegram", "-o", "json",
+		); err != nil {
+			t.Fatalf("guided bridge setup telegram error = %v", err)
+		}
+		want := bridgepkg.RoutingPolicy{IncludePeer: true}
+		if created.RoutingPolicy != want {
+			t.Fatalf("CreateBridge() routing policy = %#v, want %#v", created.RoutingPolicy, want)
+		}
+	})
+
+	t.Run("Should reject a mixed Telegram route shape before creating an instance", func(t *testing.T) {
+		t.Parallel()
+
+		createCalls := 0
+		client := &bridgeSetupStubClient{stubClient: &stubClient{
+			createBridgeFn: func(context.Context, CreateBridgeRequest) (BridgeRecord, error) {
+				createCalls++
+				return BridgeRecord{}, nil
+			},
+		}}
+		deps := newTestDeps(t, client)
+		stdin := mustJSON(t, map[string]any{
+			"scope":              "global",
+			"bot_token":          "123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcd",
+			"routing_policy":     bridgepkg.RoutingPolicy{IncludePeer: true, IncludeGroup: true},
+			"webhook_public_url": "https://bridge.example.com/telegram/mixed",
+			"webhook_path":       "/telegram/mixed",
+		})
+
+		_, _, err := executeRootCommandWithInput(
+			t,
+			deps,
+			string(stdin),
+			"bridge", "setup", "telegram", "--json",
+		)
+		if err == nil || !strings.Contains(err.Error(), "private, group, or forum") {
+			t.Fatalf("bridge setup Telegram mixed routing error = %v, want closed-shape remediation", err)
+		}
+		if createCalls != 0 {
+			t.Fatalf("CreateBridge() calls = %d, want 0", createCalls)
+		}
+	})
+}
+
+func telegramRoutingSetupClient(
+	t *testing.T,
+	created *CreateBridgeRequest,
+) *bridgeSetupStubClient {
+	t.Helper()
+
+	const bridgeID = "brg-telegram-routing"
+	return &bridgeSetupStubClient{
+		stubClient: &stubClient{
+			createBridgeFn: func(_ context.Context, request CreateBridgeRequest) (BridgeRecord, error) {
+				*created = request
+				return BridgeRecord{
+					ID:             bridgeID,
+					Platform:       bridgeSetupPlatformTelegram,
+					ExtensionName:  bridgeSetupPlatformTelegram,
+					DisplayName:    request.DisplayName,
+					ProviderConfig: json.RawMessage(request.ProviderConfig),
+					RoutingPolicy:  request.RoutingPolicy,
+					Status:         bridgepkg.BridgeStatusDisabled,
+				}, nil
+			},
+			putBridgeSecretBindingFn: func(
+				_ context.Context,
+				id string,
+				bindingName string,
+				request BridgeSecretBindingRequest,
+			) (BridgeSecretBindingRecord, error) {
+				return BridgeSecretBindingRecord{
+					BridgeInstanceID: id,
+					BindingName:      bindingName,
+					SecretRef:        request.SecretRef,
+					Kind:             request.Kind,
+				}, nil
+			},
+		},
+		registerBridgeWebhookFn: func(
+			context.Context,
+			string,
+		) (BridgeWebhookRegistrationRecord, error) {
+			return BridgeWebhookRegistrationRecord{Status: bridgepkg.BridgeCheckStatusPass}, nil
+		},
+	}
+}
+
 func TestBridgeSetupTelegramRegistersWebhookOrPrintsSafeTemplate(t *testing.T) {
 	t.Parallel()
 

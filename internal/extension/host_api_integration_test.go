@@ -13,6 +13,7 @@ import (
 	apicontract "github.com/compozy/agh/internal/api/contract"
 	automationpkg "github.com/compozy/agh/internal/automation"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/session"
@@ -213,7 +214,7 @@ func TestHostAPIIntegrationBridgeProviderKeepsOperationalMethodsAlongsideGeneric
 		t.Fatalf("Handle(bridges/instances/list) error = %v", err)
 	}
 
-	var listed []hostAPIBridgeInstance
+	var listed []bridgecontract.BridgeInstance
 	decodeResult(t, listResult, &listed)
 	if got, want := len(listed), 1; got != want {
 		t.Fatalf("len(bridges/instances/list) = %d, want %d", got, want)
@@ -229,7 +230,7 @@ func TestHostAPIIntegrationBridgeProviderKeepsOperationalMethodsAlongsideGeneric
 		t.Fatalf("Handle(bridges/instances/get) error = %v", err)
 	}
 
-	var loaded hostAPIBridgeInstance
+	var loaded bridgecontract.BridgeInstance
 	decodeResult(t, getResult, &loaded)
 	if got, want := loaded.ID, instance.ID; got != want {
 		t.Fatalf("bridges/instances/get id = %q, want %q", got, want)
@@ -777,7 +778,7 @@ func TestHostAPIIntegrationBridgesMessagesIngestCreatesRouteAndSession(t *testin
 		t.Fatalf("Handle(bridges/messages/ingest) error = %v", err)
 	}
 
-	var ingest hostAPIBridgesMessagesIngestResult
+	var ingest bridgecontract.BridgesMessagesIngestResult
 	decodeResult(t, result, &ingest)
 	if ingest.SessionID == "" {
 		t.Fatal("bridges/messages/ingest session_id = empty, want non-empty")
@@ -786,7 +787,7 @@ func TestHostAPIIntegrationBridgesMessagesIngestCreatesRouteAndSession(t *testin
 		t.Fatal("bridges/messages/ingest route_created = false, want true")
 	}
 
-	route, err := env.bridges.ResolveRoute(testutil.Context(t), ingest.RoutingKey)
+	route, err := env.bridges.ResolveRoute(testutil.Context(t), bridgeRoutingKeyDomain(ingest.RoutingKey))
 	if err != nil {
 		t.Fatalf("bridges.ResolveRoute() error = %v", err)
 	}
@@ -823,13 +824,13 @@ func TestHostAPIIntegrationBridgesMessagesIngestSupportsSiblingInstancesInOneRun
 		t.Fatalf("Handle(bridges/messages/ingest multi) error = %v", err)
 	}
 
-	var ingest hostAPIBridgesMessagesIngestResult
+	var ingest bridgecontract.BridgesMessagesIngestResult
 	decodeResult(t, result, &ingest)
 	if !ingest.RouteCreated {
 		t.Fatal("bridges/messages/ingest multi route_created = false, want true")
 	}
 
-	route, err := env.bridges.ResolveRoute(testutil.Context(t), ingest.RoutingKey)
+	route, err := env.bridges.ResolveRoute(testutil.Context(t), bridgeRoutingKeyDomain(ingest.RoutingKey))
 	if err != nil {
 		t.Fatalf("bridges.ResolveRoute(multi) error = %v", err)
 	}
@@ -870,7 +871,7 @@ func TestHostAPIIntegrationBridgesMessagesIngestDuplicateRetryIsSuppressed(t *te
 	if err != nil {
 		t.Fatalf("first Handle(bridges/messages/ingest) error = %v", err)
 	}
-	var firstResult hostAPIBridgesMessagesIngestResult
+	var firstResult bridgecontract.BridgesMessagesIngestResult
 	decodeResult(t, first, &firstResult)
 
 	env.advanceTime(2 * time.Minute)
@@ -879,7 +880,7 @@ func TestHostAPIIntegrationBridgesMessagesIngestDuplicateRetryIsSuppressed(t *te
 	if err != nil {
 		t.Fatalf("retry Handle(bridges/messages/ingest) error = %v", err)
 	}
-	var secondResult hostAPIBridgesMessagesIngestResult
+	var secondResult bridgecontract.BridgesMessagesIngestResult
 	decodeResult(t, second, &secondResult)
 
 	routes, err := env.bridges.ListRoutes(testutil.Context(t), instance.ID)
@@ -952,16 +953,16 @@ func TestHostAPIIntegrationBridgesInstancesReportStatePublishesAuthRequired(t *t
 		t.Fatalf("Handle(bridges/instances/report_state) error = %v", err)
 	}
 
-	var updated hostAPIBridgeInstance
+	var updated bridgecontract.BridgeInstance
 	decodeResult(t, result, &updated)
-	if updated.Status != bridgepkg.BridgeStatusAuthRequired {
+	if updated.Status != bridgecontract.BridgeStatusAuthRequired {
 		t.Fatalf(
 			"bridges/instances/report_state status = %q, want %q",
 			updated.Status,
-			bridgepkg.BridgeStatusAuthRequired,
+			bridgecontract.BridgeStatusAuthRequired,
 		)
 	}
-	if updated.Degradation == nil || updated.Degradation.Reason != bridgepkg.BridgeDegradationReasonAuthFailed {
+	if updated.Degradation == nil || updated.Degradation.Reason != bridgecontract.BridgeDegradationReasonAuthFailed {
 		t.Fatalf("bridges/instances/report_state degradation = %#v, want auth_failed", updated.Degradation)
 	}
 
@@ -971,12 +972,12 @@ func TestHostAPIIntegrationBridgesInstancesReportStatePublishesAuthRequired(t *t
 	if err != nil {
 		t.Fatalf("Handle(bridges/instances/get) error = %v", err)
 	}
-	var loaded hostAPIBridgeInstance
+	var loaded bridgecontract.BridgeInstance
 	decodeResult(t, fetched, &loaded)
-	if loaded.Status != bridgepkg.BridgeStatusAuthRequired {
-		t.Fatalf("bridges/instances/get status = %q, want %q", loaded.Status, bridgepkg.BridgeStatusAuthRequired)
+	if loaded.Status != bridgecontract.BridgeStatusAuthRequired {
+		t.Fatalf("bridges/instances/get status = %q, want %q", loaded.Status, bridgecontract.BridgeStatusAuthRequired)
 	}
-	if loaded.Degradation == nil || loaded.Degradation.Reason != bridgepkg.BridgeDegradationReasonAuthFailed {
+	if loaded.Degradation == nil || loaded.Degradation.Reason != bridgecontract.BridgeDegradationReasonAuthFailed {
 		t.Fatalf("bridges/instances/get degradation = %#v, want auth_failed", loaded.Degradation)
 	}
 }
@@ -1006,7 +1007,7 @@ func TestHostAPIIntegrationBridgesInstancesListAndGetReturnOwnedInstances(t *tes
 		t.Fatalf("Handle(bridges/instances/list) error = %v", err)
 	}
 
-	var listed []hostAPIBridgeInstance
+	var listed []bridgecontract.BridgeInstance
 	decodeResult(t, listedResult, &listed)
 	if got := len(listed); got != 2 {
 		t.Fatalf("len(bridges/instances/list) = %d, want 2", got)
@@ -1029,7 +1030,7 @@ func TestHostAPIIntegrationBridgesInstancesListAndGetReturnOwnedInstances(t *tes
 		t.Fatalf("Handle(bridges/instances/get) error = %v", err)
 	}
 
-	var fetched hostAPIBridgeInstance
+	var fetched bridgecontract.BridgeInstance
 	decodeResult(t, fetchedResult, &fetched)
 	if got, want := fetched.ID, second.ID; got != want {
 		t.Fatalf("bridges/instances/get id = %q, want %q", got, want)
@@ -1048,7 +1049,7 @@ func TestHostAPIIntegrationBridgesMessagesIngestConcurrentSameRoutingKeyUsesOneR
 	ctx := env.bridgeContext(t, instance)
 
 	type ingestResult struct {
-		result hostAPIBridgesMessagesIngestResult
+		result bridgecontract.BridgesMessagesIngestResult
 		err    error
 	}
 

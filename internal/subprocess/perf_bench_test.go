@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/bridges"
+	bridges "github.com/compozy/agh/internal/bridges/contract"
 )
 
 type discardWriteCloser struct {

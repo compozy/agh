@@ -32,20 +32,16 @@ Tool progress is off by default. Enable accumulated progress for a bridge instan
 
 The provider creates one plain-text progress message in the triggering space and thread, then patches that message as progress arrives. Progress does not use CardV2, typing, or reaction affordances.
 
-## Build
+## Build and install
 
-From the repository root:
+Released `agh` artifacts do not include this provider executable. From a trusted AGH source
+checkout, run this from the repository root with the daemon running:
 
 ```bash
+mkdir -p ./extensions/bridges/gchat/bin
 go build -o ./extensions/bridges/gchat/bin/gchat ./extensions/bridges/gchat
-```
-
-## Install
-
-Build the binary first, then install the extension directory:
-
-```bash
-agh extension install ./extensions/bridges/gchat
+agh extension install ./extensions/bridges/gchat --allow-unverified --yes -o json
+agh extension status gchat -o json
 ```
 
 ## Configuration
@@ -53,3 +49,7 @@ agh extension install ./extensions/bridges/gchat
 Bind `credentials_json` to Google service-account credentials. `project_number` is optional and enables direct-webhook audience verification. Provider config selects `direct`, `pubsub`, or `hybrid` ingress and can configure webhook, certificate, batching, and direct-message policy settings.
 
 `AGH_BRIDGE_GCHAT_LISTEN_ADDR`, `AGH_BRIDGE_GCHAT_DIRECT_CERTS_URL`, and `AGH_BRIDGE_GCHAT_PUBSUB_CERTS_URL` provide process-level listener and certificate overrides. `AGH_BRIDGE_GCHAT_API_BASE_URL` and `AGH_BRIDGE_GCHAT_TOKEN_URL` are operator-owned process overrides for credential-bearing destinations. Bridge config and `credentials_json.token_uri` cannot change those destinations.
+
+See the [Google Chat operator setup guide](../../../packages/site/content/runtime/core/bridges/setup-gchat.mdx)
+for Cloud app setup, direct/Pub/Sub verification, route selection, real delivery testing, and
+troubleshooting.

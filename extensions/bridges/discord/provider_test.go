@@ -22,9 +22,8 @@ import (
 	"time"
 	"unsafe"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -401,6 +400,42 @@ func TestExecuteDiscordDeliveryValidatesEditAndDeleteOperations(t *testing.T) {
 			t.Fatalf("state remote message id = %q, want %q", got, remoteID)
 		}
 	})
+
+	t.Run("Should honor Retry-After for update and delete operations", func(t *testing.T) {
+		t.Parallel()
+
+		rateLimit := &bridgesdk.RateLimitError{
+			Err:        errors.New("rate limited primary operation"),
+			RetryAfter: time.Nanosecond,
+		}
+		api := &discordAPIFake{
+			updateErrors: []error{rateLimit, nil},
+			deleteErrors: []error{rateLimit, nil},
+		}
+		state := deliveryState{LastSeq: 1, RemoteMessageID: "thread-1:message-1", LastContent: "before"}
+		update := editReq
+		update.Event.DeliveryID = "del-primary-retry"
+		update.Event.Content.Text = "updated after rate limit"
+		update.Event.Reference = &bridgepkg.DeliveryMessageReference{RemoteMessageID: state.RemoteMessageID}
+
+		ack, state, err := executeDiscordDelivery(context.Background(), api, update, state)
+		if err != nil {
+			t.Fatalf("executeDiscordDelivery(update) error = %v", err)
+		}
+		if got, want := len(api.updateAttempts), 2; got != want {
+			t.Fatalf("update attempts = %d, want %d", got, want)
+		}
+
+		deleteRequest := deleteReq
+		deleteRequest.Event.DeliveryID = "del-primary-retry"
+		deleteRequest.Event.Reference = &bridgepkg.DeliveryMessageReference{RemoteMessageID: ack.RemoteMessageID}
+		if _, _, err := executeDiscordDelivery(context.Background(), api, deleteRequest, state); err != nil {
+			t.Fatalf("executeDiscordDelivery(delete) error = %v", err)
+		}
+		if got, want := len(api.deleteAttempts), 2; got != want {
+			t.Fatalf("delete attempts = %d, want %d", got, want)
+		}
+	})
 }
 
 func TestExecuteDiscordDeliveryChunksTerminalContent(t *testing.T) {
@@ -623,6 +658,56 @@ func TestExecuteDiscordDeliveryChunksTerminalContent(t *testing.T) {
 		var transient *bridgesdk.TransientError
 		if !errors.As(err, &transient) {
 			t.Fatalf("executeDiscordDelivery() error = %v, want TransientError", err)
+		}
+	})
+
+	t.Run("Should resume at the first unsent chunk after exhausting Retry-After attempts", func(t *testing.T) {
+		t.Parallel()
+
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "del-partial-chunk",
+			BridgeInstanceID: "brg-discord",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              1,
+			EventType:        bridgepkg.DeliveryEventTypeFinal,
+			Final:            true,
+			Content:          bridgepkg.MessageContent{Text: longText},
+		}}
+		chunks := discordDeliveryChunks(request.Event)
+		if len(chunks) < 2 {
+			t.Fatalf("discordDeliveryChunks() returned %d chunk, want at least 2", len(chunks))
+		}
+
+		api := &discordAPIFake{
+			postedMessageIDs: []string{"msg-1", "msg-2", "msg-3", "msg-4"},
+			postErrorContent: chunks[1],
+			postErr: &bridgesdk.RateLimitError{
+				Err:        errors.New("rate limited continuation"),
+				RetryAfter: time.Nanosecond,
+			},
+		}
+		_, partialState, err := executeDiscordDelivery(context.Background(), api, request, deliveryState{})
+		if err == nil {
+			t.Fatal("executeDiscordDelivery(partial) error = nil, want exhausted rate limit")
+		}
+		if got, want := countDiscordPostRequests(api.postAttempts, chunks[1]), bridgesdk.DefaultRetryConfig().Attempts; got != want {
+			t.Fatalf("failed continuation attempts = %d, want %d", got, want)
+		}
+		if got, want := countDiscordPostRequests(api.postRequests, chunks[0]), 1; got != want {
+			t.Fatalf("successful first-chunk posts = %d, want %d", got, want)
+		}
+
+		api.postErr = nil
+		resume := testDiscordResumeRequest(request)
+		if _, _, err := executeDiscordDelivery(context.Background(), api, resume, partialState); err != nil {
+			t.Fatalf("executeDiscordDelivery(resume) error = %v", err)
+		}
+		if got, want := countDiscordPostRequests(api.postRequests, chunks[0]), 1; got != want {
+			t.Fatalf("successful first-chunk posts after resume = %d, want %d", got, want)
+		}
+		if got, want := len(api.postRequests), len(chunks); got != want {
+			t.Fatalf("successful chunk posts = %d, want %d", got, want)
 		}
 	})
 }
@@ -1370,8 +1455,8 @@ func TestHandleEventAndInteractionWebhookBranches(t *testing.T) {
 				mu.Lock()
 				ingests = append(ingests, params.(bridgepkg.InboundMessageEnvelope))
 				mu.Unlock()
-				target := result.(*extensioncontract.BridgesMessagesIngestResult)
-				*target = extensioncontract.BridgesMessagesIngestResult{SessionID: "sess-1"}
+				target := result.(*bridgepkg.BridgesMessagesIngestResult)
+				*target = bridgepkg.BridgesMessagesIngestResult{SessionID: "sess-1"}
 				return nil
 			}
 			if method == "bridges/instances/report_state" {
@@ -1532,6 +1617,28 @@ func TestAllowDiscordDirectMessagePoliciesAndUtilityHelpers(t *testing.T) {
 	}
 }
 
+func TestParseRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve fractional seconds without under-waiting", func(t *testing.T) {
+		t.Parallel()
+
+		if got, want := parseRetryAfter("0.75"), 750*time.Millisecond; got != want {
+			t.Fatalf("parseRetryAfter(0.75) = %s, want %s", got, want)
+		}
+	})
+
+	t.Run("Should reject non-positive and invalid delays", func(t *testing.T) {
+		t.Parallel()
+
+		for _, value := range []string{"0", "-0.5", "bad"} {
+			if got := parseRetryAfter(value); got != 0 {
+				t.Fatalf("parseRetryAfter(%q) = %s, want 0", value, got)
+			}
+		}
+	})
+}
+
 func TestHandleBridgesDeliverFailureAndMainHelpers(t *testing.T) {
 	t.Parallel()
 
@@ -1555,7 +1662,7 @@ func TestHandleBridgesDeliverFailureAndMainHelpers(t *testing.T) {
 			if method == "bridges/instances/report_state" {
 				target := result.(*bridgepkg.BridgeInstance)
 				updated := testDiscordManagedInstance("brg-discord").Instance
-				updated.Status = params.(extensioncontract.BridgesInstancesReportStateParams).Status
+				updated.Status = params.(bridgepkg.BridgesInstancesReportStateParams).Status
 				*target = updated
 			}
 			return nil
@@ -1649,7 +1756,7 @@ func TestAfterInitializeSuccessAndParsingBranches(t *testing.T) {
 			case "bridges/instances/report_state":
 				target := result.(*bridgepkg.BridgeInstance)
 				updated := instance
-				updated.Status = params.(extensioncontract.BridgesInstancesReportStateParams).Status
+				updated.Status = params.(bridgepkg.BridgesInstancesReportStateParams).Status
 				*target = updated
 			default:
 				return nil
@@ -2057,7 +2164,7 @@ func TestProviderHostAPIFlowWithInjectedSession(t *testing.T) {
 
 	var mu sync.Mutex
 	ingests := make([]bridgepkg.InboundMessageEnvelope, 0)
-	reportedStates := make([]extensioncontract.BridgesInstancesReportStateParams, 0)
+	reportedStates := make([]bridgepkg.BridgesInstancesReportStateParams, 0)
 	session := injectedDiscordSession(t,
 		bridgesdk.NewHostAPIClientFromCall(func(_ context.Context, method string, params any, result any) error {
 			mu.Lock()
@@ -2072,17 +2179,17 @@ func TestProviderHostAPIFlowWithInjectedSession(t *testing.T) {
 				*target = instance
 				return nil
 			case "bridges/instances/report_state":
-				reportedStates = append(reportedStates, params.(extensioncontract.BridgesInstancesReportStateParams))
+				reportedStates = append(reportedStates, params.(bridgepkg.BridgesInstancesReportStateParams))
 				target := result.(*bridgepkg.BridgeInstance)
 				updated := instance
-				updated.Status = params.(extensioncontract.BridgesInstancesReportStateParams).Status
-				updated.Degradation = params.(extensioncontract.BridgesInstancesReportStateParams).Degradation
+				updated.Status = params.(bridgepkg.BridgesInstancesReportStateParams).Status
+				updated.Degradation = params.(bridgepkg.BridgesInstancesReportStateParams).Degradation
 				*target = updated
 				return nil
 			case "bridges/messages/ingest":
 				ingests = append(ingests, params.(bridgepkg.InboundMessageEnvelope))
-				target := result.(*extensioncontract.BridgesMessagesIngestResult)
-				*target = extensioncontract.BridgesMessagesIngestResult{SessionID: "sess-1"}
+				target := result.(*bridgepkg.BridgesMessagesIngestResult)
+				*target = bridgepkg.BridgesMessagesIngestResult{SessionID: "sess-1"}
 				return nil
 			default:
 				return fmt.Errorf("unexpected host api method %q", method)
@@ -2215,12 +2322,14 @@ type discordAPIFake struct {
 	postedMessageID  string
 	postedMessageIDs []string
 	postErr          error
+	postErrorContent string
 	updateErr        error
 	updateErrors     []error
 	updateStarted    chan struct{}
 	updateBlock      <-chan struct{}
 	updateStartOnce  sync.Once
 	deleteErr        error
+	deleteErrors     []error
 	typingStopErr    error
 
 	postRequests     []discordPostMessageRequest
@@ -2228,6 +2337,7 @@ type discordAPIFake struct {
 	updateAttempts   []discordUpdateMessageRequest
 	updateRequests   []discordUpdateMessageRequest
 	deleteRequests   []discordDeleteMessageRequest
+	deleteAttempts   []discordDeleteMessageRequest
 	typingRequests   []discordTypingRequest
 	reactionRequests []discordReactionRequest
 	progressActions  []string
@@ -2239,7 +2349,7 @@ func (f *discordAPIFake) GetBotUser(context.Context) (*discordBotIdentity, error
 
 func (f *discordAPIFake) PostMessage(_ context.Context, req discordPostMessageRequest) (*discordPostedMessage, error) {
 	f.postAttempts = append(f.postAttempts, req)
-	if f.postErr != nil {
+	if f.postErr != nil && (f.postErrorContent == "" || req.Content == f.postErrorContent) {
 		return nil, f.postErr
 	}
 	f.postRequests = append(f.postRequests, req)
@@ -2249,6 +2359,37 @@ func (f *discordAPIFake) PostMessage(_ context.Context, req discordPostMessageRe
 		messageID = f.postedMessageIDs[index]
 	}
 	return &discordPostedMessage{ID: messageID}, nil
+}
+
+func countDiscordPostRequests(requests []discordPostMessageRequest, content string) int {
+	count := 0
+	for _, request := range requests {
+		if request.Content == content {
+			count++
+		}
+	}
+	return count
+}
+
+func testDiscordResumeRequest(request bridgepkg.DeliveryRequest) bridgepkg.DeliveryRequest {
+	resume := request
+	resume.Event.EventType = bridgepkg.DeliveryEventTypeResume
+	resume.Event.Resume = &bridgepkg.DeliveryResumeState{LatestEventType: bridgepkg.DeliveryEventTypeFinal}
+	resume.Snapshot = &bridgepkg.DeliverySnapshot{
+		DeliveryID:       request.Event.DeliveryID,
+		SessionID:        "sess-resume",
+		TurnID:           "turn-resume",
+		BridgeInstanceID: request.Event.BridgeInstanceID,
+		RoutingKey:       request.Event.RoutingKey,
+		DeliveryTarget:   request.Event.DeliveryTarget,
+		LatestSeq:        request.Event.Seq,
+		LatestEventType:  bridgepkg.DeliveryEventTypeFinal,
+		CurrentContent:   request.Event.Content,
+		Operation:        request.Event.Operation,
+		Final:            true,
+		UpdatedAt:        time.Date(2026, 7, 13, 9, 0, 0, 0, time.UTC),
+	}
+	return resume
 }
 
 func (f *discordAPIFake) UpdateMessage(_ context.Context, req discordUpdateMessageRequest) error {
@@ -2271,6 +2412,11 @@ func (f *discordAPIFake) UpdateMessage(_ context.Context, req discordUpdateMessa
 }
 
 func (f *discordAPIFake) DeleteMessage(_ context.Context, req discordDeleteMessageRequest) error {
+	f.deleteAttempts = append(f.deleteAttempts, req)
+	callIndex := len(f.deleteAttempts) - 1
+	if callIndex < len(f.deleteErrors) && f.deleteErrors[callIndex] != nil {
+		return f.deleteErrors[callIndex]
+	}
 	if f.deleteErr != nil {
 		return f.deleteErr
 	}

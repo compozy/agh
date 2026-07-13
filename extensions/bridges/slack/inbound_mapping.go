@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -69,9 +69,10 @@ func mapSlackSlashCommand(
 		providerTriggerIDKey:   strings.TrimSpace(values.Get(providerTriggerIDKey)),
 		providerTypeKey:        "slash_command",
 	})
-	if err == nil {
-		envelope.ProviderMetadata = metadata
+	if err != nil {
+		return slackMappedInbound{}, fmt.Errorf("slack: encode slash command metadata: %w", err)
 	}
+	envelope.ProviderMetadata = metadata
 	if err := envelope.Validate(); err != nil {
 		return slackMappedInbound{}, err
 	}
@@ -196,9 +197,11 @@ func buildSlackBlockActionItem(
 		envelope.GroupID = ctx.channelID
 		envelope.ThreadID = ctx.threadID
 	}
-	if metadata, err := slackBlockActionMetadata(payload, action, ctx); err == nil {
-		envelope.ProviderMetadata = metadata
+	metadata, err := slackBlockActionMetadata(payload, action, ctx)
+	if err != nil {
+		return slackMappedInbound{}, fmt.Errorf("slack: encode block action metadata: %w", err)
 	}
+	envelope.ProviderMetadata = metadata
 	if err := envelope.Validate(); err != nil {
 		return slackMappedInbound{}, err
 	}
@@ -300,9 +303,10 @@ func mapSlackReactionEvent(
 		providerTeamIDKey:    strings.TrimSpace(teamID),
 		providerTypeKey:      strings.TrimSpace(event.Type),
 	})
-	if err == nil {
-		envelope.ProviderMetadata = metadata
+	if err != nil {
+		return slackMappedInbound{}, fmt.Errorf("slack: encode reaction metadata: %w", err)
 	}
+	envelope.ProviderMetadata = metadata
 	if err := envelope.Validate(); err != nil {
 		return slackMappedInbound{}, err
 	}

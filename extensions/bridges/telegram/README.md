@@ -10,20 +10,16 @@ It implements:
 - outbound `sendMessage`, `editMessageText`, and `deleteMessage` behavior for bridge delivery requests
 - resume handling for the remote message recorded by the shared bridge delivery broker
 
-## Build
+## Build and install
 
-From the repository root:
+Released `agh` artifacts do not include this provider executable. From a trusted AGH source
+checkout, run this from the repository root with the daemon running:
 
 ```bash
+mkdir -p ./extensions/bridges/telegram/bin
 go build -o ./extensions/bridges/telegram/bin/telegram ./extensions/bridges/telegram
-```
-
-## Install
-
-Build the binary first, then install the extension directory:
-
-```bash
-agh extension install ./extensions/bridges/telegram
+agh extension install ./extensions/bridges/telegram --allow-unverified --yes -o json
+agh extension status telegram -o json
 ```
 
 ## Provider Config
@@ -33,6 +29,7 @@ The bridge instance `provider_config` JSON object currently supports:
 ```json
 {
   "webhook": {
+    "public_url": "https://bridge.example.com/telegram/support",
     "listen_addr": "127.0.0.1:8080",
     "path": "/telegram/brg-main"
   },
@@ -67,3 +64,7 @@ The provider converts common Markdown constructs to Telegram MarkdownV2 before m
 Telegram instances default to `tool_progress: new` with accumulated updates, typing actions, and reactions enabled. The provider posts one progress bubble in the inbound topic, schedules edits on the shared 1.5-second interval, and sends the answer as a separate message in that topic. Progress text uses the same MarkdownV2 formatter, plain-text fallback, and 4,096 UTF-16 code-unit limit as regular delivery.
 
 Progress uses `sendMessage`, `editMessageText`, `sendChatAction`, and `setMessageReaction`. Reactions apply to the progress bubble. Sending the answer clears Telegram's typing indicator; Telegram has no explicit clear-typing method. Rate-limited edits honor the Bot API `retry_after` value before retrying. Set `delivery_defaults.progress.tool_progress` to `off` to acknowledge progress without Telegram API calls.
+
+See the [Telegram operator setup guide](../../../packages/site/content/runtime/core/bridges/setup-telegram.mdx)
+for BotFather setup, webhook registration, route selection, verification, delivery testing, and
+troubleshooting.

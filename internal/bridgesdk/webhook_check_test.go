@@ -15,7 +15,7 @@ import (
 	"sync"
 	"testing"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 )
 
 func TestWebhookCheckRecordsRemainStageAware(t *testing.T) {

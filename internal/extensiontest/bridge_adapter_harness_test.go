@@ -10,9 +10,9 @@ import (
 	"time"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	observepkg "github.com/compozy/agh/internal/observe"
 	"github.com/compozy/agh/internal/subprocess"
 )
@@ -104,13 +104,13 @@ func TestValidateConformanceRejectsUnexpectedOwnedInstanceDelivery(t *testing.T)
 func TestHarnessHelperCloningAndMarkerParsingSupportManyManagedInstances(t *testing.T) {
 	managed := []subprocess.InitializeBridgeManagedInstance{
 		{
-			Instance: testBridgeInstanceWithID("brg-1"),
+			Instance: bridgepkg.BridgeInstanceToContract(testBridgeInstanceWithID("brg-1")),
 			BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
 				{BindingName: "bot_token", Kind: "token", Value: "token-1"},
 			},
 		},
 		{
-			Instance: testBridgeInstanceWithID("brg-2"),
+			Instance: bridgepkg.BridgeInstanceToContract(testBridgeInstanceWithID("brg-2")),
 			BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
 				{BindingName: "bot_token", Kind: "token", Value: "token-2"},
 			},
@@ -255,7 +255,7 @@ func TestMarkerHelpersReadStandaloneMarkerSet(t *testing.T) {
 			PeerID:           "telegram:chat:777:user:888",
 			Content:          bridgepkg.MessageContent{Text: "Need a summary"},
 		},
-		Result: extensioncontract.BridgesMessagesIngestResult{
+		Result: bridgecontract.BridgesMessagesIngestResult{
 			SessionID:    "sess-1",
 			RouteCreated: true,
 		},
@@ -310,11 +310,11 @@ func TestMarkerHelpersReadStandaloneMarkerSet(t *testing.T) {
 
 func TestRecordHostStateTransitionCapturesReportedState(t *testing.T) {
 	path := t.TempDir() + "/states.jsonl"
-	params, err := json.Marshal(extensioncontract.BridgesInstancesReportStateParams{
+	params, err := json.Marshal(bridgecontract.BridgesInstancesReportStateParams{
 		BridgeInstanceID: "brg-1",
-		Status:           bridgepkg.BridgeStatusDegraded,
-		Degradation: &bridgepkg.BridgeDegradation{
-			Reason: bridgepkg.BridgeDegradationReasonRateLimited,
+		Status:           bridgecontract.BridgeStatusDegraded,
+		Degradation: &bridgecontract.BridgeDegradation{
+			Reason: bridgecontract.BridgeDegradationReasonRateLimited,
 		},
 	})
 	if err != nil {
@@ -350,9 +350,9 @@ func TestRecordHostStateTransitionCapturesReportedState(t *testing.T) {
 
 func TestRecordHostStateTransitionCapturesHostErrors(t *testing.T) {
 	path := t.TempDir() + "/states.jsonl"
-	params, err := json.Marshal(extensioncontract.BridgesInstancesReportStateParams{
+	params, err := json.Marshal(bridgecontract.BridgesInstancesReportStateParams{
 		BridgeInstanceID: "brg-err",
-		Status:           bridgepkg.BridgeStatusAuthRequired,
+		Status:           bridgecontract.BridgeStatusAuthRequired,
 	})
 	if err != nil {
 		t.Fatalf("json.Marshal(params) error = %v", err)
@@ -440,7 +440,7 @@ func validConformanceReport() ConformanceReport {
 						Provider:       "telegram-reference",
 						Platform:       "telegram",
 						ManagedInstances: []subprocess.InitializeBridgeManagedInstance{{
-							Instance: testBridgeInstance(),
+							Instance: bridgepkg.BridgeInstanceToContract(testBridgeInstance()),
 							BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
 								{BindingName: "bot_token", Kind: "token", Value: "telegram-token"},
 							},

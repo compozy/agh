@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -45,9 +45,10 @@ type ProviderLifecycleConfig struct {
 type ProviderLifecycle struct {
 	config ProviderLifecycleConfig
 
-	mu        sync.RWMutex
-	session   *Session
-	lastError error
+	mu         sync.RWMutex
+	session    *Session
+	lastError  error
+	initCancel context.CancelFunc
 
 	stopCh      chan struct{}
 	stopOnce    sync.Once
@@ -99,19 +100,25 @@ func (l *ProviderLifecycle) Initialize(_ context.Context, session *Session) erro
 	if l == nil || session == nil {
 		return errors.New("bridgesdk: provider lifecycle session is required")
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), providerInitializeTimeout)
 	l.mu.Lock()
 	l.session = session
 	l.lastError = nil
+	l.initCancel = cancel
 	l.mu.Unlock()
 	l.config.Markers.RecordInitialize(&InitializeMarker{
 		Request:  session.InitializeRequest(),
 		Response: session.InitializeResponse(),
 	})
-	l.Go(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), providerInitializeTimeout)
+	if !l.Go(func() {
 		defer cancel()
 		l.runAfterInitialize(ctx, session)
-	})
+	}) {
+		cancel()
+		l.initOnce.Do(func() { close(l.initDone) })
+		l.MarkRoutesReady()
+		return ErrProviderStopped
+	}
 	return nil
 }
 
@@ -257,6 +264,12 @@ func (l *ProviderLifecycle) Stop() {
 		l.taskMu.Lock()
 		close(l.stopCh)
 		l.taskMu.Unlock()
+		l.mu.RLock()
+		cancelInitialize := l.initCancel
+		l.mu.RUnlock()
+		if cancelInitialize != nil {
+			cancelInitialize()
+		}
 		if l.config.OnStop != nil {
 			l.config.OnStop()
 		}

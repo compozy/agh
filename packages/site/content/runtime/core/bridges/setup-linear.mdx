@@ -50,6 +50,20 @@ Activities.
 - Either a personal API key or an OAuth application with client-credentials tokens enabled.
 - An AGH workspace with a default agent.
 
+Before configuring Linear, prove that the locally built provider is installed and visible in the
+daemon catalog:
+
+```bash
+PROVIDER=linear
+agh extension status "$PROVIDER" -o json
+curl -sS http://127.0.0.1:2123/api/bridges/providers | \
+  jq --arg provider "$PROVIDER" '.providers[] | select(.extension_name == $provider)'
+```
+
+Continue only when the extension is enabled and the catalog row is not disabled or unhealthy. If
+either command has no provider, follow [Install an in-tree
+provider](/runtime/core/bridges/setup#install-an-in-tree-provider) first.
+
 Find the organization ID in Linear's API explorer with the same identity the bridge will use:
 
 ```graphql
@@ -160,39 +174,38 @@ BRIDGE_ID=brg_123
 Every mode requires the signing secret from the Linear webhook or OAuth application settings:
 
 ```bash
-agh bridge secret-bindings put "$BRIDGE_ID" webhook_secret \
+printf '%s' "$LINEAR_WEBHOOK_SECRET" | agh bridge secret-bindings put "$BRIDGE_ID" webhook_secret \
   --secret-ref "vault:bridges/$BRIDGE_ID/webhook_secret" \
   --kind secret \
-  --secret-value "$LINEAR_WEBHOOK_SECRET"
+  --secret-value-stdin
 ```
 
 API-key authentication:
 
 ```bash
-agh bridge secret-bindings put "$BRIDGE_ID" api_key \
+printf '%s' "$LINEAR_API_KEY" | agh bridge secret-bindings put "$BRIDGE_ID" api_key \
   --secret-ref "vault:bridges/$BRIDGE_ID/api_key" \
   --kind token \
-  --secret-value "$LINEAR_API_KEY"
+  --secret-value-stdin
 ```
 
 OAuth client credentials:
 
 ```bash
-agh bridge secret-bindings put "$BRIDGE_ID" client_id \
+printf '%s' "$LINEAR_CLIENT_ID" | agh bridge secret-bindings put "$BRIDGE_ID" client_id \
   --secret-ref "vault:bridges/$BRIDGE_ID/client_id" \
   --kind credential \
-  --secret-value "$LINEAR_CLIENT_ID"
+  --secret-value-stdin
 
-agh bridge secret-bindings put "$BRIDGE_ID" client_secret \
+printf '%s' "$LINEAR_CLIENT_SECRET" | agh bridge secret-bindings put "$BRIDGE_ID" client_secret \
   --secret-ref "vault:bridges/$BRIDGE_ID/client_secret" \
   --kind secret \
-  --secret-value "$LINEAR_CLIENT_SECRET"
+  --secret-value-stdin
 ```
 
 <OperatorNote>
-  API keys and OAuth client secrets are passed to the current generic CLI through `--secret-value`,
-  which is a process argument. Expand short-lived environment variables only on a trusted host.
-  File/stdin input is not currently exposed; see [Bridge
+  The generic command rejects inline secret values. Use stdin for short-lived environment values or
+  `--secret-value-file <path>` for materialized secrets; see [Bridge
   operations](/runtime/core/bridges/operations#rotate-a-credential).
 </OperatorNote>
 
@@ -324,6 +337,7 @@ new signed event after rotation; a successful GraphQL identity call does not val
 
 ## Completion checklist
 
+- The Linear extension is installed, enabled, and healthy in the provider catalog.
 - `organization_id` matches the authenticated viewer.
 - Provider mode and auth mode are explicit and have the required bindings.
 - The webhook emits the event family selected by the provider mode.

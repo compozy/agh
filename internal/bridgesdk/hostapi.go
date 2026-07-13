@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 )
 
 // CallFunc issues one typed Host API request.
@@ -54,7 +54,7 @@ func (c *HostAPIClient) ListBridgeInstances(ctx context.Context) ([]bridgepkg.Br
 	var result []bridgepkg.BridgeInstance
 	if err := c.Call(
 		ctx,
-		string(extensioncontract.HostAPIMethodBridgesInstancesList),
+		string(extensionprotocol.HostAPIMethodBridgesInstancesList),
 		struct{}{},
 		&result,
 	); err != nil {
@@ -71,8 +71,8 @@ func (c *HostAPIClient) GetBridgeInstance(
 	var result bridgepkg.BridgeInstance
 	if err := c.Call(
 		ctx,
-		string(extensioncontract.HostAPIMethodBridgesInstancesGet),
-		extensioncontract.BridgeInstanceTargetParams{BridgeInstanceID: bridgeInstanceID},
+		string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
+		bridgepkg.BridgeInstanceTargetParams{BridgeInstanceID: bridgeInstanceID},
 		&result,
 	); err != nil {
 		return nil, err
@@ -83,12 +83,12 @@ func (c *HostAPIClient) GetBridgeInstance(
 // ReportBridgeInstanceState reports one provider-observed bridge status change.
 func (c *HostAPIClient) ReportBridgeInstanceState(
 	ctx context.Context,
-	params extensioncontract.BridgesInstancesReportStateParams,
+	params bridgepkg.BridgesInstancesReportStateParams,
 ) (*bridgepkg.BridgeInstance, error) {
 	var result bridgepkg.BridgeInstance
 	if err := c.Call(
 		ctx,
-		string(extensioncontract.HostAPIMethodBridgesInstancesReportState),
+		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		params,
 		&result,
 	); err != nil {
@@ -101,11 +101,11 @@ func (c *HostAPIClient) ReportBridgeInstanceState(
 func (c *HostAPIClient) IngestBridgeMessage(
 	ctx context.Context,
 	envelope bridgepkg.InboundMessageEnvelope,
-) (*extensioncontract.BridgesMessagesIngestResult, error) {
-	var result extensioncontract.BridgesMessagesIngestResult
+) (*bridgepkg.BridgesMessagesIngestResult, error) {
+	var result bridgepkg.BridgesMessagesIngestResult
 	if err := c.Call(
 		ctx,
-		string(extensioncontract.HostAPIMethodBridgesMessagesIngest),
+		string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 		envelope,
 		&result,
 	); err != nil {

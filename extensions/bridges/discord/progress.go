@@ -9,7 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
 )
 
@@ -183,16 +183,23 @@ func (p *discordProvider) handleBridgesProgress(
 		return bridgepkg.DeliveryAck{}, errors.New("discord: progress delivery requires progress payload")
 	}
 
-	state := p.deliveryState(instanceID, request.Event.DeliveryID)
-	if state.Progress == nil {
-		state.Progress = p.newDiscordProgressDispatcher(config, request.Event.DeliveryTarget, p.apiFactory(cfg))
-		p.storeDeliveryState(instanceID, request.Event.DeliveryID, state)
-	}
+	state, _ := p.deliveries.UpdateOrCreate(
+		deliveryStateKey(instanceID, request.Event.DeliveryID),
+		func(state deliveryState, _ bool) deliveryState {
+			if state.Progress == nil {
+				state.Progress = p.newDiscordProgressDispatcher(
+					config,
+					request.Event.DeliveryTarget,
+					p.apiFactory(cfg),
+				)
+			}
+			return state
+		},
+	)
 	if err := state.Progress.OnProgress(ctx, *request.Event.Progress); err != nil {
 		p.reportDiscordDeliveryError(ctx, session, instanceID, err)
 		return bridgepkg.DeliveryAck{}, err
 	}
-	p.storeDeliveryState(instanceID, request.Event.DeliveryID, state)
 	p.clearLastError()
 	return session.AckDelivery(request, "", "")
 }

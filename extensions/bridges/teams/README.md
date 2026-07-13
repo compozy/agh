@@ -2,6 +2,18 @@
 
 Production Microsoft Teams bridge provider built on `internal/bridgesdk`.
 
+## Build and install
+
+Released `agh` artifacts do not include this provider executable. From a trusted AGH source
+checkout, run this from the repository root with the daemon running:
+
+```bash
+mkdir -p ./extensions/bridges/teams/bin
+go build -o ./extensions/bridges/teams/bin/teams ./extensions/bridges/teams
+agh extension install ./extensions/bridges/teams --allow-unverified --yes -o json
+agh extension status teams -o json
+```
+
 ## Secrets
 
 - `app_id`: Microsoft bot application ID.
@@ -15,6 +27,7 @@ Provider config is stored per bridge instance in `provider_config`:
 ```json
 {
   "webhook": {
+    "public_url": "https://bridge.example.com/teams/support",
     "listen_addr": "127.0.0.1:0",
     "path": "/teams/brg-example"
   },
@@ -66,3 +79,7 @@ Tool progress is off by default. Enable accumulated progress for a bridge instan
 ```
 
 The provider posts one markdown activity in the triggering conversation and updates that activity as progress arrives. It sends a Teams `typing` activity before active work. The bridge does not send an explicit typing-clear activity or outbound progress reactions because those operations are not exposed by its Bot Framework API surface.
+
+See the [Microsoft Teams operator setup guide](../../../packages/site/content/runtime/core/bridges/setup-teams.mdx)
+for bot/app provisioning, package upload, endpoint verification, route selection, delivery testing,
+and troubleshooting.

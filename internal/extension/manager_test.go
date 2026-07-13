@@ -17,7 +17,7 @@ import (
 	automationpkg "github.com/compozy/agh/internal/automation"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/compozy/agh/internal/resources"
@@ -1535,10 +1535,10 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 	bridgeRuntime := &subprocess.InitializeBridgeRuntime{
 		ManagedInstances: []subprocess.InitializeBridgeManagedInstance{
 			{
-				Instance: bridgepkg.BridgeInstance{
+				Instance: bridgepkg.BridgeInstanceToContract(bridgepkg.BridgeInstance{
 					ID:            "brg-wrap",
 					ExtensionName: "ext-host",
-				},
+				}),
 			},
 		},
 	}
@@ -2535,7 +2535,7 @@ func testScopedBridgeRuntimeForInstance(
 		Provider:       instance.ExtensionName,
 		Platform:       instance.Platform,
 		ManagedInstances: []subprocess.InitializeBridgeManagedInstance{{
-			Instance:     instance,
+			Instance:     bridgepkg.BridgeInstanceToContract(instance),
 			BoundSecrets: append([]subprocess.InitializeBridgeBoundSecret(nil), boundSecrets...),
 		}},
 	}

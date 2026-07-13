@@ -11,6 +11,7 @@ import type {
   BridgeProviderConfigSchemaHint,
   BridgeProviderSecretSlot,
   BridgeRoute,
+  BridgeRoutingPolicy,
   BridgeScope,
   BridgeStatus,
   BridgeTarget,
@@ -172,12 +173,6 @@ export function compactBridgeDeliveryDefaults(
   }
 
   return normalized;
-}
-
-export interface BridgeRoutingPolicy {
-  include_group: boolean;
-  include_peer: boolean;
-  include_thread: boolean;
 }
 
 export function describeBridgeRoutingPolicy(policy: BridgeRoutingPolicy): string {

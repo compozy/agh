@@ -13,6 +13,7 @@ import (
 	"time"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/resources"
@@ -1402,7 +1403,7 @@ func TestBridgeRuntimeResolveBridgeRuntime(t *testing.T) {
 			if !ok {
 				t.Fatalf("ResolveBridgeRuntime() missing managed instance %q", instanceID)
 			}
-			if got, want := managed.Instance.Status.Normalize(), bridgepkg.BridgeStatusStarting; got != want {
+			if got, want := managed.Instance.Status.Normalize(), bridgecontract.BridgeStatusStarting; got != want {
 				t.Fatalf("managed instance %q status = %q, want %q", instanceID, got, want)
 			}
 		}

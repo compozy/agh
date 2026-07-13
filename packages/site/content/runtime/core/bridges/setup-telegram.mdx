@@ -30,6 +30,20 @@ can register the webhook with Telegram before the provider begins accepting rout
 | AGH workspace ID       | yes      | Workspace whose default agent receives the routed Telegram turn.                                   |
 | Chat administration    | groups   | Permission to add the bot and, when required, change BotFather privacy mode.                       |
 
+Before configuring Telegram, prove that the locally built provider is installed and visible in the
+daemon catalog:
+
+```bash
+PROVIDER=telegram
+agh extension status "$PROVIDER" -o json
+curl -sS http://127.0.0.1:2123/api/bridges/providers | \
+  jq --arg provider "$PROVIDER" '.providers[] | select(.extension_name == $provider)'
+```
+
+Continue only when the extension is enabled and the catalog row is not disabled or unhealthy. If
+either command has no provider, follow [Install an in-tree
+provider](/runtime/core/bridges/setup#install-an-in-tree-provider) first.
+
 Do not paste the bot token into a URL stored in shell history or documentation. Guided setup sends
 it through the write-only binding operation.
 
@@ -70,7 +84,8 @@ up to its bounded request size and deduplicates update IDs.
 
 ## Step 4: Run guided setup
 
-Interactive setup prompts for the workspace, public URL, local path, bot token, and webhook secret:
+Interactive setup prompts for the workspace, public URL, local path, routing shape, bot token, and
+webhook secret:
 
 ```bash
 agh bridge setup telegram
@@ -92,30 +107,17 @@ BRIDGE_ID=brg_123
 
 ### Select one routing shape
 
-Every enabled route dimension is required on every inbound event. Guided Telegram setup currently
-creates a `group + thread` policy, which is appropriate for forum topics. It does not accept a
-peer-only private chat or a non-forum group on that same instance.
+Every enabled route dimension is required on every inbound event. The wizard therefore asks for one
+closed routing shape and persists it as part of creation:
 
-Before verification, choose the one conversation shape this instance will own:
+| Wizard value | Stored `routing_policy`                                                  | Accepts                         |
+| ------------ | ------------------------------------------------------------------------ | ------------------------------- |
+| `private`    | `include_peer=true`, group/thread false                                  | One-to-one bot chats            |
+| `group`      | `include_group=true`, peer/thread false                                  | Ordinary groups without a topic |
+| `forum`      | `include_group=true`, `include_thread=true`, peer false — guided default | Forum topics                    |
 
-```bash
-# Keep the guided default for forum topics:
-# include_group=true, include_thread=true, include_peer=false
-
-# Or make this instance private-chat only:
-agh bridge update "$BRIDGE_ID" \
-  --include-peer=true \
-  --include-group=false \
-  --include-thread=false \
-  -o json
-
-# Or make this instance ordinary-group only:
-agh bridge update "$BRIDGE_ID" \
-  --include-peer=false \
-  --include-group=true \
-  --include-thread=false \
-  -o json
-```
+Choose the shape that you can prove immediately after setup. On a rerun with `--instance`, the
+wizard reads the stored policy and presents the matching value instead of silently resetting it.
 
 Do not enable all three dimensions to make one instance “universal”; that policy would require peer,
 group, and thread IDs on every event. If the bot must serve more than one shape, create a separate
@@ -131,6 +133,11 @@ agh bridge setup telegram --json <<'JSON'
 {
   "scope": "workspace",
   "workspace_id": "ws_8f33a913d23c4fd1",
+  "routing_policy": {
+    "include_peer": true,
+    "include_group": false,
+    "include_thread": false
+  },
   "webhook_public_url": "https://bridge.example.com/telegram/support",
   "webhook_path": "/telegram/support",
   "bot_token": "123456:abcdefghijklmnopqrstuvwxyzABCDE",
@@ -139,7 +146,36 @@ agh bridge setup telegram --json <<'JSON'
 JSON
 ```
 
-Unknown fields and trailing JSON values are rejected. Secret values are masked in the result.
+Strict JSON accepts the typed `routing_policy`, not the wizard-only `routing_shape` label. Use
+exactly one of these shapes:
+
+```json
+{
+  "include_peer": true,
+  "include_group": false,
+  "include_thread": false
+}
+```
+
+```json
+{
+  "include_peer": false,
+  "include_group": true,
+  "include_thread": false
+}
+```
+
+```json
+{
+  "include_peer": false,
+  "include_group": true,
+  "include_thread": true
+}
+```
+
+The first object is private, the second is an ordinary group, and the third is a forum topic. Mixed,
+empty, unknown, and trailing JSON values are rejected before AGH creates or updates an instance.
+Secret values are masked in the result.
 
 If `webhook_secret` is omitted during normal setup, AGH can generate and consume it without printing
 it. `--reveal-generated-secrets` is JSON-only and reveals only values generated during that one
@@ -181,8 +217,9 @@ agh bridge verify "$BRIDGE_ID" --json
 agh bridge get "$BRIDGE_ID" -o json
 ```
 
-The `routing_policy` in `bridge get` must match the shape selected above. A mismatch is a setup
-failure even if provider identity checks pass.
+The `routing_policy` in `bridge get` must exactly match the shape selected above. A mismatch is a
+setup failure even if provider identity checks pass. Do not continue to the provider test until this
+checkpoint is correct.
 
 ## Step 7: Prove one real route and reply
 
@@ -357,11 +394,12 @@ and inspect Telegram's last error. Do not paste the token-bearing request into t
 
 ## Completion checklist
 
+- The Telegram extension is installed, enabled, and healthy in the provider catalog.
 - `setWebhook` accepted the exact public URL and secret-token configuration.
 - Disabled identity and secret checks pass.
 - Enabled public reachability passes or has an explained warning.
-- A real DM creates a route in the intended workspace.
-- Group/topic routing uses the intended group and thread dimensions.
+- A real event of the selected shape creates a route in the intended workspace.
+- The route contains only the peer, group, or group-plus-thread dimensions selected during setup.
 - `send-test` returns a Telegram message ID.
 - The bridge returns to `ready` after one restart.
 

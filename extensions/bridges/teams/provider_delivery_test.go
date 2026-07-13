@@ -18,8 +18,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -37,7 +36,7 @@ func (teamsStatusSession) GetBridgeInstance(context.Context, string) (*bridgepkg
 
 func (teamsStatusSession) ReportBridgeInstanceState(
 	_ context.Context,
-	params extensioncontract.BridgesInstancesReportStateParams,
+	params bridgepkg.BridgesInstancesReportStateParams,
 ) (*bridgepkg.BridgeInstance, error) {
 	return &bridgepkg.BridgeInstance{ID: params.BridgeInstanceID, Status: params.Status}, nil
 }
@@ -45,7 +44,7 @@ func (teamsStatusSession) ReportBridgeInstanceState(
 func (teamsStatusSession) IngestBridgeMessage(
 	context.Context,
 	bridgepkg.InboundMessageEnvelope,
-) (*extensioncontract.BridgesMessagesIngestResult, error) {
+) (*bridgepkg.BridgesMessagesIngestResult, error) {
 	return nil, nil
 }
 

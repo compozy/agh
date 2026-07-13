@@ -14,8 +14,7 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -56,7 +55,7 @@ func TestRuntimeIntegrationBootsAndIngestsThroughHostAPI(t *testing.T) {
 		mu.Lock()
 		ingested = envelope
 		mu.Unlock()
-		return extensioncontract.BridgesMessagesIngestResult{
+		return bridgepkg.BridgesMessagesIngestResult{
 			SessionID:    "sess-1",
 			RouteCreated: true,
 			RoutingKey: bridgepkg.RoutingKey{
@@ -181,11 +180,11 @@ func TestRuntimeIntegrationReportsAuthAndRateLimitRecovery(t *testing.T) {
 
 	hostPeer := NewPeer(hostConn, hostConn)
 	var mu sync.Mutex
-	var reports []extensioncontract.BridgesInstancesReportStateParams
+	var reports []bridgepkg.BridgesInstancesReportStateParams
 	if err := hostPeer.Handle(
 		"bridges/instances/report_state",
 		func(_ context.Context, raw json.RawMessage) (any, error) {
-			var params extensioncontract.BridgesInstancesReportStateParams
+			var params bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(raw, &params); err != nil {
 				return nil, err
 			}

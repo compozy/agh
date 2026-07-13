@@ -13,7 +13,7 @@ import (
 
 	"github.com/compozy/agh/internal/api/contract"
 	automationpkg "github.com/compozy/agh/internal/automation"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/hooks"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/tools"

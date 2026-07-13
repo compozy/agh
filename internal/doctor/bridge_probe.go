@@ -103,7 +103,7 @@ func bridgeCheckDiagnosticItem(
 	code, severity, title := bridgeDiagnosticPresentation(check.Status)
 	message := strings.TrimSpace(check.Remediation)
 	if message == "" {
-		message = fmt.Sprintf("Bridge check %q passed.", strings.TrimSpace(check.Check))
+		message = bridgeCheckFallbackMessage(check)
 	}
 	return diagnostics.NewItem(
 		bridgeDiagnosticID(instance.ID, check.Check),
@@ -122,6 +122,23 @@ func bridgeCheckDiagnosticItem(
 			"status":             check.Status,
 		}),
 	)
+}
+
+func bridgeCheckFallbackMessage(check bridgepkg.BridgeCheckRecord) string {
+	checkName := strings.TrimSpace(check.Check)
+	status := bridgepkg.BridgeCheckStatus(strings.ToLower(strings.TrimSpace(string(check.Status))))
+	switch status {
+	case bridgepkg.BridgeCheckStatusPass:
+		return fmt.Sprintf("Bridge check %q passed.", checkName)
+	case bridgepkg.BridgeCheckStatusSkipped:
+		return fmt.Sprintf("Bridge check %q was skipped without additional detail.", checkName)
+	default:
+		return fmt.Sprintf(
+			"Bridge check %q returned %q with no remediation provided. Inspect provider diagnostics and retry verification.",
+			checkName,
+			status,
+		)
+	}
 }
 
 func bridgeDiagnosticPresentation(status bridgepkg.BridgeCheckStatus) (string, string, string) {

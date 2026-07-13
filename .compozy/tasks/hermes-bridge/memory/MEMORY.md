@@ -2,8 +2,8 @@
 
 ## Current State
 
-- Phase B, Tasks 01–10 are complete. The original pre-rebase checkpoints are historical; the current branch is being replayed onto `main`.
-- Per-task evidence is focused and proportional. Global tests and the single `make verify` are deferred until all ten tasks, QA, and review remediation are complete per user direction.
+- Phase D round 1 and goal-mode are active. Tasks 01–10 and QA are replayed onto `main`; B-001..B-005, N-001..N-008, and R-001..R-017 are remediated with focused evidence. B-004/R-016 is closed through a canonical leaf wire contract, explicit daemon-domain mappers, hard-cut imports, and fail-closed transitive dependency enforcement; its leaf suite passes under `-race` at 96.3%. The separately approved harness-only `BUG-20260712-reasoning-evidence-attribution` TechSpec is implemented: the acpmock writer stamps `AGH_SESSION_ID`, readers select the API session owner before semantic projection, and concurrent same-fixture coverage proves isolation despite process-local ACP ID collision. Round 1 is ready for re-review.
+- Per-task and remediation evidence is focused and proportional. The full runtime/Web E2E lanes and single `make verify` remain deferred until the round reaches source freeze, per user direction.
 
 ## Shared Decisions
 
@@ -29,7 +29,7 @@
 - Google Chat's current official message cap is 32,000 bytes; the 4,096-character value in the vendored Hermes reference is stale. Task 02 delivery and Task 03 progress measurement must use the current byte cap.
 - Bridge text snapshots are cumulative. Edit-capable adapters keep overflow previews to one mutable chunk and materialize ordered continuations only on terminal delivery; provider formatting must be measured before chunking.
 - Explicit provider edit operations and references outrank state-based create/update inference. A provider success response without the remote ID required for an ACK is transient and must not advance state.
-- Task 03 must reuse Task 02's exact wire units and formatter seams: Slack/Discord/Teams/WhatsApp code points, Telegram UTF-16 units, and Google Chat UTF-8 bytes.
+- Task 03 must reuse Task 02's exact wire units and formatter seams: Slack/Telegram UTF-16 units, Discord/Teams/WhatsApp Unicode code points, and Google Chat UTF-8 bytes.
 - Scheduled progress must retain generation identity from timer creation through callback completion. Shutdown cancels every active run before join, and scheduled edits revalidate the throttle under the accumulator mutex rather than forcing a stale timer write.
 - `progress=off` is authoritative before operational provider-config errors: an opt-out must detach pending state and ACK without platform calls even when the provider is degraded.
 - Runtime E2E low-tier coverage belongs to the `^TestDaemonE2E` contract-mock lane; provider-specific API bodies remain in provider fake-server suites. One Teams-declared temporary reference adapter can prove both ordered progress and per-instance opt-in without a second daemon harness.
@@ -45,8 +45,10 @@
 - Task 09 consciously merged all 27 provisional QA seeds into the seven content-addressed Hermes scenarios and reset the affected `NB-024..NB-039` scenarios; duplicate tracker rows are no longer an open risk.
 - No live Slack/Telegram/etc. accounts are available; later QA must continue using isolated fake-provider and public-surface scenarios.
 - The checkpoint-only ledger intentionally does not replay multichunk text after restart. Universal visible fail-open avoids prefix duplication and stale-anchor dependence; future exact multichunk resume would require a separate explicit ordered-handle/content contract.
-- Generic `agh bridge secret-bindings put --secret-value` currently exposes the value as a client process argument; it has no stdin/file source. The revised docs disclose this boundary and prefer guided hidden input where available. A safer generic input mechanism is a separate runtime/CLI change, not fabricated in documentation.
-- Task 10 found `BUG-20260713-telegram-route-shapes`: Telegram guided setup persists a conjunctive group+thread policy, while the provider/public guide requires alternative peer, group, and group+topic route shapes. Do not replace it with another fixed policy; the routing model needs a structural alternative-shape contract.
+- `BUG-20260712-reasoning-evidence-attribution`/R-017 is fixed inside the test harness without widening production. Writer anti-forgery, subprocess propagation, exact fail-closed owner selection, concurrent shared-JSONL daemon E2E, ten stress runs, scoped vet, and an independent patch review pass are recorded; the complete runtime lane remains pending final source freeze.
+- Phase D B-005 makes Telegram guided and strict-JSON setup select one closed private, ordinary-group, or forum shape per bridge. `BUG-20260713-telegram-route-shapes` remains open only for the broader one-instance alternative-shape routing contract; `NB-bridge-provider-setup` is reset to `untested` without rewriting historical QA evidence.
+- The final B-002 Storybook capture proved the six daemon-owned metrics and exposed a separate 320px overflow below them. The designer-owned fix now reflows complete secret refs and provider/config metadata with zero horizontal scrolling (`318/318`), preserves desktop (`1438/1438`), passes focused Web gates, and has inspected captures plus clean teardown; `NB-web-bridge-setup` is reset to `untested` without erasing historical QA.
+- R-006 terminal chrome is command-name-only by design. Canonical semantic `ToolInput` remains redacted for live/replay fingerprinting; public heuristic previews omit every argument instead of depending on an enumerable redaction taxonomy.
 
 ## Handoffs
 
@@ -59,5 +61,5 @@
 - Task 08 now provides exact 8/8 dedicated provider guides, an operator-first shared setup hub, a bridge operations/recovery runbook, a provider comparison, GitHub/Linear colocated READMEs, and executable author guidance from scaffold through route/send-test. The author tutorial's missing `bin/` build prerequisite and invalid empty check example were corrected. Focused evidence is green: docs conformance 4/4 under `-race`, site MDX generation/typecheck through Turbo, Oxfmt on 18 files, test-shape checker, and `git diff --check`; no global suite or `make verify` ran.
 - Task 09 provides bridge personas, seven content-addressed journeys, nine immutable content-addressed charters, living-scenario mapping/reset for 17 changed/canonical behaviors, explicit reconciliation of all 27 provisional seeds, TTFM/risk/taxonomy ownership, four per-file automation candidates, and the executable Task 10 contract in `docs/qa/reports/2026-07-12-hermes-bridge-plan.md`.
 - Task 10 executed the fresh isolated QA cycle, wrote evidence-backed living-scenario verdicts and a dated report, and completed clean teardown. Seven charters passed; the two Telegram setup charters are blocked by `BUG-20260713-telegram-route-shapes`.
-- Task 10 preconditions found `BUG-20260712-goal-judge-fixture-model`, `BUG-20260712-reasoning-evidence-attribution`, re-found canonical `BUG-0037`, and found `BUG-20260712-bridge-e2e-retired-route`. Goal fixture negotiation and the current Web asset/route owners are fixed; ACP diagnostics attribution remains structurally open.
+- Task 10 preconditions found `BUG-20260712-goal-judge-fixture-model`, `BUG-20260712-reasoning-evidence-attribution`, re-found canonical `BUG-0037`, and found `BUG-20260712-bridge-e2e-retired-route`. Goal fixture negotiation, ACP diagnostics attribution, and the current Web asset/route owners are source-fixed; the fresh complete runtime/Web lanes remain final source-freeze evidence.
 - Task 10 independently reproduced open `BUG-0028`, completed guided provider/CLI/HTTP/UDS, Slack progress/edit, and browser-first Slack setup journeys, and recorded provider-fake qualifications. The dated report owns all run observations; charters remain immutable.

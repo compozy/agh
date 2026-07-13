@@ -123,7 +123,8 @@ func (s *ProviderHTTPServer) Shutdown(ctx context.Context) error {
 		if err := server.Close(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			shutdownErr = errors.Join(shutdownErr, err)
 		}
-	} else if listener != nil {
+	}
+	if listener != nil {
 		if err := listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			shutdownErr = errors.Join(shutdownErr, err)
 		}

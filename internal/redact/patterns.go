@@ -16,7 +16,8 @@ var (
 		`(?i)\b((?:proxy[-_])?authorization)\b(\s*[=:]\s*)([^\r\n,;]+)`,
 	)
 	bearerTokenPattern    = regexp.MustCompile(`(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+`)
-	claimTokenPattern     = regexp.MustCompile(`\bagh_claim_[A-Za-z0-9_-]+\b`)
+	claimTokenPattern     = regexp.MustCompile(`(?i)\bagh_claim_[A-Za-z0-9_-]+\b`)
+	urlUserinfoPattern    = regexp.MustCompile(`(?i)(://)[^/@\s:]+:[^/@\s]+@`)
 	providerTokenPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`\bsk-[A-Za-z0-9_-]{8,}\b`),
 		regexp.MustCompile(`\bgh[pousr]_[A-Za-z0-9_]{8,}\b`),

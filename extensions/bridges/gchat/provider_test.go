@@ -25,10 +25,9 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -1049,6 +1048,53 @@ func TestExecuteGChatDeliveryChunks(t *testing.T) {
 		}
 	})
 
+	t.Run("Should resume at the first unsent chunk after exhausting Retry-After attempts", func(t *testing.T) {
+		t.Parallel()
+
+		request := testDeliveryRequest(
+			"brg-gchat",
+			"delivery-partial-chunk",
+			1,
+			bridgepkg.DeliveryEventTypeFinal,
+			true,
+		)
+		request.Event.Content.Text = strings.Repeat("partial Google Chat delivery ", 2_000)
+		chunks := gchatDeliveryChunks(request.Event.Content.Text)
+		if len(chunks) < 2 {
+			t.Fatalf("gchatDeliveryChunks() returned %d chunk, want at least 2", len(chunks))
+		}
+
+		api := &fakeGChatAPI{
+			createErrorText: chunks[1],
+			createErr: &bridgesdk.RateLimitError{
+				Err:        errors.New("rate limited continuation"),
+				RetryAfter: time.Nanosecond,
+			},
+		}
+		_, partialState, err := executeGChatDelivery(context.Background(), api, request, deliveryState{})
+		if err == nil {
+			t.Fatal("executeGChatDelivery(partial) error = nil, want exhausted rate limit")
+		}
+		if got, want := countGChatCreateRequests(api.createAttempts, chunks[1]), bridgesdk.DefaultRetryConfig().Attempts; got != want {
+			t.Fatalf("failed continuation attempts = %d, want %d", got, want)
+		}
+		if got, want := countGChatCreateRequests(api.messages, chunks[0]), 1; got != want {
+			t.Fatalf("successful first-chunk creates = %d, want %d", got, want)
+		}
+
+		api.createErr = nil
+		resume := testGChatResumeRequest(request)
+		if _, _, err := executeGChatDelivery(context.Background(), api, resume, partialState); err != nil {
+			t.Fatalf("executeGChatDelivery(resume) error = %v", err)
+		}
+		if got, want := countGChatCreateRequests(api.messages, chunks[0]), 1; got != want {
+			t.Fatalf("successful first-chunk creates after resume = %d, want %d", got, want)
+		}
+		if got, want := len(api.messages), len(chunks); got != want {
+			t.Fatalf("successful chunk creates = %d, want %d", got, want)
+		}
+	})
+
 	t.Run("Should reject an invalid delivery request before calling Google Chat", func(t *testing.T) {
 		t.Parallel()
 
@@ -1198,7 +1244,7 @@ func TestHandleBridgesDeliverKeepsLastErrorWhenReadyReportFails(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -1310,7 +1356,7 @@ func TestRuntimeInitializeWebhookAndDeliveryFlow(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -1332,7 +1378,7 @@ func TestRuntimeInitializeWebhookAndDeliveryFlow(t *testing.T) {
 			mu.Lock()
 			ingested = append(ingested, envelope)
 			mu.Unlock()
-			return extensioncontract.BridgesMessagesIngestResult{
+			return bridgepkg.BridgesMessagesIngestResult{
 				SessionID:    "sess-1",
 				RouteCreated: true,
 				RoutingKey: bridgepkg.RoutingKey{
@@ -1505,7 +1551,7 @@ func TestRuntimePubSubMessageAndDirectDeliveryPaths(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -1524,7 +1570,7 @@ func TestRuntimePubSubMessageAndDirectDeliveryPaths(t *testing.T) {
 			if err := json.Unmarshal(params, &envelope); err != nil {
 				return nil, err
 			}
-			return extensioncontract.BridgesMessagesIngestResult{
+			return bridgepkg.BridgesMessagesIngestResult{
 				SessionID: "sess-2",
 				RoutingKey: bridgepkg.RoutingKey{
 					Scope:            envelope.Scope,
@@ -1695,7 +1741,7 @@ func TestResolveInstanceConfigAndInitialState(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -1710,7 +1756,7 @@ func TestResolveInstanceConfigAndInitialState(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 		func(context.Context, json.RawMessage) (any, error) {
-			return extensioncontract.BridgesMessagesIngestResult{SessionID: "sess-1"}, nil
+			return bridgepkg.BridgesMessagesIngestResult{SessionID: "sess-1"}, nil
 		},
 	)
 
@@ -2076,7 +2122,7 @@ func TestGChatWebhookHandlersUseRequestContext(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -2630,7 +2676,7 @@ func TestReconcileInstanceConfigsDetectsSharedWebhookPaths(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -2645,7 +2691,7 @@ func TestReconcileInstanceConfigsDetectsSharedWebhookPaths(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
 		func(context.Context, json.RawMessage) (any, error) {
-			return extensioncontract.BridgesMessagesIngestResult{SessionID: "sess-1"}, nil
+			return bridgepkg.BridgesMessagesIngestResult{SessionID: "sess-1"}, nil
 		},
 	)
 
@@ -2767,13 +2813,16 @@ func TestReconcileInstanceConfigsDetectsSharedWebhookPaths(t *testing.T) {
 }
 
 type fakeGChatAPI struct {
-	messages    []gchatCreateMessageRequest
-	updates     []gchatUpdateMessageRequest
-	deletes     []string
-	fetched     []string
-	store       []gchatSentMessage
-	mu          sync.Mutex
-	messagesMap map[string]gchatMessage
+	messages        []gchatCreateMessageRequest
+	createAttempts  []gchatCreateMessageRequest
+	createErrorText string
+	createErr       error
+	updates         []gchatUpdateMessageRequest
+	deletes         []string
+	fetched         []string
+	store           []gchatSentMessage
+	mu              sync.Mutex
+	messagesMap     map[string]gchatMessage
 }
 
 type authFailingGChatAPI struct{}
@@ -2817,11 +2866,46 @@ func (f *fakeGChatAPI) ValidateAuth(context.Context) error { return nil }
 func (f *fakeGChatAPI) CreateMessage(_ context.Context, req gchatCreateMessageRequest) (*gchatSentMessage, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.createAttempts = append(f.createAttempts, req)
+	if f.createErr != nil && (f.createErrorText == "" || req.Text == f.createErrorText) {
+		return nil, f.createErr
+	}
 	f.messages = append(f.messages, req)
 	name := "spaces/AAA/messages/msg-" + strconv.Itoa(len(f.messages))
 	msg := gchatSentMessage{Name: name}
 	f.store = append(f.store, msg)
 	return &msg, nil
+}
+
+func countGChatCreateRequests(requests []gchatCreateMessageRequest, text string) int {
+	count := 0
+	for _, request := range requests {
+		if request.Text == text {
+			count++
+		}
+	}
+	return count
+}
+
+func testGChatResumeRequest(request bridgepkg.DeliveryRequest) bridgepkg.DeliveryRequest {
+	resume := request
+	resume.Event.EventType = bridgepkg.DeliveryEventTypeResume
+	resume.Event.Resume = &bridgepkg.DeliveryResumeState{LatestEventType: bridgepkg.DeliveryEventTypeFinal}
+	resume.Snapshot = &bridgepkg.DeliverySnapshot{
+		DeliveryID:       request.Event.DeliveryID,
+		SessionID:        "sess-resume",
+		TurnID:           "turn-resume",
+		BridgeInstanceID: request.Event.BridgeInstanceID,
+		RoutingKey:       request.Event.RoutingKey,
+		DeliveryTarget:   request.Event.DeliveryTarget,
+		LatestSeq:        request.Event.Seq,
+		LatestEventType:  bridgepkg.DeliveryEventTypeFinal,
+		CurrentContent:   request.Event.Content,
+		Operation:        request.Event.Operation,
+		Final:            true,
+		UpdatedAt:        time.Date(2026, 7, 13, 9, 0, 0, 0, time.UTC),
+	}
+	return resume
 }
 
 func (f *fakeGChatAPI) UpdateMessage(_ context.Context, req gchatUpdateMessageRequest) (*gchatSentMessage, error) {

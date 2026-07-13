@@ -73,7 +73,7 @@ func (r *bridgeRuntime) ResolveBridgeControlRuntime(
 		Platform:       strings.TrimSpace(instance.Platform),
 		AllowedMethods: []string{string(method)},
 		ManagedInstances: []subprocess.InitializeBridgeManagedInstance{{
-			Instance:     *instance,
+			Instance:     bridgepkg.BridgeInstanceToContract(*instance),
 			BoundSecrets: boundSecrets,
 		}},
 	}

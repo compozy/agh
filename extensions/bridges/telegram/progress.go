@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
 )
 
@@ -56,6 +56,17 @@ func (p *telegramProvider) storeDeliveryState(
 	}
 	p.deliveries.Store(key, state)
 	return nil
+}
+
+func (p *telegramProvider) storeDeliveryRetryState(
+	instanceID string,
+	deliveryID string,
+	state deliveryState,
+) {
+	if !state.Chunks.Active() {
+		return
+	}
+	p.deliveries.Store(deliveryStateKey(instanceID, deliveryID), state)
 }
 
 func (p *telegramProvider) detachProgressDispatcher(
@@ -248,25 +259,30 @@ func (p *telegramProvider) handleBridgesProgress(
 		return bridgepkg.DeliveryAck{}, errors.New("telegram: progress delivery requires a progress payload")
 	}
 
-	state := p.deliveryState(cfg.instanceID, request.Event.DeliveryID)
-	if state.Progress == nil {
-		api := p.apiFactory(&cfg)
-		accumulator := bridgesdk.NewProgressAccumulator(bridgesdk.ProgressConfig{
-			ProgressConfig: progressConfig,
-			Target:         request.Event.DeliveryTarget,
-			MaxMessageLen:  telegramMaxMessageLen,
-			Len: func(value string) int {
-				return bridgesdk.UTF16Len(formatOutbound(value).Text)
-			},
-		}, &telegramProgressSink{api: api}, p.now)
-		state.Progress = bridgesdk.NewProgressDispatcher(
-			accumulator,
-			bridgesdk.WithProgressAsyncErrorHandler(func(asyncErr error) {
-				p.setLastError(fmt.Errorf("telegram: async progress flush: %w", asyncErr))
-			}),
-		)
-		p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, request.Event, state)
-	}
+	state, _ := p.deliveries.UpdateOrCreate(
+		deliveryStateKey(cfg.instanceID, request.Event.DeliveryID),
+		func(state deliveryState, _ bool) deliveryState {
+			if state.Progress != nil {
+				return state
+			}
+			api := p.apiFactory(&cfg)
+			accumulator := bridgesdk.NewProgressAccumulator(bridgesdk.ProgressConfig{
+				ProgressConfig: progressConfig,
+				Target:         request.Event.DeliveryTarget,
+				MaxMessageLen:  telegramMaxMessageLen,
+				Len: func(value string) int {
+					return bridgesdk.UTF16Len(formatOutbound(value).Text)
+				},
+			}, &telegramProgressSink{api: api}, p.now)
+			state.Progress = bridgesdk.NewProgressDispatcher(
+				accumulator,
+				bridgesdk.WithProgressAsyncErrorHandler(func(asyncErr error) {
+					p.setLastError(fmt.Errorf("telegram: async progress flush: %w", asyncErr))
+				}),
+			)
+			return state
+		},
+	)
 	if err := state.Progress.OnProgress(ctx, *request.Event.Progress); err != nil {
 		p.reportProgressError(ctx, session, cfg.instanceID, err)
 		return bridgepkg.DeliveryAck{}, err

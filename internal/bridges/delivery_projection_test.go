@@ -285,9 +285,14 @@ func TestBrokerProgressProjection(t *testing.T) {
 				t.Fatalf("calls[%d].Progress.Phase = %q, want %q", index, got, want)
 			}
 		}
-		if got := calls[0].request.Event.Progress.Preview; strings.Contains(got, "sk-progress-secret") ||
-			!strings.Contains(got, "[REDACTED]") {
-			t.Fatalf("terminal preview = %q, want daemon-side redaction", got)
+		preview := calls[0].request.Event.Progress.Preview
+		if got, want := preview, `"printf"`; got != want {
+			t.Fatalf("terminal preview = %q, want command-name-only %q", got, want)
+		}
+		for _, forbidden := range []string{"%s", "sk-progress-secret"} {
+			if strings.Contains(preview, forbidden) {
+				t.Fatalf("terminal preview = %q, want no argument %q", preview, forbidden)
+			}
 		}
 		if calls[0].request.Event.Progress.Label == "" || calls[0].request.Event.Progress.Emoji == "" {
 			t.Fatalf("rendered progress = %#v, want label and emoji", calls[0].request.Event.Progress)
@@ -1618,112 +1623,23 @@ func TestBrokerReconcileDeliveryFailsOpenThroughTerminalPost(t *testing.T) {
 		if got, want := metrics.DeliveryFailuresTotal, 1; got != want {
 			t.Fatalf("reconciled failure metrics = %d, want %d", got, want)
 		}
+		if !metrics.LastSuccessAt.IsZero() {
+			t.Fatalf("reconciled LastSuccessAt = %s, want unchanged zero value", metrics.LastSuccessAt)
+		}
 	})
 }
 
 func TestDeliveryValidationAndMetadataHelpers(t *testing.T) {
 	t.Parallel()
 
-	updatedAt := time.Date(2026, time.April, 11, 12, 2, 0, 0, time.UTC)
 	routingKey := testRoutingKey("brg-validate", "peer-validate")
 	target := DeliveryTarget{
 		BridgeInstanceID: "brg-validate",
 		PeerID:           "peer-validate",
 		Mode:             DeliveryModeReply,
 	}
-	newSnapshot := func() DeliverySnapshot {
-		return DeliverySnapshot{
-			DeliveryID:       "del-validate",
-			SessionID:        "sess-validate",
-			TurnID:           "turn-validate",
-			BridgeInstanceID: "brg-validate",
-			RoutingKey:       routingKey,
-			DeliveryTarget:   target,
-			LatestSeq:        2,
-			LatestEventType:  DeliveryEventTypeDelta,
-			CurrentContent:   MessageContent{Text: "hello"},
-			LastSentSeq:      1,
-			LastAckedSeq:     1,
-			UpdatedAt:        updatedAt,
-		}
-	}
-	newResumeRequest := func(snapshot DeliverySnapshot) DeliveryRequest {
-		return DeliveryRequest{
-			Event: DeliveryEvent{
-				DeliveryID:       snapshot.DeliveryID,
-				BridgeInstanceID: snapshot.BridgeInstanceID,
-				RoutingKey:       routingKey,
-				DeliveryTarget:   target,
-				Seq:              snapshot.LatestSeq,
-				EventType:        DeliveryEventTypeResume,
-				Content:          snapshot.CurrentContent,
-				Resume:           &DeliveryResumeState{LatestEventType: DeliveryEventTypeDelta},
-			},
-			Snapshot: &snapshot,
-		}
-	}
 
-	t.Run("ShouldValidateDeliverySnapshots", func(t *testing.T) {
-		t.Run("ShouldAcceptValidSnapshot", func(t *testing.T) {
-			snapshot := newSnapshot()
-			if err := snapshot.Validate(); err != nil {
-				t.Fatalf("valid DeliverySnapshot.Validate() error = %v", err)
-			}
-		})
-
-		t.Run("ShouldRejectSnapshotWhenLastAckedExceedsLastSent", func(t *testing.T) {
-			snapshot := newSnapshot()
-			snapshot.LastAckedSeq = 3
-			err := snapshot.Validate()
-			if err == nil || !strings.Contains(err.Error(), "last acked sequence cannot exceed last sent sequence") {
-				t.Fatalf("snapshot.Validate() error = %v, want lastAckedSeq invariant", err)
-			}
-		})
-	})
-
-	t.Run("ShouldValidateResumeRequests", func(t *testing.T) {
-		t.Run("ShouldAcceptMatchingSnapshot", func(t *testing.T) {
-			snapshot := newSnapshot()
-			if err := newResumeRequest(snapshot).Validate(); err != nil {
-				t.Fatalf("valid DeliveryRequest.Validate() error = %v", err)
-			}
-		})
-
-		t.Run("ShouldRejectMissingSnapshot", func(t *testing.T) {
-			snapshot := newSnapshot()
-			req := newResumeRequest(snapshot)
-			req.Snapshot = nil
-			err := req.Validate()
-			if err == nil || !strings.Contains(err.Error(), "resume delivery request requires a snapshot") {
-				t.Fatalf("req.Validate() error = %v, want missing snapshot validation", err)
-			}
-		})
-
-		t.Run("ShouldRejectSnapshotsForNonResumeEvents", func(t *testing.T) {
-			snapshot := newSnapshot()
-			req := newResumeRequest(snapshot)
-			req.Event.EventType = DeliveryEventTypeStart
-			req.Event.Resume = nil
-			err := req.Validate()
-			if err == nil || !strings.Contains(err.Error(), "only resume delivery requests may include a snapshot") {
-				t.Fatalf("req.Validate() error = %v, want non-resume snapshot validation", err)
-			}
-		})
-
-		t.Run("ShouldRejectMismatchedSnapshotDeliveryID", func(t *testing.T) {
-			snapshot := newSnapshot()
-			req := newResumeRequest(snapshot)
-			mismatched := snapshot
-			mismatched.DeliveryID = "del-other"
-			req.Snapshot = &mismatched
-			err := req.Validate()
-			if err == nil || !strings.Contains(err.Error(), "snapshot must match event delivery id") {
-				t.Fatalf("req.Validate() error = %v, want delivery id mismatch validation", err)
-			}
-		})
-	})
-
-	t.Run("ShouldNormalizeProjectionEventFields", func(t *testing.T) {
+	t.Run("Should normalize projection event fields", func(t *testing.T) {
 		normalized := (DeliveryProjectionEvent{
 			Type:        " agent_message ",
 			TurnID:      " turn-validate ",
@@ -1744,7 +1660,7 @@ func TestDeliveryValidationAndMetadataHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldCloneTypedDeliveryPayloads", func(t *testing.T) {
+	t.Run("Should clone typed delivery payloads", func(t *testing.T) {
 		event := DeliveryEvent{
 			DeliveryID:       "del-clone",
 			BridgeInstanceID: "brg-clone",

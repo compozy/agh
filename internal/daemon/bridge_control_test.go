@@ -14,6 +14,7 @@ import (
 	"time"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/subprocess"
 	"github.com/compozy/agh/internal/testutil"
 )
@@ -68,7 +69,7 @@ func TestBridgeRuntimeResolveBridgeControlRuntimeKeepsDisabledState(t *testing.T
 		if err != nil {
 			t.Fatalf("SingleManagedInstance() error = %v", err)
 		}
-		if managed.Instance.Enabled || managed.Instance.Status != bridgepkg.BridgeStatusDisabled {
+		if managed.Instance.Enabled || managed.Instance.Status != bridgecontract.BridgeStatusDisabled {
 			t.Fatalf(
 				"managed instance state = enabled %v status %q, want disabled",
 				managed.Instance.Enabled,
@@ -425,7 +426,9 @@ func (r *blockingBridgeControlExtensionRuntime) CheckBridge(
 		return bridgepkg.BridgeCheckResponse{}, ctx.Err()
 	}
 	return bridgepkg.BridgeCheckResponse{
-		Checks: []bridgepkg.BridgeCheckRecord{bridgepkg.PassCheck("provider.identity")},
+		Checks: []bridgepkg.BridgeCheckRecord{{
+			Check: "provider.identity", Status: bridgepkg.BridgeCheckStatusPass,
+		}},
 	}, nil
 }
 

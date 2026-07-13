@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 )
 
 const (
@@ -42,14 +42,15 @@ type ProgressAccumulator struct {
 	sink      ProgressSink
 	now       func() time.Time
 
-	currentBubbleID string
-	currentText     string
-	lastLine        string
-	repeatCount     int
-	lastEditAt      time.Time
-	canEdit         bool
-	dirty           bool
-	typingActive    bool
+	currentBubbleID   string
+	currentText       string
+	lastLine          string
+	repeatCount       int
+	lastEditAt        time.Time
+	canEdit           bool
+	dirty             bool
+	typingActive      bool
+	lastReactionPhase bridgepkg.ToolProgressPhase
 }
 
 // NewProgressAccumulator constructs state; a zero edit interval defaults to 1.5 seconds.
@@ -263,7 +264,7 @@ func (a *ProgressAccumulator) applyReactionAffordanceLocked(
 	ctx context.Context,
 	phase bridgepkg.ToolProgressPhase,
 ) error {
-	if !a.config.Reactions {
+	if !a.config.Reactions || phase == a.lastReactionPhase {
 		return nil
 	}
 	reaction := "👀"
@@ -276,6 +277,7 @@ func (a *ProgressAccumulator) applyReactionAffordanceLocked(
 	if err := a.sink.React(ctx, a.config.Target, reaction); err != nil {
 		return fmt.Errorf("bridgesdk: apply progress reaction: %w", err)
 	}
+	a.lastReactionPhase = phase
 	return nil
 }
 
@@ -407,6 +409,7 @@ func (a *ProgressAccumulator) resetBubbleLocked() {
 	a.freezeCurrentBubbleLocked()
 	a.lastLine = ""
 	a.repeatCount = 0
+	a.lastReactionPhase = ""
 }
 
 func renderProgressLine(event bridgepkg.ToolProgress) string {

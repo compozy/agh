@@ -1,6 +1,6 @@
 ---
-title: Add a Bridge Provider
-description: Design, implement, verify, and document an in-tree bridge.adapter extension with the shared Go runtime.
+title: Contribute an In-Tree Bridge Provider
+description: Design, implement, verify, and document a bridge.adapter extension inside the AGH repository.
 ---
 
 This guide is for contributors adding a provider under `extensions/bridges/<provider>` to the AGH
@@ -8,9 +8,10 @@ repository. It follows one provider from manifest to conformance, including the 
 easy to miss when copying only an API client.
 
 This walkthrough is specifically for trusted, in-tree Go providers. A local external extension can
-implement the subprocess protocol, but the public Go/TypeScript SDKs and marketplace policy do not
-yet provide a first-class bridge-authoring path equivalent to `internal/bridgesdk`. Do not copy these
-`internal/` imports into another module.
+implement the subprocess protocol manually, but external bridge authoring is not yet a first-class
+public SDK workflow. The public SDKs do not cover the complete service and control handshakes,
+marketplace bridge grants are unavailable, and there is no public bridge conformance harness. Do not
+copy these `internal/` imports into another module or present this tutorial as an external SDK path.
 
 ## Prerequisites
 
@@ -40,7 +41,7 @@ working owner:
 | Bot Framework JWT and tenant-aware delivery            | `extensions/bridges/teams`              |
 | Append-only/no-op progress issue provider              | `extensions/bridges/github` or `linear` |
 
-The Telegram reference proves the protocol and integration harness. The bundled providers show the
+The Telegram reference proves the protocol and integration harness. The in-tree providers show the
 modern `ProviderLifecycle` + `ManagedConfigReconciler` + `ProviderHTTPServer` composition used in
 production.
 
@@ -522,7 +523,11 @@ go build \
   -o ./extensions/bridges/acme-chat/bin/acme-chat \
   ./extensions/bridges/acme-chat
 
-agh extension install ./extensions/bridges/acme-chat
+agh extension install \
+  ./extensions/bridges/acme-chat \
+  --allow-unverified \
+  --yes \
+  -o json
 agh extension status acme-chat -o json
 ```
 
@@ -539,8 +544,6 @@ agh bridge create \
   --display-name "Acme Chat development" \
   --enabled=false \
   --include-peer \
-  --include-thread \
-  --include-group \
   --provider-config '{
     "webhook": {
       "public_url": "https://bridge.example.com/acme/dev",
@@ -551,27 +554,31 @@ agh bridge create \
   -o json
 ```
 
+This example assumes `acme-chat` emits a direct-conversation `peer_id`. Select only dimensions that
+coexist on every inbound event accepted by this instance. If the provider supports alternative
+shapes such as peer-only DMs and group-plus-thread channels, create separate bridge instances.
+
 Copy the returned ID, then bind the two manifest slots:
 
 ```bash
 BRIDGE_ID=brg_123
 
-agh bridge secret-bindings put "$BRIDGE_ID" bot_token \
+printf '%s' "$ACME_CHAT_BOT_TOKEN" | agh bridge secret-bindings put "$BRIDGE_ID" bot_token \
   --secret-ref "vault:bridges/$BRIDGE_ID/bot_token" \
   --kind token \
-  --secret-value "$ACME_CHAT_BOT_TOKEN"
+  --secret-value-stdin
 
-agh bridge secret-bindings put "$BRIDGE_ID" webhook_secret \
+printf '%s' "$ACME_CHAT_WEBHOOK_SECRET" | agh bridge secret-bindings put "$BRIDGE_ID" webhook_secret \
   --secret-ref "vault:bridges/$BRIDGE_ID/webhook_secret" \
   --kind secret \
-  --secret-value "$ACME_CHAT_WEBHOOK_SECRET"
+  --secret-value-stdin
 
 agh bridge secret-bindings list "$BRIDGE_ID" -o json
 ```
 
-The list output must contain redacted binding metadata, not plaintext. The generic CLI currently
-passes `--secret-value` as a process argument; use short-lived environment variables on a trusted
-host and record this limitation in the provider's setup guide.
+The list output must contain redacted binding metadata, not plaintext. The generic CLI accepts
+secret contents only from `--secret-value-stdin` or `--secret-value-file <path>` and rejects inline
+values. Document the safer input appropriate for the provider's credential format.
 
 Verify before enablement:
 
@@ -638,7 +645,7 @@ go test -race ./internal/extension \
   native descriptors, and the canonical AGH skill.
 
 The provider catalog and secret slots are manifest-driven. The current Web setup experience still
-has provider-specific presentation metadata for bundled providers; an unknown provider falls back to
+has provider-specific presentation metadata for in-tree providers; an unknown provider falls back to
 a generic profile. Audit `web/src/systems/bridges/lib/bridge-setup.ts` and either add truthful setup
 metadata or document the generic boundary. The manifest alone does not produce a full guided Web
 setup today.
@@ -680,7 +687,7 @@ provider-console configuration without reading Go code.
 | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | Provider is absent from the catalog          | Validate `extension.toml`, identity consistency, install/enable state, and `bridge.adapter` capability.                           |
 | First `go build -o` fails with no directory  | Create `extensions/bridges/<provider>/bin` first; the directory is ignored and absent in a fresh checkout.                        |
-| Initialize rejects methods or grants         | Compare manifest actions, runtime registration, extension name/version, and handshake purpose with a bundled provider.            |
+| Initialize rejects methods or grants         | Compare manifest actions, runtime registration, extension name/version, and handshake purpose with an in-tree provider.           |
 | `agh bridge verify` says response is invalid | Return at least one unique valid check. Empty checks, bad statuses, or skipped/fail records without remediation are invalid.      |
 | Verify opens a listener or Host API is nil   | Control handlers must use `Session.Cache()` only; service initialization and Host API grants are intentionally absent.            |
 | Instance remains `auth_required`             | Required or conditional slot names do not match the manifest/runtime mode, or the provider probe rejected the credential.         |
@@ -688,7 +695,7 @@ provider-console configuration without reading Go code.
 | Ingest works globally but not in a workspace | Copy `scope` and `workspace_id` from the managed instance and validate the envelope before ingest.                                |
 | `send-test` cannot find a destination        | Implement/fix target snapshots or use the managed-instance fallback; inspect `targets`, `resolve`, and a route from real inbound. |
 | Shutdown hangs                               | A listener, goroutine, timer, batcher, poller, or dispatcher was created outside lifecycle ownership or not closed on failure.    |
-| Web setup shows generic/unknown guidance     | The provider is discovered, but bundled Web presentation metadata was not audited/co-shipped.                                     |
+| Web setup shows generic/unknown guidance     | The provider is discovered, but in-tree Web presentation metadata was not audited/co-shipped.                                     |
 
 ## Grep before review
 

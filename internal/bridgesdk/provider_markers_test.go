@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 )
 
 func TestAdapterMarkersPreserveHarnessContract(t *testing.T) {
