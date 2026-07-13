@@ -44,6 +44,22 @@ func TestSessionDBAccessorsAndCloseLifecycle(t *testing.T) {
 	}
 }
 
+func TestJoinSessionCleanupError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve both primary and cleanup failures", func(t *testing.T) {
+		t.Parallel()
+
+		primaryErr := errors.New("primary")
+		cleanupErr := errors.New("cleanup")
+		err := primaryErr
+		joinSessionCleanupError(&err, cleanupErr)
+		if !errors.Is(err, primaryErr) || !errors.Is(err, cleanupErr) {
+			t.Fatalf("joinSessionCleanupError() error = %v, want primary and cleanup failures", err)
+		}
+	})
+}
+
 func TestSessionDBGuardClauses(t *testing.T) {
 	t.Parallel()
 

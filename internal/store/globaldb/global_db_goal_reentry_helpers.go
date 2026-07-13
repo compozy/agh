@@ -10,6 +10,7 @@ import (
 	"time"
 
 	looppkg "github.com/compozy/agh/internal/loop"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 type goalReentryRow struct {
@@ -37,44 +38,17 @@ func loadAwaitingGoalControlWithExecutor(
 	workspaceID looppkg.WorkspaceID,
 	runID looppkg.RunID,
 ) (goalReentryRow, bool, error) {
-	row, err := scanGoalReentryRow(exec.QueryRowContext(
-		ctx,
-		`SELECT c.generation, c.node_id, c.item_index, c.control_epoch, c.goal_status,
-		        COALESCE(c.control_cause, ''),
-		        c.turns_used, c.turn_limit, COALESCE(c.task_run_id, ''), COALESCE(c.queue_entry_id, ''),
-		        COALESCE(c.prompt_id, ''), COALESCE(c.prompt_kind, ''),
-		        EXISTS (
-		          SELECT 1 FROM loop_goal_turns t
-		          WHERE t.loop_run_id = c.loop_run_id AND t.generation = c.generation
-		            AND t.node_id = c.node_id AND t.item_index = c.item_index
-		            AND t.result_status IS NULL
-		        ),
-		        l.status, l.active_gate_id, o.status, COALESCE(o.task_run_id, ''),
-		        c.control_grant_id, c.control_grant_kind, c.control_grant_cause,
-		        c.control_grant_turn, c.control_grant_scope, c.control_grant_consumed
-		 FROM loop_goal_checkpoints c
-		 JOIN loop_runs l ON l.id = c.loop_run_id
-		 JOIN loop_generation_outputs o
-		   ON o.loop_run_id = c.loop_run_id
-		  AND o.generation = c.generation
-		  AND o.node_id = c.node_id
-		  AND o.item_index = c.item_index
-		 WHERE c.loop_run_id = ?
-		   AND l.workspace_id = ?
-		   AND c.phase = 'awaiting_control'
-		   AND o.status = ?
-		 ORDER BY c.generation ASC, c.node_id ASC, c.item_index ASC
-		 LIMIT 1`,
-		string(runID),
-		string(workspaceID),
-		looppkg.GenerationOutputStatusAwaitingGoal,
-	), workspaceID, runID)
+	generated, err := sqlcgen.New(exec).GetAwaitingGoalControl(ctx, sqlcgen.GetAwaitingGoalControlParams{
+		LoopRunID: string(runID), WorkspaceID: string(workspaceID),
+		OutputStatus: looppkg.GenerationOutputStatusAwaitingGoal,
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return goalReentryRow{}, false, nil
 	}
 	if err != nil {
 		return goalReentryRow{}, false, fmt.Errorf("store: load awaiting Goal control: %w", err)
 	}
+	row := goalReentryRowFromAwaiting(generated, workspaceID, runID)
 	if err := finalizeGoalReentryState(&row); err != nil {
 		return goalReentryRow{}, false, err
 	}
@@ -86,84 +60,68 @@ func loadGoalReentryRowWithExecutor(
 	exec taskSQLExecutor,
 	state looppkg.GoalControlState,
 ) (goalReentryRow, error) {
-	row, err := scanGoalReentryRow(exec.QueryRowContext(
-		ctx,
-		`SELECT c.generation, c.node_id, c.item_index, c.control_epoch, c.goal_status,
-		        COALESCE(c.control_cause, ''),
-		        c.turns_used, c.turn_limit, COALESCE(c.task_run_id, ''), COALESCE(c.queue_entry_id, ''),
-		        COALESCE(c.prompt_id, ''), COALESCE(c.prompt_kind, ''),
-		        EXISTS (
-		          SELECT 1 FROM loop_goal_turns t
-		          WHERE t.loop_run_id = c.loop_run_id AND t.generation = c.generation
-		            AND t.node_id = c.node_id AND t.item_index = c.item_index
-		            AND t.result_status IS NULL
-		        ),
-		        l.status, l.active_gate_id, o.status, COALESCE(o.task_run_id, ''),
-		        c.control_grant_id, c.control_grant_kind, c.control_grant_cause,
-		        c.control_grant_turn, c.control_grant_scope, c.control_grant_consumed
-		 FROM loop_goal_checkpoints c
-		 JOIN loop_runs l ON l.id = c.loop_run_id
-		 JOIN loop_generation_outputs o
-		   ON o.loop_run_id = c.loop_run_id
-		  AND o.generation = c.generation
-		  AND o.node_id = c.node_id
-		  AND o.item_index = c.item_index
-		 WHERE c.loop_run_id = ?
-		   AND l.workspace_id = ?
-		   AND c.generation = ?
-		   AND c.node_id = ?
-		   AND c.item_index = ?`,
-		string(state.LoopRunID),
-		string(state.WorkspaceID),
-		state.Generation,
-		string(state.NodeID),
-		state.ItemIndex,
-	), state.WorkspaceID, state.LoopRunID)
+	generated, err := sqlcgen.New(exec).GetGoalReentryState(ctx, sqlcgen.GetGoalReentryStateParams{
+		LoopRunID: string(state.LoopRunID), WorkspaceID: string(state.WorkspaceID),
+		Generation: int64(state.Generation), NodeID: string(state.NodeID), ItemIndex: int64(state.ItemIndex),
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return goalReentryRow{}, goalReentryStaleError("Goal checkpoint no longer exists")
 	}
 	if err != nil {
 		return goalReentryRow{}, fmt.Errorf("store: load Goal reentry checkpoint: %w", err)
 	}
-	return row, nil
+	return goalReentryRowFromState(generated, state.WorkspaceID, state.LoopRunID), nil
 }
 
-func scanGoalReentryRow(
-	row generationOutputScanner,
+func goalReentryRowFromAwaiting(
+	row sqlcgen.GetAwaitingGoalControlRow,
 	workspaceID looppkg.WorkspaceID,
 	runID looppkg.RunID,
-) (goalReentryRow, error) {
-	var value goalReentryRow
-	value.state.WorkspaceID = workspaceID
-	value.state.LoopRunID = runID
-	if err := row.Scan(
-		&value.state.Generation,
-		&value.state.NodeID,
-		&value.state.ItemIndex,
-		&value.state.ControlEpoch,
-		&value.state.GoalStatus,
-		&value.state.Cause,
-		&value.state.TurnsUsed,
-		&value.state.TurnLimit,
-		&value.state.TaskRunID,
-		&value.state.QueueEntryID,
-		&value.state.PromptID,
-		&value.state.PromptKind,
-		&value.state.OpenTurn,
-		&value.state.RunStatus,
-		&value.state.GateID,
-		&value.outputStatus,
-		&value.outputTaskRun,
-		&value.grantID,
-		&value.grantKind,
-		&value.grantCause,
-		&value.grantTurn,
-		&value.grantScope,
-		&value.grantConsumed,
-	); err != nil {
-		return goalReentryRow{}, err
+) goalReentryRow {
+	return newGoalReentryRow(workspaceID, runID, row.Generation, row.NodeID, row.ItemIndex,
+		row.ControlEpoch, row.GoalStatus, row.ControlCause, row.TurnsUsed, row.TurnLimit,
+		row.TaskRunID, row.QueueEntryID, row.PromptID, row.PromptKind, row.OpenTurn, row.RunStatus,
+		row.ActiveGateID, row.OutputStatus, row.OutputTaskRun, row.ControlGrantID,
+		row.ControlGrantKind, row.ControlGrantCause, row.ControlGrantTurn, row.ControlGrantScope,
+		row.ControlGrantConsumed)
+}
+
+func goalReentryRowFromState(
+	row sqlcgen.GetGoalReentryStateRow,
+	workspaceID looppkg.WorkspaceID,
+	runID looppkg.RunID,
+) goalReentryRow {
+	return newGoalReentryRow(workspaceID, runID, row.Generation, row.NodeID, row.ItemIndex,
+		row.ControlEpoch, row.GoalStatus, row.ControlCause, row.TurnsUsed, row.TurnLimit,
+		row.TaskRunID, row.QueueEntryID, row.PromptID, row.PromptKind, row.OpenTurn, row.RunStatus,
+		row.ActiveGateID, row.OutputStatus, row.OutputTaskRun, row.ControlGrantID,
+		row.ControlGrantKind, row.ControlGrantCause, row.ControlGrantTurn, row.ControlGrantScope,
+		row.ControlGrantConsumed)
+}
+
+func newGoalReentryRow(
+	workspaceID looppkg.WorkspaceID, runID looppkg.RunID,
+	generation int64, nodeID string, itemIndex int64, controlEpoch int64,
+	goalStatus string, cause string, turnsUsed int64, turnLimit int64,
+	taskRunID string, queueEntryID string, promptID string, promptKind string,
+	openTurn bool, runStatus string, gateID string, outputStatus string, outputTaskRun string,
+	grantID int64, grantKind sql.NullString, grantCause sql.NullString, grantTurn sql.NullInt64,
+	grantScope sql.NullString, grantConsumed int64,
+) goalReentryRow {
+	return goalReentryRow{
+		state: looppkg.GoalControlState{
+			WorkspaceID: workspaceID, LoopRunID: runID, Generation: int(generation),
+			NodeID: looppkg.NodeID(nodeID), ItemIndex: int(itemIndex), ControlEpoch: controlEpoch,
+			GoalStatus: goalStatus, Cause: looppkg.ReasonCode(cause), TurnsUsed: int(turnsUsed),
+			TurnLimit: int(turnLimit), TaskRunID: taskRunID, QueueEntryID: queueEntryID,
+			PromptID: promptID, PromptKind: promptKind, OpenTurn: openTurn,
+			RunStatus: looppkg.Status(runStatus), GateID: looppkg.NodeID(gateID),
+		},
+		outputStatus: outputStatus, outputTaskRun: outputTaskRun,
+		grantID: sql.NullInt64{Int64: grantID, Valid: true}, grantKind: grantKind,
+		grantCause: grantCause, grantTurn: grantTurn, grantScope: grantScope,
+		grantConsumed: sql.NullInt64{Int64: grantConsumed, Valid: true},
 	}
-	return value, nil
 }
 
 func finalizeGoalReentryState(row *goalReentryRow) error {

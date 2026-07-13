@@ -7,19 +7,15 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
-const goalBindingSelectColumns = `
-	loop_run_id, handle, binding_epoch, binding_attempt_id, session_id, workspace_id,
-	creation_profile_ref, policy_spec_digest, creation_digest, ownership, state,
-	adopted_generation, adoption_attempt_id, failure_code, created_at, activated_at, failed_at, closed_at`
-
 var (
-	_ goal.BindingStore = (*GlobalDB)(nil)
+	_ goal.BindingStore = (*GoalRepo)(nil)
 )
 
 // GetOrCreateSessionBinding atomically adopts an origin session or returns the compatible active epoch.
-func (g *GlobalDB) GetOrCreateSessionBinding(
+func (g *GoalRepo) GetOrCreateSessionBinding(
 	ctx context.Context,
 	req goal.GetOrCreateBindingRequest,
 ) (goal.SessionBinding, error) {
@@ -70,26 +66,22 @@ func (g *GlobalDB) GetOrCreateSessionBinding(
 		); err != nil {
 			return err
 		}
-		_, err = exec.ExecContext(
-			ctx,
-			`INSERT INTO loop_session_bindings (
-				loop_run_id, handle, binding_epoch, binding_attempt_id, session_id, workspace_id,
-				creation_profile_ref, policy_spec_digest, creation_digest, ownership, state,
-				created_at, activated_at, adopted_generation, adoption_attempt_id
-			) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, 'origin-borrowed', 'active', ?, ?, ?, ?)`,
-			string(normalized.Key.LoopRunID),
-			normalized.Key.Handle,
-			normalized.BindingAttemptID,
-			normalized.SessionID,
-			string(normalized.Key.WorkspaceID),
-			normalized.CreationProfileRef,
-			normalized.PolicySpecDigest,
-			normalized.CreationDigest,
-			store.FormatTimestamp(normalized.CreatedAt),
-			store.FormatTimestamp(normalized.CreatedAt),
-			normalized.CheckpointKey.Generation,
-			normalized.BindingAttemptID,
-		)
+		err = sqlcgen.New(exec).InsertOriginGoalSessionBinding(ctx, sqlcgen.InsertOriginGoalSessionBindingParams{
+			LoopRunID:          string(normalized.Key.LoopRunID),
+			Handle:             normalized.Key.Handle,
+			BindingAttemptID:   normalized.BindingAttemptID,
+			SessionID:          normalized.SessionID,
+			WorkspaceID:        string(normalized.Key.WorkspaceID),
+			CreationProfileRef: normalized.CreationProfileRef,
+			PolicySpecDigest:   normalized.PolicySpecDigest,
+			CreationDigest:     normalized.CreationDigest,
+			CreatedAt: store.FormatTimestamp(
+				normalized.CreatedAt,
+			),
+			ActivatedAt:       store.FormatTimestamp(normalized.CreatedAt),
+			AdoptedGeneration: int64(normalized.CheckpointKey.Generation),
+			AdoptionAttemptID: goalNullableString(normalized.BindingAttemptID),
+		})
 		if err != nil {
 			return fmt.Errorf("store: insert origin goal binding: %w", err)
 		}
@@ -121,17 +113,14 @@ func validateOriginBindingAdoptionOwner(
 		checkpoint.BindingHandle != req.ExpectedCheckpointHandle {
 		return goalControlStaleError("origin binding checkpoint owner changed")
 	}
-	var status string
-	var generation int
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT status, generation FROM loop_runs WHERE id = ? AND workspace_id = ?`,
-		string(req.Key.LoopRunID),
-		string(req.Key.WorkspaceID),
-	).Scan(&status, &generation); err != nil {
+	owner, err := sqlcgen.New(exec).
+		GetGoalOriginBindingAdoptionOwner(ctx, sqlcgen.GetGoalOriginBindingAdoptionOwnerParams{
+			ID: string(req.Key.LoopRunID), WorkspaceID: string(req.Key.WorkspaceID),
+		})
+	if err != nil {
 		return fmt.Errorf("store: load origin binding Run owner: %w", err)
 	}
-	if status != string(looppkg.StatusRunning) || generation != req.CheckpointKey.Generation {
+	if owner.Status != string(looppkg.StatusRunning) || int(owner.Generation) != req.CheckpointKey.Generation {
 		return goalControlStaleError("origin binding Run is not live at the requested generation")
 	}
 	return nil
@@ -153,21 +142,16 @@ func advanceActiveOriginBindingAdoption(
 		}
 		return existing, nil
 	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_session_bindings SET adopted_generation = ?, adoption_attempt_id = ?
-		 WHERE loop_run_id = ? AND handle = ? AND binding_epoch = 1
-		   AND ownership = 'origin-borrowed' AND state = 'active' AND adopted_generation = ?`,
-		generation,
-		req.BindingAttemptID,
-		string(req.Key.LoopRunID),
-		req.Key.Handle,
-		existing.AdoptedGeneration,
-	)
+	affected, err := sqlcgen.New(exec).
+		AdvanceGoalOriginBindingAdoption(ctx, sqlcgen.AdvanceGoalOriginBindingAdoptionParams{
+			AdoptedGeneration: int64(generation), AdoptionAttemptID: goalNullableString(req.BindingAttemptID),
+			LoopRunID: string(req.Key.LoopRunID), Handle: req.Key.Handle,
+			ExpectedAdoptedGeneration: int64(existing.AdoptedGeneration),
+		})
 	if err != nil {
 		return goal.SessionBinding{}, fmt.Errorf("store: advance origin binding adoption: %w", err)
 	}
-	if err := requireGoalRowsAffected(result, "advance origin binding adoption"); err != nil {
+	if err := requireGoalAffectedCount(affected, "advance origin binding adoption"); err != nil {
 		return goal.SessionBinding{}, err
 	}
 	return getSessionBindingAttemptWithExecutor(ctx, exec, req.Key, 1)
@@ -201,29 +185,26 @@ func reactivateClosedOriginBinding(
 	); err != nil {
 		return goal.SessionBinding{}, err
 	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_session_bindings
-		 SET state = 'active', closed_at = NULL, adopted_generation = ?, adoption_attempt_id = ?
-		 WHERE loop_run_id = ? AND handle = ? AND binding_epoch = 1
-		   AND ownership = 'origin-borrowed' AND state = 'closed' AND adopted_generation = ?`,
-		req.CheckpointKey.Generation,
-		req.BindingAttemptID,
-		string(req.Key.LoopRunID),
-		req.Key.Handle,
-		existing.AdoptedGeneration,
-	)
+	affected, err := sqlcgen.New(exec).ReactivateGoalOriginBinding(ctx, sqlcgen.ReactivateGoalOriginBindingParams{
+		AdoptedGeneration: int64(
+			req.CheckpointKey.Generation,
+		),
+		AdoptionAttemptID:         goalNullableString(req.BindingAttemptID),
+		LoopRunID:                 string(req.Key.LoopRunID),
+		Handle:                    req.Key.Handle,
+		ExpectedAdoptedGeneration: int64(existing.AdoptedGeneration),
+	})
 	if err != nil {
 		return goal.SessionBinding{}, fmt.Errorf("store: reactivate origin goal binding: %w", err)
 	}
-	if err := requireGoalRowsAffected(result, "reactivate origin goal binding"); err != nil {
+	if err := requireGoalAffectedCount(affected, "reactivate origin goal binding"); err != nil {
 		return goal.SessionBinding{}, err
 	}
 	return getSessionBindingAttemptWithExecutor(ctx, exec, req.Key, 1)
 }
 
 // PrepareSessionBindingAttempt persists one run-owned creating epoch before session creation.
-func (g *GlobalDB) PrepareSessionBindingAttempt(
+func (g *GoalRepo) PrepareSessionBindingAttempt(
 	ctx context.Context,
 	req goal.PrepareBindingAttemptRequest,
 ) (goal.SessionBinding, error) {
@@ -279,23 +260,12 @@ func prepareSessionBindingAttemptWithExecutor(
 	if err := validateNextBindingAttemptEpoch(ctx, exec, req); err != nil {
 		return goal.SessionBinding{}, err
 	}
-	if _, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO loop_session_bindings (
-			loop_run_id, handle, binding_epoch, binding_attempt_id, session_id, workspace_id,
-			creation_profile_ref, policy_spec_digest, creation_digest, ownership, state, created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'run-owned', 'creating', ?)`,
-		string(req.Key.LoopRunID),
-		req.Key.Handle,
-		req.BindingEpoch,
-		req.BindingAttemptID,
-		req.SessionID,
-		string(req.Key.WorkspaceID),
-		req.CreationProfileRef,
-		req.PolicySpecDigest,
-		req.CreationDigest,
-		store.FormatTimestamp(req.CreatedAt),
-	); err != nil {
+	if err := sqlcgen.New(exec).InsertGoalSessionBindingAttempt(ctx, sqlcgen.InsertGoalSessionBindingAttemptParams{
+		LoopRunID: string(req.Key.LoopRunID), Handle: req.Key.Handle, BindingEpoch: req.BindingEpoch,
+		BindingAttemptID: req.BindingAttemptID, SessionID: req.SessionID, WorkspaceID: string(req.Key.WorkspaceID),
+		CreationProfileRef: req.CreationProfileRef, PolicySpecDigest: req.PolicySpecDigest,
+		CreationDigest: req.CreationDigest, CreatedAt: store.FormatTimestamp(req.CreatedAt),
+	}); err != nil {
 		return goal.SessionBinding{}, fmt.Errorf("store: insert creating goal binding: %w", err)
 	}
 	return getSessionBindingAttemptWithExecutor(ctx, exec, req.Key, req.BindingEpoch)
@@ -306,27 +276,19 @@ func validateNextBindingAttemptEpoch(
 	exec taskSQLExecutor,
 	req goal.PrepareBindingAttemptRequest,
 ) error {
-	var maximumEpoch int64
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT COALESCE(MAX(binding_epoch), 0)
-		 FROM loop_session_bindings WHERE loop_run_id = ? AND handle = ?`,
-		string(req.Key.LoopRunID),
-		req.Key.Handle,
-	).Scan(&maximumEpoch); err != nil {
+	maximumEpoch, err := sqlcgen.New(exec).GetMaxGoalBindingEpoch(ctx, sqlcgen.GetMaxGoalBindingEpochParams{
+		LoopRunID: string(req.Key.LoopRunID), Handle: req.Key.Handle,
+	})
+	if err != nil {
 		return fmt.Errorf("store: load maximum goal binding epoch: %w", err)
 	}
 	if req.BindingEpoch != maximumEpoch+1 {
 		return goalControlStaleError("binding attempt must use the next consecutive epoch")
 	}
-	var creatingCount int
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT COUNT(*) FROM loop_session_bindings
-		 WHERE loop_run_id = ? AND handle = ? AND state = 'creating'`,
-		string(req.Key.LoopRunID),
-		req.Key.Handle,
-	).Scan(&creatingCount); err != nil {
+	creatingCount, err := sqlcgen.New(exec).CountCreatingGoalBindings(ctx, sqlcgen.CountCreatingGoalBindingsParams{
+		LoopRunID: string(req.Key.LoopRunID), Handle: req.Key.Handle,
+	})
+	if err != nil {
 		return fmt.Errorf("store: count creating goal bindings: %w", err)
 	}
 	if creatingCount != 0 {

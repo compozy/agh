@@ -87,33 +87,67 @@ func openSQLiteDatabaseOnce(
 	initialize func(context.Context, *sql.DB) error,
 	extraPragmas ...string,
 ) (*sql.DB, error) {
-	db, err := sql.Open(sqliteDriverName, sqliteDSN(path, extraPragmas...))
-	if err != nil {
-		return nil, fmt.Errorf("store: open sqlite database %q: %w", path, err)
+	if initialize != nil {
+		initializationDB, err := openSQLiteHandle(ctx, path, sqliteInitializationDSN(path))
+		if err != nil {
+			return nil, err
+		}
+		if err := initialize(ctx, initializationDB); err != nil {
+			primaryErr := fmt.Errorf("store: initialize sqlite database %q: %w", path, err)
+			return nil, closeSQLiteAfterError(
+				initializationDB,
+				primaryErr,
+				fmt.Sprintf("initialized database %q after initialization failure", path),
+			)
+		}
+		if err := initializationDB.Close(); err != nil {
+			return nil, fmt.Errorf("store: close initialized sqlite database %q: %w", path, err)
+		}
 	}
 
-	db.SetMaxOpenConns(defaultMaxOpenConns)
-	db.SetMaxIdleConns(defaultMaxIdleConns)
-
-	if err := db.PingContext(ctx); err != nil {
-		closeQuietly(db)
-		return nil, fmt.Errorf("store: ping sqlite database %q: %w", path, err)
+	db, err := openSQLiteHandle(ctx, path, sqliteDSN(path, extraPragmas...))
+	if err != nil {
+		return nil, err
 	}
 	if err := configureSQLite(ctx, db); err != nil {
-		closeQuietly(db)
-		return nil, fmt.Errorf("store: configure sqlite database %q: %w", path, err)
-	}
-	if initialize != nil {
-		if err := initialize(ctx, db); err != nil {
-			closeQuietly(db)
-			return nil, fmt.Errorf("store: initialize sqlite database %q: %w", path, err)
-		}
+		primaryErr := fmt.Errorf("store: configure sqlite database %q: %w", path, err)
+		return nil, closeSQLiteAfterError(
+			db,
+			primaryErr,
+			fmt.Sprintf("database %q after configuration failure", path),
+		)
 	}
 
 	return db, nil
 }
 
+func openSQLiteHandle(ctx context.Context, path string, dsn string) (*sql.DB, error) {
+	db, err := sql.Open(sqliteDriverName, dsn)
+	if err != nil {
+		return nil, fmt.Errorf("store: open sqlite database %q: %w", path, err)
+	}
+	db.SetMaxOpenConns(defaultMaxOpenConns)
+	db.SetMaxIdleConns(defaultMaxIdleConns)
+	if err := db.PingContext(ctx); err != nil {
+		primaryErr := fmt.Errorf("store: ping sqlite database %q: %w", path, err)
+		return nil, closeSQLiteAfterError(
+			db,
+			primaryErr,
+			fmt.Sprintf("database %q after ping failure", path),
+		)
+	}
+	return db, nil
+}
+
 func sqliteDSN(path string, extraPragmas ...string) string {
+	return sqliteDSNWithPragmas(path, true, extraPragmas...)
+}
+
+func sqliteInitializationDSN(path string) string {
+	return sqliteDSNWithPragmas(path, false)
+}
+
+func sqliteDSNWithPragmas(path string, runtimePragmas bool, extraPragmas ...string) string {
 	u := url.URL{
 		Scheme: "file",
 		Path:   filepath.ToSlash(path),
@@ -121,8 +155,10 @@ func sqliteDSN(path string, extraPragmas ...string) string {
 	query := u.Query()
 	query.Add("_pragma", fmt.Sprintf("busy_timeout(%d)", defaultBusyTimeoutMS))
 	query.Add("_pragma", "foreign_keys(ON)")
-	query.Add("_pragma", "journal_mode(WAL)")
-	query.Add("_pragma", "synchronous(NORMAL)")
+	if runtimePragmas {
+		query.Add("_pragma", "journal_mode(WAL)")
+		query.Add("_pragma", "synchronous(NORMAL)")
+	}
 	for _, pragma := range extraPragmas {
 		if trimmed := strings.TrimSpace(pragma); trimmed != "" {
 			query.Add("_pragma", trimmed)
@@ -244,12 +280,6 @@ func ShouldRecoverSQLite(err error) bool {
 		return true
 	default:
 		return false
-	}
-}
-
-func closeQuietly(db *sql.DB) {
-	if db != nil {
-		_ = db.Close()
 	}
 }
 

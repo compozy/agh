@@ -2,18 +2,20 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
-var _ goal.PromptTerminalRecoveryStore = (*GlobalDB)(nil)
+var _ goal.PromptTerminalRecoveryStore = (*GoalRepo)(nil)
 
 // RecoverGoalPromptTerminal records exact session-event proof without exposing the raw dispatch token.
-func (g *GlobalDB) RecoverGoalPromptTerminal(
+func (g *GoalRepo) RecoverGoalPromptTerminal(
 	ctx context.Context,
 	req goal.RecoverPromptTerminalRequest,
 ) error {
@@ -91,45 +93,42 @@ func persistRecoveredGoalQueueTerminal(
 	disposition looppkg.ActionDisposition,
 	status string,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE session_input_queue
-		 SET status = ?, terminal_event_start_seq = ?, terminal_event_end_seq = ?,
-		     terminal_kind = ?, terminal_stop_reason = ?, terminal_disposition = ?,
-		     terminal_reason_code = ?, terminal_tokens_reported = ?, terminal_tokens_used = ?,
-		     terminal_at = ?, failed_at = CASE WHEN ? = 'failed' THEN ? ELSE failed_at END,
-		     updated_at = ?
-		 WHERE id = ? AND loop_run_id = ? AND task_run_id = ? AND prompt_id = ?
-		   AND owner_kind = ? AND owner_epoch = ? AND binding_epoch = ? AND session_id = ?
-		   AND status IN ('dispatching','sent') AND terminal_at IS NULL
-		   AND dispatch_token_hash = ?`,
-		status,
-		nullableGoalPositiveInt64(req.Result.EventStartSeq),
-		nullableGoalPositiveInt64(req.Result.EventEndSeq),
-		string(req.Result.Outcome),
-		nullableGoalString(string(req.Result.StopReason)),
-		nullableGoalString(string(disposition)),
-		nullableGoalString(string(req.Result.ReasonCode)),
-		boolToInt(req.Result.TokensReported),
-		goalReportedTokens(req.Result.TokensUsed, req.Result.TokensReported),
-		store.FormatTimestamp(req.TerminalAt),
-		status,
-		store.FormatTimestamp(req.TerminalAt),
-		store.FormatTimestamp(req.TerminalAt),
-		strings.TrimSpace(req.QueueEntryID),
-		string(req.Key.LoopRunID),
-		strings.TrimSpace(req.TaskRunID),
-		strings.TrimSpace(req.PromptID),
-		goalPromptOwnerKind,
-		req.ExpectedControlEpoch,
-		req.ExpectedBindingEpoch,
-		strings.TrimSpace(req.SessionID),
-		row.dispatchTokenHash.String,
-	)
+	terminalTokens := sql.NullInt64{}
+	if req.Result.TokensReported {
+		terminalTokens = sql.NullInt64{Int64: req.Result.TokensUsed, Valid: true}
+	}
+	affected, err := sqlcgen.New(exec).RecoverGoalQueueTerminal(ctx, sqlcgen.RecoverGoalQueueTerminalParams{
+		Status:                 status,
+		TerminalEventStartSeq:  goalNullablePositiveInt64(req.Result.EventStartSeq),
+		TerminalEventEndSeq:    goalNullablePositiveInt64(req.Result.EventEndSeq),
+		TerminalKind:           goalNullableString(string(req.Result.Outcome)),
+		TerminalStopReason:     goalNullableString(string(req.Result.StopReason)),
+		TerminalDisposition:    goalNullableString(string(disposition)),
+		TerminalReasonCode:     goalNullableString(string(req.Result.ReasonCode)),
+		TerminalTokensReported: int64(boolToInt(req.Result.TokensReported)),
+		TerminalTokensUsed:     terminalTokens,
+		TerminalAt:             store.FormatTimestamp(req.TerminalAt),
+		ID:                     strings.TrimSpace(req.QueueEntryID),
+		LoopRunID:              goalNullableString(string(req.Key.LoopRunID)),
+		TaskRunID:              strings.TrimSpace(req.TaskRunID),
+		PromptID:               goalNullableString(req.PromptID),
+		OwnerKind:              goalNullableString(goalPromptOwnerKind),
+		OwnerEpoch: goalNullableInt64(
+			&req.ExpectedControlEpoch,
+		),
+		BindingEpoch: goalNullableInt64(&req.ExpectedBindingEpoch),
+		SessionID: strings.TrimSpace(
+			req.SessionID,
+		),
+		DispatchTokenHash: goalNullableString(row.dispatchTokenHash.String),
+	})
 	if err != nil {
 		return fmt.Errorf("store: recover Goal queue terminal: %w", err)
 	}
-	return requireGoalRowsAffected(result, "recover Goal queue terminal")
+	if affected != 1 {
+		return goalControlStaleError("recover Goal queue terminal lost compare-and-swap")
+	}
+	return nil
 }
 
 func validateRecoveredGoalPromptRequest(req goal.RecoverPromptTerminalRequest) error {

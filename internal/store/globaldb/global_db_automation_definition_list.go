@@ -16,7 +16,7 @@ const automationDefinitionOrderSQL = ` ORDER BY CASE source
 END, name, id`
 
 // ListJobDefinitions returns complete persisted definitions for internal reconciliation.
-func (g *GlobalDB) ListJobDefinitions(
+func (g *AutomationRepo) ListJobDefinitions(
 	ctx context.Context,
 	source automation.JobSource,
 ) (jobs []automation.Job, err error) {
@@ -28,6 +28,7 @@ func (g *GlobalDB) ListJobDefinitions(
 			return nil, err
 		}
 	}
+	// dynamic-sql: optional definition filters and caller limit change the statement shape.
 	statement := automationJobRichSelectSQL
 	args := make([]any, 0, 1)
 	if source != "" {
@@ -58,7 +59,7 @@ func (g *GlobalDB) ListJobDefinitions(
 }
 
 // ListTriggerDefinitions returns complete persisted definitions for internal reconciliation.
-func (g *GlobalDB) ListTriggerDefinitions(
+func (g *AutomationRepo) ListTriggerDefinitions(
 	ctx context.Context,
 	source automation.JobSource,
 ) (triggers []automation.Trigger, err error) {
@@ -70,6 +71,7 @@ func (g *GlobalDB) ListTriggerDefinitions(
 			return nil, err
 		}
 	}
+	// dynamic-sql: optional definition filters and caller limit change the statement shape.
 	statement := automationTriggerRichSelectSQL
 	args := make([]any, 0, 1)
 	if source != "" {

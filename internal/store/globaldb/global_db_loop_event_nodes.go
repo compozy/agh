@@ -10,6 +10,7 @@ import (
 	"time"
 
 	looppkg "github.com/compozy/agh/internal/loop"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -204,18 +205,9 @@ func shouldPersistLoopTokenTick(
 	if at.IsZero() {
 		at = time.Now().UTC()
 	}
-	var payload string
-	var atRaw string
-	err := exec.QueryRowContext(
-		ctx,
-		`SELECT payload_json, at
-		   FROM loop_run_events
-		  WHERE loop_run_id = ? AND kind = ?
-		  ORDER BY seq DESC
-		  LIMIT 1`,
-		string(runID),
-		loopRunEventTokenTick,
-	).Scan(&payload, &atRaw)
+	row, err := sqlcgen.New(exec).GetLastLoopTokenTick(ctx, sqlcgen.GetLastLoopTokenTickParams{
+		LoopRunID: string(runID), Kind: loopRunEventTokenTick,
+	})
 	if errorsIsNoRows(err) {
 		return true, nil
 	}
@@ -223,17 +215,14 @@ func shouldPersistLoopTokenTick(
 		return false, fmt.Errorf("store: load last loop token tick: %w", err)
 	}
 	var last map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(payload), &last); err != nil {
+	if err := json.Unmarshal([]byte(row.PayloadJson), &last); err != nil {
 		return false, fmt.Errorf("store: decode last loop token tick: %w", err)
 	}
 	var lastTokensUsed int64
 	if err := json.Unmarshal(last[columnTokensUsed], &lastTokensUsed); err != nil {
 		return false, fmt.Errorf("store: decode last loop token tick tokens_used: %w", err)
 	}
-	lastAt, err := parseLoopRunTimestamp(atRaw)
-	if err != nil {
-		return false, err
-	}
+	lastAt := row.At.UTC()
 	if at.Sub(lastAt) < loopTokenTickMinInterval {
 		return false, nil
 	}

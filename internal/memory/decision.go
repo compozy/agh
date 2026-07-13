@@ -21,7 +21,6 @@ const (
 	decisionMetadataTargetFilenameKey = "target_filename"
 	decisionMetadataReasonKey         = "reason"
 	decisionMetadataRuleIDsKey        = "rule_ids"
-	decisionDefaultDBFilename         = "agh.db"
 )
 
 // DecisionApplyResult reports one controller-backed mutation application.
@@ -520,27 +519,11 @@ func normalizeDecision(decision memcontract.Decision) (memcontract.Decision, err
 }
 
 func (s *Store) ensureDecisionCatalog(ctx context.Context) error {
-	if s.catalog != nil {
-		_, err := s.catalog.ensureDB(ctx)
-		return err
+	if s == nil || s.catalog == nil {
+		return errors.New("memory: decision catalog is not configured")
 	}
-	path, err := defaultDecisionCatalogPath(s.globalDir)
-	if err != nil {
-		return err
-	}
-	s.catalog = newCatalog(path, func() time.Time {
-		return time.Now().UTC()
-	})
-	_, err = s.catalog.ensureDB(ctx)
+	_, err := s.catalog.ensureDB(ctx)
 	return err
-}
-
-func defaultDecisionCatalogPath(globalDir string) (string, error) {
-	root, err := globalHomeFromMemoryDir(globalDir)
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(root, decisionDefaultDBFilename), nil
 }
 
 func (s *Store) workspaceIDForDecision(ctx context.Context, scope memcontract.Scope) (string, error) {

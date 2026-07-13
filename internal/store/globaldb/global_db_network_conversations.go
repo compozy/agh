@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 const (
@@ -28,7 +29,7 @@ type networkWorkMutation struct {
 }
 
 // ResolveDirectRoom inserts or returns the deterministic two-party room.
-func (g *GlobalDB) ResolveDirectRoom(
+func (g *NetworkRepo) ResolveDirectRoom(
 	ctx context.Context,
 	entry store.NetworkDirectRoomEntry,
 ) (summary store.NetworkDirectRoomSummary, err error) {
@@ -58,7 +59,7 @@ func (g *GlobalDB) ResolveDirectRoom(
 }
 
 // WriteConversationMessage persists one message and its derived state atomically.
-func (g *GlobalDB) WriteConversationMessage(
+func (g *NetworkRepo) WriteConversationMessage(
 	ctx context.Context,
 	entry store.NetworkConversationMessage,
 ) (result store.NetworkConversationWriteResult, err error) {
@@ -159,7 +160,7 @@ func upsertNetworkThreadParticipantsForMessage(
 }
 
 // GetThread returns one public-thread summary.
-func (g *GlobalDB) GetThread(
+func (g *NetworkRepo) GetThread(
 	ctx context.Context,
 	channelRef store.NetworkChannelRef,
 	threadID string,
@@ -177,45 +178,14 @@ func (g *GlobalDB) GetThread(
 		return store.NetworkThreadSummary{}, err
 	}
 
-	row := g.db.QueryRowContext(
-		ctx,
-		`SELECT
-			workspace_id, channel, thread_id, root_message_id, title, opened_by_peer_id, opened_session_id,
-			opened_at, opened_sequence, last_activity_at, last_activity_sequence,
-			message_count, participant_count, open_work_count,
-			COALESCE((
-				SELECT SUM(stats.delivered_count)
-				FROM network_thread_peer_token_stats AS stats
-				WHERE stats.workspace_id = network_threads.workspace_id
-					AND stats.channel = network_threads.channel
-					AND stats.thread_id = network_threads.thread_id
-			), 0),
-			COALESCE((
-				SELECT SUM(stats.prompt_size_bytes)
-				FROM network_thread_peer_token_stats AS stats
-				WHERE stats.workspace_id = network_threads.workspace_id
-					AND stats.channel = network_threads.channel
-					AND stats.thread_id = network_threads.thread_id
-			), 0),
-			COALESCE((
-				SELECT SUM(stats.estimated_prompt_tokens)
-				FROM network_thread_peer_token_stats AS stats
-				WHERE stats.workspace_id = network_threads.workspace_id
-					AND stats.channel = network_threads.channel
-					AND stats.thread_id = network_threads.thread_id
-			), 0),
-			last_message_preview
-		FROM network_threads
-		WHERE workspace_id = ? AND channel = ? AND thread_id = ?`,
-		ref.WorkspaceID,
-		ref.Channel,
-		ref.ThreadID,
-	)
-	return scanNetworkThreadSummary(row)
+	row, err := g.queries.GetNetworkThread(ctx, sqlcgen.GetNetworkThreadParams{
+		WorkspaceID: ref.WorkspaceID, Channel: ref.Channel, ThreadID: ref.ThreadID,
+	})
+	return networkThreadFromGenerated(row, err)
 }
 
 // GetDirectRoom returns one direct-room summary.
-func (g *GlobalDB) GetDirectRoom(
+func (g *NetworkRepo) GetDirectRoom(
 	ctx context.Context,
 	channelRef store.NetworkChannelRef,
 	directID string,
@@ -233,23 +203,14 @@ func (g *GlobalDB) GetDirectRoom(
 		return store.NetworkDirectRoomSummary{}, err
 	}
 
-	row := g.db.QueryRowContext(
-		ctx,
-		`SELECT
-			workspace_id, channel, direct_id, peer_a, peer_b,
-			opened_at, opened_sequence, last_activity_at, last_activity_sequence,
-			message_count, open_work_count, last_message_preview
-		FROM network_direct_rooms
-		WHERE workspace_id = ? AND channel = ? AND direct_id = ?`,
-		ref.WorkspaceID,
-		ref.Channel,
-		ref.DirectID,
-	)
-	return scanNetworkDirectRoomSummary(row)
+	row, err := g.queries.GetNetworkDirectRoom(ctx, sqlcgen.GetNetworkDirectRoomParams{
+		WorkspaceID: ref.WorkspaceID, Channel: ref.Channel, DirectID: ref.DirectID,
+	})
+	return networkDirectRoomFromGenerated(row, err)
 }
 
 // ListConversationMessages returns messages isolated to one conversation container.
-func (g *GlobalDB) ListConversationMessages(
+func (g *NetworkRepo) ListConversationMessages(
 	ctx context.Context,
 	ref store.NetworkConversationRef,
 	query store.NetworkConversationMessageQuery,
@@ -265,6 +226,7 @@ func (g *GlobalDB) ListConversationMessages(
 		return nil, fmt.Errorf("store: validate network conversation message query: %w", err)
 	}
 
+	// dynamic-sql: container type, optional filters, cursor direction, sort order, and limit change the statement shape.
 	sqlQuery := networkConversationMessageSelect()
 	where, args := networkConversationMessageFilterClauses(normalizedRef, query)
 	reverseResults := false
@@ -321,7 +283,7 @@ func (g *GlobalDB) ListConversationMessages(
 }
 
 // GetWork returns one network work row by workspace_id and work_id.
-func (g *GlobalDB) GetWork(ctx context.Context, workspaceID string, workID string) (store.NetworkWorkEntry, error) {
+func (g *NetworkRepo) GetWork(ctx context.Context, workspaceID string, workID string) (store.NetworkWorkEntry, error) {
 	if err := g.checkReady(ctx, "get network work"); err != nil {
 		return store.NetworkWorkEntry{}, err
 	}

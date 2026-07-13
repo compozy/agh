@@ -2,11 +2,13 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 func validateClaimPreparedWorkRequest(req goal.ClaimPreparedWorkPromptRequest) error {
@@ -72,19 +74,11 @@ func projectGoalCheckpointCounts(
 	turnsUsed int,
 	turnLimit int,
 ) error {
-	_, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_generation_outputs
-		 SET goal_status = ?, goal_turns_used = ?, goal_turn_limit = ?
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?`,
-		status,
-		turnsUsed,
-		turnLimit,
-		string(key.LoopRunID),
-		key.Generation,
-		string(key.NodeID),
-		key.ItemIndex,
-	)
+	err := sqlcgen.New(exec).ProjectGoalCheckpointCounts(ctx, sqlcgen.ProjectGoalCheckpointCountsParams{
+		GoalStatus: goalNullableString(status), GoalTurnsUsed: sql.NullInt64{Int64: int64(turnsUsed), Valid: true},
+		GoalTurnLimit: sql.NullInt64{Int64: int64(turnLimit), Valid: true}, LoopRunID: string(key.LoopRunID),
+		Generation: int64(key.Generation), NodeID: string(key.NodeID), ItemIndex: int64(key.ItemIndex),
+	})
 	if err != nil {
 		return fmt.Errorf("store: project Goal checkpoint counts: %w", err)
 	}

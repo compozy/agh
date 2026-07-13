@@ -158,8 +158,8 @@ function invalidateTaskQueries(queryClient: QueryClient, id?: string) {
 
 function invalidateAggregateQueries(queryClient: QueryClient) {
   return Promise.all([
-    queryClient.invalidateQueries({ queryKey: [...tasksKeys.all, "dashboard"] }),
-    queryClient.invalidateQueries({ queryKey: [...tasksKeys.all, "inbox"] }),
+    queryClient.invalidateQueries({ queryKey: tasksKeys.dashboardRoot() }),
+    queryClient.invalidateQueries({ queryKey: tasksKeys.inboxRoot() }),
     queryClient.invalidateQueries({ queryKey: schedulerKeys.all }),
   ]);
 }
@@ -169,7 +169,7 @@ function invalidateTriageQueries(queryClient: QueryClient, id?: string) {
     queryClient.invalidateQueries({ queryKey: tasksKeys.triageRoot() }),
     queryClient.invalidateQueries({ queryKey: tasksKeys.lists() }),
     ...(id ? [queryClient.invalidateQueries({ queryKey: tasksKeys.detail(id) })] : []),
-    queryClient.invalidateQueries({ queryKey: [...tasksKeys.all, "inbox"] }),
+    queryClient.invalidateQueries({ queryKey: tasksKeys.inboxRoot() }),
   ]);
 }
 

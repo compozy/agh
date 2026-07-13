@@ -3156,17 +3156,20 @@ func flushGoalRuntimeBudget(
 ) goal.BudgetDecision {
 	t.Helper()
 
-	decision, err := globalDB.FlushAndCheck(testutil.Context(t), goalBudgetSnapshotForTest(t, globalDB, goal.BudgetBoundarySnapshot{
-		Key:                 key,
-		TaskRunID:           taskRunID,
-		Boundary:            boundary,
-		Phase:               "runtime-test",
-		Turn:                1,
-		OperationID:         operationID,
-		OperationBaseTokens: 0,
-		LiveTokensUsed:      liveTokens,
-		TokensReported:      true,
-	}))
+	decision, err := globalDB.FlushAndCheck(
+		testutil.Context(t),
+		goalBudgetSnapshotForTest(t, globalDB, goal.BudgetBoundarySnapshot{
+			Key:                 key,
+			TaskRunID:           taskRunID,
+			Boundary:            boundary,
+			Phase:               "runtime-test",
+			Turn:                1,
+			OperationID:         operationID,
+			OperationBaseTokens: 0,
+			LiveTokensUsed:      liveTokens,
+			TokensReported:      true,
+		}),
+	)
 	if err != nil {
 		t.Fatalf("FlushAndCheck(%s) error = %v", boundary, err)
 	}

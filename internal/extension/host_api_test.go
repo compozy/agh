@@ -5017,6 +5017,14 @@ Review the workspace changes carefully.
 		homePaths.MemoryDir,
 		memory.WithCatalogDatabasePath(filepath.Join(homePaths.HomeDir, "memory-catalog.db")),
 	)
+	if err := memoryStore.OpenCatalog(testutil.Context(t)); err != nil {
+		t.Fatalf("memory.OpenCatalog() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := memoryStore.CloseCatalog(testutil.Context(t)); err != nil {
+			t.Errorf("memory.CloseCatalog() error = %v", err)
+		}
+	})
 	if err := memoryStore.EnsureDirs(); err != nil {
 		t.Fatalf("memory.EnsureDirs() error = %v", err)
 	}

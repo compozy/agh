@@ -9,10 +9,11 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 // RecordReportIntent writes the only durable goal_report intent for the current prompt.
-func (g *GlobalDB) RecordReportIntent(
+func (g *GoalRepo) RecordReportIntent(
 	ctx context.Context,
 	req goal.RecordReportIntentRequest,
 ) (goal.ReportIntent, error) {
@@ -73,35 +74,21 @@ func recordReportIntentWithExecutor(
 			Err:  fmt.Errorf("%w: report intent already differs", looppkg.ErrTransitionConflict),
 		}
 	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_goal_checkpoints
-			 SET report_prompt_id = ?, report_status = ?, report_evidence_ref = ?,
-			     report_binding_epoch = ?, report_actor_kind = ?, report_actor_id = ?,
-			     report_recorded_at = ?, updated_at = ?
-			 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-			   AND control_epoch = ? AND binding_epoch = ? AND phase = 'prompting'
-			   AND goal_status = 'active' AND prompt_id = ? AND report_status IS NULL`,
-		strings.TrimSpace(req.PromptID),
-		strings.TrimSpace(req.Status),
-		nullableGoalString(req.EvidenceRef),
-		req.ExpectedBindingEpoch,
-		strings.TrimSpace(req.ActorKind),
-		strings.TrimSpace(req.ActorID),
-		store.FormatTimestamp(now),
-		store.FormatTimestamp(now),
-		string(req.Key.LoopRunID),
-		req.Key.Generation,
-		string(req.Key.NodeID),
-		req.Key.ItemIndex,
-		req.ExpectedControlEpoch,
-		req.ExpectedBindingEpoch,
-		strings.TrimSpace(req.PromptID),
-	)
+	affected, err := sqlcgen.New(exec).RecordGoalReportIntent(ctx, sqlcgen.RecordGoalReportIntentParams{
+		ReportPromptID: goalNullableString(req.PromptID), ReportStatus: goalNullableString(req.Status),
+		ReportEvidenceRef:  goalNullableString(req.EvidenceRef),
+		ReportBindingEpoch: goalNullableInt64(&req.ExpectedBindingEpoch),
+		ReportActorKind:    goalNullableString(req.ActorKind), ReportActorID: goalNullableString(req.ActorID),
+		ReportRecordedAt: store.FormatTimestamp(now), UpdatedAt: store.FormatTimestamp(now),
+		LoopRunID: string(req.Key.LoopRunID), Generation: int64(req.Key.Generation),
+		NodeID: string(req.Key.NodeID), ItemIndex: int64(req.Key.ItemIndex),
+		ControlEpoch: req.ExpectedControlEpoch, BindingEpoch: goalNullableInt64(&req.ExpectedBindingEpoch),
+		PromptID: goalNullableString(req.PromptID),
+	})
 	if err != nil {
 		return goal.ReportIntent{}, fmt.Errorf("store: persist goal report intent: %w", err)
 	}
-	if err := requireGoalRowsAffected(result, "record goal report intent"); err != nil {
+	if err := requireGoalAffectedCount(affected, "record goal report intent"); err != nil {
 		return goal.ReportIntent{}, err
 	}
 	return goal.ReportIntent{
@@ -116,7 +103,7 @@ func recordReportIntentWithExecutor(
 }
 
 // BeginCompactionCancel persists timeout intent before issuing the correlated cancellation effect.
-func (g *GlobalDB) BeginCompactionCancel(ctx context.Context, req goal.BeginCompactionCancelRequest) error {
+func (g *GoalRepo) BeginCompactionCancel(ctx context.Context, req goal.BeginCompactionCancelRequest) error {
 	if err := g.checkReady(ctx, "begin goal compaction cancel"); err != nil {
 		return err
 	}
@@ -157,33 +144,20 @@ func (g *GlobalDB) BeginCompactionCancel(ctx context.Context, req goal.BeginComp
 			}
 			return goalControlStaleError("different compaction cancel intent already exists")
 		}
-		result, err := exec.ExecContext(
-			ctx,
-			`UPDATE loop_goal_checkpoints
-			 SET compaction_cancel_prompt_id = ?, compaction_cancel_cause = ?,
-			     compaction_cancel_requested_at = ?, updated_at = ?
-			 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-			   AND control_epoch = ? AND binding_epoch = ? AND phase = 'compacting'
-			   AND task_run_id = ? AND queue_entry_id = ? AND prompt_id = ?
-			   AND compaction_cancel_cause IS NULL`,
-			strings.TrimSpace(req.PromptID),
-			strings.TrimSpace(req.Cause),
-			store.FormatTimestamp(now),
-			store.FormatTimestamp(now),
-			string(req.Key.LoopRunID),
-			req.Key.Generation,
-			string(req.Key.NodeID),
-			req.Key.ItemIndex,
-			req.ExpectedControlEpoch,
-			req.ExpectedBindingEpoch,
-			strings.TrimSpace(req.TaskRunID),
-			strings.TrimSpace(req.QueueEntryID),
-			strings.TrimSpace(req.PromptID),
-		)
+		affected, err := sqlcgen.New(exec).BeginGoalCompactionCancel(ctx, sqlcgen.BeginGoalCompactionCancelParams{
+			CompactionCancelPromptID:    goalNullableString(req.PromptID),
+			CompactionCancelCause:       goalNullableString(req.Cause),
+			CompactionCancelRequestedAt: store.FormatTimestamp(now), UpdatedAt: store.FormatTimestamp(now),
+			LoopRunID: string(req.Key.LoopRunID), Generation: int64(req.Key.Generation),
+			NodeID: string(req.Key.NodeID), ItemIndex: int64(req.Key.ItemIndex),
+			ControlEpoch: req.ExpectedControlEpoch, BindingEpoch: goalNullableInt64(&req.ExpectedBindingEpoch),
+			TaskRunID: goalNullableString(req.TaskRunID), QueueEntryID: goalNullableString(req.QueueEntryID),
+			PromptID: goalNullableString(req.PromptID),
+		})
 		if err != nil {
 			return fmt.Errorf("store: persist goal compaction cancel intent: %w", err)
 		}
-		return requireGoalRowsAffected(result, "begin goal compaction cancel")
+		return requireGoalAffectedCount(affected, "begin goal compaction cancel")
 	})
 }
 

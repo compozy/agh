@@ -23,7 +23,7 @@ try:
         load_forbidden_rules,
         repo_root_from,
     )
-except Exception:  # noqa: BLE001 - loader is optional; legacy charters still audit without it
+except Exception:  # noqa: BLE001 - generic non-playbook charters still audit without it
     PlaybookError = RuntimeError  # type: ignore[assignment]
     deliverable_extension = None  # type: ignore[assignment]
     is_markdown_deliverable = None  # type: ignore[assignment]

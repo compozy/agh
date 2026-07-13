@@ -22,6 +22,7 @@ type handlerConfig struct {
 	network           core.NetworkService
 	networkStore      core.NetworkStore
 	observer          core.Observer
+	schemaStreams     core.SchemaStreamStatusReader
 	resources         core.ResourceService
 	automation        core.AutomationManager
 	loops             core.LoopService
@@ -106,6 +107,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			Network:                      cfg.network,
 			NetworkStore:                 cfg.networkStore,
 			Observer:                     cfg.observer,
+			SchemaStreams:                cfg.schemaStreams,
 			Resources:                    cfg.resources,
 			Extensions:                   cfg.extensions,
 			Automation:                   cfg.automation,

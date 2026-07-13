@@ -11,6 +11,7 @@ import (
 
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -48,19 +49,11 @@ func setTaskStatusWithExecutor(
 		return nil
 	}
 
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE tasks SET status = ? WHERE id = ? AND status = ?`,
-		string(toStatus),
-		trimmedTaskID,
-		string(fromStatus),
-	)
+	changed, err := sqlcgen.New(exec).UpdateTaskStatusChokepoint(ctx, sqlcgen.UpdateTaskStatusChokepointParams{
+		ToStatus: string(toStatus), FromStatus: string(fromStatus), ID: trimmedTaskID,
+	})
 	if err != nil {
 		return fmt.Errorf("store: update task %q status: %w", trimmedTaskID, err)
-	}
-	changed, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("store: inspect task %q status update: %w", trimmedTaskID, err)
 	}
 	if changed == 0 {
 		return explainTaskStatusChokepointMiss(ctx, exec, trimmedTaskID, fromStatus, toStatus)
@@ -132,8 +125,8 @@ func explainTaskStatusChokepointMiss(
 	from taskpkg.Status,
 	to taskpkg.Status,
 ) error {
-	var current string
-	if err := exec.QueryRowContext(ctx, `SELECT status FROM tasks WHERE id = ?`, taskID).Scan(&current); err != nil {
+	current, err := sqlcgen.New(exec).GetTaskStatus(ctx, taskID)
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return taskpkg.ErrTaskNotFound
 		}

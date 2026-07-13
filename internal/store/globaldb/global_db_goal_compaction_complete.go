@@ -9,6 +9,7 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 type goalCompactionProjection struct {
@@ -22,7 +23,7 @@ type goalCompactionProjection struct {
 }
 
 // CompleteCompaction settles one correlated compact operation without creating a work-turn row.
-func (g *GlobalDB) CompleteCompaction(
+func (g *GoalRepo) CompleteCompaction(
 	ctx context.Context,
 	req goal.CompleteCompactionRequest,
 ) (goal.Checkpoint, error) {
@@ -44,7 +45,7 @@ func (g *GlobalDB) CompleteCompaction(
 	return completed, nil
 }
 
-func (g *GlobalDB) completeCompactionWithExecutor(
+func (g *GoalRepo) completeCompactionWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	req goal.CompleteCompactionRequest,
@@ -162,43 +163,51 @@ func settleGoalCompactionCheckpoint(
 	projection goalCompactionProjection,
 	now time.Time,
 ) error {
-	result, err := exec.ExecContext(
+	usageSequence, err := goalSQLNullInt64(projection.usageSequence)
+	if err != nil {
+		return err
+	}
+	pendingAfter, err := goalSQLNullInt64(projection.pendingAfter)
+	if err != nil {
+		return err
+	}
+	baselineUsed, err := goalSQLNullInt64(projection.baselineUsed)
+	if err != nil {
+		return err
+	}
+	affected, err := sqlcgen.New(exec).SettleGoalCompactionCheckpoint(
 		ctx,
-		`UPDATE loop_goal_checkpoints
-			 SET phase = 'idle', goal_status = 'active', control_cause = NULL,
-			     queue_entry_id = NULL, prompt_id = NULL, prompt_kind = NULL, prompt_attempt = 0,
-			     context_state = ?, usage_sequence = ?, usage_pending_after_sequence = ?,
-			     compaction_baseline_used = ?, compaction_recovery_required = ?,
-			     recovery_streak = ?,
-			     compaction_cancel_prompt_id = NULL, compaction_cancel_cause = NULL,
-			     compaction_cancel_requested_at = NULL,
-			     control_grant_consumed = CASE WHEN ? = 1 THEN 1 ELSE control_grant_consumed END,
-			     updated_at = ?
-			 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-			   AND control_epoch = ? AND binding_epoch = ? AND phase = 'compacting'
-			   AND task_run_id = ? AND queue_entry_id = ? AND prompt_id = ?`,
-		projection.contextState,
-		projection.usageSequence,
-		projection.pendingAfter,
-		projection.baselineUsed,
-		boolToInt(projection.recoveryRequired),
-		projection.recoveryStreak,
-		boolToInt(projection.consumeGrant),
-		store.FormatTimestamp(now),
-		string(req.Key.LoopRunID),
-		req.Key.Generation,
-		string(req.Key.NodeID),
-		req.Key.ItemIndex,
-		req.ExpectedControlEpoch,
-		req.ExpectedBindingEpoch,
-		strings.TrimSpace(req.TaskRunID),
-		strings.TrimSpace(req.QueueEntryID),
-		strings.TrimSpace(req.PromptID),
+		sqlcgen.SettleGoalCompactionCheckpointParams{
+			ContextState:               projection.contextState,
+			UsageSequence:              usageSequence,
+			UsagePendingAfterSequence:  pendingAfter,
+			CompactionBaselineUsed:     baselineUsed,
+			CompactionRecoveryRequired: int64(boolToInt(projection.recoveryRequired)),
+			RecoveryStreak: int64(
+				projection.recoveryStreak,
+			),
+			ConsumeGrant: boolToInt(projection.consumeGrant),
+			UpdatedAt:    store.FormatTimestamp(now),
+			LoopRunID:    string(req.Key.LoopRunID),
+			Generation:   int64(req.Key.Generation),
+			NodeID: string(
+				req.Key.NodeID,
+			),
+			ItemIndex:    int64(req.Key.ItemIndex),
+			ControlEpoch: req.ExpectedControlEpoch,
+			BindingEpoch: goalNullableInt64(&req.ExpectedBindingEpoch),
+			TaskRunID:    goalNullableString(req.TaskRunID),
+			QueueEntryID: goalNullableString(req.QueueEntryID),
+			PromptID:     goalNullableString(req.PromptID),
+		},
 	)
 	if err != nil {
 		return fmt.Errorf("store: settle Goal compaction checkpoint: %w", err)
 	}
-	return requireGoalRowsAffected(result, "settle Goal compaction checkpoint")
+	if affected != 1 {
+		return goalControlStaleError("settle Goal compaction checkpoint lost compare-and-swap")
+	}
+	return nil
 }
 
 func validateCompleteGoalCompactionRequest(req goal.CompleteCompactionRequest) error {

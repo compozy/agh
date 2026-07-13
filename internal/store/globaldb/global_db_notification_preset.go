@@ -11,19 +11,14 @@ import (
 
 	presetspkg "github.com/compozy/agh/internal/notifications/presets"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
-var _ presetspkg.Store = (*GlobalDB)(nil)
-
-type notificationPresetScanner interface {
-	Scan(dest ...any) error
-}
-
-func (g *GlobalDB) ListPresets(
+func (n *NotificationRepo) ListPresets(
 	ctx context.Context,
 	query presetspkg.Query,
 ) (items []presetspkg.Preset, err error) {
-	if err := g.checkReady(ctx, "list notification presets"); err != nil {
+	if err := n.checkReady(ctx, "list notification presets"); err != nil {
 		return nil, err
 	}
 	normalized := query.Normalize()
@@ -50,7 +45,8 @@ func (g *GlobalDB) ListPresets(
 		limit = " LIMIT ?"
 		args = append(args, normalized.Limit)
 	}
-	rows, err := g.db.QueryContext(
+	// dynamic-sql: optional preset filters and the limit change the query structure.
+	rows, err := n.db.QueryContext(
 		ctx,
 		`SELECT name, events, targets, filter, enabled, built_in, default_version,
 		       default_hash, user_modified, default_update_available, created_at, updated_at
@@ -62,8 +58,8 @@ func (g *GlobalDB) ListPresets(
 		return nil, fmt.Errorf("store: query notification presets: %w", err)
 	}
 	defer func() {
-		if closeErr := rows.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("store: close notification preset rows: %w", closeErr)
+		if closeErr := rows.Close(); closeErr != nil {
+			joinCleanupError(&err, fmt.Errorf("store: close notification preset rows: %w", closeErr))
 		}
 	}()
 	items = make([]presetspkg.Preset, 0)
@@ -80,22 +76,22 @@ func (g *GlobalDB) ListPresets(
 	return items, nil
 }
 
-func (g *GlobalDB) GetPreset(ctx context.Context, name string) (presetspkg.Preset, error) {
-	if err := g.checkReady(ctx, "get notification preset"); err != nil {
+func (n *NotificationRepo) GetPreset(ctx context.Context, name string) (presetspkg.Preset, error) {
+	if err := n.checkReady(ctx, "get notification preset"); err != nil {
 		return presetspkg.Preset{}, err
 	}
 	trimmed := strings.TrimSpace(name)
 	if trimmed == "" {
 		return presetspkg.Preset{}, fmt.Errorf("%w: name is required", presetspkg.ErrInvalidPreset)
 	}
-	return g.getNotificationPreset(ctx, g.db, trimmed)
+	return getNotificationPreset(ctx, n.queries, trimmed)
 }
 
-func (g *GlobalDB) CreatePreset(
+func (n *NotificationRepo) CreatePreset(
 	ctx context.Context,
 	preset presetspkg.Preset,
 ) (presetspkg.Preset, error) {
-	if err := g.checkReady(ctx, "create notification preset"); err != nil {
+	if err := n.checkReady(ctx, "create notification preset"); err != nil {
 		return presetspkg.Preset{}, err
 	}
 	normalized := preset.Normalize()
@@ -103,7 +99,7 @@ func (g *GlobalDB) CreatePreset(
 		return presetspkg.Preset{}, err
 	}
 	if normalized.CreatedAt.IsZero() {
-		normalized.CreatedAt = g.now()
+		normalized.CreatedAt = n.now()
 	}
 	if normalized.UpdatedAt.IsZero() {
 		normalized.UpdatedAt = normalized.CreatedAt
@@ -112,43 +108,34 @@ func (g *GlobalDB) CreatePreset(
 	if err != nil {
 		return presetspkg.Preset{}, err
 	}
-	if _, err := g.db.ExecContext(
-		ctx,
-		`INSERT INTO notification_presets (
-			name, events, targets, filter, enabled, built_in, default_version, default_hash,
-			user_modified, default_update_available, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		normalized.Name,
-		eventsJSON,
-		targetsJSON,
-		normalized.Filter,
-		normalized.Enabled,
-		normalized.BuiltIn,
-		normalized.DefaultVersion,
-		normalized.DefaultHash,
-		normalized.UserModified,
-		normalized.DefaultUpdateAvailable,
-		store.FormatTimestamp(normalized.CreatedAt),
-		store.FormatTimestamp(normalized.UpdatedAt),
-	); err != nil {
+	if err := n.queries.CreateNotificationPreset(ctx, sqlcgen.CreateNotificationPresetParams{
+		Name:                   normalized.Name,
+		Events:                 eventsJSON,
+		Targets:                targetsJSON,
+		Filter:                 normalized.Filter,
+		Enabled:                normalized.Enabled,
+		BuiltIn:                normalized.BuiltIn,
+		DefaultVersion:         normalized.DefaultVersion,
+		DefaultHash:            normalized.DefaultHash,
+		UserModified:           normalized.UserModified,
+		DefaultUpdateAvailable: normalized.DefaultUpdateAvailable,
+		CreatedAt:              store.FormatTimestamp(normalized.CreatedAt),
+		UpdatedAt:              store.FormatTimestamp(normalized.UpdatedAt),
+	}); err != nil {
 		if isNotificationPresetDuplicateNameError(err) {
 			return presetspkg.Preset{}, presetspkg.ErrPresetDuplicateName
 		}
-		return presetspkg.Preset{}, fmt.Errorf(
-			"store: insert notification preset %q: %w",
-			normalized.Name,
-			err,
-		)
+		return presetspkg.Preset{}, fmt.Errorf("store: insert notification preset %q: %w", normalized.Name, err)
 	}
 	return normalized, nil
 }
 
-func (g *GlobalDB) UpdatePreset(
+func (n *NotificationRepo) UpdatePreset(
 	ctx context.Context,
 	name string,
 	req presetspkg.UpdateRequest,
 ) (presetspkg.Preset, error) {
-	if err := g.checkReady(ctx, "update notification preset"); err != nil {
+	if err := n.checkReady(ctx, "update notification preset"); err != nil {
 		return presetspkg.Preset{}, err
 	}
 	trimmed := strings.TrimSpace(name)
@@ -161,7 +148,7 @@ func (g *GlobalDB) UpdatePreset(
 			presetspkg.ErrInvalidPreset,
 		)
 	}
-	current, err := g.getNotificationPreset(ctx, g.db, trimmed)
+	current, err := getNotificationPreset(ctx, n.queries, trimmed)
 	if err != nil {
 		return presetspkg.Preset{}, err
 	}
@@ -180,7 +167,7 @@ func (g *GlobalDB) UpdatePreset(
 	}
 	updated.UpdatedAt = req.Now
 	if updated.UpdatedAt.IsZero() {
-		updated.UpdatedAt = g.now()
+		updated.UpdatedAt = n.now()
 	}
 	updated = presetspkg.ApplyDefaultDrift(updated)
 	if err := updated.Validate(); err != nil {
@@ -190,35 +177,18 @@ func (g *GlobalDB) UpdatePreset(
 	if err != nil {
 		return presetspkg.Preset{}, err
 	}
-	result, err := g.db.ExecContext(
-		ctx,
-		`UPDATE notification_presets
-		    SET events = ?, targets = ?, filter = ?, enabled = ?, user_modified = ?,
-		        default_update_available = ?, updated_at = ?
-		  WHERE name = ?`,
-		eventsJSON,
-		targetsJSON,
-		updated.Filter,
-		updated.Enabled,
-		updated.UserModified,
-		updated.DefaultUpdateAvailable,
-		store.FormatTimestamp(updated.UpdatedAt),
-		updated.Name,
-	)
+	affected, err := n.queries.UpdateNotificationPreset(ctx, sqlcgen.UpdateNotificationPresetParams{
+		Events:                 eventsJSON,
+		Targets:                targetsJSON,
+		Filter:                 updated.Filter,
+		Enabled:                updated.Enabled,
+		UserModified:           updated.UserModified,
+		DefaultUpdateAvailable: updated.DefaultUpdateAvailable,
+		UpdatedAt:              store.FormatTimestamp(updated.UpdatedAt),
+		Name:                   updated.Name,
+	})
 	if err != nil {
-		return presetspkg.Preset{}, fmt.Errorf(
-			"store: update notification preset %q: %w",
-			updated.Name,
-			err,
-		)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return presetspkg.Preset{}, fmt.Errorf(
-			"store: rows affected for notification preset %q: %w",
-			updated.Name,
-			err,
-		)
+		return presetspkg.Preset{}, fmt.Errorf("store: update notification preset %q: %w", updated.Name, err)
 	}
 	if affected == 0 {
 		return presetspkg.Preset{}, presetspkg.ErrPresetNotFound
@@ -226,28 +196,24 @@ func (g *GlobalDB) UpdatePreset(
 	return updated, nil
 }
 
-func (g *GlobalDB) DeletePreset(ctx context.Context, name string) error {
-	if err := g.checkReady(ctx, "delete notification preset"); err != nil {
+func (n *NotificationRepo) DeletePreset(ctx context.Context, name string) error {
+	if err := n.checkReady(ctx, "delete notification preset"); err != nil {
 		return err
 	}
 	trimmed := strings.TrimSpace(name)
 	if trimmed == "" {
 		return fmt.Errorf("%w: name is required", presetspkg.ErrInvalidPreset)
 	}
-	current, err := g.getNotificationPreset(ctx, g.db, trimmed)
+	current, err := getNotificationPreset(ctx, n.queries, trimmed)
 	if err != nil {
 		return err
 	}
 	if current.BuiltIn {
 		return presetspkg.ErrPresetBuiltIn
 	}
-	result, err := g.db.ExecContext(ctx, `DELETE FROM notification_presets WHERE name = ?`, trimmed)
+	affected, err := n.queries.DeleteNotificationPreset(ctx, trimmed)
 	if err != nil {
 		return fmt.Errorf("store: delete notification preset %q: %w", trimmed, err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("store: rows affected for notification preset %q: %w", trimmed, err)
 	}
 	if affected == 0 {
 		return presetspkg.ErrPresetNotFound
@@ -256,44 +222,42 @@ func (g *GlobalDB) DeletePreset(ctx context.Context, name string) error {
 }
 
 // EnsureBuiltInPresets inserts disabled built-ins and records default drift without overwriting user edits.
-func (g *GlobalDB) EnsureBuiltInPresets(
+func (n *NotificationRepo) EnsureBuiltInPresets(
 	ctx context.Context,
 	defaults []presetspkg.Preset,
 ) (err error) {
-	if err := g.checkReady(ctx, "ensure notification preset defaults"); err != nil {
+	if err := n.checkReady(ctx, "ensure notification preset defaults"); err != nil {
 		return err
 	}
-	conn, err := g.db.Conn(ctx)
+	conn, err := n.db.Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("store: open notification preset default transaction: %w", err)
 	}
 	defer func() {
-		if closeErr := conn.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf(
-				"store: close notification preset default transaction connection: %w",
-				closeErr,
+		if closeErr := conn.Close(); closeErr != nil {
+			joinCleanupError(
+				&err,
+				fmt.Errorf("store: close notification preset default transaction connection: %w", closeErr),
 			)
 		}
 	}()
-	rollbackCtx, rollbackCancel := notificationPresetRollbackContext(ctx)
-	defer rollbackCancel()
+	// dynamic-sql: BEGIN IMMEDIATE is explicit SQLite transaction control on the pinned notification connection.
 	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
 		return fmt.Errorf("store: begin notification preset default seed: %w", err)
 	}
 	committed := false
 	defer func() {
 		if !committed {
-			joinCleanupError(
-				&err,
-				rollbackImmediate(rollbackCtx, conn, "notification preset default seed"),
-			)
+			rollbackNotificationImmediate(ctx, &err, conn, "notification preset default seed")
 		}
 	}()
+	queries := sqlcgen.New(conn)
 	for _, defaultPreset := range defaults {
-		if seedErr := seedNotificationPresetDefault(ctx, conn, defaultPreset.Normalize(), g.now()); seedErr != nil {
+		if seedErr := seedNotificationPresetDefault(ctx, queries, defaultPreset.Normalize(), n.now()); seedErr != nil {
 			return seedErr
 		}
 	}
+	// dynamic-sql: COMMIT closes the explicit SQLite transaction and is outside sqlc's query model.
 	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
 		return fmt.Errorf("store: commit notification preset default seed: %w", err)
 	}
@@ -301,29 +265,19 @@ func (g *GlobalDB) EnsureBuiltInPresets(
 	return nil
 }
 
-func (g *GlobalDB) getNotificationPreset(
+func getNotificationPreset(
 	ctx context.Context,
-	queryer interface {
-		QueryRowContext(context.Context, string, ...any) *sql.Row
-	},
+	queries *sqlcgen.Queries,
 	name string,
 ) (presetspkg.Preset, error) {
-	row := queryer.QueryRowContext(
-		ctx,
-		`SELECT name, events, targets, filter, enabled, built_in, default_version,
-		       default_hash, user_modified, default_update_available, created_at, updated_at
-		  FROM notification_presets
-		 WHERE name = ?`,
-		name,
-	)
-	preset, err := scanNotificationPreset(row)
+	row, err := queries.GetNotificationPreset(ctx, name)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return presetspkg.Preset{}, presetspkg.ErrPresetNotFound
 		}
-		return presetspkg.Preset{}, err
+		return presetspkg.Preset{}, fmt.Errorf("store: get notification preset %q: %w", name, err)
 	}
-	return preset, nil
+	return notificationPresetFromGenerated(row)
 }
 
 func encodeNotificationPresetLists(preset presetspkg.Preset) (string, string, error) {
@@ -340,9 +294,7 @@ func encodeNotificationPresetLists(preset presetspkg.Preset) (string, string, er
 
 func seedNotificationPresetDefault(
 	ctx context.Context,
-	execer interface {
-		ExecContext(context.Context, string, ...any) (sql.Result, error)
-	},
+	queries *sqlcgen.Queries,
 	defaultPreset presetspkg.Preset,
 	now time.Time,
 ) error {
@@ -355,121 +307,22 @@ func seedNotificationPresetDefault(
 		return err
 	}
 	timestamp := store.FormatTimestamp(now.UTC())
-	_, err = execer.ExecContext(
-		ctx,
-		`INSERT INTO notification_presets (
-			name, events, targets, filter, enabled, built_in, default_version, default_hash,
-			user_modified, default_update_available, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, 1, ?, ?, 0, 0, ?, ?)
-		ON CONFLICT(name) DO UPDATE SET
-			events = CASE
-				WHEN notification_presets.built_in = 1 AND notification_presets.user_modified = 0
-				THEN excluded.events ELSE notification_presets.events END,
-			targets = CASE
-				WHEN notification_presets.built_in = 1 AND notification_presets.user_modified = 0
-				THEN excluded.targets ELSE notification_presets.targets END,
-			filter = CASE
-				WHEN notification_presets.built_in = 1 AND notification_presets.user_modified = 0
-				THEN excluded.filter ELSE notification_presets.filter END,
-			enabled = CASE
-				WHEN notification_presets.built_in = 1 AND notification_presets.user_modified = 0
-				THEN excluded.enabled ELSE notification_presets.enabled END,
-			built_in = CASE
-				WHEN notification_presets.built_in = 1 THEN 1 ELSE notification_presets.built_in END,
-			default_version = CASE
-				WHEN notification_presets.built_in = 1 THEN excluded.default_version
-				ELSE notification_presets.default_version END,
-			default_hash = CASE
-				WHEN notification_presets.built_in = 1 THEN excluded.default_hash
-				ELSE notification_presets.default_hash END,
-			default_update_available = CASE
-				WHEN notification_presets.built_in = 1
-				 AND notification_presets.user_modified = 1
-				 AND notification_presets.default_hash <> excluded.default_hash
-				THEN 1
-				WHEN notification_presets.built_in = 1 AND notification_presets.user_modified = 0
-				THEN 0
-				ELSE notification_presets.default_update_available END,
-			updated_at = CASE
-				WHEN notification_presets.built_in = 1 THEN excluded.updated_at
-				ELSE notification_presets.updated_at END`,
-		normalized.Name,
-		eventsJSON,
-		targetsJSON,
-		normalized.Filter,
-		normalized.Enabled,
-		normalized.DefaultVersion,
-		normalized.DefaultHash,
-		timestamp,
-		timestamp,
-	)
-	if err != nil {
+	if err := queries.SeedNotificationPresetDefault(ctx, sqlcgen.SeedNotificationPresetDefaultParams{
+		Name:           normalized.Name,
+		Events:         eventsJSON,
+		Targets:        targetsJSON,
+		Filter:         normalized.Filter,
+		Enabled:        normalized.Enabled,
+		DefaultVersion: normalized.DefaultVersion,
+		DefaultHash:    normalized.DefaultHash,
+		CreatedAt:      timestamp,
+		UpdatedAt:      timestamp,
+	}); err != nil {
 		return fmt.Errorf("store: seed notification preset default %q: %w", normalized.Name, err)
 	}
 	return nil
 }
 
-func scanNotificationPreset(scanner notificationPresetScanner) (presetspkg.Preset, error) {
-	var (
-		preset       presetspkg.Preset
-		eventsRaw    string
-		targetsRaw   string
-		createdAtRaw string
-		updatedAtRaw string
-	)
-	if err := scanner.Scan(
-		&preset.Name,
-		&eventsRaw,
-		&targetsRaw,
-		&preset.Filter,
-		&preset.Enabled,
-		&preset.BuiltIn,
-		&preset.DefaultVersion,
-		&preset.DefaultHash,
-		&preset.UserModified,
-		&preset.DefaultUpdateAvailable,
-		&createdAtRaw,
-		&updatedAtRaw,
-	); err != nil {
-		return presetspkg.Preset{}, fmt.Errorf("store: scan notification preset: %w", err)
-	}
-	if err := json.Unmarshal([]byte(eventsRaw), &preset.Events); err != nil {
-		return presetspkg.Preset{}, fmt.Errorf("store: decode notification preset events: %w", err)
-	}
-	if err := json.Unmarshal([]byte(targetsRaw), &preset.Targets); err != nil {
-		return presetspkg.Preset{}, fmt.Errorf("store: decode notification preset targets: %w", err)
-	}
-	createdAt, err := store.ParseTimestamp(createdAtRaw)
-	if err != nil {
-		return presetspkg.Preset{}, err
-	}
-	updatedAt, err := store.ParseTimestamp(updatedAtRaw)
-	if err != nil {
-		return presetspkg.Preset{}, err
-	}
-	preset.CreatedAt = createdAt
-	preset.UpdatedAt = updatedAt
-	preset = presetspkg.ApplyDefaultDrift(preset)
-	if err := preset.Validate(); err != nil {
-		return presetspkg.Preset{}, err
-	}
-	return preset, nil
-}
-
-func notificationPresetRollbackContext(
-	parent context.Context,
-) (context.Context, context.CancelFunc) {
-	if parent == nil {
-		return context.WithTimeout(context.Background(), notificationCursorRollbackTimeout)
-	}
-	return context.WithTimeout(context.WithoutCancel(parent), notificationCursorRollbackTimeout)
-}
-
 func isNotificationPresetDuplicateNameError(err error) bool {
-	if err == nil {
-		return false
-	}
-	message := strings.ToLower(err.Error())
-	return strings.Contains(message, "unique constraint failed") &&
-		strings.Contains(message, "notification_presets.name")
+	return isSQLitePrimaryKeyConstraint(err) || isSQLiteUniqueConstraint(err)
 }

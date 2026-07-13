@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/agh/internal/bridges"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 const (
@@ -20,10 +21,10 @@ const (
 	globalDBBridgeTargetResolverMaxMatches = 201
 )
 
-var _ bridges.TargetDirectoryStore = (*GlobalDB)(nil)
+var _ bridges.TargetDirectoryStore = (*BridgeRepo)(nil)
 
 // RefreshBridgeTargets transactionally persists one daemon-owned target-directory snapshot.
-func (g *GlobalDB) RefreshBridgeTargets(
+func (g *BridgeRepo) RefreshBridgeTargets(
 	ctx context.Context,
 	bridgeID string,
 	targets []bridges.BridgeTarget,
@@ -42,6 +43,7 @@ func (g *GlobalDB) RefreshBridgeTargets(
 	refreshedAt = refreshedAt.UTC()
 
 	return g.withImmediateTransaction(ctx, "bridge target refresh", func(exec globalSQLExecutor) error {
+		queries := sqlcgen.New(exec)
 		seen := make(map[string]struct{}, len(targets))
 		for index, target := range targets {
 			normalized, normalizeErr := normalizeGlobalDBBridgeTarget(trimmedBridgeID, target, refreshedAt)
@@ -52,20 +54,14 @@ func (g *GlobalDB) RefreshBridgeTargets(
 				return fmt.Errorf("store: duplicate bridge target canonical route %q", normalized.CanonicalRoute)
 			}
 			seen[normalized.CanonicalRoute] = struct{}{}
-			if err := upsertBridgeTarget(ctx, exec, normalized); err != nil {
+			if err := upsertBridgeTarget(ctx, queries, normalized); err != nil {
 				return err
 			}
 		}
 
-		if _, err := exec.ExecContext(
-			ctx,
-			`INSERT INTO bridge_target_directory_refresh (bridge_id, last_successful_refresh_at)
-			 VALUES (?, ?)
-			 ON CONFLICT(bridge_id) DO UPDATE SET
-				last_successful_refresh_at = excluded.last_successful_refresh_at`,
-			trimmedBridgeID,
-			store.FormatTimestamp(refreshedAt),
-		); err != nil {
+		if err := queries.UpsertBridgeTargetRefresh(ctx, sqlcgen.UpsertBridgeTargetRefreshParams{
+			BridgeID: trimmedBridgeID, LastSuccessfulRefreshAt: store.FormatTimestamp(refreshedAt),
+		}); err != nil {
 			return fmt.Errorf(
 				"store: update bridge target refresh state for %q: %w",
 				trimmedBridgeID,
@@ -78,39 +74,20 @@ func (g *GlobalDB) RefreshBridgeTargets(
 
 func upsertBridgeTarget(
 	ctx context.Context,
-	execer interface {
-		ExecContext(context.Context, string, ...any) (sql.Result, error)
-	},
+	queries *sqlcgen.Queries,
 	target bridges.BridgeTarget,
 ) error {
 	capabilitiesJSON, err := encodeBridgeTargetCapabilities(target.Capabilities)
 	if err != nil {
 		return err
 	}
-	if _, err := execer.ExecContext(
-		ctx,
-		`INSERT INTO bridge_target_directory (
-			bridge_id, canonical_route, display_name, normalized, target_type,
-			qualifier, capabilities, updated_at, last_seen_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(bridge_id, canonical_route) DO UPDATE SET
-			display_name = excluded.display_name,
-			normalized = excluded.normalized,
-			target_type = excluded.target_type,
-			qualifier = excluded.qualifier,
-			capabilities = excluded.capabilities,
-			updated_at = excluded.updated_at,
-			last_seen_at = excluded.last_seen_at`,
-		target.BridgeID,
-		target.CanonicalRoute,
-		target.DisplayName,
-		target.Normalized,
-		string(target.TargetType),
-		target.Qualifier,
-		capabilitiesJSON,
-		store.FormatTimestamp(target.UpdatedAt),
-		store.FormatTimestamp(target.LastSeenAt),
-	); err != nil {
+	if err := queries.UpsertBridgeTarget(ctx, sqlcgen.UpsertBridgeTargetParams{
+		BridgeID: target.BridgeID, CanonicalRoute: target.CanonicalRoute,
+		DisplayName: target.DisplayName, Normalized: target.Normalized,
+		TargetType: string(target.TargetType), Qualifier: target.Qualifier,
+		Capabilities: capabilitiesJSON, UpdatedAt: store.FormatTimestamp(target.UpdatedAt),
+		LastSeenAt: nullableBridgeTimestamp(target.LastSeenAt),
+	}); err != nil {
 		return fmt.Errorf(
 			"store: refresh bridge target %q/%q: %w",
 			target.BridgeID,
@@ -122,7 +99,7 @@ func upsertBridgeTarget(
 }
 
 // ListBridgeTargets returns target-directory rows plus bridge-level refresh freshness.
-func (g *GlobalDB) ListBridgeTargets(
+func (g *BridgeRepo) ListBridgeTargets(
 	ctx context.Context,
 	query bridges.BridgeTargetQuery,
 ) (bridges.BridgeTargetPage, error) {
@@ -149,7 +126,7 @@ func (g *GlobalDB) ListBridgeTargets(
 	}, nil
 }
 
-func (g *GlobalDB) listBridgeTargets(
+func (g *BridgeRepo) listBridgeTargets(
 	ctx context.Context,
 	query bridges.BridgeTargetQuery,
 ) ([]bridges.BridgeTarget, int, error) {
@@ -191,7 +168,7 @@ func (g *GlobalDB) listBridgeTargets(
 }
 
 // GetBridgeTargetByCanonical returns one target by immutable provider-derived identity.
-func (g *GlobalDB) GetBridgeTargetByCanonical(
+func (g *BridgeRepo) GetBridgeTargetByCanonical(
 	ctx context.Context,
 	bridgeID string,
 	canonicalRoute string,
@@ -207,16 +184,9 @@ func (g *GlobalDB) GetBridgeTargetByCanonical(
 	if trimmedCanonical == "" {
 		return bridges.BridgeTarget{}, errors.New("store: bridge target canonical route is required")
 	}
-	row := g.db.QueryRowContext(
-		ctx,
-		`SELECT bridge_id, canonical_route, display_name, normalized, target_type,
-			qualifier, capabilities, updated_at, last_seen_at
-		 FROM bridge_target_directory
-		 WHERE bridge_id = ? AND canonical_route = ?`,
-		trimmedBridgeID,
-		trimmedCanonical,
-	)
-	target, err := scanBridgeTarget(row)
+	row, err := g.queries.GetBridgeTargetByCanonical(ctx, sqlcgen.GetBridgeTargetByCanonicalParams{
+		BridgeID: trimmedBridgeID, CanonicalRoute: trimmedCanonical,
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return bridges.BridgeTarget{}, fmt.Errorf(
@@ -225,13 +195,17 @@ func (g *GlobalDB) GetBridgeTargetByCanonical(
 				bridges.ErrBridgeTargetUnknown,
 			)
 		}
-		return bridges.BridgeTarget{}, err
+		return bridges.BridgeTarget{}, fmt.Errorf("store: get bridge target %q: %w", trimmedCanonical, err)
+	}
+	target, err := bridgeTargetFromGenerated(row)
+	if err != nil {
+		return bridges.BridgeTarget{}, fmt.Errorf("store: map bridge target %q: %w", trimmedCanonical, err)
 	}
 	return target, nil
 }
 
 // FindBridgeTargetsByNormalized returns exact normalized display-name matches.
-func (g *GlobalDB) FindBridgeTargetsByNormalized(
+func (g *BridgeRepo) FindBridgeTargetsByNormalized(
 	ctx context.Context,
 	bridgeID string,
 	normalized string,
@@ -247,7 +221,7 @@ func (g *GlobalDB) FindBridgeTargetsByNormalized(
 }
 
 // FindBridgeTargetsByQualifiedName returns exact qualifier plus normalized-name matches.
-func (g *GlobalDB) FindBridgeTargetsByQualifiedName(
+func (g *BridgeRepo) FindBridgeTargetsByQualifiedName(
 	ctx context.Context,
 	bridgeID string,
 	qualifier string,
@@ -265,7 +239,7 @@ func (g *GlobalDB) FindBridgeTargetsByQualifiedName(
 }
 
 // FindBridgeTargetsByPrefix returns normalized display-name prefix matches.
-func (g *GlobalDB) FindBridgeTargetsByPrefix(
+func (g *BridgeRepo) FindBridgeTargetsByPrefix(
 	ctx context.Context,
 	bridgeID string,
 	normalizedPrefix string,
@@ -284,7 +258,8 @@ func (g *GlobalDB) FindBridgeTargetsByPrefix(
 	)
 }
 
-func (g *GlobalDB) countBridgeTargets(ctx context.Context, where string, args ...any) (int, error) {
+func (g *BridgeRepo) countBridgeTargets(ctx context.Context, where string, args ...any) (int, error) {
+	// dynamic-sql: the package selects one of a fixed set of target-search predicates at runtime.
 	// #nosec G202 -- where fragments are package-local constants; user input stays parameterized.
 	row := g.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM bridge_target_directory WHERE `+where, args...)
 	var total int
@@ -294,7 +269,7 @@ func (g *GlobalDB) countBridgeTargets(ctx context.Context, where string, args ..
 	return total, nil
 }
 
-func (g *GlobalDB) queryBridgeTargets(
+func (g *BridgeRepo) queryBridgeTargets(
 	ctx context.Context,
 	action string,
 	where string,
@@ -306,6 +281,7 @@ func (g *GlobalDB) queryBridgeTargets(
 	if len(args) == 0 || strings.TrimSpace(fmt.Sprint(args[0])) == "" {
 		return nil, errors.New("store: bridge target bridge id is required")
 	}
+	// dynamic-sql: the package selects one of a fixed set of target-search predicates at runtime.
 	// #nosec G202 -- where fragments are package-local constants; user input stays parameterized.
 	rows, err := g.db.QueryContext(
 		ctx,
@@ -340,29 +316,22 @@ func (g *GlobalDB) queryBridgeTargets(
 	return targets, nil
 }
 
-func (g *GlobalDB) getBridgeTargetLastRefresh(ctx context.Context, bridgeID string) (time.Time, error) {
-	row := g.db.QueryRowContext(
-		ctx,
-		`SELECT b.id, r.last_successful_refresh_at
-		 FROM bridge_instances b
-		 LEFT JOIN bridge_target_directory_refresh r ON r.bridge_id = b.id
-		 WHERE b.id = ?`,
-		strings.TrimSpace(bridgeID),
-	)
-	var (
-		persistedID string
-		raw         sql.NullString
-	)
-	if err := row.Scan(&persistedID, &raw); err != nil {
+func (g *BridgeRepo) getBridgeTargetLastRefresh(ctx context.Context, bridgeID string) (time.Time, error) {
+	row, err := g.queries.GetBridgeTargetRefresh(ctx, strings.TrimSpace(bridgeID))
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return time.Time{}, bridges.ErrBridgeInstanceNotFound
 		}
-		return time.Time{}, fmt.Errorf("store: scan bridge target refresh state for %q: %w", bridgeID, err)
+		return time.Time{}, fmt.Errorf("store: get bridge target refresh state for %q: %w", bridgeID, err)
 	}
-	if strings.TrimSpace(persistedID) == "" || !raw.Valid || strings.TrimSpace(raw.String) == "" {
+	raw, err := bridgeGeneratedString(row.LastSuccessfulRefreshAt, "bridge target refresh timestamp")
+	if err != nil {
+		return time.Time{}, err
+	}
+	if strings.TrimSpace(row.ID) == "" || strings.TrimSpace(raw) == "" {
 		return time.Time{}, nil
 	}
-	parsed, err := store.ParseTimestamp(raw.String)
+	parsed, err := store.ParseTimestamp(raw)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("store: parse bridge target refresh timestamp for %q: %w", bridgeID, err)
 	}

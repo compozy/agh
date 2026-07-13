@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/agh/internal/loop/gate"
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 type goalTurnSettlement struct {
@@ -29,7 +30,7 @@ type goalTurnSettlement struct {
 }
 
 // CompleteTurn atomically terminalizes one existing turn, consumes its exact intent, and advances its checkpoint.
-func (g *GlobalDB) CompleteTurn(
+func (g *GoalRepo) CompleteTurn(
 	ctx context.Context,
 	req goal.CompleteTurnRequest,
 ) (goal.Checkpoint, error) {
@@ -51,7 +52,7 @@ func (g *GlobalDB) CompleteTurn(
 	return completed, nil
 }
 
-func (g *GlobalDB) completeGoalTurnWithExecutor(
+func (g *GoalRepo) completeGoalTurnWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	req goal.CompleteTurnRequest,
@@ -156,42 +157,39 @@ func persistGoalTurnSettlementRow(
 	evidenceRef string,
 	now time.Time,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_goal_turns
-		 SET result_status = ?, stop_reason = ?, reason_code = ?, verdict_outcome = ?,
-		     blocking_json = ?, evidence_ref = ?, tokens_used = ?, ended_at = ?
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		   AND prompt_id = ? AND result_status IS NULL`,
-		string(req.Result.Outcome),
-		nullableGoalString(string(req.Result.StopReason)),
-		nullableGoalString(string(req.Result.ReasonCode)),
-		nullableGoalVerdict(req.Verdict),
-		string(blockingJSON),
-		nullableGoalString(evidenceRef),
-		goalReportedTokens(req.Result.TokensUsed, req.Result.TokensReported),
-		store.FormatTimestamp(now),
-		string(req.Key.LoopRunID),
-		req.Key.Generation,
-		string(req.Key.NodeID),
-		req.Key.ItemIndex,
-		strings.TrimSpace(req.PromptID),
-	)
+	verdictOutcome := goalNullableString("")
+	if req.Verdict != nil {
+		verdictOutcome = goalNullableString(string(req.Verdict.Outcome))
+	}
+	tokensUsed, err := goalSQLNullInt64(goalReportedTokens(req.Result.TokensUsed, req.Result.TokensReported))
+	if err != nil {
+		return err
+	}
+	affected, err := sqlcgen.New(exec).SettleGoalTurn(ctx, sqlcgen.SettleGoalTurnParams{
+		ResultStatus: goalNullableString(
+			string(req.Result.Outcome),
+		),
+		StopReason:     goalNullableString(string(req.Result.StopReason)),
+		ReasonCode:     goalNullableString(string(req.Result.ReasonCode)),
+		VerdictOutcome: verdictOutcome,
+		BlockingJson:   string(blockingJSON),
+		EvidenceRef:    goalNullableString(evidenceRef),
+		TokensUsed:     tokensUsed,
+		EndedAt:        store.FormatTimestamp(now),
+		LoopRunID:      string(req.Key.LoopRunID),
+		Generation:     int64(req.Key.Generation),
+		NodeID:         string(req.Key.NodeID),
+		ItemIndex:      int64(req.Key.ItemIndex),
+		PromptID:       strings.TrimSpace(req.PromptID),
+	})
 	if err != nil {
 		return fmt.Errorf("store: complete Goal turn row: %w", err)
 	}
-	return requireGoalRowsAffected(result, "complete Goal turn row")
+	return requireGoalAffectedCount(affected, "complete Goal turn row")
 }
 
 func clearSettledGoalPause(ctx context.Context, exec taskSQLExecutor, runID looppkg.RunID) error {
-	_, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_runs
-		 SET pause_requested = 0, control_actor_kind = NULL, control_actor_id = NULL,
-		     control_requested_at = NULL
-		 WHERE id = ? AND pause_requested = 1`,
-		string(runID),
-	)
+	err := sqlcgen.New(exec).ClearSettledGoalPause(ctx, string(runID))
 	if err != nil {
 		return fmt.Errorf("store: clear settled Goal pause request: %w", err)
 	}
@@ -275,39 +273,17 @@ func goalTurnAlreadyCompleted(
 	exec taskSQLExecutor,
 	req goal.CompleteTurnRequest,
 ) (bool, error) {
-	var resultStatus, stopReason, reasonCode, verdictOutcome sql.NullString
-	var blockingJSON, actorKind, actorID string
-	var tokensUsed sql.NullInt64
-	var bindingEpoch int64
-	err := exec.QueryRowContext(
-		ctx,
-		`SELECT result_status, stop_reason, reason_code, verdict_outcome, blocking_json,
-		        tokens_used, actor_kind, actor_id, binding_epoch
-		 FROM loop_goal_turns
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ? AND prompt_id = ?`,
-		string(req.Key.LoopRunID),
-		req.Key.Generation,
-		string(req.Key.NodeID),
-		req.Key.ItemIndex,
-		strings.TrimSpace(req.PromptID),
-	).Scan(
-		&resultStatus,
-		&stopReason,
-		&reasonCode,
-		&verdictOutcome,
-		&blockingJSON,
-		&tokensUsed,
-		&actorKind,
-		&actorID,
-		&bindingEpoch,
-	)
+	row, err := sqlcgen.New(exec).GetCompletedGoalTurn(ctx, sqlcgen.GetCompletedGoalTurnParams{
+		LoopRunID: string(req.Key.LoopRunID), Generation: int64(req.Key.Generation),
+		NodeID: string(req.Key.NodeID), ItemIndex: int64(req.Key.ItemIndex), PromptID: strings.TrimSpace(req.PromptID),
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, goal.ErrTurnNotFound
 	}
 	if err != nil {
 		return false, fmt.Errorf("store: inspect Goal turn settlement: %w", err)
 	}
-	if !resultStatus.Valid {
+	if !row.ResultStatus.Valid {
 		return false, nil
 	}
 	wantBlocking, err := goalSettlementBlockingJSON(req.Verdict)
@@ -318,15 +294,15 @@ func goalTurnAlreadyCompleted(
 	if req.Verdict != nil {
 		wantVerdict = string(req.Verdict.Outcome)
 	}
-	matches := resultStatus.String == string(req.Result.Outcome) &&
-		goalOptionalStringMatches(stopReason, string(req.Result.StopReason)) &&
-		goalOptionalStringMatches(reasonCode, string(req.Result.ReasonCode)) &&
-		goalOptionalStringMatches(verdictOutcome, wantVerdict) &&
-		blockingJSON == string(wantBlocking) &&
-		goalOptionalTokensMatch(tokensUsed, req.Result.TokensUsed, req.Result.TokensReported) &&
-		actorKind == strings.TrimSpace(req.DispatchActorKind) &&
-		actorID == strings.TrimSpace(req.DispatchActorID) &&
-		bindingEpoch == req.ExpectedBindingEpoch
+	matches := row.ResultStatus.String == string(req.Result.Outcome) &&
+		goalOptionalStringMatches(row.StopReason, string(req.Result.StopReason)) &&
+		goalOptionalStringMatches(row.ReasonCode, string(req.Result.ReasonCode)) &&
+		goalOptionalStringMatches(row.VerdictOutcome, wantVerdict) &&
+		row.BlockingJson == string(wantBlocking) &&
+		goalOptionalTokensMatch(row.TokensUsed, req.Result.TokensUsed, req.Result.TokensReported) &&
+		row.ActorKind == strings.TrimSpace(req.DispatchActorKind) &&
+		row.ActorID == strings.TrimSpace(req.DispatchActorID) &&
+		row.BindingEpoch == req.ExpectedBindingEpoch
 	if !matches {
 		return false, goalControlStaleError("Goal turn already has a different settlement")
 	}
@@ -374,13 +350,6 @@ func goalSettlementBlockingJSON(verdict *gate.Verdict) ([]byte, error) {
 		return nil, fmt.Errorf("store: encode Goal turn blockers: %w", err)
 	}
 	return data, nil
-}
-
-func nullableGoalVerdict(verdict *gate.Verdict) any {
-	if verdict == nil {
-		return nil
-	}
-	return string(verdict.Outcome)
 }
 
 func goalVerdictOutcomeValid(outcome gate.VerdictOutcome) bool {

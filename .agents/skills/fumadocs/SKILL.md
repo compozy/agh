@@ -120,10 +120,6 @@ When the user reports a bug, **read `references/07-pitfalls.md` first** — most
 4. **Duplicated URLs in the page tree** — Fumadocs locates the active node by `pathname` only; any duplicate corrupts active-link detection.
 5. **Provider subpath mismatch** — `fumadocs-ui/provider/<framework>` must match the adapter or `RootProvider` silently no-ops (search, theme switch, i18n all stop working).
 
-## Validation script
-
-The skill bundles one read-only metadata validator (see `.agents/skills/skill-best-practices/scripts/validate-metadata.py`) — used by the skill author, not by consumers. No mutating helpers ship with this skill.
-
 ## Error Handling
 
 * **The user mentions a feature that isn't visible in `package.json`.** Ask which adapter they're on before generating code; never assume Next.js because the docs default to it.

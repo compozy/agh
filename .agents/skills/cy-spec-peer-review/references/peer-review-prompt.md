@@ -50,8 +50,8 @@ schema_version: 1
 review_kind: techspec
 round: {round}
 readiness: READY|BLOCKED|NEEDS_REWORK
-reviewer_runtime: claude
-reviewer_model: opus
+reviewer_runtime: {reviewer_runtime}
+reviewer_model: {reviewer_model}
 generated_at: <ISO-8601 timestamp>
 ---
 

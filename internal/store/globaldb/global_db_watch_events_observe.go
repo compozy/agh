@@ -9,13 +9,14 @@ import (
 	"github.com/compozy/agh/internal/store"
 )
 
-func (g *GlobalDB) readObserveWatchEventsCursor(
+func (g *WatchEventsRepo) readObserveWatchEventsCursor(
 	ctx context.Context,
 	query normalizedWatchEventsQuery,
 ) (int64, error) {
 	if len(query.kinds) == 0 {
 		return 0, nil
 	}
+	// dynamic-sql: caller-selected observability event kinds require a variable-width IN list.
 	placeholders, kindArgs := sqlInPlaceholders(query.kinds)
 	args := append([]any{query.workspaceID}, kindArgs...)
 	// #nosec G202 -- IN placeholders are generated from normalized kind count; values are parameterized.
@@ -32,13 +33,14 @@ func (g *GlobalDB) readObserveWatchEventsCursor(
 	)
 }
 
-func (g *GlobalDB) readObserveWatchEvents(
+func (g *WatchEventsRepo) readObserveWatchEvents(
 	ctx context.Context,
 	query normalizedWatchEventsQuery,
 ) ([]looppkg.WatchEvent, error) {
 	if len(query.kinds) == 0 {
 		return nil, nil
 	}
+	// dynamic-sql: caller-selected observability event kinds require a variable-width IN list.
 	placeholders, kindArgs := sqlInPlaceholders(query.kinds)
 	args := append([]any{
 		query.workspaceID,

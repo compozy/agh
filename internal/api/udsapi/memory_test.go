@@ -659,6 +659,14 @@ func newTestMemoryStore(t *testing.T) (*memory.Store, string) {
 	if err := store.EnsureDirs(); err != nil {
 		t.Fatalf("EnsureDirs() error = %v", err)
 	}
+	if err := store.OpenCatalog(t.Context()); err != nil {
+		t.Fatalf("OpenCatalog() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := store.CloseCatalog(context.Background()); err != nil {
+			t.Errorf("CloseCatalog() error = %v", err)
+		}
+	})
 	workspace := t.TempDir()
 	if _, err := aghworkspace.EnsureIdentity(context.Background(), workspace); err != nil {
 		t.Fatalf("EnsureIdentity(%q) error = %v", workspace, err)

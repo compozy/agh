@@ -9,12 +9,14 @@ import (
 
 type networkSQLExecutor interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	PrepareContext(ctx context.Context, query string) (*sql.Stmt, error)
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
 type globalSQLExecutor interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	PrepareContext(ctx context.Context, query string) (*sql.Stmt, error)
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
@@ -33,6 +35,7 @@ func rollbackImmediate(ctx context.Context, conn *sql.Conn, action string) error
 	if conn == nil {
 		return nil
 	}
+	// dynamic-sql: SQLite transaction control must run directly on the pinned connection.
 	if _, err := conn.ExecContext(ctx, "ROLLBACK"); err != nil {
 		return fmt.Errorf("store: rollback %s transaction: %w", action, err)
 	}
@@ -43,6 +46,7 @@ func restoreForeignKeys(ctx context.Context, conn *sql.Conn) error {
 	if conn == nil {
 		return nil
 	}
+	// dynamic-sql: SQLite connection configuration is not a schema query owned by sqlc.
 	if _, err := conn.ExecContext(ctx, "PRAGMA foreign_keys = ON"); err != nil {
 		return fmt.Errorf("store: restore sqlite foreign keys: %w", err)
 	}
@@ -60,7 +64,7 @@ func joinCleanupError(target *error, cleanupErr error) {
 	*target = errors.Join(*target, cleanupErr)
 }
 
-func (g *GlobalDB) withNetworkImmediateTransaction(
+func (g *NetworkRepo) withNetworkImmediateTransaction(
 	ctx context.Context,
 	action string,
 	run func(exec networkSQLExecutor) error,
@@ -70,7 +74,7 @@ func (g *GlobalDB) withNetworkImmediateTransaction(
 	})
 }
 
-func (g *GlobalDB) withNetworkReadTransaction(
+func (g *NetworkRepo) withNetworkReadTransaction(
 	ctx context.Context,
 	action string,
 	run func(exec networkSQLExecutor) error,
@@ -101,20 +105,46 @@ func (g *GlobalDB) withNetworkReadTransaction(
 	return nil
 }
 
-func (g *GlobalDB) withImmediateTransaction(
+func (r *repoBase) withImmediateTransaction(
 	ctx context.Context,
 	action string,
 	run func(exec globalSQLExecutor) error,
+) error {
+	if r == nil || r.db == nil {
+		return errors.New("store: repository is required")
+	}
+	return runImmediateTransaction(ctx, r.db, action, run)
+}
+
+func (r *repoBase) withTaskImmediateTransaction(
+	ctx context.Context,
+	action string,
+	run func(exec taskSQLExecutor) error,
+) error {
+	if r == nil || r.tasks == nil {
+		return errors.New("store: task repository is required")
+	}
+	return r.tasks.withTaskImmediateTransaction(ctx, action, run)
+}
+
+func runImmediateTransaction(
+	ctx context.Context,
+	db *sql.DB,
+	action string,
+	run func(exec globalSQLExecutor) error,
 ) (err error) {
-	conn, err := g.db.Conn(ctx)
+	conn, err := db.Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("store: open connection for %s: %w", action, err)
 	}
 	defer func() {
-		_ = conn.Close()
+		if closeErr := conn.Close(); closeErr != nil {
+			joinCleanupError(&err, fmt.Errorf("store: close %s transaction connection: %w", action, closeErr))
+		}
 	}()
 
 	rollbackCtx := context.WithoutCancel(ctx)
+	// dynamic-sql: SQLite transaction control must run directly on the pinned connection.
 	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
 		return fmt.Errorf("store: begin immediate %s transaction: %w", action, err)
 	}
@@ -129,6 +159,7 @@ func (g *GlobalDB) withImmediateTransaction(
 	if err := run(conn); err != nil {
 		return err
 	}
+	// dynamic-sql: SQLite transaction control must run directly on the pinned connection.
 	if _, err = conn.ExecContext(ctx, "COMMIT"); err != nil {
 		return fmt.Errorf("store: commit %s transaction: %w", action, err)
 	}

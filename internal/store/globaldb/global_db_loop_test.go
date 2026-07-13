@@ -729,6 +729,7 @@ func testLoopRun(id string, at time.Time, status looppkg.Status) looppkg.Run {
 		StartMetadata:       map[string]any{},
 		IterationCap:        7,
 		BudgetOnExceeded:    dsl.BudgetExceededHalt,
+		Origin:              &looppkg.RunOrigin{Kind: looppkg.RunOriginCatalog},
 		Inputs:              map[string]any{"tasks": "task-ref"},
 	}
 }

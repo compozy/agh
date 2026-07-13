@@ -9,6 +9,8 @@ import (
 	"github.com/compozy/agh/internal/store"
 )
 
+const sessionPassiveCheckpointEvery = 128
+
 func (s *SessionDB) writerLoop() {
 	writesSinceCheckpoint := 0
 	for {

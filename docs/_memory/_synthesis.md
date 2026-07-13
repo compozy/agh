@@ -173,7 +173,7 @@ Listed in 3 priority bands. Each entry: name → trigger → mandate → evidenc
 - Anything writing to `.compozy/tasks/<name>/memory/` under a new name (`cy-workflow-memory` owns it)
 - Alternate review-loop tooling (`cy-review-round` + `cy-fix-reviews` + `fix-coderabbit-review` is canonical)
 - New `.claude/agents/*-advisor.md` archetypes (six council archetypes are intentional)
-- A "code-review" or generic "audit" skill (overlaps with `architectural-analysis`, `refactoring-analysis`, `adversarial-review`, `ubs`, `security-review`)
+- A "code-review" or generic "audit" skill (overlaps with `architectural-analysis`, `refactoring-analysis`, `adversarial-review`, `security-review`)
 - An "AGH-docs" skill (`documentation-writer` + `crafting-effective-readmes` cover docs)
 - Cron/schedule-based CI skills (`feedback_ci_no_cron.md` user memory rejects this)
 
@@ -430,7 +430,7 @@ If Pedro approves, the next steps would be (in order):
 
 1. **Update CLAUDE.md** with the Tier-1 system prompts, fixed package layout table, fixed build commands, fixed phase framing.
 2. **Update `MEMORY.md`** with project-shape facts (autonomy kernel, manual-first contract, two-touch rule, ledger maintenance) and feedback-shape rules (subagents read-only, BR-PT conversation/EN artifacts).
-3. **Create new skills via `/skill-best-practices`** in this order: HIGH-priority workflow skills first (`cy-tasks-tail-qa-pair`, `cy-spec-peer-review`, `cy-web-docs-impact`, `agh-worktree-isolation`), then HIGH-priority code-discipline skills (`agh-test-conventions`, `agh-cleanup-failure-paths`, `agh-schema-migration`, `agh-contract-codegen-coship`).
+3. **Create new skills via `/writing-skills`** in this order: HIGH-priority workflow skills first (`cy-tasks-tail-qa-pair`, `cy-spec-peer-review`, `cy-web-docs-impact`, `agh-worktree-isolation`), then HIGH-priority code-discipline skills (`agh-test-conventions`, `agh-cleanup-failure-paths`, `agh-schema-migration`, `agh-contract-codegen-coship`).
 4. **Capture lesson-learned candidates** in a `docs/_memory/lessons/` registry — start with the Tier 1 (multi-source) lessons.
 5. **Decide on standing directives doc** (`docs/_memory/standing_directives.md`) for `long-running-sessions` and `remove-legacy-alpha`.
 6. **Decide on AGH glossary** to lock down `capability` vs. `recipe` vs. `skill`, AGENT.md vs. AGENTS.md, AGH-Network Peer Card vs. A2A Agent Card, and the "what AGH is not" list. Belongs on the marketing site.

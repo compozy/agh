@@ -14,26 +14,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/testutil"
 )
-
-const registryTestExtensionsTableSchema = `CREATE TABLE IF NOT EXISTS extensions (
-	name          TEXT PRIMARY KEY,
-	version       TEXT NOT NULL,
-	source        TEXT NOT NULL,
-	enabled       BOOLEAN NOT NULL DEFAULT 1,
-	manifest_path TEXT NOT NULL,
-	installed_at  TEXT NOT NULL,
-	capabilities  TEXT NOT NULL DEFAULT '{}',
-	actions       TEXT NOT NULL DEFAULT '{}',
-	checksum      TEXT NOT NULL,
-	registry_slug TEXT,
-	registry_name TEXT,
-	remote_version TEXT,
-	provenance_json TEXT NOT NULL DEFAULT '{}'
-);`
 
 const legacyRegistryTestExtensionsTableSchema = `CREATE TABLE IF NOT EXISTS extensions (
 	name          TEXT PRIMARY KEY,
@@ -610,7 +594,8 @@ func TestRegistryInstallReplaceExistingWrapsPersistErrors(t *testing.T) {
 
 	dbPath := filepath.Join(t.TempDir(), "agh-registry-legacy.db")
 	db, err := store.OpenSQLiteDatabase(testutil.Context(t), dbPath, func(ctx context.Context, db *sql.DB) error {
-		return store.EnsureSchema(ctx, db, []string{legacyRegistryTestExtensionsTableSchema})
+		_, execErr := db.ExecContext(ctx, legacyRegistryTestExtensionsTableSchema)
+		return execErr
 	})
 	if err != nil {
 		t.Fatalf("OpenSQLiteDatabase() error = %v", err)
@@ -1112,8 +1097,7 @@ func newRegistryTestEnv(t *testing.T) registryTestEnv {
 
 	dbPath := filepath.Join(t.TempDir(), "agh-registry.db")
 	db, err := store.OpenSQLiteDatabase(testutil.Context(t), dbPath, func(ctx context.Context, db *sql.DB) error {
-		schema := append([]string{registryTestExtensionsTableSchema}, resources.SchemaStatements()...)
-		return store.EnsureSchema(ctx, db, schema)
+		return store.Apply(ctx, db, globaldb.MigrationStream())
 	})
 	if err != nil {
 		t.Fatalf("OpenSQLiteDatabase() error = %v", err)

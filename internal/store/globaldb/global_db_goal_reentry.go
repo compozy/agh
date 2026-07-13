@@ -8,13 +8,14 @@ import (
 
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
-var _ looppkg.GoalControlStore = (*GlobalDB)(nil)
+var _ looppkg.GoalControlStore = (*GoalRepo)(nil)
 
 // LoadAwaitingGoalControl returns the one node checkpoint that currently owns Run re-entry.
-func (g *GlobalDB) LoadAwaitingGoalControl(
+func (g *GoalRepo) LoadAwaitingGoalControl(
 	ctx context.Context,
 	workspaceID looppkg.WorkspaceID,
 	runID looppkg.RunID,
@@ -36,7 +37,7 @@ func (g *GlobalDB) LoadAwaitingGoalControl(
 }
 
 // ReactivateGoalRun atomically grants control, clears the Run gate, and queues one successor segment.
-func (g *GlobalDB) ReactivateGoalRun(
+func (g *GoalRepo) ReactivateGoalRun(
 	ctx context.Context,
 	req looppkg.GoalReactivationRequest,
 ) (looppkg.GoalReactivationResult, error) {
@@ -65,7 +66,7 @@ func (g *GlobalDB) ReactivateGoalRun(
 	return result, nil
 }
 
-func (g *GlobalDB) reactivateGoalRunWithExecutor(
+func (g *GoalRepo) reactivateGoalRunWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	req looppkg.GoalReactivationRequest,
@@ -106,12 +107,12 @@ func validateGoalReentryControl(
 	return nil
 }
 
-func (g *GlobalDB) loadCompletedGoalSegment(
+func (g *GoalRepo) loadCompletedGoalSegment(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	current goalReentryRow,
 ) (taskpkg.Run, error) {
-	oldRun, err := g.getTaskRunWithExecutor(ctx, exec, current.state.TaskRunID)
+	oldRun, err := g.tasks.getTaskRunWithExecutor(ctx, exec, current.state.TaskRunID)
 	if err != nil {
 		return taskpkg.Run{}, err
 	}
@@ -129,7 +130,7 @@ func (g *GlobalDB) loadCompletedGoalSegment(
 	return oldRun, nil
 }
 
-func (g *GlobalDB) reserveGoalReentrySuccessor(
+func (g *GoalRepo) reserveGoalReentrySuccessor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	current goalReentryRow,
@@ -158,7 +159,7 @@ func (g *GlobalDB) reserveGoalReentrySuccessor(
 		current.state.ItemIndex,
 		nextEpoch,
 	)
-	_, successor, existing, err := g.reserveQueuedRunWithExecutor(ctx, exec, queuedRunReservationInput{
+	_, successor, existing, err := g.tasks.reserveQueuedRunWithExecutor(ctx, exec, queuedRunReservationInput{
 		taskID:             oldRun.TaskID,
 		runID:              successorRunID,
 		runKind:            taskpkg.RunKindWorker,
@@ -181,7 +182,7 @@ func (g *GlobalDB) reserveGoalReentrySuccessor(
 	return successor, nextEpoch, grantID, nil
 }
 
-func (g *GlobalDB) applyGoalReentry(
+func (g *GoalRepo) applyGoalReentry(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	req looppkg.GoalReactivationRequest,
@@ -229,7 +230,7 @@ func (g *GlobalDB) applyGoalReentry(
 	}, nil
 }
 
-func (g *GlobalDB) replayedGoalReactivation(
+func (g *GoalRepo) replayedGoalReactivation(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	current goalReentryRow,
@@ -251,7 +252,7 @@ func (g *GlobalDB) replayedGoalReactivation(
 		(current.grantConsumed.Int64 != 0) != goalReentryGrantConsumed(req.Kind) {
 		return looppkg.GoalReactivationResult{}, goalReentryStaleError("Goal control epoch changed")
 	}
-	run, err := g.getTaskRunWithExecutor(ctx, exec, expectedRunID)
+	run, err := g.tasks.getTaskRunWithExecutor(ctx, exec, expectedRunID)
 	if err != nil {
 		return looppkg.GoalReactivationResult{}, err
 	}
@@ -279,46 +280,26 @@ func updateGoalCheckpointForReentry(
 	if err != nil {
 		return err
 	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_goal_checkpoints
-		 SET control_epoch = ?, phase = ?, goal_status = 'active', control_cause = NULL,
-		     turn_limit = ?, task_run_id = ?,
-		     queue_entry_id = CASE WHEN ? = 1 THEN NULL ELSE queue_entry_id END,
-		     prompt_id = CASE WHEN ? = 1 THEN NULL ELSE prompt_id END,
-		     prompt_kind = CASE WHEN ? = 1 THEN NULL ELSE prompt_kind END,
-		     judge_attempt_id = CASE WHEN ? = 1 THEN NULL ELSE judge_attempt_id END,
-		     control_actor_kind = NULL, control_actor_id = NULL, control_requested_at = NULL,
-		     control_grant_id = ?, control_grant_kind = ?, control_grant_cause = ?,
-		     control_grant_turn = ?, control_grant_scope = ?, control_grant_consumed = ?, updated_at = ?
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		   AND control_epoch = ? AND phase = 'awaiting_control' AND task_run_id = ?`,
-		nextEpoch,
-		phase,
-		turnLimit,
-		successorRunID,
-		boolToInt(clearOperation),
-		boolToInt(clearOperation),
-		boolToInt(clearOperation),
-		boolToInt(clearOperation),
-		grantID,
-		string(req.Kind),
-		string(req.State.Cause),
-		goalReentryGrantTurn(req),
-		string(req.Scope),
-		boolToInt(goalReentryGrantConsumed(req.Kind)),
-		store.FormatTimestamp(now),
-		string(current.state.LoopRunID),
-		current.state.Generation,
-		string(current.state.NodeID),
-		current.state.ItemIndex,
-		current.state.ControlEpoch,
-		current.state.TaskRunID,
-	)
+	grantTurn, err := goalSQLNullInt64(goalReentryGrantTurn(req))
+	if err != nil {
+		return err
+	}
+	affected, err := sqlcgen.New(exec).UpdateGoalCheckpointForReentry(ctx, sqlcgen.UpdateGoalCheckpointForReentryParams{
+		NextControlEpoch: nextEpoch, Phase: phase, TurnLimit: int64(turnLimit),
+		SuccessorTaskRunID: goalNullableString(successorRunID), ClearOperation: boolToInt(clearOperation),
+		ControlGrantID: grantID, ControlGrantKind: goalNullableString(string(req.Kind)),
+		ControlGrantCause: goalNullableString(string(req.State.Cause)), ControlGrantTurn: grantTurn,
+		ControlGrantScope:    goalNullableString(string(req.Scope)),
+		ControlGrantConsumed: int64(boolToInt(goalReentryGrantConsumed(req.Kind))),
+		UpdatedAt:            store.FormatTimestamp(now), LoopRunID: string(current.state.LoopRunID),
+		Generation: int64(current.state.Generation), NodeID: string(current.state.NodeID),
+		ItemIndex: int64(current.state.ItemIndex), ExpectedControlEpoch: current.state.ControlEpoch,
+		ExpectedTaskRunID: goalNullableString(current.state.TaskRunID),
+	})
 	if err != nil {
 		return fmt.Errorf("store: reactivate Goal checkpoint: %w", err)
 	}
-	return requireGoalRowsAffected(result, "reactivate Goal checkpoint")
+	return requireGoalAffectedCount(affected, "reactivate Goal checkpoint")
 }
 
 func goalCheckpointPhaseForReentry(
@@ -365,46 +346,24 @@ func updateGoalPromptOwnerForReentry(
 		return nil
 	}
 	clearControlFence := req.Kind == looppkg.GoalGrantPlainResume
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE session_input_queue
-		 SET task_run_id = ?, owner_epoch = ?,
-		     fence_kind = CASE
-		       WHEN ? = 1 AND fence_kind = 'control-fenced' THEN NULL
-		       ELSE fence_kind
-		     END,
-		     fence_disposition = CASE
-		       WHEN ? = 1 AND fence_kind = 'control-fenced' THEN NULL
-		       ELSE fence_disposition
-		     END,
-		     fence_reason_code = CASE
-		       WHEN ? = 1 AND fence_kind = 'control-fenced' THEN NULL
-		       ELSE fence_reason_code
-		     END,
-		     fenced_at = CASE
-		       WHEN ? = 1 AND fence_kind = 'control-fenced' THEN NULL
-		       ELSE fenced_at
-		     END,
-		     updated_at = ?
-		 WHERE id = ? AND loop_run_id = ? AND prompt_id = ? AND owner_kind = 'goal'
-		   AND owner_epoch = ? AND task_run_id = ?`,
-		successorRunID,
-		nextEpoch,
-		boolToInt(clearControlFence),
-		boolToInt(clearControlFence),
-		boolToInt(clearControlFence),
-		boolToInt(clearControlFence),
-		store.FormatTimestamp(now),
-		current.state.QueueEntryID,
-		string(current.state.LoopRunID),
-		current.state.PromptID,
-		current.state.ControlEpoch,
-		current.state.TaskRunID,
-	)
+	affected, err := sqlcgen.New(exec).
+		UpdateGoalPromptOwnerForReentry(ctx, sqlcgen.UpdateGoalPromptOwnerForReentryParams{
+			SuccessorTaskRunID: successorRunID,
+			NextOwnerEpoch:     goalNullableInt64(&nextEpoch),
+			ClearControlFence:  boolToInt(clearControlFence),
+			UpdatedAt:          store.FormatTimestamp(now),
+			ID:                 current.state.QueueEntryID,
+			LoopRunID:          goalNullableString(string(current.state.LoopRunID)),
+			PromptID:           goalNullableString(current.state.PromptID),
+			ExpectedOwnerEpoch: goalNullableInt64(
+				&current.state.ControlEpoch,
+			),
+			ExpectedTaskRunID: current.state.TaskRunID,
+		})
 	if err != nil {
 		return fmt.Errorf("store: reassign Goal prompt to successor segment: %w", err)
 	}
-	return requireGoalRowsAffected(result, "reassign Goal prompt to successor segment")
+	return requireGoalAffectedCount(affected, "reassign Goal prompt to successor segment")
 }
 
 func updateGoalOutputForReentry(
@@ -414,30 +373,21 @@ func updateGoalOutputForReentry(
 	successorRunID string,
 	turnLimit int,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_generation_outputs
-		 SET status = 'enqueued', task_run_id = ?, goal_status = 'active',
-		     goal_turns_used = ?, goal_turn_limit = ?
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		   AND status = ? AND task_run_id = ?`,
-		successorRunID,
-		current.state.TurnsUsed,
-		turnLimit,
-		string(current.state.LoopRunID),
-		current.state.Generation,
-		string(current.state.NodeID),
-		current.state.ItemIndex,
-		looppkg.GenerationOutputStatusAwaitingGoal,
-		current.state.TaskRunID,
-	)
+	turnsUsed64, turnLimit64 := int64(current.state.TurnsUsed), int64(turnLimit)
+	affected, err := sqlcgen.New(exec).UpdateGoalOutputForReentry(ctx, sqlcgen.UpdateGoalOutputForReentryParams{
+		SuccessorTaskRunID: goalNullableString(successorRunID), GoalTurnsUsed: goalNullableInt64(&turnsUsed64),
+		GoalTurnLimit: goalNullableInt64(&turnLimit64), LoopRunID: string(current.state.LoopRunID),
+		Generation: int64(current.state.Generation), NodeID: string(current.state.NodeID),
+		ItemIndex: int64(current.state.ItemIndex), ExpectedStatus: looppkg.GenerationOutputStatusAwaitingGoal,
+		ExpectedTaskRunID: goalNullableString(current.state.TaskRunID),
+	})
 	if err != nil {
 		return fmt.Errorf("store: reactivate Goal generation output: %w", err)
 	}
-	return requireGoalRowsAffected(result, "reactivate Goal generation output")
+	return requireGoalAffectedCount(affected, "reactivate Goal generation output")
 }
 
-func (g *GlobalDB) transitionGoalRunForReentry(
+func (g *GoalRepo) transitionGoalRunForReentry(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	req looppkg.GoalReactivationRequest,
@@ -466,13 +416,7 @@ func (g *GlobalDB) transitionGoalRunForReentry(
 	); err != nil {
 		return err
 	}
-	if _, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_runs
-		 SET control_actor_kind = NULL, control_actor_id = NULL, control_requested_at = NULL
-		 WHERE id = ?`,
-		string(current.state.LoopRunID),
-	); err != nil {
+	if err := sqlcgen.New(exec).ClearGoalRunControlActor(ctx, string(current.state.LoopRunID)); err != nil {
 		return fmt.Errorf("store: clear Goal control actor: %w", err)
 	}
 	return appendLoopRunEventWithExecutor(

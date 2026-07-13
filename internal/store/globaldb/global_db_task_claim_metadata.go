@@ -2,13 +2,12 @@ package globaldb
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -25,31 +24,27 @@ func claimRunWithExecutor(
 	if err != nil {
 		return err
 	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE task_runs
-			 SET status = ?, claimed_by_kind = ?, claimed_by_ref = ?, session_id = ?,
-			     claim_token = ?, claim_token_hash = ?, lease_until = ?, heartbeat_at = ?,
-			     claimed_at = ?, started_at = NULL, ended_at = NULL, error = NULL,
-			     metadata_json = ?, result_json = NULL
-			 WHERE id = ? AND status = ?`,
-		taskpkg.TaskRunStatusClaimed.String(),
-		taskActorKindValue(criteria.ClaimedBy),
-		taskActorRefValue(criteria.ClaimedBy),
-		criteria.ClaimerSessionID,
-		claimToken,
-		claimHash,
-		store.FormatTimestamp(leaseUntil),
-		store.FormatTimestamp(criteria.Now),
-		store.FormatTimestamp(criteria.Now),
-		nullableTaskJSON(metadata),
-		runID,
-		taskpkg.TaskRunStatusQueued.String(),
-	)
+	affected, err := sqlcgen.New(exec).ClaimTaskRun(ctx, sqlcgen.ClaimTaskRunParams{
+		ClaimedStatus:  taskpkg.TaskRunStatusClaimed.String(),
+		ClaimedByKind:  nullableTaskActorKind(criteria.ClaimedBy),
+		ClaimedByRef:   nullableTaskActorRef(criteria.ClaimedBy),
+		SessionID:      nullableTaskString(criteria.ClaimerSessionID),
+		ClaimToken:     nullableTaskString(claimToken),
+		ClaimTokenHash: nullableTaskString(claimHash),
+		LeaseUntil:     nullableTaskTime(leaseUntil),
+		HeartbeatAt:    nullableTaskTime(criteria.Now),
+		ClaimedAt:      nullableTaskTime(criteria.Now),
+		MetadataJson:   nullableTaskRawJSON(metadata),
+		ID:             runID,
+		QueuedStatus:   taskpkg.TaskRunStatusQueued.String(),
+	})
 	if err != nil {
 		return fmt.Errorf("store: claim task run %q: %w", runID, err)
 	}
-	return requireRowsAffected(result, taskpkg.ErrNoClaimableRun, runID, "task run claim")
+	if affected == 0 {
+		return fmt.Errorf("store: task run claim %q: %w", runID, taskpkg.ErrNoClaimableRun)
+	}
+	return nil
 }
 
 func claimRunMetadata(
@@ -58,12 +53,8 @@ func claimRunMetadata(
 	runID string,
 	criteria taskpkg.ClaimCriteria,
 ) (json.RawMessage, error) {
-	var raw sql.NullString
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT metadata_json FROM task_runs WHERE id = ?`,
-		strings.TrimSpace(runID),
-	).Scan(&raw); err != nil {
+	raw, err := sqlcgen.New(exec).GetTaskRunMetadataForClaim(ctx, strings.TrimSpace(runID))
+	if err != nil {
 		return nil, fmt.Errorf("store: load task run metadata for claim %q: %w", runID, err)
 	}
 	metadata, err := decodeTaskJSON(raw, "task_run.metadata_json")

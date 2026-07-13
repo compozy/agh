@@ -7,13 +7,13 @@ import (
 	"time"
 
 	looppkg "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 // ReconcileLoopCoordinatorsOnBoot re-enqueues missing coordinators and parked
 // watch-events runs with durable cursor gaps.
-func (g *GlobalDB) ReconcileLoopCoordinatorsOnBoot(
+func (g *LoopRepo) ReconcileLoopCoordinatorsOnBoot(
 	ctx context.Context,
 	origin taskpkg.Origin,
 	now time.Time,
@@ -61,7 +61,7 @@ func (g *GlobalDB) ReconcileLoopCoordinatorsOnBoot(
 }
 
 // EnqueueLoopCoordinatorWake reserves a coordinator run for one loop_run.
-func (g *GlobalDB) EnqueueLoopCoordinatorWake(
+func (g *LoopRepo) EnqueueLoopCoordinatorWake(
 	ctx context.Context,
 	loopRunID string,
 	idempotencyKey string,
@@ -125,7 +125,7 @@ func (g *GlobalDB) EnqueueLoopCoordinatorWake(
 }
 
 // PromoteOldestQueuedLoopRun promotes the FIFO queued run for one workspace loop when no run is live.
-func (g *GlobalDB) PromoteOldestQueuedLoopRun(
+func (g *LoopRepo) PromoteOldestQueuedLoopRun(
 	ctx context.Context,
 	workspaceID string,
 	loopName string,
@@ -179,7 +179,7 @@ func normalizeLoopCoordinatorReconcileOrigin(origin taskpkg.Origin) (taskpkg.Ori
 	return normalized, nil
 }
 
-func (g *GlobalDB) AdvanceLoopRunProgress(ctx context.Context, loopRunID string, at time.Time) error {
+func (g *LoopRepo) AdvanceLoopRunProgress(ctx context.Context, loopRunID string, at time.Time) error {
 	if err := g.checkReady(ctx, "advance loop run progress"); err != nil {
 		return err
 	}
@@ -191,24 +191,15 @@ func (g *GlobalDB) AdvanceLoopRunProgress(ctx context.Context, loopRunID string,
 		at = g.now()
 	}
 	at = at.UTC()
-	if _, err := g.db.ExecContext(
-		ctx,
-		`UPDATE loop_runs
-		 SET last_progress_at = CASE
-		     WHEN last_progress_at IS NULL OR last_progress_at < ? THEN ?
-		     ELSE last_progress_at
-		   END
-		 WHERE id = ?`,
-		store.FormatTimestamp(at),
-		store.FormatTimestamp(at),
-		trimmedLoopRunID,
-	); err != nil {
+	if err := g.queries.AdvanceLoopRunProgress(ctx, sqlcgen.AdvanceLoopRunProgressParams{
+		ProgressAt: at, ID: trimmedLoopRunID,
+	}); err != nil {
 		return fmt.Errorf("store: advance loop run %q progress: %w", trimmedLoopRunID, err)
 	}
 	return nil
 }
 
-func (g *GlobalDB) normalizeLoopCoordinatorReconcileTime(now time.Time) time.Time {
+func (g *LoopRepo) normalizeLoopCoordinatorReconcileTime(now time.Time) time.Time {
 	if now.IsZero() {
 		return g.now()
 	}

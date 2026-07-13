@@ -9,7 +9,7 @@ import (
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
-var _ taskpkg.CatalogReader = (*GlobalDB)(nil)
+var _ taskpkg.CatalogReader = (*TaskRepo)(nil)
 
 const (
 	taskMetadataKindLane     = "lane"
@@ -20,7 +20,7 @@ const (
 )
 
 // ListTaskCatalog returns one transactionally consistent task catalog page.
-func (g *GlobalDB) ListTaskCatalog(
+func (g *TaskRepo) ListTaskCatalog(
 	ctx context.Context,
 	query taskpkg.CatalogQuery,
 ) (page taskpkg.CatalogPage, err error) {
@@ -122,6 +122,7 @@ func queryTaskCatalogMetadata(
 		WHERE owner_kind IS NOT NULL AND owner_ref IS NOT NULL
 		GROUP BY owner_kind, owner_ref
 		ORDER BY 1 ASC, 2 ASC, 3 ASC`
+	// dynamic-sql: catalog filters, sort mode, and cursor boundaries alter the statement structure.
 	rows, err := exec.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return 0, nil, nil, fmt.Errorf("store: query task catalog metadata: %w", err)
@@ -184,6 +185,7 @@ func queryTaskCatalogPage(
 	statement := taskCatalogStatement("SELECT "+taskCatalogSelectColumns+" FROM catalog", baseWhere, pageWhere) +
 		taskCatalogOrderBy(query.Sort) + taskCatalogLimitClause(query.Limit+1)
 	pageArgs := append(append([]any(nil), baseArgs...), pageFilterArgs...)
+	// dynamic-sql: catalog pagination appends a probe limit to the structurally composed statement.
 	rows, err := exec.QueryContext(ctx, statement, pageArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query task catalog page: %w", err)

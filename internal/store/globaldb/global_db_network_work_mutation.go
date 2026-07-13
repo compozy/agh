@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 func applyNetworkWorkMutation(
@@ -42,21 +43,14 @@ func applyNetworkWorkMutation(
 		return networkWorkMutation{state: current.State}, nil
 	}
 
-	var terminalAt any
+	terminalAt := sql.NullString{}
 	if networkWorkStateIsTerminal(next) {
-		terminalAt = store.FormatTimestamp(entry.Timestamp)
+		terminalAt = sql.NullString{String: store.FormatTimestamp(entry.Timestamp), Valid: true}
 	}
-	if _, err := exec.ExecContext(
-		ctx,
-		`UPDATE network_work
-		SET state = ?, last_activity_at = ?, terminal_at = ?
-		WHERE workspace_id = ? AND work_id = ?`,
-		next,
-		store.FormatTimestamp(entry.Timestamp),
-		terminalAt,
-		entry.WorkspaceID,
-		entry.WorkID,
-	); err != nil {
+	if err := sqlcgen.New(exec).UpdateNetworkWork(ctx, sqlcgen.UpdateNetworkWorkParams{
+		State: next, LastActivityAt: store.FormatTimestamp(entry.Timestamp), TerminalAt: terminalAt,
+		WorkspaceID: entry.WorkspaceID, WorkID: entry.WorkID,
+	}); err != nil {
 		return networkWorkMutation{}, fmt.Errorf("store: update network work: %w", err)
 	}
 	return networkWorkMutation{transitioned: true, state: next}, nil
@@ -77,25 +71,14 @@ func openNetworkWorkWithExecutor(
 	if strings.TrimSpace(entry.PeerTo) == "" {
 		return networkWorkMutation{}, fmt.Errorf("store: network work target peer is required")
 	}
-	if _, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO network_work (
-			work_id, workspace_id, channel, surface, thread_id, direct_id, opened_by_peer_id, opened_session_id,
-			target_peer_id, state, opened_at, last_activity_at, terminal_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
-		entry.WorkID,
-		entry.WorkspaceID,
-		entry.Channel,
-		entry.Surface,
-		store.NullableString(entry.ThreadID),
-		store.NullableString(entry.DirectID),
-		entry.PeerFrom,
-		entry.SessionID,
-		entry.PeerTo,
-		store.NetworkWorkStateSubmitted,
-		store.FormatTimestamp(entry.Timestamp),
-		store.FormatTimestamp(entry.Timestamp),
-	); err != nil {
+	if err := sqlcgen.New(exec).InsertNetworkWork(ctx, sqlcgen.InsertNetworkWorkParams{
+		WorkID: entry.WorkID, WorkspaceID: entry.WorkspaceID, Channel: entry.Channel,
+		Surface: entry.Surface, ThreadID: nullableNetworkString(entry.ThreadID),
+		DirectID: nullableNetworkString(entry.DirectID), OpenedByPeerID: entry.PeerFrom,
+		OpenedSessionID: entry.SessionID, TargetPeerID: entry.PeerTo,
+		State: store.NetworkWorkStateSubmitted, OpenedAt: store.FormatTimestamp(entry.Timestamp),
+		LastActivityAt: store.FormatTimestamp(entry.Timestamp),
+	}); err != nil {
 		return networkWorkMutation{}, fmt.Errorf("store: insert network work: %w", err)
 	}
 	return networkWorkMutation{opened: true, state: store.NetworkWorkStateSubmitted}, nil
@@ -107,17 +90,48 @@ func getNetworkWorkWithExecutor(
 	workspaceID string,
 	workID string,
 ) (store.NetworkWorkEntry, error) {
-	row := exec.QueryRowContext(
-		ctx,
-		`SELECT
-			work_id, workspace_id, channel, surface, thread_id, direct_id, opened_by_peer_id, opened_session_id,
-			target_peer_id, state, opened_at, last_activity_at, terminal_at
-		FROM network_work
-		WHERE workspace_id = ? AND work_id = ?`,
-		workspaceID,
-		workID,
-	)
-	return scanNetworkWorkEntry(row)
+	row, err := sqlcgen.New(exec).GetNetworkWork(ctx, sqlcgen.GetNetworkWorkParams{
+		WorkspaceID: workspaceID, WorkID: workID,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return store.NetworkWorkEntry{}, fmt.Errorf(
+				"%w: network work: %w",
+				store.ErrNetworkConversationNotFound,
+				err,
+			)
+		}
+		return store.NetworkWorkEntry{}, fmt.Errorf("store: get network work: %w", err)
+	}
+	return networkWorkFromGenerated(row)
+}
+
+func networkWorkFromGenerated(row sqlcgen.NetworkWork) (store.NetworkWorkEntry, error) {
+	openedAt, err := store.ParseTimestamp(row.OpenedAt)
+	if err != nil {
+		return store.NetworkWorkEntry{}, fmt.Errorf("store: parse network work opened_at: %w", err)
+	}
+	lastActivityAt, err := store.ParseTimestamp(row.LastActivityAt)
+	if err != nil {
+		return store.NetworkWorkEntry{}, fmt.Errorf("store: parse network work last_activity_at: %w", err)
+	}
+	entry := store.NetworkWorkEntry{
+		WorkID: row.WorkID, WorkspaceID: row.WorkspaceID, Channel: row.Channel, Surface: row.Surface,
+		ThreadID: row.ThreadID.String, DirectID: row.DirectID.String, OpenedByPeerID: row.OpenedByPeerID,
+		OpenedSessionID: row.OpenedSessionID, TargetPeerID: row.TargetPeerID, State: row.State,
+		OpenedAt: openedAt, LastActivityAt: lastActivityAt,
+	}
+	if row.TerminalAt.Valid {
+		terminalAt, parseErr := store.ParseTimestamp(row.TerminalAt.String)
+		if parseErr != nil {
+			return store.NetworkWorkEntry{}, fmt.Errorf("store: parse network work terminal_at: %w", parseErr)
+		}
+		entry.TerminalAt = &terminalAt
+	}
+	if err := entry.Validate(); err != nil {
+		return store.NetworkWorkEntry{}, err
+	}
+	return entry, nil
 }
 
 func networkWorkMatchesMessage(work store.NetworkWorkEntry, entry store.NetworkConversationMessage) bool {

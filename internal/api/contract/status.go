@@ -7,6 +7,30 @@ const (
 	StatusSchemaVersion = "2026-05-20"
 )
 
+// SchemaStreamStatus reports one daemon-global migration stream's applied state.
+type SchemaStreamStatus struct {
+	Stream       string `json:"stream"`
+	Version      int64  `json:"version"`
+	AppliedCount int    `json:"applied_count"`
+	SumDigest    string `json:"sum_digest"`
+}
+
+// DaemonStatusPayload is the shared daemon status response payload.
+type DaemonStatusPayload struct {
+	Status         string                `json:"status"`
+	PID            int                   `json:"pid"`
+	StartedAt      time.Time             `json:"started_at"`
+	Socket         string                `json:"socket"`
+	HTTPHost       string                `json:"http_host"`
+	HTTPPort       int                   `json:"http_port"`
+	UserHomeDir    string                `json:"user_home_dir"`
+	ActiveSessions int                   `json:"active_sessions"`
+	TotalSessions  int                   `json:"total_sessions"`
+	Version        string                `json:"version,omitempty"`
+	Network        *NetworkStatusPayload `json:"network,omitempty"`
+	SchemaStreams  []SchemaStreamStatus  `json:"schema_streams"`
+}
+
 // StatusPayload is the hard-cut runtime status surface shared by HTTP, UDS, and CLI JSON.
 type StatusPayload struct {
 	SchemaVersion string                       `json:"schema_version"`

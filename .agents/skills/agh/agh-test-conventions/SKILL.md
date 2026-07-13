@@ -1,82 +1,57 @@
 ---
 name: agh-test-conventions
 description: >-
-  Enforces AGH Go-test conventions before writing or editing test files: every
-  case inside a t.Run subtest with Should... naming, t.Parallel default with
-  t.Setenv as the only legitimate opt-out, no underscore-discarded errors,
-  status-code-only assertions backed by body or contract evidence, deterministic
-  time and IDs, compile-time interface assertions on new types. Use whenever
-  creating or modifying any *_test.go file under internal or cmd. Do not use for
-  non-Go tests, fixture data updates, or web vitest specs.
+  Go test-shape discipline for AGH. Use when writing or editing *_test.go under
+  cmd or internal after test placement is justified. Do not use for non-Go
+  tests, fixture-only changes, or as a replacement for consolidate-test-suites.
 trigger: implicit
 ---
 
 # AGH Test Conventions
 
-40%+ of CodeRabbit review issues across all AGH PRs are test-shape violations. The CLAUDE.md rules are correct but agents keep ignoring them when adding "just one more case." This skill is the Go test-shape gate after `consolidate-test-suites` has justified the invariant, owning layer, and canonical suite.
+Apply Go-specific shape rules only after `consolidate-test-suites` identifies
+the invariant, owning layer, and canonical suite. This file owns the application
+order; its reference owns the rules.
 
 ## Procedures
 
-**Step 0: Confirm Placement**
+**Step 1: Confirm Placement**
 
 1. Use `consolidate-test-suites` before creating a new Go test file, moving coverage, or adding tests primarily for a task checklist or coverage target.
 2. Record the invariant, owning layer, and canonical suite before applying Go-specific shape rules.
 3. If no invariant or owning layer exists, stop. Do not add a Go test just to raise coverage.
 
-**Step 1: Identify the Edit Surface**
+*Done when:* one durable invariant, one owning layer, and one canonical suite are recorded for every changed test.
+
+**Step 2: Load the Canonical Shape**
 
 1. Determine whether the edit creates a new test file, adds cases to an existing test, or refactors an existing test.
-2. Read the existing file (if any) so the new cases match the established subtest pattern.
-3. Read `references/test-shape-rules.md` for the canonical rule list.
+2. Read the existing canonical suite and `.agents/skills/agh/agh-test-conventions/references/test-shape-rules.md` in full.
+3. Apply every matching rule for subtests, parallelism, errors, assertions, interfaces, build tags, integration/E2E behavior, mocks, coverage, helpers, and race/cgo.
 
-**Step 2: Apply Subtest Discipline**
+*Done when:* each changed case conforms to every matching reference section and no duplicate invariant was added.
 
-1. Every test case lives inside `t.Run("Should ...", func(t *testing.T) { ... })`. The `"Should ..."` prefix is mandatory.
-2. Adding inline cases to an existing function is a blocking violation — refactor the function so each case is its own subtest.
-3. Table-driven layout is the default. Each row carries a `name` field used as the subtest name.
-4. Helpers used inside the test call `t.Helper()`.
+**Step 3: Preserve the Runtime Contract**
 
-**Step 3: Apply Parallelism Discipline**
+1. Co-ship ACP/E2E fixtures, typed matchers, generated contracts, and cross-surface expectations when runtime behavior changes.
+2. Use real SQLite, subprocess mocks, and other production-like boundaries where the owning layer requires them.
+3. Treat a failing assertion as evidence about production behavior; repair production code unless the test is proven invalid against the contract.
 
-1. Default: every independent subtest calls `t.Parallel()`.
-2. Single legitimate opt-out: tests that use `t.Setenv` (directly or transitively) MUST NOT call `t.Parallel()`. Go's testing contract forbids this combination.
-3. When a reviewer suggests adding `t.Parallel()` to a test that uses `t.Setenv`, mark the suggestion INVALID with rationale and cite `docs/_memory/lessons/L-002-tparallel-vs-tsetenv.md`.
-4. Tests on shared mutable state (file-system, ports, package-global maps) opt out with a comment explaining the dependency.
+*Done when:* the test exercises the real owner closely enough to fail on the named regression and all changed runtime-contract fixtures agree.
 
-**Step 4: Apply Error-Handling Discipline**
+**Step 4: Validate the Changed Suite**
 
-1. Never use `_ = errFn(...)` in tests. Handle every error explicitly.
-2. `json.Marshal`, `json.Unmarshal`, `Close`, file operations — every error gets `if err != nil { t.Fatalf(...) }` or equivalent.
-3. Test cleanup paths run via `t.Cleanup(...)` and handle their own errors.
+1. Run the read-only checker with its repo-root path:
+   `python3 .agents/skills/agh/agh-test-conventions/scripts/check-test-conventions.py <file_path>`
+2. Fix real findings; document a proven heuristic false positive without weakening the canonical rules.
+3. Run `go test -race ./<owning-package>/...` for the affected package with `CGO_ENABLED=1`, then the required scoped lint lane.
+4. Reserve the single full `make verify` for the task completion gate after source freeze.
 
-**Step 5: Strengthen Assertions**
-
-1. Status-code-only assertions are insufficient. Always assert response body, error message, or contract-specific evidence (idempotency key, request payload, persisted state).
-2. For idempotency tests: explicitly re-use the same idempotency key on the second call and verify the contract honors it (don't pass empty body — that just proves re-entry, not idempotency).
-3. Deterministic time: replace `time.Now()` with injected clocks; deterministic IDs use injected ID generators.
-4. For new types satisfying interfaces, ensure `var _ Interface = (*Type)(nil)` exists in production code (not in the test file).
-
-**Step 6: Apply Integration / E2E Discipline**
-
-1. Integration tests live in `*_integration_test.go` with `//go:build integration` at the top. Co-locate them with the package they test — never in a separate `test/` directory.
-2. `make test` runs unit only. `make test-integration` adds the `+integration` build tag. `make test-e2e-runtime` is the daemon-side Go harness; `make test-e2e-web` is the browser-side Playwright harness.
-3. Use `TestMain` for expensive one-time setup/teardown.
-4. Use real dependencies — real SQLite via `t.TempDir()`, mock ACP server as a subprocess (`acpmock`). Avoid in-process fakes when a real subprocess can be wired.
-5. Keep integration tests fast enough for CI: ~30s max per package.
-6. **E2E tests are part of the runtime contract.** When a runtime contract changes (prompt augmenter, situation context, fixture format), the E2E mock and matchers ship in the same PR. Otherwise tests pass against a stale prompt and fail later.
-7. Read `references/test-shape-rules.md` "Integration / E2E" section for additional patterns.
-
-**Step 7: Pre-Commit Validation**
-
-1. Run `python3 scripts/check-test-conventions.py <file_path>` to scan the test file for violations. The script is a regex-based fast check; it complements `make verify`.
-2. If the script reports violations, fix them before running `make verify`.
-3. After edits, run `go test ./<package> -count=1 -race` for the affected package, then `make verify`.
-4. **`make verify` is the commit gate.** If verification is blocked by an external/branch-side asset issue (missing test fixture, etc.), do NOT commit — report the verified blocker and hold.
-5. **Test failures are production bugs.** Fix production code; do not weaken assertions. The only legitimate exception is documenting an INVALID review item with concrete evidence.
+*Done when:* the checker and scoped race/lint lanes are green and exactly one fresh full gate is scheduled or complete for the finished task.
 
 ## Error Handling
 
-- **Existing file uses non-`Should` naming throughout:** do not mix conventions. Ask whether to refactor the file or to add a same-style case (older files may predate the rule). Default: refactor.
-- **`scripts/check-test-conventions.py` returns false positives:** the script is heuristic; a comment justifying the deviation is acceptable when the false positive is real (e.g., test data named "Should" by coincidence).
+- **Existing file uses non-`Should` naming throughout:** refactor the touched test function into canonical subtests; do not add another legacy-shaped case or rewrite unrelated suites.
+- **The convention checker returns a false positive:** prove the syntax is valid against the canonical reference and record the narrow exception; never use the heuristic to waive a real rule.
 - **`t.Setenv` used inside a helper that callers cannot inspect:** read the helper transitively. If env mutation occurs anywhere in the call graph, the entire test stays serial.
-- **Race-enabled tests touching cgo:** the `go test -race` invocation must run with `CGO_ENABLED=1`. The repository's `runRaceEnabledGoCommand` helper handles this. Do not trust ambient env.
+- **Race-enabled tests touching cgo:** use the repository's race-enabled command path, which forces `CGO_ENABLED=1`; do not trust ambient env.

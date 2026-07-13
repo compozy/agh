@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -55,20 +56,16 @@ func requireLeaseTerminalTransition(run taskpkg.Run, target taskpkg.RunStatus) e
 }
 
 func requeueLeasedRun(ctx context.Context, exec taskSQLExecutor, runID string) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE task_runs
-		 SET status = ?, claimed_by_kind = NULL, claimed_by_ref = NULL, session_id = NULL,
-		     claim_token = NULL, claim_token_hash = NULL, lease_until = NULL, heartbeat_at = NULL,
-		     claimed_at = NULL, started_at = NULL, ended_at = NULL, error = NULL, result_json = NULL
-		 WHERE id = ?`,
-		taskpkg.TaskRunStatusQueued.String(),
-		runID,
-	)
+	affected, err := sqlcgen.New(exec).RequeueTaskRunLease(ctx, sqlcgen.RequeueTaskRunLeaseParams{
+		Status: taskpkg.TaskRunStatusQueued.String(), ID: runID,
+	})
 	if err != nil {
 		return fmt.Errorf("store: requeue task run lease %q: %w", runID, err)
 	}
-	return requireRowsAffected(result, taskpkg.ErrTaskRunNotFound, runID, "task run lease")
+	if affected == 0 {
+		return fmt.Errorf("store: task run lease %q: %w", runID, taskpkg.ErrTaskRunNotFound)
+	}
+	return nil
 }
 
 func expiredLeaseRunIDs(
@@ -76,40 +73,17 @@ func expiredLeaseRunIDs(
 	exec taskSQLExecutor,
 	recovery taskpkg.ExpiredLeaseRecovery,
 ) ([]string, error) {
-	query := `SELECT id
-		FROM task_runs
-		WHERE status IN (?, ?, ?)
-		  AND lease_until IS NOT NULL
-		  AND lease_until <= ?
-		ORDER BY lease_until ASC, id ASC`
-	args := []any{
-		taskpkg.TaskRunStatusClaimed.String(),
-		taskpkg.TaskRunStatusStarting.String(),
-		taskpkg.TaskRunStatusRunning.String(),
-		store.FormatTimestamp(recovery.Now),
-	}
-	query, args = store.AppendLimit(query, args, recovery.Limit)
-
-	rows, err := exec.QueryContext(ctx, query, args...)
+	rows, err := sqlcgen.New(exec).ListExpiredTaskRunLeaseIDs(ctx, sqlcgen.ListExpiredTaskRunLeaseIDsParams{
+		ClaimedStatus:  taskpkg.TaskRunStatusClaimed.String(),
+		StartingStatus: taskpkg.TaskRunStatusStarting.String(),
+		RunningStatus:  taskpkg.TaskRunStatusRunning.String(),
+		Now:            nullableTaskTime(recovery.Now),
+		ResultLimit:    taskQueryLimit(recovery.Limit),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("store: query expired task run leases: %w", err)
 	}
-	defer func() {
-		_ = rows.Close()
-	}()
-
-	runIDs := make([]string, 0)
-	for rows.Next() {
-		var runID string
-		if err := rows.Scan(&runID); err != nil {
-			return nil, fmt.Errorf("store: scan expired task run lease id: %w", err)
-		}
-		runIDs = append(runIDs, runID)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate expired task run leases: %w", err)
-	}
-	return runIDs, nil
+	return rows, nil
 }
 
 func requeueExpiredLease(
@@ -118,31 +92,27 @@ func requeueExpiredLease(
 	run taskpkg.Run,
 	snapshot taskRunLeaseSnapshot,
 ) error {
-	result, err := exec.ExecContext(
+	affected, err := sqlcgen.New(exec).RequeueExpiredTaskRunLease(
 		ctx,
-		`UPDATE task_runs
-		 SET status = ?, claimed_by_kind = NULL, claimed_by_ref = NULL, session_id = NULL,
-		     claim_token = NULL, claim_token_hash = NULL, lease_until = NULL, heartbeat_at = NULL,
-		     claimed_at = NULL, started_at = NULL, ended_at = NULL, error = NULL, result_json = NULL
-		 WHERE id = ?
-		   AND status = ?
-		   AND COALESCE(session_id, '') = ?
-		   AND claim_token_hash = ?
-		   AND lease_until = ?`,
-		taskpkg.TaskRunStatusQueued.String(),
-		run.ID,
-		snapshot.status.Normalize().String(),
-		strings.TrimSpace(snapshot.sessionID),
-		strings.TrimSpace(snapshot.claimTokenHash),
-		store.FormatTimestamp(snapshot.leaseUntil),
+		sqlcgen.RequeueExpiredTaskRunLeaseParams{
+			QueuedStatus:   taskpkg.TaskRunStatusQueued.String(),
+			ID:             run.ID,
+			PreviousStatus: snapshot.status.Normalize().String(),
+			SessionID:      nullableTaskString(strings.TrimSpace(snapshot.sessionID)),
+			ClaimTokenHash: nullableTaskString(strings.TrimSpace(snapshot.claimTokenHash)),
+			LeaseUntil:     nullableTaskTime(snapshot.leaseUntil),
+		},
 	)
 	if err != nil {
 		return fmt.Errorf("store: recover expired task run lease %q: %w", run.ID, err)
 	}
-	return requireRowsAffected(result, taskpkg.ErrTaskRunNotFound, run.ID, "expired task run lease")
+	if affected == 0 {
+		return fmt.Errorf("store: expired task run lease %q: %w", run.ID, taskpkg.ErrTaskRunNotFound)
+	}
+	return nil
 }
 
-func (g *GlobalDB) coordinationChannelMetadata(
+func (g *TaskRunRepo) coordinationChannelMetadata(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	taskRecord taskpkg.Task,
@@ -191,14 +161,24 @@ func networkChannelEntry(
 	exec taskSQLExecutor,
 	channelID string,
 ) (store.NetworkChannelEntry, error) {
-	row := exec.QueryRowContext(
-		ctx,
-		`SELECT channel, workspace_id, purpose, fanout_policy, coordinator_peer_id, created_by, created_at, updated_at
-		 FROM network_channels
-		 WHERE channel = ?`,
-		channelID,
-	)
-	return scanNetworkChannel(row)
+	row, err := sqlcgen.New(exec).GetNetworkChannelForTask(ctx, channelID)
+	if err != nil {
+		return store.NetworkChannelEntry{}, err
+	}
+	createdAt, err := store.ParseTimestamp(row.CreatedAt)
+	if err != nil {
+		return store.NetworkChannelEntry{}, fmt.Errorf("store: parse network channel created_at: %w", err)
+	}
+	updatedAt, err := store.ParseTimestamp(row.UpdatedAt)
+	if err != nil {
+		return store.NetworkChannelEntry{}, fmt.Errorf("store: parse network channel updated_at: %w", err)
+	}
+	return store.NetworkChannelEntry{
+		Channel: row.Channel, WorkspaceID: row.WorkspaceID, Purpose: row.Purpose,
+		FanoutPolicy:      store.NormalizeNetworkFanoutPolicy(row.FanoutPolicy),
+		CoordinatorPeerID: row.CoordinatorPeerID, CreatedBy: row.CreatedBy,
+		CreatedAt: createdAt, UpdatedAt: updatedAt,
+	}, nil
 }
 
 func missingCapabilityPredicate(capabilities []string) string {

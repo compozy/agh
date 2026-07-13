@@ -29,7 +29,7 @@ func collectTaskEvent(exec taskSQLExecutor, record taskpkg.EventRecord) {
 	collector.collectTaskEvent(record)
 }
 
-func (g *GlobalDB) withTaskImmediateTransaction(
+func (g *TaskRepo) withTaskImmediateTransaction(
 	ctx context.Context,
 	action string,
 	run func(exec taskSQLExecutor) error,
@@ -51,6 +51,7 @@ func (g *GlobalDB) withTaskImmediateTransaction(
 	}()
 
 	rollbackCtx := context.WithoutCancel(ctx)
+	// dynamic-sql: SQLite transaction control must run directly on the pinned connection.
 	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
 		return fmt.Errorf("store: begin immediate %s transaction: %w", action, err)
 	}
@@ -66,6 +67,7 @@ func (g *GlobalDB) withTaskImmediateTransaction(
 		return err
 	}
 
+	// dynamic-sql: SQLite transaction control must run directly on the pinned connection.
 	if _, err = conn.ExecContext(ctx, "COMMIT"); err != nil {
 		return fmt.Errorf("store: commit %s transaction: %w", action, err)
 	}

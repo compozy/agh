@@ -35,7 +35,7 @@ type networkMessageNullableFields struct {
 }
 
 // WriteNetworkMessage stores one persisted network timeline envelope, ignoring duplicate message ids.
-func (g *GlobalDB) WriteNetworkMessage(ctx context.Context, entry store.NetworkMessageEntry) error {
+func (g *NetworkRepo) WriteNetworkMessage(ctx context.Context, entry store.NetworkMessageEntry) error {
 	if err := g.checkReady(ctx, "write network message"); err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func (g *GlobalDB) WriteNetworkMessage(ctx context.Context, entry store.NetworkM
 }
 
 // ListNetworkMessages returns persisted network timeline rows filtered by the supplied options.
-func (g *GlobalDB) ListNetworkMessages(
+func (g *NetworkRepo) ListNetworkMessages(
 	ctx context.Context,
 	query store.NetworkMessageQuery,
 ) (entries []store.NetworkMessageEntry, err error) {
@@ -107,10 +107,11 @@ func (g *GlobalDB) ListNetworkMessages(
 	return entries, nil
 }
 
-func (g *GlobalDB) buildNetworkMessageListQuery(
+func (g *NetworkRepo) buildNetworkMessageListQuery(
 	ctx context.Context,
 	query store.NetworkMessageQuery,
 ) (string, []any, bool, error) {
+	// dynamic-sql: optional envelope filters, cursor direction, sort order, and limit change the statement shape.
 	sqlQuery := `SELECT
 			sequence,
 			message_id,
@@ -236,7 +237,7 @@ func reverseNetworkMessages(entries []store.NetworkMessageEntry) {
 	}
 }
 
-func (g *GlobalDB) lookupNetworkMessageCursor(
+func (g *NetworkRepo) lookupNetworkMessageCursor(
 	ctx context.Context,
 	messageID string,
 	query store.NetworkMessageQuery,
@@ -251,6 +252,7 @@ func (g *GlobalDB) lookupNetworkMessageCursor(
 	args = append([]any{trimmed}, args...)
 
 	var cursor networkMessageCursor
+	// dynamic-sql: the cursor must reuse every optional list filter to prove membership in the requested page.
 	err := g.db.QueryRowContext(
 		ctx,
 		store.AppendWhere(`SELECT sequence FROM network_timeline_log`, where),

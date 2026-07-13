@@ -9,12 +9,13 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 // LoadRunStarvation reads a run's durable escalation budget. The bool reports row presence;
 // absence is not an error — the convergence backstop treats it as a fresh budget.
-func (g *GlobalDB) LoadRunStarvation(
+func (g *TaskRunRepo) LoadRunStarvation(
 	ctx context.Context,
 	runID string,
 ) (taskpkg.RunStarvation, bool, error) {
@@ -25,65 +26,43 @@ func (g *GlobalDB) LoadRunStarvation(
 	if err != nil {
 		return taskpkg.RunStarvation{}, false, err
 	}
-	record, err := scanRunStarvation(g.db.QueryRowContext(
-		ctx,
-		`SELECT run_id, wake_count, first_starved_at, last_wake_at, escalation_tier,
-			spawn_requested_at, starved_event_at, updated_at
-			FROM task_run_starvation WHERE run_id = ?`,
-		id,
-	))
+	row, err := g.queries.GetRunStarvation(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return taskpkg.RunStarvation{}, false, nil
 	}
 	if err != nil {
 		return taskpkg.RunStarvation{}, false, err
 	}
+	record, err := runStarvationFromGenerated(row)
+	if err != nil {
+		return taskpkg.RunStarvation{}, false, err
+	}
 	return record, true, nil
 }
 
-func scanRunStarvation(scanner interface{ Scan(...any) error }) (taskpkg.RunStarvation, error) {
-	var (
-		record         taskpkg.RunStarvation
-		firstStarvedAt string
-		updatedAt      string
-		lastWakeAt     sql.NullString
-		spawnRequested sql.NullString
-		starvedEvent   sql.NullString
-	)
-	if err := scanner.Scan(
-		&record.RunID,
-		&record.WakeCount,
-		&firstStarvedAt,
-		&lastWakeAt,
-		&record.EscalationTier,
-		&spawnRequested,
-		&starvedEvent,
-		&updatedAt,
-	); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return taskpkg.RunStarvation{}, err
-		}
-		return taskpkg.RunStarvation{}, fmt.Errorf("store: scan run starvation: %w", err)
+func runStarvationFromGenerated(row sqlcgen.TaskRunStarvation) (taskpkg.RunStarvation, error) {
+	record := taskpkg.RunStarvation{
+		RunID: row.RunID, WakeCount: int(row.WakeCount), EscalationTier: int(row.EscalationTier),
 	}
-	parsed, err := store.ParseTimestamp(firstStarvedAt)
+	parsed, err := store.ParseTimestamp(row.FirstStarvedAt)
 	if err != nil {
 		return taskpkg.RunStarvation{}, fmt.Errorf("store: parse run starvation first_starved_at: %w", err)
 	}
 	record.FirstStarvedAt = parsed
-	if record.UpdatedAt, err = store.ParseTimestamp(updatedAt); err != nil {
+	if record.UpdatedAt, err = store.ParseTimestamp(row.UpdatedAt); err != nil {
 		return taskpkg.RunStarvation{}, fmt.Errorf("store: parse run starvation updated_at: %w", err)
 	}
-	last, err := parseNullableStarvationTime(lastWakeAt)
+	last, err := parseNullableStarvationTime(row.LastWakeAt)
 	if err != nil {
 		return taskpkg.RunStarvation{}, err
 	}
 	if last != nil {
 		record.LastWakeAt = *last
 	}
-	if record.SpawnRequestedAt, err = parseNullableStarvationTime(spawnRequested); err != nil {
+	if record.SpawnRequestedAt, err = parseNullableStarvationTime(row.SpawnRequestedAt); err != nil {
 		return taskpkg.RunStarvation{}, err
 	}
-	if record.StarvedEventAt, err = parseNullableStarvationTime(starvedEvent); err != nil {
+	if record.StarvedEventAt, err = parseNullableStarvationTime(row.StarvedEventAt); err != nil {
 		return taskpkg.RunStarvation{}, err
 	}
 	return record, nil
@@ -91,39 +70,27 @@ func scanRunStarvation(scanner interface{ Scan(...any) error }) (taskpkg.RunStar
 
 // ListRunStarvation returns every escalation budget row so the convergence backstop can reconcile
 // rows whose run has left the queued set.
-func (g *GlobalDB) ListRunStarvation(ctx context.Context) (rows []taskpkg.RunStarvation, err error) {
+func (g *TaskRunRepo) ListRunStarvation(ctx context.Context) ([]taskpkg.RunStarvation, error) {
 	if err := g.checkReady(ctx, "list run starvation"); err != nil {
 		return nil, err
 	}
-	cursor, err := g.db.QueryContext(
-		ctx,
-		`SELECT run_id, wake_count, first_starved_at, last_wake_at, escalation_tier,
-			spawn_requested_at, starved_event_at, updated_at
-			FROM task_run_starvation`,
-	)
+	rows, err := g.queries.ListRunStarvation(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: list run starvation: %w", err)
 	}
-	defer func() {
-		if closeErr := cursor.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("store: close run starvation rows: %w", closeErr)
+	records := make([]taskpkg.RunStarvation, 0, len(rows))
+	for _, row := range rows {
+		record, mapErr := runStarvationFromGenerated(row)
+		if mapErr != nil {
+			return nil, mapErr
 		}
-	}()
-	for cursor.Next() {
-		row, scanErr := scanRunStarvation(cursor)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		rows = append(rows, row)
+		records = append(records, record)
 	}
-	if err := cursor.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate run starvation: %w", err)
-	}
-	return rows, nil
+	return records, nil
 }
 
 // UpsertRunStarvation writes the run's escalation budget, advancing it in place on conflict.
-func (g *GlobalDB) UpsertRunStarvation(
+func (g *TaskRunRepo) UpsertRunStarvation(
 	ctx context.Context,
 	mutation taskpkg.RunStarvationMutation,
 ) (taskpkg.RunStarvation, error) {
@@ -134,29 +101,15 @@ func (g *GlobalDB) UpsertRunStarvation(
 	if err != nil {
 		return taskpkg.RunStarvation{}, err
 	}
-	if _, err := g.db.ExecContext(
-		ctx,
-		`INSERT INTO task_run_starvation (
-			run_id, wake_count, first_starved_at, last_wake_at, escalation_tier,
-			spawn_requested_at, starved_event_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(run_id) DO UPDATE SET
-			wake_count = excluded.wake_count,
-			first_starved_at = excluded.first_starved_at,
-			last_wake_at = excluded.last_wake_at,
-			escalation_tier = excluded.escalation_tier,
-			spawn_requested_at = excluded.spawn_requested_at,
-			starved_event_at = excluded.starved_event_at,
-			updated_at = excluded.updated_at`,
-		id,
-		mutation.WakeCount,
-		store.FormatTimestamp(mutation.FirstStarvedAt),
-		nullableStarvationTime(mutation.LastWakeAt),
-		mutation.EscalationTier,
-		nullableStarvationTimePtr(mutation.SpawnRequestedAt),
-		nullableStarvationTimePtr(mutation.StarvedEventAt),
-		store.FormatTimestamp(mutation.UpdatedAt),
-	); err != nil {
+	if err := g.queries.UpsertRunStarvation(ctx, sqlcgen.UpsertRunStarvationParams{
+		RunID: id, WakeCount: int64(mutation.WakeCount),
+		FirstStarvedAt:   store.FormatTimestamp(mutation.FirstStarvedAt),
+		LastWakeAt:       nullableStarvationTime(mutation.LastWakeAt),
+		EscalationTier:   int64(mutation.EscalationTier),
+		SpawnRequestedAt: nullableStarvationTimePtr(mutation.SpawnRequestedAt),
+		StarvedEventAt:   nullableStarvationTimePtr(mutation.StarvedEventAt),
+		UpdatedAt:        store.FormatTimestamp(mutation.UpdatedAt),
+	}); err != nil {
 		return taskpkg.RunStarvation{}, fmt.Errorf("store: upsert run starvation: %w", err)
 	}
 	return taskpkg.RunStarvation{
@@ -172,7 +125,7 @@ func (g *GlobalDB) UpsertRunStarvation(
 }
 
 // ClearRunStarvation removes a run's escalation budget once it leaves the starved set.
-func (g *GlobalDB) ClearRunStarvation(ctx context.Context, runID string) error {
+func (g *TaskRunRepo) ClearRunStarvation(ctx context.Context, runID string) error {
 	if err := g.checkReady(ctx, "clear run starvation"); err != nil {
 		return err
 	}
@@ -180,7 +133,7 @@ func (g *GlobalDB) ClearRunStarvation(ctx context.Context, runID string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := g.db.ExecContext(ctx, `DELETE FROM task_run_starvation WHERE run_id = ?`, id); err != nil {
+	if err := g.queries.DeleteRunStarvation(ctx, id); err != nil {
 		return fmt.Errorf("store: clear run starvation: %w", err)
 	}
 	return nil

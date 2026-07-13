@@ -67,9 +67,7 @@ function invalidateHeartbeatQueries(
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: agentKeys.heartbeat(name, workspace) }),
     queryClient.invalidateQueries({ queryKey: agentKeys.heartbeatHistory(name, workspace) }),
-    queryClient.invalidateQueries({
-      queryKey: [...agentKeys.heartbeat(name, workspace), "status"],
-    }),
+    queryClient.invalidateQueries({ queryKey: agentKeys.heartbeatStatuses(name, workspace) }),
   ]);
 }
 
@@ -115,7 +113,7 @@ export function useWakeAgentHeartbeat(name: string, workspace?: string | null) {
     mutationFn: (params: WakeAgentHeartbeatParams) => wakeAgentHeartbeat(name, params),
     onSettled: () => {
       void queryClient.invalidateQueries({
-        queryKey: [...agentKeys.heartbeat(name, workspace), "status"],
+        queryKey: agentKeys.heartbeatStatuses(name, workspace),
       });
       void queryClient.invalidateQueries({
         queryKey: agentKeys.heartbeat(name, workspace),

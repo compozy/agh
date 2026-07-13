@@ -1,13 +1,13 @@
 ---
 name: cy-impl-peer-review
-description: Runs an optional cross-LLM peer review of an implemented change via compozy exec --ide claude --model opus --reasoning-effort xhigh and requires the reviewer to write a scoped Markdown findings artifact for user-directed remediation. Use after any implementation pass (feature, bug fix, refactor) when the user explicitly asks for an external Opus review of the diff before commit or PR. Do not use for TechSpec review (use cy-spec-peer-review), automatic remediation, batched provider review fetching (use cy-fix-reviews), manual self-review without an external LLM (use cy-review-round), or auto-looped review cycles.
+description: Cross-LLM peer review of an implementation diff via compozy exec — scoped Markdown findings for user-directed remediation. Use only when the user names this skill or explicitly requests an external review of a code diff, or when cy-loop-tasks Phase D activates it. Do not use after finishing implementation, as a task-completion/make-verify/commit/PR gate, for TechSpec review (cy-spec-peer-review), self-review (cy-review-round), provider review batches (cy-fix-reviews), or auto-looped review cycles.
 trigger: explicit
-argument-hint: "[--files path1,path2] [--context path1,path2] [--base ref] [--out dir]"
+argument-hint: "[--files path1,path2] [--context path1,path2] [--base ref] [--out dir] [--ide] [--model] [--reasoning]"
 ---
 
 # Implementation Peer Review
 
-Claude Opus pressure-tests an implementation diff via `compozy exec`. This skill runs that pressure-test only when the user explicitly asks for a review round after an implementation pass. It is decoupled from any PRD/task tracking system — the scope is the diff itself plus any optional context files the user names. The skill never auto-runs, auto-incorporates findings, auto-commits, or auto-loops additional rounds.
+An independent reviewer runtime pressure-tests an implementation diff via `compozy exec`. This skill runs that pressure-test only when the user explicitly asks for a review round after an implementation pass. It is decoupled from any PRD/task tracking system — the scope is the diff itself plus any optional context files the user names. The skill never auto-runs, auto-incorporates findings, auto-commits, or auto-loops additional rounds.
 
 The review result is a direct-written Markdown findings file. `compozy exec` stdout/stderr is operational evidence only; never parse it as the review source of truth.
 
@@ -32,9 +32,12 @@ The validator is a read-only helper: it inspects the findings artifact and exits
 All inputs are optional. Defaults make the common path `cy-impl-peer-review` with no arguments.
 
 - `--files <path1,path2,...>` — scope the review to explicit paths instead of the full branch diff.
-- `--context <path1,path2,...>` — additional context files to feed Opus (e.g., a spec, ADR, design doc, RFC, README). The skill never assumes any of these exist.
+- `--context <path1,path2,...>` — additional context files for the reviewer (e.g., a spec, ADR, design doc, RFC, README). The skill never assumes any of these exist.
 - `--base <git-ref>` — base ref for the diff. Defaults to `main`. Use `--base HEAD~N` or `--staged` for narrower scopes.
 - `--out <dir>` — output directory for round artifacts. Defaults to `.peer-reviews/<UTC-timestamp>/` at repo root.
+- `--ide <ide>` (default `codex`) — forwarded to `compozy exec --ide`. Secondary option: `--ide claude --model opus --reasoning max`.
+- `--model <model>` (default `gpt-5.6-sol`) — forwarded to `compozy exec --model`.
+- `--reasoning <effort>` (default `xhigh`) — forwarded to `compozy exec --reasoning-effort`. Accepted: `low`, `medium`, `high`, `xhigh`, `max`.
 
 ## Findings Artifact Contract
 
@@ -54,8 +57,8 @@ schema_version: 1
 review_kind: implementation
 round: N
 verdict: SHIP|FIX_BEFORE_SHIP|REWORK
-reviewer_runtime: claude
-reviewer_model: opus
+reviewer_runtime: <resolved --ide>
+reviewer_model: <resolved --model>
 generated_at: <ISO-8601 timestamp>
 ---
 
@@ -87,12 +90,12 @@ Every blocker, risk, and nit must include an ID, a real file path and line when 
    - Use `--out` if provided.
    - Otherwise default to `.peer-reviews/<UTC-timestamp-YYYYMMDDTHHMMSSZ>/` at the repository root.
    - Create the directory if it does not exist.
-4. Read `.agents/skills/cy-impl-peer-review/references/readiness-checks.md` and verify every readiness marker passes (build/tests green, no committed `.tmp/` or `ai-docs/`, diff is non-empty, no obvious WIP markers in changed files, codegen co-ship if contracts touched, migration co-ship if schema touched). If any marker fails, report the failed markers and abort — Opus review on a broken or incomplete change wastes credit and produces noise.
+4. Read `.agents/skills/cy-impl-peer-review/references/readiness-checks.md` and verify every readiness marker passes (build/tests green, no committed `.tmp/` or `ai-docs/`, diff is non-empty, no obvious WIP markers in changed files, codegen co-ship if contracts touched, migration co-ship if schema touched). If any marker fails, report the failed markers and abort — external review on a broken or incomplete change wastes credit and produces noise.
 5. Determine the next review round number by listing existing `impl-review-findings-round*.md`, `impl-review-summary-round*.md`, and legacy `impl-review-result-round*.json*` files (prior local output only — not a compatibility path) in the artifact directory. Start at `round1` when none exist.
 
 **Step 2: Compose the Review Prompt**
 
-1. Read `.agents/skills/cy-impl-peer-review/references/impl-review-prompt.md` for the canonical executable Opus prompt template. The assembled prompt must start with the reviewer instructions, not with a Markdown wrapper describing the template.
+1. Read `.agents/skills/cy-impl-peer-review/references/impl-review-prompt.md` for the canonical executable reviewer prompt template. The assembled prompt must start with the reviewer instructions, not with a Markdown wrapper describing the template.
 2. Capture the diff payload:
    - Run `git diff <base>...HEAD -- <changed-files>` (or `git diff --staged -- <changed-files>` when the user named `--staged`) and write the raw patch to `<out>/impl-review-diff-roundN.patch`.
    - Run `git log --oneline <base>...HEAD -- <changed-files>` and capture the commit list (empty string if `--staged`).
@@ -111,6 +114,8 @@ Every blocker, risk, and nit must include an ID, a real file path and line when 
    - `{findings_path}` — exact absolute path to `<out>/impl-review-findings-roundN.md`.
    - `{round}` — numeric review round `N`.
    - `{commit_list}` — captured `git log --oneline` output, or `none` if `--staged`.
+   - `{reviewer_runtime}` — resolved `--ide` (default `codex`).
+   - `{reviewer_model}` — resolved `--model` (default `gpt-5.6-sol`).
 5. Write the assembled prompt to `<out>/impl-review-prompt-roundN.md`.
 
 **Step 3: Execute the Cross-LLM Review**
@@ -121,10 +126,10 @@ Every blocker, risk, and nit must include an ID, a real file path and line when 
    git status --short > <out>/impl-review-status-before-roundN.txt
    ```
 
-2. Run:
+2. Run (substitute the resolved `--ide`/`--model`/`--reasoning`, defaults `codex`/`gpt-5.6-sol`/`xhigh`):
 
    ```bash
-   compozy exec --ide claude --model opus --reasoning-effort xhigh --format json --prompt-file <out>/impl-review-prompt-roundN.md > <out>/impl-review-events-roundN.jsonl 2> <out>/impl-review-result-roundN.err
+   compozy exec --ide <ide> --model <model> --reasoning-effort <reasoning> --format json --prompt-file <out>/impl-review-prompt-roundN.md > <out>/impl-review-events-roundN.jsonl 2> <out>/impl-review-result-roundN.err
    ```
 
 3. Capture the post-run status snapshot:
@@ -196,7 +201,8 @@ Every blocker, risk, and nit must include an ID, a real file path and line when 
 
 - **Model misconfiguration (`The model 'X' does not exist`):** stop and surface the configured model. The IDE may be set to a stale name like `gpt-5.5`. Do not mutate the call to substitute a model — verify with the user. (See `docs/_memory/lessons/L-010-model-name-validation.md`.)
 - **`compozy exec` not found:** the skill assumes Compozy CLI is on `PATH`. If absent, fail with the install hint rather than swallowing.
-- **Readiness markers missing:** if Step 1 readiness checks fail, do not run Opus. Print the failed markers and exit so the user can fix the underlying problem first.
+- **Readiness markers missing:** if Step 1 readiness checks fail, do not run the reviewer. Print the failed markers and exit so the user can fix the underlying problem first.
+- **`--ide` invalid:** list accepted values (`codex`, `claude`, `cursor-agent`, `droid`, `opencode`, `pi`, `gemini`, `copilot`) and ask the user to choose — do not fall back.
 - **Empty diff:** if `git diff` yields no changes, abort. There is nothing to review.
 - **Missing findings file:** treat this as an invalid round, not a clean review. Write a validation-error artifact and ask whether to rerun.
 - **Malformed findings frontmatter or missing required sections:** treat this as an invalid round. Do not infer the verdict from stdout.

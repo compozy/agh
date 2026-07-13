@@ -138,325 +138,331 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("Should persist run-owned cleanup exclude borrowed sessions and fail a stopped creating attempt", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should persist run-owned cleanup exclude borrowed sessions and fail a stopped creating attempt",
+		func(t *testing.T) {
+			t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-cleanup")
-		ctx := testutil.Context(t)
-		now := time.Date(2026, 7, 11, 8, 30, 0, 0, time.UTC)
-		insertGoalSchemaLoopRun(t, globalDB, "run-goal-cleanup", "ws-goal-cleanup", "catalog", nil)
-		seedActiveGoalBindingForTest(
-			t,
-			globalDB,
-			"run-goal-cleanup",
-			"ws-goal-cleanup",
-			"goal:cleanup",
-			1,
-			"session-run-owned-cleanup",
-			now,
-		)
-		if err := globalDB.CloseSessionBinding(ctx, goal.CloseBindingRequest{
-			Key: goal.BindingKey{
-				WorkspaceID: "ws-goal-cleanup",
-				LoopRunID:   "run-goal-cleanup",
-				Handle:      "goal:cleanup",
-			},
-			ExpectedBindingEpoch: 1,
-			ClosedAt:             now.Add(time.Minute),
-		}); err != nil {
-			t.Fatalf("CloseSessionBinding(run-owned) error = %v", err)
-		}
-		pending, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
-		if err != nil {
-			t.Fatalf("ClaimGoalSessionCleanup() error = %v", err)
-		}
-		if len(pending) != 1 || pending[0].SessionID != "session-run-owned-cleanup" ||
-			pending[0].Cause != goal.SessionCleanupCauseTerminal {
-			t.Fatalf("run-owned cleanup = %#v", pending)
-		}
-		if err := globalDB.AcknowledgeGoalSessionCleanup(
-			ctx,
-			pending[0].CleanupID,
-			now.Add(2*time.Minute),
-		); err != nil {
-			t.Fatalf("AcknowledgeGoalSessionCleanup() error = %v", err)
-		}
+			globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-cleanup")
+			ctx := testutil.Context(t)
+			now := time.Date(2026, 7, 11, 8, 30, 0, 0, time.UTC)
+			insertGoalSchemaLoopRun(t, globalDB, "run-goal-cleanup", "ws-goal-cleanup", "catalog", nil)
+			seedActiveGoalBindingForTest(
+				t,
+				globalDB,
+				"run-goal-cleanup",
+				"ws-goal-cleanup",
+				"goal:cleanup",
+				1,
+				"session-run-owned-cleanup",
+				now,
+			)
+			if err := globalDB.CloseSessionBinding(ctx, goal.CloseBindingRequest{
+				Key: goal.BindingKey{
+					WorkspaceID: "ws-goal-cleanup",
+					LoopRunID:   "run-goal-cleanup",
+					Handle:      "goal:cleanup",
+				},
+				ExpectedBindingEpoch: 1,
+				ClosedAt:             now.Add(time.Minute),
+			}); err != nil {
+				t.Fatalf("CloseSessionBinding(run-owned) error = %v", err)
+			}
+			pending, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
+			if err != nil {
+				t.Fatalf("ClaimGoalSessionCleanup() error = %v", err)
+			}
+			if len(pending) != 1 || pending[0].SessionID != "session-run-owned-cleanup" ||
+				pending[0].Cause != goal.SessionCleanupCauseTerminal {
+				t.Fatalf("run-owned cleanup = %#v", pending)
+			}
+			if err := globalDB.AcknowledgeGoalSessionCleanup(
+				ctx,
+				pending[0].CleanupID,
+				now.Add(2*time.Minute),
+			); err != nil {
+				t.Fatalf("AcknowledgeGoalSessionCleanup() error = %v", err)
+			}
 
-		insertGoalSchemaLoopRun(t, globalDB, "run-goal-borrowed-cleanup", "ws-goal-cleanup", "catalog", nil)
-		if _, err := globalDB.db.ExecContext(
-			ctx,
-			`INSERT INTO loop_session_bindings (
+			insertGoalSchemaLoopRun(t, globalDB, "run-goal-borrowed-cleanup", "ws-goal-cleanup", "catalog", nil)
+			if _, err := globalDB.db.ExecContext(
+				ctx,
+				`INSERT INTO loop_session_bindings (
 				loop_run_id, handle, binding_epoch, binding_attempt_id, session_id, workspace_id,
 				creation_profile_ref, policy_spec_digest, creation_digest, ownership, state,
 				created_at, activated_at
 			) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, 'origin-borrowed', 'active', ?, ?)`,
-			"run-goal-borrowed-cleanup",
-			"goal:borrowed-cleanup",
-			"attempt-borrowed-cleanup",
-			"session-borrowed-cleanup",
-			"ws-goal-cleanup",
-			"profile-borrowed-cleanup",
-			"policy-borrowed-cleanup",
-			"creation-borrowed-cleanup",
-			store.FormatTimestamp(now),
-			store.FormatTimestamp(now),
-		); err != nil {
-			t.Fatalf("insert borrowed binding error = %v", err)
-		}
-		if err := globalDB.CloseSessionBinding(ctx, goal.CloseBindingRequest{
-			Key: goal.BindingKey{
-				WorkspaceID: "ws-goal-cleanup",
-				LoopRunID:   "run-goal-borrowed-cleanup",
-				Handle:      "goal:borrowed-cleanup",
-			},
-			ExpectedBindingEpoch: 1,
-			ClosedAt:             now.Add(time.Minute),
-		}); err != nil {
-			t.Fatalf("CloseSessionBinding(borrowed) error = %v", err)
-		}
-		pending, err = globalDB.ClaimGoalSessionCleanup(ctx, 10)
-		if err != nil {
-			t.Fatalf("ClaimGoalSessionCleanup(after borrowed) error = %v", err)
-		}
-		if len(pending) != 0 {
-			t.Fatalf("borrowed cleanup = %#v, want none", pending)
-		}
+				"run-goal-borrowed-cleanup",
+				"goal:borrowed-cleanup",
+				"attempt-borrowed-cleanup",
+				"session-borrowed-cleanup",
+				"ws-goal-cleanup",
+				"profile-borrowed-cleanup",
+				"policy-borrowed-cleanup",
+				"creation-borrowed-cleanup",
+				store.FormatTimestamp(now),
+				store.FormatTimestamp(now),
+			); err != nil {
+				t.Fatalf("insert borrowed binding error = %v", err)
+			}
+			if err := globalDB.CloseSessionBinding(ctx, goal.CloseBindingRequest{
+				Key: goal.BindingKey{
+					WorkspaceID: "ws-goal-cleanup",
+					LoopRunID:   "run-goal-borrowed-cleanup",
+					Handle:      "goal:borrowed-cleanup",
+				},
+				ExpectedBindingEpoch: 1,
+				ClosedAt:             now.Add(time.Minute),
+			}); err != nil {
+				t.Fatalf("CloseSessionBinding(borrowed) error = %v", err)
+			}
+			pending, err = globalDB.ClaimGoalSessionCleanup(ctx, 10)
+			if err != nil {
+				t.Fatalf("ClaimGoalSessionCleanup(after borrowed) error = %v", err)
+			}
+			if len(pending) != 0 {
+				t.Fatalf("borrowed cleanup = %#v, want none", pending)
+			}
 
-		insertGoalSchemaLoopRun(t, globalDB, "run-goal-creating-stop", "ws-goal-cleanup", "catalog", nil)
-		if _, err := globalDB.db.ExecContext(
-			ctx,
-			`INSERT INTO loop_session_bindings (
+			insertGoalSchemaLoopRun(t, globalDB, "run-goal-creating-stop", "ws-goal-cleanup", "catalog", nil)
+			if _, err := globalDB.db.ExecContext(
+				ctx,
+				`INSERT INTO loop_session_bindings (
 				loop_run_id, handle, binding_epoch, binding_attempt_id, session_id, workspace_id,
 				creation_profile_ref, policy_spec_digest, creation_digest, ownership, state, created_at
 			) VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, 'run-owned', 'creating', ?)`,
-			"run-goal-creating-stop",
-			"goal:creating-stop",
-			"attempt-creating-stop",
-			"session-creating-stop",
-			"ws-goal-cleanup",
-			"profile-creating-stop",
-			"policy-creating-stop",
-			"creation-creating-stop",
-			store.FormatTimestamp(now),
-		); err != nil {
-			t.Fatalf("insert creating binding error = %v", err)
-		}
-		if _, err := globalDB.StopGoalRun(ctx, looppkg.GoalRunStopRequest{
-			WorkspaceID:    "ws-goal-cleanup",
-			RunID:          "run-goal-creating-stop",
-			ExpectedStatus: looppkg.StatusRunning,
-			Actor:          operatorActorContextForTest("operator-stop-creating"),
-			StoppedAt:      now.Add(time.Minute),
-		}); err != nil {
-			t.Fatalf("StopGoalRun(creating binding) error = %v", err)
-		}
-		var state, failureCode string
-		var activatedAt *time.Time
-		if err := globalDB.db.QueryRowContext(
-			ctx,
-			`SELECT state, failure_code, activated_at FROM loop_session_bindings
+				"run-goal-creating-stop",
+				"goal:creating-stop",
+				"attempt-creating-stop",
+				"session-creating-stop",
+				"ws-goal-cleanup",
+				"profile-creating-stop",
+				"policy-creating-stop",
+				"creation-creating-stop",
+				store.FormatTimestamp(now),
+			); err != nil {
+				t.Fatalf("insert creating binding error = %v", err)
+			}
+			if _, err := globalDB.StopGoalRun(ctx, looppkg.GoalRunStopRequest{
+				WorkspaceID:    "ws-goal-cleanup",
+				RunID:          "run-goal-creating-stop",
+				ExpectedStatus: looppkg.StatusRunning,
+				Actor:          operatorActorContextForTest("operator-stop-creating"),
+				StoppedAt:      now.Add(time.Minute),
+			}); err != nil {
+				t.Fatalf("StopGoalRun(creating binding) error = %v", err)
+			}
+			var state, failureCode string
+			var activatedAt *time.Time
+			if err := globalDB.db.QueryRowContext(
+				ctx,
+				`SELECT state, failure_code, activated_at FROM loop_session_bindings
 			 WHERE loop_run_id = ? AND handle = ? AND binding_epoch = 1`,
-			"run-goal-creating-stop",
-			"goal:creating-stop",
-		).Scan(&state, &failureCode, &activatedAt); err != nil {
-			t.Fatalf("read stopped creating binding error = %v", err)
-		}
-		if state != string(goal.BindingStateFailed) ||
-			failureCode != goalBindingFailureStopCreationUnsettled || activatedAt != nil {
-			t.Fatalf("stopped creating binding = state:%q failure:%q activated:%v", state, failureCode, activatedAt)
-		}
-		pending, err = globalDB.ClaimGoalSessionCleanup(ctx, 10)
-		if err != nil {
-			t.Fatalf("ClaimGoalSessionCleanup(unsettled create) error = %v", err)
-		}
-		if len(pending) != 0 {
-			t.Fatalf("unsettled creation cleanup = %#v, want hidden", pending)
-		}
-		finalized, stopped, err := globalDB.FinalizeSessionBindingCreation(ctx, goal.ActivateBindingRequest{
-			Key: goal.BindingKey{
-				WorkspaceID: "ws-goal-cleanup", LoopRunID: "run-goal-creating-stop", Handle: "goal:creating-stop",
-			},
-			ExpectedBindingEpoch: 1,
-			ActivatedAt:          now.Add(2 * time.Minute),
-		})
-		if err != nil || !stopped || finalized.State != goal.BindingStateFailed ||
-			finalized.FailureCode != goalBindingFailureStopCreationSettled {
-			t.Fatalf("FinalizeSessionBindingCreation(stopped) = %#v/%t, %v", finalized, stopped, err)
-		}
-		pending, err = globalDB.ClaimGoalSessionCleanup(ctx, 10)
-		if err != nil {
-			t.Fatalf("ClaimGoalSessionCleanup(settled create) error = %v", err)
-		}
-		if len(pending) != 1 || pending[0].SessionID != "session-creating-stop" {
-			t.Fatalf("settled creation cleanup = %#v", pending)
-		}
-	})
+				"run-goal-creating-stop",
+				"goal:creating-stop",
+			).Scan(&state, &failureCode, &activatedAt); err != nil {
+				t.Fatalf("read stopped creating binding error = %v", err)
+			}
+			if state != string(goal.BindingStateFailed) ||
+				failureCode != goalBindingFailureStopCreationUnsettled || activatedAt != nil {
+				t.Fatalf("stopped creating binding = state:%q failure:%q activated:%v", state, failureCode, activatedAt)
+			}
+			pending, err = globalDB.ClaimGoalSessionCleanup(ctx, 10)
+			if err != nil {
+				t.Fatalf("ClaimGoalSessionCleanup(unsettled create) error = %v", err)
+			}
+			if len(pending) != 0 {
+				t.Fatalf("unsettled creation cleanup = %#v, want hidden", pending)
+			}
+			finalized, stopped, err := globalDB.FinalizeSessionBindingCreation(ctx, goal.ActivateBindingRequest{
+				Key: goal.BindingKey{
+					WorkspaceID: "ws-goal-cleanup", LoopRunID: "run-goal-creating-stop", Handle: "goal:creating-stop",
+				},
+				ExpectedBindingEpoch: 1,
+				ActivatedAt:          now.Add(2 * time.Minute),
+			})
+			if err != nil || !stopped || finalized.State != goal.BindingStateFailed ||
+				finalized.FailureCode != goalBindingFailureStopCreationSettled {
+				t.Fatalf("FinalizeSessionBindingCreation(stopped) = %#v/%t, %v", finalized, stopped, err)
+			}
+			pending, err = globalDB.ClaimGoalSessionCleanup(ctx, 10)
+			if err != nil {
+				t.Fatalf("ClaimGoalSessionCleanup(settled create) error = %v", err)
+			}
+			if len(pending) != 1 || pending[0].SessionID != "session-creating-stop" {
+				t.Fatalf("settled creation cleanup = %#v", pending)
+			}
+		},
+	)
 
-	t.Run("Should atomically fail one creation attempt advance the prompt identity and prepare its successor", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should atomically fail one creation attempt advance the prompt identity and prepare its successor",
+		func(t *testing.T) {
+			t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-binding-retry")
-		ctx := testutil.Context(t)
-		now := time.Date(2026, 7, 11, 9, 0, 0, 0, time.UTC)
-		insertGoalSchemaLoopRun(t, globalDB, "run-goal-binding-retry", "ws-goal-binding-retry", "catalog", nil)
-		checkpointKey := goal.TurnKey{
-			WorkspaceID: "ws-goal-binding-retry",
-			LoopRunID:   "run-goal-binding-retry",
-			Generation:  1,
-			NodeID:      "goal",
-		}
-		if _, err := globalDB.CreateCheckpoint(ctx, goal.CreateCheckpointRequest{Checkpoint: goal.Checkpoint{
-			Key: checkpointKey, ControlEpoch: 1, Phase: "idle", Status: "active", TurnLimit: 3,
-			TaskRunID: "task-goal-binding-retry", ContextState: "unknown",
-			ContextNudgeRatio: 0.8, UpdatedAt: now,
-		}}); err != nil {
-			t.Fatalf("CreateCheckpoint() error = %v", err)
-		}
-		key := goal.BindingKey{
-			WorkspaceID: checkpointKey.WorkspaceID,
-			LoopRunID:   checkpointKey.LoopRunID,
-			Handle:      "goal:binding-retry",
-		}
-		if _, err := globalDB.PrepareSessionBindingAttempt(ctx, goal.PrepareBindingAttemptRequest{
-			Key: key, BindingEpoch: 1, BindingAttemptID: "attempt-binding-retry-1",
-			SessionID: "session-binding-retry-1", CreationProfileRef: "profile-binding-retry",
-			PolicySpecDigest: "policy-binding-retry", CreationDigest: "creation-binding-retry-1",
-			CreatedAt: now,
-		}); err != nil {
-			t.Fatalf("PrepareSessionBindingAttempt() error = %v", err)
-		}
-		prepared, err := globalDB.GetSessionBindingAttempt(ctx, key, 1)
-		if err != nil || prepared.State != goal.BindingStateCreating {
-			t.Fatalf("GetSessionBindingAttempt(prepared) = %#v, %v", prepared, err)
-		}
-		if _, err := globalDB.db.ExecContext(
-			ctx,
-			`UPDATE loop_goal_checkpoints
+			globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-binding-retry")
+			ctx := testutil.Context(t)
+			now := time.Date(2026, 7, 11, 9, 0, 0, 0, time.UTC)
+			insertGoalSchemaLoopRun(t, globalDB, "run-goal-binding-retry", "ws-goal-binding-retry", "catalog", nil)
+			checkpointKey := goal.TurnKey{
+				WorkspaceID: "ws-goal-binding-retry",
+				LoopRunID:   "run-goal-binding-retry",
+				Generation:  1,
+				NodeID:      "goal",
+			}
+			if _, err := globalDB.CreateCheckpoint(ctx, goal.CreateCheckpointRequest{Checkpoint: goal.Checkpoint{
+				Key: checkpointKey, ControlEpoch: 1, Phase: "idle", Status: "active", TurnLimit: 3,
+				TaskRunID: "task-goal-binding-retry", ContextState: "unknown",
+				ContextNudgeRatio: 0.8, UpdatedAt: now,
+			}}); err != nil {
+				t.Fatalf("CreateCheckpoint() error = %v", err)
+			}
+			key := goal.BindingKey{
+				WorkspaceID: checkpointKey.WorkspaceID,
+				LoopRunID:   checkpointKey.LoopRunID,
+				Handle:      "goal:binding-retry",
+			}
+			if _, err := globalDB.PrepareSessionBindingAttempt(ctx, goal.PrepareBindingAttemptRequest{
+				Key: key, BindingEpoch: 1, BindingAttemptID: "attempt-binding-retry-1",
+				SessionID: "session-binding-retry-1", CreationProfileRef: "profile-binding-retry",
+				PolicySpecDigest: "policy-binding-retry", CreationDigest: "creation-binding-retry-1",
+				CreatedAt: now,
+			}); err != nil {
+				t.Fatalf("PrepareSessionBindingAttempt() error = %v", err)
+			}
+			prepared, err := globalDB.GetSessionBindingAttempt(ctx, key, 1)
+			if err != nil || prepared.State != goal.BindingStateCreating {
+				t.Fatalf("GetSessionBindingAttempt(prepared) = %#v, %v", prepared, err)
+			}
+			if _, err := globalDB.db.ExecContext(
+				ctx,
+				`UPDATE loop_goal_checkpoints
 			 SET binding_epoch = 1, session_id = ?, binding_handle = ?
 			 WHERE loop_run_id = ? AND generation = 1 AND node_id = 'goal' AND item_index = 0`,
-			prepared.SessionID,
-			key.Handle,
-			string(checkpointKey.LoopRunID),
-		); err != nil {
-			t.Fatalf("seed retry checkpoint binding owner error = %v", err)
-		}
-		request := goal.AdvanceBindingCreationFailureRequest{
-			Key: key, CheckpointKey: checkpointKey, ExpectedControlEpoch: 1,
-			ExpectedCheckpointPhase: "idle", ExpectedTaskRunID: "task-goal-binding-retry",
-			ExpectedCheckpointBindingEpoch: 1,
-			ExpectedCheckpointSessionID:    prepared.SessionID,
-			ExpectedCheckpointHandle:       key.Handle,
-			ExpectedPromptAttempt:          0, ExpectedBindingEpoch: 1, FailureCode: "provider-no-create",
-			ExpectedBindingAttemptID: prepared.BindingAttemptID,
-			ExpectedBindingSessionID: prepared.SessionID, ExpectedBindingProfileRef: prepared.CreationProfileRef,
-			ExpectedBindingPolicyDigest:   prepared.PolicySpecDigest,
-			ExpectedBindingCreationDigest: prepared.CreationDigest,
-			FailedAt:                      now.Add(time.Second), PrepareSuccessor: true, SuccessorBindingEpoch: 2,
-			SuccessorBindingAttemptID: "attempt-binding-retry-2",
-			SuccessorSessionID:        "session-binding-retry-2",
-			CreationProfileRef:        "profile-binding-retry",
-			PolicySpecDigest:          "policy-binding-retry",
-			SuccessorCreationDigest:   "creation-binding-retry-2",
-			SuccessorCreatedAt:        now.Add(time.Second),
-		}
-		if err := globalDB.AdvanceBindingCreationFailure(ctx, request); err != nil {
-			t.Fatalf("AdvanceBindingCreationFailure() error = %v", err)
-		}
-		path := globalDB.Path()
-		if err := globalDB.Close(ctx); err != nil {
-			t.Fatalf("Close(before retry witness replay) error = %v", err)
-		}
-		globalDB, err = OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(retry witness replay) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := globalDB.Close(context.Background()); err != nil {
-				t.Errorf("Close(retry witness replay) error = %v", err)
+				prepared.SessionID,
+				key.Handle,
+				string(checkpointKey.LoopRunID),
+			); err != nil {
+				t.Fatalf("seed retry checkpoint binding owner error = %v", err)
 			}
-		})
-		if err := globalDB.AdvanceBindingCreationFailure(ctx, request); err != nil {
-			t.Fatalf("AdvanceBindingCreationFailure(idempotent after reopen) error = %v", err)
-		}
-		conflicting := request
-		conflicting.SuccessorSessionID = "session-binding-retry-conflict"
-		if err := globalDB.AdvanceBindingCreationFailure(ctx, conflicting); err == nil {
-			t.Fatal("AdvanceBindingCreationFailure(conflicting successor) error = nil")
-		}
-		staleOwner := request
-		staleOwner.ExpectedTaskRunID = "task-goal-binding-stale"
-		if err := globalDB.AdvanceBindingCreationFailure(ctx, staleOwner); err == nil {
-			t.Fatal("AdvanceBindingCreationFailure(stale checkpoint owner) error = nil")
-		}
-		staleBindingEpoch := request
-		staleBindingEpoch.ExpectedCheckpointBindingEpoch++
-		if err := globalDB.AdvanceBindingCreationFailure(ctx, staleBindingEpoch); err == nil {
-			t.Fatal("AdvanceBindingCreationFailure(stale checkpoint binding epoch) error = nil")
-		}
-		staleBindingSession := request
-		staleBindingSession.ExpectedCheckpointSessionID = "session-binding-retry-stale"
-		if err := globalDB.AdvanceBindingCreationFailure(ctx, staleBindingSession); err == nil {
-			t.Fatal("AdvanceBindingCreationFailure(stale checkpoint binding session) error = nil")
-		}
-		staleBindingHandle := request
-		staleBindingHandle.ExpectedCheckpointHandle = "goal:binding-retry-stale"
-		if err := globalDB.AdvanceBindingCreationFailure(ctx, staleBindingHandle); err == nil {
-			t.Fatal("AdvanceBindingCreationFailure(stale checkpoint binding handle) error = nil")
-		}
-		for _, mutate := range []func(*goal.AdvanceBindingCreationFailureRequest){
-			func(candidate *goal.AdvanceBindingCreationFailureRequest) {
-				candidate.ExpectedBindingAttemptID = "attempt-binding-retry-stale"
-			},
-			func(candidate *goal.AdvanceBindingCreationFailureRequest) {
-				candidate.ExpectedBindingSessionID = "session-binding-retry-stale"
-			},
-			func(candidate *goal.AdvanceBindingCreationFailureRequest) {
-				candidate.ExpectedBindingProfileRef = "profile-binding-retry-stale"
-			},
-			func(candidate *goal.AdvanceBindingCreationFailureRequest) {
-				candidate.ExpectedBindingPolicyDigest = "policy-binding-retry-stale"
-			},
-			func(candidate *goal.AdvanceBindingCreationFailureRequest) {
-				candidate.ExpectedBindingCreationDigest = "creation-binding-retry-stale"
-			},
-		} {
-			candidate := request
-			mutate(&candidate)
-			if err := globalDB.AdvanceBindingCreationFailure(ctx, candidate); err == nil {
-				t.Fatal("AdvanceBindingCreationFailure(stale failed binding identity) error = nil")
+			request := goal.AdvanceBindingCreationFailureRequest{
+				Key: key, CheckpointKey: checkpointKey, ExpectedControlEpoch: 1,
+				ExpectedCheckpointPhase: "idle", ExpectedTaskRunID: "task-goal-binding-retry",
+				ExpectedCheckpointBindingEpoch: 1,
+				ExpectedCheckpointSessionID:    prepared.SessionID,
+				ExpectedCheckpointHandle:       key.Handle,
+				ExpectedPromptAttempt:          0, ExpectedBindingEpoch: 1, FailureCode: "provider-no-create",
+				ExpectedBindingAttemptID: prepared.BindingAttemptID,
+				ExpectedBindingSessionID: prepared.SessionID, ExpectedBindingProfileRef: prepared.CreationProfileRef,
+				ExpectedBindingPolicyDigest:   prepared.PolicySpecDigest,
+				ExpectedBindingCreationDigest: prepared.CreationDigest,
+				FailedAt:                      now.Add(time.Second), PrepareSuccessor: true, SuccessorBindingEpoch: 2,
+				SuccessorBindingAttemptID: "attempt-binding-retry-2",
+				SuccessorSessionID:        "session-binding-retry-2",
+				CreationProfileRef:        "profile-binding-retry",
+				PolicySpecDigest:          "policy-binding-retry",
+				SuccessorCreationDigest:   "creation-binding-retry-2",
+				SuccessorCreatedAt:        now.Add(time.Second),
 			}
-		}
-		failed, err := globalDB.GetSessionBindingAttempt(ctx, key, 1)
-		if err != nil {
-			t.Fatalf("GetSessionBindingAttempt(failed) error = %v", err)
-		}
-		successor, err := globalDB.GetSessionBindingAttempt(ctx, key, 2)
-		if err != nil {
-			t.Fatalf("GetSessionBindingAttempt(successor) error = %v", err)
-		}
-		checkpoint, err := globalDB.LoadCheckpoint(ctx, checkpointKey)
-		if err != nil {
-			t.Fatalf("LoadCheckpoint() error = %v", err)
-		}
-		if failed.State != goal.BindingStateFailed || failed.FailureCode != request.FailureCode ||
-			successor.State != goal.BindingStateCreating || checkpoint.PromptAttempt != 1 ||
-			checkpoint.BindingEpoch != 2 || checkpoint.SessionID != successor.SessionID {
-			t.Fatalf("binding retry state = failed:%#v successor:%#v checkpoint:%#v", failed, successor, checkpoint)
-		}
-		var witnessCount int
-		if err := globalDB.db.QueryRowContext(
-			ctx,
-			`SELECT COUNT(*) FROM loop_goal_binding_retry_witnesses
+			if err := globalDB.AdvanceBindingCreationFailure(ctx, request); err != nil {
+				t.Fatalf("AdvanceBindingCreationFailure() error = %v", err)
+			}
+			path := globalDB.Path()
+			if err := globalDB.Close(ctx); err != nil {
+				t.Fatalf("Close(before retry witness replay) error = %v", err)
+			}
+			globalDB, err = OpenGlobalDB(ctx, path)
+			if err != nil {
+				t.Fatalf("OpenGlobalDB(retry witness replay) error = %v", err)
+			}
+			t.Cleanup(func() {
+				if err := globalDB.Close(context.Background()); err != nil {
+					t.Errorf("Close(retry witness replay) error = %v", err)
+				}
+			})
+			if err := globalDB.AdvanceBindingCreationFailure(ctx, request); err != nil {
+				t.Fatalf("AdvanceBindingCreationFailure(idempotent after reopen) error = %v", err)
+			}
+			conflicting := request
+			conflicting.SuccessorSessionID = "session-binding-retry-conflict"
+			if err := globalDB.AdvanceBindingCreationFailure(ctx, conflicting); err == nil {
+				t.Fatal("AdvanceBindingCreationFailure(conflicting successor) error = nil")
+			}
+			staleOwner := request
+			staleOwner.ExpectedTaskRunID = "task-goal-binding-stale"
+			if err := globalDB.AdvanceBindingCreationFailure(ctx, staleOwner); err == nil {
+				t.Fatal("AdvanceBindingCreationFailure(stale checkpoint owner) error = nil")
+			}
+			staleBindingEpoch := request
+			staleBindingEpoch.ExpectedCheckpointBindingEpoch++
+			if err := globalDB.AdvanceBindingCreationFailure(ctx, staleBindingEpoch); err == nil {
+				t.Fatal("AdvanceBindingCreationFailure(stale checkpoint binding epoch) error = nil")
+			}
+			staleBindingSession := request
+			staleBindingSession.ExpectedCheckpointSessionID = "session-binding-retry-stale"
+			if err := globalDB.AdvanceBindingCreationFailure(ctx, staleBindingSession); err == nil {
+				t.Fatal("AdvanceBindingCreationFailure(stale checkpoint binding session) error = nil")
+			}
+			staleBindingHandle := request
+			staleBindingHandle.ExpectedCheckpointHandle = "goal:binding-retry-stale"
+			if err := globalDB.AdvanceBindingCreationFailure(ctx, staleBindingHandle); err == nil {
+				t.Fatal("AdvanceBindingCreationFailure(stale checkpoint binding handle) error = nil")
+			}
+			for _, mutate := range []func(*goal.AdvanceBindingCreationFailureRequest){
+				func(candidate *goal.AdvanceBindingCreationFailureRequest) {
+					candidate.ExpectedBindingAttemptID = "attempt-binding-retry-stale"
+				},
+				func(candidate *goal.AdvanceBindingCreationFailureRequest) {
+					candidate.ExpectedBindingSessionID = "session-binding-retry-stale"
+				},
+				func(candidate *goal.AdvanceBindingCreationFailureRequest) {
+					candidate.ExpectedBindingProfileRef = "profile-binding-retry-stale"
+				},
+				func(candidate *goal.AdvanceBindingCreationFailureRequest) {
+					candidate.ExpectedBindingPolicyDigest = "policy-binding-retry-stale"
+				},
+				func(candidate *goal.AdvanceBindingCreationFailureRequest) {
+					candidate.ExpectedBindingCreationDigest = "creation-binding-retry-stale"
+				},
+			} {
+				candidate := request
+				mutate(&candidate)
+				if err := globalDB.AdvanceBindingCreationFailure(ctx, candidate); err == nil {
+					t.Fatal("AdvanceBindingCreationFailure(stale failed binding identity) error = nil")
+				}
+			}
+			failed, err := globalDB.GetSessionBindingAttempt(ctx, key, 1)
+			if err != nil {
+				t.Fatalf("GetSessionBindingAttempt(failed) error = %v", err)
+			}
+			successor, err := globalDB.GetSessionBindingAttempt(ctx, key, 2)
+			if err != nil {
+				t.Fatalf("GetSessionBindingAttempt(successor) error = %v", err)
+			}
+			checkpoint, err := globalDB.LoadCheckpoint(ctx, checkpointKey)
+			if err != nil {
+				t.Fatalf("LoadCheckpoint() error = %v", err)
+			}
+			if failed.State != goal.BindingStateFailed || failed.FailureCode != request.FailureCode ||
+				successor.State != goal.BindingStateCreating || checkpoint.PromptAttempt != 1 ||
+				checkpoint.BindingEpoch != 2 || checkpoint.SessionID != successor.SessionID {
+				t.Fatalf("binding retry state = failed:%#v successor:%#v checkpoint:%#v", failed, successor, checkpoint)
+			}
+			var witnessCount int
+			if err := globalDB.db.QueryRowContext(
+				ctx,
+				`SELECT COUNT(*) FROM loop_goal_binding_retry_witnesses
 			 WHERE loop_run_id = ? AND handle = ? AND failed_binding_epoch = 1`,
-			string(key.LoopRunID),
-			key.Handle,
-		).Scan(&witnessCount); err != nil {
-			t.Fatalf("count binding retry witnesses error = %v", err)
-		}
-		if witnessCount != 1 {
-			t.Fatalf("binding retry witness count = %d, want 1", witnessCount)
-		}
-	})
+				string(key.LoopRunID),
+				key.Handle,
+			).Scan(&witnessCount); err != nil {
+				t.Fatalf("count binding retry witnesses error = %v", err)
+			}
+			if witnessCount != 1 {
+				t.Fatalf("binding retry witness count = %d, want 1", witnessCount)
+			}
+		},
+	)
 
 	t.Run("Should preserve one active epoch and terminalize failed creation before activation", func(t *testing.T) {
 		t.Parallel()

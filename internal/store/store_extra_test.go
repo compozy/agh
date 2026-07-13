@@ -92,8 +92,6 @@ func TestStoreSQLiteHelpers(t *testing.T) {
 	for _, want := range []string{
 		"busy_timeout(5000)",
 		"foreign_keys(ON)",
-		"journal_mode(WAL)",
-		"synchronous(NORMAL)",
 	} {
 		var found bool
 		if slices.Contains(pragmas, want) {
@@ -129,7 +127,7 @@ func TestStoreSQLiteHelpers(t *testing.T) {
 
 	dbPath := filepath.Join(t.TempDir(), "shared.db")
 	db, err := openSQLiteDatabaseOnce(testutil.Context(t), dbPath, func(ctx context.Context, db *sql.DB) error {
-		return EnsureSchema(ctx, db, []string{
+		return executeTestSchema(ctx, db, []string{
 			`CREATE TABLE IF NOT EXISTS sample (id TEXT PRIMARY KEY, value TEXT NOT NULL);`,
 			`INSERT INTO sample (id, value) VALUES ('row-1', 'alpha');`,
 		})
@@ -212,8 +210,6 @@ func TestSQLiteDSNAppendsExtraPragmas(t *testing.T) {
 		for _, want := range []string{
 			"busy_timeout(5000)",
 			"foreign_keys(ON)",
-			"journal_mode(WAL)",
-			"synchronous(NORMAL)",
 			"wal_autocheckpoint(0)",
 		} {
 			if !slices.Contains(pragmas, want) {
@@ -235,7 +231,7 @@ func TestStoreSQLiteRecoveryAndFailures(t *testing.T) {
 	}
 
 	db, err := OpenSQLiteDatabase(testutil.Context(t), dbPath, func(ctx context.Context, db *sql.DB) error {
-		return EnsureSchema(ctx, db, []string{`CREATE TABLE IF NOT EXISTS recovered (id TEXT PRIMARY KEY);`})
+		return executeTestSchema(ctx, db, []string{`CREATE TABLE IF NOT EXISTS recovered (id TEXT PRIMARY KEY);`})
 	})
 	if err != nil {
 		t.Fatalf("OpenSQLiteDatabase() error = %v", err)

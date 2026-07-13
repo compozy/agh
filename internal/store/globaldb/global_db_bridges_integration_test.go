@@ -4,7 +4,6 @@ package globaldb
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -276,74 +275,5 @@ func TestGlobalDBExpiredDedupRecordsExcluded(t *testing.T) {
 		bridges.ErrIngestDedupRecordNotFound,
 	) {
 		t.Fatalf("GetBridgeIngestDedup(expired) error = %v, want ErrIngestDedupRecordNotFound", err)
-	}
-}
-
-func TestOpenGlobalDBMigratesLegacyBridgeInstancesWithoutProviderConfig(t *testing.T) {
-	t.Parallel()
-
-	dbPath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
-	db, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		t.Fatalf("sql.Open() error = %v", err)
-	}
-	defer func() {
-		_ = db.Close()
-	}()
-
-	if _, err := db.ExecContext(testutil.Context(t), `CREATE TABLE bridge_instances (
-		id TEXT PRIMARY KEY,
-		scope TEXT NOT NULL,
-		workspace_id TEXT,
-		platform TEXT NOT NULL,
-		extension_name TEXT NOT NULL,
-		display_name TEXT NOT NULL,
-		enabled BOOLEAN NOT NULL DEFAULT 1,
-		status TEXT NOT NULL,
-		routing_policy TEXT NOT NULL,
-		delivery_defaults TEXT,
-		created_at TEXT NOT NULL,
-		updated_at TEXT NOT NULL
-	)`); err != nil {
-		t.Fatalf("create legacy bridge_instances table error = %v", err)
-	}
-	if _, err := db.ExecContext(testutil.Context(t), `INSERT INTO bridge_instances (
-		id, scope, workspace_id, platform, extension_name, display_name, enabled, status, routing_policy, delivery_defaults, created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		"brg-legacy",
-		"global",
-		nil,
-		"telegram",
-		"telegram-adapter",
-		"Legacy Telegram",
-		true,
-		"ready",
-		`{"include_peer":true}`,
-		nil,
-		store.FormatTimestamp(time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)),
-		store.FormatTimestamp(time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)),
-	); err != nil {
-		t.Fatalf("insert legacy bridge instance error = %v", err)
-	}
-
-	globalDB, err := OpenGlobalDB(testutil.Context(t), dbPath)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := globalDB.Close(testutil.Context(t)); err != nil {
-			t.Fatalf("Close(globalDB) error = %v", err)
-		}
-	})
-
-	loaded, err := globalDB.GetBridgeInstance(testutil.Context(t), "brg-legacy")
-	if err != nil {
-		t.Fatalf("GetBridgeInstance() error = %v", err)
-	}
-	if loaded.ProviderConfig != nil {
-		t.Fatalf("loaded.ProviderConfig = %s, want nil", string(loaded.ProviderConfig))
-	}
-	if got, want := loaded.DMPolicy, bridges.BridgeDMPolicyOpen; got != want {
-		t.Fatalf("loaded.DMPolicy = %q, want %q", got, want)
 	}
 }

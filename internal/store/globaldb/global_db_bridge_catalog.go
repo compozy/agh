@@ -10,7 +10,7 @@ import (
 )
 
 // CountBridgeRoutes returns route totals for a bounded bridge catalog page in one query.
-func (g *GlobalDB) CountBridgeRoutes(
+func (g *BridgeRepo) CountBridgeRoutes(
 	ctx context.Context,
 	bridgeInstanceIDs []string,
 ) (counts map[string]int, err error) {
@@ -29,6 +29,7 @@ func (g *GlobalDB) CountBridgeRoutes(
 		return counts, nil
 	}
 
+	// dynamic-sql: sqlc cannot express a caller-sized IN list; only generated placeholders are interpolated.
 	// #nosec G202 -- the interpolated fragment contains generated placeholders only.
 	statement := `SELECT bridge_instance_id, COUNT(*)
 		FROM bridge_routes
@@ -58,7 +59,7 @@ func (g *GlobalDB) CountBridgeRoutes(
 }
 
 // ListBridgeSecretBindingsForInstances loads bindings for a bounded bridge catalog page in one query.
-func (g *GlobalDB) ListBridgeSecretBindingsForInstances(
+func (g *BridgeRepo) ListBridgeSecretBindingsForInstances(
 	ctx context.Context,
 	bridgeInstanceIDs []string,
 ) (bindings map[string][]bridges.BridgeSecretBinding, err error) {
@@ -77,6 +78,7 @@ func (g *GlobalDB) ListBridgeSecretBindingsForInstances(
 		return bindings, nil
 	}
 
+	// dynamic-sql: sqlc cannot express a caller-sized IN list; only generated placeholders are interpolated.
 	// #nosec G202 -- the interpolated fragment contains generated placeholders only.
 	statement := `SELECT bridge_instance_id, binding_name, secret_ref, kind, created_at, updated_at
 		FROM bridge_secret_bindings

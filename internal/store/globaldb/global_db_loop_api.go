@@ -2,12 +2,12 @@ package globaldb
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 const defaultLoopAPIListLimit = 100
@@ -15,7 +15,10 @@ const maxLoopAPIListLimit = 500
 const loopRunAPIListSelectSQL = `SELECT ` + loopRunSelectColumnsSQL + ` FROM loop_runs`
 
 // ListLoopRuns loads workspace-scoped loop runs in newest-first order.
-func (g *GlobalDB) ListLoopRuns(ctx context.Context, query looppkg.RunListQuery) ([]looppkg.Run, error) {
+func (g *LoopRepo) ListLoopRuns(
+	ctx context.Context,
+	query looppkg.RunListQuery,
+) (runs []looppkg.Run, err error) {
 	if err := g.checkReady(ctx, "list loop runs"); err != nil {
 		return nil, err
 	}
@@ -35,6 +38,7 @@ func (g *GlobalDB) ListLoopRuns(ctx context.Context, query looppkg.RunListQuery)
 	if normalized.Live != nil {
 		where = append(where, loopRunLiveFilterSQL(*normalized.Live))
 	}
+	// dynamic-sql: optional run filters, live-state predicate, and caller limit change the statement shape.
 	// #nosec G202 -- SELECT columns are a package constant; dynamic filters are parameterized.
 	sqlText := store.AppendWhere(loopRunAPIListSelectSQL, where) +
 		` ORDER BY created_at DESC, id DESC LIMIT ?`
@@ -43,9 +47,11 @@ func (g *GlobalDB) ListLoopRuns(ctx context.Context, query looppkg.RunListQuery)
 	if err != nil {
 		return nil, fmt.Errorf("store: list loop runs: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		err = joinRowsCloseError(rows, err, "loop run query")
+	}()
 
-	runs := make([]looppkg.Run, 0)
+	runs = make([]looppkg.Run, 0)
 	for rows.Next() {
 		run, scanErr := scanLoopRun(rows)
 		if scanErr != nil {
@@ -60,7 +66,7 @@ func (g *GlobalDB) ListLoopRuns(ctx context.Context, query looppkg.RunListQuery)
 }
 
 // ListLoopRunEvents loads retained events after the requested sequence.
-func (g *GlobalDB) ListLoopRunEvents(
+func (g *LoopRepo) ListLoopRunEvents(
 	ctx context.Context,
 	query looppkg.RunEventQuery,
 ) ([]looppkg.RunEvent, error) {
@@ -71,41 +77,22 @@ func (g *GlobalDB) ListLoopRunEvents(
 	if err != nil {
 		return nil, err
 	}
-	rows, err := g.db.QueryContext(
-		ctx,
-		`SELECT id, loop_run_id, workspace_id, seq, kind, payload_json, at
-		 FROM loop_run_events
-		 WHERE workspace_id = ?
-		   AND loop_run_id = ?
-		   AND seq > ?
-		 ORDER BY seq ASC
-		 LIMIT ?`,
-		string(normalized.WorkspaceID),
-		string(normalized.RunID),
-		normalized.AfterSeq,
-		normalized.Limit,
-	)
+	rows, err := g.queries.ListLoopRunEvents(ctx, sqlcgen.ListLoopRunEventsParams{
+		WorkspaceID: string(normalized.WorkspaceID), LoopRunID: string(normalized.RunID),
+		AfterSeq: normalized.AfterSeq, RowLimit: int64(normalized.Limit),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("store: list loop run events: %w", err)
 	}
-	defer rows.Close()
-
-	events := make([]looppkg.RunEvent, 0)
-	for rows.Next() {
-		event, scanErr := scanLoopRunEvent(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		events = append(events, event)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate loop run events: %w", err)
+	events := make([]looppkg.RunEvent, 0, len(rows))
+	for _, row := range rows {
+		events = append(events, loopRunEventFromGenerated(row))
 	}
 	return events, nil
 }
 
 // ListLoopUIAnnotations loads editor node positions for one workspace loop.
-func (g *GlobalDB) ListLoopUIAnnotations(
+func (g *LoopRepo) ListLoopUIAnnotations(
 	ctx context.Context,
 	ws looppkg.WorkspaceID,
 	loopName string,
@@ -117,36 +104,21 @@ func (g *GlobalDB) ListLoopUIAnnotations(
 	if err != nil {
 		return nil, err
 	}
-	rows, err := g.db.QueryContext(
-		ctx,
-		`SELECT node_id, x, y
-		 FROM loop_ui_annotations
-		 WHERE workspace_id = ? AND loop_name = ?
-		 ORDER BY node_id ASC`,
-		string(workspaceID),
-		name,
-	)
+	rows, err := g.queries.ListLoopUIAnnotations(ctx, sqlcgen.ListLoopUIAnnotationsParams{
+		WorkspaceID: string(workspaceID), LoopName: name,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("store: list loop ui annotations: %w", err)
 	}
-	defer rows.Close()
-
-	annotations := make([]looppkg.UIAnnotation, 0)
-	for rows.Next() {
-		var annotation looppkg.UIAnnotation
-		if err := rows.Scan(&annotation.NodeID, &annotation.X, &annotation.Y); err != nil {
-			return nil, fmt.Errorf("store: scan loop ui annotation: %w", err)
-		}
-		annotations = append(annotations, annotation)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate loop ui annotations: %w", err)
+	annotations := make([]looppkg.UIAnnotation, 0, len(rows))
+	for _, row := range rows {
+		annotations = append(annotations, looppkg.UIAnnotation{NodeID: looppkg.NodeID(row.NodeID), X: row.X, Y: row.Y})
 	}
 	return annotations, nil
 }
 
 // ReplaceLoopUIAnnotations replaces editor node positions for one workspace loop.
-func (g *GlobalDB) ReplaceLoopUIAnnotations(
+func (g *LoopRepo) ReplaceLoopUIAnnotations(
 	ctx context.Context,
 	ws looppkg.WorkspaceID,
 	loopName string,
@@ -164,25 +136,17 @@ func (g *GlobalDB) ReplaceLoopUIAnnotations(
 		return err
 	}
 	return g.withTaskImmediateTransaction(ctx, "replace loop ui annotations", func(exec taskSQLExecutor) error {
-		if _, err := exec.ExecContext(
-			ctx,
-			`DELETE FROM loop_ui_annotations WHERE workspace_id = ? AND loop_name = ?`,
-			string(workspaceID),
-			name,
-		); err != nil {
+		queries := sqlcgen.New(exec)
+		if err := queries.DeleteLoopUIAnnotations(ctx, sqlcgen.DeleteLoopUIAnnotationsParams{
+			WorkspaceID: string(workspaceID), LoopName: name,
+		}); err != nil {
 			return fmt.Errorf("store: delete loop ui annotations: %w", err)
 		}
 		for _, annotation := range normalized {
-			if _, err := exec.ExecContext(
-				ctx,
-				`INSERT INTO loop_ui_annotations (workspace_id, loop_name, node_id, x, y)
-				 VALUES (?, ?, ?, ?, ?)`,
-				string(workspaceID),
-				name,
-				string(annotation.NodeID),
-				annotation.X,
-				annotation.Y,
-			); err != nil {
+			if err := queries.InsertLoopUIAnnotation(ctx, sqlcgen.InsertLoopUIAnnotationParams{
+				WorkspaceID: string(workspaceID), LoopName: name, NodeID: string(annotation.NodeID),
+				X: annotation.X, Y: annotation.Y,
+			}); err != nil {
 				return fmt.Errorf("store: insert loop ui annotation %q: %w", annotation.NodeID, err)
 			}
 		}
@@ -260,48 +224,6 @@ func normalizeLoopAPILimit(limit int) int {
 	}
 }
 
-func scanLoopRunEvent(row loopRunEventScanner) (looppkg.RunEvent, error) {
-	var event looppkg.RunEvent
-	var runID string
-	var workspaceID string
-	var payload string
-	var atRaw string
-	if err := row.Scan(
-		&event.ID,
-		&runID,
-		&workspaceID,
-		&event.Seq,
-		&event.Kind,
-		&payload,
-		&atRaw,
-	); err != nil {
-		if errorsIsNoRows(err) {
-			return looppkg.RunEvent{}, looppkg.ErrRunNotFound
-		}
-		return looppkg.RunEvent{}, fmt.Errorf("store: scan loop run event: %w", err)
-	}
-	event.LoopRunID = looppkg.RunID(runID)
-	event.WorkspaceID = looppkg.WorkspaceID(workspaceID)
-	if !loopRunEventKindValid(event.Kind) {
-		return looppkg.RunEvent{}, fmt.Errorf(
-			"%w: loop run event kind is invalid: %q",
-			looppkg.ErrValidation,
-			event.Kind,
-		)
-	}
-	event.Payload = json.RawMessage(payload)
-	at, err := parseLoopRunTimestamp(atRaw)
-	if err != nil {
-		return looppkg.RunEvent{}, fmt.Errorf("store: parse loop run event at: %w", err)
-	}
-	event.At = at
-	return event, nil
-}
-
-type loopRunEventScanner interface {
-	Scan(dest ...any) error
-}
-
 func normalizeLoopAnnotationKey(
 	ws looppkg.WorkspaceID,
 	loopName string,
@@ -338,5 +260,5 @@ func normalizeLoopAnnotations(annotations []looppkg.UIAnnotation) ([]looppkg.UIA
 	return normalized, nil
 }
 
-var _ looppkg.RunReader = (*GlobalDB)(nil)
-var _ looppkg.AnnotationStore = (*GlobalDB)(nil)
+var _ looppkg.RunReader = (*LoopRepo)(nil)
+var _ looppkg.AnnotationStore = (*LoopRepo)(nil)

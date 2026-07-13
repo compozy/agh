@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 func normalizeOriginBindingRequest(
@@ -155,22 +156,16 @@ func getActiveSessionBindingWithExecutor(
 	exec taskSQLExecutor,
 	key goal.BindingKey,
 ) (goal.SessionBinding, bool, error) {
-	binding, err := scanGoalSessionBinding(exec.QueryRowContext(
-		ctx,
-		`SELECT `+goalBindingSelectColumns+`
-		 FROM loop_session_bindings
-		 WHERE loop_run_id = ? AND workspace_id = ? AND handle = ? AND state = 'active'`,
-		string(key.LoopRunID),
-		string(key.WorkspaceID),
-		key.Handle,
-	))
+	row, err := sqlcgen.New(exec).GetActiveGoalSessionBinding(ctx, sqlcgen.GetActiveGoalSessionBindingParams{
+		LoopRunID: string(key.LoopRunID), WorkspaceID: string(key.WorkspaceID), Handle: key.Handle,
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return goal.SessionBinding{}, false, nil
 	}
 	if err != nil {
 		return goal.SessionBinding{}, false, err
 	}
-	return binding, true, nil
+	return goalSessionBindingFromGenerated(row), true, nil
 }
 
 func findSessionBindingAttemptWithExecutor(
@@ -179,23 +174,16 @@ func findSessionBindingAttemptWithExecutor(
 	key goal.BindingKey,
 	epoch int64,
 ) (goal.SessionBinding, bool, error) {
-	binding, err := scanGoalSessionBinding(exec.QueryRowContext(
-		ctx,
-		`SELECT `+goalBindingSelectColumns+`
-		 FROM loop_session_bindings
-		 WHERE loop_run_id = ? AND workspace_id = ? AND handle = ? AND binding_epoch = ?`,
-		string(key.LoopRunID),
-		string(key.WorkspaceID),
-		key.Handle,
-		epoch,
-	))
+	row, err := sqlcgen.New(exec).FindGoalSessionBindingAttempt(ctx, sqlcgen.FindGoalSessionBindingAttemptParams{
+		LoopRunID: string(key.LoopRunID), WorkspaceID: string(key.WorkspaceID), Handle: key.Handle, BindingEpoch: epoch,
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return goal.SessionBinding{}, false, nil
 	}
 	if err != nil {
 		return goal.SessionBinding{}, false, err
 	}
-	return binding, true, nil
+	return goalSessionBindingFromGenerated(row), true, nil
 }
 
 func getSessionBindingAttemptWithExecutor(
@@ -214,64 +202,18 @@ func getSessionBindingAttemptWithExecutor(
 	return binding, nil
 }
 
-func scanGoalSessionBinding(scanner rowScanner) (goal.SessionBinding, error) {
-	var (
-		binding         goal.SessionBinding
-		workspaceID     string
-		failureCode     sql.NullString
-		createdAtRaw    any
-		activatedAtRaw  any
-		failedAtRaw     any
-		closedAtRaw     any
-		adoptionAttempt sql.NullString
-	)
-	if err := scanner.Scan(
-		&binding.Key.LoopRunID,
-		&binding.Key.Handle,
-		&binding.BindingEpoch,
-		&binding.BindingAttemptID,
-		&binding.SessionID,
-		&workspaceID,
-		&binding.CreationProfileRef,
-		&binding.PolicySpecDigest,
-		&binding.CreationDigest,
-		&binding.Ownership,
-		&binding.State,
-		&binding.AdoptedGeneration,
-		&adoptionAttempt,
-		&failureCode,
-		&createdAtRaw,
-		&activatedAtRaw,
-		&failedAtRaw,
-		&closedAtRaw,
-	); err != nil {
-		return goal.SessionBinding{}, err
-	}
-	binding.Key.WorkspaceID = loop.WorkspaceID(workspaceID)
-	binding.FailureCode = strings.TrimSpace(failureCode.String)
-	binding.AdoptionAttemptID = strings.TrimSpace(adoptionAttempt.String)
-	createdAt, err := parseGoalTimestampValue(createdAtRaw, "binding created_at")
-	if err != nil {
-		return goal.SessionBinding{}, err
-	}
-	binding.CreatedAt = createdAt
-	if binding.ActivatedAt, err = parseOptionalGoalTimestampValue(activatedAtRaw, "binding activated_at"); err != nil {
-		return goal.SessionBinding{}, err
-	}
-	if binding.FailedAt, err = parseOptionalGoalTimestampValue(failedAtRaw, "binding failed_at"); err != nil {
-		return goal.SessionBinding{}, err
-	}
-	if binding.ClosedAt, err = parseOptionalGoalTimestampValue(closedAtRaw, "binding closed_at"); err != nil {
-		return goal.SessionBinding{}, err
-	}
-	return binding, nil
-}
-
 func requireGoalRowsAffected(result sql.Result, action string) error {
 	affected, err := result.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("store: rows affected for %s: %w", action, err)
 	}
+	if affected != 1 {
+		return goalControlStaleError(action + " lost compare-and-swap")
+	}
+	return nil
+}
+
+func requireGoalAffectedCount(affected int64, action string) error {
 	if affected != 1 {
 		return goalControlStaleError(action + " lost compare-and-swap")
 	}

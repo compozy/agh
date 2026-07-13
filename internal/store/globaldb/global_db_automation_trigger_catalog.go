@@ -8,27 +8,13 @@ import (
 	"strings"
 
 	automation "github.com/compozy/agh/internal/automation/model"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
+
+const automationTriggerCatalogWorkspaceIndex = "idx_automation_trigger_catalog_workspace_order"
 
 const automationTriggerCatalogBaseSQL = ` FROM automation_trigger_catalog_entries AS c
 	LEFT JOIN automation_trigger_overlays AS o ON o.trigger_id = c.trigger_id`
-
-const automationTriggerCatalogHydrationSQL = `WITH requested(trigger_id, ordinal) AS (
-	SELECT CAST(value AS TEXT), CAST(key AS INTEGER) FROM json_each(?)
-)
-SELECT t.id, t.scope, t.name, t.agent_name, t.workspace_id, t.prompt, t.event, t.filter,
-	CASE
-		WHEN t.source IN ('config', 'package') AND o.enabled_override IS NOT NULL
-			THEN o.enabled_override
-		ELSE t.enabled
-	END,
-	t.retry, t.fire_limit, t.source, t.webhook_id, t.endpoint_slug, t.webhook_secret_ref,
-	t.target_kind, t.loop_workspace_id, t.loop_name, t.loop_inputs, t.loop_input_mapping,
-	t.created_at, t.updated_at
-FROM requested
-JOIN automation_triggers AS t ON t.id = requested.trigger_id
-LEFT JOIN automation_trigger_overlays AS o ON o.trigger_id = t.id
-ORDER BY requested.ordinal`
 
 func listAutomationTriggerCatalog(
 	ctx context.Context,
@@ -41,6 +27,7 @@ func listAutomationTriggerCatalog(
 	}
 	where, args := automationTriggerCatalogWhere(query)
 	var total int
+	// dynamic-sql: optional catalog filters change the count predicate set.
 	if err := executor.QueryRowContext(
 		ctx,
 		`SELECT COUNT(*)`+automationTriggerCatalogBaseSQL+where,
@@ -163,6 +150,7 @@ func readAutomationTriggerCatalogCandidates(
 	where string,
 	args []any,
 ) (candidates []automationCatalogCandidate, err error) {
+	// dynamic-sql: optional filters and keyset cursor terms change the candidate query shape.
 	rows, err := executor.QueryContext(
 		ctx,
 		`SELECT c.trigger_id, c.source, c.name`+automationTriggerCatalogBaseSQL+where+
@@ -206,24 +194,16 @@ func hydrateAutomationTriggerCatalogPage(
 	if err != nil {
 		return nil, fmt.Errorf("store: encode automation trigger catalog ids: %w", err)
 	}
-	rows, err := executor.QueryContext(ctx, automationTriggerCatalogHydrationSQL, string(idsJSON))
+	rows, err := sqlcgen.New(executor).HydrateAutomationTriggerCatalog(ctx, string(idsJSON))
 	if err != nil {
 		return nil, fmt.Errorf("store: hydrate automation trigger catalog page: %w", err)
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("store: close automation trigger catalog hydration rows: %w", closeErr))
-		}
-	}()
-	for rows.Next() {
-		trigger, scanErr := scanAutomationTrigger(rows)
+	for _, row := range rows {
+		trigger, scanErr := automationTriggerFromHydrated(row)
 		if scanErr != nil {
 			return nil, scanErr
 		}
 		triggers = append(triggers, trigger)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate automation trigger catalog hydration rows: %w", err)
 	}
 	if len(triggers) != len(candidates) {
 		return nil, fmt.Errorf(

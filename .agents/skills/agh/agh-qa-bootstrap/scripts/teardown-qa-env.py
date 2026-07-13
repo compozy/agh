@@ -6,6 +6,10 @@ bootstraps a lab MUST end with a teardown invocation (success OR failure paths):
 
     python3 .agents/skills/agh/agh-qa-bootstrap/scripts/teardown-qa-env.py --manifest "<BOOTSTRAP_MANIFEST>"
 
+Tear down one bare worktree-isolation envelope without touching other labs:
+
+    python3 .agents/skills/agh/agh-qa-bootstrap/scripts/teardown-qa-env.py --root "<AGH_ISOLATION_ROOT>"
+
 Reap every discoverable lab on the machine (safe default set of roots):
 
     python3 .agents/skills/agh/agh-qa-bootstrap/scripts/teardown-qa-env.py --all
@@ -444,6 +448,7 @@ def target_from_bare_root(root: Path) -> LabTarget:
     for sock in sorted(agh_home.glob("tmux-bridge*.sock")):
         tmux_socket = sock
         break
+    worktree_scoped = root.name == ".agh" and "_worktrees" in root.parts
     return LabTarget(
         label=root.name,
         manifest_path=None,
@@ -453,7 +458,7 @@ def target_from_bare_root(root: Path) -> LabTarget:
         uds_path=None,
         http_port=None,
         qa_root=None,
-        purgeable_roots=[root],
+        purgeable_roots=[] if worktree_scoped else [root],
     )
 
 
@@ -513,6 +518,7 @@ def teardown_target(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--manifest", default="", help="Path to a bootstrap-manifest.json to tear down")
+    parser.add_argument("--root", default="", help="Path to one bare isolation envelope to tear down")
     parser.add_argument("--all", action="store_true", help="Discover and tear down every known lab root")
     parser.add_argument("--purge", action="store_true", help="Remove lab runtime dirs after a clean sweep")
     parser.add_argument("--dry-run", action="store_true", help="Report actions without executing them")
@@ -521,13 +527,20 @@ def main() -> int:
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON summary")
     args = parser.parse_args()
 
-    if bool(args.manifest.strip()) == args.all:
-        parser.error("exactly one of --manifest or --all is required")
+    selected_modes = sum((bool(args.manifest.strip()), bool(args.root.strip()), args.all))
+    if selected_modes != 1:
+        parser.error("exactly one of --manifest, --root, or --all is required")
 
     repo_root = Path(args.repo_root).expanduser().resolve()
     targets: list[LabTarget]
     if args.all:
         targets = discover_all_targets()
+    elif args.root.strip():
+        root = Path(args.root).expanduser().resolve()
+        if not root.is_dir() or not is_safe_root(root):
+            print(f"TEARDOWN_ERROR=unsafe or missing isolation root: {root}", file=sys.stderr)
+            return 1
+        targets = [target_from_bare_root(root)]
     else:
         manifest_path = Path(args.manifest).expanduser().resolve()
         if not manifest_path.is_file():

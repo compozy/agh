@@ -11,13 +11,14 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
-var _ looppkg.InlineRunStore = (*GlobalDB)(nil)
-var _ looppkg.InlineGoalClearStore = (*GlobalDB)(nil)
+var _ looppkg.InlineRunStore = (*LoopRepo)(nil)
+var _ looppkg.InlineGoalClearStore = (*LoopRepo)(nil)
 
 // CreateInlineLoopRunForStart atomically validates the origin, starts the Run, and enqueues discovery.
-func (g *GlobalDB) CreateInlineLoopRunForStart(
+func (g *LoopRepo) CreateInlineLoopRunForStart(
 	ctx context.Context,
 	run looppkg.Run,
 ) (looppkg.Run, error) {
@@ -73,7 +74,7 @@ func (g *GlobalDB) CreateInlineLoopRunForStart(
 }
 
 // ReplaceInlineLoopRun atomically revokes the expected live Goal and starts its prepared successor.
-func (g *GlobalDB) ReplaceInlineLoopRun(
+func (g *LoopRepo) ReplaceInlineLoopRun(
 	ctx context.Context,
 	request looppkg.InlineReplaceStoreRequest,
 ) (looppkg.InlineReplaceStoreResult, error) {
@@ -92,7 +93,7 @@ func (g *GlobalDB) ReplaceInlineLoopRun(
 	return g.replaceInlineLoopRunTransaction(ctx, request, inputsJSON, metadataJSON)
 }
 
-func (g *GlobalDB) replaceInlineLoopRunTransaction(
+func (g *LoopRepo) replaceInlineLoopRunTransaction(
 	ctx context.Context,
 	request looppkg.InlineReplaceStoreRequest,
 	inputsJSON []byte,
@@ -182,7 +183,7 @@ func newInlineReplaceStoreResult(expectedRunID looppkg.RunID) looppkg.InlineRepl
 }
 
 // ClearInlineGoal atomically selects and tombstones the newest session Goal, stopping it when live.
-func (g *GlobalDB) ClearInlineGoal(
+func (g *LoopRepo) ClearInlineGoal(
 	ctx context.Context,
 	request looppkg.InlineGoalClearStoreRequest,
 ) (looppkg.InlineGoalClearStoreResult, error) {
@@ -277,28 +278,20 @@ func findNewestSessionGoalWithExecutor(
 	workspaceID looppkg.WorkspaceID,
 	sessionID string,
 ) (*looppkg.Run, bool, error) {
-	var runID string
-	var clearedAt sql.NullString
-	err := exec.QueryRowContext(
-		ctx,
-		`SELECT id, goal_cleared_at
-		 FROM loop_runs
-		 WHERE workspace_id = ? AND origin_kind = 'session' AND origin_session_id = ?
-		 ORDER BY created_at DESC, rowid DESC LIMIT 1`,
-		string(workspaceID),
-		strings.TrimSpace(sessionID),
-	).Scan(&runID, &clearedAt)
+	row, err := sqlcgen.New(exec).FindNewestSessionGoal(ctx, sqlcgen.FindNewestSessionGoalParams{
+		WorkspaceID: string(workspaceID), OriginSessionID: nullString(strings.TrimSpace(sessionID)),
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, false, nil
 	}
 	if err != nil {
 		return nil, false, fmt.Errorf("store: find newest session Goal: %w", err)
 	}
-	run, err := getLoopRunByIDWithExecutor(ctx, exec, looppkg.RunID(strings.TrimSpace(runID)))
+	run, err := getLoopRunByIDWithExecutor(ctx, exec, looppkg.RunID(strings.TrimSpace(row.ID)))
 	if err != nil {
 		return nil, false, err
 	}
-	return &run, clearedAt.Valid, nil
+	return &run, row.GoalClearedAt.Valid, nil
 }
 
 func markInlineGoalRunCleared(
@@ -308,18 +301,16 @@ func markInlineGoalRunCleared(
 	workspaceID looppkg.WorkspaceID,
 	clearedAt time.Time,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_runs SET goal_cleared_at = ?
-		 WHERE id = ? AND workspace_id = ? AND goal_cleared_at IS NULL`,
-		store.FormatTimestamp(clearedAt),
-		string(runID),
-		string(workspaceID),
-	)
+	affected, err := sqlcgen.New(exec).MarkInlineGoalRunCleared(ctx, sqlcgen.MarkInlineGoalRunClearedParams{
+		GoalClearedAt: nullableLoopTime(clearedAt), ID: string(runID), WorkspaceID: string(workspaceID),
+	})
 	if err != nil {
 		return fmt.Errorf("store: mark inline Goal cleared: %w", err)
 	}
-	return requireGoalRowsAffected(result, "mark inline Goal cleared")
+	if affected != 1 {
+		return goalControlStaleError("mark inline Goal cleared lost compare-and-swap")
+	}
+	return nil
 }
 
 func normalizeInlineLoopRun(run looppkg.Run) (looppkg.Run, []byte, []byte, error) {
@@ -342,30 +333,23 @@ func normalizeInlineLoopRun(run looppkg.Run) (looppkg.Run, []byte, []byte, error
 }
 
 func validateInlineRunOrigin(ctx context.Context, exec taskSQLExecutor, run looppkg.Run) error {
-	var workspaceID, state string
-	var profileRef, policyDigest, creationDigest sql.NullString
-	err := exec.QueryRowContext(
-		ctx,
-		`SELECT workspace_id, state, creation_profile_ref, policy_spec_digest, creation_digest
-		 FROM sessions WHERE id = ?`,
-		run.Origin.SessionID,
-	).Scan(&workspaceID, &state, &profileRef, &policyDigest, &creationDigest)
+	row, err := sqlcgen.New(exec).GetInlineGoalOriginSession(ctx, run.Origin.SessionID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return inlineOriginReasonError(looppkg.ReasonCodeGoalOriginInvalid, store.ErrSessionNotFound)
 	}
 	if err != nil {
 		return fmt.Errorf("store: load inline Goal origin session: %w", err)
 	}
-	if strings.TrimSpace(workspaceID) != strings.TrimSpace(string(run.WorkspaceID)) {
+	if strings.TrimSpace(row.WorkspaceID) != strings.TrimSpace(string(run.WorkspaceID)) {
 		return inlineOriginReasonError(looppkg.ReasonCodeGoalOriginWorkspaceMismatch, looppkg.ErrValidation)
 	}
-	if strings.TrimSpace(state) != globalDBSessionStateActive {
+	if strings.TrimSpace(row.State) != globalDBSessionStateActive {
 		return inlineOriginReasonError(looppkg.ReasonCodeGoalOriginInvalid, looppkg.ErrInvalidTransition)
 	}
-	if !profileRef.Valid || !policyDigest.Valid || !creationDigest.Valid ||
-		strings.TrimSpace(profileRef.String) != run.Origin.CreationProfileRef ||
-		strings.TrimSpace(policyDigest.String) != run.Origin.PolicySpecDigest ||
-		strings.TrimSpace(creationDigest.String) != run.Origin.CreationDigest {
+	if !row.CreationProfileRef.Valid || !row.PolicySpecDigest.Valid || !row.CreationDigest.Valid ||
+		strings.TrimSpace(row.CreationProfileRef.String) != run.Origin.CreationProfileRef ||
+		strings.TrimSpace(row.PolicySpecDigest.String) != run.Origin.PolicySpecDigest ||
+		strings.TrimSpace(row.CreationDigest.String) != run.Origin.CreationDigest {
 		return inlineOriginReasonError(looppkg.ReasonCodeGoalOriginProfileUnavailable, looppkg.ErrValidation)
 	}
 	return nil
@@ -377,20 +361,16 @@ func findLiveSessionGoalWithExecutor(
 	workspaceID looppkg.WorkspaceID,
 	sessionID string,
 ) (*looppkg.Run, error) {
-	row := exec.QueryRowContext(
-		ctx,
-		`SELECT `+loopRunSelectColumnsSQL+`
-		 FROM loop_runs
-		 WHERE workspace_id = ? AND origin_kind = 'session' AND origin_session_id = ?
-		   AND status IN ('queued','running','watching','needs-approval','paused')
-		 ORDER BY created_at DESC, id DESC LIMIT 1`,
-		string(workspaceID),
-		strings.TrimSpace(sessionID),
-	)
-	run, err := scanLoopRun(row)
-	if errors.Is(err, looppkg.ErrRunNotFound) {
+	row, err := sqlcgen.New(exec).FindLiveSessionGoal(ctx, sqlcgen.FindLiveSessionGoalParams{
+		WorkspaceID: string(workspaceID), OriginSessionID: nullString(strings.TrimSpace(sessionID)),
+	})
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
+	if err != nil {
+		return nil, fmt.Errorf("store: find live session Goal: %w", err)
+	}
+	run, err := loopRunFromGenerated(&row)
 	if err != nil {
 		return nil, err
 	}

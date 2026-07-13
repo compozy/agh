@@ -29,7 +29,7 @@ type automationWatchEventRow struct {
 	retryRaw    string
 }
 
-func (g *GlobalDB) readAutomationWatchEventsCursor(
+func (g *WatchEventsRepo) readAutomationWatchEventsCursor(
 	ctx context.Context,
 	query normalizedWatchEventsQuery,
 ) (int64, error) {
@@ -37,6 +37,7 @@ func (g *GlobalDB) readAutomationWatchEventsCursor(
 	if len(statuses) == 0 {
 		return 0, nil
 	}
+	// dynamic-sql: requested automation hooks map to a variable-width status set.
 	placeholders, statusArgs := sqlInPlaceholders(statuses)
 	args := append([]any{query.workspaceID}, statusArgs...)
 	// #nosec G202 -- IN placeholders are generated from normalized status count; values are parameterized.
@@ -53,7 +54,7 @@ func (g *GlobalDB) readAutomationWatchEventsCursor(
 	)
 }
 
-func (g *GlobalDB) readAutomationWatchEvents(
+func (g *WatchEventsRepo) readAutomationWatchEvents(
 	ctx context.Context,
 	query normalizedWatchEventsQuery,
 ) ([]looppkg.WatchEvent, error) {
@@ -61,6 +62,7 @@ func (g *GlobalDB) readAutomationWatchEvents(
 	if len(statuses) == 0 {
 		return nil, nil
 	}
+	// dynamic-sql: requested automation hooks map to a variable-width status set.
 	placeholders, statusArgs := sqlInPlaceholders(statuses)
 	args := append([]any{
 		query.workspaceID,

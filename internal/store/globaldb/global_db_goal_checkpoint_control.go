@@ -9,10 +9,11 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 // GrantAndReactivate records one monotonic typed grant and advances the control epoch exactly once.
-func (g *GlobalDB) GrantAndReactivate(ctx context.Context, req goal.GrantRequest) error {
+func (g *GoalRepo) GrantAndReactivate(ctx context.Context, req goal.GrantRequest) error {
 	if err := g.checkReady(ctx, "grant and reactivate goal checkpoint"); err != nil {
 		return err
 	}
@@ -86,35 +87,19 @@ func persistGoalGrantCheckpoint(
 	turnLimit int,
 	now time.Time,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_goal_checkpoints
-			 SET control_epoch = control_epoch + 1,
-			     phase = 'idle', goal_status = 'active', control_cause = NULL, turn_limit = ?,
-			     control_actor_kind = NULL, control_actor_id = NULL, control_requested_at = NULL,
-			     control_grant_id = ?, control_grant_kind = ?, control_grant_cause = ?,
-			     control_grant_turn = ?, control_grant_scope = ?, control_grant_consumed = ?,
-			     updated_at = ?
-			 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-			   AND control_epoch = ? AND phase = 'awaiting_control'`,
-		turnLimit,
-		grantID,
-		string(req.Kind),
-		string(req.Cause),
-		req.Turn,
-		string(req.Scope),
-		boolToInt(consumed),
-		store.FormatTimestamp(now),
-		string(req.Key.LoopRunID),
-		req.Key.Generation,
-		string(req.Key.NodeID),
-		req.Key.ItemIndex,
-		req.ExpectedControlEpoch,
-	)
+	grantTurn := int64(req.Turn)
+	affected, err := sqlcgen.New(exec).GrantGoalCheckpointControl(ctx, sqlcgen.GrantGoalCheckpointControlParams{
+		TurnLimit: int64(turnLimit), ControlGrantID: grantID, ControlGrantKind: goalNullableString(string(req.Kind)),
+		ControlGrantCause: goalNullableString(string(req.Cause)), ControlGrantTurn: goalNullableInt64(&grantTurn),
+		ControlGrantScope: goalNullableString(string(req.Scope)), ControlGrantConsumed: int64(boolToInt(consumed)),
+		UpdatedAt: store.FormatTimestamp(now), LoopRunID: string(req.Key.LoopRunID),
+		Generation: int64(req.Key.Generation), NodeID: string(req.Key.NodeID), ItemIndex: int64(req.Key.ItemIndex),
+		ControlEpoch: req.ExpectedControlEpoch,
+	})
 	if err != nil {
 		return fmt.Errorf("store: grant goal checkpoint control: %w", err)
 	}
-	return requireGoalRowsAffected(result, "grant goal checkpoint control")
+	return requireGoalAffectedCount(affected, "grant goal checkpoint control")
 }
 
 func projectGoalGrantOutput(
@@ -124,26 +109,20 @@ func projectGoalGrantOutput(
 	checkpoint goal.Checkpoint,
 	turnLimit int,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_generation_outputs
-			 SET goal_status = 'active', goal_turns_used = ?, goal_turn_limit = ?
-			 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?`,
-		checkpoint.TurnsUsed,
-		turnLimit,
-		string(req.Key.LoopRunID),
-		req.Key.Generation,
-		string(req.Key.NodeID),
-		req.Key.ItemIndex,
-	)
+	turnsUsed64, turnLimit64 := int64(checkpoint.TurnsUsed), int64(turnLimit)
+	affected, err := sqlcgen.New(exec).ProjectGoalGrantOutput(ctx, sqlcgen.ProjectGoalGrantOutputParams{
+		GoalTurnsUsed: goalNullableInt64(&turnsUsed64), GoalTurnLimit: goalNullableInt64(&turnLimit64),
+		LoopRunID: string(req.Key.LoopRunID), Generation: int64(req.Key.Generation),
+		NodeID: string(req.Key.NodeID), ItemIndex: int64(req.Key.ItemIndex),
+	})
 	if err != nil {
 		return fmt.Errorf("store: project goal grant reactivation: %w", err)
 	}
-	return requireGoalRowsAffected(result, "project goal grant reactivation")
+	return requireGoalAffectedCount(affected, "project goal grant reactivation")
 }
 
 // CheckpointControl records one typed nonterminal or terminal control boundary by CAS.
-func (g *GlobalDB) CheckpointControl(ctx context.Context, req goal.ControlCheckpointRequest) error {
+func (g *GoalRepo) CheckpointControl(ctx context.Context, req goal.ControlCheckpointRequest) error {
 	if err := g.checkReady(ctx, "checkpoint goal control"); err != nil {
 		return err
 	}
@@ -163,37 +142,20 @@ func (g *GlobalDB) CheckpointControl(ctx context.Context, req goal.ControlCheckp
 			return goalControlStaleError("control checkpoint owner changed")
 		}
 		phase := goalControlCheckpointTargetPhase(req)
-		result, err := exec.ExecContext(
-			ctx,
-			`UPDATE loop_goal_checkpoints
-			 SET phase = ?, goal_status = ?, control_cause = ?, control_actor_kind = ?, control_actor_id = ?,
-			     control_requested_at = ?, updated_at = ?
-			 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-			   AND control_epoch = ? AND COALESCE(binding_epoch, 0) = ? AND phase = ?
-			   AND COALESCE(task_run_id, '') = ? AND COALESCE(queue_entry_id, '') = ?
-			   AND COALESCE(prompt_id, '') = ?`,
-			phase,
-			req.Status,
-			string(req.Cause),
-			strings.TrimSpace(req.ActorKind),
-			strings.TrimSpace(req.ActorID),
-			store.FormatTimestamp(now),
-			store.FormatTimestamp(now),
-			string(req.Key.LoopRunID),
-			req.Key.Generation,
-			string(req.Key.NodeID),
-			req.Key.ItemIndex,
-			req.ExpectedControlEpoch,
-			req.ExpectedBindingEpoch,
-			strings.TrimSpace(req.ExpectedPhase),
-			strings.TrimSpace(req.TaskRunID),
-			strings.TrimSpace(req.QueueEntryID),
-			strings.TrimSpace(req.PromptID),
-		)
+		affected, err := sqlcgen.New(exec).UpdateGoalCheckpointControl(ctx, sqlcgen.UpdateGoalCheckpointControlParams{
+			Phase: phase, GoalStatus: req.Status, ControlCause: goalNullableString(string(req.Cause)),
+			ControlActorKind: goalNullableString(req.ActorKind), ControlActorID: goalNullableString(req.ActorID),
+			ControlRequestedAt: store.FormatTimestamp(now), UpdatedAt: store.FormatTimestamp(now),
+			LoopRunID: string(req.Key.LoopRunID), Generation: int64(req.Key.Generation),
+			NodeID: string(req.Key.NodeID), ItemIndex: int64(req.Key.ItemIndex),
+			ControlEpoch: req.ExpectedControlEpoch, BindingEpoch: goalNullableInt64(&req.ExpectedBindingEpoch),
+			ExpectedPhase: strings.TrimSpace(req.ExpectedPhase), TaskRunID: goalRequiredSQLString(req.TaskRunID),
+			QueueEntryID: goalRequiredSQLString(req.QueueEntryID), PromptID: goalRequiredSQLString(req.PromptID),
+		})
 		if err != nil {
 			return fmt.Errorf("store: checkpoint goal control: %w", err)
 		}
-		if err := requireGoalRowsAffected(result, "checkpoint goal control"); err != nil {
+		if err := requireGoalAffectedCount(affected, "checkpoint goal control"); err != nil {
 			return err
 		}
 		if phase == goalCheckpointPhaseTerminal {
@@ -257,13 +219,9 @@ func goalGrantKindScopeValid(kind goal.ControlGrantKind, scope goal.ControlGrant
 }
 
 func incrementGoalBudgetVersion(ctx context.Context, exec taskSQLExecutor, runID looppkg.RunID) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_runs SET budget_version = budget_version + 1 WHERE id = ?`,
-		string(runID),
-	)
+	affected, err := sqlcgen.New(exec).IncrementGoalBudgetVersion(ctx, string(runID))
 	if err != nil {
 		return fmt.Errorf("store: increment goal budget version: %w", err)
 	}
-	return requireGoalRowsAffected(result, "increment goal budget version")
+	return requireGoalAffectedCount(affected, "increment goal budget version")
 }

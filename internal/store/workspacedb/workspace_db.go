@@ -14,10 +14,6 @@ import (
 	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
-const defaultMigrationTable = "schema_migrations"
-
-var errAheadSchema = errors.New("store: workspace database schema ahead of binary")
-
 // DB is an open per-workspace AGH database handle.
 type DB struct {
 	db            *sql.DB
@@ -29,9 +25,7 @@ type DB struct {
 
 // Options configures a per-workspace database open.
 type Options struct {
-	WorkspaceRoot   string
-	Migrations      []store.Migration
-	MigrationsTable string
+	WorkspaceRoot string
 }
 
 // Open resolves the workspace identity and opens <workspace>/.agh/agh.db.
@@ -49,9 +43,8 @@ func Open(ctx context.Context, opts Options) (*DB, error) {
 		return nil, fmt.Errorf("store: resolve workspace identity for %q: %w", workspaceRoot, err)
 	}
 	dbPath := filepath.Join(filepath.Dir(identity.Path), store.GlobalDatabaseName)
-	migrationTable := normalizeMigrationTable(opts.MigrationsTable)
 	db, err := store.OpenSQLiteDatabase(ctx, dbPath, func(ctx context.Context, db *sql.DB) error {
-		return runWorkspaceMigrations(ctx, db, opts.Migrations, migrationTable)
+		return store.Apply(ctx, db, MigrationStream())
 	})
 	if err != nil {
 		return nil, fmt.Errorf("store: open workspace database %q: %w", dbPath, err)
@@ -65,12 +58,9 @@ func Open(ctx context.Context, opts Options) (*DB, error) {
 	}, nil
 }
 
-// OpenWorkspace opens a workspace database with the default migration table.
-func OpenWorkspace(ctx context.Context, workspaceRoot string, migrations []store.Migration) (*DB, error) {
-	return Open(ctx, Options{
-		WorkspaceRoot: workspaceRoot,
-		Migrations:    migrations,
-	})
+// OpenWorkspace opens a workspace database using its package-owned schema stream.
+func OpenWorkspace(ctx context.Context, workspaceRoot string) (*DB, error) {
+	return Open(ctx, Options{WorkspaceRoot: workspaceRoot})
 }
 
 // Path reports the database path.
@@ -120,66 +110,4 @@ func (d *DB) Close(ctx context.Context) error {
 	checkpointErr := store.Checkpoint(ctx, d.db)
 	closeErr := d.db.Close()
 	return errors.Join(checkpointErr, closeErr)
-}
-
-func runWorkspaceMigrations(
-	ctx context.Context,
-	db *sql.DB,
-	migrations []store.Migration,
-	migrationTable string,
-) error {
-	if err := rejectAheadSchema(ctx, db, migrations, migrationTable); err != nil {
-		return err
-	}
-	if err := store.RunMigrations(
-		ctx,
-		db,
-		migrations,
-		store.WithMigrationsTable(migrationTable),
-	); err != nil {
-		return err
-	}
-	return rejectAheadSchema(ctx, db, migrations, migrationTable)
-}
-
-func rejectAheadSchema(
-	ctx context.Context,
-	db *sql.DB,
-	migrations []store.Migration,
-	migrationTable string,
-) error {
-	records, err := store.AppliedMigrationsWithTable(ctx, db, migrationTable)
-	if err != nil {
-		return err
-	}
-	head := migrationHead(migrations)
-	for _, record := range records {
-		if record.Version > head {
-			return fmt.Errorf(
-				"%w: workspace database schema version %d is ahead of binary head %d",
-				errAheadSchema,
-				record.Version,
-				head,
-			)
-		}
-	}
-	return nil
-}
-
-func migrationHead(migrations []store.Migration) int {
-	head := 0
-	for _, migration := range migrations {
-		if migration.Version > head {
-			head = migration.Version
-		}
-	}
-	return head
-}
-
-func normalizeMigrationTable(value string) string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return defaultMigrationTable
-	}
-	return trimmed
 }

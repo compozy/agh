@@ -10,60 +10,14 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	"github.com/compozy/agh/internal/toolruntime"
 )
 
-var _ toolruntime.Store = (*GlobalDB)(nil)
-
-func migrateToolProcessRecords(ctx context.Context, tx *sql.Tx) error {
-	statements := []string{
-		`CREATE TABLE IF NOT EXISTS tool_processes (
-			id               TEXT PRIMARY KEY,
-			source           TEXT NOT NULL,
-			session_id       TEXT NOT NULL DEFAULT '',
-			turn_id          TEXT NOT NULL DEFAULT '',
-			tool_call_id     TEXT NOT NULL DEFAULT '',
-			terminal_id      TEXT NOT NULL DEFAULT '',
-			extension_name   TEXT NOT NULL DEFAULT '',
-			hook_name        TEXT NOT NULL DEFAULT '',
-			sandbox_id   TEXT NOT NULL DEFAULT '',
-			pid              INTEGER NOT NULL DEFAULT 0,
-			process_group_id INTEGER NOT NULL DEFAULT 0,
-			command          TEXT NOT NULL DEFAULT '',
-			args_json        TEXT NOT NULL DEFAULT '[]',
-			cwd              TEXT NOT NULL DEFAULT '',
-			started_at       TEXT,
-			started_by_pid   INTEGER NOT NULL DEFAULT 0,
-			state            TEXT NOT NULL,
-			exit_code        INTEGER,
-			error            TEXT NOT NULL DEFAULT '',
-			created_at       TEXT NOT NULL,
-			updated_at       TEXT NOT NULL,
-			completed_at     TEXT
-		);`,
-		`CREATE INDEX IF NOT EXISTS idx_tool_processes_state_updated
-			ON tool_processes(state, updated_at);`,
-		`CREATE INDEX IF NOT EXISTS idx_tool_processes_session_turn
-			ON tool_processes(session_id, turn_id);`,
-		`CREATE INDEX IF NOT EXISTS idx_tool_processes_tool_call
-			ON tool_processes(tool_call_id);`,
-		`CREATE INDEX IF NOT EXISTS idx_tool_processes_terminal
-			ON tool_processes(terminal_id);`,
-		`CREATE INDEX IF NOT EXISTS idx_tool_processes_extension
-			ON tool_processes(extension_name);`,
-		`CREATE INDEX IF NOT EXISTS idx_tool_processes_hook
-			ON tool_processes(hook_name);`,
-	}
-	for _, statement := range statements {
-		if _, err := tx.ExecContext(ctx, statement); err != nil {
-			return fmt.Errorf("store: migrate tool process records: %w", err)
-		}
-	}
-	return nil
-}
+var _ toolruntime.Store = (*ToolRuntimeRepo)(nil)
 
 // UpsertProcessRecord writes one durable process checkpoint.
-func (g *GlobalDB) UpsertProcessRecord(ctx context.Context, record toolruntime.ProcessRecord) error {
+func (g *ToolRuntimeRepo) UpsertProcessRecord(ctx context.Context, record toolruntime.ProcessRecord) error {
 	if err := g.checkReady(ctx, "upsert tool process record"); err != nil {
 		return err
 	}
@@ -71,57 +25,34 @@ func (g *GlobalDB) UpsertProcessRecord(ctx context.Context, record toolruntime.P
 	if err != nil {
 		return fmt.Errorf("store: encode tool process args for %q: %w", record.ID, err)
 	}
-	_, err = g.db.ExecContext(
-		ctx,
-		`INSERT INTO tool_processes (
-			id, source, session_id, turn_id, tool_call_id, terminal_id, extension_name,
-			hook_name, sandbox_id, pid, process_group_id, command, args_json, cwd,
-			started_at, started_by_pid, state, exit_code, error, created_at, updated_at, completed_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
-			source = excluded.source,
-			session_id = excluded.session_id,
-			turn_id = excluded.turn_id,
-			tool_call_id = excluded.tool_call_id,
-			terminal_id = excluded.terminal_id,
-			extension_name = excluded.extension_name,
-			hook_name = excluded.hook_name,
-			sandbox_id = excluded.sandbox_id,
-			pid = excluded.pid,
-			process_group_id = excluded.process_group_id,
-			command = excluded.command,
-			args_json = excluded.args_json,
-			cwd = excluded.cwd,
-			started_at = excluded.started_at,
-			started_by_pid = excluded.started_by_pid,
-			state = excluded.state,
-			exit_code = excluded.exit_code,
-			error = excluded.error,
-			updated_at = excluded.updated_at,
-			completed_at = excluded.completed_at`,
-		record.ID,
-		string(record.Source),
-		record.Owner.SessionID,
-		record.Owner.TurnID,
-		record.Owner.ToolCallID,
-		record.Owner.TerminalID,
-		record.Owner.ExtensionName,
-		record.Owner.HookName,
-		record.Owner.SandboxID,
-		record.PID,
-		record.ProcessGroupID,
-		record.Command,
-		string(argsJSON),
-		record.Cwd,
-		nullableProcessTimeValue(record.StartedAt),
-		record.StartedByPID,
-		string(record.State),
-		nullableInt(record.ExitCode),
-		record.Error,
-		store.FormatTimestamp(record.CreatedAt),
-		store.FormatTimestamp(record.UpdatedAt),
-		nullableProcessTime(record.CompletedAt),
-	)
+	err = g.queries.UpsertToolProcessRecord(ctx, sqlcgen.UpsertToolProcessRecordParams{
+		ID:             record.ID,
+		Source:         string(record.Source),
+		SessionID:      record.Owner.SessionID,
+		TurnID:         record.Owner.TurnID,
+		ToolCallID:     record.Owner.ToolCallID,
+		TerminalID:     record.Owner.TerminalID,
+		ExtensionName:  record.Owner.ExtensionName,
+		HookName:       record.Owner.HookName,
+		SandboxID:      record.Owner.SandboxID,
+		Pid:            int64(record.PID),
+		ProcessGroupID: int64(record.ProcessGroupID),
+		Command:        record.Command,
+		ArgsJson:       string(argsJSON),
+		Cwd:            record.Cwd,
+		StartedAt:      nullableProcessTimestamp(record.StartedAt),
+		StartedByPid: int64(
+			record.StartedByPID,
+		),
+		State:     string(record.State),
+		ExitCode:  nullableProcessInt(record.ExitCode),
+		Error:     record.Error,
+		CreatedAt: store.FormatTimestamp(record.CreatedAt),
+		UpdatedAt: store.FormatTimestamp(
+			record.UpdatedAt,
+		),
+		CompletedAt: nullableProcessTimestampPtr(record.CompletedAt),
+	})
 	if err != nil {
 		return fmt.Errorf("store: upsert tool process record %q: %w", record.ID, err)
 	}
@@ -129,31 +60,25 @@ func (g *GlobalDB) UpsertProcessRecord(ctx context.Context, record toolruntime.P
 }
 
 // UpdateProcessRecordState mutates lifecycle fields for one process record.
-func (g *GlobalDB) UpdateProcessRecordState(ctx context.Context, update toolruntime.ProcessStateUpdate) error {
+func (g *ToolRuntimeRepo) UpdateProcessRecordState(ctx context.Context, update toolruntime.ProcessStateUpdate) error {
 	if err := g.checkReady(ctx, "update tool process record state"); err != nil {
 		return err
 	}
 	if strings.TrimSpace(update.ID) == "" {
 		return errors.New("store: tool process id is required")
 	}
-	result, err := g.db.ExecContext(
-		ctx,
-		`UPDATE tool_processes
-		SET state = ?, exit_code = ?, error = ?, updated_at = ?, completed_at = ?
-		WHERE id = ?`,
-		string(update.State),
-		nullableInt(update.ExitCode),
-		update.Error,
-		store.FormatTimestamp(update.UpdatedAt),
-		nullableProcessTime(update.CompletedAt),
-		update.ID,
-	)
+	rowsAffected, err := g.queries.UpdateToolProcessRecordState(ctx, sqlcgen.UpdateToolProcessRecordStateParams{
+		State:    string(update.State),
+		ExitCode: nullableProcessInt(update.ExitCode),
+		Error:    update.Error,
+		UpdatedAt: store.FormatTimestamp(
+			update.UpdatedAt,
+		),
+		CompletedAt: nullableProcessTimestampPtr(update.CompletedAt),
+		ID:          update.ID,
+	})
 	if err != nil {
 		return fmt.Errorf("store: update tool process record %q state: %w", update.ID, err)
-	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("store: inspect tool process record %q state update: %w", update.ID, err)
 	}
 	if rowsAffected == 0 {
 		return fmt.Errorf("%w: tool process record %q", toolruntime.ErrProcessNotFound, update.ID)
@@ -162,22 +87,27 @@ func (g *GlobalDB) UpdateProcessRecordState(ctx context.Context, update toolrunt
 }
 
 // ListProcessRecords returns process records matching the query.
-func (g *GlobalDB) ListProcessRecords(
+func (g *ToolRuntimeRepo) ListProcessRecords(
 	ctx context.Context,
 	query toolruntime.ProcessQuery,
-) ([]toolruntime.ProcessRecord, error) {
+) (records []toolruntime.ProcessRecord, err error) {
 	if err := g.checkReady(ctx, "list tool process records"); err != nil {
 		return nil, err
 	}
 
+	// dynamic-sql: optional ID/state sets, owner scope fields, source, and limit change the statement shape.
 	sqlQuery, args := toolProcessListQuery(query)
 	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: list tool process records: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("store: close tool process rows: %w", closeErr))
+		}
+	}()
 
-	records := make([]toolruntime.ProcessRecord, 0)
+	records = make([]toolruntime.ProcessRecord, 0)
 	for rows.Next() {
 		record, scanErr := scanToolProcessRecord(rows)
 		if scanErr != nil {
@@ -323,23 +253,23 @@ func placeholders(count int) string {
 	return strings.Join(values, ", ")
 }
 
-func nullableProcessTime(value *time.Time) any {
+func nullableProcessTimestampPtr(value *time.Time) sql.NullString {
 	if value == nil || value.IsZero() {
-		return nil
+		return sql.NullString{}
 	}
-	return store.FormatTimestamp(*value)
+	return sql.NullString{String: store.FormatTimestamp(*value), Valid: true}
 }
 
-func nullableProcessTimeValue(value time.Time) any {
+func nullableProcessTimestamp(value time.Time) sql.NullString {
 	if value.IsZero() {
-		return nil
+		return sql.NullString{}
 	}
-	return store.FormatTimestamp(value)
+	return sql.NullString{String: store.FormatTimestamp(value), Valid: true}
 }
 
-func nullableInt(value *int) any {
+func nullableProcessInt(value *int) sql.NullInt64 {
 	if value == nil {
-		return nil
+		return sql.NullInt64{}
 	}
-	return *value
+	return sql.NullInt64{Int64: int64(*value), Valid: true}
 }

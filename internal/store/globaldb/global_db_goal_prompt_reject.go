@@ -9,12 +9,13 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
-var _ goal.PreparedPromptRejectionStore = (*GlobalDB)(nil)
+var _ goal.PreparedPromptRejectionStore = (*GoalRepo)(nil)
 
 // RejectPreparedGoalPrompt records a proven no-effect attempt and advances its prompt identity.
-func (g *GlobalDB) RejectPreparedGoalPrompt(
+func (g *GoalRepo) RejectPreparedGoalPrompt(
 	ctx context.Context,
 	req goal.RejectPreparedPromptRequest,
 ) error {
@@ -70,31 +71,27 @@ func persistRejectedGoalQueueRow(
 	req goal.RejectPreparedPromptRequest,
 	now time.Time,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE session_input_queue
-		 SET status = 'failed', dispatchable = 0, terminal_kind = 'rejected-before-submit',
-		     terminal_reason_code = ?, terminal_tokens_reported = 0, terminal_tokens_used = NULL,
-		     terminal_at = ?, failed_at = ?, failure_summary = ?, updated_at = ?
-		 WHERE id = ? AND loop_run_id = ? AND prompt_id = ? AND task_run_id = ?
-		   AND owner_kind = 'goal' AND owner_epoch = ? AND binding_epoch = ?
-		   AND status = 'queued' AND terminal_at IS NULL AND dispatch_token_hash IS NULL`,
-		string(req.ReasonCode),
-		store.FormatTimestamp(now),
-		store.FormatTimestamp(now),
-		string(req.ReasonCode),
-		store.FormatTimestamp(now),
-		strings.TrimSpace(req.QueueEntryID),
-		string(req.Key.LoopRunID),
-		strings.TrimSpace(req.PromptID),
-		strings.TrimSpace(req.TaskRunID),
-		req.ExpectedControlEpoch,
-		req.ExpectedBindingEpoch,
-	)
+	affected, err := sqlcgen.New(exec).RejectPreparedGoalQueueRow(ctx, sqlcgen.RejectPreparedGoalQueueRowParams{
+		TerminalReasonCode: goalNullableString(string(req.ReasonCode)),
+		TerminalAt:         store.FormatTimestamp(now),
+		FailedAt: store.FormatTimestamp(
+			now,
+		),
+		FailureSummary: string(req.ReasonCode),
+		UpdatedAt:      store.FormatTimestamp(now),
+		ID:             strings.TrimSpace(req.QueueEntryID),
+		LoopRunID:      goalNullableString(string(req.Key.LoopRunID)),
+		PromptID:       goalNullableString(req.PromptID),
+		TaskRunID:      strings.TrimSpace(req.TaskRunID),
+		OwnerEpoch: goalNullableInt64(
+			&req.ExpectedControlEpoch,
+		),
+		BindingEpoch: goalNullableInt64(&req.ExpectedBindingEpoch),
+	})
 	if err != nil {
 		return fmt.Errorf("store: reject prepared Goal queue row: %w", err)
 	}
-	return requireGoalRowsAffected(result, "reject prepared Goal queue row")
+	return requireGoalAffectedCount(affected, "reject prepared Goal queue row")
 }
 
 func advanceRejectedGoalCheckpoint(
@@ -104,30 +101,18 @@ func advanceRejectedGoalCheckpoint(
 	nextAttempt int,
 	now time.Time,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_goal_checkpoints
-		 SET phase = 'preparing', prompt_attempt = ?, queue_entry_id = NULL, prompt_id = NULL,
-		     prompt_kind = NULL, updated_at = ?
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		   AND control_epoch = ? AND binding_epoch = ? AND phase = 'queued'
-		   AND task_run_id = ? AND queue_entry_id = ? AND prompt_id = ?`,
-		nextAttempt,
-		store.FormatTimestamp(now),
-		string(req.Key.LoopRunID),
-		req.Key.Generation,
-		string(req.Key.NodeID),
-		req.Key.ItemIndex,
-		req.ExpectedControlEpoch,
-		req.ExpectedBindingEpoch,
-		strings.TrimSpace(req.TaskRunID),
-		strings.TrimSpace(req.QueueEntryID),
-		strings.TrimSpace(req.PromptID),
-	)
+	affected, err := sqlcgen.New(exec).AdvanceRejectedGoalCheckpoint(ctx, sqlcgen.AdvanceRejectedGoalCheckpointParams{
+		PromptAttempt: int64(nextAttempt), UpdatedAt: store.FormatTimestamp(now),
+		LoopRunID: string(req.Key.LoopRunID), Generation: int64(req.Key.Generation),
+		NodeID: string(req.Key.NodeID), ItemIndex: int64(req.Key.ItemIndex),
+		ControlEpoch: req.ExpectedControlEpoch, BindingEpoch: goalNullableInt64(&req.ExpectedBindingEpoch),
+		TaskRunID: goalNullableString(req.TaskRunID), QueueEntryID: goalNullableString(req.QueueEntryID),
+		PromptID: goalNullableString(req.PromptID),
+	})
 	if err != nil {
 		return fmt.Errorf("store: advance rejected Goal checkpoint: %w", err)
 	}
-	return requireGoalRowsAffected(result, "advance rejected Goal checkpoint")
+	return requireGoalAffectedCount(affected, "advance rejected Goal checkpoint")
 }
 
 func rejectedGoalPromptAlreadyApplied(

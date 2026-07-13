@@ -6,6 +6,7 @@ import (
 	"time"
 
 	looppkg "github.com/compozy/agh/internal/loop"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 func compareAndSwapLoopRunStatusWithExecutor(
@@ -22,35 +23,12 @@ func compareAndSwapLoopRunStatusWithExecutor(
 		return err
 	}
 	clearControlState := loopStatusClearsControlState(to)
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_runs
-		 SET status = ?,
-		     pause_requested = CASE WHEN ? THEN 0 ELSE pause_requested END,
-		     control_actor_kind = CASE WHEN ? THEN NULL ELSE control_actor_kind END,
-		     control_actor_id = CASE WHEN ? THEN NULL ELSE control_actor_id END,
-		     control_requested_at = CASE WHEN ? THEN NULL ELSE control_requested_at END,
-		     active_gate_id = CASE WHEN ? != ? THEN '' ELSE active_gate_id END,
-		     active_human_criteria_json = CASE WHEN ? != ? THEN '[]' ELSE active_human_criteria_json END
-		 WHERE id = ? AND status = ?`,
-		string(to),
-		clearControlState,
-		clearControlState,
-		clearControlState,
-		clearControlState,
-		string(to),
-		string(looppkg.StatusNeedsApproval),
-		string(to),
-		string(looppkg.StatusNeedsApproval),
-		string(runID),
-		string(from),
-	)
+	affected, err := sqlcgen.New(exec).CompareAndSwapLoopRunStatus(ctx, sqlcgen.CompareAndSwapLoopRunStatusParams{
+		Status: string(to), ClearControlState: int64(boolToInt(clearControlState)),
+		ID: string(runID), ExpectedStatus: string(from),
+	})
 	if err != nil {
 		return fmt.Errorf("store: transition loop run %q: %w", runID, err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("store: rows affected for loop run %q transition: %w", runID, err)
 	}
 	if affected == 0 {
 		return fmt.Errorf("%w: run_id=%s from=%s to=%s", looppkg.ErrTransitionConflict, runID, from, to)

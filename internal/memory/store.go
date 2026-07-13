@@ -18,7 +18,6 @@ import (
 	"github.com/compozy/agh/internal/frontmatter"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 	memoryrecall "github.com/compozy/agh/internal/memory/recall"
-	storepkg "github.com/compozy/agh/internal/store"
 	aghworkspace "github.com/compozy/agh/internal/workspace"
 	"github.com/goccy/go-yaml"
 )
@@ -154,38 +153,6 @@ func (s *Store) CloseRecallSignalRecorders(ctx context.Context) error {
 		}
 	}
 	return errors.Join(errs...)
-}
-
-// ListMemoryEventSummaries returns canonical memory events from every visible
-// memory authority, keeping workspace DB rows visible to observe adapters.
-func (s *Store) ListMemoryEventSummaries(
-	ctx context.Context,
-	workspaces []string,
-	query storepkg.EventSummaryQuery,
-) ([]storepkg.EventSummary, error) {
-	if ctx == nil {
-		return nil, errors.New("memory: event summary context is required")
-	}
-	if err := query.Validate(); err != nil {
-		return nil, err
-	}
-
-	sources, err := s.observabilitySources(ctx, workspaces)
-	if err != nil {
-		return nil, err
-	}
-
-	summaries := make([]storepkg.EventSummary, 0)
-	for _, source := range sources {
-		sourceSummaries, err := source.catalog.listEventSummaries(ctx, source.id, source.filters, query)
-		if err != nil {
-			return nil, fmt.Errorf("memory: list %s memory events: %w", source.id, err)
-		}
-		summaries = append(summaries, sourceSummaries...)
-	}
-
-	sortEventSummaries(summaries)
-	return clampEventSummaries(summaries, query.Limit), nil
 }
 
 // ForWorkspace returns a clone of the store bound to the supplied workspace root.
@@ -525,29 +492,6 @@ func (s *Store) Reindex(ctx context.Context, opts memcontract.ReindexOptions) (m
 		Workspace:    workspaceID,
 		CompletedAt:  completedAt,
 	}, nil
-}
-
-// HealthStats returns derived-catalog stats for the visible scopes.
-func (s *Store) HealthStats(ctx context.Context, workspaces []string) (memcontract.HealthStats, error) {
-	if ctx == nil {
-		return memcontract.HealthStats{}, errors.New("memory: health stats context is required")
-	}
-	if s.catalog == nil {
-		return memcontract.HealthStats{}, nil
-	}
-
-	sources, err := s.healthSources(ctx, workspaces)
-	if err != nil {
-		return memcontract.HealthStats{}, err
-	}
-
-	accumulator := newHealthAccumulator()
-	for _, source := range sources {
-		if err := accumulator.addSource(ctx, source); err != nil {
-			return memcontract.HealthStats{}, err
-		}
-	}
-	return accumulator.stats(), nil
 }
 
 // History returns durable memory operation history ordered newest-first.

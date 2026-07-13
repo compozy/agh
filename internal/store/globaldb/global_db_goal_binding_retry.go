@@ -12,10 +12,11 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 // AdvanceBindingCreationFailure atomically consumes one proven-no-create Goal attempt.
-func (g *GlobalDB) AdvanceBindingCreationFailure(
+func (g *GoalRepo) AdvanceBindingCreationFailure(
 	ctx context.Context,
 	req goal.AdvanceBindingCreationFailureRequest,
 ) error {
@@ -145,17 +146,10 @@ func persistGoalBindingRetryWitness(
 	if err != nil {
 		return err
 	}
-	if _, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO loop_goal_binding_retry_witnesses (
-			loop_run_id, handle, failed_binding_epoch, request_digest, created_at
-		) VALUES (?, ?, ?, ?, ?)`,
-		string(req.Key.LoopRunID),
-		req.Key.Handle,
-		req.ExpectedBindingEpoch,
-		digest,
-		store.FormatTimestamp(req.FailedAt),
-	); err != nil {
+	if err := sqlcgen.New(exec).InsertGoalBindingRetryWitness(ctx, sqlcgen.InsertGoalBindingRetryWitnessParams{
+		LoopRunID: string(req.Key.LoopRunID), Handle: req.Key.Handle, FailedBindingEpoch: req.ExpectedBindingEpoch,
+		RequestDigest: digest, CreatedAt: store.FormatTimestamp(req.FailedAt),
+	}); err != nil {
 		return fmt.Errorf("store: persist Goal binding retry witness: %w", err)
 	}
 	return nil
@@ -170,15 +164,10 @@ func validateGoalBindingRetryWitness(
 	if err != nil {
 		return err
 	}
-	var stored string
-	err = exec.QueryRowContext(
-		ctx,
-		`SELECT request_digest FROM loop_goal_binding_retry_witnesses
-		 WHERE loop_run_id = ? AND handle = ? AND failed_binding_epoch = ?`,
-		string(req.Key.LoopRunID),
-		req.Key.Handle,
-		req.ExpectedBindingEpoch,
-	).Scan(&stored)
+	stored, err := sqlcgen.New(exec).
+		GetGoalBindingRetryWitnessDigest(ctx, sqlcgen.GetGoalBindingRetryWitnessDigestParams{
+			LoopRunID: string(req.Key.LoopRunID), Handle: req.Key.Handle, FailedBindingEpoch: req.ExpectedBindingEpoch,
+		})
 	if errors.Is(err, sql.ErrNoRows) {
 		return goalControlStaleError("binding creation retry witness is missing")
 	}
@@ -263,21 +252,14 @@ func failGoalBindingCreationAttempt(
 	exec taskSQLExecutor,
 	req goal.AdvanceBindingCreationFailureRequest,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_session_bindings
-		 SET state = 'failed', failure_code = ?, failed_at = ?
-		 WHERE loop_run_id = ? AND handle = ? AND binding_epoch = ? AND state = 'creating'`,
-		strings.TrimSpace(req.FailureCode),
-		store.FormatTimestamp(req.FailedAt),
-		string(req.Key.LoopRunID),
-		req.Key.Handle,
-		req.ExpectedBindingEpoch,
-	)
+	affected, err := sqlcgen.New(exec).FailGoalBindingCreationAttempt(ctx, sqlcgen.FailGoalBindingCreationAttemptParams{
+		FailureCode: goalNullableString(req.FailureCode), FailedAt: store.FormatTimestamp(req.FailedAt),
+		LoopRunID: string(req.Key.LoopRunID), Handle: req.Key.Handle, BindingEpoch: req.ExpectedBindingEpoch,
+	})
 	if err != nil {
 		return fmt.Errorf("store: fail Goal-owned binding creation attempt: %w", err)
 	}
-	return requireGoalRowsAffected(result, "fail Goal-owned binding creation attempt")
+	return requireGoalAffectedCount(affected, "fail Goal-owned binding creation attempt")
 }
 
 func insertGoalBindingCreationSuccessor(
@@ -285,23 +267,22 @@ func insertGoalBindingCreationSuccessor(
 	exec taskSQLExecutor,
 	req goal.AdvanceBindingCreationFailureRequest,
 ) error {
-	_, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO loop_session_bindings (
-			loop_run_id, handle, binding_epoch, binding_attempt_id, session_id, workspace_id,
-			creation_profile_ref, policy_spec_digest, creation_digest, ownership, state, created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'run-owned', 'creating', ?)`,
-		string(req.Key.LoopRunID),
-		req.Key.Handle,
-		req.SuccessorBindingEpoch,
-		strings.TrimSpace(req.SuccessorBindingAttemptID),
-		strings.TrimSpace(req.SuccessorSessionID),
-		string(req.Key.WorkspaceID),
-		strings.TrimSpace(req.CreationProfileRef),
-		strings.TrimSpace(req.PolicySpecDigest),
-		strings.TrimSpace(req.SuccessorCreationDigest),
-		store.FormatTimestamp(req.SuccessorCreatedAt),
-	)
+	err := sqlcgen.New(exec).InsertGoalSessionBindingAttempt(ctx, sqlcgen.InsertGoalSessionBindingAttemptParams{
+		LoopRunID:    string(req.Key.LoopRunID),
+		Handle:       req.Key.Handle,
+		BindingEpoch: req.SuccessorBindingEpoch,
+		BindingAttemptID: strings.TrimSpace(
+			req.SuccessorBindingAttemptID,
+		),
+		SessionID:          strings.TrimSpace(req.SuccessorSessionID),
+		WorkspaceID:        string(req.Key.WorkspaceID),
+		CreationProfileRef: strings.TrimSpace(req.CreationProfileRef),
+		PolicySpecDigest: strings.TrimSpace(
+			req.PolicySpecDigest,
+		),
+		CreationDigest: strings.TrimSpace(req.SuccessorCreationDigest),
+		CreatedAt:      store.FormatTimestamp(req.SuccessorCreatedAt),
+	})
 	if err != nil {
 		return fmt.Errorf("store: prepare Goal-owned binding retry successor: %w", err)
 	}
@@ -320,37 +301,25 @@ func advanceGoalCheckpointBindingAttempt(
 		bindingEpoch = req.SuccessorBindingEpoch
 		sessionID = strings.TrimSpace(req.SuccessorSessionID)
 	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_goal_checkpoints
-		 SET prompt_attempt = prompt_attempt + 1, binding_handle = ?, binding_epoch = ?, session_id = ?, updated_at = ?
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		   AND control_epoch = ? AND phase = ? AND prompt_attempt = ?
-		   AND COALESCE(task_run_id, '') = ? AND COALESCE(queue_entry_id, '') = ?
-		   AND COALESCE(prompt_id, '') = ? AND COALESCE(binding_epoch, 0) = ?
-		   AND COALESCE(session_id, '') = ? AND COALESCE(binding_handle, '') = ?`,
-		req.Key.Handle,
-		bindingEpoch,
-		sessionID,
-		store.FormatTimestamp(req.FailedAt),
-		string(req.CheckpointKey.LoopRunID),
-		req.CheckpointKey.Generation,
-		string(req.CheckpointKey.NodeID),
-		req.CheckpointKey.ItemIndex,
-		req.ExpectedControlEpoch,
-		strings.TrimSpace(req.ExpectedCheckpointPhase),
-		req.ExpectedPromptAttempt,
-		strings.TrimSpace(req.ExpectedTaskRunID),
-		strings.TrimSpace(req.ExpectedQueueEntryID),
-		strings.TrimSpace(req.ExpectedPromptID),
-		req.ExpectedCheckpointBindingEpoch,
-		strings.TrimSpace(req.ExpectedCheckpointSessionID),
-		strings.TrimSpace(req.ExpectedCheckpointHandle),
-	)
+	affected, err := sqlcgen.New(exec).
+		AdvanceGoalCheckpointBindingAttempt(ctx, sqlcgen.AdvanceGoalCheckpointBindingAttemptParams{
+			BindingHandle: goalNullableString(req.Key.Handle), BindingEpoch: goalNullableInt64(&bindingEpoch),
+			SessionID: goalNullableString(sessionID), UpdatedAt: store.FormatTimestamp(req.FailedAt),
+			LoopRunID:  string(req.CheckpointKey.LoopRunID),
+			Generation: int64(req.CheckpointKey.Generation), NodeID: string(req.CheckpointKey.NodeID),
+			ItemIndex: int64(req.CheckpointKey.ItemIndex), ControlEpoch: req.ExpectedControlEpoch,
+			Phase: strings.TrimSpace(req.ExpectedCheckpointPhase), PromptAttempt: int64(req.ExpectedPromptAttempt),
+			TaskRunID:             goalRequiredSQLString(req.ExpectedTaskRunID),
+			QueueEntryID:          goalRequiredSQLString(req.ExpectedQueueEntryID),
+			PromptID:              goalRequiredSQLString(req.ExpectedPromptID),
+			ExpectedBindingEpoch:  goalNullableInt64(&req.ExpectedCheckpointBindingEpoch),
+			ExpectedSessionID:     goalRequiredSQLString(req.ExpectedCheckpointSessionID),
+			ExpectedBindingHandle: goalRequiredSQLString(req.ExpectedCheckpointHandle),
+		})
 	if err != nil {
 		return fmt.Errorf("store: advance Goal checkpoint binding attempt: %w", err)
 	}
-	return requireGoalRowsAffected(result, "advance Goal checkpoint binding attempt")
+	return requireGoalAffectedCount(affected, "advance Goal checkpoint binding attempt")
 }
 
 func validateCommittedBindingCreationFailure(

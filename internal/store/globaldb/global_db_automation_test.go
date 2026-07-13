@@ -160,214 +160,6 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 	assertTableSQLContains(t, globalDB.db, "automation_scheduler_state", "'skip', 'coalesce', 'replay'")
 }
 
-func TestAutomationCatalogProjectionMigration(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should create catalog projections on a fresh database", func(t *testing.T) {
-		t.Parallel()
-
-		globalDB := openFreshTestGlobalDB(t)
-		assertTablesPresent(
-			t,
-			globalDB.db,
-			automationJobCatalogTable,
-			automationTriggerCatalogTable,
-			automationTriggerCatalogFilterTable,
-		)
-		assertTableColumns(t, globalDB.db, automationJobCatalogTable, []string{
-			"job_id",
-			"scope",
-			"workspace_id",
-			"source",
-			"source_rank",
-			"name",
-			"loop_name",
-			"enabled",
-			"search_name",
-			"search_agent_name",
-			"search_prompt",
-			"search_scope",
-			"search_source",
-			"search_schedule_mode",
-			"search_schedule_expr",
-			"search_schedule_interval",
-			"search_schedule_time",
-		})
-		assertTableColumns(t, globalDB.db, automationTriggerCatalogTable, []string{
-			"trigger_id",
-			"scope",
-			"workspace_id",
-			"event",
-			"source",
-			"source_rank",
-			"name",
-			"loop_name",
-			"enabled",
-			"search_name",
-			"search_agent_name",
-			"search_prompt",
-			"search_scope",
-			"search_source",
-			"search_event",
-			"search_endpoint_slug",
-			"search_webhook_id",
-		})
-		assertTableColumns(t, globalDB.db, automationTriggerCatalogFilterTable, []string{
-			"trigger_id",
-			"value",
-		})
-		assertIndexesPresent(
-			t,
-			globalDB.db,
-			automationJobCatalogTable,
-			automationJobCatalogOrderIndex,
-			automationJobCatalogWorkspaceIndex,
-		)
-		assertIndexesPresent(
-			t,
-			globalDB.db,
-			automationTriggerCatalogTable,
-			automationTriggerCatalogOrderIndex,
-			automationTriggerCatalogWorkspaceIndex,
-		)
-		records, err := store.AppliedMigrations(testutil.Context(t), globalDB.db)
-		if err != nil {
-			t.Fatalf("AppliedMigrations() error = %v", err)
-		}
-		found := false
-		for _, record := range records {
-			if record.Version != automationCatalogProjectionMigration.Version {
-				continue
-			}
-			found = true
-			if record.Name != automationCatalogProjectionMigration.Name ||
-				record.Checksum != automationCatalogProjectionMigration.Checksum {
-				t.Fatalf("migration v70 = %#v, want automation catalog projection identity", record)
-			}
-			break
-		}
-		if !found {
-			t.Fatal("migration v70 automation catalog projection not recorded")
-		}
-	})
-
-	t.Run("Should backfill searchable projections and preserve them after reopen", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(v69) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if db != nil {
-				if closeErr := db.Close(); closeErr != nil {
-					t.Errorf("db.Close(cleanup) error = %v", closeErr)
-				}
-			}
-		})
-		preCatalog := globalSchemaMigrations[:globalMigrationIndex(t, automationCatalogProjectionMigration.Version)]
-		if err := store.RunMigrations(ctx, db, preCatalog); err != nil {
-			t.Fatalf("RunMigrations(v69) error = %v", err)
-		}
-		now := store.FormatTimestamp(time.Date(2026, 7, 10, 20, 0, 0, 0, time.UTC))
-		workspaceID := "ws-automation-catalog-upgrade"
-		if _, err := db.ExecContext(
-			ctx,
-			`INSERT INTO workspaces (id, root_dir, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
-			workspaceID,
-			"/tmp/automation-catalog-upgrade",
-			"Automation catalog upgrade",
-			now,
-			now,
-		); err != nil {
-			t.Fatalf("insert v69 workspace error = %v", err)
-		}
-		if _, err := db.ExecContext(ctx, `INSERT INTO automation_jobs (
-			id, scope, name, agent_name, workspace_id, prompt, schedule, task,
-			enabled, retry, fire_limit, source, target_kind, loop_inputs,
-			loop_input_mapping, created_at, updated_at
-		) VALUES (?, 'workspace', 'Upgrade job', 'reviewer', ?, 'Review upgrade', ?, NULL,
-			1, ?, ?, 'config', 'agent', '{}', '{}', ?, ?)`,
-			"job-catalog-upgrade",
-			workspaceID,
-			`{"mode":"every","interval":"45m"}`,
-			`{"strategy":"none","max_retries":0,"base_delay":""}`,
-			`{"max":10,"window":"1h"}`,
-			now,
-			now,
-		); err != nil {
-			t.Fatalf("insert v69 job error = %v", err)
-		}
-		if _, err := db.ExecContext(ctx, `INSERT INTO automation_job_overlays (
-			job_id, enabled_override, updated_at
-		) VALUES ('job-catalog-upgrade', 0, ?)`, now); err != nil {
-			t.Fatalf("insert v69 job overlay error = %v", err)
-		}
-		if _, err := db.ExecContext(ctx, `INSERT INTO automation_triggers (
-			id, scope, name, agent_name, workspace_id, prompt, event, filter,
-			enabled, retry, fire_limit, source, target_kind, loop_inputs,
-			loop_input_mapping, created_at, updated_at
-		) VALUES (?, 'workspace', 'Upgrade trigger', 'reviewer', ?, 'Review upgrade',
-			'session.stopped', ?, 1, ?, ?, 'config', 'agent', '{}', '{}', ?, ?)`,
-			"trigger-catalog-upgrade",
-			workspaceID,
-			`{"data.team":"RÉSUMÉ"}`,
-			`{"strategy":"none","max_retries":0,"base_delay":""}`,
-			`{"max":10,"window":"1h"}`,
-			now,
-			now,
-		); err != nil {
-			t.Fatalf("insert v69 trigger error = %v", err)
-		}
-		if err := store.RunMigrations(ctx, db, globalSchemaMigrations); err != nil {
-			t.Fatalf("RunMigrations(v70) error = %v", err)
-		}
-		if err := db.Close(); err != nil {
-			t.Fatalf("db.Close(v70) error = %v", err)
-		}
-		db = nil
-
-		reopened, err := OpenGlobalDB(ctx, path)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(reopen v70) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
-				t.Errorf("Close(reopened v70) error = %v", closeErr)
-			}
-		})
-		disabled := false
-		jobs, err := reopened.ListJobs(ctx, JobListQuery{
-			WorkspaceID: workspaceID,
-			Enabled:     &disabled,
-			Search:      "45M",
-			Limit:       10,
-		})
-		if err != nil {
-			t.Fatalf("ListJobs(backfilled schedule search) error = %v", err)
-		}
-		if len(jobs.Jobs) != 1 || jobs.Jobs[0].ID != "job-catalog-upgrade" || jobs.Jobs[0].Enabled {
-			t.Fatalf("ListJobs(backfilled schedule search) = %#v, want disabled upgrade job", jobs)
-		}
-		triggers, err := reopened.ListTriggers(ctx, TriggerListQuery{
-			WorkspaceID: workspaceID,
-			Search:      "RÉSUMÉ",
-			Limit:       10,
-		})
-		if err != nil {
-			t.Fatalf("ListTriggers(backfilled filter search) error = %v", err)
-		}
-		if len(triggers.Triggers) != 1 || triggers.Triggers[0].ID != "trigger-catalog-upgrade" {
-			t.Fatalf("ListTriggers(backfilled filter search) = %#v, want upgrade trigger", triggers)
-		}
-		if err := store.RunMigrations(ctx, reopened.db, globalSchemaMigrations); err != nil {
-			t.Fatalf("RunMigrations(v70 idempotent reopen) error = %v", err)
-		}
-	})
-}
-
 func TestGlobalDBCreateJobScopeAwareUniqueness(t *testing.T) {
 	t.Parallel()
 
@@ -1469,6 +1261,42 @@ func TestGlobalDBAutomationValidationAndDeleteBehavior(t *testing.T) {
 	if err := globalDB.DeleteTrigger(testutil.Context(t), trigger.ID); !errors.Is(err, automation.ErrTriggerNotFound) {
 		t.Fatalf("DeleteTrigger(missing) error = %v, want ErrTriggerNotFound", err)
 	}
+
+	t.Run("Should map typed run uniqueness constraints to ErrRunAlreadyExists", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openTestGlobalDB(t)
+		job, err := db.CreateJob(ctx, automationJobForTest(
+			automation.AutomationScopeGlobal,
+			"run-uniqueness-job",
+			"",
+			automation.JobSourceDynamic,
+		))
+		if err != nil {
+			t.Fatalf("CreateJob() error = %v", err)
+		}
+		base := time.Date(2026, 4, 10, 23, 0, 0, 0, time.UTC)
+		first := automationRunForJob(job.ID, automation.RunRunning, 1, base)
+		first.FireID = "fire-run-unique"
+		first, err = db.CreateRun(ctx, first)
+		if err != nil {
+			t.Fatalf("CreateRun(first) error = %v", err)
+		}
+
+		duplicateID := automationRunForJob(job.ID, automation.RunRunning, 1, base.Add(time.Minute))
+		duplicateID.ID = first.ID
+		duplicateID.FireID = "fire-run-other"
+		if _, err := db.CreateRun(ctx, duplicateID); !errors.Is(err, automation.ErrRunAlreadyExists) {
+			t.Fatalf("CreateRun(duplicate id) error = %v, want ErrRunAlreadyExists", err)
+		}
+
+		duplicateFire := automationRunForJob(job.ID, automation.RunRunning, 1, base.Add(2*time.Minute))
+		duplicateFire.FireID = first.FireID
+		if _, err := db.CreateRun(ctx, duplicateFire); !errors.Is(err, automation.ErrRunAlreadyExists) {
+			t.Fatalf("CreateRun(duplicate fire) error = %v, want ErrRunAlreadyExists", err)
+		}
+	})
 }
 
 func TestGlobalDBAutomationLoopTargetsPersistFilterAndCorrelateRuns(t *testing.T) {
@@ -1844,31 +1672,6 @@ func TestAutomationStoreHelperBranches(t *testing.T) {
 	}
 	if got, want := nullableAutomationTimestamp(timePointer(base)), any(store.FormatTimestamp(base)); got != want {
 		t.Fatalf("nullableAutomationTimestamp(value) = %#v, want %#v", got, want)
-	}
-
-	if err := mapAutomationJobConstraintError(
-		errors.New("UNIQUE constraint failed: automation_jobs.name"),
-	); !errors.Is(
-		err,
-		automation.ErrJobNameTaken,
-	) {
-		t.Fatalf("mapAutomationJobConstraintError(name) = %v, want ErrJobNameTaken", err)
-	}
-	if err := mapAutomationJobConstraintError(
-		errors.New("FOREIGN KEY constraint failed"),
-	); !errors.Is(
-		err,
-		aghworkspace.ErrWorkspaceNotFound,
-	) {
-		t.Fatalf("mapAutomationJobConstraintError(fk) = %v, want ErrWorkspaceNotFound", err)
-	}
-	if err := mapAutomationTriggerConstraintError(
-		errors.New("UNIQUE constraint failed: automation_triggers.webhook_id"),
-	); !errors.Is(
-		err,
-		automation.ErrTriggerWebhookIDTaken,
-	) {
-		t.Fatalf("mapAutomationTriggerConstraintError(webhook) = %v, want ErrTriggerWebhookIDTaken", err)
 	}
 }
 

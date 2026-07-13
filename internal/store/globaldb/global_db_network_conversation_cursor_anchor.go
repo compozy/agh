@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 func lookupNetworkConversationCursorMessageID(
@@ -20,22 +21,14 @@ func lookupNetworkConversationCursorMessageID(
 	if sequence == 0 {
 		return "", nil
 	}
-	var messageID string
-	err := exec.QueryRowContext(
+	messageID, err := sqlcgen.New(exec).GetNetworkCursorMessageID(
 		ctx,
-		`SELECT message_id
-		 FROM network_timeline_log
-		 WHERE workspace_id = ? AND channel = ? AND surface = ? AND sequence = ?
-		   AND ((? = 'thread' AND thread_id = ?) OR (? = 'direct' AND direct_id = ?))`,
-		ref.WorkspaceID,
-		ref.Channel,
-		surface,
-		sequence,
-		surface,
-		containerID,
-		surface,
-		containerID,
-	).Scan(&messageID)
+		sqlcgen.GetNetworkCursorMessageIDParams{
+			WorkspaceID: ref.WorkspaceID, Channel: ref.Channel,
+			Surface: nullableNetworkString(surface), Sequence: sequence,
+			ContainerID: nullableNetworkString(containerID),
+		},
+	)
 	if err != nil {
 		return "", fmt.Errorf("store: lookup network cursor message anchor: %w", err)
 	}
@@ -50,22 +43,14 @@ func lookupNetworkConversationCursorSequence(
 	containerID string,
 	messageID string,
 ) (int64, error) {
-	var sequence int64
-	err := exec.QueryRowContext(
+	sequence, err := sqlcgen.New(exec).GetNetworkCursorSequence(
 		ctx,
-		`SELECT sequence
-		 FROM network_timeline_log
-		 WHERE workspace_id = ? AND channel = ? AND surface = ? AND message_id = ?
-		   AND ((? = 'thread' AND thread_id = ?) OR (? = 'direct' AND direct_id = ?))`,
-		ref.WorkspaceID,
-		ref.Channel,
-		surface,
-		messageID,
-		surface,
-		containerID,
-		surface,
-		containerID,
-	).Scan(&sequence)
+		sqlcgen.GetNetworkCursorSequenceParams{
+			WorkspaceID: ref.WorkspaceID, Channel: ref.Channel,
+			Surface: nullableNetworkString(surface), MessageID: messageID,
+			ContainerID: nullableNetworkString(containerID),
+		},
+	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, fmt.Errorf("%w: network cursor message anchor is missing", store.ErrNetworkCursorInvalid)

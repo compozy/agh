@@ -9,12 +9,13 @@ import (
 
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
-var _ goal.ToolStore = (*GlobalDB)(nil)
+var _ goal.ToolStore = (*GoalRepo)(nil)
 
 // FindGoalReportTarget returns the only currently prompting Goal bound to the session.
-func (g *GlobalDB) FindGoalReportTarget(
+func (g *GoalRepo) FindGoalReportTarget(
 	ctx context.Context,
 	workspaceID looppkg.WorkspaceID,
 	sessionID string,
@@ -39,55 +40,19 @@ func findGoalReportTargetWithExecutor(
 			looppkg.ErrValidation,
 		)
 	}
-	rows, err := exec.QueryContext(
-		ctx,
-		`SELECT checkpoints.loop_run_id, checkpoints.generation, checkpoints.node_id,
-		        checkpoints.item_index, checkpoints.control_epoch, checkpoints.binding_epoch,
-		        checkpoints.prompt_id, runs.origin_session_id, checkpoints.session_id
-		 FROM loop_goal_checkpoints AS checkpoints
-		 JOIN loop_runs AS runs ON runs.id = checkpoints.loop_run_id
-		 JOIN loop_session_bindings AS bindings
-		   ON bindings.loop_run_id = checkpoints.loop_run_id
-		  AND bindings.handle = checkpoints.binding_handle
-		  AND bindings.binding_epoch = checkpoints.binding_epoch
-		  AND bindings.session_id = checkpoints.session_id
-		 WHERE runs.workspace_id = ?
-		   AND runs.origin_kind = 'session'
-		   AND runs.goal_cleared_at IS NULL
-		   AND runs.status IN ('queued','running','watching','needs-approval','paused')
-		   AND checkpoints.phase = 'prompting'
-		   AND checkpoints.goal_status = 'active'
-		   AND checkpoints.session_id = ?
-		   AND checkpoints.prompt_id IS NOT NULL
-		   AND bindings.workspace_id = ?
-		   AND bindings.state = 'active'
-		 ORDER BY checkpoints.updated_at DESC, runs.created_at DESC, runs.rowid DESC
-		 LIMIT 2`,
-		string(workspaceID),
-		sessionID,
-		string(workspaceID),
-	)
+	rows, err := sqlcgen.New(exec).FindGoalReportTargets(ctx, sqlcgen.FindGoalReportTargetsParams{
+		WorkspaceID: string(workspaceID), SessionID: goalNullableString(sessionID),
+	})
 	if err != nil {
 		return goal.ToolReportTarget{}, false, fmt.Errorf("store: query Goal report target: %w", err)
 	}
-	defer func() {
-		err = joinRowsCloseError(rows, err, "Goal report target")
-	}()
-	for rows.Next() {
-		var candidate goal.ToolReportTarget
-		candidate.Key.WorkspaceID = workspaceID
-		if scanErr := rows.Scan(
-			&candidate.Key.LoopRunID,
-			&candidate.Key.Generation,
-			&candidate.Key.NodeID,
-			&candidate.Key.ItemIndex,
-			&candidate.ExpectedControlEpoch,
-			&candidate.ExpectedBindingEpoch,
-			&candidate.PromptID,
-			&candidate.OriginSessionID,
-			&candidate.BoundSessionID,
-		); scanErr != nil {
-			return goal.ToolReportTarget{}, false, fmt.Errorf("store: scan Goal report target: %w", scanErr)
+	for _, row := range rows {
+		candidate := goal.ToolReportTarget{
+			Key: goal.TurnKey{WorkspaceID: workspaceID, LoopRunID: looppkg.RunID(row.LoopRunID),
+				Generation: int(row.Generation), NodeID: looppkg.NodeID(row.NodeID), ItemIndex: int(row.ItemIndex)},
+			ExpectedControlEpoch: row.ControlEpoch, ExpectedBindingEpoch: row.BindingEpoch.Int64,
+			PromptID: row.PromptID.String, OriginSessionID: row.OriginSessionID.String,
+			BoundSessionID: row.SessionID.String,
 		}
 		if validateErr := candidate.Validate(); validateErr != nil {
 			return goal.ToolReportTarget{}, false, validateErr
@@ -101,14 +66,11 @@ func findGoalReportTargetWithExecutor(
 		target = candidate
 		found = true
 	}
-	if rowsErr := rows.Err(); rowsErr != nil {
-		return goal.ToolReportTarget{}, false, fmt.Errorf("store: iterate Goal report targets: %w", rowsErr)
-	}
 	return target, found, nil
 }
 
 // ResolveActiveGoalOriginAlias resolves an active moved binding back to its origin session.
-func (g *GlobalDB) ResolveActiveGoalOriginAlias(
+func (g *GoalRepo) ResolveActiveGoalOriginAlias(
 	ctx context.Context,
 	workspaceID looppkg.WorkspaceID,
 	sessionID string,
@@ -124,37 +86,14 @@ func (g *GlobalDB) ResolveActiveGoalOriginAlias(
 			looppkg.ErrValidation,
 		)
 	}
-	rows, err := g.db.QueryContext(
-		ctx,
-		`SELECT runs.origin_session_id
-		 FROM loop_session_bindings AS bindings
-		 JOIN loop_runs AS runs ON runs.id = bindings.loop_run_id
-		 WHERE bindings.workspace_id = ?
-		   AND bindings.session_id = ?
-		   AND bindings.state = 'active'
-		   AND runs.workspace_id = ?
-		   AND runs.origin_kind = 'session'
-		   AND runs.origin_session_id <> bindings.session_id
-		   AND runs.goal_cleared_at IS NULL
-		   AND runs.status IN ('queued','running','watching','needs-approval','paused')
-		 ORDER BY bindings.activated_at DESC, runs.created_at DESC, runs.rowid DESC
-		 LIMIT 2`,
-		string(workspaceID),
-		sessionID,
-		string(workspaceID),
-	)
+	rows, err := sqlcgen.New(g.db).ResolveActiveGoalOriginAliases(ctx, sqlcgen.ResolveActiveGoalOriginAliasesParams{
+		WorkspaceID: string(workspaceID), SessionID: sessionID,
+	})
 	if err != nil {
 		return "", false, fmt.Errorf("store: query active Goal origin alias: %w", err)
 	}
-	defer func() {
-		err = joinRowsCloseError(rows, err, "active Goal origin alias")
-	}()
-	for rows.Next() {
-		var candidate string
-		if scanErr := rows.Scan(&candidate); scanErr != nil {
-			return "", false, fmt.Errorf("store: scan active Goal origin alias: %w", scanErr)
-		}
-		candidate = strings.TrimSpace(candidate)
+	for _, row := range rows {
+		candidate := strings.TrimSpace(row.String)
 		if candidate == "" {
 			return "", false, fmt.Errorf("%w: Goal origin session is empty", looppkg.ErrValidation)
 		}
@@ -167,14 +106,11 @@ func (g *GlobalDB) ResolveActiveGoalOriginAlias(
 		originSessionID = candidate
 		found = true
 	}
-	if rowsErr := rows.Err(); rowsErr != nil {
-		return "", false, fmt.Errorf("store: iterate active Goal origin aliases: %w", rowsErr)
-	}
 	return originSessionID, found, nil
 }
 
 // RecordGoalReport content-addresses evidence and records its prompt-bound intent atomically.
-func (g *GlobalDB) RecordGoalReport(
+func (g *GoalRepo) RecordGoalReport(
 	ctx context.Context,
 	req goal.RecordToolReportRequest,
 ) (goal.ReportIntent, error) {

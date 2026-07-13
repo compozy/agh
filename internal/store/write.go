@@ -41,6 +41,14 @@ func (tx *WriteTx) ExecContext(ctx context.Context, query string, args ...any) (
 	return tx.conn.ExecContext(ctx, query, args...)
 }
 
+// PrepareContext prepares a statement inside the active write transaction.
+func (tx *WriteTx) PrepareContext(ctx context.Context, query string) (*sql.Stmt, error) {
+	if tx == nil || tx.conn == nil {
+		return nil, errors.New("store: write transaction is closed")
+	}
+	return tx.conn.PrepareContext(ctx, query)
+}
+
 // QueryContext executes a query inside the active write transaction.
 func (tx *WriteTx) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
 	if tx == nil || tx.conn == nil {

@@ -21,7 +21,6 @@ import (
 	"github.com/compozy/agh/internal/diagnostics"
 	"github.com/compozy/agh/internal/fileutil"
 	mcpauth "github.com/compozy/agh/internal/mcp/auth"
-	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/vault"
 	"github.com/spf13/cobra"
 )
@@ -61,7 +60,7 @@ func defaultMCPAuthClient(
 	ctx context.Context,
 	homePaths aghconfig.HomePaths,
 ) (mcpAuthClient, func(context.Context) error, error) {
-	db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+	db, err := openLocalGlobalDatabase(ctx, homePaths.DatabaseFile, "MCP auth")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -470,9 +469,9 @@ func mcpAuthSecretResolver(homePaths aghconfig.HomePaths, getenv func(string) st
 		if !vault.IsSecretRef(normalized) {
 			return "", fmt.Errorf("%w: %s", vault.ErrUnsupportedSecretRef, normalized)
 		}
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		db, err := openLocalGlobalDatabase(ctx, homePaths.DatabaseFile, "MCP auth secret")
 		if err != nil {
-			return "", fmt.Errorf("cli: open global DB for MCP auth secret: %w", err)
+			return "", err
 		}
 		service, err := vault.NewService(
 			db,

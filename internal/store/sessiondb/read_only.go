@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/sessiondb/sqlcgen"
 )
 
 const (
@@ -179,6 +180,13 @@ func openSessionDBReadOnlyOnce(ctx context.Context, sessionID string, path strin
 			fmt.Errorf("store: ping read-only session database %q: %w", cleanPath, err),
 		)
 	}
+	if _, err := store.Status(ctx, db, MigrationStream()); err != nil {
+		return nil, closeReadOnlySessionDBAfterOpenError(
+			db,
+			fmt.Errorf("store: validate read-only session database %q: %w", cleanPath, err),
+		)
+	}
+	// dynamic-sql: connection-scoped SQLite PRAGMA is lifecycle configuration outside sqlc's schema query model.
 	if _, err := db.ExecContext(ctx, "PRAGMA query_only = ON"); err != nil {
 		return nil, closeReadOnlySessionDBAfterOpenError(
 			db,
@@ -264,13 +272,14 @@ func (s *ReadOnlySessionDB) Query(
 		return nil, err
 	}
 
+	// dynamic-sql: buildEventQuerySQL composes the selected projection, optional filters, cursors, and limiting.
 	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query read-only session events: %w", err)
 	}
 	defer func() {
-		if closeErr := rows.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("store: close read-only session event rows: %w", closeErr)
+		if closeErr := rows.Close(); closeErr != nil {
+			joinSessionCleanupError(&err, fmt.Errorf("store: close read-only session event rows: %w", closeErr))
 		}
 	}()
 
@@ -297,8 +306,8 @@ func (s *ReadOnlySessionDB) MaxEventSequence(ctx context.Context) (int64, error)
 	if ctx == nil {
 		return 0, errors.New("store: query read-only session database context is required")
 	}
-	var sequence int64
-	if err := s.db.QueryRowContext(ctx, "SELECT COALESCE(MAX(sequence), 0) FROM events").Scan(&sequence); err != nil {
+	sequence, err := sqlcgen.New(s.db).MaxEventSequence(ctx)
+	if err != nil {
 		return 0, fmt.Errorf("store: query read-only max event sequence: %w", err)
 	}
 	return sequence, nil
@@ -320,13 +329,17 @@ func (s *ReadOnlySessionDB) QueryEventMetadata(
 		return nil, err
 	}
 
+	// dynamic-sql: buildEventQuerySQL composes the selected projection, optional filters, cursors, and limiting.
 	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query read-only session event metadata: %w", err)
 	}
 	defer func() {
-		if closeErr := rows.Close(); closeErr != nil && err == nil {
-			err = fmt.Errorf("store: close read-only session event metadata rows: %w", closeErr)
+		if closeErr := rows.Close(); closeErr != nil {
+			joinSessionCleanupError(
+				&err,
+				fmt.Errorf("store: close read-only session event metadata rows: %w", closeErr),
+			)
 		}
 	}()
 

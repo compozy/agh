@@ -26,25 +26,25 @@ Tokens come from `packages/ui/src/tokens.css` + generated `DESIGN.md` — never 
 
 Activate skills **before** writing code. Match task domain → activate all required:
 
-| Domain                        | Required Skills                                                 | Conditional Skills              |
-| ----------------------------- | --------------------------------------------------------------- | ------------------------------- |
-| React / Web UI                | `react` + `tailwindcss` + `vercel-react-best-practices`         | `shadcn`                        |
-| Routing                       | `tanstack-router-best-practices`                                | `tanstack`                      |
-| Data fetching                 | `tanstack-query-best-practices` + `app-renderer-systems`        |                                 |
-| State management              | `zustand`                                                       |                                 |
-| Schema / Validation           | `zod`                                                           | `typescript-advanced`           |
-| Web testing                   | `consolidate-test-suites` + `vitest` + `react` + `testing-boss` |                                 |
-| TypeScript (types)            | `typescript-advanced`                                           | `context7`                      |
-| UI / UX Design (any surface)  | `agh-design` + `ui-craft` + `impeccable`                        | `shadcn` + `agh-ui-screenshot`  |
-| UI verification / visual diff | `agh-ui-screenshot`                                             |                                 |
-| UI microcopy / product labels | `copywriting` + `documentation-writer` + `ui-craft`             |                                 |
-| Storybook / component stories | `storybook-stories`                                             | `shadcn`                        |
-| Animation / motion            | `ui-craft` + `impeccable`                                       |                                 |
-| Component patterns            | `vercel-composition-patterns` + `vercel-react-best-practices`   | `ui-craft`                      |
-| AI / Streaming                | `ai-sdk`                                                        | `tanstack-query-best-practices` |
-| Bug fix                       | `systematic-debugging` + `no-workarounds`                       | `testing-boss`                  |
-| External docs lookup          | `context7`                                                      | `exa-web-search-free`           |
-| Task completion               | `cy-final-verify`                                               |                                 |
+| Domain                        | Required Skills                                                 | Conditional Skills                  |
+| ----------------------------- | --------------------------------------------------------------- | ----------------------------------- |
+| React / Web UI                | `react` + `tailwindcss` + `vercel-react-best-practices`         | `shadcn`                            |
+| Routing                       | `tanstack`                                                      |                                     |
+| Data boundaries               | `agh-data-boundaries`                                           | `tanstack` + `app-renderer-systems` |
+| State management              | `zustand`                                                       |                                     |
+| Schema / Validation           | `zod`                                                           | `typescript-advanced`               |
+| Web testing                   | `consolidate-test-suites` + `vitest` + `react` + `testing-boss` |                                     |
+| TypeScript (types)            | `typescript-advanced`                                           | `context7`                          |
+| UI / UX Design (any surface)  | `agh-design` + `ui-craft` + `impeccable`                        | `shadcn` + `agh-ui-screenshot`      |
+| UI verification / visual diff | `agh-ui-screenshot`                                             |                                     |
+| UI microcopy / product labels | `copywriting` + `documentation-writer` + `ui-craft`             |                                     |
+| Storybook / component stories | `storybook-stories`                                             | `shadcn`                            |
+| Animation / motion            | `ui-craft` + `impeccable`                                       |                                     |
+| Component patterns            | `vercel-composition-patterns` + `vercel-react-best-practices`   | `ui-craft`                          |
+| AI / Streaming                | `ai-sdk`                                                        | `tanstack`                          |
+| Bug fix                       | `systematic-debugging` + `no-workarounds`                       | `testing-boss`                      |
+| External docs lookup          | `context7`                                                      | `exa-web-search-free`               |
+| Task completion               | `cy-final-verify`                                               |                                     |
 
 - **Design-system / redesign passes**: run the `designer` agent in execution mode (not plan) and activate `agh-design` + `ui-craft` before touching any component. `ui-craft` is reference-routed — read the matched rows in full. `tokens.css` + generated `DESIGN.md` win over anything informal in the codebase.
 - **Visual verification is mandatory for every UI change** (`agh-ui-screenshot`; tests verify code, not pixels): capture the matching Storybook story on port 6006 (resolve ids via `list-stories.mjs` — bad ids hit the sub-20 KB "Couldn't find story" fallback), diff against a trusted baseline (before + after for surface-wide passes), and cite the capture when reporting done.
@@ -94,15 +94,16 @@ Domain features are self-contained **systems** under `src/systems/<domain>/`, ea
 
 - **Dependency flow** `adapters → lib → hooks → components` (unidirectional, never reversed).
 - **Cross-system imports** only through the public barrel (`@/systems/<domain>`) — never reach into internals.
-- Co-locate `queryKey` + `queryFn` via `queryOptions` factories in `lib/query-options.ts`; hierarchical keys in `lib/query-keys.ts` for granular invalidation.
+- Co-locate `queryKey` + `queryFn` in `lib/query-options.ts`; loaders, hooks, mutations, and streams reuse those option/key factories, while continuation stays in `pageParam`.
 - Typed error classes in adapters (never throw raw); pass `AbortSignal` through to every API call.
-- Invalidate after mutations (`onSettled`); optimistic updates need rollback via `onMutate`/`onError` snapshots.
+- Reconcile mutations through canonical keys; optimistic updates snapshot/restore the full envelope, and invalidation follows the owner's reread contract.
 
 ## Frontend Architecture Rules
 
 - **UI components are pure and presentational**; orchestration lives in pages/routes.
-- **State hierarchy**: local (`useState`/`useReducer`) > Zustand > TanStack Query > URL. Server state via TanStack Query only — never duplicate into client state.
-- **Data fetching at route/page level**; components receive data via props and MUST NOT import from `stores/` or `adapters/` directly (pass via props or route context).
+- **Server state has one authority:** keep API envelopes, totals/facets, cursors, and stream fences in the canonical TanStack Query cache; flatten only at the view-model read boundary.
+- **Public reads are server-owned:** authorize, scope, filter, sort, count, and page before the cut; never present a loaded-page aggregate as complete truth.
+- **Data fetching lives at route/page level:** components receive view models via props and never import stores or adapters directly.
 - **Named exports** only (no `export * from`). **Functional components only** — no class components, no `React.FC`.
 - **`useEffect` is an escape hatch** — external-system sync only; never derived state or event responses.
 - **Handle all states** — loading, error, empty (never assume `data` exists). **Composition over booleans** (compound components).

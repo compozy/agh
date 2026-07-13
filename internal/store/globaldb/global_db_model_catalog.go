@@ -8,12 +8,14 @@ import (
 
 	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
-var _ modelcatalog.Store = (*GlobalDB)(nil)
+var _ modelcatalog.Store = (*ModelCatalogRepo)(nil)
 
 type modelCatalogSQLExecutor interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	PrepareContext(ctx context.Context, query string) (*sql.Stmt, error)
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
@@ -25,7 +27,7 @@ type modelCatalogRowKey struct {
 }
 
 // ReplaceSourceRows atomically replaces all model rows and status for one provider-scoped source.
-func (g *GlobalDB) ReplaceSourceRows(
+func (g *ModelCatalogRepo) ReplaceSourceRows(
 	ctx context.Context,
 	sourceID string,
 	providerID string,
@@ -44,22 +46,19 @@ func (g *GlobalDB) ReplaceSourceRows(
 		ctx,
 		"model catalog source replacement",
 		func(exec modelCatalogSQLExecutor) error {
+			queries := sqlcgen.New(exec)
 			if err := upsertModelCatalogSourceStatus(ctx, exec, normalizedStatus); err != nil {
 				return err
 			}
-			if _, err := exec.ExecContext(
-				ctx,
-				`DELETE FROM model_catalog_reasoning_efforts WHERE source_id = ? AND provider_id = ?`,
-				normalizedStatus.SourceID,
-				normalizedStatus.ProviderID,
-			); err != nil {
+			deleteParams := sqlcgen.DeleteModelCatalogReasoningEffortsParams{
+				SourceID: normalizedStatus.SourceID, ProviderID: normalizedStatus.ProviderID,
+			}
+			if err := queries.DeleteModelCatalogReasoningEfforts(ctx, deleteParams); err != nil {
 				return fmt.Errorf("store: delete model catalog reasoning efforts: %w", err)
 			}
-			if _, err := exec.ExecContext(
+			if err := queries.DeleteModelCatalogRows(
 				ctx,
-				`DELETE FROM model_catalog_rows WHERE source_id = ? AND provider_id = ?`,
-				normalizedStatus.SourceID,
-				normalizedStatus.ProviderID,
+				sqlcgen.DeleteModelCatalogRowsParams(deleteParams),
 			); err != nil {
 				return fmt.Errorf("store: delete model catalog source rows: %w", err)
 			}
@@ -77,7 +76,7 @@ func (g *GlobalDB) ReplaceSourceRows(
 }
 
 // ListRows returns deterministic catalog source rows matching the query.
-func (g *GlobalDB) ListRows(
+func (g *ModelCatalogRepo) ListRows(
 	ctx context.Context,
 	opts modelcatalog.ListOptions,
 ) (catalogRows []modelcatalog.ModelRow, err error) {
@@ -103,6 +102,7 @@ func listModelCatalogRows(
 	exec modelCatalogSQLExecutor,
 	opts modelcatalog.ListOptions,
 ) (catalogRows []modelcatalog.ModelRow, err error) {
+	// dynamic-sql: provider/source/availability filters are optional and shared with the reasoning-effort join.
 	sqlQuery := `SELECT
 			source_id,
 			provider_id,
@@ -141,8 +141,8 @@ func listModelCatalogRows(
 		return nil, fmt.Errorf("store: query model catalog rows: %w", err)
 	}
 	defer func() {
-		if closeErr := joinRowsCloseError(rows, nil, "model catalog row query"); closeErr != nil && err == nil {
-			err = closeErr
+		if closeErr := joinRowsCloseError(rows, nil, "model catalog row query"); closeErr != nil {
+			joinCleanupError(&err, closeErr)
 		}
 	}()
 
@@ -170,7 +170,7 @@ func listModelCatalogRows(
 }
 
 // ListSourceStatus returns provider-scoped source status rows.
-func (g *GlobalDB) ListSourceStatus(
+func (g *ModelCatalogRepo) ListSourceStatus(
 	ctx context.Context,
 	providerID string,
 ) (statuses []modelcatalog.SourceStatus, err error) {
@@ -194,6 +194,7 @@ func (g *GlobalDB) ListSourceStatus(
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += ` ORDER BY provider_id ASC, source_id ASC`
 
+	// dynamic-sql: the provider filter is optional while stable ordering is preserved.
 	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query model catalog source status: %w", err)
@@ -203,9 +204,8 @@ func (g *GlobalDB) ListSourceStatus(
 			rows,
 			nil,
 			"model catalog source status query",
-		); closeErr != nil &&
-			err == nil {
-			err = closeErr
+		); closeErr != nil {
+			joinCleanupError(&err, closeErr)
 		}
 	}()
 
@@ -394,275 +394,4 @@ func requireModelCatalogValue(value string, field string) (string, error) {
 		return "", fmt.Errorf("store: model catalog %s is required", field)
 	}
 	return trimmed, nil
-}
-
-func upsertModelCatalogSourceStatus(
-	ctx context.Context,
-	exec modelCatalogSQLExecutor,
-	status modelcatalog.SourceStatus,
-) error {
-	if _, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO model_catalog_sources (
-			source_id,
-			provider_id,
-			source_kind,
-			priority,
-			refresh_state,
-			last_refresh_at,
-			next_refresh_at,
-			last_success_at,
-			last_error,
-			row_count,
-			stale
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(source_id, provider_id) DO UPDATE SET
-			source_kind = excluded.source_kind,
-			priority = excluded.priority,
-			refresh_state = excluded.refresh_state,
-			last_refresh_at = excluded.last_refresh_at,
-			next_refresh_at = excluded.next_refresh_at,
-			last_success_at = excluded.last_success_at,
-			last_error = excluded.last_error,
-			row_count = excluded.row_count,
-			stale = excluded.stale`,
-		status.SourceID,
-		status.ProviderID,
-		string(status.SourceKind),
-		status.Priority,
-		string(status.RefreshState),
-		store.FormatNullableTimestamp(status.LastRefresh),
-		store.FormatNullableTimestamp(status.NextRefresh),
-		store.FormatNullableTimestamp(status.LastSuccess),
-		status.LastError,
-		status.RowCount,
-		boolToSQLiteInt(status.Stale),
-	); err != nil {
-		return fmt.Errorf("store: upsert model catalog source status: %w", err)
-	}
-	return nil
-}
-
-func insertModelCatalogRow(ctx context.Context, exec modelCatalogSQLExecutor, row modelcatalog.ModelRow) error {
-	if _, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO model_catalog_rows (
-			source_id,
-			provider_id,
-			model_id,
-			source_kind,
-			priority,
-			available,
-			stale,
-			refreshed_at,
-			expires_at,
-			display_name,
-			context_window,
-			max_input_tokens,
-			max_output_tokens,
-			supports_tools,
-			supports_reasoning,
-			default_reasoning_effort,
-			cost_input_per_million,
-			cost_output_per_million,
-			explicitly_curated,
-			deprecated,
-			hidden,
-			featured,
-			deprecated_set,
-			hidden_set,
-			featured_set,
-			release_date,
-			last_error
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		row.SourceID,
-		row.ProviderID,
-		row.ModelID,
-		string(row.SourceKind),
-		row.Priority,
-		nullableBoolToSQLiteInt(row.Available),
-		boolToSQLiteInt(row.Stale),
-		store.FormatNullableTimestamp(row.RefreshedAt),
-		store.FormatNullableTimestamp(row.ExpiresAt),
-		row.DisplayName,
-		store.NullableInt64(row.ContextWindow),
-		store.NullableInt64(row.MaxInputTokens),
-		store.NullableInt64(row.MaxOutputTokens),
-		nullableBoolToSQLiteInt(row.SupportsTools),
-		nullableBoolToSQLiteInt(row.SupportsReasoning),
-		nullableReasoningEffort(row.DefaultReasoningEffort),
-		store.NullableFloat64(row.CostInputPerMillion),
-		store.NullableFloat64(row.CostOutputPerMillion),
-		boolToSQLiteInt(row.ExplicitlyCurated),
-		boolPointerToSQLiteInt(row.Deprecated),
-		boolPointerToSQLiteInt(row.Hidden),
-		boolPointerToSQLiteInt(row.Featured),
-		boolToSQLiteInt(row.Deprecated != nil),
-		boolToSQLiteInt(row.Hidden != nil),
-		boolToSQLiteInt(row.Featured != nil),
-		nullableStringPtr(row.ReleaseDate),
-		row.LastError,
-	); err != nil {
-		return fmt.Errorf(
-			"store: insert model catalog row %q/%q/%q: %w",
-			row.SourceID,
-			row.ProviderID,
-			row.ModelID,
-			err,
-		)
-	}
-	return nil
-}
-
-func insertModelCatalogReasoningEfforts(
-	ctx context.Context,
-	exec modelCatalogSQLExecutor,
-	row modelcatalog.ModelRow,
-) error {
-	for rank, effort := range row.ReasoningEfforts {
-		if _, err := exec.ExecContext(
-			ctx,
-			`INSERT INTO model_catalog_reasoning_efforts (
-				source_id,
-				provider_id,
-				model_id,
-				effort,
-				rank
-			) VALUES (?, ?, ?, ?, ?)`,
-			row.SourceID,
-			row.ProviderID,
-			row.ModelID,
-			string(effort),
-			rank,
-		); err != nil {
-			return fmt.Errorf("store: insert model catalog reasoning effort %q: %w", effort, err)
-		}
-	}
-	return nil
-}
-
-func listModelCatalogReasoningEfforts(
-	ctx context.Context,
-	exec modelCatalogSQLExecutor,
-	opts modelcatalog.ListOptions,
-) (efforts map[modelCatalogRowKey][]modelcatalog.ReasoningEffort, err error) {
-	sqlQuery := `SELECT
-			e.source_id,
-			e.provider_id,
-			e.model_id,
-			e.effort
-		FROM model_catalog_reasoning_efforts e
-		JOIN model_catalog_rows r
-			ON r.source_id = e.source_id
-			AND r.provider_id = e.provider_id
-			AND r.model_id = e.model_id`
-	where, args := modelCatalogRowFilterClauses(opts, "r")
-	sqlQuery = store.AppendWhere(sqlQuery, where)
-	sqlQuery += ` ORDER BY e.source_id ASC, e.provider_id ASC, e.model_id ASC, e.rank ASC, e.effort ASC`
-
-	rows, err := exec.QueryContext(ctx, sqlQuery, args...)
-	if err != nil {
-		return nil, fmt.Errorf("store: query model catalog reasoning efforts: %w", err)
-	}
-	defer func() {
-		if closeErr := joinRowsCloseError(
-			rows,
-			nil,
-			"model catalog reasoning effort query",
-		); closeErr != nil &&
-			err == nil {
-			err = closeErr
-		}
-	}()
-
-	efforts = make(map[modelCatalogRowKey][]modelcatalog.ReasoningEffort)
-	for rows.Next() {
-		var (
-			sourceID   string
-			providerID string
-			modelID    string
-			effort     string
-		)
-		if err := rows.Scan(&sourceID, &providerID, &modelID, &effort); err != nil {
-			return nil, fmt.Errorf("store: scan model catalog reasoning effort: %w", err)
-		}
-		key := modelCatalogKey(sourceID, providerID, modelID)
-		efforts[key] = append(efforts[key], modelcatalog.ReasoningEffort(effort))
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate model catalog reasoning efforts: %w", err)
-	}
-	return efforts, nil
-}
-
-func scanModelCatalogRow(scanner interface{ Scan(dest ...any) error }) (modelcatalog.ModelRow, error) {
-	scan := modelCatalogRowScan{}
-	if err := scanner.Scan(scan.destinations()...); err != nil {
-		return modelcatalog.ModelRow{}, fmt.Errorf("store: scan model catalog row: %w", err)
-	}
-	return scan.modelRow()
-}
-
-func scanModelCatalogSourceStatus(scanner interface{ Scan(dest ...any) error }) (modelcatalog.SourceStatus, error) {
-	var (
-		status         modelcatalog.SourceStatus
-		sourceKind     string
-		lastRefreshRaw string
-		nextRefreshRaw string
-		lastSuccessRaw string
-		staleRaw       int
-	)
-	if err := scanner.Scan(
-		&status.SourceID,
-		&status.ProviderID,
-		&sourceKind,
-		&status.Priority,
-		&status.RefreshState,
-		&lastRefreshRaw,
-		&nextRefreshRaw,
-		&lastSuccessRaw,
-		&status.LastError,
-		&status.RowCount,
-		&staleRaw,
-	); err != nil {
-		return modelcatalog.SourceStatus{}, fmt.Errorf("store: scan model catalog source status: %w", err)
-	}
-	var err error
-	status.SourceKind = modelcatalog.SourceKind(sourceKind)
-	status.RefreshState = modelcatalog.RefreshState(strings.TrimSpace(string(status.RefreshState)))
-	if status.LastRefresh, err = parseOptionalModelCatalogTimestamp(lastRefreshRaw, "last_refresh_at"); err != nil {
-		return modelcatalog.SourceStatus{}, err
-	}
-	if status.NextRefresh, err = parseOptionalModelCatalogTimestamp(nextRefreshRaw, "next_refresh_at"); err != nil {
-		return modelcatalog.SourceStatus{}, err
-	}
-	if status.LastSuccess, err = parseOptionalModelCatalogTimestamp(lastSuccessRaw, "last_success_at"); err != nil {
-		return modelcatalog.SourceStatus{}, err
-	}
-	status.Stale = staleRaw != 0
-	return status, nil
-}
-
-func modelCatalogRowFilterClauses(opts modelcatalog.ListOptions, alias string) ([]string, []any) {
-	column := func(name string) string {
-		if strings.TrimSpace(alias) == "" {
-			return name
-		}
-		return strings.TrimSpace(alias) + "." + name
-	}
-
-	where := make([]string, 0, 3)
-	args := make([]any, 0, 2)
-	if providerID := strings.TrimSpace(opts.ProviderID); providerID != "" {
-		where = append(where, column("provider_id")+" = ?")
-		args = append(args, providerID)
-	}
-	if sourceID := strings.TrimSpace(opts.SourceID); sourceID != "" {
-		where = append(where, column("source_id")+" = ?")
-		args = append(args, sourceID)
-	}
-	if !opts.IncludeStale && !opts.IncludeAll {
-		where = append(where, column("stale")+" = 0")
-	}
-	return where, args
 }

@@ -2,7 +2,6 @@ package globaldb
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -10,10 +9,11 @@ import (
 
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 // ListGenerationOutputs loads loop-owned per-node generation state in deterministic order.
-func (g *GlobalDB) ListGenerationOutputs(
+func (g *LoopRepo) ListGenerationOutputs(
 	ctx context.Context,
 	runID looppkg.RunID,
 	generation int,
@@ -27,37 +27,21 @@ func (g *GlobalDB) ListGenerationOutputs(
 	if generation <= 0 {
 		return nil, fmt.Errorf("%w: generation must be positive", looppkg.ErrValidation)
 	}
-	rows, err := g.db.QueryContext(
-		ctx,
-		`SELECT generation, node_id, item_index, status, output_ref, task_run_id, child_loop_run_id
-		 FROM loop_generation_outputs
-		 WHERE loop_run_id = ?
-		   AND generation = ?
-		 ORDER BY node_id ASC, item_index ASC`,
-		string(runID),
-		generation,
-	)
+	rows, err := g.queries.ListLoopGenerationOutputs(ctx, sqlcgen.ListLoopGenerationOutputsParams{
+		LoopRunID: string(runID), Generation: int64(generation),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("store: list loop run %q generation %d outputs: %w", runID, generation, err)
 	}
-	defer rows.Close()
-
-	outputs := make([]looppkg.GenerationOutput, 0)
-	for rows.Next() {
-		output, scanErr := scanGenerationOutput(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		outputs = append(outputs, output)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate loop run %q generation %d outputs: %w", runID, generation, err)
+	outputs := make([]looppkg.GenerationOutput, 0, len(rows))
+	for _, row := range rows {
+		outputs = append(outputs, generationOutputFromGenerated(row))
 	}
 	return outputs, nil
 }
 
 // LookupLoopGenerationOutputStatus returns the output correlated with one worker task run.
-func (g *GlobalDB) LookupLoopGenerationOutputStatus(
+func (g *LoopRepo) LookupLoopGenerationOutputStatus(
 	ctx context.Context,
 	loopRunID string,
 	taskRunID string,
@@ -70,17 +54,10 @@ func (g *GlobalDB) LookupLoopGenerationOutputStatus(
 	if loopRunID == "" || taskRunID == "" {
 		return "", false, fmt.Errorf("%w: loop_run_id and task_run_id are required", looppkg.ErrValidation)
 	}
-	var status string
-	if err := g.db.QueryRowContext(
-		ctx,
-		`SELECT status
-		 FROM loop_generation_outputs
-		 WHERE loop_run_id = ? AND task_run_id = ?
-		 ORDER BY generation DESC
-		 LIMIT 1`,
-		loopRunID,
-		taskRunID,
-	).Scan(&status); err != nil {
+	status, err := g.queries.GetLoopGenerationOutputStatus(ctx, sqlcgen.GetLoopGenerationOutputStatusParams{
+		LoopRunID: loopRunID, TaskRunID: nullString(taskRunID),
+	})
+	if err != nil {
 		if errorsIsNoRows(err) {
 			return "", false, nil
 		}
@@ -94,49 +71,13 @@ func (g *GlobalDB) LookupLoopGenerationOutputStatus(
 	return strings.TrimSpace(status), true, nil
 }
 
-type generationOutputScanner interface {
-	Scan(dest ...any) error
-}
-
-func scanGenerationOutput(row generationOutputScanner) (looppkg.GenerationOutput, error) {
-	var output looppkg.GenerationOutput
-	var outputRef sql.NullString
-	var taskRunID sql.NullString
-	var childLoopRunID sql.NullString
-	if err := row.Scan(
-		&output.Generation,
-		&output.NodeID,
-		&output.ItemIndex,
-		&output.Status,
-		&outputRef,
-		&taskRunID,
-		&childLoopRunID,
-	); err != nil {
-		return looppkg.GenerationOutput{}, fmt.Errorf("store: scan loop generation output: %w", err)
-	}
-	if outputRef.Valid {
-		output.OutputRef = outputRef.String
-	}
-	if taskRunID.Valid {
-		output.TaskRunID = taskRunID.String
-	}
-	if childLoopRunID.Valid {
-		output.ChildLoopRunID = childLoopRunID.String
-	}
-	return output, nil
-}
-
 func getLoopOutputByRefWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	outputRef string,
 ) (json.RawMessage, error) {
-	var raw string
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT payload_json FROM loop_output_blobs WHERE output_ref = ?`,
-		outputRef,
-	).Scan(&raw); err != nil {
+	raw, err := sqlcgen.New(exec).GetLoopOutputBlob(ctx, outputRef)
+	if err != nil {
 		if errorsIsNoRows(err) {
 			return nil, looppkg.ErrOutputRefNotFound
 		}
@@ -146,31 +87,7 @@ func getLoopOutputByRefWithExecutor(
 }
 
 func sweepOrphanedLoopOutputBlobsWithExecutor(ctx context.Context, exec taskSQLExecutor) error {
-	if _, err := exec.ExecContext(
-		ctx,
-		`DELETE FROM loop_output_blobs
-		 WHERE NOT EXISTS (
-		   SELECT 1
-		   FROM loop_generation_outputs
-		   WHERE loop_generation_outputs.output_ref = loop_output_blobs.output_ref
-		 )
-		 AND NOT EXISTS (
-		   SELECT 1
-		   FROM loop_goal_turns
-		   WHERE loop_goal_turns.evidence_ref = loop_output_blobs.output_ref
-		      OR loop_goal_turns.prompt_ref = loop_output_blobs.output_ref
-		 )
-		 AND NOT EXISTS (
-		   SELECT 1
-		   FROM loop_goal_judge_attempts
-		   WHERE loop_goal_judge_attempts.evidence_ref = loop_output_blobs.output_ref
-		 )
-		 AND NOT EXISTS (
-		   SELECT 1
-		   FROM loop_goal_checkpoints
-		   WHERE loop_goal_checkpoints.report_evidence_ref = loop_output_blobs.output_ref
-		 )`,
-	); err != nil {
+	if err := sqlcgen.New(exec).SweepOrphanedLoopOutputBlobs(ctx); err != nil {
 		return fmt.Errorf("store: sweep orphaned loop output blobs: %w", err)
 	}
 	return nil

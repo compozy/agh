@@ -2,11 +2,11 @@ package globaldb
 
 import (
 	"context"
-
 	"fmt"
 	"strings"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 func upsertNetworkThreadParticipant(
@@ -35,21 +35,11 @@ func upsertNetworkThreadParticipantPeer(
 	if trimmedPeerID == "" {
 		return nil
 	}
-	_, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO network_thread_participants (
-			workspace_id, channel, thread_id, peer_id, first_message_id, first_seen_at, last_seen_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(workspace_id, channel, thread_id, peer_id) DO UPDATE SET
-			last_seen_at = excluded.last_seen_at`,
-		entry.WorkspaceID,
-		entry.Channel,
-		entry.ThreadID,
-		trimmedPeerID,
-		entry.MessageID,
-		store.FormatTimestamp(entry.Timestamp),
-		store.FormatTimestamp(entry.Timestamp),
-	)
+	err := sqlcgen.New(exec).UpsertNetworkThreadParticipant(ctx, sqlcgen.UpsertNetworkThreadParticipantParams{
+		WorkspaceID: entry.WorkspaceID, Channel: entry.Channel, ThreadID: entry.ThreadID,
+		PeerID: trimmedPeerID, FirstMessageID: entry.MessageID,
+		FirstSeenAt: store.FormatTimestamp(entry.Timestamp), LastSeenAt: store.FormatTimestamp(entry.Timestamp),
+	})
 	if err != nil {
 		return fmt.Errorf("store: upsert network thread participant: %w", err)
 	}
@@ -87,28 +77,21 @@ func refreshNetworkThreadSummary(
 	if err != nil {
 		return err
 	}
-	var messageCount int
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT COUNT(*)
-		FROM network_timeline_log
-		WHERE workspace_id = ? AND channel = ? AND surface = 'thread' AND thread_id = ?`,
-		entry.WorkspaceID,
-		entry.Channel,
-		entry.ThreadID,
-	).Scan(&messageCount); err != nil {
+	queries := sqlcgen.New(exec)
+	messageCount, err := queries.CountNetworkThreadMessages(ctx, sqlcgen.CountNetworkThreadMessagesParams{
+		WorkspaceID: entry.WorkspaceID, Channel: entry.Channel,
+		ThreadID: nullableNetworkString(entry.ThreadID),
+	})
+	if err != nil {
 		return fmt.Errorf("store: count network thread messages: %w", err)
 	}
-	var participantCount int
-	if err := exec.QueryRowContext(
+	participantCount, err := queries.CountNetworkThreadParticipants(
 		ctx,
-		`SELECT COUNT(*)
-		FROM network_thread_participants
-		WHERE workspace_id = ? AND channel = ? AND thread_id = ?`,
-		entry.WorkspaceID,
-		entry.Channel,
-		entry.ThreadID,
-	).Scan(&participantCount); err != nil {
+		sqlcgen.CountNetworkThreadParticipantsParams{
+			WorkspaceID: entry.WorkspaceID, Channel: entry.Channel, ThreadID: entry.ThreadID,
+		},
+	)
+	if err != nil {
 		return fmt.Errorf("store: count network thread participants: %w", err)
 	}
 	openWorkCount, err := countOpenNetworkWork(
@@ -123,23 +106,12 @@ func refreshNetworkThreadSummary(
 	if err != nil {
 		return err
 	}
-	if _, err := exec.ExecContext(
-		ctx,
-		`UPDATE network_threads
-		SET last_activity_at = ?, last_activity_sequence = ?,
-			message_count = ?, participant_count = ?, open_work_count = ?,
-			last_message_preview = ?
-		WHERE workspace_id = ? AND channel = ? AND thread_id = ?`,
-		latest.timestamp,
-		latest.sequence,
-		messageCount,
-		participantCount,
-		openWorkCount,
-		latest.preview,
-		entry.WorkspaceID,
-		entry.Channel,
-		entry.ThreadID,
-	); err != nil {
+	if err := queries.UpdateNetworkThreadSummary(ctx, sqlcgen.UpdateNetworkThreadSummaryParams{
+		LastActivityAt: latest.timestamp, LastActivitySequence: latest.sequence,
+		MessageCount: messageCount, ParticipantCount: participantCount, OpenWorkCount: int64(openWorkCount),
+		LastMessagePreview: latest.preview, WorkspaceID: entry.WorkspaceID,
+		Channel: entry.Channel, ThreadID: entry.ThreadID,
+	}); err != nil {
 		return fmt.Errorf("store: update network thread summary: %w", err)
 	}
 	return nil
@@ -161,16 +133,12 @@ func refreshNetworkDirectRoomSummary(
 	if err != nil {
 		return err
 	}
-	var messageCount int
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT COUNT(*)
-		FROM network_timeline_log
-		WHERE workspace_id = ? AND channel = ? AND surface = 'direct' AND direct_id = ?`,
-		entry.WorkspaceID,
-		entry.Channel,
-		entry.DirectID,
-	).Scan(&messageCount); err != nil {
+	queries := sqlcgen.New(exec)
+	messageCount, err := queries.CountNetworkDirectMessages(ctx, sqlcgen.CountNetworkDirectMessagesParams{
+		WorkspaceID: entry.WorkspaceID, Channel: entry.Channel,
+		DirectID: nullableNetworkString(entry.DirectID),
+	})
+	if err != nil {
 		return fmt.Errorf("store: count network direct messages: %w", err)
 	}
 	openWorkCount, err := countOpenNetworkWork(
@@ -185,21 +153,11 @@ func refreshNetworkDirectRoomSummary(
 	if err != nil {
 		return err
 	}
-	if _, err := exec.ExecContext(
-		ctx,
-		`UPDATE network_direct_rooms
-		SET last_activity_at = ?, last_activity_sequence = ?,
-			message_count = ?, open_work_count = ?, last_message_preview = ?
-		WHERE workspace_id = ? AND channel = ? AND direct_id = ?`,
-		latest.timestamp,
-		latest.sequence,
-		messageCount,
-		openWorkCount,
-		latest.preview,
-		entry.WorkspaceID,
-		entry.Channel,
-		entry.DirectID,
-	); err != nil {
+	if err := queries.UpdateNetworkDirectRoomSummary(ctx, sqlcgen.UpdateNetworkDirectRoomSummaryParams{
+		LastActivityAt: latest.timestamp, LastActivitySequence: latest.sequence,
+		MessageCount: messageCount, OpenWorkCount: int64(openWorkCount), LastMessagePreview: latest.preview,
+		WorkspaceID: entry.WorkspaceID, Channel: entry.Channel, DirectID: entry.DirectID,
+	}); err != nil {
 		return fmt.Errorf("store: update network direct room summary: %w", err)
 	}
 	return nil
@@ -219,24 +177,23 @@ func latestNetworkConversationMessage(
 	surface string,
 	containerID string,
 ) (latestNetworkMessage, error) {
-	column := globalDBNetworkConversationsThreadIDKey
+	queries := sqlcgen.New(exec)
 	if surface == store.NetworkSurfaceDirect {
-		column = globalDBNetworkConversationsDirectIDKey
+		row, err := queries.GetLatestNetworkDirectMessage(ctx, sqlcgen.GetLatestNetworkDirectMessageParams{
+			WorkspaceID: workspaceID, Channel: channel, DirectID: nullableNetworkString(containerID),
+		})
+		if err != nil {
+			return latestNetworkMessage{}, fmt.Errorf("store: lookup latest network conversation message: %w", err)
+		}
+		return latestNetworkMessage{sequence: row.Sequence, timestamp: row.Timestamp, preview: row.PreviewText}, nil
 	}
-	var latest latestNetworkMessage
-	query := fmt.Sprintf(
-		`SELECT sequence, timestamp, preview_text
-			FROM network_timeline_log
-			WHERE workspace_id = ? AND channel = ? AND surface = ? AND %s = ?
-			ORDER BY sequence DESC
-			LIMIT 1`,
-		column,
-	)
-	if err := exec.QueryRowContext(ctx, query, workspaceID, channel, surface, containerID).
-		Scan(&latest.sequence, &latest.timestamp, &latest.preview); err != nil {
+	row, err := queries.GetLatestNetworkThreadMessage(ctx, sqlcgen.GetLatestNetworkThreadMessageParams{
+		WorkspaceID: workspaceID, Channel: channel, ThreadID: nullableNetworkString(containerID),
+	})
+	if err != nil {
 		return latestNetworkMessage{}, fmt.Errorf("store: lookup latest network conversation message: %w", err)
 	}
-	return latest, nil
+	return latestNetworkMessage{sequence: row.Sequence, timestamp: row.Timestamp, preview: row.PreviewText}, nil
 }
 
 func countOpenNetworkWork(
@@ -248,37 +205,27 @@ func countOpenNetworkWork(
 	threadID string,
 	directID string,
 ) (int, error) {
-	where := []string{
-		globalDBNetworkConversationsWorkspaceIDValue,
-		globalDBNetworkConversationsChannelValue,
-		"surface = ?",
-		"state NOT IN (?, ?, ?)",
-	}
-	args := []any{
-		workspaceID,
-		channel,
-		surface,
-		store.NetworkWorkStateCompleted,
-		store.NetworkWorkStateFailed,
-		store.NetworkWorkStateCanceled,
-	}
+	queries := sqlcgen.New(exec)
 	if surface == store.NetworkSurfaceThread {
-		where = append(where, "thread_id = ?")
-		args = append(args, threadID)
-	} else {
-		where = append(where, "direct_id = ?")
-		args = append(args, directID)
+		count, err := queries.CountOpenNetworkThreadWork(ctx, sqlcgen.CountOpenNetworkThreadWorkParams{
+			WorkspaceID: workspaceID, Channel: channel, ThreadID: nullableNetworkString(threadID),
+			Completed: store.NetworkWorkStateCompleted, Failed: store.NetworkWorkStateFailed,
+			Canceled: store.NetworkWorkStateCanceled,
+		})
+		if err != nil {
+			return 0, fmt.Errorf("store: count open network work: %w", err)
+		}
+		return int(count), nil
 	}
-
-	var count int
-	if err := exec.QueryRowContext(
-		ctx,
-		store.AppendWhere(`SELECT COUNT(*) FROM network_work`, where),
-		args...,
-	).Scan(&count); err != nil {
+	count, err := queries.CountOpenNetworkDirectWork(ctx, sqlcgen.CountOpenNetworkDirectWorkParams{
+		WorkspaceID: workspaceID, Channel: channel, DirectID: nullableNetworkString(directID),
+		Completed: store.NetworkWorkStateCompleted, Failed: store.NetworkWorkStateFailed,
+		Canceled: store.NetworkWorkStateCanceled,
+	})
+	if err != nil {
 		return 0, fmt.Errorf("store: count open network work: %w", err)
 	}
-	return count, nil
+	return int(count), nil
 }
 
 func auditEntryForConversationMessage(entry store.NetworkConversationMessage) store.NetworkAuditEntry {

@@ -9,10 +9,11 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 // MarkAmbiguous finalizes one already-started Goal operation without replaying or allocating a successor.
-func (g *GlobalDB) MarkAmbiguous(ctx context.Context, req goal.AmbiguousRequest) error {
+func (g *GoalRepo) MarkAmbiguous(ctx context.Context, req goal.AmbiguousRequest) error {
 	if err := g.checkReady(ctx, "mark Goal prompt ambiguous"); err != nil {
 		return err
 	}
@@ -113,27 +114,23 @@ func ensureAmbiguousGoalQueueTerminal(
 		}
 		return goalControlStaleError("Goal operation already has a non-ambiguous terminal")
 	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE session_input_queue
-		 SET status = 'failed', terminal_kind = 'ambiguous', terminal_reason_code = ?,
-		     terminal_tokens_reported = 0, terminal_tokens_used = NULL,
-		     terminal_at = ?, failed_at = ?, failure_summary = ?, updated_at = ?
-		 WHERE id = ? AND loop_run_id = ? AND prompt_id = ?
-		   AND status IN ('dispatching','sent') AND terminal_at IS NULL`,
-		string(req.Cause),
-		store.FormatTimestamp(now),
-		store.FormatTimestamp(now),
-		string(req.Cause),
-		store.FormatTimestamp(now),
-		strings.TrimSpace(req.QueueEntryID),
-		string(req.Key.LoopRunID),
-		strings.TrimSpace(req.PromptID),
-	)
+	affected, err := sqlcgen.New(exec).
+		EnsureAmbiguousGoalQueueTerminal(ctx, sqlcgen.EnsureAmbiguousGoalQueueTerminalParams{
+			TerminalReasonCode: goalNullableString(string(req.Cause)),
+			TerminalAt:         store.FormatTimestamp(now),
+			FailedAt: store.FormatTimestamp(
+				now,
+			),
+			FailureSummary: string(req.Cause),
+			UpdatedAt:      store.FormatTimestamp(now),
+			ID:             strings.TrimSpace(req.QueueEntryID),
+			LoopRunID:      goalNullableString(string(req.Key.LoopRunID)),
+			PromptID:       goalNullableString(req.PromptID),
+		})
 	if err != nil {
 		return fmt.Errorf("store: mark Goal queue terminal ambiguous: %w", err)
 	}
-	return requireGoalRowsAffected(result, "mark Goal queue terminal ambiguous")
+	return requireGoalAffectedCount(affected, "mark Goal queue terminal ambiguous")
 }
 
 func finalizeAmbiguousGoalTurn(
@@ -142,24 +139,15 @@ func finalizeAmbiguousGoalTurn(
 	req goal.AmbiguousRequest,
 	now time.Time,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_goal_turns
-		 SET result_status = 'ambiguous', reason_code = ?, ended_at = ?
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		   AND prompt_id = ? AND result_status IS NULL`,
-		string(req.Cause),
-		store.FormatTimestamp(now),
-		string(req.Key.LoopRunID),
-		req.Key.Generation,
-		string(req.Key.NodeID),
-		req.Key.ItemIndex,
-		strings.TrimSpace(req.PromptID),
-	)
+	affected, err := sqlcgen.New(exec).FinalizeAmbiguousGoalTurn(ctx, sqlcgen.FinalizeAmbiguousGoalTurnParams{
+		ReasonCode: goalNullableString(string(req.Cause)), EndedAt: store.FormatTimestamp(now),
+		LoopRunID: string(req.Key.LoopRunID), Generation: int64(req.Key.Generation),
+		NodeID: string(req.Key.NodeID), ItemIndex: int64(req.Key.ItemIndex), PromptID: strings.TrimSpace(req.PromptID),
+	})
 	if err != nil {
 		return fmt.Errorf("store: finalize ambiguous Goal turn: %w", err)
 	}
-	return requireGoalRowsAffected(result, "finalize ambiguous Goal turn")
+	return requireGoalAffectedCount(affected, "finalize ambiguous Goal turn")
 }
 
 func checkpointAmbiguousGoalPrompt(
@@ -168,30 +156,18 @@ func checkpointAmbiguousGoalPrompt(
 	req goal.AmbiguousRequest,
 	now time.Time,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_goal_checkpoints
-		 SET phase = 'awaiting_control', goal_status = 'paused', control_cause = ?, updated_at = ?
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		   AND control_epoch = ? AND binding_epoch = ?
-		   AND task_run_id = ? AND queue_entry_id = ? AND prompt_id = ?
-		   AND phase IN ('prompting','compacting','persisting')`,
-		string(req.Cause),
-		store.FormatTimestamp(now),
-		string(req.Key.LoopRunID),
-		req.Key.Generation,
-		string(req.Key.NodeID),
-		req.Key.ItemIndex,
-		req.ExpectedControlEpoch,
-		req.ExpectedBindingEpoch,
-		strings.TrimSpace(req.TaskRunID),
-		strings.TrimSpace(req.QueueEntryID),
-		strings.TrimSpace(req.PromptID),
-	)
+	affected, err := sqlcgen.New(exec).CheckpointAmbiguousGoalPrompt(ctx, sqlcgen.CheckpointAmbiguousGoalPromptParams{
+		ControlCause: goalNullableString(string(req.Cause)), UpdatedAt: store.FormatTimestamp(now),
+		LoopRunID: string(req.Key.LoopRunID), Generation: int64(req.Key.Generation),
+		NodeID: string(req.Key.NodeID), ItemIndex: int64(req.Key.ItemIndex),
+		ControlEpoch: req.ExpectedControlEpoch, BindingEpoch: goalNullableInt64(&req.ExpectedBindingEpoch),
+		TaskRunID: goalNullableString(req.TaskRunID), QueueEntryID: goalNullableString(req.QueueEntryID),
+		PromptID: goalNullableString(req.PromptID),
+	})
 	if err != nil {
 		return fmt.Errorf("store: checkpoint ambiguous Goal operation: %w", err)
 	}
-	return requireGoalRowsAffected(result, "checkpoint ambiguous Goal operation")
+	return requireGoalAffectedCount(affected, "checkpoint ambiguous Goal operation")
 }
 
 func validateGoalAmbiguousRequest(req goal.AmbiguousRequest) error {

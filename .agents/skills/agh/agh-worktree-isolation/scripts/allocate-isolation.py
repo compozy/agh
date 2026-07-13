@@ -5,6 +5,7 @@ Outputs export statements (POSIX-shell syntax) to stdout so callers can:
     eval "$(python3 allocate-isolation.py --slug my-qa)"
 
 Variables set:
+    AGH_ISOLATION_ROOT  owned envelope root for targeted teardown
     AGH_HOME            unique directory under TMPDIR (or worktree-scoped)
     AGH_HTTP_PORT       free 127.0.0.1 TCP port
     AGH_UDS_PATH        unique UDS socket path under AGH_HOME
@@ -84,6 +85,7 @@ def main() -> int:
         f"#   TMUX_BRIDGE_SOCKET={tmux_socket}\n"
     )
 
+    print(f"export AGH_ISOLATION_ROOT={shquote(str(agh_home))}")
     print(f"export AGH_HOME={shquote(str(agh_home))}")
     print(f"export AGH_HTTP_PORT={http_port}")
     print(f"export AGH_UDS_PATH={shquote(str(uds_path))}")

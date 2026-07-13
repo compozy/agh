@@ -146,7 +146,7 @@ Per-scenario evidence layout under `.artifacts/qa/<run-id>/ui-XX/`:
 
 - Fresh QA bootstrap; `bootstrap-manifest.json` saved and `bootstrap.env` exported. `AGH_HOME`, daemon HTTP port, UDS socket, `PROVIDER_HOME`/`PROVIDER_CODEX_HOME`, `AGH_WEB_API_PROXY_TARGET` all set.
 - `make verify` is green on the SUT branch (per the Critical Rules). In particular `make web-build` and `make web-typecheck` MUST be green so the embedded `dist/` is up to date.
-- Daemon running: `agh daemon status -o json` reports `status="running"`.
+- Daemon running: `agh status -o json` reports `status="running"`.
 - For `real-claude-code` scenarios: direct `claude` auth comes from the
   effective Claude home for the lane (operator `HOME` by default; isolated
   `PROVIDER_HOME` only for explicit isolated-home scenarios); `agh provider
@@ -582,7 +582,7 @@ steps:
       ).toMatch(/Daemon restarted successfully|Restart succeeded/);
 expected:
   - Hot-apply: no restart banner; UDS reports the new value; daemon process did NOT restart (PID unchanged via `runtime.process.pid`).
-  - Restart-required: banner visible with `tone=warning` while polling, then `tone=success` on completion; daemon PID DID change (or `agh daemon status` reports a fresh started_at).
+  - Restart-required: banner visible with `tone=warning` while polling, then `tone=success` on completion; daemon PID DID change (or `agh status` reports a fresh started_at).
   - The "Restart now" button is keyboard-reachable; pressing Enter triggers the same flow.
 evidence:
   - ui-07-screenshots/{hot-apply-after-save,restart-banner,restart-success}.png

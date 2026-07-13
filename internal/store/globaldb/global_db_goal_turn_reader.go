@@ -11,9 +11,10 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/gate"
 	"github.com/compozy/agh/internal/loop/goal"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
-var _ goal.TurnReader = (*GlobalDB)(nil)
+var _ goal.TurnReader = (*GoalRepo)(nil)
 
 const goalTurnSelectColumns = `
 	seq, generation, node_id, item_index, turn, session_id, binding_handle,
@@ -22,7 +23,7 @@ const goalTurnSelectColumns = `
 	prompt_ref, tokens_used, actor_kind, actor_id, started_at, ended_at`
 
 // ListGoalTurns returns one stable run-wide sequence page.
-func (g *GlobalDB) ListGoalTurns(
+func (g *GoalRepo) ListGoalTurns(
 	ctx context.Context,
 	query goal.TurnQuery,
 ) (page goal.TurnPage, err error) {
@@ -46,6 +47,7 @@ func (g *GlobalDB) ListGoalTurns(
 		limit = 50
 	}
 	statement, args := goalTurnListQuery(query, limit+1)
+	// dynamic-sql: optional node/item filters and cursor pagination change the predicate and argument shape.
 	rows, err := g.db.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return goal.TurnPage{}, fmt.Errorf("store: list goal turns for run %q: %w", query.LoopRunID, err)
@@ -78,7 +80,7 @@ func (g *GlobalDB) ListGoalTurns(
 }
 
 // GetGoalTurnByPromptID returns the exact workspace-owned turn identity.
-func (g *GlobalDB) GetGoalTurnByPromptID(
+func (g *GoalRepo) GetGoalTurnByPromptID(
 	ctx context.Context,
 	key goal.TurnKey,
 	promptID string,
@@ -97,27 +99,19 @@ func (g *GlobalDB) GetGoalTurnByPromptID(
 		return goal.Turn{}, err
 	}
 
-	turn, err := scanGoalTurn(g.db.QueryRowContext(
-		ctx,
-		`SELECT `+goalTurnSelectColumns+`
-		 FROM loop_goal_turns
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ? AND prompt_id = ?
-		   AND EXISTS (
-			   SELECT 1 FROM loop_runs
-			   WHERE loop_runs.id = loop_goal_turns.loop_run_id AND loop_runs.workspace_id = ?
-		   )`,
-		string(key.LoopRunID),
-		key.Generation,
-		string(key.NodeID),
-		key.ItemIndex,
-		normalizedPromptID,
-		string(key.WorkspaceID),
-	), key.WorkspaceID, key.LoopRunID)
+	row, err := sqlcgen.New(g.db).GetGoalTurnByPromptID(ctx, sqlcgen.GetGoalTurnByPromptIDParams{
+		LoopRunID: string(key.LoopRunID), Generation: int64(key.Generation), NodeID: string(key.NodeID),
+		ItemIndex: int64(key.ItemIndex), PromptID: normalizedPromptID, WorkspaceID: string(key.WorkspaceID),
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return goal.Turn{}, fmt.Errorf("%w: %s", goal.ErrTurnNotFound, normalizedPromptID)
 	}
 	if err != nil {
 		return goal.Turn{}, fmt.Errorf("store: get goal turn %q: %w", normalizedPromptID, err)
+	}
+	turn, err := goalTurnFromGenerated(row, key.WorkspaceID, key.LoopRunID)
+	if err != nil {
+		return goal.Turn{}, fmt.Errorf("store: decode goal turn %q: %w", normalizedPromptID, err)
 	}
 	return turn, nil
 }

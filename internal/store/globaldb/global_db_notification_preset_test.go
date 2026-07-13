@@ -2,13 +2,12 @@ package globaldb
 
 import (
 	"database/sql"
-	"path/filepath"
+	"errors"
 	"slices"
 	"testing"
 	"time"
 
 	presetspkg "github.com/compozy/agh/internal/notifications/presets"
-	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/testutil"
 )
 
@@ -32,55 +31,22 @@ func TestGlobalDBNotificationPresetSchema(t *testing.T) {
 		assertSeededNotificationPresetDefaults(t, items)
 	})
 
-	t.Run("Should migrate previous global schema and seed built-ins", func(t *testing.T) {
+	t.Run("Should map duplicate preset names from a real SQLite constraint", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		legacyDB, err := openSQLiteDatabase(ctx, dbPath, nil)
-		if err != nil {
-			t.Fatalf("openSQLiteDatabase() error = %v", err)
+		globalDB := openTestGlobalDB(t)
+		preset := presetspkg.Preset{
+			Name:    "operator-terminal",
+			Events:  []string{"task.run_failed"},
+			Enabled: true,
 		}
-		if err := store.RunMigrations(ctx, legacyDB, globalSchemaMigrations[:35]); err != nil {
-			t.Fatalf("RunMigrations(v35) error = %v", err)
+		if _, err := globalDB.CreatePreset(ctx, preset); err != nil {
+			t.Fatalf("CreatePreset(first) error = %v", err)
 		}
-		exists, err := tableExists(ctx, legacyDB, "notification_presets")
-		if err != nil {
-			t.Fatalf("tableExists(notification_presets) error = %v", err)
+		if _, err := globalDB.CreatePreset(ctx, preset); !errors.Is(err, presetspkg.ErrPresetDuplicateName) {
+			t.Fatalf("CreatePreset(duplicate) error = %v, want ErrPresetDuplicateName", err)
 		}
-		if exists {
-			var beforeCount int
-			row := legacyDB.QueryRowContext(ctx, `SELECT COUNT(*) FROM notification_presets`)
-			if err := row.Scan(&beforeCount); err != nil {
-				t.Fatalf("count notification_presets before v36 error = %v", err)
-			}
-			if beforeCount != 0 {
-				t.Fatalf("notification_presets rows before migration v36 = %d, want 0", beforeCount)
-			}
-		}
-		if err := legacyDB.Close(); err != nil {
-			t.Fatalf("legacyDB.Close() error = %v", err)
-		}
-
-		globalDB, err := OpenGlobalDB(ctx, dbPath)
-		if err != nil {
-			t.Fatalf("OpenGlobalDB(after v35) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := globalDB.Close(ctx); err != nil {
-				t.Fatalf("Close() error = %v", err)
-			}
-		})
-
-		assertNotificationPresetSchema(t, globalDB.db)
-		items, err := globalDB.ListPresets(
-			ctx,
-			presetspkg.Query{BuiltIn: boolPtrForNotificationPresetTest(true)},
-		)
-		if err != nil {
-			t.Fatalf("ListPresets(after migration) error = %v", err)
-		}
-		assertSeededNotificationPresetDefaults(t, items)
 	})
 }
 

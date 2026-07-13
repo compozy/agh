@@ -3,22 +3,19 @@ package globaldb
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
-	"time"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/agh/internal/task"
-	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
-var _ taskpkg.RecordStore = (*GlobalDB)(nil)
+var _ taskpkg.RecordStore = (*TaskRepo)(nil)
 var _ taskpkg.RunStore = (*GlobalDB)(nil)
-var _ taskpkg.AutonomyLeaseStore = (*GlobalDB)(nil)
-var _ taskpkg.DeleteTaskTransactionStore = (*GlobalDB)(nil)
+var _ taskpkg.AutonomyLeaseStore = (*TaskRunRepo)(nil)
+var _ taskpkg.DeleteTaskTransactionStore = (*TaskRepo)(nil)
 
 const taskListOrderByActivitySQL = ` ORDER BY COALESCE((
 	SELECT MAX(activity_at)
@@ -64,7 +61,7 @@ const taskLatestEventSeqSelectSQL = `COALESCE((
 ), 0)`
 
 // CreateTask inserts one durable task record.
-func (g *GlobalDB) CreateTask(ctx context.Context, record taskpkg.Task) error {
+func (g *TaskRepo) CreateTask(ctx context.Context, record taskpkg.Task) error {
 	if err := g.checkReady(ctx, "create task"); err != nil {
 		return err
 	}
@@ -86,7 +83,7 @@ func (g *GlobalDB) CreateTask(ctx context.Context, record taskpkg.Task) error {
 
 // DeleteTask removes one durable task record and any ON DELETE CASCADE children
 // owned by the task tables.
-func (g *GlobalDB) DeleteTask(ctx context.Context, id string) error {
+func (g *TaskRepo) DeleteTask(ctx context.Context, id string) error {
 	if err := g.checkReady(ctx, "delete task"); err != nil {
 		return err
 	}
@@ -97,7 +94,7 @@ func (g *GlobalDB) DeleteTask(ctx context.Context, id string) error {
 // WithDeleteTaskTransaction executes one delete-task mutation flow inside a
 // single immediate transaction so reconciliation failures can roll back the
 // primary delete.
-func (g *GlobalDB) WithDeleteTaskTransaction(
+func (g *TaskRepo) WithDeleteTaskTransaction(
 	ctx context.Context,
 	fn func(taskpkg.DeleteTaskMutationStore) error,
 ) error {
@@ -106,11 +103,11 @@ func (g *GlobalDB) WithDeleteTaskTransaction(
 	}
 
 	return g.withTaskImmediateTransaction(ctx, "delete task", func(exec taskSQLExecutor) error {
-		return fn(&deleteTaskTxStore{global: g, exec: exec})
+		return fn(&deleteTaskTxStore{tasks: g, exec: exec})
 	})
 }
 
-func (g *GlobalDB) deleteTaskWithExecutor(
+func (g *TaskRepo) deleteTaskWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	id string,
@@ -120,12 +117,14 @@ func (g *GlobalDB) deleteTaskWithExecutor(
 		return err
 	}
 
-	result, err := exec.ExecContext(ctx, `DELETE FROM tasks WHERE id = ?`, trimmedID)
+	affected, err := sqlcgen.New(exec).DeleteTask(ctx, trimmedID)
 	if err != nil {
 		return mapTaskDeleteConstraintError(trimmedID, err)
 	}
-
-	return requireRowsAffected(result, taskpkg.ErrTaskNotFound, trimmedID, "task")
+	if affected == 0 {
+		return fmt.Errorf("%w: task %q", taskpkg.ErrTaskNotFound, trimmedID)
+	}
+	return nil
 }
 
 func mapTaskDeleteConstraintError(id string, err error) error {
@@ -133,7 +132,7 @@ func mapTaskDeleteConstraintError(id string, err error) error {
 		return nil
 	}
 
-	if strings.Contains(strings.ToLower(err.Error()), "foreign key constraint failed") {
+	if isSQLiteForeignKeyConstraint(err) {
 		return fmt.Errorf(
 			"%w: task %q has child tasks; delete children first",
 			taskpkg.ErrValidation,
@@ -144,7 +143,7 @@ func mapTaskDeleteConstraintError(id string, err error) error {
 }
 
 // UpdateTask replaces the persisted canonical task record.
-func (g *GlobalDB) UpdateTask(ctx context.Context, record taskpkg.Task, actor taskpkg.ActorContext) error {
+func (g *TaskRepo) UpdateTask(ctx context.Context, record taskpkg.Task, actor taskpkg.ActorContext) error {
 	if err := g.checkReady(ctx, "update task"); err != nil {
 		return err
 	}
@@ -154,7 +153,7 @@ func (g *GlobalDB) UpdateTask(ctx context.Context, record taskpkg.Task, actor ta
 	})
 }
 
-func (g *GlobalDB) updateTaskWithExecutor(
+func (g *TaskRepo) updateTaskWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	record taskpkg.Task,
@@ -179,65 +178,18 @@ func (g *GlobalDB) updateTaskWithExecutor(
 		return err
 	}
 
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE tasks
-		 SET identifier = ?, scope = ?, workspace_id = ?, parent_task_id = ?,
-		     network_channel = ?, title = ?, description = ?, priority = ?,
-		     max_attempts = ?, auto_enqueue_on_ready = ?, approval_policy = ?, approval_state = ?,
-		     owner_kind = ?, owner_ref = ?, created_by_kind = ?,
-		     created_by_ref = ?, origin_kind = ?, origin_ref = ?,
-		     created_at = ?, updated_at = ?, closed_at = ?,
-		     paused = ?, paused_by = ?, paused_at = ?, paused_reason = ?,
-		     needs_attention_reason = ?, needs_attention_at = ?,
-		     needs_attention_by_kind = ?, needs_attention_by_ref = ?,
-		     wake_creator = ?, metadata_json = ?
-		 WHERE id = ?`,
-		store.NullableString(normalized.Identifier),
-		string(normalized.Scope),
-		store.NullableString(normalized.WorkspaceID),
-		store.NullableString(normalized.ParentTaskID),
-		store.NullableString(normalized.NetworkChannel),
-		normalized.Title,
-		store.NullableString(normalized.Description),
-		string(normalized.Priority),
-		normalized.MaxAttempts,
-		taskBoolToInt(normalized.AutoEnqueueOnReady),
-		string(normalized.ApprovalPolicy),
-		string(normalized.ApprovalState),
-		taskOwnerKindValue(normalized.Owner),
-		taskOwnerRefValue(normalized.Owner),
-		string(normalized.CreatedBy.Kind),
-		normalized.CreatedBy.Ref,
-		string(normalized.Origin.Kind),
-		normalized.Origin.Ref,
-		store.FormatTimestamp(normalized.CreatedAt),
-		store.FormatTimestamp(normalized.UpdatedAt),
-		nullableTaskTimestamp(normalized.ClosedAt),
-		taskBoolToInt(normalized.Paused),
-		normalized.PausedBy,
-		nullableTaskTimestamp(normalized.PausedAt),
-		normalized.PausedReason,
-		store.NullableString(taskNeedsAttentionReason(normalized.NeedsAttention)),
-		nullableTaskTimestamp(taskNeedsAttentionAt(normalized.NeedsAttention)),
-		taskActorKindValue(taskNeedsAttentionActor(normalized.NeedsAttention)),
-		taskActorRefValue(taskNeedsAttentionActor(normalized.NeedsAttention)),
-		taskBoolToInt(normalized.WakeCreator),
-		nullableTaskJSON(normalized.Metadata),
-		normalized.ID,
-	)
+	affected, err := sqlcgen.New(exec).UpdateTask(ctx, updateTaskParams(normalized))
 	if err != nil {
 		return fmt.Errorf("store: update task %q: %w", normalized.ID, err)
 	}
-
-	if err := requireRowsAffected(result, taskpkg.ErrTaskNotFound, normalized.ID, "task"); err != nil {
-		return err
+	if affected == 0 {
+		return fmt.Errorf("%w: task %q", taskpkg.ErrTaskNotFound, normalized.ID)
 	}
 	return setTaskStatusIfChangedWithExecutor(ctx, exec, current, normalized, actor, statusChanged)
 }
 
 // GetTask returns one persisted task by primary key.
-func (g *GlobalDB) GetTask(ctx context.Context, id string) (taskpkg.Task, error) {
+func (g *TaskRepo) GetTask(ctx context.Context, id string) (taskpkg.Task, error) {
 	if err := g.checkReady(ctx, "get task"); err != nil {
 		return taskpkg.Task{}, err
 	}
@@ -247,33 +199,21 @@ func (g *GlobalDB) GetTask(ctx context.Context, id string) (taskpkg.Task, error)
 		return taskpkg.Task{}, err
 	}
 
-	row := g.db.QueryRowContext(
-		ctx,
-		`SELECT
-			id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
-			priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
-			owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
-			created_at, updated_at, closed_at, current_run_id, `+taskLatestEventSeqSelectSQL+`,
-			paused, paused_by, paused_at, paused_reason, needs_attention_reason,
-			needs_attention_at, needs_attention_by_kind, needs_attention_by_ref, wake_creator,
-			metadata_json
-			 FROM tasks
-			 WHERE id = ?`,
-		trimmedID,
-	)
-
-	record, err := scanTaskRecord(row)
+	row, err := g.queries.GetTask(ctx, trimmedID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return taskpkg.Task{}, taskpkg.ErrTaskNotFound
 		}
 		return taskpkg.Task{}, err
 	}
-	return record, nil
+	return taskFromGenerated(&row)
 }
 
 // ListTasks returns durable task summaries that match the supplied filters.
-func (g *GlobalDB) ListTasks(ctx context.Context, query taskpkg.Query) ([]taskpkg.Summary, error) {
+func (g *TaskRepo) ListTasks(
+	ctx context.Context,
+	query taskpkg.Query,
+) (summaries []taskpkg.Summary, err error) {
 	if err := g.checkReady(ctx, "list tasks"); err != nil {
 		return nil, err
 	}
@@ -282,6 +222,7 @@ func (g *GlobalDB) ListTasks(ctx context.Context, query taskpkg.Query) ([]taskpk
 	}
 
 	normalized := normalizeTaskQuery(query)
+	// dynamic-sql: optional task filters, full-text matching, activity ordering, and limit alter the query shape.
 	sqlQuery := `SELECT
 		id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
 		priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
@@ -314,11 +255,10 @@ func (g *GlobalDB) ListTasks(ctx context.Context, query taskpkg.Query) ([]taskpk
 		return nil, fmt.Errorf("store: query tasks: %w", err)
 	}
 	defer func() {
-		// Close errors are not actionable here once Next/Err have reported the read outcome.
-		_ = rows.Close()
+		err = joinRowsCloseError(rows, err, "task query")
 	}()
 
-	summaries := make([]taskpkg.Summary, 0)
+	summaries = make([]taskpkg.Summary, 0)
 	for rows.Next() {
 		record, scanErr := scanTaskRecord(rows)
 		if scanErr != nil {
@@ -346,7 +286,7 @@ func appendTaskSearchClause(where []string, args []any, search string) ([]string
 }
 
 // CountDirectChildren reports how many persisted tasks reference the supplied parent id.
-func (g *GlobalDB) CountDirectChildren(ctx context.Context, parentTaskID string) (int, error) {
+func (g *TaskRepo) CountDirectChildren(ctx context.Context, parentTaskID string) (int, error) {
 	if err := g.checkReady(ctx, "count task children"); err != nil {
 		return 0, err
 	}
@@ -354,7 +294,7 @@ func (g *GlobalDB) CountDirectChildren(ctx context.Context, parentTaskID string)
 	return g.countDirectChildrenWithExecutor(ctx, g.db, parentTaskID)
 }
 
-func (g *GlobalDB) countDirectChildrenWithExecutor(
+func (g *TaskRepo) countDirectChildrenWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	parentTaskID string,
@@ -364,1479 +304,11 @@ func (g *GlobalDB) countDirectChildrenWithExecutor(
 		return 0, err
 	}
 
-	var count int
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT COUNT(1) FROM tasks WHERE parent_task_id = ?`,
-		trimmedID,
-	).Scan(&count); err != nil {
+	count, err := sqlcgen.New(exec).CountDirectTaskChildren(ctx, nullableTaskString(trimmedID))
+	if err != nil {
 		return 0, fmt.Errorf("store: count direct children for task %q: %w", trimmedID, err)
 	}
-
-	return count, nil
+	return int(count), nil
 }
 
 // CreateTaskRun inserts one durable task-run record.
-func (g *GlobalDB) CreateTaskRun(ctx context.Context, run taskpkg.Run) error {
-	if err := g.checkReady(ctx, "create task run"); err != nil {
-		return err
-	}
-
-	normalized, err := g.normalizeTaskRunForCreate(run)
-	if err != nil {
-		return err
-	}
-
-	return g.withTaskImmediateTransaction(ctx, "create task run", func(exec taskSQLExecutor) error {
-		if err := g.ensureTaskExistsWithExecutor(ctx, exec, normalized.TaskID); err != nil {
-			return err
-		}
-		if err := insertTaskRunWithExecutor(ctx, exec, normalized); err != nil {
-			return err
-		}
-		return replaceTaskRunCapabilitiesWithExecutor(ctx, exec, normalized)
-	})
-}
-
-// UpdateTaskRun replaces the persisted canonical task-run record.
-func (g *GlobalDB) UpdateTaskRun(ctx context.Context, run taskpkg.Run) error {
-	if err := g.checkReady(ctx, "update task run"); err != nil {
-		return err
-	}
-
-	normalized, err := g.normalizeTaskRunForUpdate(run)
-	if err != nil {
-		return err
-	}
-
-	return g.withTaskImmediateTransaction(ctx, "update task run", func(exec taskSQLExecutor) error {
-		current, err := g.getTaskRunWithExecutor(ctx, exec, normalized.ID)
-		if err != nil {
-			return err
-		}
-		currentSessionID := strings.TrimSpace(current.SessionID)
-		nextSessionID := strings.TrimSpace(normalized.SessionID)
-		if currentSessionID != "" &&
-			nextSessionID != currentSessionID &&
-			(nextSessionID != "" || normalized.Status.Normalize() != taskpkg.TaskRunStatusQueued) &&
-			!allowsManagedTaskRunStartSessionTransfer(current, normalized) {
-			return taskpkg.ErrSessionAlreadyBound
-		}
-		if normalized.QueuedAt.IsZero() {
-			normalized.QueuedAt = current.QueuedAt
-		}
-		if err := g.ensureTaskExistsWithExecutor(ctx, exec, normalized.TaskID); err != nil {
-			return err
-		}
-		if err := updateTaskRunRecordWithExecutor(ctx, exec, normalized); err != nil {
-			return err
-		}
-		if err := updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, current, normalized); err != nil {
-			return err
-		}
-		return replaceTaskRunCapabilitiesWithExecutor(ctx, exec, normalized)
-	})
-}
-
-func updateTaskRunRecordWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	run taskpkg.Run,
-) error {
-	lineage := taskRunReviewLineage(run)
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE task_runs
-		 SET task_id = ?, run_kind = ?, loop_run_id = ?, status = ?, attempt = ?, previous_run_id = ?,
-		     failure_kind = ?, claimed_by_kind = ?, claimed_by_ref = ?, session_id = ?, origin_kind = ?,
-		     origin_ref = ?, idempotency_key = ?, network_channel = ?,
-		     designation_group_id = ?, claim_token = ?, claim_token_hash = ?, lease_until = ?,
-		     heartbeat_at = ?, coordination_channel_id = ?, queued_at = ?,
-		     claimed_at = ?, started_at = ?, ended_at = ?, tokens_used = ?, error = ?,
-		     metadata_json = ?, result_json = ?, review_required = ?,
-		     review_request_round = ?, review_policy_snapshot = ?, review_request_id = ?,
-		     parent_run_id = ?, review_id = ?, review_round = ?, continuation_reason = ?,
-		     missing_work_json = ?, next_round_guidance = ?
-		 WHERE id = ?`,
-		run.TaskID,
-		run.RunKind.String(),
-		store.NullableString(run.LoopRunID),
-		run.Status.String(),
-		run.Attempt,
-		store.NullableString(run.PreviousRunID),
-		strings.TrimSpace(run.FailureKind),
-		taskActorKindValue(run.ClaimedBy),
-		taskActorRefValue(run.ClaimedBy),
-		store.NullableString(run.SessionID),
-		string(run.Origin.Kind),
-		run.Origin.Ref,
-		store.NullableString(run.IdempotencyKey),
-		store.NullableString(run.NetworkChannel),
-		strings.TrimSpace(run.DesignationGroupID),
-		nil,
-		store.NullableString(run.ClaimTokenHash),
-		nullableTaskTimestamp(run.LeaseUntil),
-		nullableTaskTimestamp(run.HeartbeatAt),
-		store.NullableString(run.CoordinationChannelID),
-		store.FormatTimestamp(run.QueuedAt),
-		nullableTaskTimestamp(run.ClaimedAt),
-		nullableTaskTimestamp(run.StartedAt),
-		nullableTaskTimestamp(run.EndedAt),
-		run.TokensUsed,
-		store.NullableString(run.Error),
-		nullableTaskJSON(run.Metadata),
-		nullableTaskJSON(run.Result),
-		lineage.Required,
-		lineage.RequestRound,
-		string(lineage.PolicySnapshot),
-		store.NullableString(lineage.RequestID),
-		store.NullableString(lineage.ParentRunID),
-		store.NullableString(lineage.ReviewID),
-		lineage.ReviewRound,
-		lineage.ContinuationReason,
-		string(lineage.MissingWork),
-		lineage.NextRoundGuidance,
-		run.ID,
-	)
-	if err != nil {
-		return fmt.Errorf("store: update task run %q: %w", run.ID, err)
-	}
-	return requireRowsAffected(result, taskpkg.ErrTaskRunNotFound, run.ID, "task run")
-}
-
-func allowsManagedTaskRunStartSessionTransfer(current taskpkg.Run, next taskpkg.Run) bool {
-	currentStatus := current.Status.Normalize()
-	nextStatus := next.Status.Normalize()
-	currentSessionID := strings.TrimSpace(current.SessionID)
-	if strings.TrimSpace(next.SessionID) == "" {
-		return false
-	}
-	if current.ClaimedBy == nil ||
-		current.ClaimedBy.Kind.Normalize() != taskpkg.ActorKindAgentSession ||
-		strings.TrimSpace(current.ClaimedBy.Ref) != currentSessionID {
-		return false
-	}
-	if currentStatus == taskpkg.TaskRunStatusClaimed &&
-		nextStatus == taskpkg.TaskRunStatusStarting {
-		return true
-	}
-	return currentStatus == taskpkg.TaskRunStatusStarting &&
-		nextStatus == taskpkg.TaskRunStatusStarting &&
-		current.StartedAt.IsZero() &&
-		next.StartedAt.IsZero()
-}
-
-// GetTaskRun returns one persisted task run by primary key.
-func (g *GlobalDB) GetTaskRun(ctx context.Context, id string) (taskpkg.Run, error) {
-	if err := g.checkReady(ctx, "get task run"); err != nil {
-		return taskpkg.Run{}, err
-	}
-
-	trimmedID, err := requireTaskValue(id, "task run id")
-	if err != nil {
-		return taskpkg.Run{}, err
-	}
-
-	row := g.db.QueryRowContext(
-		ctx,
-		`SELECT `+taskRunSelectColumnsSQL+`
-		 FROM task_runs
-		 WHERE id = ?`,
-		trimmedID,
-	)
-
-	run, err := scanTaskRunRecord(row)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
-		}
-		return taskpkg.Run{}, err
-	}
-	return g.loadTaskRunCapabilities(ctx, g.db, run)
-}
-
-// ListTaskRuns returns persisted runs that match the supplied filters.
-func (g *GlobalDB) ListTaskRuns(
-	ctx context.Context,
-	query taskpkg.RunQuery,
-) ([]taskpkg.Run, error) {
-	if err := g.checkReady(ctx, "list task runs"); err != nil {
-		return nil, err
-	}
-
-	return g.listTaskRunsWithExecutor(ctx, g.db, query)
-}
-
-func (g *GlobalDB) listTaskRunsWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	query taskpkg.RunQuery,
-) ([]taskpkg.Run, error) {
-	if err := query.Validate("task_run_query"); err != nil {
-		return nil, err
-	}
-
-	normalized := normalizeTaskRunQuery(query)
-	sqlQuery := `SELECT ` + taskRunSelectColumnsSQL + ` FROM task_runs`
-	where, args := store.BuildClauses(
-		store.StringClause("task_id", normalized.TaskID),
-		store.StringClause("status", normalized.Status.String()),
-		store.StringClause("session_id", normalized.SessionID),
-		store.StringClause("coordination_channel_id", normalized.CoordinationChannelID),
-		store.StringClause("designation_group_id", normalized.DesignationGroupID),
-	)
-	sqlQuery = store.AppendWhere(sqlQuery, where)
-	sqlQuery += " ORDER BY queued_at DESC, id DESC"
-	sqlQuery, args = store.AppendLimit(sqlQuery, args, normalized.Limit)
-
-	rows, err := exec.QueryContext(ctx, sqlQuery, args...)
-	if err != nil {
-		return nil, fmt.Errorf("store: query task runs: %w", err)
-	}
-	defer func() {
-		// Close errors are not actionable here once Next/Err have reported the read outcome.
-		_ = rows.Close()
-	}()
-
-	runs := make([]taskpkg.Run, 0)
-	for rows.Next() {
-		run, scanErr := scanTaskRunRecord(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		runs = append(runs, run)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate task runs: %w", err)
-	}
-
-	return g.loadTaskRunCapabilitiesForList(ctx, exec, runs)
-}
-
-// ListTaskRunsByStatus returns persisted runs that match any of the supplied statuses.
-func (g *GlobalDB) ListTaskRunsByStatus(
-	ctx context.Context,
-	statuses []taskpkg.RunStatus,
-) ([]taskpkg.Run, error) {
-	if err := g.checkReady(ctx, "list task runs by status"); err != nil {
-		return nil, err
-	}
-	if len(statuses) == 0 {
-		return []taskpkg.Run{}, nil
-	}
-
-	placeholders := make([]string, 0, len(statuses))
-	args := make([]any, 0, len(statuses))
-	for _, status := range statuses {
-		normalized := status.Normalize()
-		if err := normalized.Validate("task_run_statuses"); err != nil {
-			return nil, err
-		}
-		placeholders = append(placeholders, "?")
-		args = append(args, normalized.String())
-	}
-
-	rows, err := g.db.QueryContext(
-		ctx,
-		fmt.Sprintf(
-			`SELECT `+taskRunSelectColumnsSQL+`
-			 FROM task_runs
-			 WHERE status IN (%s)
-			 ORDER BY queued_at ASC, id ASC`,
-			strings.Join(placeholders, ", "),
-		),
-		args...,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("store: query task runs by status: %w", err)
-	}
-	defer func() {
-		// Close errors are not actionable here once Next/Err have reported the read outcome.
-		_ = rows.Close()
-	}()
-
-	runs := make([]taskpkg.Run, 0)
-	for rows.Next() {
-		run, scanErr := scanTaskRunRecord(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		runs = append(runs, run)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate task runs by status: %w", err)
-	}
-
-	return g.loadTaskRunCapabilitiesForList(ctx, g.db, runs)
-}
-
-// CountActiveSessionBindings reports how many non-terminal runs are bound to one session.
-func (g *GlobalDB) CountActiveSessionBindings(ctx context.Context, sessionID string) (int, error) {
-	if err := g.checkReady(ctx, "count active task-run session bindings"); err != nil {
-		return 0, err
-	}
-
-	trimmedSessionID, err := requireTaskValue(sessionID, "task run session id")
-	if err != nil {
-		return 0, err
-	}
-
-	var count int
-	if err := g.db.QueryRowContext(
-		ctx,
-		`SELECT COUNT(1)
-		 FROM task_runs
-		 WHERE session_id = ?
-		   AND status IN (?, ?, ?)`,
-		trimmedSessionID,
-		taskpkg.TaskRunStatusClaimed.String(),
-		taskpkg.TaskRunStatusStarting.String(),
-		taskpkg.TaskRunStatusRunning.String(),
-	).Scan(&count); err != nil {
-		return 0, fmt.Errorf(
-			"store: count active task-run session bindings for %q: %w",
-			trimmedSessionID,
-			err,
-		)
-	}
-
-	return count, nil
-}
-
-func (g *GlobalDB) normalizeTaskForCreate(record taskpkg.Task) (taskpkg.Task, error) {
-	normalized := normalizeTaskRecord(record)
-	if normalized.CreatedAt.IsZero() {
-		normalized.CreatedAt = g.now()
-	}
-	if normalized.UpdatedAt.IsZero() {
-		normalized.UpdatedAt = normalized.CreatedAt
-	}
-	if err := normalized.Validate(); err != nil {
-		return taskpkg.Task{}, err
-	}
-	return normalized, nil
-}
-
-func (g *GlobalDB) normalizeTaskForUpdate(record taskpkg.Task) (taskpkg.Task, error) {
-	normalized := normalizeTaskRecord(record)
-	if normalized.UpdatedAt.IsZero() {
-		normalized.UpdatedAt = g.now()
-	}
-	if err := normalized.Validate(); err != nil {
-		return taskpkg.Task{}, err
-	}
-	return normalized, nil
-}
-
-func (g *GlobalDB) normalizeTaskRunForCreate(run taskpkg.Run) (taskpkg.Run, error) {
-	normalized := normalizeTaskRunRecord(run)
-	if normalized.Attempt == 0 {
-		normalized.Attempt = 1
-	}
-	if normalized.QueuedAt.IsZero() {
-		normalized.QueuedAt = g.now()
-	}
-	if err := normalized.Validate(); err != nil {
-		return taskpkg.Run{}, err
-	}
-	return normalized, nil
-}
-
-func (g *GlobalDB) normalizeTaskRunForUpdate(run taskpkg.Run) (taskpkg.Run, error) {
-	normalized := normalizeTaskRunRecord(run)
-	if err := normalized.Validate(); err != nil {
-		return taskpkg.Run{}, err
-	}
-	return normalized, nil
-}
-
-func insertTaskRunWithExecutor(ctx context.Context, exec taskSQLExecutor, run taskpkg.Run) error {
-	lineage := taskRunReviewLineage(run)
-	if _, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO task_runs (
-			id, task_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind, claimed_by_kind,
-			claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
-			network_channel, designation_group_id, claim_token, claim_token_hash, lease_until,
-			heartbeat_at, coordination_channel_id, queued_at, claimed_at, started_at, ended_at,
-			tokens_used, error, metadata_json, result_json, review_required, review_request_round,
-			review_policy_snapshot, review_request_id, parent_run_id, review_id, review_round,
-			continuation_reason, missing_work_json, next_round_guidance
-		) VALUES (
-			?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-			?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-			?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-		)`,
-		run.ID,
-		run.TaskID,
-		run.RunKind.String(),
-		store.NullableString(run.LoopRunID),
-		run.Status.String(),
-		run.Attempt,
-		store.NullableString(run.PreviousRunID),
-		strings.TrimSpace(run.FailureKind),
-		taskActorKindValue(run.ClaimedBy),
-		taskActorRefValue(run.ClaimedBy),
-		store.NullableString(run.SessionID),
-		string(run.Origin.Kind),
-		run.Origin.Ref,
-		store.NullableString(run.IdempotencyKey),
-		store.NullableString(run.NetworkChannel),
-		strings.TrimSpace(run.DesignationGroupID),
-		nil,
-		store.NullableString(run.ClaimTokenHash),
-		nullableTaskTimestamp(run.LeaseUntil),
-		nullableTaskTimestamp(run.HeartbeatAt),
-		store.NullableString(run.CoordinationChannelID),
-		store.FormatTimestamp(run.QueuedAt),
-		nullableTaskTimestamp(run.ClaimedAt),
-		nullableTaskTimestamp(run.StartedAt),
-		nullableTaskTimestamp(run.EndedAt),
-		run.TokensUsed,
-		store.NullableString(run.Error),
-		nullableTaskJSON(run.Metadata),
-		nullableTaskJSON(run.Result),
-		lineage.Required,
-		lineage.RequestRound,
-		string(lineage.PolicySnapshot),
-		store.NullableString(lineage.RequestID),
-		store.NullableString(lineage.ParentRunID),
-		store.NullableString(lineage.ReviewID),
-		lineage.ReviewRound,
-		lineage.ContinuationReason,
-		string(lineage.MissingWork),
-		lineage.NextRoundGuidance,
-	); err != nil {
-		return fmt.Errorf("store: create task run %q: %w", run.ID, err)
-	}
-	return nil
-}
-
-func replaceTaskRunCapabilitiesWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	run taskpkg.Run,
-) error {
-	for _, table := range []string{"task_run_required_capabilities", "task_run_preferred_capabilities"} {
-		if _, err := exec.ExecContext(ctx, `DELETE FROM `+table+` WHERE run_id = ?`, run.ID); err != nil {
-			return fmt.Errorf("store: delete %s rows for task run %q: %w", table, run.ID, err)
-		}
-	}
-	if err := insertTaskRunCapabilitiesWithExecutor(
-		ctx,
-		exec,
-		"task_run_required_capabilities",
-		run.ID,
-		run.RequiredCapabilities,
-	); err != nil {
-		return err
-	}
-	return insertTaskRunCapabilitiesWithExecutor(
-		ctx,
-		exec,
-		"task_run_preferred_capabilities",
-		run.ID,
-		run.PreferredCapabilities,
-	)
-}
-
-func insertTaskRunCapabilitiesWithExecutor(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	table string,
-	runID string,
-	capabilities []string,
-) error {
-	for _, capabilityID := range capabilities {
-		if _, err := exec.ExecContext(
-			ctx,
-			`INSERT INTO `+table+` (run_id, capability_id) VALUES (?, ?)`,
-			runID,
-			capabilityID,
-		); err != nil {
-			return fmt.Errorf(
-				"store: insert %s capability %q for task run %q: %w",
-				table,
-				capabilityID,
-				runID,
-				err,
-			)
-		}
-	}
-	return nil
-}
-
-func (g *GlobalDB) loadTaskRunCapabilities(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	run taskpkg.Run,
-) (taskpkg.Run, error) {
-	runs, err := g.loadTaskRunCapabilitiesForList(ctx, exec, []taskpkg.Run{run})
-	if err != nil {
-		return taskpkg.Run{}, err
-	}
-	if len(runs) == 0 {
-		return taskpkg.Run{}, nil
-	}
-	return runs[0], nil
-}
-
-func (g *GlobalDB) loadTaskRunCapabilitiesForList(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	runs []taskpkg.Run,
-) ([]taskpkg.Run, error) {
-	if len(runs) == 0 {
-		return runs, nil
-	}
-	runIDs := make([]string, 0, len(runs))
-	indexByRunID := make(map[string]int, len(runs))
-	for idx := range runs {
-		runID := strings.TrimSpace(runs[idx].ID)
-		runIDs = append(runIDs, runID)
-		indexByRunID[runID] = idx
-	}
-	required, err := taskRunCapabilityRows(ctx, exec, "task_run_required_capabilities", runIDs)
-	if err != nil {
-		return nil, err
-	}
-	preferred, err := taskRunCapabilityRows(ctx, exec, "task_run_preferred_capabilities", runIDs)
-	if err != nil {
-		return nil, err
-	}
-	for runID, idx := range indexByRunID {
-		runs[idx].RequiredCapabilities = required[runID]
-		runs[idx].PreferredCapabilities = preferred[runID]
-	}
-	return runs, nil
-}
-
-func taskRunCapabilityRows(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	table string,
-	runIDs []string,
-) (map[string][]string, error) {
-	placeholders := make([]string, 0, len(runIDs))
-	args := make([]any, 0, len(runIDs))
-	for _, runID := range runIDs {
-		placeholders = append(placeholders, "?")
-		args = append(args, runID)
-	}
-	rows, err := exec.QueryContext(
-		ctx,
-		`SELECT run_id, capability_id FROM `+table+`
-		 WHERE run_id IN (`+strings.Join(placeholders, ", ")+`)
-		 ORDER BY run_id ASC, capability_id ASC`,
-		args...,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("store: query %s rows: %w", table, err)
-	}
-	defer func() {
-		_ = rows.Close()
-	}()
-
-	result := make(map[string][]string, len(runIDs))
-	for rows.Next() {
-		var runID string
-		var capabilityID string
-		if err := rows.Scan(&runID, &capabilityID); err != nil {
-			return nil, fmt.Errorf("store: scan %s capability row: %w", table, err)
-		}
-		result[runID] = append(result[runID], capabilityID)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate %s rows: %w", table, err)
-	}
-	return result, nil
-}
-
-func (g *GlobalDB) ensureTaskCreateReferences(ctx context.Context, record taskpkg.Task) error {
-	if err := taskpkg.ValidateScopeBinding(record.Scope, record.WorkspaceID, "task", "workspace_id"); err != nil {
-		return err
-	}
-	if record.Scope == taskpkg.ScopeWorkspace {
-		if err := g.ensureWorkspaceExists(ctx, record.WorkspaceID); err != nil {
-			return err
-		}
-	}
-	if strings.TrimSpace(record.ParentTaskID) != "" {
-		if err := g.ensureTaskExists(ctx, record.ParentTaskID); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (g *GlobalDB) ensureWorkspaceExists(ctx context.Context, workspaceID string) error {
-	trimmedID := strings.TrimSpace(workspaceID)
-	if trimmedID == "" {
-		return nil
-	}
-
-	var exists int
-	if err := g.db.QueryRowContext(ctx, `SELECT 1 FROM workspaces WHERE id = ?`, trimmedID).Scan(&exists); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return aghworkspace.ErrWorkspaceNotFound
-		}
-		return fmt.Errorf("store: lookup workspace %q: %w", trimmedID, err)
-	}
-	return nil
-}
-
-func (g *GlobalDB) ensureTaskExists(ctx context.Context, taskID string) error {
-	trimmedID := strings.TrimSpace(taskID)
-	if trimmedID == "" {
-		return taskpkg.ErrTaskNotFound
-	}
-
-	var exists int
-	if err := g.db.QueryRowContext(ctx, `SELECT 1 FROM tasks WHERE id = ?`, trimmedID).Scan(&exists); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return taskpkg.ErrTaskNotFound
-		}
-		return fmt.Errorf("store: lookup task %q: %w", trimmedID, err)
-	}
-	return nil
-}
-
-func scanTaskRecord(scanner rowScanner) (taskpkg.Task, error) {
-	record, fields, err := scanTaskRecordColumns(scanner)
-	if err != nil {
-		return taskpkg.Task{}, err
-	}
-
-	assignScannedTaskRecord(
-		&record,
-		fields.identifier,
-		fields.scope,
-		fields.workspaceID,
-		fields.parentTaskID,
-		fields.networkChannel,
-		fields.description,
-		fields.priority,
-		fields.maxAttempts,
-		fields.status,
-		fields.approvalPolicy,
-		fields.approvalState,
-		fields.ownerKind,
-		fields.ownerRef,
-		fields.createdByKind,
-		fields.originKind,
-	)
-	record.CurrentRunID = strings.TrimSpace(fields.currentRunID.String)
-	record.LatestEventSeq = fields.latestEventSeq
-	record.AutoEnqueueOnReady = fields.autoEnqueueOnReady != 0
-	record.Paused = fields.paused != 0
-	record.PausedBy = strings.TrimSpace(fields.pausedBy)
-	record.PausedReason = strings.TrimSpace(fields.pausedReason)
-	attention := taskpkg.NeedsAttention{
-		Reason: taskNullStringValue(fields.needsAttentionReason),
-	}
-	if fields.needsAttentionByKind.Valid || fields.needsAttentionByRef.Valid {
-		attention.By = taskpkg.ActorIdentity{
-			Kind: taskpkg.ActorKind(strings.TrimSpace(fields.needsAttentionByKind.String)),
-			Ref:  strings.TrimSpace(fields.needsAttentionByRef.String),
-		}
-	}
-	record.WakeCreator = fields.wakeCreator != 0
-	if err := assignTaskRecordTimestamps(
-		&record,
-		fields.createdAtRaw,
-		fields.updatedAtRaw,
-		fields.closedAtRaw,
-	); err != nil {
-		return taskpkg.Task{}, err
-	}
-	if err := assignTaskMetadata(&record.Metadata, fields.metadataJSON, "task.metadata_json"); err != nil {
-		return taskpkg.Task{}, err
-	}
-	if err := assignNullableTaskTimestamp(&record.PausedAt, fields.pausedAtRaw); err != nil {
-		return taskpkg.Task{}, err
-	}
-	if err := assignNullableTaskTimestamp(&attention.At, fields.needsAttentionAtRaw); err != nil {
-		return taskpkg.Task{}, err
-	}
-	if attention.Reason != "" || !attention.At.IsZero() || !attention.By.IsZero() {
-		record.NeedsAttention = &attention
-	}
-	record = normalizeTaskRecord(record)
-	if err := record.Validate(); err != nil {
-		return taskpkg.Task{}, err
-	}
-
-	return record, nil
-}
-
-type taskScanFields struct {
-	identifier           sql.NullString
-	scope                string
-	workspaceID          sql.NullString
-	parentTaskID         sql.NullString
-	networkChannel       sql.NullString
-	description          sql.NullString
-	priority             string
-	maxAttempts          int
-	autoEnqueueOnReady   int
-	status               string
-	approvalPolicy       string
-	approvalState        string
-	ownerKind            sql.NullString
-	ownerRef             sql.NullString
-	createdByKind        string
-	originKind           string
-	createdAtRaw         string
-	updatedAtRaw         string
-	closedAtRaw          sql.NullString
-	currentRunID         sql.NullString
-	latestEventSeq       int64
-	paused               int
-	pausedBy             string
-	pausedAtRaw          sql.NullString
-	pausedReason         string
-	needsAttentionReason sql.NullString
-	needsAttentionAtRaw  sql.NullString
-	needsAttentionByKind sql.NullString
-	needsAttentionByRef  sql.NullString
-	wakeCreator          int
-	metadataJSON         sql.NullString
-}
-
-func scanTaskRecordColumns(scanner rowScanner) (taskpkg.Task, taskScanFields, error) {
-	var record taskpkg.Task
-	var fields taskScanFields
-	if err := scanner.Scan(
-		&record.ID,
-		&fields.identifier,
-		&fields.scope,
-		&fields.workspaceID,
-		&fields.parentTaskID,
-		&fields.networkChannel,
-		&record.Title,
-		&fields.description,
-		&fields.priority,
-		&fields.maxAttempts,
-		&fields.autoEnqueueOnReady,
-		&fields.status,
-		&fields.approvalPolicy,
-		&fields.approvalState,
-		&fields.ownerKind,
-		&fields.ownerRef,
-		&fields.createdByKind,
-		&record.CreatedBy.Ref,
-		&fields.originKind,
-		&record.Origin.Ref,
-		&fields.createdAtRaw,
-		&fields.updatedAtRaw,
-		&fields.closedAtRaw,
-		&fields.currentRunID,
-		&fields.latestEventSeq,
-		&fields.paused,
-		&fields.pausedBy,
-		&fields.pausedAtRaw,
-		&fields.pausedReason,
-		&fields.needsAttentionReason,
-		&fields.needsAttentionAtRaw,
-		&fields.needsAttentionByKind,
-		&fields.needsAttentionByRef,
-		&fields.wakeCreator,
-		&fields.metadataJSON,
-	); err != nil {
-		return taskpkg.Task{}, taskScanFields{}, fmt.Errorf("store: scan task: %w", err)
-	}
-	return record, fields, nil
-}
-
-func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
-	var run taskpkg.Run
-	var fields taskRunScanFields
-	if err := scanner.Scan(
-		&run.ID,
-		&run.TaskID,
-		&fields.runKind,
-		&fields.loopRunID,
-		&fields.status,
-		&run.Attempt,
-		&fields.previousRunID,
-		&fields.failureKind,
-		&fields.claimedByKind,
-		&fields.claimedByRef,
-		&fields.sessionID,
-		&fields.originKind,
-		&run.Origin.Ref,
-		&fields.idempotencyKey,
-		&fields.networkChannel,
-		&fields.designationGroupID,
-		&fields.claimToken,
-		&fields.claimTokenHash,
-		&fields.leaseUntilRaw,
-		&fields.heartbeatAtRaw,
-		&fields.coordChannelID,
-		&fields.queuedAtRaw,
-		&fields.claimedAtRaw,
-		&fields.startedAtRaw,
-		&fields.endedAtRaw,
-		&fields.tokensUsed,
-		&fields.runErr,
-		&fields.metadataJSON,
-		&fields.resultJSON,
-		&fields.reviewRequired,
-		&fields.reviewRequestRound,
-		&fields.reviewPolicySnapshot,
-		&fields.reviewRequestID,
-		&fields.parentRunID,
-		&fields.reviewID,
-		&fields.reviewRound,
-		&fields.continuationReason,
-		&fields.missingWorkJSON,
-		&fields.nextRoundGuidance,
-	); err != nil {
-		return taskpkg.Run{}, fmt.Errorf("store: scan task run: %w", err)
-	}
-	return (&fields).record(run)
-}
-
-type taskRunScanFields struct {
-	status               string
-	runKind              string
-	loopRunID            sql.NullString
-	previousRunID        sql.NullString
-	failureKind          string
-	claimedByKind        sql.NullString
-	claimedByRef         sql.NullString
-	sessionID            sql.NullString
-	originKind           string
-	idempotencyKey       sql.NullString
-	networkChannel       sql.NullString
-	designationGroupID   string
-	claimToken           sql.NullString
-	claimTokenHash       sql.NullString
-	leaseUntilRaw        sql.NullString
-	heartbeatAtRaw       sql.NullString
-	coordChannelID       sql.NullString
-	queuedAtRaw          string
-	claimedAtRaw         sql.NullString
-	startedAtRaw         sql.NullString
-	endedAtRaw           sql.NullString
-	tokensUsed           int64
-	runErr               sql.NullString
-	metadataJSON         sql.NullString
-	resultJSON           sql.NullString
-	reviewRequired       bool
-	reviewRequestRound   int
-	reviewPolicySnapshot string
-	reviewRequestID      sql.NullString
-	parentRunID          sql.NullString
-	reviewID             sql.NullString
-	reviewRound          int
-	continuationReason   string
-	missingWorkJSON      string
-	nextRoundGuidance    string
-}
-
-func (fields *taskRunScanFields) record(run taskpkg.Run) (taskpkg.Run, error) {
-	assignScannedTaskRunRecord(
-		&run,
-		fields.runKind,
-		fields.loopRunID,
-		fields.status,
-		fields.previousRunID,
-		fields.failureKind,
-		fields.claimedByKind,
-		fields.claimedByRef,
-		fields.sessionID,
-		fields.originKind,
-		fields.idempotencyKey,
-		fields.networkChannel,
-		fields.designationGroupID,
-		fields.claimToken,
-		fields.claimTokenHash,
-		fields.coordChannelID,
-		fields.runErr,
-	)
-	if err := assignTaskRunTimestamps(
-		&run,
-		fields.queuedAtRaw,
-		fields.claimedAtRaw,
-		fields.startedAtRaw,
-		fields.endedAtRaw,
-		fields.leaseUntilRaw,
-		fields.heartbeatAtRaw,
-	); err != nil {
-		return taskpkg.Run{}, err
-	}
-	if err := assignTaskMetadata(&run.Metadata, fields.metadataJSON, "task_run.metadata_json"); err != nil {
-		return taskpkg.Run{}, err
-	}
-	if err := assignTaskMetadata(&run.Result, fields.resultJSON, "task_run.result_json"); err != nil {
-		return taskpkg.Run{}, err
-	}
-	run.TokensUsed = fields.tokensUsed
-	run.Review = taskRunReviewLineageFromScan(fields)
-	run = normalizeTaskRunRecord(run)
-	if err := run.Validate(); err != nil {
-		return taskpkg.Run{}, err
-	}
-
-	return run, nil
-}
-
-func assignScannedTaskRecord(
-	record *taskpkg.Task,
-	identifier sql.NullString,
-	scope string,
-	workspaceID sql.NullString,
-	parentTaskID sql.NullString,
-	networkChannel sql.NullString,
-	description sql.NullString,
-	priority string,
-	maxAttempts int,
-	status string,
-	approvalPolicy string,
-	approvalState string,
-	ownerKind sql.NullString,
-	ownerRef sql.NullString,
-	createdByKind string,
-	originKind string,
-) {
-	record.Identifier = taskNullStringValue(identifier)
-	record.Scope = taskpkg.Scope(strings.TrimSpace(scope))
-	record.WorkspaceID = taskNullStringValue(workspaceID)
-	record.ParentTaskID = taskNullStringValue(parentTaskID)
-	record.NetworkChannel = taskNullStringValue(networkChannel)
-	record.Description = taskNullStringValue(description)
-	record.Priority = taskpkg.Priority(strings.TrimSpace(priority))
-	record.MaxAttempts = maxAttempts
-	record.Status = taskpkg.Status(strings.TrimSpace(status))
-	record.ApprovalPolicy = taskpkg.ApprovalPolicy(strings.TrimSpace(approvalPolicy))
-	record.ApprovalState = taskpkg.ApprovalState(strings.TrimSpace(approvalState))
-	record.CreatedBy.Kind = taskpkg.ActorKind(strings.TrimSpace(createdByKind))
-	record.Origin.Kind = taskpkg.OriginKind(strings.TrimSpace(originKind))
-	if ownerKind.Valid || ownerRef.Valid {
-		record.Owner = &taskpkg.Ownership{
-			Kind: taskpkg.OwnerKind(strings.TrimSpace(ownerKind.String)),
-			Ref:  strings.TrimSpace(ownerRef.String),
-		}
-	}
-}
-
-func assignTaskRecordTimestamps(
-	record *taskpkg.Task,
-	createdAtRaw string,
-	updatedAtRaw string,
-	closedAtRaw sql.NullString,
-) error {
-	createdAt, err := store.ParseTimestamp(createdAtRaw)
-	if err != nil {
-		return err
-	}
-	updatedAt, err := store.ParseTimestamp(updatedAtRaw)
-	if err != nil {
-		return err
-	}
-	record.CreatedAt = createdAt
-	record.UpdatedAt = updatedAt
-	if !closedAtRaw.Valid {
-		return nil
-	}
-	closedAt, err := store.ParseTimestamp(closedAtRaw.String)
-	if err != nil {
-		return err
-	}
-	record.ClosedAt = closedAt
-	return nil
-}
-
-func assignScannedTaskRunRecord(
-	run *taskpkg.Run,
-	runKind string,
-	loopRunID sql.NullString,
-	status string,
-	previousRunID sql.NullString,
-	failureKind string,
-	claimedByKind sql.NullString,
-	claimedByRef sql.NullString,
-	sessionID sql.NullString,
-	originKind string,
-	idempotencyKey sql.NullString,
-	networkChannel sql.NullString,
-	designationGroupID string,
-	_ sql.NullString,
-	claimTokenHash sql.NullString,
-	coordChannelID sql.NullString,
-	runErr sql.NullString,
-) {
-	run.RunKind = taskpkg.ParseRunKind(runKind)
-	run.LoopRunID = taskNullStringValue(loopRunID)
-	run.Status = taskpkg.ParseRunStatus(status)
-	run.PreviousRunID = taskNullStringValue(previousRunID)
-	run.FailureKind = strings.TrimSpace(failureKind)
-	if claimedByKind.Valid || claimedByRef.Valid {
-		run.ClaimedBy = &taskpkg.ActorIdentity{
-			Kind: taskpkg.ActorKind(strings.TrimSpace(claimedByKind.String)),
-			Ref:  strings.TrimSpace(claimedByRef.String),
-		}
-	}
-	run.SessionID = taskNullStringValue(sessionID)
-	run.Origin.Kind = taskpkg.OriginKind(strings.TrimSpace(originKind))
-	run.IdempotencyKey = taskNullStringValue(idempotencyKey)
-	run.NetworkChannel = taskNullStringValue(networkChannel)
-	run.DesignationGroupID = strings.TrimSpace(designationGroupID)
-	run.ClaimTokenHash = taskNullStringValue(claimTokenHash)
-	run.CoordinationChannelID = taskNullStringValue(coordChannelID)
-	run.Error = taskNullStringValue(runErr)
-}
-
-func assignTaskRunTimestamps(
-	run *taskpkg.Run,
-	queuedAtRaw string,
-	claimedAtRaw sql.NullString,
-	startedAtRaw sql.NullString,
-	endedAtRaw sql.NullString,
-	leaseUntilRaw sql.NullString,
-	heartbeatAtRaw sql.NullString,
-) error {
-	queuedAt, err := store.ParseTimestamp(queuedAtRaw)
-	if err != nil {
-		return err
-	}
-	run.QueuedAt = queuedAt
-	if err := assignNullableTaskTimestamp(&run.ClaimedAt, claimedAtRaw); err != nil {
-		return err
-	}
-	if err := assignNullableTaskTimestamp(&run.StartedAt, startedAtRaw); err != nil {
-		return err
-	}
-	if err := assignNullableTaskTimestamp(&run.EndedAt, endedAtRaw); err != nil {
-		return err
-	}
-	if err := assignNullableTaskTimestamp(&run.LeaseUntil, leaseUntilRaw); err != nil {
-		return err
-	}
-	return assignNullableTaskTimestamp(&run.HeartbeatAt, heartbeatAtRaw)
-}
-
-func assignNullableTaskTimestamp(target *time.Time, raw sql.NullString) error {
-	if !raw.Valid {
-		return nil
-	}
-	parsed, err := store.ParseTimestamp(raw.String)
-	if err != nil {
-		return err
-	}
-	*target = parsed
-	return nil
-}
-
-func assignTaskMetadata(target *json.RawMessage, raw sql.NullString, field string) error {
-	metadata, err := decodeTaskJSON(raw, field)
-	if err != nil {
-		return err
-	}
-	*target = metadata
-	return nil
-}
-
-func normalizeTaskRecord(record taskpkg.Task) taskpkg.Task {
-	normalized := record
-	normalized.ID = strings.TrimSpace(normalized.ID)
-	normalized.Identifier = strings.TrimSpace(normalized.Identifier)
-	normalized.Scope = normalized.Scope.Normalize()
-	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
-	normalized.ParentTaskID = strings.TrimSpace(normalized.ParentTaskID)
-	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
-	normalized.CurrentRunID = strings.TrimSpace(normalized.CurrentRunID)
-	normalized.Title = strings.TrimSpace(normalized.Title)
-	normalized.Description = strings.TrimSpace(normalized.Description)
-	normalized.PausedBy = strings.TrimSpace(normalized.PausedBy)
-	normalized.PausedReason = strings.TrimSpace(normalized.PausedReason)
-	if normalized.NeedsAttention != nil {
-		attention := *normalized.NeedsAttention
-		attention.Reason = strings.TrimSpace(attention.Reason)
-		attention.By.Kind = attention.By.Kind.Normalize()
-		attention.By.Ref = strings.TrimSpace(attention.By.Ref)
-		if !attention.At.IsZero() {
-			attention.At = attention.At.UTC()
-		}
-		if attention.Reason == "" && attention.At.IsZero() && attention.By.IsZero() {
-			normalized.NeedsAttention = nil
-		} else {
-			normalized.NeedsAttention = &attention
-		}
-	}
-	normalized.Status = normalized.Status.Normalize()
-	normalized.CreatedBy.Kind = normalized.CreatedBy.Kind.Normalize()
-	normalized.CreatedBy.Ref = strings.TrimSpace(normalized.CreatedBy.Ref)
-	normalized.Origin.Kind = normalized.Origin.Kind.Normalize()
-	normalized.Origin.Ref = strings.TrimSpace(normalized.Origin.Ref)
-	if normalized.Owner != nil {
-		owner := *normalized.Owner
-		owner.Kind = owner.Kind.Normalize()
-		owner.Ref = strings.TrimSpace(owner.Ref)
-		if owner.IsZero() {
-			normalized.Owner = nil
-		} else {
-			normalized.Owner = &owner
-		}
-	}
-	normalized.Metadata = normalizeTaskJSON(normalized.Metadata)
-	normalized.Priority = taskpkg.DefaultPriority
-	if record.Priority.Normalize() != "" {
-		normalized.Priority = record.Priority.Normalize()
-	}
-	normalized.MaxAttempts = taskpkg.DefaultTaskMaxAttempts
-	if record.MaxAttempts != 0 {
-		normalized.MaxAttempts = record.MaxAttempts
-	}
-	normalized.ApprovalPolicy = taskpkg.DefaultApprovalPolicy
-	if record.ApprovalPolicy.Normalize() != "" {
-		normalized.ApprovalPolicy = record.ApprovalPolicy.Normalize()
-	}
-	normalized.ApprovalState = taskpkg.ApprovalStateNotRequired
-	if record.ApprovalState.Normalize() != "" {
-		normalized.ApprovalState = record.ApprovalState.Normalize()
-	} else if normalized.ApprovalPolicy == taskpkg.ApprovalPolicyManual {
-		normalized.ApprovalState = taskpkg.ApprovalStatePending
-	}
-	if !normalized.CreatedAt.IsZero() {
-		normalized.CreatedAt = normalized.CreatedAt.UTC()
-	}
-	if !normalized.UpdatedAt.IsZero() {
-		normalized.UpdatedAt = normalized.UpdatedAt.UTC()
-	}
-	if !normalized.ClosedAt.IsZero() {
-		normalized.ClosedAt = normalized.ClosedAt.UTC()
-	}
-	if !normalized.PausedAt.IsZero() {
-		normalized.PausedAt = normalized.PausedAt.UTC()
-	}
-	return normalized
-}
-
-func normalizeTaskRunRecord(run taskpkg.Run) taskpkg.Run {
-	normalized := run
-	normalized.ID = strings.TrimSpace(normalized.ID)
-	normalized.TaskID = strings.TrimSpace(normalized.TaskID)
-	normalized.RunKind = normalized.RunKind.Normalize()
-	if normalized.RunKind == taskpkg.RunKindUnknown {
-		normalized.RunKind = taskpkg.RunKindWorker
-	}
-	normalized.LoopRunID = strings.TrimSpace(normalized.LoopRunID)
-	normalized.Status = normalized.Status.Normalize()
-	normalized.PreviousRunID = strings.TrimSpace(normalized.PreviousRunID)
-	normalized.FailureKind = strings.TrimSpace(normalized.FailureKind)
-	if normalized.ClaimedBy != nil {
-		claimedBy := *normalized.ClaimedBy
-		claimedBy.Kind = claimedBy.Kind.Normalize()
-		claimedBy.Ref = strings.TrimSpace(claimedBy.Ref)
-		normalized.ClaimedBy = &claimedBy
-	}
-	normalized.SessionID = strings.TrimSpace(normalized.SessionID)
-	normalized.Origin.Kind = normalized.Origin.Kind.Normalize()
-	normalized.Origin.Ref = strings.TrimSpace(normalized.Origin.Ref)
-	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
-	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
-	normalized.DesignationGroupID = strings.TrimSpace(normalized.DesignationGroupID)
-	normalized.ClaimTokenHash = strings.TrimSpace(normalized.ClaimTokenHash)
-	normalized.CoordinationChannelID = strings.TrimSpace(normalized.CoordinationChannelID)
-	normalized.RequiredCapabilities = normalizeTaskRunCapabilityIDs(normalized.RequiredCapabilities)
-	normalized.PreferredCapabilities = normalizeTaskRunCapabilityIDs(
-		normalized.PreferredCapabilities,
-	)
-	normalized.Review = normalizeTaskRunReviewLineage(normalized.Review)
-	normalized.Error = strings.TrimSpace(normalized.Error)
-	normalized.Metadata = normalizeTaskJSON(normalized.Metadata)
-	normalized.Result = normalizeTaskJSON(normalized.Result)
-	if !normalized.QueuedAt.IsZero() {
-		normalized.QueuedAt = normalized.QueuedAt.UTC()
-	}
-	if !normalized.ClaimedAt.IsZero() {
-		normalized.ClaimedAt = normalized.ClaimedAt.UTC()
-	}
-	if !normalized.StartedAt.IsZero() {
-		normalized.StartedAt = normalized.StartedAt.UTC()
-	}
-	if !normalized.EndedAt.IsZero() {
-		normalized.EndedAt = normalized.EndedAt.UTC()
-	}
-	if !normalized.LeaseUntil.IsZero() {
-		normalized.LeaseUntil = normalized.LeaseUntil.UTC()
-	}
-	if !normalized.HeartbeatAt.IsZero() {
-		normalized.HeartbeatAt = normalized.HeartbeatAt.UTC()
-	}
-	return normalized
-}
-
-func taskRunReviewLineage(run taskpkg.Run) taskpkg.RunReviewLineage {
-	lineage := normalizeTaskRunReviewLineage(run.Review)
-	if lineage == nil {
-		return taskpkg.RunReviewLineage{MissingWork: json.RawMessage("[]")}
-	}
-	return *lineage
-}
-
-func taskRunReviewLineageFromScan(fields *taskRunScanFields) *taskpkg.RunReviewLineage {
-	lineage := &taskpkg.RunReviewLineage{
-		Required:           fields.reviewRequired,
-		RequestRound:       fields.reviewRequestRound,
-		PolicySnapshot:     taskpkg.ReviewPolicy(strings.TrimSpace(fields.reviewPolicySnapshot)),
-		RequestID:          taskNullStringValue(fields.reviewRequestID),
-		ParentRunID:        taskNullStringValue(fields.parentRunID),
-		ReviewID:           taskNullStringValue(fields.reviewID),
-		ReviewRound:        fields.reviewRound,
-		ContinuationReason: strings.TrimSpace(fields.continuationReason),
-		MissingWork:        []byte(strings.TrimSpace(fields.missingWorkJSON)),
-		NextRoundGuidance:  strings.TrimSpace(fields.nextRoundGuidance),
-	}
-	return normalizeTaskRunReviewLineage(lineage)
-}
-
-func normalizeTaskRunReviewLineage(lineage *taskpkg.RunReviewLineage) *taskpkg.RunReviewLineage {
-	if lineage == nil {
-		return nil
-	}
-	normalized := *lineage
-	normalized.PolicySnapshot = normalized.PolicySnapshot.Normalize()
-	normalized.RequestID = strings.TrimSpace(normalized.RequestID)
-	normalized.ParentRunID = strings.TrimSpace(normalized.ParentRunID)
-	normalized.ReviewID = strings.TrimSpace(normalized.ReviewID)
-	normalized.ContinuationReason = strings.TrimSpace(normalized.ContinuationReason)
-	normalized.MissingWork = normalizeTaskRunMissingWork(normalized.MissingWork)
-	normalized.NextRoundGuidance = strings.TrimSpace(normalized.NextRoundGuidance)
-	if isEmptyTaskRunReviewLineage(normalized) {
-		return nil
-	}
-	return &normalized
-}
-
-func isEmptyTaskRunReviewLineage(lineage taskpkg.RunReviewLineage) bool {
-	return !lineage.Required &&
-		lineage.RequestRound == 0 &&
-		lineage.PolicySnapshot == "" &&
-		lineage.RequestID == "" &&
-		lineage.ParentRunID == "" &&
-		lineage.ReviewID == "" &&
-		lineage.ReviewRound == 0 &&
-		lineage.ContinuationReason == "" &&
-		string(lineage.MissingWork) == "[]" &&
-		lineage.NextRoundGuidance == ""
-}
-
-func normalizeTaskRunMissingWork(raw json.RawMessage) json.RawMessage {
-	normalized := normalizeTaskJSON(raw)
-	if len(normalized) == 0 {
-		return json.RawMessage("[]")
-	}
-	return normalized
-}
-
-func normalizeTaskRunCapabilityIDs(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-	seen := make(map[string]struct{}, len(values))
-	normalized := make([]string, 0, len(values))
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			normalized = append(normalized, trimmed)
-			continue
-		}
-		if _, ok := seen[trimmed]; ok {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		normalized = append(normalized, trimmed)
-	}
-	sort.Strings(normalized)
-	return normalized
-}
-
-func normalizeTaskQuery(query taskpkg.Query) taskpkg.Query {
-	normalized := query
-	normalized.Scope = normalized.Scope.Normalize()
-	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
-	normalized.Status = normalized.Status.Normalize()
-	normalized.Priority = normalized.Priority.Normalize()
-	normalized.ApprovalState = normalized.ApprovalState.Normalize()
-	normalized.OwnerKind = normalized.OwnerKind.Normalize()
-	normalized.OwnerRef = strings.TrimSpace(normalized.OwnerRef)
-	normalized.ParentTaskID = strings.TrimSpace(normalized.ParentTaskID)
-	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
-	normalized.CreatedByKind = normalized.CreatedByKind.Normalize()
-	normalized.CreatedByRef = strings.TrimSpace(normalized.CreatedByRef)
-	normalized.Search = strings.TrimSpace(normalized.Search)
-	return normalized
-}
-
-func normalizeTaskRunQuery(query taskpkg.RunQuery) taskpkg.RunQuery {
-	normalized := query
-	normalized.TaskID = strings.TrimSpace(normalized.TaskID)
-	normalized.Status = normalized.Status.Normalize()
-	normalized.SessionID = strings.TrimSpace(normalized.SessionID)
-	normalized.CoordinationChannelID = strings.TrimSpace(normalized.CoordinationChannelID)
-	normalized.DesignationGroupID = strings.TrimSpace(normalized.DesignationGroupID)
-	return normalized
-}
-
-func taskSummaryFromRecord(record taskpkg.Task) taskpkg.Summary {
-	return taskpkg.Summary{
-		ID:                 record.ID,
-		Identifier:         record.Identifier,
-		Scope:              record.Scope,
-		WorkspaceID:        record.WorkspaceID,
-		ParentTaskID:       record.ParentTaskID,
-		NetworkChannel:     record.NetworkChannel,
-		Title:              record.Title,
-		Priority:           record.Priority,
-		MaxAttempts:        record.MaxAttempts,
-		AutoEnqueueOnReady: record.AutoEnqueueOnReady,
-		Status:             record.Status,
-		ApprovalPolicy:     record.ApprovalPolicy,
-		ApprovalState:      record.ApprovalState,
-		Draft:              record.Status.Normalize() == taskpkg.TaskStatusDraft,
-		NeedsAttention:     cloneNeedsAttention(record.NeedsAttention),
-		Owner:              record.Owner,
-		CurrentRunID:       record.CurrentRunID,
-		LatestEventSeq:     record.LatestEventSeq,
-		Paused:             record.Paused,
-		WakeCreator:        record.WakeCreator,
-		PausedBy:           record.PausedBy,
-		PausedAt:           record.PausedAt,
-		PausedReason:       record.PausedReason,
-		EffectivePaused:    record.Paused,
-		PausedByTaskID: func() string {
-			if record.Paused {
-				return record.ID
-			}
-			return ""
-		}(),
-		CreatedBy:      record.CreatedBy,
-		Origin:         record.Origin,
-		CreatedAt:      record.CreatedAt,
-		UpdatedAt:      record.UpdatedAt,
-		ClosedAt:       record.ClosedAt,
-		LastActivityAt: record.UpdatedAt,
-	}
-}
-
-func cloneNeedsAttention(attention *taskpkg.NeedsAttention) *taskpkg.NeedsAttention {
-	if attention == nil {
-		return nil
-	}
-	clone := *attention
-	return &clone
-}
-
-func requireTaskValue(value string, label string) (string, error) {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return "", fmt.Errorf("store: %s is required", label)
-	}
-	return trimmed, nil
-}
-
-func taskOwnerKindValue(owner *taskpkg.Ownership) any {
-	if owner == nil {
-		return nil
-	}
-	return string(owner.Kind)
-}
-
-func taskBoolToInt(value bool) int {
-	if value {
-		return 1
-	}
-	return 0
-}
-
-func taskOwnerRefValue(owner *taskpkg.Ownership) any {
-	if owner == nil {
-		return nil
-	}
-	return owner.Ref
-}
-
-func taskActorKindValue(actor *taskpkg.ActorIdentity) any {
-	if actor == nil {
-		return nil
-	}
-	return string(actor.Kind)
-}
-
-func taskActorRefValue(actor *taskpkg.ActorIdentity) any {
-	if actor == nil {
-		return nil
-	}
-	return actor.Ref
-}
-
-func taskNeedsAttentionReason(attention *taskpkg.NeedsAttention) string {
-	if attention == nil {
-		return ""
-	}
-	return attention.Reason
-}
-
-func taskNeedsAttentionAt(attention *taskpkg.NeedsAttention) time.Time {
-	if attention == nil {
-		return time.Time{}
-	}
-	return attention.At
-}
-
-func taskNeedsAttentionActor(attention *taskpkg.NeedsAttention) *taskpkg.ActorIdentity {
-	if attention == nil || attention.By.IsZero() {
-		return nil
-	}
-	return &attention.By
-}
-
-func nullableTaskTimestamp(value time.Time) any {
-	if value.IsZero() {
-		return nil
-	}
-	return store.FormatTimestamp(value)
-}
-
-func normalizeTaskJSON(raw json.RawMessage) json.RawMessage {
-	if len(raw) == 0 {
-		return nil
-	}
-	trimmed := strings.TrimSpace(string(raw))
-	if trimmed == "" {
-		return nil
-	}
-	return json.RawMessage(trimmed)
-}
-
-func nullableTaskJSON(raw json.RawMessage) any {
-	if len(raw) == 0 {
-		return nil
-	}
-	return string(raw)
-}
-
-func decodeTaskJSON(raw sql.NullString, label string) (json.RawMessage, error) {
-	if !raw.Valid {
-		return nil, nil
-	}
-	trimmed := strings.TrimSpace(raw.String)
-	if trimmed == "" {
-		return nil, nil
-	}
-	value := json.RawMessage(trimmed)
-	if !json.Valid(value) {
-		return nil, fmt.Errorf("store: decode %s: invalid JSON", label)
-	}
-	return value, nil
-}
-
-func taskNullStringValue(value sql.NullString) string {
-	if !value.Valid {
-		return ""
-	}
-	return strings.TrimSpace(value.String)
-}

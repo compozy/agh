@@ -10,12 +10,14 @@ import (
 )
 
 type automationCatalogExecutor interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+	PrepareContext(context.Context, string) (*sql.Stmt, error)
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
 
 // ListJobs returns one stable page of effective persisted automation jobs.
-func (g *GlobalDB) ListJobs(
+func (g *AutomationRepo) ListJobs(
 	ctx context.Context,
 	query automation.JobListQuery,
 ) (page automation.JobListPage, err error) {
@@ -42,7 +44,7 @@ func (g *GlobalDB) ListJobs(
 }
 
 // ListTriggers returns one stable page of effective persisted automation triggers.
-func (g *GlobalDB) ListTriggers(
+func (g *AutomationRepo) ListTriggers(
 	ctx context.Context,
 	query automation.TriggerListQuery,
 ) (page automation.TriggerListPage, err error) {

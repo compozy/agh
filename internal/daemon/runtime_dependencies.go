@@ -45,6 +45,7 @@ func (d *Daemon) runtimeDeps(
 		Bridges:             state.bridges,
 		Notifications:       state.notificationPresets,
 		Registry:            state.registry,
+		SchemaStreams:       newDaemonSchemaStreamStatusReader(state.registry),
 		MemoryStore:         state.memoryStore,
 		MemoryExtractor:     state.memoryExtractor,
 		MemoryProviders:     memoryProviders,

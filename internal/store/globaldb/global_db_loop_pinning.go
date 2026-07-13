@@ -12,6 +12,7 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/gate"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -19,16 +20,6 @@ type activeGateCriterionPayload struct {
 	ID      string `json:"id"`
 	Type    string `json:"type,omitempty"`
 	Outcome string `json:"outcome,omitempty"`
-}
-
-type loopGateDecisionRow struct {
-	criterionID string
-	decision    string
-	actorKind   string
-	actorRef    string
-	originKind  string
-	originRef   string
-	note        string
 }
 
 func upsertLoopDefinitionSnapshot(
@@ -44,31 +35,14 @@ func upsertLoopDefinitionSnapshot(
 	if usedAt.IsZero() {
 		usedAt = run.CreatedAt.UTC()
 	}
-	result, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO loop_definition_snapshots (
-			workspace_id, definition_digest, definition_version, definition_json, byte_size,
-			created_at, last_used_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(workspace_id, definition_digest) DO UPDATE SET
-			last_used_at = excluded.last_used_at
-		WHERE loop_definition_snapshots.definition_version = excluded.definition_version
-		  AND loop_definition_snapshots.definition_json = excluded.definition_json
-		  AND loop_definition_snapshots.byte_size = excluded.byte_size`,
-		string(run.WorkspaceID),
-		run.DefinitionDigest,
-		run.DefinitionVersion,
-		string(run.DefinitionSnapshot),
-		len(run.DefinitionSnapshot),
-		store.FormatTimestamp(usedAt),
-		store.FormatTimestamp(usedAt),
-	)
+	affected, err := sqlcgen.New(exec).UpsertLoopDefinitionSnapshot(ctx, sqlcgen.UpsertLoopDefinitionSnapshotParams{
+		WorkspaceID: string(run.WorkspaceID), DefinitionDigest: run.DefinitionDigest,
+		DefinitionVersion: int64(run.DefinitionVersion), DefinitionJson: string(run.DefinitionSnapshot),
+		ByteSize: int64(len(run.DefinitionSnapshot)), CreatedAt: store.FormatTimestamp(usedAt),
+		LastUsedAt: store.FormatTimestamp(usedAt),
+	})
 	if err != nil {
 		return fmt.Errorf("store: upsert loop definition snapshot %q: %w", run.DefinitionDigest, err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("store: inspect loop definition snapshot %q upsert: %w", run.DefinitionDigest, err)
 	}
 	if affected != 1 {
 		return fmt.Errorf(
@@ -80,7 +54,7 @@ func upsertLoopDefinitionSnapshot(
 	return nil
 }
 
-func (g *GlobalDB) GetLoopDefinitionSnapshot(
+func (g *LoopRepo) GetLoopDefinitionSnapshot(
 	ctx context.Context,
 	ws looppkg.WorkspaceID,
 	digest string,
@@ -95,46 +69,28 @@ func (g *GlobalDB) GetLoopDefinitionSnapshot(
 	if trimmedDigest == "" {
 		return looppkg.DefinitionSnapshot{}, fmt.Errorf("%w: definition_digest is required", looppkg.ErrValidation)
 	}
-	var snapshot looppkg.DefinitionSnapshot
-	var workspaceID string
-	var definitionJSON string
-	var createdAtRaw string
-	var lastUsedAtRaw string
-	err := g.db.QueryRowContext(
-		ctx,
-		`SELECT workspace_id, definition_digest, definition_version, definition_json, byte_size,
-		        created_at, last_used_at
-		 FROM loop_definition_snapshots
-		 WHERE workspace_id = ? AND definition_digest = ?`,
-		string(ws),
-		trimmedDigest,
-	).Scan(
-		&workspaceID,
-		&snapshot.Digest,
-		&snapshot.Version,
-		&definitionJSON,
-		&snapshot.ByteSize,
-		&createdAtRaw,
-		&lastUsedAtRaw,
-	)
+	row, err := g.queries.GetLoopDefinitionSnapshot(ctx, sqlcgen.GetLoopDefinitionSnapshotParams{
+		WorkspaceID: string(ws), DefinitionDigest: trimmedDigest,
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return looppkg.DefinitionSnapshot{}, looppkg.ErrRunNotFound
 		}
 		return looppkg.DefinitionSnapshot{}, fmt.Errorf("store: scan loop definition snapshot: %w", err)
 	}
-	createdAt, err := parseLoopRunTimestamp(createdAtRaw)
+	createdAt, err := parseLoopRunTimestamp(row.CreatedAt)
 	if err != nil {
 		return looppkg.DefinitionSnapshot{}, fmt.Errorf("store: parse snapshot created_at: %w", err)
 	}
-	lastUsedAt, err := parseLoopRunTimestamp(lastUsedAtRaw)
+	lastUsedAt, err := parseLoopRunTimestamp(row.LastUsedAt)
 	if err != nil {
 		return looppkg.DefinitionSnapshot{}, fmt.Errorf("store: parse snapshot last_used_at: %w", err)
 	}
-	snapshot.WorkspaceID = looppkg.WorkspaceID(workspaceID)
-	snapshot.Definition = json.RawMessage(definitionJSON)
-	snapshot.CreatedAt = createdAt
-	snapshot.LastUsedAt = lastUsedAt
+	snapshot := looppkg.DefinitionSnapshot{
+		WorkspaceID: looppkg.WorkspaceID(row.WorkspaceID), Digest: row.DefinitionDigest,
+		Version: int(row.DefinitionVersion), Definition: json.RawMessage(row.DefinitionJson),
+		ByteSize: int(row.ByteSize), CreatedAt: createdAt, LastUsedAt: lastUsedAt,
+	}
 	if !json.Valid(snapshot.Definition) {
 		return looppkg.DefinitionSnapshot{}, fmt.Errorf(
 			"%w: loop definition snapshot %q is invalid JSON",
@@ -167,22 +123,17 @@ func activateLoopApprovalWithExecutor(
 	if budget {
 		budgetDelta = 1
 	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_runs
-		 SET active_gate_id = ?,
-		     active_human_criteria_json = ?,
-		     budget_approval_seq = budget_approval_seq + ?
-		 WHERE id = ?`,
-		trimmedGateID,
-		string(criteria),
-		budgetDelta,
-		string(runID),
-	)
+	affected, err := sqlcgen.New(exec).ActivateLoopApproval(ctx, sqlcgen.ActivateLoopApprovalParams{
+		ActiveGateID: trimmedGateID, ActiveHumanCriteriaJson: string(criteria),
+		BudgetDelta: int64(budgetDelta), ID: string(runID),
+	})
 	if err != nil {
 		return fmt.Errorf("store: activate loop run %q approval gate: %w", runID, err)
 	}
-	return requireRowsAffected(result, looppkg.ErrRunNotFound, string(runID), "loop run")
+	if affected == 0 {
+		return fmt.Errorf("%w: loop run %s", looppkg.ErrRunNotFound, runID)
+	}
+	return nil
 }
 
 func activeHumanCriteriaFromTerminal(terminal *taskpkg.CoordinatorTerminal) (json.RawMessage, error) {
@@ -216,7 +167,7 @@ func activeHumanCriteriaFromTerminal(terminal *taskpkg.CoordinatorTerminal) (jso
 	return json.RawMessage(data), nil
 }
 
-func (g *GlobalDB) RecordLoopGateDecisions(
+func (g *LoopRepo) RecordLoopGateDecisions(
 	ctx context.Context,
 	records []looppkg.GateDecisionRecord,
 ) error {
@@ -242,40 +193,20 @@ func insertLoopGateDecision(
 	exec taskSQLExecutor,
 	record looppkg.GateDecisionRecord,
 ) error {
-	_, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO loop_gate_decisions (
-			workspace_id, loop_run_id, generation, gate_id, criterion_id, decision,
-			actor_kind, actor_ref, origin_kind, origin_ref, note, decided_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(loop_run_id, generation, gate_id, criterion_id) DO UPDATE SET
-			decision = excluded.decision,
-			actor_kind = excluded.actor_kind,
-			actor_ref = excluded.actor_ref,
-			origin_kind = excluded.origin_kind,
-			origin_ref = excluded.origin_ref,
-			note = excluded.note,
-			decided_at = excluded.decided_at`,
-		string(record.WorkspaceID),
-		string(record.RunID),
-		record.Generation,
-		string(record.GateID),
-		record.CriterionID,
-		string(record.Decision),
-		string(record.Actor.Actor.Kind),
-		record.Actor.Actor.Ref,
-		string(record.Actor.Origin.Kind),
-		record.Actor.Origin.Ref,
-		record.Note,
-		store.FormatTimestamp(record.DecidedAt),
-	)
+	err := sqlcgen.New(exec).UpsertLoopGateDecision(ctx, sqlcgen.UpsertLoopGateDecisionParams{
+		WorkspaceID: string(record.WorkspaceID), LoopRunID: string(record.RunID),
+		Generation: int64(record.Generation), GateID: string(record.GateID), CriterionID: record.CriterionID,
+		Decision: string(record.Decision), ActorKind: string(record.Actor.Actor.Kind), ActorRef: record.Actor.Actor.Ref,
+		OriginKind: string(record.Actor.Origin.Kind), OriginRef: record.Actor.Origin.Ref,
+		Note: record.Note, DecidedAt: store.FormatTimestamp(record.DecidedAt),
+	})
 	if err != nil {
 		return fmt.Errorf("store: insert loop gate decision %q/%q: %w", record.GateID, record.CriterionID, err)
 	}
 	return nil
 }
 
-func (g *GlobalDB) ListLoopGateDecisions(
+func (g *LoopRepo) ListLoopGateDecisions(
 	ctx context.Context,
 	ws looppkg.WorkspaceID,
 	runID looppkg.RunID,
@@ -298,68 +229,30 @@ func (g *GlobalDB) ListLoopGateDecisions(
 	if trimmedGateID == "" {
 		return nil, fmt.Errorf("%w: gate_id is required", looppkg.ErrValidation)
 	}
-	rows, err := g.db.QueryContext(
-		ctx,
-		`SELECT criterion_id, decision, actor_kind, actor_ref, origin_kind, origin_ref, note
-		 FROM loop_gate_decisions
-		 WHERE workspace_id = ? AND loop_run_id = ? AND generation = ? AND gate_id = ?
-		 ORDER BY criterion_id ASC`,
-		string(ws),
-		string(runID),
-		generation,
-		trimmedGateID,
-	)
+	rows, err := g.queries.ListLoopGateDecisions(ctx, sqlcgen.ListLoopGateDecisionsParams{
+		WorkspaceID: string(ws), LoopRunID: string(runID), Generation: int64(generation), GateID: trimmedGateID,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("store: list loop gate decisions: %w", err)
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			joinCleanupError(&err, fmt.Errorf("store: close loop gate decisions rows: %w", closeErr))
-		}
-	}()
 	decisions = map[string]gate.HumanDecision{}
-	for rows.Next() {
-		row, err := scanLoopGateDecision(rows)
-		if err != nil {
-			return nil, err
-		}
-		decisions[row.criterionID] = gate.HumanDecision{
-			Decision: gate.HumanDecisionKind(row.decision),
+	for _, row := range rows {
+		decisions[row.CriterionID] = gate.HumanDecision{
+			Decision: gate.HumanDecisionKind(row.Decision),
 			Actor: taskpkg.ActorContext{
 				Actor: taskpkg.ActorIdentity{
-					Kind: taskpkg.ActorKind(row.actorKind),
-					Ref:  row.actorRef,
+					Kind: taskpkg.ActorKind(row.ActorKind),
+					Ref:  row.ActorRef,
 				},
 				Origin: taskpkg.Origin{
-					Kind: taskpkg.OriginKind(row.originKind),
-					Ref:  row.originRef,
+					Kind: taskpkg.OriginKind(row.OriginKind),
+					Ref:  row.OriginRef,
 				},
 			},
-			Note: row.note,
+			Note: row.Note,
 		}
 	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: iterate loop gate decisions: %w", err)
-	}
 	return decisions, nil
-}
-
-func scanLoopGateDecision(
-	rows *sql.Rows,
-) (loopGateDecisionRow, error) {
-	var row loopGateDecisionRow
-	if err := rows.Scan(
-		&row.criterionID,
-		&row.decision,
-		&row.actorKind,
-		&row.actorRef,
-		&row.originKind,
-		&row.originRef,
-		&row.note,
-	); err != nil {
-		return loopGateDecisionRow{}, fmt.Errorf("store: scan loop gate decision: %w", err)
-	}
-	return row, nil
 }
 
 func normalizeLoopGateDecisionRecords(

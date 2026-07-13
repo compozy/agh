@@ -2,12 +2,14 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 type goalContextUsageProjection struct {
@@ -20,7 +22,7 @@ type goalContextUsageProjection struct {
 }
 
 // RecordContextUsage advances the durable freshness cursor for one exact active binding.
-func (g *GlobalDB) RecordContextUsage(
+func (g *GoalRepo) RecordContextUsage(
 	ctx context.Context,
 	req goal.RecordContextUsageRequest,
 ) (goal.Checkpoint, error) {
@@ -42,7 +44,7 @@ func (g *GlobalDB) RecordContextUsage(
 	return updated, nil
 }
 
-func (g *GlobalDB) recordContextUsageWithExecutor(
+func (g *GoalRepo) recordContextUsageWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	req goal.RecordContextUsageRequest,
@@ -72,36 +74,41 @@ func (g *GlobalDB) recordContextUsageWithExecutor(
 	}
 	projection := goalContextUsageCheckpointProjection(checkpoint, req.Usage)
 	now := g.now().UTC()
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_goal_checkpoints
-		 SET context_state = ?, usage_sequence = ?, usage_pending_after_sequence = ?,
-		     compaction_baseline_used = ?, compaction_recovery_required = ?, recovery_streak = ?, updated_at = ?
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		   AND control_epoch = ? AND binding_epoch = ? AND phase = ? AND goal_status = 'active'
-		   AND session_id = ? AND binding_handle = ?`,
-		projection.contextState,
-		projection.usageSequence,
-		projection.pendingAfter,
-		projection.baselineUsed,
-		boolToInt(projection.recoveryRequired),
-		projection.recoveryStreak,
-		store.FormatTimestamp(now),
-		string(req.Key.LoopRunID),
-		req.Key.Generation,
-		string(req.Key.NodeID),
-		req.Key.ItemIndex,
-		req.ExpectedControlEpoch,
-		req.ExpectedBindingEpoch,
-		strings.TrimSpace(req.ExpectedPhase),
-		strings.TrimSpace(req.SessionID),
-		strings.TrimSpace(req.BindingHandle),
-	)
+	usageSequence, err := goalSQLNullInt64(projection.usageSequence)
+	if err != nil {
+		return goal.Checkpoint{}, err
+	}
+	pendingAfter, err := goalSQLNullInt64(projection.pendingAfter)
+	if err != nil {
+		return goal.Checkpoint{}, err
+	}
+	baselineUsed, err := goalSQLNullInt64(projection.baselineUsed)
+	if err != nil {
+		return goal.Checkpoint{}, err
+	}
+	affected, err := sqlcgen.New(exec).UpdateGoalContextUsage(ctx, sqlcgen.UpdateGoalContextUsageParams{
+		ContextState:               projection.contextState,
+		UsageSequence:              usageSequence,
+		UsagePendingAfterSequence:  pendingAfter,
+		CompactionBaselineUsed:     baselineUsed,
+		CompactionRecoveryRequired: int64(boolToInt(projection.recoveryRequired)),
+		RecoveryStreak:             int64(projection.recoveryStreak),
+		UpdatedAt:                  store.FormatTimestamp(now),
+		LoopRunID:                  string(req.Key.LoopRunID),
+		Generation:                 int64(req.Key.Generation),
+		NodeID:                     string(req.Key.NodeID),
+		ItemIndex:                  int64(req.Key.ItemIndex),
+		ControlEpoch:               req.ExpectedControlEpoch,
+		BindingEpoch:               sql.NullInt64{Int64: req.ExpectedBindingEpoch, Valid: true},
+		Phase:                      strings.TrimSpace(req.ExpectedPhase),
+		SessionID:                  goalNullableString(req.SessionID),
+		BindingHandle:              goalNullableString(req.BindingHandle),
+	})
 	if err != nil {
 		return goal.Checkpoint{}, fmt.Errorf("store: record Goal context usage: %w", err)
 	}
-	if err := requireGoalRowsAffected(result, "record Goal context usage"); err != nil {
-		return goal.Checkpoint{}, err
+	if affected != 1 {
+		return goal.Checkpoint{}, goalControlStaleError("record Goal context usage lost compare-and-swap")
 	}
 	return loadGoalCheckpointWithExecutor(ctx, exec, req.Key)
 }

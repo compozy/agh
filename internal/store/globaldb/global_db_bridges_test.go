@@ -437,7 +437,9 @@ func openBridgeCloseErrorGlobalDB(t *testing.T) *GlobalDB {
 			t.Errorf("sql.DB.Close(bridge close-error driver) error = %v", err)
 		}
 	})
-	return &GlobalDB{db: db}
+	globalDB := &GlobalDB{db: db, now: func() time.Time { return time.Now().UTC() }}
+	globalDB.initializeRepositories()
+	return globalDB
 }
 
 func TestGlobalDBBridgeTargetDirectoryRefresh(t *testing.T) {
@@ -527,23 +529,6 @@ func TestGlobalDBBridgeTargetDirectoryRefresh(t *testing.T) {
 func TestGlobalDBBridgeGuardClauses(t *testing.T) {
 	t.Parallel()
 
-	var nilDB *GlobalDB
-	if err := nilDB.InsertBridgeInstance(testutil.Context(t), bridges.BridgeInstance{}); err == nil {
-		t.Fatal("InsertBridgeInstance(nil receiver) error = nil, want non-nil")
-	}
-	if _, err := nilDB.GetBridgeInstance(testutil.Context(t), "brg-1"); err == nil {
-		t.Fatal("GetBridgeInstance(nil receiver) error = nil, want non-nil")
-	}
-	if err := nilDB.PutBridgeSecretBinding(testutil.Context(t), bridges.BridgeSecretBinding{}); err == nil {
-		t.Fatal("PutBridgeSecretBinding(nil receiver) error = nil, want non-nil")
-	}
-	if err := nilDB.PutBridgeRoute(testutil.Context(t), bridges.BridgeRoute{}); err == nil {
-		t.Fatal("PutBridgeRoute(nil receiver) error = nil, want non-nil")
-	}
-	if err := nilDB.PutBridgeIngestDedup(testutil.Context(t), bridges.IngestDedupRecord{}); err == nil {
-		t.Fatal("PutBridgeIngestDedup(nil receiver) error = nil, want non-nil")
-	}
-
 	globalDB := openTestGlobalDB(t)
 	if err := globalDB.InsertBridgeInstance(nilGlobalContext(), bridges.BridgeInstance{}); err == nil {
 		t.Fatal("InsertBridgeInstance(nil ctx) error = nil, want non-nil")
@@ -559,97 +544,6 @@ func TestGlobalDBBridgeGuardClauses(t *testing.T) {
 	}
 	if err := globalDB.PutBridgeIngestDedup(nilGlobalContext(), bridges.IngestDedupRecord{}); err == nil {
 		t.Fatal("PutBridgeIngestDedup(nil ctx) error = nil, want non-nil")
-	}
-}
-
-func TestOpenGlobalDBMigratesLegacyBridgeSecretBindingsVaultRefColumn(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t)
-	dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
-	db, err := openSQLiteDatabase(ctx, dbPath, nil)
-	if err != nil {
-		t.Fatalf("openSQLiteDatabase() error = %v", err)
-	}
-
-	if err := store.RunMigrations(ctx, db, globalSchemaMigrations[:10]); err != nil {
-		t.Fatalf("RunMigrations(v1-v10) error = %v", err)
-	}
-
-	now := time.Date(2026, 5, 1, 18, 30, 0, 0, time.UTC)
-	if _, err := db.ExecContext(
-		ctx,
-		`INSERT INTO bridge_instances (
-			id, scope, workspace_id, platform, extension_name, display_name, source, enabled, status, dm_policy, routing_policy, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		"brg-legacy",
-		string(bridges.ScopeGlobal),
-		nil,
-		"telegram",
-		"telegram-adapter",
-		"Legacy Bridge",
-		string(bridges.BridgeInstanceSourceDynamic),
-		true,
-		string(bridges.BridgeStatusReady),
-		string(bridges.BridgeDMPolicyOpen),
-		`{"include_peer":true}`,
-		store.FormatTimestamp(now),
-		store.FormatTimestamp(now),
-	); err != nil {
-		t.Fatalf("ExecContext(insert bridge instance) error = %v", err)
-	}
-
-	legacyRef := "vault:bridges/brg-legacy/bot_token"
-	if _, err := db.ExecContext(
-		ctx,
-		`INSERT INTO bridge_secret_bindings (
-			bridge_instance_id, binding_name, secret_ref, kind, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?)`,
-		"brg-legacy",
-		"bot_token",
-		legacyRef,
-		"token",
-		store.FormatTimestamp(now),
-		store.FormatTimestamp(now),
-	); err != nil {
-		t.Fatalf("ExecContext(insert bridge binding) error = %v", err)
-	}
-
-	if _, err := db.ExecContext(
-		ctx,
-		`ALTER TABLE bridge_secret_bindings RENAME COLUMN secret_ref TO vault_ref`,
-	); err != nil {
-		t.Fatalf("ExecContext(rename secret_ref->vault_ref) error = %v", err)
-	}
-	if err := db.Close(); err != nil {
-		t.Fatalf("Close(legacy db setup) error = %v", err)
-	}
-
-	globalDB, err := OpenGlobalDB(ctx, dbPath)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB(legacy bridge schema) error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := globalDB.Close(testutil.Context(t)); err != nil {
-			t.Fatalf("Close(migrated global db) error = %v", err)
-		}
-	})
-
-	assertTableColumns(t, globalDB.db, "bridge_secret_bindings", []string{
-		"bridge_instance_id",
-		"binding_name",
-		"secret_ref",
-		"kind",
-		"created_at",
-		"updated_at",
-	})
-
-	binding, err := globalDB.GetBridgeSecretBinding(ctx, "brg-legacy", "bot_token")
-	if err != nil {
-		t.Fatalf("GetBridgeSecretBinding() error = %v", err)
-	}
-	if got, want := binding.SecretRef, legacyRef; got != want {
-		t.Fatalf("binding.SecretRef = %q, want %q", got, want)
 	}
 }
 
@@ -1159,55 +1053,6 @@ func TestGlobalDBBridgeCatalogBatchReads(t *testing.T) {
 	})
 }
 
-func TestMigrateBridgeInstanceColumnsAddsMissingColumns(t *testing.T) {
-	t.Parallel()
-
-	globalDB := openTestGlobalDB(t)
-	if _, err := globalDB.db.ExecContext(testutil.Context(t), `DROP TABLE bridge_instances`); err != nil {
-		t.Fatalf("drop bridge_instances error = %v", err)
-	}
-	if _, err := globalDB.db.ExecContext(testutil.Context(t), `CREATE TABLE bridge_instances (
-		id TEXT PRIMARY KEY,
-		scope TEXT NOT NULL,
-		workspace_id TEXT,
-		platform TEXT NOT NULL,
-		extension_name TEXT NOT NULL,
-		display_name TEXT NOT NULL,
-		enabled BOOLEAN NOT NULL DEFAULT 1,
-		status TEXT NOT NULL,
-		routing_policy TEXT NOT NULL,
-		delivery_defaults TEXT,
-		created_at TEXT NOT NULL,
-		updated_at TEXT NOT NULL
-	)`); err != nil {
-		t.Fatalf("create legacy bridge_instances error = %v", err)
-	}
-
-	if err := migrateBridgeInstanceColumns(testutil.Context(t), globalDB.db); err != nil {
-		t.Fatalf("migrateBridgeInstanceColumns() error = %v", err)
-	}
-
-	assertTableColumns(t, globalDB.db, "bridge_instances", []string{
-		"id",
-		"scope",
-		"workspace_id",
-		"platform",
-		"extension_name",
-		"display_name",
-		"enabled",
-		"status",
-		"routing_policy",
-		"delivery_defaults",
-		"created_at",
-		"updated_at",
-		"dm_policy",
-		"provider_config",
-		"degradation_reason",
-		"degradation_message",
-		"notification_suppress",
-	})
-}
-
 func TestNormalizeBridgeInstanceRecordEncodesProviderConfigAndDegradation(t *testing.T) {
 	t.Parallel()
 
@@ -1471,38 +1316,5 @@ func TestGlobalDBBridgeConstraintFailuresAndDefaultDedupLookupTime(t *testing.T)
 	); err != nil ||
 		deleted != 0 {
 		t.Fatalf("DeleteExpiredBridgeIngestDedup(default now) = (%d, %v), want (0, nil)", deleted, err)
-	}
-}
-
-func TestBridgeConstraintMappers(t *testing.T) {
-	t.Parallel()
-
-	if err := mapBridgeInstanceConstraintError(
-		errors.New("FOREIGN KEY constraint failed"),
-	); !errors.Is(
-		err,
-		aghworkspace.ErrWorkspaceNotFound,
-	) {
-		t.Fatalf("mapBridgeInstanceConstraintError(fk) = %v, want workspace.ErrWorkspaceNotFound", err)
-	}
-	if err := mapBridgeInstanceConstraintError(
-		errors.New("UNIQUE constraint failed"),
-	); err == nil ||
-		err.Error() != "UNIQUE constraint failed" {
-		t.Fatalf("mapBridgeInstanceConstraintError(passthrough) = %v, want passthrough error", err)
-	}
-	if err := mapBridgeChildConstraintError(
-		errors.New("FOREIGN KEY constraint failed"),
-	); !errors.Is(
-		err,
-		bridges.ErrBridgeInstanceNotFound,
-	) {
-		t.Fatalf("mapBridgeChildConstraintError(fk) = %v, want ErrBridgeInstanceNotFound", err)
-	}
-	if err := mapBridgeChildConstraintError(
-		errors.New("UNIQUE constraint failed"),
-	); err == nil ||
-		err.Error() != "UNIQUE constraint failed" {
-		t.Fatalf("mapBridgeChildConstraintError(passthrough) = %v, want passthrough error", err)
 	}
 }

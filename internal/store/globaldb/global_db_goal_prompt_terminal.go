@@ -9,10 +9,11 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 // RecordGoalDriverAttached advances one exact claimed operation to sent without allocating a turn.
-func (g *GlobalDB) RecordGoalDriverAttached(ctx context.Context, req goal.DriverAttachmentRequest) error {
+func (g *GoalRepo) RecordGoalDriverAttached(ctx context.Context, req goal.DriverAttachmentRequest) error {
 	if err := g.checkReady(ctx, "record Goal driver attached"); err != nil {
 		return err
 	}
@@ -58,35 +59,30 @@ func (g *GlobalDB) RecordGoalDriverAttached(ctx context.Context, req goal.Driver
 			}
 			return nil
 		}
-		result, err := exec.ExecContext(
-			ctx,
-			`UPDATE session_input_queue
-			 SET status = 'sent', sent_at = ?, updated_at = ?
-			 WHERE id = ? AND loop_run_id = ? AND task_run_id = ? AND prompt_id = ?
-			   AND owner_kind = ? AND owner_epoch = ? AND binding_epoch = ?
-			   AND session_id = ? AND status = 'dispatching'
-			   AND dispatch_token_hash = ? AND terminal_at IS NULL`,
-			store.FormatTimestamp(req.AttachedAt),
-			store.FormatTimestamp(req.AttachedAt),
-			strings.TrimSpace(req.QueueEntryID),
-			string(req.Key.LoopRunID),
-			strings.TrimSpace(req.TaskRunID),
-			strings.TrimSpace(req.PromptID),
-			goalPromptOwnerKind,
-			req.ExpectedControlEpoch,
-			req.ExpectedBindingEpoch,
-			strings.TrimSpace(req.SessionID),
-			row.dispatchTokenHash.String,
-		)
+		affected, err := sqlcgen.New(exec).RecordGoalDriverAttached(ctx, sqlcgen.RecordGoalDriverAttachedParams{
+			SentAt:    store.FormatTimestamp(req.AttachedAt),
+			UpdatedAt: store.FormatTimestamp(req.AttachedAt),
+			ID:        strings.TrimSpace(req.QueueEntryID),
+			LoopRunID: goalNullableString(string(req.Key.LoopRunID)),
+			TaskRunID: strings.TrimSpace(req.TaskRunID),
+			PromptID:  goalNullableString(req.PromptID),
+			OwnerKind: goalNullableString(
+				goalPromptOwnerKind,
+			),
+			OwnerEpoch:        goalNullableInt64(&req.ExpectedControlEpoch),
+			BindingEpoch:      goalNullableInt64(&req.ExpectedBindingEpoch),
+			SessionID:         strings.TrimSpace(req.SessionID),
+			DispatchTokenHash: goalNullableString(row.dispatchTokenHash.String),
+		})
 		if err != nil {
 			return fmt.Errorf("store: record Goal driver attached: %w", err)
 		}
-		return requireGoalRowsAffected(result, "record Goal driver attached")
+		return requireGoalAffectedCount(affected, "record Goal driver attached")
 	})
 }
 
 // FinalizeGoalPrompt records one live token-authenticated terminal without settling its Goal turn.
-func (g *GlobalDB) FinalizeGoalPrompt(ctx context.Context, req goal.FinalizePromptRequest) error {
+func (g *GoalRepo) FinalizeGoalPrompt(ctx context.Context, req goal.FinalizePromptRequest) error {
 	if err := g.checkReady(ctx, "finalize Goal prompt"); err != nil {
 		return err
 	}
@@ -181,45 +177,39 @@ func persistGoalQueueTerminal(
 	disposition looppkg.ActionDisposition,
 	status string,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE session_input_queue
-		 SET status = ?, terminal_event_start_seq = ?, terminal_event_end_seq = ?,
-		     terminal_kind = ?, terminal_stop_reason = ?, terminal_disposition = ?,
-		     terminal_reason_code = ?, terminal_tokens_reported = ?, terminal_tokens_used = ?,
-		     terminal_at = ?, failed_at = CASE WHEN ? = 'failed' THEN ? ELSE failed_at END,
-		     updated_at = ?
-		 WHERE id = ? AND loop_run_id = ? AND task_run_id = ? AND prompt_id = ?
-		   AND owner_kind = ? AND owner_epoch = ? AND binding_epoch = ? AND session_id = ?
-		   AND status IN ('dispatching','sent') AND terminal_at IS NULL
-		   AND dispatch_token_hash = ?`,
-		status,
-		nullableGoalPositiveInt64(req.Result.EventStartSeq),
-		nullableGoalPositiveInt64(req.Result.EventEndSeq),
-		string(req.Result.Outcome),
-		nullableGoalString(string(req.Result.StopReason)),
-		nullableGoalString(string(disposition)),
-		nullableGoalString(string(req.Result.ReasonCode)),
-		boolToInt(req.Result.TokensReported),
-		goalReportedTokens(req.Result.TokensUsed, req.Result.TokensReported),
-		store.FormatTimestamp(req.TerminalAt),
-		status,
-		store.FormatTimestamp(req.TerminalAt),
-		store.FormatTimestamp(req.TerminalAt),
-		strings.TrimSpace(req.QueueEntryID),
-		string(req.Key.LoopRunID),
-		strings.TrimSpace(req.TaskRunID),
-		strings.TrimSpace(req.PromptID),
-		goalPromptOwnerKind,
-		req.ExpectedControlEpoch,
-		req.ExpectedBindingEpoch,
-		strings.TrimSpace(req.SessionID),
-		row.dispatchTokenHash.String,
-	)
+	tokensUsed, err := goalSQLNullInt64(goalReportedTokens(req.Result.TokensUsed, req.Result.TokensReported))
+	if err != nil {
+		return err
+	}
+	affected, err := sqlcgen.New(exec).PersistGoalQueueTerminal(ctx, sqlcgen.PersistGoalQueueTerminalParams{
+		Status:                 status,
+		TerminalEventStartSeq:  goalNullablePositiveInt64(req.Result.EventStartSeq),
+		TerminalEventEndSeq:    goalNullablePositiveInt64(req.Result.EventEndSeq),
+		TerminalKind:           goalNullableString(string(req.Result.Outcome)),
+		TerminalStopReason:     goalNullableString(string(req.Result.StopReason)),
+		TerminalDisposition:    goalNullableString(string(disposition)),
+		TerminalReasonCode:     goalNullableString(string(req.Result.ReasonCode)),
+		TerminalTokensReported: int64(boolToInt(req.Result.TokensReported)),
+		TerminalTokensUsed:     tokensUsed,
+		TerminalAt:             store.FormatTimestamp(req.TerminalAt),
+		ID:                     strings.TrimSpace(req.QueueEntryID),
+		LoopRunID:              goalNullableString(string(req.Key.LoopRunID)),
+		TaskRunID:              strings.TrimSpace(req.TaskRunID),
+		PromptID:               goalNullableString(req.PromptID),
+		OwnerKind:              goalNullableString(goalPromptOwnerKind),
+		OwnerEpoch: goalNullableInt64(
+			&req.ExpectedControlEpoch,
+		),
+		BindingEpoch: goalNullableInt64(&req.ExpectedBindingEpoch),
+		SessionID: strings.TrimSpace(
+			req.SessionID,
+		),
+		DispatchTokenHash: goalNullableString(row.dispatchTokenHash.String),
+	})
 	if err != nil {
 		return fmt.Errorf("store: finalize Goal queue terminal: %w", err)
 	}
-	return requireGoalRowsAffected(result, "finalize Goal queue terminal")
+	return requireGoalAffectedCount(affected, "finalize Goal queue terminal")
 }
 
 func goalTerminalCheckpointPhase(promptKind string, result looppkg.ActionPromptResult) string {
@@ -242,27 +232,16 @@ func advanceGoalTerminalCheckpoint(
 	checkpoint goal.Checkpoint,
 	phase string,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_goal_checkpoints SET phase = ?, updated_at = ?
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		   AND control_epoch = ? AND binding_epoch = ? AND queue_entry_id = ? AND prompt_id = ?
-		   AND phase IN ('prompting','compacting')`,
-		phase,
-		store.FormatTimestamp(req.TerminalAt),
-		string(req.Key.LoopRunID),
-		req.Key.Generation,
-		string(req.Key.NodeID),
-		req.Key.ItemIndex,
-		checkpoint.ControlEpoch,
-		checkpoint.BindingEpoch,
-		strings.TrimSpace(req.QueueEntryID),
-		strings.TrimSpace(req.PromptID),
-	)
+	affected, err := sqlcgen.New(exec).AdvanceGoalTerminalCheckpoint(ctx, sqlcgen.AdvanceGoalTerminalCheckpointParams{
+		Phase: phase, UpdatedAt: store.FormatTimestamp(req.TerminalAt), LoopRunID: string(req.Key.LoopRunID),
+		Generation: int64(req.Key.Generation), NodeID: string(req.Key.NodeID), ItemIndex: int64(req.Key.ItemIndex),
+		ControlEpoch: checkpoint.ControlEpoch, BindingEpoch: goalNullableInt64(&checkpoint.BindingEpoch),
+		QueueEntryID: goalNullableString(req.QueueEntryID), PromptID: goalNullableString(req.PromptID),
+	})
 	if err != nil {
 		return fmt.Errorf("store: advance Goal terminal checkpoint: %w", err)
 	}
-	return requireGoalRowsAffected(result, "advance Goal terminal checkpoint")
+	return requireGoalAffectedCount(affected, "advance Goal terminal checkpoint")
 }
 
 func validateGoalDriverAttachment(req goal.DriverAttachmentRequest) error {

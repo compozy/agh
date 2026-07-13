@@ -13,7 +13,7 @@ import (
 	"github.com/compozy/agh/internal/store/sessiondb"
 )
 
-func (g *GlobalDB) readSessionWatchEventsCursor(
+func (g *WatchEventsRepo) readSessionWatchEventsCursor(
 	ctx context.Context,
 	query normalizedWatchEventsQuery,
 	stream string,
@@ -39,7 +39,7 @@ func (g *GlobalDB) readSessionWatchEventsCursor(
 	return cursor, nil
 }
 
-func (g *GlobalDB) readSessionWatchEvents(
+func (g *WatchEventsRepo) readSessionWatchEvents(
 	ctx context.Context,
 	query normalizedWatchEventsQuery,
 	stream string,
@@ -76,7 +76,7 @@ func (g *GlobalDB) readSessionWatchEvents(
 	return watchEvents, nil
 }
 
-func (g *GlobalDB) openSessionWatchEventsReader(
+func (g *WatchEventsRepo) openSessionWatchEventsReader(
 	ctx context.Context,
 	query normalizedWatchEventsQuery,
 	stream string,
@@ -85,7 +85,7 @@ func (g *GlobalDB) openSessionWatchEventsReader(
 	if !ok {
 		return nil, false, fmt.Errorf("%w: watch-events session stream is invalid: %q", looppkg.ErrValidation, stream)
 	}
-	sessions, err := g.ListSessions(ctx, store.SessionListQuery{
+	sessions, err := g.sessions.ListSessions(ctx, store.SessionListQuery{
 		ID:          sessionID,
 		WorkspaceID: query.workspaceID,
 		Limit:       1,

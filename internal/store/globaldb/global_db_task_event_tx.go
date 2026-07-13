@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -79,23 +80,19 @@ func appendTaskEventRecordWithExecutor(
 	if err != nil {
 		return taskpkg.EventRecord{}, err
 	}
-	if _, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO task_events (
-			event_seq, id, task_id, run_id, event_type, actor_kind, actor_id, origin_kind, origin_ref, payload_json, timestamp
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		nextSequence,
-		event.ID,
-		event.TaskID,
-		store.NullableString(event.RunID),
-		event.EventType,
-		string(event.Actor.Kind),
-		event.Actor.Ref,
-		string(event.Origin.Kind),
-		event.Origin.Ref,
-		nullableTaskJSON(event.Payload),
-		store.FormatTimestamp(event.Timestamp),
-	); err != nil {
+	if err := sqlcgen.New(exec).InsertTaskEvent(ctx, sqlcgen.InsertTaskEventParams{
+		EventSeq:    nextSequence,
+		ID:          event.ID,
+		TaskID:      event.TaskID,
+		RunID:       sql.NullString{String: event.RunID, Valid: strings.TrimSpace(event.RunID) != ""},
+		EventType:   event.EventType,
+		ActorKind:   string(event.Actor.Kind),
+		ActorID:     event.Actor.Ref,
+		OriginKind:  string(event.Origin.Kind),
+		OriginRef:   event.Origin.Ref,
+		PayloadJson: sql.NullString{String: string(event.Payload), Valid: len(event.Payload) > 0},
+		Timestamp:   store.FormatTimestamp(event.Timestamp),
+	}); err != nil {
 		return taskpkg.EventRecord{}, fmt.Errorf("store: create task event %q: %w", event.ID, err)
 	}
 	collectTaskEvent(exec, taskpkg.EventRecord{Sequence: nextSequence, Event: event})
@@ -161,8 +158,7 @@ func ensureTaskEventTaskExists(ctx context.Context, exec taskSQLExecutor, taskID
 		return err
 	}
 
-	var exists int
-	if err := exec.QueryRowContext(ctx, `SELECT 1 FROM tasks WHERE id = ?`, trimmedID).Scan(&exists); err != nil {
+	if _, err := sqlcgen.New(exec).GetTaskID(ctx, trimmedID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return taskpkg.ErrTaskNotFound
 		}
@@ -178,12 +174,8 @@ func taskEventRunTaskID(ctx context.Context, exec taskSQLExecutor, runID string)
 		return "", err
 	}
 
-	var taskID string
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT task_id FROM task_runs WHERE id = ?`,
-		trimmedID,
-	).Scan(&taskID); err != nil {
+	taskID, err := sqlcgen.New(exec).GetTaskRunTaskID(ctx, trimmedID)
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", taskpkg.ErrTaskRunNotFound
 		}

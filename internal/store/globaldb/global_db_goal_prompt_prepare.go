@@ -10,10 +10,11 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 // PrepareGoalPrompt inserts one idempotent non-dispatchable Goal queue ticket.
-func (g *GlobalDB) PrepareGoalPrompt(
+func (g *GoalRepo) PrepareGoalPrompt(
 	ctx context.Context,
 	req goal.PreparePromptRequest,
 ) (goal.PromptTicket, error) {
@@ -129,35 +130,21 @@ func insertPreparedGoalPrompt(
 	req goal.PreparePromptRequest,
 	preparedAt time.Time,
 ) error {
-	_, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO session_input_queue (
-			id, session_id, status, mode, text, session_generation,
-			task_run_id, run_generation, attempt_count, enqueued_at, updated_at,
-			loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id,
-			prompt_kind, prompt_attempt, operation_usage_base_tokens, dispatchable
-		) VALUES (
-			?, ?, 'queued', ?, ?, (SELECT input_generation FROM sessions WHERE id = ?),
-			?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0
-		)`,
-		strings.TrimSpace(req.QueueEntryID),
-		strings.TrimSpace(req.SessionID),
-		store.SessionInputQueueModeQueue,
-		req.Message,
-		strings.TrimSpace(req.SessionID),
-		strings.TrimSpace(req.TaskRunID),
-		req.Key.Generation,
-		store.FormatTimestamp(preparedAt),
-		store.FormatTimestamp(preparedAt),
-		string(req.Key.LoopRunID),
-		goalPromptOwnerKind,
-		req.ExpectedControlEpoch,
-		req.BindingEpoch,
-		strings.TrimSpace(req.PromptID),
-		strings.TrimSpace(req.PromptKind),
-		req.PromptAttempt,
-		goalReportedTokens(req.UsageBaseTokens, req.UsageBaseReported),
-	)
+	usageBase, err := goalSQLNullInt64(goalReportedTokens(req.UsageBaseTokens, req.UsageBaseReported))
+	if err != nil {
+		return err
+	}
+	generation := int64(req.Key.Generation)
+	err = sqlcgen.New(exec).InsertPreparedGoalPromptQueue(ctx, sqlcgen.InsertPreparedGoalPromptQueueParams{
+		ID: strings.TrimSpace(req.QueueEntryID), SessionID: strings.TrimSpace(req.SessionID),
+		Mode: store.SessionInputQueueModeQueue, Text: req.Message, TaskRunID: strings.TrimSpace(req.TaskRunID),
+		RunGeneration: goalNullableInt64(&generation), EnqueuedAt: store.FormatTimestamp(preparedAt),
+		UpdatedAt: store.FormatTimestamp(preparedAt), LoopRunID: goalNullableString(string(req.Key.LoopRunID)),
+		OwnerKind: goalNullableString(goalPromptOwnerKind), OwnerEpoch: goalNullableInt64(&req.ExpectedControlEpoch),
+		BindingEpoch: goalNullableInt64(&req.BindingEpoch), PromptID: goalNullableString(req.PromptID),
+		PromptKind: goalNullableString(req.PromptKind), PromptAttempt: int64(req.PromptAttempt),
+		OperationUsageBaseTokens: usageBase,
+	})
 	if err != nil {
 		return fmt.Errorf("store: insert prepared Goal prompt: %w", err)
 	}
@@ -170,35 +157,23 @@ func checkpointPreparedGoalPrompt(
 	req goal.PreparePromptRequest,
 	preparedAt time.Time,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_goal_checkpoints
-		 SET phase = 'queued', task_run_id = ?, queue_entry_id = ?, prompt_id = ?,
-		     prompt_kind = ?, prompt_attempt = ?, session_id = ?, binding_handle = ?,
-		     binding_epoch = ?, compaction_baseline_used = ?, updated_at = ?
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		   AND control_epoch = ? AND goal_status = 'active'
-		   AND phase IN ('idle','preparing')`,
-		strings.TrimSpace(req.TaskRunID),
-		strings.TrimSpace(req.QueueEntryID),
-		strings.TrimSpace(req.PromptID),
-		strings.TrimSpace(req.PromptKind),
-		req.PromptAttempt,
-		strings.TrimSpace(req.SessionID),
-		strings.TrimSpace(req.BindingHandle),
-		req.BindingEpoch,
-		nullableGoalInt64Value(req.ContextUsageUsed),
-		store.FormatTimestamp(preparedAt),
-		string(req.Key.LoopRunID),
-		req.Key.Generation,
-		string(req.Key.NodeID),
-		req.Key.ItemIndex,
-		req.ExpectedControlEpoch,
-	)
+	baseline, err := goalSQLNullInt64(nullableGoalInt64Value(req.ContextUsageUsed))
+	if err != nil {
+		return err
+	}
+	affected, err := sqlcgen.New(exec).CheckpointPreparedGoalPrompt(ctx, sqlcgen.CheckpointPreparedGoalPromptParams{
+		TaskRunID: goalNullableString(req.TaskRunID), QueueEntryID: goalNullableString(req.QueueEntryID),
+		PromptID: goalNullableString(req.PromptID), PromptKind: goalNullableString(req.PromptKind),
+		PromptAttempt: int64(req.PromptAttempt), SessionID: goalNullableString(req.SessionID),
+		BindingHandle: goalNullableString(req.BindingHandle), BindingEpoch: goalNullableInt64(&req.BindingEpoch),
+		CompactionBaselineUsed: baseline, UpdatedAt: store.FormatTimestamp(preparedAt),
+		LoopRunID: string(req.Key.LoopRunID), Generation: int64(req.Key.Generation),
+		NodeID: string(req.Key.NodeID), ItemIndex: int64(req.Key.ItemIndex), ControlEpoch: req.ExpectedControlEpoch,
+	})
 	if err != nil {
 		return fmt.Errorf("store: checkpoint prepared Goal prompt: %w", err)
 	}
-	return requireGoalRowsAffected(result, "checkpoint prepared Goal prompt")
+	return requireGoalAffectedCount(affected, "checkpoint prepared Goal prompt")
 }
 
 func validatePrepareGoalPromptRequest(req goal.PreparePromptRequest) error {
@@ -239,22 +214,14 @@ func validateGoalPromptReferences(
 	exec taskSQLExecutor,
 	req goal.PreparePromptRequest,
 ) error {
-	var taskExists int
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT 1 FROM task_runs WHERE id = ? AND loop_run_id = ?`,
-		strings.TrimSpace(req.TaskRunID),
-		string(req.Key.LoopRunID),
-	).Scan(&taskExists); err != nil {
+	if _, err := sqlcgen.New(exec).ValidateGoalPromptTaskRun(ctx, sqlcgen.ValidateGoalPromptTaskRunParams{
+		ID: strings.TrimSpace(req.TaskRunID), LoopRunID: goalNullableString(string(req.Key.LoopRunID)),
+	}); err != nil {
 		return fmt.Errorf("store: validate Goal prompt task owner: %w", err)
 	}
-	var sessionExists int
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT 1 FROM sessions WHERE id = ? AND workspace_id = ?`,
-		strings.TrimSpace(req.SessionID),
-		string(req.Key.WorkspaceID),
-	).Scan(&sessionExists); err != nil {
+	if _, err := sqlcgen.New(exec).ValidateGoalSessionWorkspace(ctx, sqlcgen.ValidateGoalSessionWorkspaceParams{
+		ID: strings.TrimSpace(req.SessionID), WorkspaceID: string(req.Key.WorkspaceID),
+	}); err != nil {
 		return fmt.Errorf("store: validate Goal prompt session owner: %w", err)
 	}
 	return nil

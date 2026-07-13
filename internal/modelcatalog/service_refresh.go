@@ -48,6 +48,7 @@ func (s *CatalogService) refreshSources(
 ) ([]SourceStatus, error) {
 	statuses := make([]SourceStatus, 0, len(sources))
 	var degradedErrs []error
+	var failedErrs []error
 	successes := 0
 	failures := 0
 	staleFallbacks := 0
@@ -59,6 +60,10 @@ func (s *CatalogService) refreshSources(
 				degradedErrs = append(degradedErrs, err)
 			} else if !errors.Is(err, ErrSourceDisabled) {
 				failures++
+				failedErrs = append(
+					failedErrs,
+					fmt.Errorf("model catalog source %q failed: %s", source.ID(), RedactString(err.Error())),
+				)
 			}
 		}
 		switch outcome {
@@ -72,7 +77,10 @@ func (s *CatalogService) refreshSources(
 		return statuses, errors.Join(degradedErrs...)
 	}
 	if successes == 0 && staleFallbacks == 0 && failures > 0 {
-		return statuses, fmt.Errorf("%w (%d failed)", ErrAllSourcesFailed, failures)
+		return statuses, errors.Join(
+			fmt.Errorf("%w (%d failed)", ErrAllSourcesFailed, failures),
+			errors.Join(failedErrs...),
+		)
 	}
 	return statuses, nil
 }

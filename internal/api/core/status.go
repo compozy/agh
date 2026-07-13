@@ -12,7 +12,6 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/diagnostics"
 	"github.com/compozy/agh/internal/doctor"
-	observepkg "github.com/compozy/agh/internal/observe"
 	authproviders "github.com/compozy/agh/internal/providers"
 	"github.com/compozy/agh/internal/session"
 	settingspkg "github.com/compozy/agh/internal/settings"
@@ -95,6 +94,10 @@ func (h *BaseHandlers) statusPayload(
 	if err != nil {
 		return contract.StatusPayload{}, fmt.Errorf("api: collect network status: %w", err)
 	}
+	schemaStreams, err := h.schemaStreamStatusPayloads(ctx)
+	if err != nil {
+		return contract.StatusPayload{}, fmt.Errorf("api: collect schema stream status: %w", err)
+	}
 	providers, err := h.providerStatusPayloads(ctx)
 	if err != nil {
 		return contract.StatusPayload{}, fmt.Errorf("api: collect provider status: %w", err)
@@ -107,7 +110,7 @@ func (h *BaseHandlers) statusPayload(
 	return contract.StatusPayload{
 		SchemaVersion: contract.StatusSchemaVersion,
 		GeneratedAt:   h.nowUTC(),
-		Daemon:        h.daemonStatusPayload(&health, sessionSummary.Total, networkStatus),
+		Daemon:        h.daemonStatusPayload(&health, sessionSummary.Total, networkStatus, schemaStreams),
 		Sessions:      sessionSummary,
 		Health:        ObserveHealthPayloadFromHealth(&health),
 		Memory:        memoryHealth,
@@ -168,36 +171,6 @@ func (h *BaseHandlers) doctorPayload(ctx context.Context, opts doctor.RunOptions
 		Summary:       doctorSummary(items),
 		Items:         items,
 	}, nil
-}
-
-func (h *BaseHandlers) daemonStatusPayload(
-	health *observepkg.Health,
-	totalSessions int,
-	networkStatus *contract.NetworkStatusPayload,
-) contract.DaemonStatusPayload {
-	activeSessions := 0
-	version := ""
-	if health != nil {
-		activeSessions = health.ActiveSessions
-		version = health.Version
-	}
-	httpPort := h.HTTPPortValue()
-	if httpPort <= 0 {
-		httpPort = h.Config.HTTP.Port
-	}
-	return contract.DaemonStatusPayload{
-		Status:         statusStateRunning,
-		PID:            h.PID(),
-		StartedAt:      h.StartedAt,
-		Socket:         h.Config.Daemon.Socket,
-		HTTPHost:       h.Config.HTTP.Host,
-		HTTPPort:       httpPort,
-		UserHomeDir:    h.daemonUserHomeDir(),
-		ActiveSessions: activeSessions,
-		TotalSessions:  totalSessions,
-		Version:        version,
-		Network:        networkStatus,
-	}
 }
 
 func (h *BaseHandlers) runtimeNetworkStatusPayload(ctx context.Context) (*contract.NetworkStatusPayload, error) {

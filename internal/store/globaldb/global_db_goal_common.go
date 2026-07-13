@@ -11,19 +11,16 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 func validateGoalRunWorkspace(ctx context.Context, exec taskSQLExecutor, key goal.TurnKey) error {
 	if err := key.Validate(); err != nil {
 		return err
 	}
-	var exists int
-	err := exec.QueryRowContext(
-		ctx,
-		`SELECT 1 FROM loop_runs WHERE id = ? AND workspace_id = ?`,
-		string(key.LoopRunID),
-		string(key.WorkspaceID),
-	).Scan(&exists)
+	_, err := sqlcgen.New(exec).GoalRunWorkspaceExists(ctx, sqlcgen.GoalRunWorkspaceExistsParams{
+		ID: string(key.LoopRunID), WorkspaceID: string(key.WorkspaceID),
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("%w: %s", looppkg.ErrRunNotFound, key.LoopRunID)
 	}

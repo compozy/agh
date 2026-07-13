@@ -33,7 +33,7 @@ const (
 
 // EnqueueWatchEventsGapWakes scans parked watch-events nodes for durable
 // cursor gaps and enqueues idempotent coordinator wakes.
-func (g *GlobalDB) EnqueueWatchEventsGapWakes(
+func (g *LoopRepo) EnqueueWatchEventsGapWakes(
 	ctx context.Context,
 	origin taskpkg.Origin,
 	now time.Time,
@@ -42,7 +42,7 @@ func (g *GlobalDB) EnqueueWatchEventsGapWakes(
 	if err != nil {
 		return nil, err
 	}
-	parked, err := g.ListParkedWatchEventSubscriptions(ctx)
+	parked, err := g.watchEvents.ListParkedWatchEventSubscriptions(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func (g *GlobalDB) EnqueueWatchEventsGapWakes(
 
 // EnqueueWatchEventsGapWakesPage checks one bounded page of parked
 // subscriptions and returns the durable cursor for the next scheduler cycle.
-func (g *GlobalDB) EnqueueWatchEventsGapWakesPage(
+func (g *LoopRepo) EnqueueWatchEventsGapWakesPage(
 	ctx context.Context,
 	origin taskpkg.Origin,
 	now time.Time,
@@ -62,13 +62,13 @@ func (g *GlobalDB) EnqueueWatchEventsGapWakesPage(
 	if err != nil {
 		return nil, after, err
 	}
-	parked, err := g.ListParkedWatchEventSubscriptionsPage(ctx, after, limit)
+	parked, err := g.watchEvents.ListParkedWatchEventSubscriptionsPage(ctx, after, limit)
 	if err != nil {
 		return nil, after, err
 	}
 	if len(parked) == 0 && !parkedWatchEventScanCursorEmpty(after) {
 		after = looppkg.ParkedWatchEventScanCursor{}
-		parked, err = g.ListParkedWatchEventSubscriptionsPage(ctx, after, limit)
+		parked, err = g.watchEvents.ListParkedWatchEventSubscriptionsPage(ctx, after, limit)
 		if err != nil {
 			return nil, after, err
 		}
@@ -100,7 +100,7 @@ func (g *GlobalDB) EnqueueWatchEventsGapWakesPage(
 	return enqueued, after, scanErr
 }
 
-func (g *GlobalDB) normalizeWatchEventsGapScan(
+func (g *LoopRepo) normalizeWatchEventsGapScan(
 	ctx context.Context,
 	origin taskpkg.Origin,
 	now time.Time,
@@ -115,7 +115,7 @@ func (g *GlobalDB) normalizeWatchEventsGapScan(
 	return normalizedOrigin, g.normalizeLoopCoordinatorReconcileTime(now), nil
 }
 
-func (g *GlobalDB) enqueueWatchEventsGapWakesForSubscriptions(
+func (g *LoopRepo) enqueueWatchEventsGapWakesForSubscriptions(
 	ctx context.Context,
 	parked []looppkg.ParkedWatchEventSubscription,
 	origin taskpkg.Origin,
@@ -200,7 +200,7 @@ func parkedWatchEventScanCursorEmpty(cursor looppkg.ParkedWatchEventScanCursor) 
 		strings.TrimSpace(cursor.NodeID) == ""
 }
 
-func (g *GlobalDB) parkedWatchEventSubscriptionHasGap(
+func (g *LoopRepo) parkedWatchEventSubscriptionHasGap(
 	ctx context.Context,
 	subscription looppkg.ParkedWatchEventSubscription,
 ) (bool, error) {
@@ -208,7 +208,7 @@ func (g *GlobalDB) parkedWatchEventSubscriptionHasGap(
 	if err != nil {
 		return false, err
 	}
-	cursors, err := g.ReadCursors(ctx, query)
+	cursors, err := g.watchEvents.ReadCursors(ctx, query)
 	if err != nil {
 		return false, err
 	}
@@ -268,7 +268,7 @@ func watchEventsGapQuery(
 	}, nil
 }
 
-func (g *GlobalDB) writeWatchEventsGapEvent(
+func (g *LoopRepo) writeWatchEventsGapEvent(
 	ctx context.Context,
 	subscription looppkg.ParkedWatchEventSubscription,
 	run taskpkg.Run,
@@ -290,7 +290,7 @@ func (g *GlobalDB) writeWatchEventsGapEvent(
 	if err != nil {
 		return fmt.Errorf("store: marshal watch-events gap event: %w", err)
 	}
-	return g.WriteEventSummary(ctx, store.EventSummary{
+	return g.observe.WriteEventSummary(ctx, store.EventSummary{
 		SessionID:   watchEventsRecoverySessionID,
 		WorkspaceID: strings.TrimSpace(subscription.WorkspaceID),
 		Type:        eventType,

@@ -16,8 +16,7 @@ import (
 	"unicode/utf8"
 
 	memcontract "github.com/compozy/agh/internal/memory/contract"
-	storepkg "github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb"
+	"github.com/compozy/agh/internal/testutil"
 	aghworkspace "github.com/compozy/agh/internal/workspace"
 	"github.com/goccy/go-yaml"
 )
@@ -892,7 +891,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 		baseDir := t.TempDir()
 		workspaceRoot := filepath.Join(baseDir, "workspace")
 		catalogPath := filepath.Join(baseDir, "agh.db")
-		store := NewStore(
+		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
 			WithCatalogDatabasePath(catalogPath),
 		).ForWorkspace(workspaceRoot)
@@ -957,8 +956,8 @@ func TestStoreSearchAndReindex(t *testing.T) {
 		catalogPath := filepath.Join(baseDir, "agh.db")
 		workspaceA := filepath.Join(baseDir, "workspace-a")
 		workspaceB := filepath.Join(baseDir, "workspace-b")
-		storeA := NewStore(globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceA)
-		storeB := NewStore(globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceB)
+		storeA := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceA)
+		storeB := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceB)
 		for _, store := range []*Store{storeA, storeB} {
 			if err := store.EnsureDirs(); err != nil {
 				t.Fatalf("Store.EnsureDirs() error = %v", err)
@@ -1037,7 +1036,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 
 		baseDir := t.TempDir()
 		catalogPath := filepath.Join(baseDir, "agh.db")
-		store := NewStore(
+		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
 			WithCatalogDatabasePath(catalogPath),
 		)
@@ -1078,7 +1077,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 		seedWorkspace := filepath.Join(baseDir, "workspace-seed")
 		freshWorkspace := filepath.Join(baseDir, "workspace-fresh")
 
-		seedStore := NewStore(globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(seedWorkspace)
+		seedStore := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(seedWorkspace)
 		if err := seedStore.EnsureDirs(); err != nil {
 			t.Fatalf("seedStore.EnsureDirs() error = %v", err)
 		}
@@ -1093,7 +1092,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 			t.Fatalf("seedStore.Reindex(global) error = %v", err)
 		}
 
-		freshStore := NewStore(globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(freshWorkspace)
+		freshStore := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(freshWorkspace)
 		if err := freshStore.EnsureDirs(); err != nil {
 			t.Fatalf("freshStore.EnsureDirs() error = %v", err)
 		}
@@ -1140,7 +1139,7 @@ func TestStoreSearchAndReindex(t *testing.T) {
 		baseDir := t.TempDir()
 		workspaceRoot := filepath.Join(baseDir, "workspace")
 		catalogPath := filepath.Join(baseDir, "agh.db")
-		store := NewStore(
+		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
 			WithCatalogDatabasePath(catalogPath),
 		).ForWorkspace(workspaceRoot)
@@ -1225,7 +1224,7 @@ func TestStoreConcurrentMutationDerivedState(t *testing.T) {
 		baseDir := t.TempDir()
 		workspaceRoot := filepath.Join(baseDir, "workspace")
 		totalWrites := 512
-		store := NewStore(
+		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
 			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
 		).ForWorkspace(workspaceRoot)
@@ -1305,7 +1304,7 @@ func TestStoreOperationHistoryFiltersRedactsBoundsAndPersists(t *testing.T) {
 	globalDir := filepath.Join(baseDir, "global")
 	workspaceRoot := filepath.Join(baseDir, "workspace")
 	catalogPath := filepath.Join(baseDir, "agh.db")
-	store := NewStore(globalDir, WithCatalogDatabasePath(catalogPath))
+	store := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(catalogPath))
 	workspaceStore := store.ForWorkspace(workspaceRoot)
 	if err := workspaceStore.EnsureDirs(); err != nil {
 		t.Fatalf("Store.EnsureDirs() error = %v", err)
@@ -1426,7 +1425,7 @@ func TestStoreOperationHistoryFiltersRedactsBoundsAndPersists(t *testing.T) {
 		t.Fatalf("memcontract.HealthStats() = %#v, want operation count and last operation", stats)
 	}
 
-	reopened := NewStore(globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceRoot)
+	reopened := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceRoot)
 	reopenedWrites, err := reopened.History(ctx, memcontract.OperationHistoryQuery{
 		Operation: memcontract.OperationWrite,
 		Limit:     10,
@@ -1451,8 +1450,8 @@ func TestStoreOperationHistoryIsolatesWorkspaceDefaults(t *testing.T) {
 		catalogPath := filepath.Join(baseDir, "agh.db")
 		workspaceA := filepath.Join(baseDir, "workspace-a")
 		workspaceB := filepath.Join(baseDir, "workspace-b")
-		storeA := NewStore(globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceA)
-		storeB := NewStore(globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceB)
+		storeA := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceA)
+		storeB := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceB)
 		for _, store := range []*Store{storeA, storeB} {
 			if err := store.EnsureDirs(); err != nil {
 				t.Fatalf("Store.EnsureDirs() error = %v", err)
@@ -1513,475 +1512,6 @@ func TestStoreOperationHistoryIsolatesWorkspaceDefaults(t *testing.T) {
 	})
 }
 
-func TestStoreOperationHistoryMigratesLegacyCatalogSchema(t *testing.T) {
-	t.Run("Should use independent catalog migrations in shared global database", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := context.Background()
-		baseDir := t.TempDir()
-		catalogPath := filepath.Join(baseDir, "agh.db")
-		global, err := globaldb.OpenGlobalDB(ctx, catalogPath)
-		if err != nil {
-			t.Fatalf("globaldb.OpenGlobalDB() error = %v", err)
-		}
-		if err := global.Close(ctx); err != nil {
-			t.Fatalf("global.Close() error = %v", err)
-		}
-
-		store := NewStore(
-			filepath.Join(baseDir, "global-memory"),
-			WithCatalogDatabasePath(catalogPath),
-		)
-		stats, err := store.HealthStats(ctx, nil)
-		if err != nil {
-			t.Fatalf("Store.HealthStats(shared global database) error = %v", err)
-		}
-		if stats.IndexedFiles != 0 || stats.OrphanedFiles != 0 {
-			t.Fatalf("memcontract.HealthStats() = %#v, want empty healthy catalog", stats)
-		}
-
-		var catalogMigrationCount int
-		if err := store.catalog.db.QueryRowContext(
-			ctx,
-			`SELECT COUNT(*) FROM memory_schema_migrations WHERE name = 'initial_memory_catalog_schema'`,
-		).Scan(&catalogMigrationCount); err != nil {
-			t.Fatalf("query memory_schema_migrations error = %v", err)
-		}
-		if catalogMigrationCount != 1 {
-			t.Fatalf("memory_schema_migrations count = %d, want 1", catalogMigrationCount)
-		}
-	})
-
-	t.Run("Should migrate legacy operation log columns before history queries", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := context.Background()
-		baseDir := t.TempDir()
-		catalogPath := filepath.Join(baseDir, "agh.db")
-		legacyDB, err := storepkg.OpenSQLiteDatabase(ctx, catalogPath, func(ctx context.Context, db *sql.DB) error {
-			if err := storepkg.EnsureSchema(ctx, db, []string{
-				`CREATE TABLE IF NOT EXISTS memory_operation_log (
-					id         TEXT PRIMARY KEY,
-					type       TEXT NOT NULL,
-					agent_name TEXT NOT NULL DEFAULT 'daemon',
-					summary    TEXT NOT NULL DEFAULT '',
-					timestamp  TEXT NOT NULL
-				);`,
-				`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_type ON memory_operation_log(type);`,
-				`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_timestamp ON memory_operation_log(timestamp);`,
-			}); err != nil {
-				return err
-			}
-			_, err := db.ExecContext(
-				ctx,
-				`INSERT INTO memory_operation_log (id, type, agent_name, summary, timestamp)
-				 VALUES (?, ?, ?, ?, ?)`,
-				"memevt_legacy",
-				string(memcontract.OperationWrite),
-				"daemon",
-				"legacy write",
-				storepkg.FormatTimestamp(time.Now().UTC()),
-			)
-			return err
-		})
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(legacy catalog) error = %v", err)
-		}
-		if err := legacyDB.Close(); err != nil {
-			t.Fatalf("legacyDB.Close() error = %v", err)
-		}
-
-		workspaceRoot := filepath.Join(baseDir, "workspace")
-		if err := os.MkdirAll(workspaceRoot, dirPerm); err != nil {
-			t.Fatalf("os.MkdirAll(workspaceRoot) error = %v", err)
-		}
-		store := NewStore(
-			filepath.Join(baseDir, "global"),
-			WithCatalogDatabasePath(catalogPath),
-		).ForWorkspace(workspaceRoot)
-		history, err := store.History(ctx, memcontract.OperationHistoryQuery{Limit: 10})
-		if err != nil {
-			t.Fatalf("Store.History(legacy catalog) error = %v", err)
-		}
-		if len(history) != 1 || history[0].Summary != "legacy write" {
-			t.Fatalf("legacy history = %#v, want migrated legacy record", history)
-		}
-		identity, err := aghworkspace.EnsureIdentity(ctx, workspaceRoot)
-		if err != nil {
-			t.Fatalf("workspace EnsureIdentity() error = %v", err)
-		}
-		if err := store.logCatalogEvent(ctx, memcontract.OperationRecord{
-			Operation: memcontract.OperationSearch,
-			Scope:     memcontract.ScopeWorkspace,
-			Workspace: identity.WorkspaceID,
-			Filename:  "project.md",
-			Summary:   "workspace search",
-		}); err != nil {
-			t.Fatalf("logCatalogEvent(after migration) error = %v", err)
-		}
-		workspaceHistory, err := store.History(ctx, memcontract.OperationHistoryQuery{
-			Scope:     memcontract.ScopeWorkspace,
-			Workspace: workspaceRoot,
-			Limit:     10,
-		})
-		if err != nil {
-			t.Fatalf("Store.History(workspace after migration) error = %v", err)
-		}
-		if len(workspaceHistory) != 1 || workspaceHistory[0].Filename != "project.md" {
-			t.Fatalf("workspace history = %#v, want post-migration scoped record", workspaceHistory)
-		}
-	})
-}
-
-func TestStoreMemoryV2CatalogSchemaMigrations(t *testing.T) {
-	t.Run("Should bootstrap fresh catalog databases to memory v2 head and reopen cleanly", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := context.Background()
-		baseDir := t.TempDir()
-		workspaceRoot := filepath.Join(baseDir, "workspace")
-		catalogPath := filepath.Join(baseDir, "agh.db")
-		store := NewStore(
-			filepath.Join(baseDir, "global"),
-			WithCatalogDatabasePath(catalogPath),
-		).ForWorkspace(workspaceRoot)
-		if err := store.EnsureDirs(); err != nil {
-			t.Fatalf("Store.EnsureDirs() error = %v", err)
-		}
-
-		if _, err := store.HealthStats(ctx, []string{workspaceRoot}); err != nil {
-			t.Fatalf("Store.HealthStats(fresh) error = %v", err)
-		}
-		db := store.catalog.db
-		assertMemoryCatalogSchemaHead(t, db)
-		if err := db.Close(); err != nil {
-			t.Fatalf("catalog db Close() error = %v", err)
-		}
-		store.catalog.db = nil
-
-		reopened := NewStore(
-			filepath.Join(baseDir, "global"),
-			WithCatalogDatabasePath(catalogPath),
-		).ForWorkspace(workspaceRoot)
-		if _, err := reopened.HealthStats(ctx, []string{workspaceRoot}); err != nil {
-			t.Fatalf("Store.HealthStats(reopened) error = %v", err)
-		}
-		assertMemoryCatalogSchemaHead(t, reopened.catalog.db)
-	})
-
-	t.Run("Should upgrade recall signal live schema and backfill missing chunks", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := context.Background()
-		baseDir := t.TempDir()
-		catalogPath := filepath.Join(baseDir, "recall-upgrade.db")
-		db, err := storepkg.OpenSQLiteDatabase(ctx, catalogPath, func(ctx context.Context, db *sql.DB) error {
-			return storepkg.RunMigrations(
-				ctx,
-				db,
-				catalogSchemaMigrations[:7],
-				storepkg.WithMigrationsTable(catalogMigrationsTable),
-			)
-		})
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(baseline) error = %v", err)
-		}
-		seedTime := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
-		seedMS := timeToUnixMillis(seedTime)
-		if _, err := db.ExecContext(
-			ctx,
-			`DELETE FROM memory_chunks;
-			 DELETE FROM memory_catalog_entries;
-			 INSERT INTO memory_catalog_entries (
-				id, workspace_id, scope, agent_name, agent_tier, type, slug, filename,
-				name, description, content, content_hash, injection, mtime_ms, indexed_at, updated_at
-			 ) VALUES
-				('workspace::ws_test::with_signal.md', 'ws_test', 'workspace', '', '', 'project',
-				 'with_signal', 'with_signal.md', 'With Signal', 'desc', 'with signal body',
-				 'hash-with-signal', 1, ?, ?, ?),
-				('workspace::ws_test::needs_backfill.md', 'ws_test', 'workspace', '', '', 'project',
-				 'needs_backfill', 'needs_backfill.md', 'Needs Backfill', 'desc', 'needs backfill body',
-				 'hash-needs-backfill', 1, ?, ?, ?);
-			 INSERT INTO memory_chunks (
-				id, file_id, content, content_hash, start_line, end_line, indexed_at
-			 ) VALUES (
-				'workspace::ws_test::with_signal.md::chunk:0001',
-				'workspace::ws_test::with_signal.md',
-				'with signal body',
-				'hash-with-signal-chunk',
-				1,
-				1,
-				?
-			 );
-			 DROP TABLE memory_recall_signals;
-			 CREATE TABLE memory_recall_signals (
-				chunk_id              TEXT PRIMARY KEY REFERENCES memory_chunks(id) ON DELETE CASCADE,
-				workspace_id          TEXT,
-				last_recalled_at      INTEGER NOT NULL,
-				recall_count          INTEGER NOT NULL DEFAULT 0,
-				session_count         INTEGER NOT NULL DEFAULT 0,
-				last_session_id       TEXT,
-				already_surfaced_json TEXT NOT NULL DEFAULT '[]',
-				updated_at            INTEGER NOT NULL
-			 );
-			 INSERT INTO memory_recall_signals (
-				chunk_id, workspace_id, last_recalled_at, recall_count, updated_at
-			 ) VALUES (
-				'workspace::ws_test::with_signal.md::chunk:0001', 'ws_test', ?, 2, ?
-			 );`,
-			seedMS,
-			seedMS,
-			storepkg.FormatTimestamp(seedTime),
-			seedMS,
-			seedMS,
-			storepkg.FormatTimestamp(seedTime),
-			seedMS,
-			seedMS,
-			seedMS,
-		); err != nil {
-			t.Fatalf("seed recall upgrade baseline error = %v", err)
-		}
-		if err := db.Close(); err != nil {
-			t.Fatalf("baseline db Close() error = %v", err)
-		}
-
-		reopened, err := storepkg.OpenSQLiteDatabase(ctx, catalogPath, func(ctx context.Context, db *sql.DB) error {
-			return storepkg.RunMigrations(
-				ctx,
-				db,
-				catalogSchemaMigrations,
-				storepkg.WithMigrationsTable(catalogMigrationsTable),
-			)
-		})
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(upgrade) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := reopened.Close(); err != nil {
-				t.Fatalf("upgraded db Close() error = %v", err)
-			}
-		})
-
-		assertMemoryCatalogSchemaHead(t, reopened)
-		var recallCount int
-		if err := reopened.QueryRowContext(
-			ctx,
-			`SELECT recall_count FROM memory_recall_signals WHERE chunk_id = ?`,
-			"workspace::ws_test::with_signal.md::chunk:0001",
-		).Scan(&recallCount); err != nil {
-			t.Fatalf("query upgraded recall signal error = %v", err)
-		}
-		if recallCount != 2 {
-			t.Fatalf("upgraded recall_count = %d, want preserved value 2", recallCount)
-		}
-		var backfilled int
-		if err := reopened.QueryRowContext(
-			ctx,
-			`SELECT COUNT(*) FROM memory_chunks WHERE file_id = ?`,
-			"workspace::ws_test::needs_backfill.md",
-		).Scan(&backfilled); err != nil {
-			t.Fatalf("query backfilled chunk count error = %v", err)
-		}
-		if backfilled != 1 {
-			t.Fatalf("backfilled chunk count = %d, want 1", backfilled)
-		}
-	})
-
-	t.Run("Should backfill legacy path-keyed workspace rows idempotently", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := context.Background()
-		baseDir := t.TempDir()
-		workspaceRoot := filepath.Join(baseDir, "workspace")
-		if err := os.MkdirAll(workspaceRoot, dirPerm); err != nil {
-			t.Fatalf("os.MkdirAll(workspaceRoot) error = %v", err)
-		}
-		catalogPath := filepath.Join(baseDir, "legacy.db")
-		legacyDB, err := storepkg.OpenSQLiteDatabase(ctx, catalogPath, func(ctx context.Context, db *sql.DB) error {
-			if err := storepkg.EnsureSchema(ctx, db, []string{
-				`CREATE TABLE IF NOT EXISTS memory_catalog_entries (
-					id             TEXT PRIMARY KEY,
-					scope          TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
-					workspace_id   TEXT NOT NULL DEFAULT '',
-					workspace_root TEXT NOT NULL DEFAULT '',
-					filename       TEXT NOT NULL,
-					type           TEXT NOT NULL,
-					name           TEXT NOT NULL,
-					description    TEXT NOT NULL DEFAULT '',
-					content        TEXT NOT NULL,
-					content_hash   TEXT NOT NULL,
-					updated_at     TEXT NOT NULL,
-					UNIQUE (scope, workspace_root, filename)
-				);`,
-				`CREATE INDEX IF NOT EXISTS idx_memory_catalog_workspace_root
-					ON memory_catalog_entries(workspace_root);`,
-				`CREATE TABLE IF NOT EXISTS memory_operation_log (
-					id             TEXT PRIMARY KEY,
-					type           TEXT NOT NULL,
-					scope          TEXT NOT NULL DEFAULT '',
-					workspace_root TEXT NOT NULL DEFAULT '',
-					filename       TEXT NOT NULL DEFAULT '',
-					agent_name     TEXT NOT NULL DEFAULT 'daemon',
-					summary        TEXT NOT NULL DEFAULT '',
-					timestamp      TEXT NOT NULL
-				);`,
-			}); err != nil {
-				return err
-			}
-			updatedAt := storepkg.FormatTimestamp(time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC))
-			if _, err := db.ExecContext(
-				ctx,
-				`INSERT INTO memory_catalog_entries (
-					id, scope, workspace_root, filename, type, name, description, content,
-					content_hash, updated_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				"legacy_project",
-				string(memcontract.ScopeWorkspace),
-				workspaceRoot,
-				"project.md",
-				string(memcontract.TypeProject),
-				"Project Memory",
-				"legacy workspace row",
-				"Legacy workspace content",
-				"legacy-hash",
-				updatedAt,
-			); err != nil {
-				return err
-			}
-			_, err := db.ExecContext(
-				ctx,
-				`INSERT INTO memory_operation_log (
-					id, type, scope, workspace_root, filename, agent_name, summary, timestamp
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-				"memevt_legacy_workspace",
-				string(memcontract.OperationWrite),
-				string(memcontract.ScopeWorkspace),
-				workspaceRoot,
-				"project.md",
-				"daemon",
-				"legacy workspace write",
-				updatedAt,
-			)
-			return err
-		})
-		if err != nil {
-			t.Fatalf("OpenSQLiteDatabase(legacy catalog) error = %v", err)
-		}
-		if err := legacyDB.Close(); err != nil {
-			t.Fatalf("legacyDB.Close() error = %v", err)
-		}
-
-		store := NewStore(
-			filepath.Join(baseDir, "global"),
-			WithCatalogDatabasePath(catalogPath),
-		).ForWorkspace(workspaceRoot)
-		db, err := store.catalog.ensureDB(ctx)
-		if err != nil {
-			t.Fatalf("catalog.ensureDB(migrated) error = %v", err)
-		}
-		identity, err := aghworkspace.EnsureIdentity(ctx, workspaceRoot)
-		if err != nil {
-			t.Fatalf("workspace EnsureIdentity() error = %v", err)
-		}
-
-		assertMemoryCatalogSchemaHead(t, db)
-		columns := memoryCatalogColumns(t, db, "memory_catalog_entries")
-		if _, exists := columns["workspace_root"]; exists {
-			t.Fatal("memory_catalog_entries.workspace_root still exists after memory v2 migration")
-		}
-
-		var catalogWorkspaceID string
-		if err := store.catalog.db.QueryRowContext(
-			ctx,
-			`SELECT workspace_id FROM memory_catalog_entries WHERE filename = ?`,
-			"project.md",
-		).Scan(&catalogWorkspaceID); err != nil {
-			t.Fatalf("query migrated catalog workspace_id error = %v", err)
-		}
-		if got, want := catalogWorkspaceID, identity.WorkspaceID; got != want {
-			t.Fatalf("catalog workspace_id = %q, want %q", got, want)
-		}
-		var ftsMatches int
-		if err := db.QueryRowContext(
-			ctx,
-			`SELECT COUNT(*) FROM memory_catalog_fts WHERE memory_catalog_fts MATCH ?`,
-			"legacy",
-		).Scan(&ftsMatches); err != nil {
-			t.Fatalf("query rebuilt catalog FTS error = %v", err)
-		}
-		if ftsMatches != 1 {
-			t.Fatalf("rebuilt catalog FTS matches = %d, want 1", ftsMatches)
-		}
-
-		var (
-			eventOp          string
-			eventWorkspaceID string
-		)
-		if err := store.catalog.db.QueryRowContext(
-			ctx,
-			`SELECT op, workspace_id FROM memory_events WHERE target_id = ?`,
-			"project.md",
-		).Scan(&eventOp, &eventWorkspaceID); err != nil {
-			t.Fatalf("query migrated memory event error = %v", err)
-		}
-		if got, want := eventOp, memoryEventWriteCommitted; got != want {
-			t.Fatalf("event op = %q, want %q", got, want)
-		}
-		if got, want := eventWorkspaceID, identity.WorkspaceID; got != want {
-			t.Fatalf("event workspace_id = %q, want %q", got, want)
-		}
-		if memoryTestTableExists(t, store.catalog.db, "memory_operation_log") {
-			t.Fatal("memory_operation_log still exists after memory v2 migration")
-		}
-		stats, err := store.HealthStats(ctx, []string{workspaceRoot})
-		if err != nil {
-			t.Fatalf("Store.HealthStats(authoritative empty reindex) error = %v", err)
-		}
-		if stats.IndexedFiles != 0 {
-			t.Fatalf("Store.HealthStats(authoritative empty reindex).IndexedFiles = %d, want 0", stats.IndexedFiles)
-		}
-		if got := memoryCatalogEntryCount(t, db); got != 0 {
-			t.Fatalf("memory catalog row count after authoritative empty reindex = %d, want 0", got)
-		}
-		ready, err := store.catalog.scopeReady(ctx, memcontract.ScopeWorkspace, identity.WorkspaceID)
-		if err != nil {
-			t.Fatalf("catalog.scopeReady(authoritative empty reindex) error = %v", err)
-		}
-		if !ready {
-			t.Fatal("catalog.scopeReady(authoritative empty reindex) = false, want true")
-		}
-		if err := db.QueryRowContext(
-			ctx,
-			`SELECT COUNT(*) FROM memory_catalog_fts WHERE memory_catalog_fts MATCH ?`,
-			"legacy",
-		).Scan(&ftsMatches); err != nil {
-			t.Fatalf("query catalog FTS after authoritative empty reindex error = %v", err)
-		}
-		if ftsMatches != 0 {
-			t.Fatalf("catalog FTS matches after authoritative empty reindex = %d, want 0", ftsMatches)
-		}
-		firstMigrationCount := memoryCatalogMigrationCount(t, store.catalog.db)
-
-		if err := store.catalog.db.Close(); err != nil {
-			t.Fatalf("catalog db Close() error = %v", err)
-		}
-		store.catalog.db = nil
-		reopened := NewStore(
-			filepath.Join(baseDir, "global"),
-			WithCatalogDatabasePath(catalogPath),
-		).ForWorkspace(workspaceRoot)
-		if _, err := reopened.HealthStats(ctx, []string{workspaceRoot}); err != nil {
-			t.Fatalf("Store.HealthStats(reopened migrated) error = %v", err)
-		}
-		if got, want := memoryCatalogMigrationCount(t, reopened.catalog.db), firstMigrationCount; got != want {
-			t.Fatalf("memory migration count after reopen = %d, want %d", got, want)
-		}
-		if got, want := memoryCatalogEntryCount(t, reopened.catalog.db), 0; got != want {
-			t.Fatalf("memory catalog row count after reopen = %d, want %d", got, want)
-		}
-	})
-}
-
 func TestStoreSearchTreatsFTSReservedWordsAsLiteralTerms(t *testing.T) {
 	t.Run("Should treat FTS reserved words as literal search terms", func(t *testing.T) {
 		t.Parallel()
@@ -1989,7 +1519,7 @@ func TestStoreSearchTreatsFTSReservedWordsAsLiteralTerms(t *testing.T) {
 		baseDir := t.TempDir()
 		workspaceRoot := filepath.Join(baseDir, "workspace")
 		catalogPath := filepath.Join(baseDir, "agh.db")
-		store := NewStore(
+		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
 			WithCatalogDatabasePath(catalogPath),
 		).ForWorkspace(workspaceRoot)
@@ -2027,17 +1557,17 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 
 		baseDir := t.TempDir()
 		workspaceRoot := filepath.Join(baseDir, "workspace")
-		catalogPath := filepath.Join(baseDir, "catalog-dir")
-		if err := os.MkdirAll(catalogPath, dirPerm); err != nil {
-			t.Fatalf("os.MkdirAll(%q) error = %v", catalogPath, err)
-		}
+		catalogPath := filepath.Join(baseDir, "agh.db")
 
-		store := NewStore(
+		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
 			WithCatalogDatabasePath(catalogPath),
 		).ForWorkspace(workspaceRoot)
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+		if err := store.CloseCatalog(testutil.Context(t)); err != nil {
+			t.Fatalf("Store.CloseCatalog() error = %v", err)
 		}
 
 		var logs bytes.Buffer
@@ -2075,7 +1605,7 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 
 		ctx := context.Background()
 		baseDir := t.TempDir()
-		store := NewStore(
+		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
 			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
 		)
@@ -2183,7 +1713,7 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 
 		ctx := context.Background()
 		baseDir := t.TempDir()
-		store := NewStore(
+		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
 			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
 		)
@@ -2239,7 +1769,7 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "global")
 		catalogPath := filepath.Join(baseDir, "agh.db")
-		store := NewStore(globalDir, WithCatalogDatabasePath(catalogPath))
+		store := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(catalogPath))
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
@@ -2321,14 +1851,14 @@ func TestStoreMutationsStaySuccessfulWhenDerivedSyncFails(t *testing.T) {
 		if !strings.Contains(logs.String(), "catalog identity invalidation failed after derived sync failure") {
 			t.Fatalf("logs = %q, want secondary invalidation warning", logs.String())
 		}
-		probe := NewStore(globalDir, WithCatalogDatabasePath(catalogPath))
+		probe := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(catalogPath))
 		if _, err := probe.CatalogHeaders(ctx, memcontract.ScopeGlobal); err == nil {
 			t.Fatal("restarted Store.CatalogHeaders() error = nil, want dirty marker to force a rebuild")
 		}
 		dropInsertTrigger()
 		dropStateTrigger()
 
-		restarted := NewStore(globalDir, WithCatalogDatabasePath(catalogPath))
+		restarted := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(catalogPath))
 		if err := restarted.EnsureDirs(); err != nil {
 			t.Fatalf("restarted Store.EnsureDirs() error = %v", err)
 		}
@@ -2441,7 +1971,9 @@ func TestStoreEnsureDirs(t *testing.T) {
 	t.Parallel()
 
 	baseDir := t.TempDir()
-	store := NewStore(filepath.Join(baseDir, "home", "memory")).ForWorkspace(filepath.Join(baseDir, "workspace"))
+	store := newOpenTestStore(t, filepath.Join(baseDir, "home", "memory")).ForWorkspace(
+		filepath.Join(baseDir, "workspace"),
+	)
 
 	if err := store.EnsureDirs(); err != nil {
 		t.Fatalf("Store.EnsureDirs() error = %v", err)
@@ -2457,7 +1989,7 @@ func TestStoreEnsureDirs(t *testing.T) {
 		}
 	}
 
-	baseStore := NewStore(filepath.Join(baseDir, "only-global"))
+	baseStore := newOpenTestStore(t, filepath.Join(baseDir, "only-global"))
 	if err := baseStore.EnsureDirs(); err != nil {
 		t.Fatalf("Store.EnsureDirs() with global-only store error = %v", err)
 	}
@@ -2485,7 +2017,7 @@ func TestStoreNormalizesExplicitWorkspacePaths(t *testing.T) {
 
 			baseDir := t.TempDir()
 			workspaceRoot := filepath.Join(baseDir, "workspace")
-			store := NewStore(
+			store := newOpenTestStore(t,
 				filepath.Join(baseDir, "global"),
 				WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
 			).ForWorkspace(workspaceRoot)
@@ -2525,7 +2057,7 @@ func TestStoreNormalizesExplicitWorkspacePaths(t *testing.T) {
 
 		baseDir := t.TempDir()
 		workspaceRoot := filepath.Join(baseDir, "workspace")
-		store := NewStore(
+		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
 			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
 		).ForWorkspace(workspaceRoot)
@@ -2578,7 +2110,7 @@ func TestStoreRejectsInvalidInputs(t *testing.T) {
 		{
 			name: "missing workspace directory",
 			run: func(env *testStoreEnv) error {
-				_, err := NewStore(env.store.globalDir).Scan(memcontract.ScopeWorkspace)
+				_, err := newOpenTestStore(t, env.store.globalDir).Scan(memcontract.ScopeWorkspace)
 				return err
 			},
 			wantErr: "workspace directory is required",
@@ -2655,7 +2187,7 @@ func TestStoreScanMissingDirectoryReturnsEmpty(t *testing.T) {
 	t.Parallel()
 
 	baseDir := t.TempDir()
-	store := NewStore(filepath.Join(baseDir, "global")).ForWorkspace(filepath.Join(baseDir, "workspace"))
+	store := newOpenTestStore(t, filepath.Join(baseDir, "global")).ForWorkspace(filepath.Join(baseDir, "workspace"))
 
 	headers, err := store.Scan(memcontract.ScopeWorkspace)
 	if err != nil {
@@ -2791,242 +2323,6 @@ func TestStoreExists(t *testing.T) {
 	}
 }
 
-func assertMemoryCatalogSchemaHead(t *testing.T, db *sql.DB) {
-	t.Helper()
-
-	if db == nil {
-		t.Fatal("catalog db = nil, want opened database")
-	}
-	if got, want := memoryCatalogMigrationCount(t, db), len(catalogSchemaMigrations); got != want {
-		t.Fatalf("memory catalog migration count = %d, want %d", got, want)
-	}
-	for _, migration := range catalogSchemaMigrations {
-		var count int
-		if err := db.QueryRowContext(
-			context.Background(),
-			`SELECT COUNT(*) FROM memory_schema_migrations WHERE version = ? AND name = ?`,
-			migration.Version,
-			migration.Name,
-		).Scan(&count); err != nil {
-			t.Fatalf("query memory_schema_migrations(%d/%s) error = %v", migration.Version, migration.Name, err)
-		}
-		if count != 1 {
-			t.Fatalf("memory_schema_migrations(%d/%s) count = %d, want 1", migration.Version, migration.Name, count)
-		}
-	}
-
-	for _, table := range []string{
-		"memory_catalog_entries",
-		"memory_catalog_fts",
-		"memory_chunks",
-		"memory_chunks_fts",
-		"memory_chunks_fts_trigram",
-		"memory_events",
-		"memory_decisions",
-		"memory_recall_signals",
-		"memory_consolidations",
-	} {
-		if !memoryTestTableExists(t, db, table) {
-			t.Fatalf("table %q does not exist", table)
-		}
-	}
-
-	assertMemoryCatalogColumns(t, db, "memory_catalog_entries", []string{
-		"id",
-		"workspace_id",
-		"scope",
-		"agent_name",
-		"agent_tier",
-		"type",
-		"slug",
-		"filename",
-		"name",
-		"description",
-		"content",
-		"content_hash",
-		"injection",
-		"mtime_ms",
-		"indexed_at",
-		"updated_at",
-	})
-	if columns := memoryCatalogColumns(t, db, "memory_catalog_entries"); hasColumn(columns, "workspace_root") {
-		t.Fatal("memory_catalog_entries has legacy workspace_root column")
-	}
-	assertMemoryCatalogColumns(t, db, "memory_chunks", []string{
-		"id",
-		"file_id",
-		"content",
-		"content_hash",
-		"start_line",
-		"end_line",
-		"indexed_at",
-	})
-	assertMemoryCatalogColumns(t, db, "memory_events", []string{
-		"id",
-		"op",
-		"scope",
-		"agent_name",
-		"agent_tier",
-		"workspace_id",
-		"session_id",
-		"actor_kind",
-		"decision_id",
-		"target_id",
-		"metadata",
-		"ts_ms",
-	})
-	assertMemoryCatalogColumns(t, db, "memory_decisions", []string{
-		"id",
-		"candidate_hash",
-		"idempotency_key",
-		"frontmatter_hash",
-		"workspace_id",
-		"scope",
-		"agent_name",
-		"agent_tier",
-		"op",
-		"targets",
-		"target_filename",
-		"frontmatter",
-		"post_content",
-		"post_content_hash",
-		"prior_content",
-		"confidence",
-		"source",
-		"rule_trace",
-		"llm_trace",
-		"reason",
-		"prompt_version",
-		"applied_at",
-		"decided_at",
-	})
-	assertMemoryCatalogColumns(t, db, "memory_recall_signals", []string{
-		"chunk_id",
-		"workspace_id",
-		"recall_count",
-		"last_recalled_at",
-		"recall_score",
-		"freshness_started_at",
-		"promoted_at",
-		"promotion_run_id",
-		"last_score_update_at",
-		"session_count",
-		"last_session_id",
-		"already_surfaced_json",
-		"updated_at",
-	})
-	assertMemoryCatalogColumns(t, db, "memory_consolidations", []string{
-		"id",
-		"workspace_id",
-		"scope",
-		"agent_name",
-		"agent_tier",
-		"started_at",
-		"finished_at",
-		"status",
-		"input_count",
-		"promoted_count",
-		"error",
-		"metadata",
-	})
-}
-
-func assertMemoryCatalogColumns(t *testing.T, db *sql.DB, table string, want []string) {
-	t.Helper()
-
-	columns := memoryCatalogColumns(t, db, table)
-	for _, column := range want {
-		if !hasColumn(columns, column) {
-			t.Fatalf("%s missing column %q; columns=%#v", table, column, columns)
-		}
-	}
-}
-
-func memoryCatalogColumns(t *testing.T, db *sql.DB, table string) map[string]struct{} {
-	t.Helper()
-
-	name, err := storepkg.NormalizeSQLiteIdentifier(table)
-	if err != nil {
-		t.Fatalf("NormalizeSQLiteIdentifier(%q) error = %v", table, err)
-	}
-	rows, err := db.QueryContext(context.Background(), fmt.Sprintf(`PRAGMA table_info(%s)`, name))
-	if err != nil {
-		t.Fatalf("PRAGMA table_info(%s) error = %v", table, err)
-	}
-	defer func() {
-		_ = rows.Close()
-	}()
-
-	columns := map[string]struct{}{}
-	for rows.Next() {
-		var (
-			cid        int
-			columnName string
-			columnType string
-			notNull    int
-			defaultVal sql.NullString
-			pk         int
-		)
-		if err := rows.Scan(&cid, &columnName, &columnType, &notNull, &defaultVal, &pk); err != nil {
-			t.Fatalf("scan table_info(%s) error = %v", table, err)
-		}
-		columns[columnName] = struct{}{}
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate table_info(%s) error = %v", table, err)
-	}
-	return columns
-}
-
-func hasColumn(columns map[string]struct{}, name string) bool {
-	_, exists := columns[name]
-	return exists
-}
-
-func memoryTestTableExists(t *testing.T, db *sql.DB, table string) bool {
-	t.Helper()
-
-	var name string
-	err := db.QueryRowContext(
-		context.Background(),
-		`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`,
-		table,
-	).Scan(&name)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false
-	}
-	if err != nil {
-		t.Fatalf("query sqlite_master(%s) error = %v", table, err)
-	}
-	return true
-}
-
-func memoryCatalogMigrationCount(t *testing.T, db *sql.DB) int {
-	t.Helper()
-
-	var count int
-	if err := db.QueryRowContext(
-		context.Background(),
-		`SELECT COUNT(*) FROM memory_schema_migrations`,
-	).Scan(&count); err != nil {
-		t.Fatalf("query memory_schema_migrations count error = %v", err)
-	}
-	return count
-}
-
-func memoryCatalogEntryCount(t *testing.T, db *sql.DB) int {
-	t.Helper()
-
-	var count int
-	if err := db.QueryRowContext(
-		context.Background(),
-		`SELECT COUNT(*) FROM memory_catalog_entries`,
-	).Scan(&count); err != nil {
-		t.Fatalf("query memory_catalog_entries count error = %v", err)
-	}
-	return count
-}
-
 type testStoreEnv struct {
 	store *Store
 }
@@ -3036,7 +2332,7 @@ func newTestStoreEnv(t *testing.T) *testStoreEnv {
 
 	baseDir := t.TempDir()
 	workspaceRoot := filepath.Join(baseDir, "workspace")
-	store := NewStore(filepath.Join(baseDir, "global")).ForWorkspace(workspaceRoot)
+	store := newOpenTestStore(t, filepath.Join(baseDir, "global")).ForWorkspace(workspaceRoot)
 	if err := store.EnsureDirs(); err != nil {
 		t.Fatalf("Store.EnsureDirs() error = %v", err)
 	}

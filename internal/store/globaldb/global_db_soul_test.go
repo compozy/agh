@@ -1,8 +1,6 @@
 package globaldb
 
 import (
-	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"path/filepath"
@@ -16,132 +14,6 @@ import (
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/testutil"
 )
-
-func TestGlobalDBSoulMigration(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should create Soul tables session columns indexes before Heartbeat migration", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		globalDB := openTestGlobalDB(t)
-
-		assertTableColumns(t, globalDB.db, "agent_soul_snapshots", []string{
-			"id",
-			"workspace_id",
-			"agent_name",
-			"source_path",
-			"digest",
-			"profile_json",
-			"body",
-			"truncated",
-			"created_at",
-		})
-		assertTableColumns(t, globalDB.db, "agent_soul_revisions", []string{
-			"id",
-			"workspace_id",
-			"agent_name",
-			"source_path",
-			"action",
-			"previous_digest",
-			"new_digest",
-			"body",
-			"diagnostics_json",
-			"actor_kind",
-			"actor_id",
-			"origin_kind",
-			"origin_ref",
-			"created_at",
-		})
-		assertIndexesPresent(t, globalDB.db, "agent_soul_snapshots", "idx_agent_soul_snapshots_agent")
-		assertIndexesPresent(t, globalDB.db, "agent_soul_revisions", "idx_agent_soul_revisions_agent")
-		assertIndexesPresent(t, globalDB.db, "sessions", "idx_sessions_soul_snapshot")
-		assertSoulSessionColumns(t, globalDB.db)
-
-		records, err := store.AppliedMigrations(ctx, globalDB.db)
-		if err != nil {
-			t.Fatalf("AppliedMigrations() error = %v", err)
-		}
-		if got, want := len(records), len(globalSchemaMigrations); got != want {
-			t.Fatalf("len(records) = %d, want %d", got, want)
-		}
-		soulRecord := records[11]
-		if soulRecord.Version != 12 || soulRecord.Name != "add_agent_soul_snapshots" {
-			t.Fatalf("records[11] = %#v, want add_agent_soul_snapshots v12", soulRecord)
-		}
-		heartbeatRecord := records[12]
-		if heartbeatRecord.Version != 13 || heartbeatRecord.Name != "add_agent_heartbeat_storage" {
-			t.Fatalf("records[12] = %#v, want add_agent_heartbeat_storage v13", heartbeatRecord)
-		}
-		assertAppliedGlobalMigrationOrder(t, records)
-		for _, table := range []string{"soul_snapshots", "soul_revisions"} {
-			exists, err := tableExists(ctx, globalDB.db, table)
-			if err != nil {
-				t.Fatalf("tableExists(%q) error = %v", table, err)
-			}
-			if exists {
-				t.Fatalf("table %q exists, want no legacy bridge table", table)
-			}
-		}
-
-		missingWorkspace := soulSnapshotForTest("snap-missing-workspace", "ws-missing", "coder", "sha256:missing")
-		if _, err := globalDB.UpsertSoulSnapshot(ctx, missingWorkspace); err == nil {
-			t.Fatal("UpsertSoulSnapshot(missing workspace) error = nil, want foreign key failure")
-		}
-	})
-
-	t.Run("Should roll back a failed migration without partial schema state", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t)
-		db := openRawSQLiteForSoulTest(ctx, t)
-		forced := errors.New("forced soul migration failure")
-
-		err := store.RunMigrations(ctx, db, []store.Migration{
-			{
-				Version: 1,
-				Name:    "create_probe_base",
-				Statements: []string{
-					`CREATE TABLE sessions (id TEXT PRIMARY KEY);`,
-				},
-			},
-			{
-				Version:  12,
-				Name:     "add_agent_soul_snapshots",
-				Checksum: "test-forced-soul-migration-failure",
-				Up: func(ctx context.Context, tx *sql.Tx) error {
-					if _, err := tx.ExecContext(
-						ctx,
-						`CREATE TABLE migration_probe (id TEXT PRIMARY KEY);`,
-					); err != nil {
-						return err
-					}
-					return forced
-				},
-			},
-		})
-		if !errors.Is(err, forced) {
-			t.Fatalf("RunMigrations() error = %v, want forced migration failure", err)
-		}
-		if !strings.Contains(err.Error(), `apply migration 12 "add_agent_soul_snapshots"`) {
-			t.Fatalf("RunMigrations() error = %q, want wrapped migration context", err.Error())
-		}
-		exists, err := tableExists(ctx, db, "migration_probe")
-		if err != nil {
-			t.Fatalf("tableExists(migration_probe) error = %v", err)
-		}
-		if exists {
-			t.Fatal("migration_probe exists after failed migration, want transaction rollback")
-		}
-		records, err := store.AppliedMigrations(ctx, db)
-		if err != nil {
-			t.Fatalf("AppliedMigrations() error = %v", err)
-		}
-		if got, want := len(records), 1; got != want {
-			t.Fatalf("len(records) = %d, want only committed base migration", got)
-		}
-	})
-}
 
 func TestGlobalDBSoulSnapshotStore(t *testing.T) {
 	t.Parallel()
@@ -732,35 +604,6 @@ func soulRevisionForTest(
 		OriginKind:      "test",
 		OriginRef:       "global_db_soul_test",
 		CreatedAt:       time.Date(2026, 5, 2, 9, 0, 0, 0, time.UTC),
-	}
-}
-
-func openRawSQLiteForSoulTest(ctx context.Context, t *testing.T) *sql.DB {
-	t.Helper()
-
-	db, err := store.OpenSQLiteDatabase(ctx, filepath.Join(t.TempDir(), "soul-migration-failure.db"), nil)
-	if err != nil {
-		t.Fatalf("OpenSQLiteDatabase() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
-			t.Fatalf("Close(raw sqlite) error = %v", err)
-		}
-	})
-	return db
-}
-
-func assertSoulSessionColumns(t *testing.T, db *sql.DB) {
-	t.Helper()
-
-	columns, err := tableColumns(testutil.Context(t), db, "sessions")
-	if err != nil {
-		t.Fatalf("tableColumns(sessions) error = %v", err)
-	}
-	for _, column := range []string{"soul_snapshot_id", "soul_digest", "parent_soul_digest"} {
-		if _, ok := columns[column]; !ok {
-			t.Fatalf("sessions column %q missing in %#v", column, columns)
-		}
 	}
 }
 

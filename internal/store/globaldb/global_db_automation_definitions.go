@@ -7,11 +7,11 @@ import (
 	"fmt"
 
 	automation "github.com/compozy/agh/internal/automation/model"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 // CreateJob stores a new automation job definition.
-func (g *GlobalDB) CreateJob(ctx context.Context, job automation.Job) (created automation.Job, err error) {
+func (g *AutomationRepo) CreateJob(ctx context.Context, job automation.Job) (created automation.Job, err error) {
 	if err := g.checkReady(ctx, "create automation job"); err != nil {
 		return automation.Job{}, err
 	}
@@ -37,7 +37,7 @@ func (g *GlobalDB) CreateJob(ctx context.Context, job automation.Job) (created a
 }
 
 // UpdateJob replaces the mutable fields of a persisted automation job definition.
-func (g *GlobalDB) UpdateJob(ctx context.Context, job automation.Job) (updated automation.Job, err error) {
+func (g *AutomationRepo) UpdateJob(ctx context.Context, job automation.Job) (updated automation.Job, err error) {
 	if err := g.checkReady(ctx, "update automation job"); err != nil {
 		return automation.Job{}, err
 	}
@@ -45,7 +45,7 @@ func (g *GlobalDB) UpdateJob(ctx context.Context, job automation.Job) (updated a
 	if err != nil {
 		return automation.Job{}, err
 	}
-	scheduleJSON, taskJSON, retryJSON, fireLimitJSON, loopTarget, err := encodeJobRecord(normalized)
+	params, err := automationJobUpdateParams(normalized)
 	if err != nil {
 		return automation.Job{}, err
 	}
@@ -54,33 +54,7 @@ func (g *GlobalDB) UpdateJob(ctx context.Context, job automation.Job) (updated a
 		return automation.Job{}, fmt.Errorf("store: begin update automation job %q: %w", normalized.ID, err)
 	}
 	defer rollbackAutomationDefinitionTx(&err, tx, "update automation job")
-	result, err := tx.ExecContext(
-		ctx,
-		`UPDATE automation_jobs
-		 SET scope = ?, name = ?, agent_name = ?, workspace_id = ?, prompt = ?,
-		     schedule = ?, task = ?, enabled = ?, retry = ?, fire_limit = ?,
-		     source = ?, target_kind = ?, loop_workspace_id = ?, loop_name = ?,
-		     loop_inputs = ?, loop_input_mapping = ?, updated_at = ?
-		 WHERE id = ?`,
-		normalized.Scope,
-		normalized.Name,
-		normalized.AgentName,
-		store.NullableString(normalized.WorkspaceID),
-		normalized.Prompt,
-		scheduleJSON,
-		taskJSON,
-		normalized.Enabled,
-		retryJSON,
-		fireLimitJSON,
-		normalized.Source,
-		normalized.TargetKind,
-		store.NullableString(loopTarget.workspaceID),
-		store.NullableString(loopTarget.loopName),
-		loopTarget.inputsJSON,
-		loopTarget.inputMappingJSON,
-		store.FormatTimestamp(normalized.UpdatedAt),
-		normalized.ID,
-	)
+	affected, err := sqlcgen.New(tx).UpdateAutomationJob(ctx, params)
 	if err != nil {
 		return automation.Job{}, fmt.Errorf(
 			"store: update automation job %q: %w",
@@ -88,7 +62,12 @@ func (g *GlobalDB) UpdateJob(ctx context.Context, job automation.Job) (updated a
 			mapAutomationJobConstraintError(err),
 		)
 	}
-	if err := requireRowsAffected(result, automation.ErrJobNotFound, normalized.ID, "automation job"); err != nil {
+	if err := requireAutomationAffected(
+		affected,
+		automation.ErrJobNotFound,
+		normalized.ID,
+		"automation job",
+	); err != nil {
 		return automation.Job{}, err
 	}
 	if err := upsertAutomationJobCatalog(ctx, tx, normalized); err != nil {
@@ -101,7 +80,7 @@ func (g *GlobalDB) UpdateJob(ctx context.Context, job automation.Job) (updated a
 }
 
 // DeleteJob removes an automation job definition.
-func (g *GlobalDB) DeleteJob(ctx context.Context, id string) error {
+func (g *AutomationRepo) DeleteJob(ctx context.Context, id string) error {
 	if err := g.checkReady(ctx, "delete automation job"); err != nil {
 		return err
 	}
@@ -109,15 +88,15 @@ func (g *GlobalDB) DeleteJob(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	result, err := g.db.ExecContext(ctx, `DELETE FROM automation_jobs WHERE id = ?`, trimmedID)
+	affected, err := g.queries.DeleteAutomationJob(ctx, trimmedID)
 	if err != nil {
 		return fmt.Errorf("store: delete automation job %q: %w", trimmedID, mapAutomationJobConstraintError(err))
 	}
-	return requireRowsAffected(result, automation.ErrJobNotFound, trimmedID, "automation job")
+	return requireAutomationAffected(affected, automation.ErrJobNotFound, trimmedID, "automation job")
 }
 
 // GetJob loads one persisted automation job definition by primary key.
-func (g *GlobalDB) GetJob(ctx context.Context, id string) (automation.Job, error) {
+func (g *AutomationRepo) GetJob(ctx context.Context, id string) (automation.Job, error) {
 	if err := g.checkReady(ctx, "get automation job"); err != nil {
 		return automation.Job{}, err
 	}
@@ -125,11 +104,18 @@ func (g *GlobalDB) GetJob(ctx context.Context, id string) (automation.Job, error
 	if err != nil {
 		return automation.Job{}, err
 	}
-	return g.getJobByQuery(ctx, automationJobRichSelectSQL+` WHERE id = ?`, trimmedID)
+	row, err := g.queries.GetAutomationJob(ctx, trimmedID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return automation.Job{}, automation.ErrJobNotFound
+		}
+		return automation.Job{}, err
+	}
+	return automationJobFromGenerated(row)
 }
 
 // CreateTrigger stores a new automation trigger definition.
-func (g *GlobalDB) CreateTrigger(
+func (g *AutomationRepo) CreateTrigger(
 	ctx context.Context,
 	trigger automation.Trigger,
 ) (created automation.Trigger, err error) {
@@ -166,7 +152,7 @@ func (g *GlobalDB) CreateTrigger(
 }
 
 // UpdateTrigger replaces the mutable fields of a persisted automation trigger definition.
-func (g *GlobalDB) UpdateTrigger(
+func (g *AutomationRepo) UpdateTrigger(
 	ctx context.Context,
 	trigger automation.Trigger,
 ) (updated automation.Trigger, err error) {
@@ -177,7 +163,7 @@ func (g *GlobalDB) UpdateTrigger(
 	if err != nil {
 		return automation.Trigger{}, err
 	}
-	filterJSON, retryJSON, fireLimitJSON, loopTarget, err := encodeTriggerRecord(normalized)
+	params, err := automationTriggerUpdateParams(normalized)
 	if err != nil {
 		return automation.Trigger{}, err
 	}
@@ -190,46 +176,16 @@ func (g *GlobalDB) UpdateTrigger(
 		)
 	}
 	defer rollbackAutomationDefinitionTx(&err, tx, "update automation trigger")
-	result, err := tx.ExecContext(
-		ctx,
-		`UPDATE automation_triggers
-		 SET scope = ?, name = ?, agent_name = ?, workspace_id = ?, prompt = ?,
-		     event = ?, filter = ?, enabled = ?, retry = ?, fire_limit = ?,
-		     source = ?, webhook_id = ?, endpoint_slug = ?, webhook_secret_ref = ?,
-		     target_kind = ?, loop_workspace_id = ?, loop_name = ?, loop_inputs = ?,
-		     loop_input_mapping = ?, updated_at = ?
-		 WHERE id = ?`,
-		normalized.Scope,
-		normalized.Name,
-		normalized.AgentName,
-		store.NullableString(normalized.WorkspaceID),
-		normalized.Prompt,
-		normalized.Event,
-		filterJSON,
-		normalized.Enabled,
-		retryJSON,
-		fireLimitJSON,
-		normalized.Source,
-		store.NullableString(normalized.WebhookID),
-		store.NullableString(normalized.EndpointSlug),
-		store.NullableString(normalized.WebhookSecretRef),
-		normalized.TargetKind,
-		store.NullableString(loopTarget.workspaceID),
-		store.NullableString(loopTarget.loopName),
-		loopTarget.inputsJSON,
-		loopTarget.inputMappingJSON,
-		store.FormatTimestamp(normalized.UpdatedAt),
-		normalized.ID,
-	)
+	affected, err := sqlcgen.New(tx).UpdateAutomationTrigger(ctx, params)
 	if err != nil {
 		return automation.Trigger{}, fmt.Errorf(
 			"store: update automation trigger %q: %w",
 			normalized.ID,
-			mapAutomationTriggerConstraintError(err),
+			mapAutomationTriggerConstraintError(ctx, tx, normalized, err),
 		)
 	}
-	if err := requireRowsAffected(
-		result,
+	if err := requireAutomationAffected(
+		affected,
 		automation.ErrTriggerNotFound,
 		normalized.ID,
 		"automation trigger",
@@ -250,7 +206,7 @@ func (g *GlobalDB) UpdateTrigger(
 }
 
 // DeleteTrigger removes an automation trigger definition.
-func (g *GlobalDB) DeleteTrigger(ctx context.Context, id string) error {
+func (g *AutomationRepo) DeleteTrigger(ctx context.Context, id string) error {
 	if err := g.checkReady(ctx, "delete automation trigger"); err != nil {
 		return err
 	}
@@ -258,19 +214,15 @@ func (g *GlobalDB) DeleteTrigger(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	result, err := g.db.ExecContext(ctx, `DELETE FROM automation_triggers WHERE id = ?`, trimmedID)
+	affected, err := g.queries.DeleteAutomationTrigger(ctx, trimmedID)
 	if err != nil {
-		return fmt.Errorf(
-			"store: delete automation trigger %q: %w",
-			trimmedID,
-			mapAutomationTriggerConstraintError(err),
-		)
+		return fmt.Errorf("store: delete automation trigger %q: %w", trimmedID, err)
 	}
-	return requireRowsAffected(result, automation.ErrTriggerNotFound, trimmedID, "automation trigger")
+	return requireAutomationAffected(affected, automation.ErrTriggerNotFound, trimmedID, "automation trigger")
 }
 
 // GetTrigger loads one persisted automation trigger definition by primary key.
-func (g *GlobalDB) GetTrigger(ctx context.Context, id string) (automation.Trigger, error) {
+func (g *AutomationRepo) GetTrigger(ctx context.Context, id string) (automation.Trigger, error) {
 	if err := g.checkReady(ctx, "get automation trigger"); err != nil {
 		return automation.Trigger{}, err
 	}
@@ -278,7 +230,14 @@ func (g *GlobalDB) GetTrigger(ctx context.Context, id string) (automation.Trigge
 	if err != nil {
 		return automation.Trigger{}, err
 	}
-	return g.getTriggerByQuery(ctx, automationTriggerRichSelectSQL+` WHERE id = ?`, trimmedID)
+	row, err := g.queries.GetAutomationTrigger(ctx, trimmedID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return automation.Trigger{}, automation.ErrTriggerNotFound
+		}
+		return automation.Trigger{}, err
+	}
+	return automationTriggerFromGenerated(row)
 }
 
 func rollbackAutomationDefinitionTx(target *error, tx *sql.Tx, action string) {

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
 	toolspkg "github.com/compozy/agh/internal/tools"
@@ -106,8 +106,7 @@ func extensionBenchmarkToolRegistry(b *testing.B, count int) (*Registry, toolspk
 
 	dbPath := filepath.Join(b.TempDir(), "agh-extension-tools.db")
 	db, err := store.OpenSQLiteDatabase(testutil.Context(b), dbPath, func(ctx context.Context, db *sql.DB) error {
-		schema := append([]string{registryTestExtensionsTableSchema}, resources.SchemaStatements()...)
-		return store.EnsureSchema(ctx, db, schema)
+		return store.Apply(ctx, db, globaldb.MigrationStream())
 	})
 	if err != nil {
 		b.Fatalf("OpenSQLiteDatabase() error = %v", err)

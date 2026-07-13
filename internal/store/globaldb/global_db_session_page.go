@@ -31,7 +31,7 @@ const sessionInfoSelectQuery = `SELECT id, name, agent_name, provider, workspace
 FROM sessions`
 
 // PageSessions returns one bounded durable-catalog page and a filter-scoped total.
-func (g *GlobalDB) PageSessions(
+func (g *SessionRepo) PageSessions(
 	ctx context.Context,
 	query store.SessionCatalogPageQuery,
 ) (page store.SessionCatalogPage, err error) {
@@ -59,6 +59,7 @@ func (g *GlobalDB) PageSessions(
 	}()
 
 	countQuery := store.AppendWhere("SELECT COUNT(1) FROM sessions", where)
+	// dynamic-sql: page filters and exclusion slices alter the count query structure.
 	if err := tx.QueryRowContext(ctx, countQuery, args...).Scan(&page.Total); err != nil {
 		return store.SessionCatalogPage{}, fmt.Errorf("store: count session catalog page: %w", err)
 	}
@@ -94,6 +95,7 @@ func querySessionCatalogRows(
 	sqlQuery += order
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
+	// dynamic-sql: keyset direction, cursor predicates, filters, and limit alter the page query structure.
 	rows, err := tx.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query session catalog page: %w", err)
@@ -251,4 +253,4 @@ func sessionCatalogCursorClause(
 	return clause, []any{primary, primary, created, primary, created, strings.TrimSpace(position.ID)}
 }
 
-var _ store.SessionCatalogPager = (*GlobalDB)(nil)
+var _ store.SessionCatalogPager = (*SessionRepo)(nil)

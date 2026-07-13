@@ -9,10 +9,11 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 // FencePreparedPrompt persists one pre-submit budget/control boundary without allocating a turn.
-func (g *GlobalDB) FencePreparedPrompt(ctx context.Context, req goal.FencePreparedPromptRequest) error {
+func (g *GoalRepo) FencePreparedPrompt(ctx context.Context, req goal.FencePreparedPromptRequest) error {
 	if err := g.checkReady(ctx, "fence prepared Goal prompt"); err != nil {
 		return err
 	}
@@ -150,45 +151,30 @@ func persistPreparedGoalQueueFence(
 	if !grantable {
 		status = store.SessionInputQueueStatusCanceled
 	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE session_input_queue
-		 SET status = ?, dispatchable = 0, fence_kind = ?, fence_disposition = ?,
-		     fence_reason_code = ?, fenced_at = ?,
-		     terminal_kind = CASE WHEN ? = 1 THEN NULL ELSE ? END,
-		     terminal_disposition = CASE WHEN ? = 1 THEN NULL ELSE ? END,
-		     terminal_reason_code = CASE WHEN ? = 1 THEN NULL ELSE ? END,
-		     terminal_at = CASE WHEN ? = 1 THEN NULL ELSE ? END,
-		     canceled_at = CASE WHEN ? = 1 THEN canceled_at ELSE ? END,
-		     updated_at = ?
-		 WHERE id = ? AND loop_run_id = ? AND prompt_id = ?
-		   AND status = 'queued' AND dispatchable = 0 AND terminal_at IS NULL
-		   AND owner_epoch = ?`,
-		status,
-		string(req.Outcome),
-		string(req.Disposition),
-		string(req.Cause),
-		store.FormatTimestamp(now),
-		boolToInt(grantable),
-		string(req.Outcome),
-		boolToInt(grantable),
-		string(req.Disposition),
-		boolToInt(grantable),
-		string(req.Cause),
-		boolToInt(grantable),
-		store.FormatTimestamp(now),
-		boolToInt(grantable),
-		store.FormatTimestamp(now),
-		store.FormatTimestamp(now),
-		strings.TrimSpace(req.QueueEntryID),
-		string(req.Key.LoopRunID),
-		strings.TrimSpace(req.PromptID),
-		req.ExpectedControlEpoch,
-	)
+	affected, err := sqlcgen.New(exec).UpdatePreparedGoalQueueFence(ctx, sqlcgen.UpdatePreparedGoalQueueFenceParams{
+		Status:    status,
+		FenceKind: goalNullableString(string(req.Outcome)),
+		FenceDisposition: goalNullableString(
+			string(req.Disposition),
+		),
+		FenceReasonCode:     goalNullableString(string(req.Cause)),
+		FencedAt:            store.FormatTimestamp(now),
+		Grantable:           boolToInt(grantable),
+		TerminalKind:        goalNullableString(string(req.Outcome)),
+		TerminalDisposition: goalNullableString(string(req.Disposition)),
+		TerminalReasonCode:  goalNullableString(string(req.Cause)),
+		TerminalAt:          store.FormatTimestamp(now),
+		CanceledAt:          store.FormatTimestamp(now),
+		UpdatedAt:           store.FormatTimestamp(now),
+		ID:                  strings.TrimSpace(req.QueueEntryID),
+		LoopRunID:           goalNullableString(string(req.Key.LoopRunID)),
+		PromptID:            goalNullableString(req.PromptID),
+		OwnerEpoch:          goalNullableInt64(&req.ExpectedControlEpoch),
+	})
 	if err != nil {
 		return fmt.Errorf("store: fence prepared Goal queue row: %w", err)
 	}
-	return requireGoalRowsAffected(result, "fence prepared Goal queue row")
+	return requireGoalAffectedCount(affected, "fence prepared Goal queue row")
 }
 
 func preparedGoalFenceProjection(req goal.FencePreparedPromptRequest) (string, string) {
@@ -211,30 +197,18 @@ func persistPreparedGoalCheckpointFence(
 	phase string,
 	now time.Time,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_goal_checkpoints
-		 SET phase = ?, goal_status = ?, control_cause = ?, updated_at = ?
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		   AND control_epoch = ? AND binding_epoch = ? AND phase = 'queued'
-		   AND queue_entry_id = ? AND prompt_id = ?`,
-		phase,
-		status,
-		string(req.Cause),
-		store.FormatTimestamp(now),
-		string(req.Key.LoopRunID),
-		req.Key.Generation,
-		string(req.Key.NodeID),
-		req.Key.ItemIndex,
-		req.ExpectedControlEpoch,
-		req.ExpectedBindingEpoch,
-		strings.TrimSpace(req.QueueEntryID),
-		strings.TrimSpace(req.PromptID),
-	)
+	affected, err := sqlcgen.New(exec).
+		UpdatePreparedGoalCheckpointFence(ctx, sqlcgen.UpdatePreparedGoalCheckpointFenceParams{
+			Phase: phase, GoalStatus: status, ControlCause: goalNullableString(string(req.Cause)),
+			UpdatedAt: store.FormatTimestamp(now), LoopRunID: string(req.Key.LoopRunID),
+			Generation: int64(req.Key.Generation), NodeID: string(req.Key.NodeID), ItemIndex: int64(req.Key.ItemIndex),
+			ControlEpoch: req.ExpectedControlEpoch, BindingEpoch: goalNullableInt64(&req.ExpectedBindingEpoch),
+			QueueEntryID: goalNullableString(req.QueueEntryID), PromptID: goalNullableString(req.PromptID),
+		})
 	if err != nil {
 		return fmt.Errorf("store: checkpoint prepared Goal fence: %w", err)
 	}
-	return requireGoalRowsAffected(result, "checkpoint prepared Goal fence")
+	return requireGoalAffectedCount(affected, "checkpoint prepared Goal fence")
 }
 
 func validateFencePreparedPromptRequest(req goal.FencePreparedPromptRequest) error {
@@ -264,12 +238,8 @@ func validateDeniedGoalBudgetDecision(
 	if decision.Allowed || decision.BudgetVersion < 1 || decision.ValidUntil.IsZero() {
 		return goalPromptFencedError("denied Goal budget decision is invalid")
 	}
-	var currentVersion int64
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT budget_version FROM loop_runs WHERE id = ?`,
-		string(runID),
-	).Scan(&currentVersion); err != nil {
+	currentVersion, err := sqlcgen.New(exec).GetDeniedGoalBudgetVersion(ctx, string(runID))
+	if err != nil {
 		return fmt.Errorf("store: load Goal budget version for fence: %w", err)
 	}
 	if currentVersion != decision.BudgetVersion {

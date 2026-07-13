@@ -2732,9 +2732,18 @@ type integrationBridgeSecretStore interface {
 	DeleteBridgeSecretBinding(context.Context, string, string) error
 }
 
+type integrationBridgeCatalogStore interface {
+	CountBridgeRoutes(context.Context, []string) (map[string]int, error)
+	ListBridgeSecretBindingsForInstances(
+		context.Context,
+		[]string,
+	) (map[string][]bridgepkg.BridgeSecretBinding, error)
+}
+
 type integrationBridgeService struct {
 	*bridgepkg.Service
 	store             integrationBridgeSecretStore
+	catalogStore      integrationBridgeCatalogStore
 	taskSubscriptions bridgepkg.BridgeTaskSubscriptionStore
 	broker            *bridgepkg.Broker
 	providers         []bridgepkg.BridgeProvider
@@ -2742,9 +2751,11 @@ type integrationBridgeService struct {
 
 func newIntegrationBridgeService(store bridgepkg.RegistryStore) *integrationBridgeService {
 	taskSubscriptions, _ := store.(bridgepkg.BridgeTaskSubscriptionStore)
+	catalogStore, _ := store.(integrationBridgeCatalogStore)
 	return &integrationBridgeService{
 		Service:           bridgepkg.NewRegistry(store),
 		store:             bridgeSecretStore(store),
+		catalogStore:      catalogStore,
 		taskSubscriptions: taskSubscriptions,
 		broker:            bridgepkg.NewBroker(nil),
 	}
@@ -2883,6 +2894,26 @@ func (s *integrationBridgeService) DeleteBridgeTaskSubscription(ctx context.Cont
 		return errors.New("integration bridge task subscription store is not configured")
 	}
 	return s.taskSubscriptions.DeleteBridgeTaskSubscription(ctx, subscriptionID)
+}
+
+func (s *integrationBridgeService) CountBridgeRoutes(
+	ctx context.Context,
+	bridgeInstanceIDs []string,
+) (map[string]int, error) {
+	if s == nil || s.catalogStore == nil {
+		return nil, errors.New("integration bridge catalog store is not configured")
+	}
+	return s.catalogStore.CountBridgeRoutes(ctx, bridgeInstanceIDs)
+}
+
+func (s *integrationBridgeService) ListSecretBindingsForInstances(
+	ctx context.Context,
+	bridgeInstanceIDs []string,
+) (map[string][]bridgepkg.BridgeSecretBinding, error) {
+	if s == nil || s.catalogStore == nil {
+		return nil, errors.New("integration bridge catalog store is not configured")
+	}
+	return s.catalogStore.ListBridgeSecretBindingsForInstances(ctx, bridgeInstanceIDs)
 }
 
 func (s *integrationBridgeService) DeliveryMetrics() map[string]bridgepkg.BridgeDeliveryMetrics {

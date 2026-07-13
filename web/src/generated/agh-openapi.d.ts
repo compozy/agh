@@ -44058,6 +44058,13 @@ export interface operations {
                 workflow_tagged_events?: number;
               } | null;
               pid: number;
+              schema_streams: {
+                applied_count: number;
+                stream: string;
+                sum_digest: string;
+                /** Format: int64 */
+                version: number;
+              }[];
               socket: string;
               /** Format: date-time */
               started_at: string;

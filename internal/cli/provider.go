@@ -12,7 +12,6 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/providerauth"
 	authproviders "github.com/compozy/agh/internal/providers"
-	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/vault"
 	"github.com/spf13/cobra"
 )
@@ -570,9 +569,9 @@ type cliProviderVaultMetadataResolver struct {
 }
 
 func (r cliProviderVaultMetadataResolver) GetMetadata(ctx context.Context, ref string) (vault.Metadata, error) {
-	db, err := globaldb.OpenGlobalDB(ctx, r.homePaths.DatabaseFile)
+	db, err := openLocalGlobalDatabase(ctx, r.homePaths.DatabaseFile, "provider auth")
 	if err != nil {
-		return vault.Metadata{}, fmt.Errorf("cli: open global DB for provider auth status: %w", err)
+		return vault.Metadata{}, err
 	}
 	lookupEnv := func(key string) (string, bool) {
 		value := r.getenv(key)

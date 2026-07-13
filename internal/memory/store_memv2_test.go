@@ -35,7 +35,7 @@ func TestStoreAgentRoots(t *testing.T) {
 			t.Fatalf("EnsureIdentity() error = %v", err)
 		}
 
-		rootStore := NewStore(globalDir).ForWorkspace(workspaceRoot)
+		rootStore := newOpenTestStore(t, globalDir).ForWorkspace(workspaceRoot)
 		workspaceAgent := rootStore.ForAgent(identity.WorkspaceID, "reviewer", memcontract.AgentTierWorkspace)
 		if err := workspaceAgent.EnsureDirs(); err != nil {
 			t.Fatalf("workspaceAgent.EnsureDirs() error = %v", err)
@@ -65,7 +65,7 @@ func TestStoreAgentRoots(t *testing.T) {
 			t.Fatalf("workspace agent file exists = %v, %v, want true, nil", ok, err)
 		}
 
-		globalAgent := NewStore(globalDir).ForAgent("", "reviewer", memcontract.AgentTierGlobal)
+		globalAgent := newOpenTestStore(t, globalDir).ForAgent("", "reviewer", memcontract.AgentTierGlobal)
 		if err := globalAgent.EnsureDirs(); err != nil {
 			t.Fatalf("globalAgent.EnsureDirs() error = %v", err)
 		}
@@ -250,7 +250,7 @@ func TestMemoryHeaderListPage(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		globalDir := filepath.Join(t.TempDir(), "global-memory")
-		store := NewStore(globalDir)
+		store := newOpenTestStore(t, globalDir)
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
@@ -299,7 +299,7 @@ func TestMemoryHeaderListPage(t *testing.T) {
 		ctx := testutil.Context(t)
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "global-memory")
-		store := NewStore(globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
+		store := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
@@ -340,7 +340,7 @@ func TestMemoryHeaderListPage(t *testing.T) {
 		ctx := testutil.Context(t)
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "global-memory")
-		store := NewStore(globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
+		store := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
@@ -431,7 +431,7 @@ func TestMemoryHeaderListPage(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnsureIdentity() error = %v", err)
 		}
-		base := NewStore(
+		base := newOpenTestStore(t,
 			filepath.Join(baseDir, "global-memory"),
 			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
 		).ForWorkspace(workspaceRoot)
@@ -531,7 +531,7 @@ func TestStoreMemV2BackendHelpers(t *testing.T) {
 		t.Parallel()
 
 		globalDir := filepath.Join(t.TempDir(), "agh-home", memoryDirName)
-		store := NewStore(globalDir)
+		store := newOpenTestStore(t, globalDir)
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
@@ -571,7 +571,7 @@ func TestStoreMemV2BackendHelpers(t *testing.T) {
 		t.Parallel()
 
 		globalDir := filepath.Join(t.TempDir(), "agh-home", memoryDirName)
-		if err := NewStore(
+		if err := newOpenTestStore(t,
 			globalDir,
 		).ForAgent("", "../bad", memcontract.AgentTierGlobal).
 			EnsureDirs(); !errors.Is(
@@ -580,7 +580,7 @@ func TestStoreMemV2BackendHelpers(t *testing.T) {
 		) {
 			t.Fatalf("EnsureDirs(invalid agent) error = %v, want ErrValidation", err)
 		}
-		if err := NewStore(
+		if err := newOpenTestStore(t,
 			globalDir,
 		).ForAgent("", "reviewer", memcontract.AgentTierWorkspace).
 			EnsureDirs(); !errors.Is(
@@ -590,7 +590,7 @@ func TestStoreMemV2BackendHelpers(t *testing.T) {
 			t.Fatalf("EnsureDirs(agent workspace without workspace) error = %v, want ErrValidation", err)
 		}
 
-		store := NewStore(globalDir).ForAgent("", "reviewer", memcontract.AgentTierGlobal)
+		store := newOpenTestStore(t, globalDir).ForAgent("", "reviewer", memcontract.AgentTierGlobal)
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
@@ -717,7 +717,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		baseDir := t.TempDir()
-		store := NewStore(
+		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "agh-home", memoryDirName),
 			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
 		)
@@ -759,7 +759,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 		ctx := testutil.Context(t)
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "agh-home", memoryDirName)
-		store := NewStore(globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
+		store := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
@@ -834,7 +834,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 		ctx := testutil.Context(t)
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "agh-home", memoryDirName)
-		store := NewStore(globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
+		store := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
@@ -859,7 +859,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 		ctx := testutil.Context(t)
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "agh-home", memoryDirName)
-		store := NewStore(globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
+		store := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
@@ -918,7 +918,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 		ctx := testutil.Context(t)
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "agh-home", memoryDirName)
-		store := NewStore(globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
+		store := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
@@ -972,7 +972,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 		ctx := testutil.Context(t)
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "agh-home", memoryDirName)
-		store := NewStore(globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
+		store := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
@@ -1005,7 +1005,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 		ctx := testutil.Context(t)
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "agh-home", memoryDirName)
-		store := NewStore(globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
+		store := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
@@ -1042,13 +1042,14 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 		}
 	})
 
-	t.Run("Should auto-create default decision catalog when missing", func(t *testing.T) {
+	t.Run("Should use an explicitly opened decision catalog at the default path", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "agh-home", memoryDirName)
-		store := NewStore(globalDir)
+		catalogPath := filepath.Join(baseDir, "agh-home", "agh.db")
+		store := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(catalogPath))
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
@@ -1071,7 +1072,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 		if result.Decision.Op != memcontract.OpAdd {
 			t.Fatalf("Decision.Op = %q, want add", result.Decision.Op.String())
 		}
-		if ok, err := fileExists(filepath.Join(baseDir, "agh-home", decisionDefaultDBFilename)); err != nil || !ok {
+		if ok, err := fileExists(catalogPath); err != nil || !ok {
 			t.Fatalf("default decision DB exists = %v, %v, want true, nil", ok, err)
 		}
 		db := ensureReplayTestDB(ctx, t, store)
@@ -1084,7 +1085,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 		ctx := testutil.Context(t)
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "agh-home", memoryDirName)
-		store := NewStore(globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
+		store := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
@@ -1121,7 +1122,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 		ctx := testutil.Context(t)
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "agh-home", memoryDirName)
-		store := NewStore(globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
+		store := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
@@ -1151,7 +1152,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 		ctx := testutil.Context(t)
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "agh-home", memoryDirName)
-		store := NewStore(globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
+		store := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
@@ -1219,7 +1220,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnsureIdentity() error = %v", err)
 		}
-		store := NewStore(
+		store := newOpenTestStore(t,
 			globalDir,
 			WithCatalogDatabasePath(filepath.Join(workspaceRoot, ".agh", "agh.db")),
 		).ForWorkspace(workspaceRoot)
@@ -1269,7 +1270,7 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 		ctx := testutil.Context(t)
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "agh-home", memoryDirName)
-		store := NewStore(
+		store := newOpenTestStore(t,
 			globalDir,
 			WithCatalogDatabasePath(filepath.Join(baseDir, "agh-home", "agh.db")),
 		).ForAgent("", "reviewer", memcontract.AgentTierGlobal)
@@ -1312,7 +1313,7 @@ func TestStoreDecisionErrorPaths(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		store := NewStore(filepath.Join(t.TempDir(), "memory"))
+		store := newOpenTestStore(t, filepath.Join(t.TempDir(), "memory"))
 		if _, err := store.ProposeWrite(
 			nilMemoryTestContext(),
 			memcontract.ScopeGlobal,
@@ -1379,7 +1380,7 @@ func TestStoreDecisionErrorPaths(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		store := NewStore(filepath.Join(t.TempDir(), "memory"))
+		store := newOpenTestStore(t, filepath.Join(t.TempDir(), "memory"))
 		if _, err := store.ApplyDecision(nilMemoryTestContext(), memcontract.Decision{}); err == nil {
 			t.Fatal("Store.ApplyDecision(nil context) error = nil, want error")
 		}
@@ -1403,7 +1404,7 @@ func TestStoreDecisionErrorPaths(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		baseDir := t.TempDir()
-		store := NewStore(
+		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "agh-home", memoryDirName),
 			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
 		)
@@ -1435,7 +1436,7 @@ func TestStoreDecisionErrorPaths(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		baseDir := t.TempDir()
-		store := NewStore(
+		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "agh-home", memoryDirName),
 			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
 		)
@@ -1458,7 +1459,7 @@ func TestStoreDecisionErrorPaths(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		baseDir := t.TempDir()
-		store := NewStore(
+		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "agh-home", memoryDirName),
 			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
 		)
@@ -1514,7 +1515,7 @@ func TestStoreReplayPendingDecisions(t *testing.T) {
 			t.Fatalf("EnsureIdentity() error = %v", err)
 		}
 		catalogPath := filepath.Join(workspaceRoot, ".agh", "agh.db")
-		store := NewStore(globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceRoot)
+		store := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceRoot)
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
@@ -1569,7 +1570,7 @@ func TestStoreReplayPendingDecisions(t *testing.T) {
 		ctx := testutil.Context(t)
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "agh-home", memoryDirName)
-		store := NewStore(globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh-home", "agh.db")))
+		store := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh-home", "agh.db")))
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
@@ -1622,7 +1623,7 @@ func TestStoreReplayPendingDecisions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnsureIdentity() error = %v", err)
 		}
-		store := NewStore(
+		store := newOpenTestStore(t,
 			globalDir,
 			WithCatalogDatabasePath(filepath.Join(workspaceRoot, ".agh", "agh.db")),
 		).ForWorkspace(workspaceRoot)
@@ -1670,7 +1671,7 @@ func TestStoreReplayPendingDecisions(t *testing.T) {
 		ctx := testutil.Context(t)
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "agh-home", memoryDirName)
-		agentStore := NewStore(
+		agentStore := newOpenTestStore(t,
 			globalDir,
 			WithCatalogDatabasePath(filepath.Join(baseDir, "agh-home", "agh.db")),
 		).ForAgent("", "reviewer", memcontract.AgentTierGlobal)
@@ -1735,7 +1736,7 @@ func TestStoreReplayPendingDecisions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnsureIdentity(other) error = %v", err)
 		}
-		store := NewStore(
+		store := newOpenTestStore(t,
 			globalDir,
 			WithCatalogDatabasePath(filepath.Join(workspaceRoot, ".agh", "agh.db")),
 		).ForWorkspace(workspaceRoot)
@@ -1779,7 +1780,7 @@ func TestStoreReplayPendingDecisions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnsureIdentity() error = %v", err)
 		}
-		store := NewStore(
+		store := newOpenTestStore(t,
 			globalDir,
 			WithCatalogDatabasePath(filepath.Join(workspaceRoot, ".agh", "agh.db")),
 		).ForWorkspace(workspaceRoot)
@@ -1811,7 +1812,7 @@ func TestStoreReplayPendingDecisions(t *testing.T) {
 		ctx := testutil.Context(t)
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "agh-home", memoryDirName)
-		store := NewStore(globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh-home", "agh.db")))
+		store := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh-home", "agh.db")))
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
@@ -1835,7 +1836,7 @@ func TestStoreReplayPendingDecisions(t *testing.T) {
 		ctx := testutil.Context(t)
 		baseDir := t.TempDir()
 		globalDir := filepath.Join(baseDir, "agh-home", memoryDirName)
-		store := NewStore(globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh-home", "agh.db")))
+		store := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh-home", "agh.db")))
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 func networkWorkProjectionForState(
@@ -37,24 +38,21 @@ func deriveNetworkTimelineWorkProjection(
 	if strings.TrimSpace(entry.WorkID) == "" {
 		return networkWorkMutation{}, nil
 	}
-	var current string
-	if err := exec.QueryRowContext(
+	currentValue, err := sqlcgen.New(exec).GetPriorNetworkTimelineWorkState(
 		ctx,
-		`SELECT COALESCE((
-			SELECT prior.work_state
-			FROM network_timeline_log prior
-			WHERE prior.workspace_id = current.workspace_id
-			  AND prior.work_id = current.work_id
-			  AND prior.sequence < current.sequence
-			  AND prior.work_state <> ''
-			ORDER BY prior.sequence DESC
-			LIMIT 1
-		), '')
-		FROM network_timeline_log current
-		WHERE current.workspace_id = ? AND current.message_id = ?`,
-		entry.WorkspaceID,
-		entry.MessageID,
-	).Scan(&current); err != nil {
+		sqlcgen.GetPriorNetworkTimelineWorkStateParams{
+			WorkspaceID: entry.WorkspaceID, MessageID: entry.MessageID,
+		},
+	)
+	if err != nil {
+		return networkWorkMutation{}, fmt.Errorf(
+			"store: read prior network work projection for message %q: %w",
+			entry.MessageID,
+			err,
+		)
+	}
+	current, err := networkTextValue(currentValue)
+	if err != nil {
 		return networkWorkMutation{}, fmt.Errorf(
 			"store: read prior network work projection for message %q: %w",
 			entry.MessageID,
@@ -78,16 +76,17 @@ func persistNetworkTimelineWorkProjection(
 	entry store.NetworkConversationMessage,
 	projection networkWorkMutation,
 ) error {
-	if _, err := exec.ExecContext(
+	if err := sqlcgen.New(exec).UpdateNetworkTimelineWorkProjection(
 		ctx,
-		`UPDATE network_timeline_log
-		 SET work_opened = ?, work_transitioned = ?, work_state = ?
-		 WHERE workspace_id = ? AND message_id = ?`,
-		projection.opened,
-		projection.transitioned,
-		strings.TrimSpace(projection.state),
-		entry.WorkspaceID,
-		entry.MessageID,
+		sqlcgen.UpdateNetworkTimelineWorkProjectionParams{
+			WorkOpened: networkBoolInt64(
+				projection.opened,
+			),
+			WorkTransitioned: networkBoolInt64(projection.transitioned),
+			WorkState:        strings.TrimSpace(projection.state),
+			WorkspaceID:      entry.WorkspaceID,
+			MessageID:        entry.MessageID,
+		},
 	); err != nil {
 		return fmt.Errorf(
 			"store: persist network work projection for message %q: %w",
@@ -96,4 +95,24 @@ func persistNetworkTimelineWorkProjection(
 		)
 	}
 	return nil
+}
+
+func networkTextValue(value any) (string, error) {
+	switch typed := value.(type) {
+	case nil:
+		return "", nil
+	case string:
+		return typed, nil
+	case []byte:
+		return string(typed), nil
+	default:
+		return "", fmt.Errorf("unexpected SQLite text type %T", value)
+	}
+}
+
+func networkBoolInt64(value bool) int64 {
+	if value {
+		return 1
+	}
+	return 0
 }

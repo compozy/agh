@@ -32,7 +32,7 @@ Defined in `internal/cli/daemon.go:28-148`. All return structured output via `wr
 | --------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `agh daemon start`    | `internal/cli/daemon.go:41-70`     | Spawns detached child by default; `--foreground` runs in current terminal; hidden `--internal-child` flag (`internalChildFlagName`) is set by the parent so the spawned child runs the foreground path.        |
 | `agh daemon relaunch` | `internal/cli/daemon.go:72-91`     | Hidden helper that reads `AGH_INTERNAL_RESTART_OPERATION_ID` (`internal/daemon/restart.go:21-22`) and drives the in-place upgrade replacement step.                                                            |
-| `agh daemon status`   | `internal/cli/daemon.go:93-115`    | Tries the live UDS client first, falls back to `daemon.json` + `procutil.Alive` probe. Returns `DaemonStatus` (`internal/cli/daemon.go:318-336`).                                                              |
+| `agh status`   | `internal/cli/daemon.go:93-115`    | Tries the live UDS client first, falls back to `daemon.json` + `procutil.Alive` probe. Returns `DaemonStatus` (`internal/cli/daemon.go:318-336`).                                                              |
 | `agh daemon stop`     | `internal/cli/daemon.go:117-148`   | Reads `daemon.json`, sends `SIGTERM` to the recorded PID via `deps.signalProcess`, polls for stop via `daemonInfo` (`internal/cli/daemon.go:302-316`) and the UDS status endpoint.                             |
 
 ### 1.3 HTTP/UDS endpoints owned by the daemon module
@@ -152,7 +152,7 @@ Every `*_test.go` under the daemon-boot scope, with a one-line summary, the beha
 
 ### 2.4 `internal/store/`
 
-- `schema_test.go` — `RunMigrations` / `AppliedMigrations` semantics: ordered application, idempotency, integrity-mismatch detection, rollback on statement failure, invalid table name rejection, custom-checksum-required-for-`Up`. Real SQLite.
+- `migrate_test.go`, `migrate_status_test.go`, and `migrate_streams_test.go` — Goose apply/status semantics, fresh/reopen/ahead/legacy/integrity refusal, gap-free embedded streams, shared global+memory ownership, and migrations-to-declarative-schema equivalence. Real SQLite.
 - `store_extra_test.go`:
   - `TestStoreSQLiteRecoveryAndFailures` — the corrupt-DB recovery path (`OpenSQLiteDatabase`, `recoverSQLiteDatabase`, companion `-wal`/`-shm` rename, `ShouldRecoverSQLite` markers). Real SQLite, real corruption injected via byte writes.
 - `meta_test.go`, `session_lineage_test.go`, `session_liveness_test.go`, `stop_reason_test.go`, `store_helpers_test.go` — SQL helpers, session lineage, session-meta atomic write.
@@ -197,11 +197,11 @@ For each gap, the claim AGH makes (with citation) and the missing test that woul
 | **Cross-build for Windows is mandatory**                                                    | "Always cross-build with `GOOS=windows GOARCH=amd64 go build` before claiming subprocess work complete." `internal/CLAUDE.md:37`                              | CI gate that runs `GOOS=windows GOARCH=amd64 go build ./...` against `internal/daemon/...`, `internal/procutil/...`, `internal/subprocess/...`. No such gate exists in current CI.                                                                                                                                            |
 | **`agh.db` never appears 0-byte after a crash**                                             | `OpenSQLiteDatabase` re-opens with `-wal`/`-shm` rename on corruption (`store/sqlite.go:165-186`).                                                            | Crash-injection test: kill -9 the daemon mid-write, restart, assert no 0-byte `agh.db`, no orphan `-wal` longer than `-shm` checkpoint allows.                                                                                                                                                                              |
 | **Lock file is removed only on clean exit**                                                 | `Lock.Release()` writes PID=0 then `Unlock`+`Close` (`lock.go:124-149`). On crash the file remains with stale PID; next boot reclaims via `lock.StalePID()`. | Test: crash daemon, restart, assert `lock.StalePID() > 0` and `daemon.json` is treated as stale and replaced.                                                                                                                                                                                                              |
-| **Migration registry rejects bad checksums after partial apply**                            | `RunMigrations` rolls back on statement failure and does NOT record the row (`schema.go:237-274`). Integrity mismatch is detected (`schema.go:91-101`).      | Real-DB test: apply migrations 1..6, then introduce a corrupted migration 6 with a different checksum, assert boot aborts with `"integrity mismatch"`.                                                                                                                                                                       |
-| **Schema does not silently downgrade**                                                      | Greenfield-alpha rule: no compat shims. `daemon/boot.go` only forward-applies migrations.                                                                    | Boot a daemon, apply all migrations, simulate downgrade (older binary attempting boot against future schema). Boot MUST refuse cleanly. Currently no such test.                                                                                                                                                              |
+| **Migration stream rejects checksum drift**                                                 | `store.Apply` validates `atlas.sum` before Goose runs; `TestApplyRejectsAtlasSumDrift` covers edited/added/removed SQL.                                      | Preserve the canonical real-DB suite and verify daemon boot surfaces the same deterministic refusal without mutating the database.                                                                                                                                                                                           |
+| **Schema does not silently downgrade**                                                      | `store.Apply` probes the recorded Goose version before `Up` and returns `ErrSchemaAhead`.                                                                    | Boot an older post-Goose binary against a database recorded above its embedded head; assert refusal and byte identity, then prove a newer compatible binary is the state-preserving recovery.                                                                                                                                |
 | **`PRAGMA journal_mode = WAL` is non-negotiable**                                           | `configureSQLite` returns an error if mode is not WAL (`store/sqlite.go:106-117`).                                                                            | Test exists in `store_extra_test.go` for happy path; missing: simulate a tampered DB where journal_mode resists WAL setup, assert open fails with the explicit `"journal_mode = …, want wal"` error.                                                                                                                          |
 | **Detached lifetime: `prompt/cancel` only cancels via explicit endpoint**                   | "Detached execution lifetime. Any work that outlives an HTTP/UDS request — prompts, network channel sends, automation jobs — MUST detach via `context.WithoutCancel(ctx)`." `internal/CLAUDE.md:33-35`. | E2E: start a real prompt, drop the HTTP request mid-stream, assert the prompt continues to completion. Currently the daemon harness never validates this against a real LLM.                                                                                                                                              |
-| **Raw `claim_token` does not appear in any output**                                         | `internal/CLAUDE.md:55`; redaction enforced via `internal/diagnostics/redact.go:11-14` patterns; rejection in API (`internal/api/contract/agents.go:479-498`, `internal/api/core/network.go:283-294`). | E2E: trigger a real claim flow against a real agent, capture **all** of: `agh.log`, SSE stream output, `agh daemon status -o json`, `agh sessions logs <id>`, plus the network audit log. Greedy-grep for the literal regex `\bagh_claim_[A-Za-z0-9]+\b`. Zero matches required. No such full-output sweep exists today. |
+| **Raw `claim_token` does not appear in any output**                                         | `internal/CLAUDE.md:55`; redaction enforced via `internal/diagnostics/redact.go:11-14` patterns; rejection in API (`internal/api/contract/agents.go:479-498`, `internal/api/core/network.go:283-294`). | E2E: trigger a real claim flow against a real agent, capture **all** of: `agh.log`, SSE stream output, `agh status -o json`, `agh sessions logs <id>`, plus the network audit log. Greedy-grep for the literal regex `\bagh_claim_[A-Za-z0-9]+\b`. Zero matches required. No such full-output sweep exists today. |
 | **Subprocess `goleak` clean shutdown**                                                      | `internal/CLAUDE.md:32-34` — Manager-WaitGroup discipline. `subprocess.Process.Wait` and `Shutdown` exist (`subprocess/process.go:320-449`).                  | Runtime-wide `goleak.VerifyNone(t, ignoreOptions...)` after a full `Daemon.Shutdown` cycle including ACP subprocess cleanup. No top-level test today exercises a full Daemon Run + Shutdown cycle under goleak.                                                                                                              |
 | **HEARTBEAT.md absence does not break boot**                                                | `heartbeat.Resolve` returns an empty `ResolvedPolicy` on `os.ErrNotExist` (`heartbeat.go:237-245`).                                                          | Boot test exists indirectly through resource projector; missing: assert `agh agent context <agent-id>` returns `present:false` on a fresh AGH_HOME, no diagnostic emitted.                                                                                                                                                  |
 | **Boundary check passes against a freshly booted runtime**                                  | `daemon.Boundaries(ctx)` (`internal/daemon/boundary.go:19-45`) is opt-in via `AGH_DEV_VERIFY_BOUNDARIES`.                                                     | A QA gate that exports `AGH_DEV_VERIFY_BOUNDARIES=1` and verifies no warning is logged on boot. Currently a unit test (`TestBoundariesUsesConfiguredRoot` etc.) covers the helper, but no end-to-end gate hooks it into the binary.                                                                                          |
@@ -245,30 +245,30 @@ steps:
   - run: ls -la "$LAB_HOME"   # MUST be empty
   - run: agh daemon start
   - wait: 5s for daemon ready
-  - run: agh daemon status -o json | tee status.json
+  - run: agh status -o json | tee status.json
   - run: jq -r '.pid' status.json
   - run: ls -la "$LAB_HOME"
-  - run: sqlite3 "$LAB_HOME/agh.db" 'SELECT version, name FROM schema_migrations ORDER BY version;' | tee migrations.txt
+  - run: jq '.daemon.schema_streams' status.json | tee schema-streams.json
   - run: curl --unix-socket "$LAB_HOME/daemon.sock" http://./daemon/status | jq .
   - run: curl -s "http://127.0.0.1:$AGH_HTTP_PORT/api/observe/health" | jq .
 expected_behavior:
   - `daemon.lock` exists with the daemon PID written as ASCII (single integer + \n) per `lock.go:175-193`.
   - `daemon.json` exists with `pid > 0`, `port > 0`, `started_at` ISO-8601 UTC, optional `network` block — validated by `info.Validate` (`info.go:31-46`).
   - `daemon.sock` exists and is a UDS socket.
-  - `agh.db` exists; `schema_migrations` rows match the canonical list in `globaldb/global_db.go:494-599` (versions 1..13 at minimum).
+  - `agh.db` exists; `schema_streams` contains distinct `global` and `memory` rows with version `1`, applied count `1`, and non-empty digests.
   - `logs/agh.log` exists and contains `"daemon: boot reconciliation complete"` (`boot.go:1721-1725`).
   - HTTP `/api/observe/health` returns 200 with `{health, memory, automation}` JSON shape (`handlers.go:868-893`).
-  - `agh daemon status -o json` returns `status:"running"` with the UDS-side payload preferred over `daemon.json` (`cli/daemon.go:283-300`).
+  - `agh status -o json` returns `status:"running"` with the UDS-side payload preferred over `daemon.json` (`cli/daemon.go:283-300`).
 evidence_to_capture:
   - `$LAB_HOME/logs/agh.log` (full).
   - `$LAB_HOME/daemon.json` (post-ready snapshot).
-  - `migrations.txt`.
+  - `schema-streams.json`.
   - `status.json`.
   - HTTP/UDS curl outputs.
 failure_signatures:
   - `daemon.json` missing or `port == 0` after status returns running.
-  - `schema_migrations` empty or missing versions ≥7 (the claim/lease schema).
-  - `agh daemon status` reports `starting` indefinitely (poll loop in `cli/daemon.go:202-242`).
+  - Either `global` or `memory` is absent, reports version/applied count `0`, or has an empty digest.
+  - `agh status` reports `starting` indefinitely (poll loop in `cli/daemon.go:202-242`).
   - Raw `agh_claim_*` token visible anywhere in `agh.log`.
 cleanup:
   - agh daemon stop && rm -rf "$LAB_HOME"
@@ -298,15 +298,15 @@ preconditions:
   - At least 1 prior session row exists in `sessions` table.
 steps:
   - run: cp "$LAB_HOME/agh.db" "$LAB_HOME/agh.db.before"
-  - run: sqlite3 "$LAB_HOME/agh.db" 'SELECT version, checksum FROM schema_migrations ORDER BY version;' > before.txt
+  - run: agh status -o json | jq -S '.daemon.schema_streams' > before.txt
   - run: agh daemon start
   - wait: 5s
-  - run: agh daemon status -o json
-  - run: sqlite3 "$LAB_HOME/agh.db" 'SELECT version, checksum FROM schema_migrations ORDER BY version;' > after.txt
+  - run: agh status -o json
+  - run: agh status -o json | jq -S '.daemon.schema_streams' > after.txt
   - run: diff before.txt after.txt   # MUST be empty
   - run: grep "boot session repair" "$LAB_HOME/logs/agh.log"
 expected_behavior:
-  - `before.txt == after.txt` (no new applied_at row, no checksum change). Enforced by `RunMigrations` early-continue branch (`schema.go:86-103`).
+  - `before.txt == after.txt`: versions, applied counts, and digests are stable across reopen.
   - `boot session repair` log line appears at most once per repaired session (`boot.go:589-596`).
   - No duplicate session_id rows; lineage backfill runs only once per session (`globaldb.go:711-716`).
 evidence_to_capture:
@@ -341,9 +341,9 @@ provider: none
 preconditions:
   - DB-01 daemon is up and ready.
 steps:
-  - run: agh daemon status -o json   # confirm running with PID=$P1
+  - run: agh status -o json   # confirm running with PID=$P1
   - run: agh daemon start 2>&1 | tee second.log; echo "exit=$?" >> second.log
-  - run: agh daemon status -o json   # original still alive
+  - run: agh status -o json   # original still alive
   - run: cat "$LAB_HOME/daemon.lock"   # must still contain $P1
 expected_behavior:
   - Second start fails. Error text matches `daemon: already running (pid=<P1>)` from `runDaemonDetached` (`cli/daemon.go:184`).
@@ -393,7 +393,7 @@ steps:
   - run: PID=$(jq -r '.pid' "$LAB_HOME/daemon.json")
   - run: kill -9 $PID
   - wait: 2s
-  - run: ! agh daemon status -o json   # expect failure (running:false or socket gone)
+  - run: ! agh status -o json   # expect failure (running:false or socket gone)
   - run: agh daemon start
   - wait: 5s
   - run: agh sessions list -o json | jq ".[] | select(.id==\"$SID\")" | tee post.json
@@ -539,25 +539,24 @@ provider: none
 
 ```yaml qa-flow
 preconditions:
-  - Build a custom test binary (`agh-qa-bad-migration`) that registers an additional migration with an intentionally-failing statement at version N+1 alongside the canonical migrations from `globaldb/global_db.go:494-599`.
+  - Build a test-only binary with an embedded, gap-free Goose N+1 SQL migration whose Up statement fails after an earlier DDL statement; refresh its test-only `atlas.sum` so the failure reaches Goose rather than checksum validation.
 steps:
   - run: agh-qa-bad-migration daemon start --foreground 2>&1 | tee out.log; echo $? >> out.log
-  - run: sqlite3 "$LAB_HOME/agh.db" 'SELECT version FROM schema_migrations ORDER BY version;' | tee versions.txt
-  - assert: out.log contains "store: apply migration <N+1> ...:" + the underlying SQL error.
-  - assert: out.log contains "store: rollback migration ..." (from `rollbackMigrationTx`, `schema.go:387-399`).
-  - assert: versions.txt does NOT contain version N+1.
+  - run: sqlite3 "$LAB_HOME/agh.db" 'SELECT version_id, is_applied FROM goose_db_version_global ORDER BY id;' | tee versions.txt
+  - assert: out.log contains "store: apply migration stream \"global\"" and the underlying SQL error.
+  - assert: versions.txt does NOT contain applied version N+1.
   - assert: `agh.db.<timestamp>.corrupt` files do NOT appear (this is a runtime error, not corruption).
   - run: agh daemon start   # original binary now boots normally
   - wait: 5s
-  - run: agh daemon status -o json | jq -r '.status'
+  - run: agh status -o json | jq -r '.status'
 expected_behavior:
-  - `applyMigration` rolls back via deferred `rollbackMigrationTx` (`schema.go:237-274, 387-399`).
+  - Goose rolls back the transactional Up migration; no partial schema object remains.
   - No partial schema state (the failing migration's CREATE statements get rolled back).
   - Original binary recovers cleanly because nothing was recorded.
 evidence_to_capture:
   - out.log; versions.txt; full `agh.db` schema dump pre and post.
 failure_signatures:
-  - Version N+1 row present in `schema_migrations`.
+  - An applied N+1 row appears in `goose_db_version_global`.
   - Daemon boots successfully against bad migration (rollback skipped).
 cleanup:
   - rm $LAB_HOME/agh.db && agh daemon stop
@@ -590,16 +589,16 @@ steps:
   - run: agh daemon start 2>&1 | tee boot.log
   - wait: 5s
   - run: ls -la "$LAB_HOME"/agh.db* | tee files.txt
-  - run: sqlite3 "$LAB_HOME/agh.db" 'SELECT count(*) FROM schema_migrations;'
+  - run: agh status -o json | jq '.daemon.schema_streams' | tee schema-streams.json
 expected_behavior:
   - `OpenSQLiteDatabase` first attempt fails with one of the markers in `ShouldRecoverSQLite` (`sqlite.go:188-208`).
   - `recoverSQLiteDatabase` (`sqlite.go:165-186`) renames `agh.db` → `agh.db.corrupt.<RFC3339nano>`, plus `-wal` / `-shm`.
-  - Reopen succeeds; new fresh DB exists; migrations re-applied from version 1.
+  - Reopen succeeds; the new fresh DB reports global and memory Goose streams at their embedded heads.
   - boot.log records "store: recover sqlite database" only if the second open also fails (otherwise quiet recovery).
 evidence_to_capture:
   - files.txt (proves three corrupt-marked files exist).
   - boot.log.
-  - SELECT count from schema_migrations (must equal canonical migration count).
+  - `schema-streams.json` (both daemon-global streams have versions, applied counts, and digests).
 failure_signatures:
   - boot.log contains a fatal "open sqlite database" error and daemon never starts.
   - Only `agh.db` gets renamed; `-wal` and `-shm` are left next to a fresh DB.
@@ -630,18 +629,18 @@ steps:
   - run: agh daemon start && sleep 3
   - run: sqlite3 "$LAB_HOME/agh.db" '.schema' | sha256sum > schema.after
   - assert: cmp schema.before schema.after
-  - run: sqlite3 "$LAB_HOME/agh.db" 'SELECT version, name, checksum FROM schema_migrations ORDER BY version;' > migrations.before2
+  - run: agh status -o json | jq -S '.daemon.schema_streams' > migrations.before2
   - run: agh daemon stop && agh daemon start && sleep 3
-  - run: sqlite3 "$LAB_HOME/agh.db" 'SELECT version, name, checksum FROM schema_migrations ORDER BY version;' > migrations.after2
+  - run: agh status -o json | jq -S '.daemon.schema_streams' > migrations.after2
   - assert: diff migrations.before2 migrations.after2
 expected_behavior:
   - schema sha matches before/after.
-  - migration rows match (no second `applied_at` row for the same version).
+  - stream versions, applied counts, and digests match.
 evidence_to_capture:
   - schema.before, schema.after, sha values, diff outputs.
 failure_signatures:
-  - Schema differs (rogue `EnsureSchema` call without registry; forbidden by AGH-schema-migration skill).
-  - New rows in `schema_migrations`.
+  - Schema differs because code bypassed the declarative Goose stream.
+  - A stream's applied count or digest changes without an appended migration.
 cleanup:
   - agh daemon stop
 ```
@@ -671,12 +670,12 @@ steps:
   - run: $AGH_OLD sessions start --agent claude-code --workspace ./fixtures/db10 -o json | tee sess.json
   - set: SID=$(jq -r '.id' sess.json)
   - run: $AGH_OLD sessions prompt $SID --message "ack and stop" -o json
-  - run: $AGH_OLD daemon status -o json | jq -r '.version' | tee old_version.txt
+  - run: $AGH_OLD status -o json | jq -r '.version' | tee old_version.txt
   - run: $AGH_OLD daemon stop && sleep 2
   - run: $AGH_NEW daemon start && sleep 5
-  - run: $AGH_NEW daemon status -o json | jq -r '.version' | tee new_version.txt
+  - run: $AGH_NEW status -o json | jq -r '.version' | tee new_version.txt
   - run: $AGH_NEW sessions list -o json | jq ".[] | select(.id==\"$SID\")" | tee post_upgrade.json
-  - run: sqlite3 "$LAB_HOME/agh.db" 'SELECT version, name FROM schema_migrations ORDER BY version;' | tee migrations.txt
+  - run: $AGH_NEW status -o json | jq '.daemon.schema_streams' | tee migrations.txt
   - run: $AGH_NEW sessions resume $SID -o json
   - run: $AGH_NEW sessions transcript $SID -o json | jq 'length'
 expected_behavior:
@@ -742,7 +741,7 @@ cleanup:
 
 ```yaml qa-scenario
 id: db-diagnostics-states
-title: agh daemon status -o json + GET /api/diagnostics/* expose accurate state across normal, degraded, and unhealthy
+title: agh status -o json + GET /api/diagnostics/* expose accurate state across normal, degraded, and unhealthy
 theme: daemon-boot
 coverage:
   primary:
@@ -755,7 +754,7 @@ provider: none
 
 ```yaml qa-flow
 steps:
-  - run: agh daemon status -o json | jq . | tee normal.json
+  - run: agh status -o json | jq . | tee normal.json
   - assert: normal.json.status == "running"
   - run: # Force memory directory unwritable to provoke degradation
   - run: chmod 000 "$LAB_HOME/memory" && curl -s http://127.0.0.1:$AGH_HTTP_PORT/api/memory/health | jq . | tee degraded-memory.json
@@ -763,7 +762,7 @@ steps:
   - run: # provoke automation degradation by editing a webhook to use a missing secret
   - run: curl -s http://127.0.0.1:$AGH_HTTP_PORT/api/observe/health | jq . | tee composite-health.json
   - run: agh daemon stop && sleep 2
-  - run: agh daemon status -o json | jq . | tee stopped.json
+  - run: agh status -o json | jq . | tee stopped.json
   - assert: stopped.json.status == "stopped"
   - assert: stopped.json.network == null   # `daemonStatusWithState` zeros network when stopped (cli/daemon.go:318-336)
 expected_behavior:
@@ -936,7 +935,7 @@ Matrix of dependencies and obligations.
 | `internal/acp`                  | Wrap with `session.NewACPDriverAdapter`; pass `ProcessRegistry` for tool process bookkeeping. | Manage subprocess lifecycle; refuse new prompts after shutdown.                                                       | `daemon.go:583-588`                            |
 | `internal/store/globaldb`       | Open via `globaldb.OpenGlobalDB(ctx, path)`; close on shutdown.                              | Implement `Registry` interface (observe + workspace + audit + channel + message + vault store).                       | `daemon.go:537-541`, `daemon.go:1245-1253`     |
 | `internal/store/sessiondb`      | Open per-session DB via session manager.                                                     | Drain the per-session writer goroutine on `Close`.                                                                    | `sessiondb/session_db.go:170-178`              |
-| `internal/store`                | Use `RunMigrations` registry; never call `EnsureSchema` for column changes.                  | Reject duplicate version/name; rollback on failure.                                                                   | `schema.go:62-109, 152-194`                    |
+| `internal/store`                | Apply every embedded Goose stream with `store.Apply`; never reconcile columns through `EnsureSchema`. | Validate `atlas.sum`, reject legacy/ahead state, and preserve transactional failure semantics.                        | `migrate.go`, `migrate_integrity.go`           |
 | `internal/heartbeat`            | Wire authoring/status/wake services into RuntimeDeps.                                        | Provide bounded prompt projection; surface diagnostics list.                                                          | `boot.go:830-872`                              |
 | `internal/version`              | Expose `Current().Version` to status payloads.                                               | Read-only; mutex-guarded `OverrideVersionForTesting` (test-only).                                                     | `cli/daemon.go:333`, `version.go:34-52`        |
 | `internal/procutil`             | Use for `Alive`, `Signal`, `SpawnDetachedLoggedProcess`, `KillCommandProcessGroupAndWait`.    | Build-tag split for unix/windows; `KillProcessGroupIDAndWait` returns explicit unsupported error on windows.          | `procutil_windows.go:12-37`                    |
@@ -962,9 +961,9 @@ Concrete, with symptom + minimal repro + fix surface.
    - Repro: set `AGH_HOME=$LAB_A`, start; in another shell `AGH_HOME=$LAB_A` start.
    - Fix surface: `internal/daemon/lock.go:24-28`. Include `lock.path` in the formatted error.
 
-2. **`agh daemon status` after `kill -9` reports `starting` for ~poll-interval seconds.**
+2. **`agh status` after `kill -9` reports `starting` for ~poll-interval seconds.**
    - Symptom: `cli/daemon.go:283-300` falls back to `daemonInfo`; if PID still has children (or is recycled), the poll loop returns stale `starting` state.
-   - Repro: kill -9, immediately run `agh daemon status -o json`.
+   - Repro: kill -9, immediately run `agh status -o json`.
    - Fix surface: cross-check `daemon.json.started_at` against `procutil.MatchesStartTime` (`procutil/process_started_at_unix.go`).
 
 3. **Subprocess-stopped-with-non-zero-exit log line prints raw stderr.**
@@ -985,7 +984,7 @@ Concrete, with symptom + minimal repro + fix surface.
    - Fix surface: turn the runtime check on by default for development builds (use `version.Version == "dev"`).
 
 7. **Restart-pending sentinel handling.**
-   - Symptom: if a relaunch helper aborts after writing `RestartStatusStarting` but before the new daemon writes a fresh `daemon.json`, `agh daemon status` will keep returning the OLD `daemon.json` — operators think the upgrade succeeded.
+   - Symptom: if a relaunch helper aborts after writing `RestartStatusStarting` but before the new daemon writes a fresh `daemon.json`, `agh status` will keep returning the OLD `daemon.json` — operators think the upgrade succeeded.
    - Fix surface: `cli/daemon.go:283-300` should consult `restartStore.LatestOperation` before trusting `daemon.json`; mark "restart in progress" prominently.
 
 8. **`ShouldRecoverSQLite` marker list is hardcoded English strings.**
@@ -996,7 +995,7 @@ Concrete, with symptom + minimal repro + fix surface.
    - Symptom: HEARTBEAT.md exceeds bytes → diagnostic stored, prompt projection truncated. Operators see truncated output but no top-level "your heartbeat is too long" log.
    - Fix surface: `heartbeat.go:466-481` — emit a `slog.Warn` at the daemon level when boot-time resolution surfaces an `oversized_*` diagnostic.
 
-10. **`agh daemon status -o json` `network` field missing when `daemon.json` was written before the network bound itself.**
+10. **`agh status -o json` `network` field missing when `daemon.json` was written before the network bound itself.**
     - Symptom: legitimate race during boot; status JSON has `network: null` for ~1s. Web UI renders "network: unknown".
     - Fix surface: stage `WriteInfo` to update `daemon.json` after `bootNetwork` completes (currently `bootServers → daemonNetworkInfo → WriteInfo`, `boot.go:1622-1638`, runs only once).
 
@@ -1006,7 +1005,7 @@ If any of these slip, we ship a broken daemon.
 
 1. **Raw `claim_token` ever reaching disk or wire.** `grep -E '\bagh_claim_[A-Za-z0-9]+\b' agh.log` returns no matches across DB-04 / DB-11 / DB-14 / DB-10 evidence. Same grep across all `*.json` evidence files. (Cited claim: `internal/CLAUDE.md:55`.)
 2. **Orphan ACP subprocess after `agh daemon stop`.** Verified by DB-05 step `kill -0 $CHILD_PID`. (Cited claim: `internal/CLAUDE.md:36-37`.)
-3. **Migration recorded twice.** `schema_migrations` row count strictly equals the canonical migration list count after any boot/restart cycle.
+3. **Migration applied twice.** Each `schema_streams.applied_count` remains equal to the embedded gap-free SQL count after any boot/restart cycle.
 4. **`daemon.lock` remaining with non-zero PID after clean stop.** Always `0\n` after `Lock.Release` (`lock.go:124-149`).
 5. **`daemon.json` left behind after clean stop.** `RemoveInfo` runs in `shutdownPersistentResources` (`daemon.go:1245-1248`).
 6. **`agh.db` 0-byte after crash.** Detected by `ShouldRecoverSQLite` recovery path; if the file is exactly 0 bytes, marker list must include the appropriate signature.
@@ -1060,9 +1059,9 @@ The QA harness for daemon-boot must:
 - `internal/heartbeat/heartbeat.go:1-500+` — HEARTBEAT.md resolution with strict YAML, body-authority rejection, prompt projection.
 - `internal/store/store.go:1-110` — file/db constants, registry interfaces (SessionRegistry composes everything).
 - `internal/store/sqlite.go:1-231` — `OpenSQLiteDatabase` with WAL configuration, busy_timeout, corrupt-DB recovery, `-wal`/`-shm` companion rename.
-- `internal/store/schema.go:1-400` — numbered migration registry with `BEGIN`/`COMMIT` per migration, integrity checksum check, rollback discipline.
+- `internal/store/migrate.go` + `migrate_integrity.go` — Goose stream application, ahead/legacy refusal, and `atlas.sum` validation.
 - `internal/store/meta.go:1-77` — atomic session-meta write via `fileutil.AtomicWriteFile` + `syncDirectory`.
-- `internal/store/globaldb/global_db.go:1-600+` — global schema (lines 37-492) + numbered migrations 1..13 (lines 494-599); `claim_token` column added in version 7.
+- `internal/store/globaldb/schema/` — declarative global schema, embedded gap-free Goose SQL, and `atlas.sum`.
 - `internal/store/sessiondb/session_db.go:1-180` — per-session DB with dedicated writer goroutine; sequence numbering; canonical event schema string.
 - `internal/version/version.go:1-58` — build metadata, `OverrideVersionForTesting` mutex.
 - `internal/procutil/procutil.go:1-32` — `Alive`/`Signal` thin wrappers around `syscall.Kill`.

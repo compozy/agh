@@ -9,11 +9,12 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 // PauseTask marks one task as paused for future claim eligibility.
-func (g *GlobalDB) PauseTask(ctx context.Context, mutation taskpkg.PauseMutation) (taskpkg.Task, error) {
+func (g *TaskRepo) PauseTask(ctx context.Context, mutation taskpkg.PauseMutation) (taskpkg.Task, error) {
 	if err := g.checkReady(ctx, "pause task"); err != nil {
 		return taskpkg.Task{}, err
 	}
@@ -39,22 +40,18 @@ func (g *GlobalDB) PauseTask(ctx context.Context, mutation taskpkg.PauseMutation
 		if _, err := g.getTaskWithExecutor(ctx, exec, taskID); err != nil {
 			return err
 		}
-		result, err := exec.ExecContext(
-			ctx,
-			`UPDATE tasks
-			    SET paused = 1, paused_by = ?, paused_at = ?, paused_reason = ?, updated_at = ?
-			  WHERE id = ?`,
-			actor,
-			store.FormatTimestamp(pausedAt),
-			reason,
-			store.FormatTimestamp(pausedAt),
-			taskID,
-		)
+		affected, err := sqlcgen.New(exec).PauseTask(ctx, sqlcgen.PauseTaskParams{
+			PausedBy:     actor,
+			PausedAt:     sql.NullString{String: store.FormatTimestamp(pausedAt), Valid: true},
+			PausedReason: reason,
+			UpdatedAt:    store.FormatTimestamp(pausedAt),
+			ID:           taskID,
+		})
 		if err != nil {
 			return fmt.Errorf("store: pause task %q: %w", taskID, err)
 		}
-		if err := requireRowsAffected(result, taskpkg.ErrTaskNotFound, taskID, "task"); err != nil {
-			return err
+		if affected == 0 {
+			return taskpkg.ErrTaskNotFound
 		}
 		record, err := g.getTaskWithExecutor(ctx, exec, taskID)
 		if err != nil {
@@ -69,7 +66,7 @@ func (g *GlobalDB) PauseTask(ctx context.Context, mutation taskpkg.PauseMutation
 }
 
 // ResumeTask clears one task pause for future claim eligibility.
-func (g *GlobalDB) ResumeTask(ctx context.Context, mutation taskpkg.ResumeMutation) (taskpkg.Task, error) {
+func (g *TaskRepo) ResumeTask(ctx context.Context, mutation taskpkg.ResumeMutation) (taskpkg.Task, error) {
 	if err := g.checkReady(ctx, "resume task"); err != nil {
 		return taskpkg.Task{}, err
 	}
@@ -87,19 +84,14 @@ func (g *GlobalDB) ResumeTask(ctx context.Context, mutation taskpkg.ResumeMutati
 		if _, err := g.getTaskWithExecutor(ctx, exec, taskID); err != nil {
 			return err
 		}
-		result, err := exec.ExecContext(
-			ctx,
-			`UPDATE tasks
-			    SET paused = 0, paused_by = '', paused_at = NULL, paused_reason = '', updated_at = ?
-			  WHERE id = ?`,
-			store.FormatTimestamp(resumedAt),
-			taskID,
-		)
+		affected, err := sqlcgen.New(exec).ResumeTask(ctx, sqlcgen.ResumeTaskParams{
+			UpdatedAt: store.FormatTimestamp(resumedAt), ID: taskID,
+		})
 		if err != nil {
 			return fmt.Errorf("store: resume task %q: %w", taskID, err)
 		}
-		if err := requireRowsAffected(result, taskpkg.ErrTaskNotFound, taskID, "task"); err != nil {
-			return err
+		if affected == 0 {
+			return taskpkg.ErrTaskNotFound
 		}
 		record, err := g.getTaskWithExecutor(ctx, exec, taskID)
 		if err != nil {
@@ -114,50 +106,52 @@ func (g *GlobalDB) ResumeTask(ctx context.Context, mutation taskpkg.ResumeMutati
 }
 
 // CountPausedTasks returns the number of directly paused tasks.
-func (g *GlobalDB) CountPausedTasks(ctx context.Context) (int, error) {
+func (g *TaskRepo) CountPausedTasks(ctx context.Context) (int, error) {
 	if err := g.checkReady(ctx, "count paused tasks"); err != nil {
 		return 0, err
 	}
-	var count int
-	if err := g.db.QueryRowContext(ctx, `SELECT COUNT(1) FROM tasks WHERE paused = 1`).Scan(&count); err != nil {
+	count, err := g.queries.CountPausedTasks(ctx)
+	if err != nil {
 		return 0, fmt.Errorf("store: count paused tasks: %w", err)
 	}
-	return count, nil
+	return int(count), nil
 }
 
 // CountActiveTaskRunClaims returns currently leased task runs.
-func (g *GlobalDB) CountActiveTaskRunClaims(ctx context.Context) (int, error) {
+func (g *TaskRepo) CountActiveTaskRunClaims(ctx context.Context) (int, error) {
 	if err := g.checkReady(ctx, "count active task-run claims"); err != nil {
 		return 0, err
 	}
-	var count int
-	if err := g.db.QueryRowContext(
-		ctx,
-		`SELECT COUNT(1)
-		   FROM task_runs
-		  WHERE status IN (?, ?, ?)`,
-		taskpkg.TaskRunStatusClaimed.String(),
-		taskpkg.TaskRunStatusStarting.String(),
-		taskpkg.TaskRunStatusRunning.String(),
-	).Scan(&count); err != nil {
+	count, err := g.queries.CountActiveTaskRunClaims(ctx, sqlcgen.CountActiveTaskRunClaimsParams{
+		ClaimedStatus:  taskpkg.TaskRunStatusClaimed.String(),
+		StartingStatus: taskpkg.TaskRunStatusStarting.String(),
+		RunningStatus:  taskpkg.TaskRunStatusRunning.String(),
+	})
+	if err != nil {
 		return 0, fmt.Errorf("store: count active task-run claims: %w", err)
 	}
-	return count, nil
+	return int(count), nil
 }
 
 // CountQueuedTaskRuns returns queued run pressure, optionally excluding paused tasks.
-func (g *GlobalDB) CountQueuedTaskRuns(ctx context.Context, includePaused bool) (int, error) {
+func (g *TaskRepo) CountQueuedTaskRuns(ctx context.Context, includePaused bool) (int, error) {
 	if err := g.checkReady(ctx, "count queued task runs"); err != nil {
 		return 0, err
 	}
+	if includePaused {
+		count, err := g.queries.CountAllQueuedTaskRuns(ctx, taskpkg.TaskRunStatusQueued.String())
+		if err != nil {
+			return 0, fmt.Errorf("store: count queued task runs: %w", err)
+		}
+		return int(count), nil
+	}
+	// dynamic-sql: sqlc's SQLite analyzer cannot resolve the correlated recursive ancestor CTE.
 	query := `SELECT COUNT(1)
 		FROM task_runs tr
 		JOIN tasks t ON t.id = tr.task_id
 		WHERE tr.status = ?`
 	args := []any{taskpkg.TaskRunStatusQueued.String()}
-	if !includePaused {
-		query += " AND " + effectiveTaskPauseExclusionSQL()
-	}
+	query += " AND " + effectiveTaskPauseExclusionSQL()
 	var count int
 	if err := g.db.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
 		return 0, fmt.Errorf("store: count queued task runs: %w", err)
@@ -166,7 +160,7 @@ func (g *GlobalDB) CountQueuedTaskRuns(ctx context.Context, includePaused bool) 
 }
 
 // CountStarvedQueuedTaskRuns counts claimable queued runs whose queued age exceeds age.
-func (g *GlobalDB) CountStarvedQueuedTaskRuns(
+func (g *TaskRepo) CountStarvedQueuedTaskRuns(
 	ctx context.Context,
 	now time.Time,
 	age time.Duration,
@@ -178,6 +172,7 @@ func (g *GlobalDB) CountStarvedQueuedTaskRuns(
 		return 0, nil
 	}
 	cutoff := store.FormatTimestamp(now.Add(-age))
+	// dynamic-sql: sqlc's SQLite analyzer cannot resolve the correlated recursive ancestor CTE.
 	query := `SELECT COUNT(1)
 		FROM task_runs tr
 		JOIN tasks t ON t.id = tr.task_id
@@ -195,23 +190,19 @@ func (g *GlobalDB) CountStarvedQueuedTaskRuns(
 }
 
 // CountNeedsAttentionTaskRuns counts runs the convergence backstop escalated to needs_attention.
-func (g *GlobalDB) CountNeedsAttentionTaskRuns(ctx context.Context) (int, error) {
+func (g *TaskRepo) CountNeedsAttentionTaskRuns(ctx context.Context) (int, error) {
 	if err := g.checkReady(ctx, "count needs attention task runs"); err != nil {
 		return 0, err
 	}
-	var count int
-	if err := g.db.QueryRowContext(
-		ctx,
-		`SELECT COUNT(1) FROM task_runs WHERE status = ?`,
-		taskpkg.TaskRunStatusNeedsAttention.String(),
-	).Scan(&count); err != nil {
+	count, err := g.queries.CountNeedsAttentionTaskRuns(ctx, taskpkg.TaskRunStatusNeedsAttention.String())
+	if err != nil {
 		return 0, fmt.Errorf("store: count needs attention task runs: %w", err)
 	}
-	return count, nil
+	return int(count), nil
 }
 
 // SchedulerBacklog returns queued task runs ordered by scheduler priority.
-func (g *GlobalDB) SchedulerBacklog(
+func (g *TaskRepo) SchedulerBacklog(
 	ctx context.Context,
 	query taskpkg.SchedulerBacklogQuery,
 ) (backlog taskpkg.SchedulerBacklog, err error) {
@@ -222,6 +213,7 @@ func (g *GlobalDB) SchedulerBacklog(
 	if err := normalized.Validate("scheduler_backlog"); err != nil {
 		return taskpkg.SchedulerBacklog{}, err
 	}
+	// dynamic-sql: optional scope/workspace/pause filters and ordering produce a structural scheduler query.
 	whereSQL, args := schedulerBacklogWhere(normalized)
 
 	var total int
@@ -334,7 +326,7 @@ func normalizeSchedulerBacklogQuery(query taskpkg.SchedulerBacklogQuery) taskpkg
 }
 
 // IsTaskEffectivelyPaused reports whether a task or one of its ancestors is paused.
-func (g *GlobalDB) IsTaskEffectivelyPaused(ctx context.Context, taskID string) (bool, string, error) {
+func (g *TaskRepo) IsTaskEffectivelyPaused(ctx context.Context, taskID string) (bool, string, error) {
 	if err := g.checkReady(ctx, "get effective task pause"); err != nil {
 		return false, "", err
 	}
@@ -343,6 +335,7 @@ func (g *GlobalDB) IsTaskEffectivelyPaused(ctx context.Context, taskID string) (
 		return false, "", err
 	}
 	var pausedByTaskID string
+	// dynamic-sql: sqlc's SQLite analyzer cannot resolve this recursive ancestor walk.
 	err = g.db.QueryRowContext(
 		ctx,
 		`WITH RECURSIVE chain(id, parent_task_id, paused, depth) AS (

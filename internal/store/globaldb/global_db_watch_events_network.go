@@ -26,26 +26,21 @@ type networkWorkOutcome struct {
 	state        string
 }
 
-func (g *GlobalDB) readNetworkWatchEventsCursor(
+func (g *WatchEventsRepo) readNetworkWatchEventsCursor(
 	ctx context.Context,
 	query normalizedWatchEventsQuery,
 ) (int64, error) {
 	if _, ok := stringSet(query.kinds)[string(hookspkg.HookNetworkMessagePersisted)]; ok {
-		return scanWatchEventCursor(
-			g.db.QueryRowContext(
-				ctx,
-				`SELECT COALESCE(MAX(sequence), 0)
-				   FROM network_timeline_log
-				  WHERE workspace_id = ?`,
-				query.workspaceID,
-			),
-			looppkg.WatchEventsNetworkStream,
-		)
+		raw, err := g.queries.GetNetworkWatchEventsCursor(ctx, query.workspaceID)
+		if err != nil {
+			return 0, fmt.Errorf("store: read network watch-events cursor: %w", err)
+		}
+		return watchEventsCursorFromGenerated(raw, looppkg.WatchEventsNetworkStream)
 	}
 	return g.readProjectedNetworkWatchEventsCursor(ctx, query)
 }
 
-func (g *GlobalDB) readProjectedNetworkWatchEventsCursor(
+func (g *WatchEventsRepo) readProjectedNetworkWatchEventsCursor(
 	ctx context.Context,
 	query normalizedWatchEventsQuery,
 ) (int64, error) {
@@ -86,7 +81,7 @@ func (g *GlobalDB) readProjectedNetworkWatchEventsCursor(
 	return cursor, nil
 }
 
-func (g *GlobalDB) readNetworkWatchEvents(
+func (g *WatchEventsRepo) readNetworkWatchEvents(
 	ctx context.Context,
 	query normalizedWatchEventsQuery,
 ) ([]looppkg.WatchEvent, error) {
@@ -130,7 +125,7 @@ func (g *GlobalDB) readNetworkWatchEvents(
 	return events, nil
 }
 
-func (g *GlobalDB) readNetworkWatchEventRows(
+func (g *WatchEventsRepo) readNetworkWatchEventRows(
 	ctx context.Context,
 	query normalizedWatchEventsQuery,
 	after int64,
@@ -139,6 +134,7 @@ func (g *GlobalDB) readNetworkWatchEventRows(
 	if !ok {
 		return nil, false, nil
 	}
+	// dynamic-sql: requested network hook kinds select a package-owned candidate predicate at runtime.
 	// #nosec G202 -- predicate is assembled from fixed SQL fragments, values are parameterized.
 	rows, err := g.db.QueryContext(
 		ctx,
@@ -249,7 +245,7 @@ func networkWatchEventsCandidatePredicate(kinds []string) (string, bool) {
 	return strings.Join(predicates, " OR "), true
 }
 
-func (g *GlobalDB) networkWatchEventsForRow(
+func (g *WatchEventsRepo) networkWatchEventsForRow(
 	ctx context.Context,
 	row networkWatchEventRow,
 	kinds []string,

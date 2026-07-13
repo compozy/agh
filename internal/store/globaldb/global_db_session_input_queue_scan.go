@@ -9,7 +9,61 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
+
+func sessionInputQueueFromGenerated(row *sqlcgen.SessionInputQueue) (store.SessionInputQueueEntry, error) {
+	entry := store.SessionInputQueueEntry{
+		ID:                       row.ID,
+		SessionID:                row.SessionID,
+		Status:                   row.Status,
+		Mode:                     row.Mode,
+		Text:                     row.Text,
+		SessionGeneration:        row.SessionGeneration,
+		TaskRunID:                row.TaskRunID,
+		RunGeneration:            nullableInt64Pointer(row.RunGeneration),
+		AttemptCount:             int(row.AttemptCount),
+		FailureSummary:           row.FailureSummary,
+		LoopRunID:                strings.TrimSpace(row.LoopRunID.String),
+		OwnerKind:                strings.TrimSpace(row.OwnerKind.String),
+		OwnerEpoch:               nullableInt64Pointer(row.OwnerEpoch),
+		BindingEpoch:             nullableInt64Pointer(row.BindingEpoch),
+		PromptID:                 strings.TrimSpace(row.PromptID.String),
+		PromptKind:               strings.TrimSpace(row.PromptKind.String),
+		OperationUsageBaseTokens: nullableInt64Pointer(row.OperationUsageBaseTokens),
+		PromptAttempt:            int(row.PromptAttempt),
+		Dispatchable:             row.Dispatchable != 0,
+		DispatchTokenHash:        strings.TrimSpace(row.DispatchTokenHash.String),
+		FenceKind: strings.TrimSpace(
+			row.FenceKind.String,
+		),
+		FenceDisposition:       strings.TrimSpace(row.FenceDisposition.String),
+		FenceReasonCode:        strings.TrimSpace(row.FenceReasonCode.String),
+		TerminalEventStartSeq:  nullableInt64Pointer(row.TerminalEventStartSeq),
+		TerminalEventEndSeq:    nullableInt64Pointer(row.TerminalEventEndSeq),
+		TerminalKind:           strings.TrimSpace(row.TerminalKind.String),
+		TerminalStopReason:     strings.TrimSpace(row.TerminalStopReason.String),
+		TerminalDisposition:    strings.TrimSpace(row.TerminalDisposition.String),
+		TerminalReasonCode:     strings.TrimSpace(row.TerminalReasonCode.String),
+		TerminalTokensReported: row.TerminalTokensReported != 0,
+		TerminalTokensUsed:     nullableInt64Pointer(row.TerminalTokensUsed),
+	}
+	if err := parseSessionInputQueueTimes(
+		&entry, row.EnqueuedAt, row.UpdatedAt, row.DispatchStartedAt, row.SentAt,
+		row.FailedAt, row.CanceledAt, sqlNullStringFromTime(row.ActivatedAt),
+		sqlNullStringFromTime(row.FencedAt), sqlNullStringFromTime(row.TerminalAt),
+	); err != nil {
+		return store.SessionInputQueueEntry{}, fmt.Errorf("store: parse session input queue entry times: %w", err)
+	}
+	return entry, nil
+}
+
+func sqlNullStringFromTime(value sql.NullTime) sql.NullString {
+	if !value.Valid {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: store.FormatTimestamp(value.Time), Valid: true}
+}
 
 func getSessionInputQueueEntry(
 	ctx context.Context,
@@ -17,139 +71,16 @@ func getSessionInputQueueEntry(
 	sessionID string,
 	entryID string,
 ) (store.SessionInputQueueEntry, error) {
-	entry, err := scanSessionInputQueueEntry(exec.QueryRowContext(ctx, `
-		SELECT `+sessionInputQueueColumns+`
-		FROM session_input_queue
-		WHERE session_id = ? AND id = ?`,
-		sessionID,
-		entryID,
-	))
+	row, err := sqlcgen.New(exec).GetSessionInputQueueEntry(ctx, sqlcgen.GetSessionInputQueueEntryParams{
+		SessionID: sessionID, ID: entryID,
+	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.SessionInputQueueEntry{}, fmt.Errorf("%w: %s", store.ErrSessionInputQueueEntryNotFound, entryID)
 	}
-	return entry, err
-}
-
-func scanSessionInputQueueEntry(row rowScanner) (store.SessionInputQueueEntry, error) {
-	var entry store.SessionInputQueueEntry
-	var fields sessionInputQueueScanFields
-	if err := row.Scan(
-		&entry.ID,
-		&entry.SessionID,
-		&entry.Status,
-		&entry.Mode,
-		&entry.Text,
-		&entry.SessionGeneration,
-		&entry.TaskRunID,
-		&fields.runGeneration,
-		&entry.AttemptCount,
-		&fields.enqueuedAtRaw,
-		&fields.dispatchStartedAt,
-		&fields.sentAt,
-		&fields.failedAt,
-		&entry.FailureSummary,
-		&fields.canceledAt,
-		&fields.updatedAtRaw,
-		&fields.loopRunID,
-		&fields.ownerKind,
-		&fields.ownerEpoch,
-		&fields.bindingEpoch,
-		&fields.promptID,
-		&fields.promptKind,
-		&fields.usageBase,
-		&entry.PromptAttempt,
-		&fields.dispatchable,
-		&fields.activatedAt,
-		&fields.dispatchTokenHash,
-		&fields.fenceKind,
-		&fields.fenceDisposition,
-		&fields.fenceReason,
-		&fields.fencedAt,
-		&fields.terminalStart,
-		&fields.terminalEnd,
-		&fields.terminalKind,
-		&fields.terminalStop,
-		&fields.terminalDisposition,
-		&fields.terminalReason,
-		&fields.terminalTokensReported,
-		&fields.terminalTokens,
-		&fields.terminalAt,
-	); err != nil {
-		return store.SessionInputQueueEntry{}, fmt.Errorf("store: scan session input queue entry: %w", err)
+	if err != nil {
+		return store.SessionInputQueueEntry{}, err
 	}
-	fields.applyValues(&entry)
-	if err := parseSessionInputQueueTimes(
-		&entry,
-		fields.enqueuedAtRaw,
-		fields.updatedAtRaw,
-		fields.dispatchStartedAt,
-		fields.sentAt,
-		fields.failedAt,
-		fields.canceledAt,
-		fields.activatedAt,
-		fields.fencedAt,
-		fields.terminalAt,
-	); err != nil {
-		return store.SessionInputQueueEntry{}, fmt.Errorf("store: parse session input queue entry times: %w", err)
-	}
-	return entry, nil
-}
-
-type sessionInputQueueScanFields struct {
-	runGeneration          sql.NullInt64
-	ownerEpoch             sql.NullInt64
-	bindingEpoch           sql.NullInt64
-	usageBase              sql.NullInt64
-	terminalStart          sql.NullInt64
-	terminalEnd            sql.NullInt64
-	terminalTokens         sql.NullInt64
-	loopRunID              sql.NullString
-	ownerKind              sql.NullString
-	promptID               sql.NullString
-	promptKind             sql.NullString
-	dispatchTokenHash      sql.NullString
-	fenceKind              sql.NullString
-	fenceDisposition       sql.NullString
-	fenceReason            sql.NullString
-	terminalKind           sql.NullString
-	terminalStop           sql.NullString
-	terminalDisposition    sql.NullString
-	terminalReason         sql.NullString
-	dispatchStartedAt      sql.NullString
-	sentAt                 sql.NullString
-	failedAt               sql.NullString
-	canceledAt             sql.NullString
-	activatedAt            sql.NullString
-	fencedAt               sql.NullString
-	terminalAt             sql.NullString
-	enqueuedAtRaw          string
-	updatedAtRaw           string
-	dispatchable           int
-	terminalTokensReported int
-}
-
-func (fields *sessionInputQueueScanFields) applyValues(entry *store.SessionInputQueueEntry) {
-	entry.RunGeneration = nullableInt64Pointer(fields.runGeneration)
-	entry.LoopRunID = strings.TrimSpace(fields.loopRunID.String)
-	entry.OwnerKind = strings.TrimSpace(fields.ownerKind.String)
-	entry.OwnerEpoch = nullableInt64Pointer(fields.ownerEpoch)
-	entry.BindingEpoch = nullableInt64Pointer(fields.bindingEpoch)
-	entry.PromptID = strings.TrimSpace(fields.promptID.String)
-	entry.PromptKind = strings.TrimSpace(fields.promptKind.String)
-	entry.DispatchTokenHash = strings.TrimSpace(fields.dispatchTokenHash.String)
-	entry.OperationUsageBaseTokens = nullableInt64Pointer(fields.usageBase)
-	entry.Dispatchable = fields.dispatchable != 0
-	entry.FenceKind = strings.TrimSpace(fields.fenceKind.String)
-	entry.FenceDisposition = strings.TrimSpace(fields.fenceDisposition.String)
-	entry.FenceReasonCode = strings.TrimSpace(fields.fenceReason.String)
-	entry.TerminalEventStartSeq = nullableInt64Pointer(fields.terminalStart)
-	entry.TerminalEventEndSeq = nullableInt64Pointer(fields.terminalEnd)
-	entry.TerminalKind = strings.TrimSpace(fields.terminalKind.String)
-	entry.TerminalStopReason = strings.TrimSpace(fields.terminalStop.String)
-	entry.TerminalDisposition = strings.TrimSpace(fields.terminalDisposition.String)
-	entry.TerminalReasonCode = strings.TrimSpace(fields.terminalReason.String)
-	entry.TerminalTokensReported = fields.terminalTokensReported != 0
-	entry.TerminalTokensUsed = nullableInt64Pointer(fields.terminalTokens)
+	return sessionInputQueueFromGenerated(&row)
 }
 
 func parseSessionInputQueueTimes(
@@ -212,15 +143,4 @@ func parseOptionalSessionInputTimestamp(value sql.NullString) (*time.Time, error
 		return nil, err
 	}
 	return &parsed, nil
-}
-
-func requireSessionInputRowsAffected(result sql.Result, action string, id string) error {
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("store: rows affected for %s %q: %w", action, id, err)
-	}
-	if rows == 0 {
-		return fmt.Errorf("%w: %s", store.ErrSessionInputQueueEntryNotFound, id)
-	}
-	return nil
 }

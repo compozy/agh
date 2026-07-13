@@ -8,10 +8,11 @@ import (
 
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 // FinalizeSessionBindingCreation atomically activates a created session or exposes Stop cleanup.
-func (g *GlobalDB) FinalizeSessionBindingCreation(
+func (g *GoalRepo) FinalizeSessionBindingCreation(
 	ctx context.Context,
 	req goal.ActivateBindingRequest,
 ) (goal.SessionBinding, bool, error) {
@@ -43,22 +44,20 @@ func (g *GlobalDB) FinalizeSessionBindingCreation(
 					return goalControlStaleError("created Goal binding failed outside Stop settlement")
 				}
 				if current.FailureCode == goalBindingFailureStopCreationUnsettled {
-					result, updateErr := exec.ExecContext(
+					affected, updateErr := sqlcgen.New(exec).SettleStoppedGoalBindingBeforeActivation(
 						ctx,
-						`UPDATE loop_session_bindings SET failure_code = ?
-					 WHERE loop_run_id = ? AND handle = ? AND binding_epoch = ?
-					   AND state = 'failed' AND failure_code = ?`,
-						goalBindingFailureStopCreationSettled,
-						string(req.Key.LoopRunID),
-						req.Key.Handle,
-						req.ExpectedBindingEpoch,
-						goalBindingFailureStopCreationUnsettled,
+						sqlcgen.SettleStoppedGoalBindingBeforeActivationParams{
+							SettledFailureCode: goalNullableString(goalBindingFailureStopCreationSettled),
+							LoopRunID:          string(req.Key.LoopRunID), Handle: req.Key.Handle,
+							BindingEpoch:         req.ExpectedBindingEpoch,
+							UnsettledFailureCode: goalNullableString(goalBindingFailureStopCreationUnsettled),
+						},
 					)
 					if updateErr != nil {
 						return fmt.Errorf("store: settle stopped Goal creation before activation: %w", updateErr)
 					}
-					if err := requireGoalRowsAffected(
-						result,
+					if err := requireGoalAffectedCount(
+						affected,
 						"settle stopped Goal creation before activation",
 					); err != nil {
 						return err
@@ -77,7 +76,7 @@ func (g *GlobalDB) FinalizeSessionBindingCreation(
 }
 
 // ActivateSessionBinding swaps one successfully created run-owned attempt into active state.
-func (g *GlobalDB) ActivateSessionBinding(
+func (g *GoalRepo) ActivateSessionBinding(
 	ctx context.Context,
 	req goal.ActivateBindingRequest,
 ) (goal.SessionBinding, error) {
@@ -181,24 +180,18 @@ func resetGoalRecoveryAfterBindingActivation(
 	if req.CheckpointKey == nil {
 		return nil
 	}
-	result, err := exec.ExecContext(
+	affected, err := sqlcgen.New(exec).ResetGoalRecoveryAfterBindingActivation(
 		ctx,
-		`UPDATE loop_goal_checkpoints
-		 SET recovery_streak = 0, compaction_baseline_used = NULL,
-		     compaction_recovery_required = 0, updated_at = ?
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		   AND control_epoch = ?`,
-		store.FormatTimestamp(req.ActivatedAt),
-		string(req.Key.LoopRunID),
-		req.CheckpointKey.Generation,
-		string(req.CheckpointKey.NodeID),
-		req.CheckpointKey.ItemIndex,
-		req.ExpectedControlEpoch,
+		sqlcgen.ResetGoalRecoveryAfterBindingActivationParams{
+			UpdatedAt: store.FormatTimestamp(req.ActivatedAt), LoopRunID: string(req.Key.LoopRunID),
+			Generation: int64(req.CheckpointKey.Generation), NodeID: string(req.CheckpointKey.NodeID),
+			ItemIndex: int64(req.CheckpointKey.ItemIndex), ControlEpoch: req.ExpectedControlEpoch,
+		},
 	)
 	if err != nil {
 		return fmt.Errorf("store: reset Goal recovery after binding activation: %w", err)
 	}
-	return requireGoalRowsAffected(result, "reset Goal recovery after binding activation")
+	return requireGoalAffectedCount(affected, "reset Goal recovery after binding activation")
 }
 
 func retireGoalBinding(
@@ -208,21 +201,19 @@ func retireGoalBinding(
 	current goal.SessionBinding,
 	nextState goal.BindingState,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_session_bindings
-		 SET state = ?, closed_at = ?
-		 WHERE loop_run_id = ? AND handle = ? AND binding_epoch = ? AND state = 'active'`,
-		string(nextState),
-		store.FormatTimestamp(req.ActivatedAt),
-		string(req.Key.LoopRunID),
-		req.Key.Handle,
-		current.BindingEpoch,
-	)
+	affected, err := sqlcgen.New(exec).RetireGoalBinding(ctx, sqlcgen.RetireGoalBindingParams{
+		State: string(
+			nextState,
+		),
+		ClosedAt:     store.FormatTimestamp(req.ActivatedAt),
+		LoopRunID:    string(req.Key.LoopRunID),
+		Handle:       req.Key.Handle,
+		BindingEpoch: current.BindingEpoch,
+	})
 	if err != nil {
 		return fmt.Errorf("store: retire active goal binding: %w", err)
 	}
-	if err := requireGoalRowsAffected(result, "retire active goal binding"); err != nil {
+	if err := requireGoalAffectedCount(affected, "retire active goal binding"); err != nil {
 		return err
 	}
 	if current.Ownership == goal.BindingOwnershipRunOwned {
@@ -242,20 +233,14 @@ func activateGoalBindingRow(
 	exec taskSQLExecutor,
 	req goal.ActivateBindingRequest,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_session_bindings
-		 SET state = 'active', activated_at = ?
-		 WHERE loop_run_id = ? AND handle = ? AND binding_epoch = ? AND state = 'creating'`,
-		store.FormatTimestamp(req.ActivatedAt),
-		string(req.Key.LoopRunID),
-		req.Key.Handle,
-		req.ExpectedBindingEpoch,
-	)
+	affected, err := sqlcgen.New(exec).ActivateGoalBinding(ctx, sqlcgen.ActivateGoalBindingParams{
+		ActivatedAt: store.FormatTimestamp(req.ActivatedAt), LoopRunID: string(req.Key.LoopRunID),
+		Handle: req.Key.Handle, BindingEpoch: req.ExpectedBindingEpoch,
+	})
 	if err != nil {
 		return fmt.Errorf("store: activate goal binding: %w", err)
 	}
-	return requireGoalRowsAffected(result, "activate goal binding")
+	return requireGoalAffectedCount(affected, "activate goal binding")
 }
 
 func consumeGoalReseedGrant(
@@ -283,6 +268,7 @@ func consumeGoalReseedGrant(
 			req.CheckpointKey.ItemIndex,
 		)
 	}
+	// dynamic-sql: checkpoint ownership is optional, so the CAS predicate and its arguments are appended together.
 	result, err := exec.ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("store: consume goal reseed grant: %w", err)
@@ -291,7 +277,7 @@ func consumeGoalReseedGrant(
 }
 
 // CloseSessionBinding closes one exact active epoch idempotently.
-func (g *GlobalDB) CloseSessionBinding(ctx context.Context, req goal.CloseBindingRequest) error {
+func (g *GoalRepo) CloseSessionBinding(ctx context.Context, req goal.CloseBindingRequest) error {
 	if err := g.checkReady(ctx, "close goal session binding"); err != nil {
 		return err
 	}
@@ -331,7 +317,7 @@ func (g *GlobalDB) CloseSessionBinding(ctx context.Context, req goal.CloseBindin
 }
 
 // GetActiveSessionBinding returns the exact active epoch for one workspace-owned handle.
-func (g *GlobalDB) GetActiveSessionBinding(
+func (g *GoalRepo) GetActiveSessionBinding(
 	ctx context.Context,
 	key goal.BindingKey,
 ) (goal.SessionBinding, error) {
@@ -352,7 +338,7 @@ func (g *GlobalDB) GetActiveSessionBinding(
 }
 
 // GetSessionBindingAttempt returns one immutable binding attempt by epoch.
-func (g *GlobalDB) GetSessionBindingAttempt(
+func (g *GoalRepo) GetSessionBindingAttempt(
 	ctx context.Context,
 	key goal.BindingKey,
 	epoch int64,
@@ -404,6 +390,7 @@ func validateReseedGrantForActivation(
 			req.CheckpointKey.ItemIndex,
 		)
 	}
+	// dynamic-sql: checkpoint ownership is optional, so validation conditionally narrows the reseed grant identity.
 	err := exec.QueryRowContext(ctx, query, args...).Scan(&exists)
 	if errors.Is(err, sql.ErrNoRows) {
 		return goalControlStaleError("reseed grant is stale or consumed")
@@ -434,6 +421,7 @@ func validateBindingActivationControlEpoch(
 		)
 	}
 	var exists int
+	// dynamic-sql: checkpoint ownership is optional, so validation conditionally narrows the control epoch identity.
 	err := exec.QueryRowContext(ctx, query, args...).Scan(&exists)
 	if errors.Is(err, sql.ErrNoRows) {
 		return goalControlStaleError("binding activation control epoch is stale")

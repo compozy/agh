@@ -8,10 +8,11 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 )
 
-func (g *GlobalDB) readLoopWatchEvents(
+func (g *WatchEventsRepo) readLoopWatchEvents(
 	ctx context.Context,
 	query normalizedWatchEventsQuery,
 ) ([]looppkg.WatchEvent, error) {
+	// dynamic-sql: caller-selected loop event kinds require a variable-width IN list.
 	placeholders, kindArgs := sqlInPlaceholders(query.kinds)
 	args := append([]any{query.workspaceID, query.streams[looppkg.WatchEventsLoopStream]}, kindArgs...)
 	args = append(args,

@@ -58,7 +58,7 @@ func appendRequestedNetworkWorkEvent(
 	*events = append(*events, networkWatchEventFromRow(row, kind, workState))
 }
 
-func (g *GlobalDB) networkConversationOpenedAtTimelineRow(
+func (g *WatchEventsRepo) networkConversationOpenedAtTimelineRow(
 	ctx context.Context,
 	row networkWatchEventRow,
 	surface string,
@@ -77,6 +77,7 @@ func (g *GlobalDB) networkConversationOpenedAtTimelineRow(
 		return false, nil
 	}
 	var previous int
+	// dynamic-sql: thread and direct surfaces select one of two whitelisted container columns.
 	// #nosec G202 -- column is selected from a fixed whitelist above; values are parameterized.
 	if err := g.db.QueryRowContext(
 		ctx,

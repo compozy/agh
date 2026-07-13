@@ -19,7 +19,7 @@ func TestNewRecallAugmenter(t *testing.T) {
 	t.Run("Should return original message when session or query is empty", func(t *testing.T) {
 		t.Parallel()
 
-		augmenter := NewRecallAugmenter(NewStore(filepath.Join(t.TempDir(), "global")))
+		augmenter := NewRecallAugmenter(newOpenTestStore(t, filepath.Join(t.TempDir(), "global")))
 
 		got, err := augmenter(context.Background(), nil, "hello")
 		if err != nil {
@@ -43,7 +43,7 @@ func TestNewRecallAugmenter(t *testing.T) {
 
 		baseDir := t.TempDir()
 		workspaceRoot := filepath.Join(baseDir, "workspace")
-		store := NewStore(
+		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
 			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
 		).ForWorkspace(workspaceRoot)
@@ -134,7 +134,7 @@ func TestStoreRecall(t *testing.T) {
 		globalDir := filepath.Join(baseDir, "agh-home", memoryDirName)
 		workspaceRoot := filepath.Join(baseDir, "workspace")
 		catalogPath := filepath.Join(baseDir, "agh.db")
-		store := NewStore(globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceRoot)
+		store := newOpenTestStore(t, globalDir, WithCatalogDatabasePath(catalogPath)).ForWorkspace(workspaceRoot)
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
@@ -193,7 +193,7 @@ func TestStoreRecall(t *testing.T) {
 
 		ctx := context.Background()
 		baseDir := t.TempDir()
-		store := NewStore(
+		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
 			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
 		)
@@ -220,7 +220,7 @@ func TestStoreRecall(t *testing.T) {
 		ctx := context.Background()
 		baseDir := t.TempDir()
 		workspaceRoot := filepath.Join(baseDir, "workspace")
-		store := NewStore(
+		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
 			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
 		).ForWorkspace(workspaceRoot)
@@ -259,7 +259,7 @@ func TestStoreRecallFailureAndUtilityPaths(t *testing.T) {
 	t.Run("Should return empty package when catalog is disabled", func(t *testing.T) {
 		t.Parallel()
 
-		store := NewStore(filepath.Join(t.TempDir(), "global"))
+		store := newOpenTestStore(t, filepath.Join(t.TempDir(), "global"))
 		packaged, err := store.Recall(
 			context.Background(),
 			memcontract.Query{QueryText: "auth migration sessions"},
@@ -284,7 +284,7 @@ func TestStoreRecallFailureAndUtilityPaths(t *testing.T) {
 		); err == nil {
 			t.Fatal("nil Store.Recall() error = nil, want failure")
 		}
-		if _, err := NewStore(filepath.Join(t.TempDir(), "global")).Recall(
+		if _, err := newOpenTestStore(t, filepath.Join(t.TempDir(), "global")).Recall(
 			nilMemoryTestContext(),
 			memcontract.Query{QueryText: "auth migration sessions"},
 			memcontract.RecallOptions{},
@@ -301,7 +301,7 @@ func TestStoreRecallFailureAndUtilityPaths(t *testing.T) {
 
 		ctx := context.Background()
 		baseDir := t.TempDir()
-		store := NewStore(
+		store := newOpenTestStore(t,
 			filepath.Join(baseDir, "global"),
 			WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
 		)

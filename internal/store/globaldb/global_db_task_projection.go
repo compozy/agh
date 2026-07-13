@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -42,12 +43,8 @@ func setTaskCurrentRunProjectionForRun(
 		return err
 	}
 
-	var taskID string
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT task_id FROM task_runs WHERE id = ?`,
-		trimmedRunID,
-	).Scan(&taskID); err != nil {
+	taskID, err := sqlcgen.New(exec).GetTaskRunTaskID(ctx, trimmedRunID)
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return taskpkg.ErrTaskRunNotFound
 		}
@@ -71,30 +68,15 @@ func setTaskCurrentRunProjection(
 		return err
 	}
 
-	result, err := exec.ExecContext(
+	rowsAffected, err := sqlcgen.New(exec).SetTaskCurrentRunProjection(
 		ctx,
-		`UPDATE tasks
-		    SET current_run_id = ?
-		  WHERE id = ?
-		    AND (
-		    	current_run_id IS NULL OR current_run_id = '' OR current_run_id = ?
-		    )`,
-		trimmedRunID,
-		trimmedTaskID,
-		trimmedRunID,
+		sqlcgen.SetTaskCurrentRunProjectionParams{
+			RunID: sql.NullString{String: trimmedRunID, Valid: true}, TaskID: trimmedTaskID,
+		},
 	)
 	if err != nil {
 		return fmt.Errorf(
 			"store: set current run projection for task %q to %q: %w",
-			trimmedTaskID,
-			trimmedRunID,
-			err,
-		)
-	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf(
-			"store: read current run projection set result for task %q run %q: %w",
 			trimmedTaskID,
 			trimmedRunID,
 			err,
@@ -141,24 +123,15 @@ func clearTaskCurrentRunProjection(
 		return err
 	}
 
-	result, err := exec.ExecContext(
+	rowsAffected, err := sqlcgen.New(exec).ClearTaskCurrentRunProjection(
 		ctx,
-		`UPDATE tasks SET current_run_id = NULL WHERE id = ? AND current_run_id = ?`,
-		trimmedTaskID,
-		trimmedRunID,
+		sqlcgen.ClearTaskCurrentRunProjectionParams{
+			TaskID: trimmedTaskID, RunID: sql.NullString{String: trimmedRunID, Valid: true},
+		},
 	)
 	if err != nil {
 		return fmt.Errorf(
 			"store: clear current run projection for task %q run %q: %w",
-			trimmedTaskID,
-			trimmedRunID,
-			err,
-		)
-	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf(
-			"store: read current run projection clear result for task %q run %q: %w",
 			trimmedTaskID,
 			trimmedRunID,
 			err,
@@ -189,12 +162,8 @@ func currentRunProjection(
 	exec taskSQLExecutor,
 	taskID string,
 ) (string, error) {
-	var current sql.NullString
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT current_run_id FROM tasks WHERE id = ?`,
-		taskID,
-	).Scan(&current); err != nil {
+	current, err := sqlcgen.New(exec).GetTaskCurrentRunProjection(ctx, taskID)
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", taskpkg.ErrTaskNotFound
 		}

@@ -18,7 +18,6 @@ import (
 	eventspkg "github.com/compozy/agh/internal/events"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 	storepkg "github.com/compozy/agh/internal/store"
-	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
 const (
@@ -28,9 +27,6 @@ const (
 	catalogETypePath        = "  e.type,"
 	catalogEWorkspaceIDPath = "  e.workspace_id,"
 	catalogSelectValue      = "SELECT"
-	catalogScopeKey         = "scope"
-	catalogUpdatedAtKey     = "updated_at"
-	catalogWorkspaceIDKey   = "workspace_id"
 )
 
 const (
@@ -38,7 +34,6 @@ const (
 	maxSearchLimit             = 50
 	defaultHistoryLimit        = 25
 	maxHistoryLimit            = 100
-	catalogMigrationsTable     = "memory_schema_migrations"
 	maxOperationSummaryBytes   = 2048
 	catalogStateKeyLastReindex = "last_reindex_at"
 	catalogStateKeyScopePrefix = "scope_synced::"
@@ -84,343 +79,6 @@ const (
 	memoryEventMetadataQueryKey       = "query"
 	memoryEventMetadataResultCountKey = "result_count"
 )
-
-var catalogSchemaStatements = []string{
-	`CREATE TABLE IF NOT EXISTS memory_catalog_entries (
-		id             TEXT PRIMARY KEY,
-		scope          TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
-		workspace_id   TEXT NOT NULL DEFAULT '',
-		workspace_root TEXT NOT NULL DEFAULT '',
-		filename       TEXT NOT NULL,
-		type           TEXT NOT NULL,
-		name           TEXT NOT NULL,
-		description    TEXT NOT NULL DEFAULT '',
-		content        TEXT NOT NULL,
-		content_hash   TEXT NOT NULL,
-		updated_at     TEXT NOT NULL,
-		UNIQUE (scope, workspace_root, filename)
-	);`,
-	`CREATE INDEX IF NOT EXISTS idx_memory_catalog_scope ON memory_catalog_entries(scope);`,
-	`CREATE INDEX IF NOT EXISTS idx_memory_catalog_workspace_root ON memory_catalog_entries(workspace_root);`,
-	`CREATE INDEX IF NOT EXISTS idx_memory_catalog_updated_at ON memory_catalog_entries(updated_at);`,
-	`CREATE VIRTUAL TABLE IF NOT EXISTS memory_catalog_fts USING fts5(
-		name,
-		description,
-		content,
-		content='memory_catalog_entries',
-		content_rowid='rowid',
-		tokenize='porter unicode61'
-	);`,
-	`CREATE TRIGGER IF NOT EXISTS memory_catalog_entries_ai AFTER INSERT ON memory_catalog_entries BEGIN
-		INSERT INTO memory_catalog_fts(rowid, name, description, content)
-		VALUES (new.rowid, new.name, new.description, new.content);
-	END;`,
-	`CREATE TRIGGER IF NOT EXISTS memory_catalog_entries_ad AFTER DELETE ON memory_catalog_entries BEGIN
-		INSERT INTO memory_catalog_fts(memory_catalog_fts, rowid, name, description, content)
-		VALUES ('delete', old.rowid, old.name, old.description, old.content);
-	END;`,
-	`CREATE TRIGGER IF NOT EXISTS memory_catalog_entries_au AFTER UPDATE ON memory_catalog_entries BEGIN
-		INSERT INTO memory_catalog_fts(memory_catalog_fts, rowid, name, description, content)
-		VALUES ('delete', old.rowid, old.name, old.description, old.content);
-		INSERT INTO memory_catalog_fts(rowid, name, description, content)
-		VALUES (new.rowid, new.name, new.description, new.content);
-	END;`,
-	`CREATE TABLE IF NOT EXISTS memory_catalog_state (
-		key   TEXT PRIMARY KEY,
-		value TEXT NOT NULL
-	);`,
-	`CREATE TABLE IF NOT EXISTS memory_operation_log (
-		id         TEXT PRIMARY KEY,
-		type       TEXT NOT NULL,
-		agent_name TEXT NOT NULL DEFAULT 'daemon',
-		summary    TEXT NOT NULL DEFAULT '',
-		timestamp  TEXT NOT NULL
-	);`,
-	`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_type ON memory_operation_log(type);`,
-	`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_timestamp ON memory_operation_log(timestamp);`,
-}
-
-var memoryEventOps = []string{
-	memoryEventWriteCommitted,
-	memoryEventWriteRejected,
-	memoryEventWriteShadowed,
-	memoryEventWriteReindex,
-	memoryEventWriteReverted,
-	memoryEventRecallExecuted,
-	memoryEventRecallSkipped,
-	memoryEventRecallSignalDropped,
-	memoryEventRecallSignalFailed,
-	memoryEventDecisionsSummarized,
-	memoryEventDecisionsPruned,
-	memoryEventDreamStarted,
-	memoryEventDreamPromoted,
-	memoryEventDreamFailed,
-	memoryEventExtractorStarted,
-	memoryEventExtractorCompleted,
-	memoryEventExtractorFailed,
-	memoryEventExtractorCoalesced,
-	memoryEventExtractorDropped,
-	memoryEventDailyRotated,
-	memoryEventDailyArchived,
-	memoryEventDailyRestored,
-	memoryEventDailyPurged,
-	memoryEventDailyArchivePurged,
-	memoryEventProviderEnabled,
-	memoryEventProviderDisabled,
-	memoryEventProviderCollision,
-	memoryEventWorkspaceRelocated,
-	memoryEventWorkspaceRecovered,
-	memoryEventAgentPurged,
-	memoryEventMigrationApplied,
-}
-
-var memoryV2CatalogStatements = []string{
-	`CREATE TABLE IF NOT EXISTS memory_catalog_entries (
-		id           TEXT PRIMARY KEY,
-		workspace_id TEXT NOT NULL DEFAULT '',
-		scope        TEXT NOT NULL CHECK (scope IN ('global', 'workspace', 'agent')),
-		agent_name   TEXT NOT NULL DEFAULT '',
-		agent_tier   TEXT NOT NULL DEFAULT '' CHECK (agent_tier IN ('', 'workspace', 'global')),
-		type         TEXT NOT NULL CHECK (type IN ('user', 'feedback', 'project', 'reference')),
-		slug         TEXT NOT NULL,
-		filename     TEXT NOT NULL,
-		name         TEXT NOT NULL DEFAULT '',
-		description  TEXT NOT NULL DEFAULT '',
-		content      TEXT NOT NULL DEFAULT '',
-		content_hash TEXT NOT NULL,
-		injection    INTEGER NOT NULL DEFAULT 1,
-		mtime_ms     INTEGER NOT NULL,
-		indexed_at   INTEGER NOT NULL,
-		updated_at   TEXT NOT NULL
-	);`,
-	`CREATE UNIQUE INDEX IF NOT EXISTS uq_memory_catalog_scope_slug
-		ON memory_catalog_entries(workspace_id, scope, agent_name, agent_tier, type, slug);`,
-	`CREATE INDEX IF NOT EXISTS idx_memory_catalog_scope
-		ON memory_catalog_entries(scope, agent_name, agent_tier, type);`,
-	`CREATE INDEX IF NOT EXISTS idx_memory_catalog_workspace
-		ON memory_catalog_entries(workspace_id);`,
-	`CREATE INDEX IF NOT EXISTS idx_memory_catalog_updated_at
-		ON memory_catalog_entries(updated_at);`,
-}
-
-var memoryCatalogFTSStatements = []string{
-	`CREATE VIRTUAL TABLE IF NOT EXISTS memory_catalog_fts USING fts5(
-		name,
-		description,
-		content,
-		content='memory_catalog_entries',
-		content_rowid='rowid',
-		tokenize='porter unicode61'
-	);`,
-	`CREATE TRIGGER IF NOT EXISTS memory_catalog_entries_ai AFTER INSERT ON memory_catalog_entries BEGIN
-		INSERT INTO memory_catalog_fts(rowid, name, description, content)
-		VALUES (new.rowid, new.name, new.description, new.content);
-	END;`,
-	`CREATE TRIGGER IF NOT EXISTS memory_catalog_entries_ad AFTER DELETE ON memory_catalog_entries BEGIN
-		INSERT INTO memory_catalog_fts(memory_catalog_fts, rowid, name, description, content)
-		VALUES ('delete', old.rowid, old.name, old.description, old.content);
-	END;`,
-	`CREATE TRIGGER IF NOT EXISTS memory_catalog_entries_au AFTER UPDATE ON memory_catalog_entries BEGIN
-		INSERT INTO memory_catalog_fts(memory_catalog_fts, rowid, name, description, content)
-		VALUES ('delete', old.rowid, old.name, old.description, old.content);
-		INSERT INTO memory_catalog_fts(rowid, name, description, content)
-		VALUES (new.rowid, new.name, new.description, new.content);
-	END;`,
-}
-
-var memoryV2ChunkStatements = []string{
-	`CREATE TABLE IF NOT EXISTS memory_chunks (
-		id           TEXT PRIMARY KEY,
-		file_id      TEXT NOT NULL REFERENCES memory_catalog_entries(id) ON DELETE CASCADE,
-		content      TEXT NOT NULL,
-		content_hash TEXT NOT NULL,
-		start_line   INTEGER NOT NULL,
-		end_line     INTEGER NOT NULL,
-		indexed_at   INTEGER NOT NULL
-	);`,
-	`CREATE INDEX IF NOT EXISTS idx_chunks_file ON memory_chunks(file_id);`,
-	`CREATE VIRTUAL TABLE IF NOT EXISTS memory_chunks_fts USING fts5(
-		content,
-		content='memory_chunks',
-		content_rowid='rowid',
-		tokenize='unicode61'
-	);`,
-	`CREATE VIRTUAL TABLE IF NOT EXISTS memory_chunks_fts_trigram USING fts5(
-		content,
-		content='memory_chunks',
-		content_rowid='rowid',
-		tokenize='trigram'
-	);`,
-	`CREATE TRIGGER IF NOT EXISTS memory_chunks_ai AFTER INSERT ON memory_chunks BEGIN
-		INSERT INTO memory_chunks_fts(rowid, content) VALUES (new.rowid, new.content);
-		INSERT INTO memory_chunks_fts_trigram(rowid, content) VALUES (new.rowid, new.content);
-	END;`,
-	`CREATE TRIGGER IF NOT EXISTS memory_chunks_ad AFTER DELETE ON memory_chunks BEGIN
-		INSERT INTO memory_chunks_fts(memory_chunks_fts, rowid, content)
-		VALUES ('delete', old.rowid, old.content);
-		INSERT INTO memory_chunks_fts_trigram(memory_chunks_fts_trigram, rowid, content)
-		VALUES ('delete', old.rowid, old.content);
-	END;`,
-	`CREATE TRIGGER IF NOT EXISTS memory_chunks_au AFTER UPDATE ON memory_chunks BEGIN
-		INSERT INTO memory_chunks_fts(memory_chunks_fts, rowid, content)
-		VALUES ('delete', old.rowid, old.content);
-		INSERT INTO memory_chunks_fts_trigram(memory_chunks_fts_trigram, rowid, content)
-		VALUES ('delete', old.rowid, old.content);
-		INSERT INTO memory_chunks_fts(rowid, content) VALUES (new.rowid, new.content);
-		INSERT INTO memory_chunks_fts_trigram(rowid, content) VALUES (new.rowid, new.content);
-	END;`,
-}
-
-var memoryV2EventStatements = []string{
-	fmt.Sprintf(`CREATE TABLE IF NOT EXISTS memory_events (
-		id           INTEGER PRIMARY KEY AUTOINCREMENT,
-		op           TEXT NOT NULL CHECK (op IN (%s)),
-		scope        TEXT CHECK (scope IN ('global', 'workspace', 'agent')),
-		agent_name   TEXT,
-		agent_tier   TEXT CHECK (agent_tier IS NULL OR agent_tier IN ('workspace', 'global')),
-		workspace_id TEXT,
-		session_id   TEXT,
-		actor_kind   TEXT NOT NULL,
-		decision_id  TEXT,
-		target_id    TEXT,
-		metadata     TEXT NOT NULL DEFAULT '{}',
-		ts_ms        INTEGER NOT NULL
-	);`, quotedSQLStrings(memoryEventOps)),
-	`CREATE INDEX IF NOT EXISTS idx_events_workspace ON memory_events(workspace_id, ts_ms);`,
-	`CREATE INDEX IF NOT EXISTS idx_events_op ON memory_events(op, ts_ms);`,
-	`CREATE INDEX IF NOT EXISTS idx_events_session ON memory_events(session_id, ts_ms);`,
-}
-
-var memoryV2DecisionStatements = []string{
-	`CREATE TABLE IF NOT EXISTS memory_decisions (
-		id                TEXT PRIMARY KEY,
-		candidate_hash    TEXT NOT NULL,
-		idempotency_key   TEXT NOT NULL UNIQUE,
-		frontmatter_hash  TEXT NOT NULL,
-		workspace_id      TEXT,
-		scope             TEXT NOT NULL CHECK (scope IN ('global', 'workspace', 'agent')),
-		agent_name        TEXT,
-		agent_tier        TEXT CHECK (agent_tier IS NULL OR agent_tier IN ('workspace', 'global')),
-		op                TEXT NOT NULL CHECK (op IN ('noop', 'add', 'update', 'delete', 'reject')),
-		targets           TEXT NOT NULL DEFAULT '[]',
-		target_filename   TEXT NOT NULL,
-		frontmatter       TEXT NOT NULL DEFAULT '{}',
-		post_content      TEXT,
-		post_content_hash TEXT,
-		prior_content     TEXT,
-		confidence        REAL NOT NULL,
-		source            TEXT NOT NULL CHECK (source IN ('rule', 'llm')),
-		rule_trace        TEXT NOT NULL,
-		llm_trace         TEXT,
-		reason            TEXT,
-		prompt_version    TEXT,
-		applied_at        INTEGER,
-		decided_at        INTEGER NOT NULL
-	);`,
-	`CREATE INDEX IF NOT EXISTS idx_decisions_workspace ON memory_decisions(workspace_id, decided_at);`,
-	`CREATE INDEX IF NOT EXISTS idx_decisions_op ON memory_decisions(op, decided_at);`,
-	`CREATE INDEX IF NOT EXISTS idx_decisions_unapplied
-		ON memory_decisions(applied_at) WHERE applied_at IS NULL;`,
-}
-
-var memoryV2RecallSignalStatements = []string{
-	`CREATE TABLE IF NOT EXISTS memory_recall_signals (
-		chunk_id              TEXT PRIMARY KEY REFERENCES memory_chunks(id) ON DELETE CASCADE,
-		workspace_id          TEXT,
-		recall_count          INTEGER NOT NULL DEFAULT 0,
-		last_recalled_at      INTEGER,
-		recall_score          REAL NOT NULL DEFAULT 0,
-		freshness_started_at  INTEGER NOT NULL DEFAULT 0,
-		promoted_at           INTEGER,
-		promotion_run_id      TEXT,
-		last_score_update_at  INTEGER NOT NULL DEFAULT 0,
-		session_count         INTEGER NOT NULL DEFAULT 0,
-		last_session_id       TEXT,
-		already_surfaced_json TEXT NOT NULL DEFAULT '[]',
-		updated_at            INTEGER NOT NULL
-	);`,
-	`CREATE INDEX IF NOT EXISTS idx_recall_signals_workspace
-		ON memory_recall_signals(workspace_id, updated_at);`,
-	`CREATE INDEX IF NOT EXISTS idx_recall_signals_last_recalled
-		ON memory_recall_signals(last_recalled_at);`,
-	`CREATE INDEX IF NOT EXISTS idx_signals_unpromoted
-		ON memory_recall_signals(promoted_at, recall_score) WHERE promoted_at IS NULL;`,
-	`CREATE INDEX IF NOT EXISTS idx_signals_recent
-		ON memory_recall_signals(last_recalled_at);`,
-}
-
-var memoryV2ConsolidationStatements = []string{
-	`CREATE TABLE IF NOT EXISTS memory_consolidations (
-		id             TEXT PRIMARY KEY,
-		workspace_id   TEXT,
-		scope          TEXT NOT NULL CHECK (scope IN ('global', 'workspace', 'agent')),
-		agent_name     TEXT,
-		agent_tier     TEXT CHECK (agent_tier IS NULL OR agent_tier IN ('workspace', 'global')),
-		started_at     INTEGER NOT NULL,
-		finished_at    INTEGER,
-		status         TEXT NOT NULL CHECK (status IN ('running', 'completed', 'failed', 'canceled')),
-		input_count    INTEGER NOT NULL DEFAULT 0,
-		promoted_count INTEGER NOT NULL DEFAULT 0,
-		error          TEXT NOT NULL DEFAULT '',
-		metadata       TEXT NOT NULL DEFAULT '{}'
-	);`,
-	`CREATE INDEX IF NOT EXISTS idx_consolidations_workspace
-		ON memory_consolidations(workspace_id, started_at);`,
-	`CREATE INDEX IF NOT EXISTS idx_consolidations_status
-		ON memory_consolidations(status, started_at);`,
-}
-
-var catalogSchemaMigrations = []storepkg.Migration{
-	{
-		Version:    1,
-		Name:       "initial_memory_catalog_schema",
-		Statements: catalogSchemaStatements,
-	},
-	{
-		Version:  2,
-		Name:     "add_memory_operation_scope",
-		Checksum: "catalog-add-memory-operation-scope-v1",
-		Up:       migrateCatalogOperationScope,
-	},
-	{
-		Version:  3,
-		Name:     "memv2_catalog_workspace_identity",
-		Checksum: "2026-05-05-memv2-catalog-workspace-identity",
-		Up:       migrateCatalogWorkspaceIdentity,
-	},
-	{
-		Version:    4,
-		Name:       "memv2_chunks_and_fts",
-		Statements: memoryV2ChunkStatements,
-	},
-	{
-		Version:    5,
-		Name:       "memv2_decisions",
-		Statements: memoryV2DecisionStatements,
-	},
-	{
-		Version:    6,
-		Name:       "memv2_recall_signals",
-		Statements: memoryV2RecallSignalStatements,
-	},
-	{
-		Version:    7,
-		Name:       "memv2_consolidations",
-		Statements: memoryV2ConsolidationStatements,
-	},
-	{
-		Version:  8,
-		Name:     "memv2_recall_signals_live_flow",
-		Checksum: "2026-05-05-memv2-recall-signals-live-flow",
-		Up:       migrateRecallSignalsLiveFlow,
-	},
-	{
-		Version:  9,
-		Name:     "rebuild_memory_catalog_fts",
-		Checksum: "2026-07-10-rebuild-memory-catalog-fts",
-		Up:       migrateCatalogFTSRebuild,
-	},
-}
 
 type catalog struct {
 	path    string
@@ -477,6 +135,31 @@ func (c *catalog) enabled() bool {
 	return c != nil && strings.TrimSpace(c.path) != ""
 }
 
+func (c *catalog) open(ctx context.Context) error {
+	if !c.enabled() {
+		return nil
+	}
+	if ctx == nil {
+		return errors.New("memory: catalog open context is required")
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.db != nil {
+		return nil
+	}
+
+	db, err := storepkg.OpenSQLiteDatabase(ctx, c.path, func(ctx context.Context, db *sql.DB) error {
+		return storepkg.Apply(ctx, db, MigrationStream())
+	})
+	if err != nil {
+		return fmt.Errorf("memory: open catalog database %q: %w", c.path, err)
+	}
+	c.db = db
+	return nil
+}
+
 func (c *catalog) ensureDB(ctx context.Context) (*sql.DB, error) {
 	if !c.enabled() {
 		return nil, nil
@@ -487,549 +170,28 @@ func (c *catalog) ensureDB(ctx context.Context) (*sql.DB, error) {
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
-	if c.db != nil {
-		return c.db, nil
+	if c.db == nil {
+		return nil, fmt.Errorf("memory: catalog database %q is not open", c.path)
 	}
-
-	db, err := storepkg.OpenSQLiteDatabase(ctx, c.path, func(ctx context.Context, db *sql.DB) error {
-		return storepkg.RunMigrations(
-			ctx,
-			db,
-			catalogSchemaMigrations,
-			storepkg.WithMigrationsTable(catalogMigrationsTable),
-		)
-	})
-	if err != nil {
-		return nil, fmt.Errorf("memory: open catalog database %q: %w", c.path, err)
-	}
-	c.db = db
 	return c.db, nil
 }
 
-func migrateCatalogOperationScope(ctx context.Context, tx *sql.Tx) error {
-	exists, err := catalogTableExists(ctx, tx, "memory_operation_log")
-	if err != nil {
-		return err
-	}
-	if !exists {
+func (c *catalog) close(ctx context.Context) error {
+	if !c.enabled() {
 		return nil
 	}
-	columns, err := catalogOperationLogColumns(ctx, tx)
-	if err != nil {
-		return err
-	}
-	specs := []struct {
-		name string
-		sql  string
-	}{
-		{name: catalogScopeKey, sql: `ALTER TABLE memory_operation_log ADD COLUMN scope TEXT NOT NULL DEFAULT ''`},
-		{
-			name: "workspace_root",
-			sql:  `ALTER TABLE memory_operation_log ADD COLUMN workspace_root TEXT NOT NULL DEFAULT ''`,
-		},
-		{name: "filename", sql: `ALTER TABLE memory_operation_log ADD COLUMN filename TEXT NOT NULL DEFAULT ''`},
-	}
-	for _, spec := range specs {
-		if _, ok := columns[spec.name]; ok {
-			continue
-		}
-		if _, err := tx.ExecContext(ctx, spec.sql); err != nil {
-			return fmt.Errorf("memory: add memory_operation_log.%s column: %w", spec.name, err)
-		}
-	}
-	for _, stmt := range []string{
-		`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_scope ON memory_operation_log(scope);`,
-		`CREATE INDEX IF NOT EXISTS idx_memory_operation_log_workspace_root ON memory_operation_log(workspace_root);`,
-	} {
-		if _, err := tx.ExecContext(ctx, stmt); err != nil {
-			return fmt.Errorf("memory: create memory operation scope index: %w", err)
-		}
-	}
-	return nil
-}
-
-func catalogOperationLogColumns(ctx context.Context, tx *sql.Tx) (map[string]struct{}, error) {
-	rows, err := tx.QueryContext(ctx, `PRAGMA table_info(memory_operation_log)`)
-	if err != nil {
-		return nil, fmt.Errorf("memory: inspect memory_operation_log schema: %w", err)
-	}
-	defer func() {
-		_ = rows.Close()
-	}()
-
-	columns := make(map[string]struct{})
-	for rows.Next() {
-		var (
-			cid          int
-			name         string
-			dataType     string
-			notNull      int
-			defaultValue sql.NullString
-			primaryKey   int
-		)
-		if err := rows.Scan(&cid, &name, &dataType, &notNull, &defaultValue, &primaryKey); err != nil {
-			return nil, fmt.Errorf("memory: scan memory_operation_log column: %w", err)
-		}
-		columns[name] = struct{}{}
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("memory: iterate memory_operation_log columns: %w", err)
-	}
-	return columns, nil
-}
-
-func migrateCatalogWorkspaceIdentity(ctx context.Context, tx *sql.Tx) error {
-	if err := rebuildCatalogEntriesWithWorkspaceID(ctx, tx); err != nil {
-		return err
-	}
-	if err := migrateOperationLogToEvents(ctx, tx); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Migration 008: live recall signals and chunk backfill.
-//
-// Why: Task 06 / requires recall to update memory_recall_signals live
-// and later dreaming gates need recall_score, promotion, and barrier columns.
-// Affects: memory catalog tables memory_recall_signals and memory_chunks.
-// Idempotent: yes; columns and indexes are guarded, chunks use INSERT OR IGNORE.
-// Reversible: no; derived chunks and signal columns are regenerated state.
-func migrateRecallSignalsLiveFlow(ctx context.Context, tx *sql.Tx) error {
-	if err := execCatalogStatements(ctx, tx, memoryV2ChunkStatements); err != nil {
-		return err
-	}
-	if err := ensureRecallSignalsLiveSchema(ctx, tx); err != nil {
-		return err
-	}
-	if err := backfillMemoryChunks(ctx, tx); err != nil {
-		return err
-	}
-	return nil
-}
-
-func ensureRecallSignalsLiveSchema(ctx context.Context, tx *sql.Tx) error {
-	exists, err := catalogTableExists(ctx, tx, "memory_recall_signals")
-	if err != nil {
-		return err
-	}
-	if !exists {
-		return execCatalogStatements(ctx, tx, memoryV2RecallSignalStatements)
-	}
-	columns, err := catalogTableColumns(ctx, tx, "memory_recall_signals")
-	if err != nil {
-		return err
-	}
-	additions := []struct {
-		name string
-		sql  string
-	}{
-		{name: catalogWorkspaceIDKey, sql: `ALTER TABLE memory_recall_signals ADD COLUMN workspace_id TEXT`},
-		{
-			name: "recall_count",
-			sql:  `ALTER TABLE memory_recall_signals ADD COLUMN recall_count INTEGER NOT NULL DEFAULT 0`,
-		},
-		{name: "last_recalled_at", sql: `ALTER TABLE memory_recall_signals ADD COLUMN last_recalled_at INTEGER`},
-		{
-			name: "recall_score",
-			sql:  `ALTER TABLE memory_recall_signals ADD COLUMN recall_score REAL NOT NULL DEFAULT 0`,
-		},
-		{
-			name: "freshness_started_at",
-			sql:  `ALTER TABLE memory_recall_signals ADD COLUMN freshness_started_at INTEGER NOT NULL DEFAULT 0`,
-		},
-		{name: "promoted_at", sql: `ALTER TABLE memory_recall_signals ADD COLUMN promoted_at INTEGER`},
-		{name: "promotion_run_id", sql: `ALTER TABLE memory_recall_signals ADD COLUMN promotion_run_id TEXT`},
-		{
-			name: "last_score_update_at",
-			sql:  `ALTER TABLE memory_recall_signals ADD COLUMN last_score_update_at INTEGER NOT NULL DEFAULT 0`,
-		},
-		{
-			name: "session_count",
-			sql:  `ALTER TABLE memory_recall_signals ADD COLUMN session_count INTEGER NOT NULL DEFAULT 0`,
-		},
-		{name: "last_session_id", sql: `ALTER TABLE memory_recall_signals ADD COLUMN last_session_id TEXT`},
-		{
-			name: "already_surfaced_json",
-			sql:  `ALTER TABLE memory_recall_signals ADD COLUMN already_surfaced_json TEXT NOT NULL DEFAULT '[]'`,
-		},
-		{
-			name: catalogUpdatedAtKey,
-			sql:  `ALTER TABLE memory_recall_signals ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0`,
-		},
-	}
-	for _, addition := range additions {
-		if _, ok := columns[addition.name]; ok {
-			continue
-		}
-		if _, err := tx.ExecContext(ctx, addition.sql); err != nil {
-			return fmt.Errorf("memory: add memory_recall_signals.%s column: %w", addition.name, err)
-		}
-	}
-	for _, stmt := range memoryV2RecallSignalStatements[1:] {
-		if _, err := tx.ExecContext(ctx, stmt); err != nil {
-			return fmt.Errorf("memory: create recall signal index: %w", err)
-		}
-	}
-	return nil
-}
-
-func backfillMemoryChunks(ctx context.Context, tx *sql.Tx) error {
-	for _, table := range []string{"memory_catalog_entries", "memory_chunks"} {
-		exists, err := catalogTableExists(ctx, tx, table)
-		if err != nil {
-			return err
-		}
-		if !exists {
-			return nil
-		}
-	}
-	if _, err := tx.ExecContext(
-		ctx,
-		`INSERT OR IGNORE INTO memory_chunks (
-			id, file_id, content, content_hash, start_line, end_line, indexed_at
-		)
-		SELECT
-			e.id || '::chunk:0001',
-			e.id,
-			trim(e.name || char(10) || e.description || char(10) || e.content),
-			e.content_hash,
-			1,
-			CASE
-				WHEN e.content = '' THEN 1
-				ELSE length(e.content) - length(replace(e.content, char(10), '')) + 1
-			END,
-			e.mtime_ms
-		FROM memory_catalog_entries e
-		WHERE NOT EXISTS (SELECT 1 FROM memory_chunks c WHERE c.file_id = e.id)`,
-	); err != nil {
-		return fmt.Errorf("memory: backfill memory chunks: %w", err)
-	}
-	return nil
-}
-
-func rebuildCatalogEntriesWithWorkspaceID(ctx context.Context, tx *sql.Tx) error {
-	exists, err := catalogTableExists(ctx, tx, "memory_catalog_entries")
-	if err != nil {
-		return err
-	}
-	if !exists {
-		return execCatalogStatements(ctx, tx, append(memoryV2CatalogStatements, memoryCatalogFTSStatements...))
+	if ctx == nil {
+		return errors.New("memory: catalog close context is required")
 	}
 
-	columns, err := catalogTableColumns(ctx, tx, "memory_catalog_entries")
-	if err != nil {
-		return err
-	}
-	if _, hasWorkspaceRoot := columns["workspace_root"]; !hasWorkspaceRoot {
-		if err := execCatalogStatements(
-			ctx,
-			tx,
-			append(memoryV2CatalogStatements, memoryCatalogFTSStatements...),
-		); err != nil {
-			return err
-		}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.db == nil {
 		return nil
 	}
-
-	if err := dropCatalogFTS(ctx, tx); err != nil {
-		return err
-	}
-	if err := createCatalogEntriesNew(ctx, tx); err != nil {
-		return err
-	}
-
-	rows, err := tx.QueryContext(
-		ctx,
-		`SELECT id, scope, workspace_id, workspace_root, filename, type, name,
-			description, content, content_hash, updated_at
-		 FROM memory_catalog_entries
-		 ORDER BY rowid ASC`,
-	)
-	if err != nil {
-		return fmt.Errorf("memory: read legacy catalog entries: %w", err)
-	}
-	defer func() {
-		_ = rows.Close()
-	}()
-
-	for rows.Next() {
-		doc, scanErr := scanLegacyCatalogEntry(rows)
-		if scanErr != nil {
-			return scanErr
-		}
-		workspaceID, identityErr := workspaceIDForLegacyRoot(ctx, doc.Scope, doc.WorkspaceID, doc.WorkspaceRoot)
-		if identityErr != nil {
-			return identityErr
-		}
-		doc.WorkspaceID = workspaceID
-		doc.WorkspaceRoot = ""
-		doc.ID = catalogDocID(doc.Scope, doc.WorkspaceID, doc.Filename)
-		if err := insertCatalogDocumentIntoTx(ctx, tx, "memory_catalog_entries_new", doc); err != nil {
-			return err
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("memory: iterate legacy catalog entries: %w", err)
-	}
-
-	for _, stmt := range []string{
-		`DROP TABLE memory_catalog_entries`,
-		`ALTER TABLE memory_catalog_entries_new RENAME TO memory_catalog_entries`,
-	} {
-		if _, err := tx.ExecContext(ctx, stmt); err != nil {
-			return fmt.Errorf("memory: rebuild catalog entries: %w", err)
-		}
-	}
-	return execCatalogStatements(ctx, tx, append(memoryV2CatalogStatements[1:], memoryCatalogFTSStatements...))
-}
-
-func migrateOperationLogToEvents(ctx context.Context, tx *sql.Tx) error {
-	if err := execCatalogStatements(ctx, tx, memoryV2EventStatements); err != nil {
-		return err
-	}
-	exists, err := catalogTableExists(ctx, tx, "memory_operation_log")
-	if err != nil {
-		return err
-	}
-	if !exists {
-		return nil
-	}
-	columns, err := catalogTableColumns(ctx, tx, "memory_operation_log")
-	if err != nil {
-		return err
-	}
-	selectSQL := legacyOperationLogSelectSQL(columns)
-	rows, err := tx.QueryContext(ctx, selectSQL)
-	if err != nil {
-		return fmt.Errorf("memory: read legacy operation log: %w", err)
-	}
-	defer func() {
-		_ = rows.Close()
-	}()
-	for rows.Next() {
-		record, scanErr := scanLegacyOperationLog(rows)
-		if scanErr != nil {
-			return scanErr
-		}
-		workspaceID, identityErr := workspaceIDForLegacyRoot(
-			ctx,
-			record.Scope,
-			record.Workspace,
-			record.Workspace,
-		)
-		if identityErr != nil {
-			return identityErr
-		}
-		record.Workspace = workspaceID
-		if err := insertMemoryEventTx(ctx, tx, record, true); err != nil {
-			return err
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("memory: iterate legacy operation log: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, `DROP TABLE memory_operation_log`); err != nil {
-		return fmt.Errorf("memory: drop legacy memory_operation_log: %w", err)
-	}
-	return nil
-}
-
-func createCatalogEntriesNew(ctx context.Context, tx *sql.Tx) error {
-	if _, err := tx.ExecContext(ctx, strings.Replace(
-		memoryV2CatalogStatements[0],
-		"memory_catalog_entries",
-		"memory_catalog_entries_new",
-		1,
-	)); err != nil {
-		return fmt.Errorf("memory: create rebuilt catalog entries table: %w", err)
-	}
-	if _, err := tx.ExecContext(
-		ctx,
-		`CREATE UNIQUE INDEX IF NOT EXISTS uq_memory_catalog_new_scope_slug
-		 ON memory_catalog_entries_new(workspace_id, scope, agent_name, agent_tier, type, slug);`,
-	); err != nil {
-		return fmt.Errorf("memory: create rebuilt catalog unique index: %w", err)
-	}
-	return nil
-}
-
-func dropCatalogFTS(ctx context.Context, tx *sql.Tx) error {
-	for _, stmt := range []string{
-		`DROP TRIGGER IF EXISTS memory_catalog_entries_ai`,
-		`DROP TRIGGER IF EXISTS memory_catalog_entries_ad`,
-		`DROP TRIGGER IF EXISTS memory_catalog_entries_au`,
-		`DROP TABLE IF EXISTS memory_catalog_fts`,
-	} {
-		if _, err := tx.ExecContext(ctx, stmt); err != nil {
-			return fmt.Errorf("memory: drop legacy catalog fts: %w", err)
-		}
-	}
-	return nil
-}
-
-func scanLegacyCatalogEntry(scanner interface{ Scan(dest ...any) error }) (catalogDocument, error) {
-	var (
-		doc        catalogDocument
-		scopeRaw   string
-		typeRaw    string
-		updatedRaw string
-	)
-	if err := scanner.Scan(
-		&doc.ID,
-		&scopeRaw,
-		&doc.WorkspaceID,
-		&doc.WorkspaceRoot,
-		&doc.Filename,
-		&typeRaw,
-		&doc.Name,
-		&doc.Description,
-		&doc.Content,
-		&doc.ContentHash,
-		&updatedRaw,
-	); err != nil {
-		return catalogDocument{}, fmt.Errorf("memory: scan legacy catalog entry: %w", err)
-	}
-	updatedAt, err := storepkg.ParseTimestamp(updatedRaw)
-	if err != nil {
-		return catalogDocument{}, fmt.Errorf("memory: parse legacy catalog updated_at %q: %w", updatedRaw, err)
-	}
-	doc.Scope = memcontract.Scope(scopeRaw).Normalize()
-	doc.Type = memcontract.Type(typeRaw).Normalize()
-	doc.Injection = true
-	doc.UpdatedAt = updatedAt.UTC()
-	return doc, nil
-}
-
-func legacyOperationLogSelectSQL(columns map[string]struct{}) string {
-	selectColumn := func(name string, fallback string) string {
-		if _, ok := columns[name]; ok {
-			return name
-		}
-		return fallback + " AS " + name
-	}
-	return fmt.Sprintf(
-		`SELECT id, type, %s, %s, %s, agent_name, summary, timestamp FROM memory_operation_log ORDER BY timestamp ASC, id ASC`,
-		selectColumn(catalogScopeKey, "''"),
-		selectColumn("workspace_root", "''"),
-		selectColumn("filename", "''"),
-	)
-}
-
-func scanLegacyOperationLog(scanner interface{ Scan(dest ...any) error }) (memcontract.OperationRecord, error) {
-	var (
-		record       memcontract.OperationRecord
-		operationRaw string
-		scopeRaw     string
-		timestampRaw string
-	)
-	if err := scanner.Scan(
-		&record.ID,
-		&operationRaw,
-		&scopeRaw,
-		&record.Workspace,
-		&record.Filename,
-		&record.AgentName,
-		&record.Summary,
-		&timestampRaw,
-	); err != nil {
-		return memcontract.OperationRecord{}, fmt.Errorf("memory: scan legacy operation log: %w", err)
-	}
-	timestamp, err := storepkg.ParseTimestamp(timestampRaw)
-	if err != nil {
-		return memcontract.OperationRecord{}, fmt.Errorf(
-			"memory: parse legacy operation timestamp %q: %w",
-			timestampRaw,
-			err,
-		)
-	}
-	record.Operation = memcontract.Operation(operationRaw).Normalize()
-	record.Scope = memcontract.Scope(scopeRaw).Normalize()
-	record.Timestamp = timestamp.UTC()
-	return record, nil
-}
-
-func workspaceIDForLegacyRoot(
-	ctx context.Context,
-	scope memcontract.Scope,
-	existingWorkspaceID string,
-	workspaceRoot string,
-) (string, error) {
-	normalizedScope := scope.Normalize()
-	if normalizedScope != memcontract.ScopeWorkspace {
-		return strings.TrimSpace(existingWorkspaceID), nil
-	}
-	if aghworkspace.IsWorkspaceID(existingWorkspaceID) {
-		return strings.TrimSpace(existingWorkspaceID), nil
-	}
-	root := strings.TrimSpace(workspaceRoot)
-	if root == "" {
-		return "", errors.New("memory: legacy workspace row missing workspace root for workspace_id backfill")
-	}
-	identity, err := aghworkspace.EnsureIdentity(ctx, root)
-	if err != nil {
-		return "", fmt.Errorf("memory: resolve workspace identity for %q: %w", root, err)
-	}
-	return identity.WorkspaceID, nil
-}
-
-func execCatalogStatements(ctx context.Context, tx *sql.Tx, statements []string) error {
-	for _, stmt := range statements {
-		if _, err := tx.ExecContext(ctx, stmt); err != nil {
-			return fmt.Errorf("memory: apply catalog schema statement: %w", err)
-		}
-	}
-	return nil
-}
-
-func catalogTableExists(ctx context.Context, tx *sql.Tx, table string) (bool, error) {
-	var name string
-	err := tx.QueryRowContext(
-		ctx,
-		`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`,
-		strings.TrimSpace(table),
-	).Scan(&name)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("memory: check table %q existence: %w", table, err)
-	}
-	return true, nil
-}
-
-func catalogTableColumns(ctx context.Context, tx *sql.Tx, table string) (map[string]struct{}, error) {
-	name, err := storepkg.NormalizeSQLiteIdentifier(table)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := tx.QueryContext(ctx, fmt.Sprintf(`PRAGMA table_info(%s)`, name))
-	if err != nil {
-		return nil, fmt.Errorf("memory: inspect %s schema: %w", table, err)
-	}
-	defer func() {
-		_ = rows.Close()
-	}()
-	columns := make(map[string]struct{})
-	for rows.Next() {
-		var (
-			cid          int
-			name         string
-			dataType     string
-			notNull      int
-			defaultValue sql.NullString
-			primaryKey   int
-		)
-		if err := rows.Scan(&cid, &name, &dataType, &notNull, &defaultValue, &primaryKey); err != nil {
-			return nil, fmt.Errorf("memory: scan %s column: %w", table, err)
-		}
-		columns[name] = struct{}{}
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("memory: iterate %s columns: %w", table, err)
-	}
-	return columns, nil
+	db := c.db
+	c.db = nil
+	return errors.Join(storepkg.Checkpoint(ctx, db), db.Close())
 }
 
 func (c *catalog) replaceScope(
@@ -1490,38 +652,6 @@ func insertMemoryEventDB(ctx context.Context, db *sql.DB, record memcontract.Ope
 	})
 }
 
-func insertMemoryEventTx(ctx context.Context, tx *sql.Tx, record memcontract.OperationRecord, legacy bool) error {
-	metadata := eventMetadata(record)
-	if legacy {
-		metadata[memoryEventMetadataLegacyIDKey] = strings.TrimSpace(record.ID)
-	}
-	payload, err := json.Marshal(metadata)
-	if err != nil {
-		return fmt.Errorf("memory: encode memory event metadata: %w", err)
-	}
-	if _, err := tx.ExecContext(
-		ctx,
-		`INSERT INTO memory_events (
-			op, scope, agent_name, agent_tier, workspace_id, session_id, actor_kind,
-			decision_id, target_id, metadata, ts_ms
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		canonicalEventOp(record),
-		nullStringForEmpty(record.Scope.Normalize()),
-		nullStringForEmpty(record.AgentName),
-		nil,
-		nullStringForEmpty(record.Workspace),
-		nil,
-		"system",
-		nil,
-		nullStringForEmpty(record.Filename),
-		string(payload),
-		timeToUnixMillis(record.Timestamp),
-	); err != nil {
-		return fmt.Errorf("memory: migrate memory event: %w", err)
-	}
-	return nil
-}
-
 func (c *catalog) listOperations(
 	ctx context.Context,
 	query memcontract.OperationHistoryQuery,
@@ -1950,14 +1080,6 @@ func catalogChunksForDocument(doc catalogDocument) []catalogChunk {
 		startLine:   1,
 		endLine:     max(1, strings.Count(doc.Content, "\n")+1),
 	}}
-}
-
-func quotedSQLStrings(values []string) string {
-	quoted := make([]string, 0, len(values))
-	for _, value := range values {
-		quoted = append(quoted, "'"+strings.ReplaceAll(strings.TrimSpace(value), "'", "''")+"'")
-	}
-	return strings.Join(quoted, ", ")
 }
 
 func firstNonEmpty(values ...string) string {

@@ -212,6 +212,7 @@ func TestProviderRecall(t *testing.T) {
 			filepath.Join(baseDir, "agh-home", "memory"),
 			memory.WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")),
 		).ForWorkspace(workspaceRoot)
+		openProviderTestCatalog(t, store)
 		if err := store.EnsureDirs(); err != nil {
 			t.Fatalf("Store.EnsureDirs() error = %v", err)
 		}
@@ -253,6 +254,7 @@ func TestProviderOnMemoryWrite(t *testing.T) {
 			filepath.Join(t.TempDir(), "agh-home", "memory"),
 			memory.WithCatalogDatabasePath(filepath.Join(t.TempDir(), "agh.db")),
 		)
+		openProviderTestCatalog(t, store)
 		provider := localprovider.New(memstore.New(store))
 		if err := provider.Initialize(ctx, memcontract.ProviderInit{}); err != nil {
 			t.Fatalf("Initialize() error = %v", err)
@@ -426,6 +428,18 @@ func TestProviderOnMemoryWrite(t *testing.T) {
 		}
 		if err := provider.OnMemoryWrite(ctx, memcontract.WriteRecord{Decision: decision}); err == nil {
 			t.Fatal("OnMemoryWrite(agent without name) error = nil, want error")
+		}
+	})
+}
+
+func openProviderTestCatalog(t *testing.T, store *memory.Store) {
+	t.Helper()
+	if err := store.OpenCatalog(testutil.Context(t)); err != nil {
+		t.Fatalf("Store.OpenCatalog() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := store.CloseCatalog(testutil.Context(t)); err != nil {
+			t.Errorf("Store.CloseCatalog() error = %v", err)
 		}
 	})
 }

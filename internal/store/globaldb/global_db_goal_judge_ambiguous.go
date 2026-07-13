@@ -9,10 +9,11 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 // MarkJudgeAmbiguous terminalizes both the evaluator attempt and its already-open work turn.
-func (g *GlobalDB) MarkJudgeAmbiguous(ctx context.Context, req goal.MarkJudgeAmbiguousRequest) error {
+func (g *GoalRepo) MarkJudgeAmbiguous(ctx context.Context, req goal.MarkJudgeAmbiguousRequest) error {
 	if err := g.checkReady(ctx, "mark goal judge ambiguous"); err != nil {
 		return err
 	}
@@ -103,19 +104,14 @@ func markJudgeAttemptAmbiguous(
 	req goal.MarkJudgeAmbiguousRequest,
 	now time.Time,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_goal_judge_attempts
-		 SET status = 'ambiguous', completed_at = ?
-		 WHERE attempt_id = ? AND loop_run_id = ? AND status = 'running'`,
-		store.FormatTimestamp(now),
-		strings.TrimSpace(req.AttemptID),
-		string(req.Key.LoopRunID),
-	)
+	affected, err := sqlcgen.New(exec).MarkGoalJudgeAttemptAmbiguous(ctx, sqlcgen.MarkGoalJudgeAttemptAmbiguousParams{
+		CompletedAt: store.FormatTimestamp(now), AttemptID: strings.TrimSpace(req.AttemptID),
+		LoopRunID: string(req.Key.LoopRunID),
+	})
 	if err != nil {
 		return fmt.Errorf("store: mark goal judge attempt ambiguous: %w", err)
 	}
-	return requireGoalRowsAffected(result, "mark goal judge attempt ambiguous")
+	return requireGoalAffectedCount(affected, "mark goal judge attempt ambiguous")
 }
 
 func finalizeAmbiguousJudgeTurn(
@@ -125,24 +121,15 @@ func finalizeAmbiguousJudgeTurn(
 	turn int,
 	now time.Time,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_goal_turns
-		 SET result_status = 'ambiguous', reason_code = ?, ended_at = ?
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		   AND turn = ? AND result_status IS NULL`,
-		strings.TrimSpace(req.Cause),
-		store.FormatTimestamp(now),
-		string(req.Key.LoopRunID),
-		req.Key.Generation,
-		string(req.Key.NodeID),
-		req.Key.ItemIndex,
-		turn,
-	)
+	affected, err := sqlcgen.New(exec).FinalizeAmbiguousGoalJudgeTurn(ctx, sqlcgen.FinalizeAmbiguousGoalJudgeTurnParams{
+		ReasonCode: goalNullableString(req.Cause), EndedAt: store.FormatTimestamp(now),
+		LoopRunID: string(req.Key.LoopRunID), Generation: int64(req.Key.Generation),
+		NodeID: string(req.Key.NodeID), ItemIndex: int64(req.Key.ItemIndex), Turn: int64(turn),
+	})
 	if err != nil {
 		return fmt.Errorf("store: finalize judge-ambiguous goal turn: %w", err)
 	}
-	return requireGoalRowsAffected(result, "finalize judge-ambiguous goal turn")
+	return requireGoalAffectedCount(affected, "finalize judge-ambiguous goal turn")
 }
 
 func checkpointAmbiguousJudge(
@@ -151,27 +138,17 @@ func checkpointAmbiguousJudge(
 	req goal.MarkJudgeAmbiguousRequest,
 	now time.Time,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_goal_checkpoints
-		 SET phase = 'awaiting_control', goal_status = 'paused', control_cause = ?, updated_at = ?
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		   AND control_epoch = ? AND binding_epoch = ? AND phase = 'judging'
-		   AND judge_attempt_id = ?`,
-		strings.TrimSpace(req.Cause),
-		store.FormatTimestamp(now),
-		string(req.Key.LoopRunID),
-		req.Key.Generation,
-		string(req.Key.NodeID),
-		req.Key.ItemIndex,
-		req.ExpectedControlEpoch,
-		req.ExpectedBindingEpoch,
-		strings.TrimSpace(req.AttemptID),
-	)
+	affected, err := sqlcgen.New(exec).CheckpointAmbiguousGoalJudge(ctx, sqlcgen.CheckpointAmbiguousGoalJudgeParams{
+		ControlCause: goalNullableString(req.Cause), UpdatedAt: store.FormatTimestamp(now),
+		LoopRunID: string(req.Key.LoopRunID), Generation: int64(req.Key.Generation),
+		NodeID: string(req.Key.NodeID), ItemIndex: int64(req.Key.ItemIndex),
+		ControlEpoch: req.ExpectedControlEpoch, BindingEpoch: goalNullableInt64(&req.ExpectedBindingEpoch),
+		JudgeAttemptID: goalNullableString(req.AttemptID),
+	})
 	if err != nil {
 		return fmt.Errorf("store: checkpoint judge ambiguity: %w", err)
 	}
-	return requireGoalRowsAffected(result, "checkpoint judge ambiguity")
+	return requireGoalAffectedCount(affected, "checkpoint judge ambiguity")
 }
 
 func validateMarkJudgeAmbiguousRequest(req goal.MarkJudgeAmbiguousRequest) error {

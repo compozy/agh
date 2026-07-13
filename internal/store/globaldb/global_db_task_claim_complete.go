@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -12,10 +11,11 @@ import (
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
-func (g *GlobalDB) CompleteRunLease(
+func (g *TaskRunRepo) CompleteRunLease(
 	ctx context.Context,
 	completion taskpkg.LeaseCompletion,
 ) (taskpkg.Run, error) {
@@ -31,7 +31,7 @@ func (g *GlobalDB) CompleteRunLease(
 	}
 
 	var updated taskpkg.Run
-	if err := g.withTaskImmediateTransaction(ctx, "complete task run lease", func(exec taskSQLExecutor) error {
+	if err := g.tasks.withTaskImmediateTransaction(ctx, "complete task run lease", func(exec taskSQLExecutor) error {
 		var err error
 		updated, err = g.completeRunLeaseWithExecutor(ctx, exec, normalized)
 		return err
@@ -41,12 +41,12 @@ func (g *GlobalDB) CompleteRunLease(
 	return updated, nil
 }
 
-func (g *GlobalDB) completeRunLeaseWithExecutor(
+func (g *TaskRunRepo) completeRunLeaseWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	normalized taskpkg.LeaseCompletion,
 ) (taskpkg.Run, error) {
-	current, err := g.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
+	current, err := g.tasks.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
 	if err != nil {
 		return taskpkg.Run{}, err
 	}
@@ -99,7 +99,7 @@ func (g *GlobalDB) completeRunLeaseWithExecutor(
 	); err != nil {
 		return taskpkg.Run{}, err
 	}
-	updated, err := g.getTaskRunWithExecutor(ctx, exec, current.ID)
+	updated, err := g.tasks.getTaskRunWithExecutor(ctx, exec, current.ID)
 	if err != nil {
 		return taskpkg.Run{}, err
 	}
@@ -135,7 +135,7 @@ func recordCompletedRunLoopOutput(
 	)
 }
 
-func (g *GlobalDB) storeLoopResultPayloadByRefIfLarge(
+func (g *TaskRunRepo) storeLoopResultPayloadByRefIfLarge(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	run taskpkg.Run,
@@ -159,23 +159,21 @@ func completeRunLeaseRowWithExecutor(
 	normalized taskpkg.LeaseCompletion,
 	resultPayload json.RawMessage,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE task_runs
-		 SET status = ?, lease_until = NULL, heartbeat_at = NULL, claim_token = NULL,
-		     ended_at = ?, tokens_used = ?, error = NULL, result_json = ?
-		 WHERE id = ? AND claim_token_hash = ?`,
-		taskpkg.TaskRunStatusCompleted.String(),
-		store.FormatTimestamp(normalized.Now),
-		normalized.TokensUsed,
-		nullableTaskJSON(resultPayload),
-		current.ID,
-		current.ClaimTokenHash,
-	)
+	affected, err := sqlcgen.New(exec).CompleteTaskRunLease(ctx, sqlcgen.CompleteTaskRunLeaseParams{
+		Status:         taskpkg.TaskRunStatusCompleted.String(),
+		EndedAt:        nullableTaskTime(normalized.Now),
+		TokensUsed:     normalized.TokensUsed,
+		ResultJson:     nullableTaskRawJSON(resultPayload),
+		ID:             current.ID,
+		ClaimTokenHash: nullableTaskString(current.ClaimTokenHash),
+	})
 	if err != nil {
 		return fmt.Errorf("store: complete task run lease %q: %w", current.ID, err)
 	}
-	return requireRowsAffected(result, taskpkg.ErrTaskRunNotFound, current.ID, "task run lease")
+	if affected == 0 {
+		return fmt.Errorf("store: task run lease %q: %w", current.ID, taskpkg.ErrTaskRunNotFound)
+	}
+	return nil
 }
 
 func loopNodeRunShouldExternalizeResult(run taskpkg.Run, payload json.RawMessage) bool {
@@ -185,7 +183,7 @@ func loopNodeRunShouldExternalizeResult(run taskpkg.Run, payload json.RawMessage
 	return looppkg.OutputPayloadRequiresRef(payload)
 }
 
-func (g *GlobalDB) verifyCompletionCreatedTaskClaims(
+func (g *TaskRunRepo) verifyCompletionCreatedTaskClaims(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	run taskpkg.Run,
@@ -194,7 +192,7 @@ func (g *GlobalDB) verifyCompletionCreatedTaskClaims(
 	if len(claimedTaskIDs) == 0 {
 		return nil
 	}
-	taskRecord, err := g.getTaskWithExecutor(ctx, exec, run.TaskID)
+	taskRecord, err := g.tasks.getTaskWithExecutor(ctx, exec, run.TaskID)
 	if err != nil {
 		return err
 	}
@@ -232,26 +230,19 @@ func completionCreatedTaskClaimMatches(
 	workspaceID string,
 	sessionID string,
 ) (bool, error) {
-	var found int
-	if err := exec.QueryRowContext(
+	found, err := sqlcgen.New(exec).CompletionCreatedTaskClaimExists(
 		ctx,
-		`SELECT 1
-		   FROM tasks
-		  WHERE id = ?
-		    AND COALESCE(workspace_id, '') = ?
-		    AND created_by_kind = ?
-		    AND created_by_ref = ?`,
-		strings.TrimSpace(taskID),
-		strings.TrimSpace(workspaceID),
-		string(taskpkg.ActorKindAgentSession),
-		strings.TrimSpace(sessionID),
-	).Scan(&found); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return false, nil
-		}
+		sqlcgen.CompletionCreatedTaskClaimExistsParams{
+			ID:            strings.TrimSpace(taskID),
+			WorkspaceID:   sql.NullString{String: strings.TrimSpace(workspaceID), Valid: true},
+			CreatedByKind: string(taskpkg.ActorKindAgentSession),
+			CreatedByRef:  strings.TrimSpace(sessionID),
+		},
+	)
+	if err != nil {
 		return false, fmt.Errorf("store: verify completion created task claim %q: %w", taskID, err)
 	}
-	return found == 1, nil
+	return found, nil
 }
 
 type loopNodeRunMetadata struct {
@@ -288,22 +279,14 @@ func recordLoopNodeTerminalWithExecutor(
 	if err := updateLoopNodeOutputStatusWithExecutor(ctx, exec, run, loopRunID, status, outputRef); err != nil {
 		return err
 	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_runs
-		 SET last_progress_at = CASE WHEN last_progress_at < ? THEN ? ELSE last_progress_at END,
-		     consecutive_failures = CASE WHEN ? = 1 THEN consecutive_failures + 1 ELSE 0 END
-		 WHERE id = ?`,
-		store.FormatTimestamp(terminalAt),
-		store.FormatTimestamp(terminalAt),
-		failureDelta,
-		loopRunID,
-	)
+	affected, err := sqlcgen.New(exec).UpdateLoopRunNodeTerminal(ctx, sqlcgen.UpdateLoopRunNodeTerminalParams{
+		TerminalAt: store.FormatTimestamp(terminalAt), FailureDelta: int64(failureDelta), ID: loopRunID,
+	})
 	if err != nil {
 		return fmt.Errorf("store: record loop run %q node terminal progress: %w", loopRunID, err)
 	}
-	if err := requireRowsAffected(result, looppkg.ErrRunNotFound, loopRunID, "loop run"); err != nil {
-		return err
+	if affected == 0 {
+		return fmt.Errorf("store: loop run %q: %w", loopRunID, looppkg.ErrRunNotFound)
 	}
 	tokensUsed, err := refreshLoopTokensUsedWithExecutor(ctx, exec, loopRunID)
 	if err != nil {
@@ -330,33 +313,16 @@ func updateLoopNodeOutputStatusWithExecutor(
 	outputRef string,
 ) error {
 	// Generation advance is atomic with task-run completion here; changing that boundary requires an ADR.
-	result, err := exec.ExecContext(
+	affected, err := sqlcgen.New(exec).UpdateLoopGenerationOutputForTaskRun(
 		ctx,
-		`UPDATE loop_generation_outputs
-		 SET status = ?,
-		     output_ref = CASE WHEN ? = '' THEN output_ref ELSE ? END,
-		     task_run_id = ?
-		 WHERE loop_run_id = ?
-		   AND task_run_id = ?`,
-		status,
-		strings.TrimSpace(outputRef),
-		strings.TrimSpace(outputRef),
-		run.ID,
-		loopRunID,
-		run.ID,
+		sqlcgen.UpdateLoopGenerationOutputForTaskRunParams{
+			Status: status, OutputRef: strings.TrimSpace(outputRef),
+			TaskRunID: nullableTaskString(run.ID), LoopRunID: loopRunID,
+		},
 	)
 	if err != nil {
 		return fmt.Errorf(
 			"store: update loop run %q node output for task run %q: %w",
-			loopRunID,
-			run.ID,
-			err,
-		)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf(
-			"store: rows affected updating loop run %q node output for task run %q: %w",
 			loopRunID,
 			run.ID,
 			err,
@@ -372,22 +338,13 @@ func updateLoopNodeOutputStatusWithExecutor(
 	if !ok {
 		return nil
 	}
-	_, err = exec.ExecContext(
+	err = sqlcgen.New(exec).UpsertLoopGenerationOutputForTaskRun(
 		ctx,
-		`INSERT INTO loop_generation_outputs (
-			loop_run_id, generation, node_id, item_index, status, output_ref, task_run_id
-		) VALUES (?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(loop_run_id, generation, node_id, item_index) DO UPDATE SET
-			status = excluded.status,
-			output_ref = excluded.output_ref,
-			task_run_id = excluded.task_run_id`,
-		loopRunID,
-		metadata.Generation,
-		metadata.NodeID,
-		metadata.ItemIndex,
-		status,
-		nullString(outputRef),
-		run.ID,
+		sqlcgen.UpsertLoopGenerationOutputForTaskRunParams{
+			LoopRunID: loopRunID, Generation: int64(metadata.Generation), NodeID: metadata.NodeID,
+			ItemIndex: int64(metadata.ItemIndex), Status: status,
+			OutputRef: nullableTaskString(outputRef), TaskRunID: nullableTaskString(run.ID),
+		},
 	)
 	if err != nil {
 		return fmt.Errorf(

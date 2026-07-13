@@ -1,6 +1,6 @@
 ---
 name: real-scenario-qa
-description: Runs release-grade AGH QA by selecting a startup playbook, materializing it into an isolated lab, posting one in-persona operator kickoff, observing the AGH runtime under autonomous agent collaboration, and auditing the produced deliverables (TSX pages, scripts, services, runbooks) plus collaboration loops. The QA observer never instructs agents about QA. Delegates planning/execution mechanics to the qa-report + qa-execution pair; findings land in the repo's living docs/qa tree (scenario files, content-addressed bugs, dated reports). Use when validating AGH releases or complex integration features. Do not use for smoke-only checks, static planning, mock-only tests, simple unit-test edits, or architecture brainstorming without execution.
+description: Dogfoods AGH through an autonomous startup scenario with live providers, cross-surface observation, and strict evidence audit. Use for release or complex-integration QA. Do not use for smoke, static, mock-only, or unit-test work.
 trigger: explicit
 argument-hint: "[playbook-ref]"
 ---
@@ -19,21 +19,21 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 
 **Step 1: Select the Playbook**
 
-1. Read `references/playbooks/README.md` and the `references/scenario-matrix.md` selection table.
+1. Read `.agents/skills/agh/real-scenario-qa/references/playbook-catalog.md` in full.
 2. Resolve the playbook ref:
    - If the user supplied a slug, validate it exists at `references/playbooks/<slug>.md`.
    - Otherwise, list `references/playbooks/*.md` (excluding `README`) and rotate from the previous `PLAYBOOK_REF`.
 3. Record `PLAYBOOK_REF`.
 
+*Done when:* one valid playbook is selected and differs from the previous run when rotation applies.
+
 **Step 2: Bootstrap the Lab With the Playbook**
 
-1. Run the bootstrap helper (bootstrap, mutating):
-   `python3 .agents/skills/agh/agh-qa-bootstrap/scripts/bootstrap-qa-env.py --scenario "<playbook-ref>" --playbook "$PLAYBOOK_REF" --repo-root .`
-2. Only when continuing the same active QA session/loop and a manifest is already known, reuse:
-   `python3 .agents/skills/agh/agh-qa-bootstrap/scripts/bootstrap-qa-env.py --scenario "<playbook-ref>" --playbook "$PLAYBOOK_REF" --repo-root . --reuse-manifest "<manifest-path>"`
-3. Read the helper output and record the env block from the bootstrap contract: `SCENARIO_SLUG`, `WORKSPACE_PATH`, `QA_OUTPUT_PATH`, `BOOTSTRAP_MANIFEST`, `BOOTSTRAP_ENV`, `AGH_HOME`, `AGH_HTTP_PORT`, `AGH_UDS_PATH`, `TMUX_BRIDGE_SOCKET`, `AGH_WEB_API_PROXY_TARGET`, `PROVIDER_HOME`, `PROVIDER_CODEX_HOME`, `BROWSER_MODE`, `BROWSER_BLOCKER`, `SCENARIO_CONTRACT`, `BEHAVIORAL_CHARTER`, `JOURNEY_LOG`, `PROVIDER_ATTEMPT`, `AUDIT_COMMAND`, `REUSED_LAB`, `PLAYBOOK_REF`, `KICKOFF_POSTED`.
-4. Confirm the bootstrap created `<WORKSPACE_PATH>/.agh/playbook.json`, `<WORKSPACE_PATH>/.agh/agents/*.json`, `<WORKSPACE_PATH>/.agh/tasks/open-tasks.json`, and the knowledge files under `<WORKSPACE_PATH>/knowledge/`.
-5. Confirm `<QA_OUTPUT_PATH>/qa/behavioral-scenario-charter.yaml` is materialized from the playbook (no UNFILLED placeholders) and includes `playbook_ref`, `required_deliverables`, `required_collaboration`.
+1. Activate `agh-qa-bootstrap` with scenario `$PLAYBOOK_REF` and `--playbook "$PLAYBOOK_REF"`; complete its full procedure instead of calling its helper directly.
+2. Consume the canonical `BOOTSTRAP_MANIFEST` and its emitted paths. Never reconstruct provider, browser, proxy, audit, or teardown state here.
+3. Confirm the selected playbook, agent registrations, open-task tree, knowledge files, required deliverables/collaboration, and populated charter all belong to the same healthy manifest.
+
+*Done when:* bootstrap's completion criteria pass and the charter has no placeholders.
 
 **Step 3: Activate Companion Skills**
 
@@ -41,8 +41,9 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 2. Use `qa-execution` with `qa-docs-path=docs/qa` to run those sessions against the lab (does the TSX page render? do scripts run? does the canary control respond?), driving the lab's base URL/daemon from the bootstrap env block.
 3. Use `agh-worktree-isolation` only when concurrency was explicitly signaled by the user.
 4. Use `systematic-debugging` and `no-workarounds` for any unexpected runtime behavior the observer captures.
-5. Provider home policy stays the same as the bootstrap contract: bound-secret/brokered lanes use `HOME="$PROVIDER_HOME" CODEX_HOME="$PROVIDER_CODEX_HOME"`; native_cli with `home_policy=operator` preserves the operator HOME.
-6. Web flows must export `AGH_WEB_API_PROXY_TARGET="$AGH_WEB_API_PROXY_TARGET"` before launching the dev server.
+5. Apply provider-home, Web-proxy, config-write, PID-registration, and teardown policy directly from the bootstrap manifest.
+
+*Done when:* the living QA plan and execution target the bootstrapped lab, with concurrency isolation activated only when signaled.
 
 **Step 4: Post the Operator Kickoff**
 
@@ -54,6 +55,8 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
 4. Confirm the manifest now reports `KICKOFF_POSTED=true` and `KICKOFF_TIMESTAMP` is set.
 5. From this point on, the QA observer must not send any further prompt to any agent under test. If an agent stalls, file a bug — do not patch over the stall with a prompt.
 
+*Done when:* exactly one kickoff was posted, the manifest records it, and the observer has no path for a second agent prompt.
+
 **Step 5: Observe the Runtime**
 
 1. Run the observer (read-only) for the configured window:
@@ -63,34 +66,40 @@ The skill rejects any prompt that frames the work as QA. See `references/forbidd
    - API: read endpoints that intersect the playbook's primary domain.
    - Web: open the AGH web app via `browser-use:browser` (or the `agent-browser` fallback) against `$AGH_WEB_API_PROXY_TARGET`. Capture DOM snapshot, URL, screenshot.
    - Runtime: confirm the journey-log keeps growing.
-3. When the observer reports stall (exit code 1), open `<QA_OUTPUT_PATH>/qa/observation-summary.json`, identify the silent agent / unstarted task, and proceed to Step 6 with that diagnosis. Do not attempt to "wake" the agent with a prompt.
-4. When the observer completes cleanly (exit code 0), proceed to Step 6.
+3. Record observer-only or out-of-band evidence with the mutating helper `.agents/skills/agh/real-scenario-qa/scripts/record-scenario-action.py`; never use it to fabricate runtime-owned actions.
+4. When the observer reports stall (exit code 1), open `<QA_OUTPUT_PATH>/qa/observation-summary.json`, identify the silent agent / unstarted task, and proceed to Step 6 with that diagnosis. Do not attempt to "wake" the agent with a prompt.
+5. When the observer completes cleanly (exit code 0), proceed to Step 6.
+
+*Done when:* the observation window or an explicit stall completes with indexed CLI, API, Web, runtime, and provider evidence and no observer prompt after kickoff.
 
 **Step 6: Audit, Diagnose, Fix, Re-Verify**
 
-1. Run the strict auditor against the lab:
-   `python3 .agents/skills/agh/real-scenario-qa/scripts/audit-qa-evidence.py --qa-output-path "$QA_OUTPUT_PATH" --strict`
-2. Auditor exit code 2 is a blocking failure. Read `qa-audit-report.json` and act per check. All bugs go to the repo's global registry as `docs/qa/bugs/BUG-<YYYYMMDD>-<slug>.md` (dedup against the registry first, per `qa-report`'s bug-registry rules) and are linked into the affected `docs/qa/scenarios/*.md` files:
+1. Maintain the dated report at `docs/qa/reports/<YYYY-MM-DD>-<playbook-ref>.md` through `qa-report`/`qa-execution`; index lab-side evidence by path rather than copying it into the repository.
+2. Diagnose and fix real runtime defects with `systematic-debugging` and `no-workarounds`; fix playbook authoring defects in the playbook source and restart from Step 2.
+3. After the last code change, run the single full `make verify` completion gate and record its fresh evidence in the dated report.
+4. Run the mutating strict auditor last, passing the durable report explicitly:
+   `python3 .agents/skills/agh/real-scenario-qa/scripts/audit-qa-evidence.py --qa-output-path "$QA_OUTPUT_PATH" --final-report "docs/qa/reports/<YYYY-MM-DD>-<playbook-ref>.md" --strict`
+5. Auditor exit code 2 is a blocking failure. Read `qa-audit-report.json` and act per check. All durable bugs go to the repo's global registry as `docs/qa/bugs/BUG-<YYYYMMDD>-<slug>.md` (dedup against the registry first, per `qa-report`'s bug-registry rules) and are linked into the affected `docs/qa/scenarios/*.md` files:
    - **C15** forbidden phrase in a prompt → rewrite the playbook source (system_prompt or kickoff_brief), not the auditor or the regex list.
    - **C16** deliverable count short → file a runtime bug (which AGH agent failed to produce the artifact, why, what state shows the failure). Do not author the missing artifact yourself — the runtime is what's under test.
    - **C17** collaboration loop short → file a runtime bug describing which channel, agent, or review cycle did not complete. Cite journey-log timestamps.
    - **C18** stall → the registry bug is mandatory and must name the silent agent and stalled task.
-3. If the bug is a real AGH runtime defect (channel delivery failed, task scheduler stuck, hook misfired), fix it at the root cause in production code with regression coverage. Do not patch the playbook to dodge the bug.
-4. If the bug is a playbook authoring mistake (impossible task, missing knowledge file, ambiguous handoff), fix the playbook .md, regenerate the bootstrap, rerun from Step 2.
-5. Re-run the auditor after every fix.
-6. Re-run the broadest verification gate (`make verify` or repository equivalent) after the last code change.
-7. Write the observer report as a dated run report at `docs/qa/reports/<YYYY-MM-DD>-<playbook-ref>.md` using `docs/qa/templates/report.md`, extended with the scenario sections: playbook_compliance counts, collaboration counts, stall diagnosis, cross-surface evidence (CLI/API/Web), the audit verdict, and lab-side evidence indexed by path (journey-log, observation-summary, kickoff jsonl). Update the affected `docs/qa/scenarios/*.md` verdict fields.
-8. Append the machine-readable QA bootstrap block from `.agents/skills/agh/agh-qa-bootstrap/references/bootstrap-contract.md` so timed-loop continuations can reuse the lab.
+6. Re-run the relevant scoped checks after each fix; after source freezes again, refresh the single full gate evidence and rerun the strict auditor.
+7. Update affected scenario verdicts and append the bootstrap continuation block only when the same active loop will continue.
+
+*Done when:* the dated report, fresh final gate, scenario verdicts, strict audit, and indexed evidence all describe the same execution with no blocker.
 
 **Step 7: Tear Down the Lab (MANDATORY)**
 
-1. After the report is written and evidence is indexed by path, run the teardown recorded in the bootstrap env block: `eval "$TEARDOWN_COMMAND"`. This applies on every terminal verdict — PASS, FAIL, or BLOCKED.
+1. Complete `agh-qa-bootstrap` Step 5 using the current manifest's exact `TEARDOWN_COMMAND`. This applies on every terminal verdict — PASS, FAIL, BLOCKED, or abort.
 2. Cite `<QA_OUTPUT_PATH>/qa/teardown.json` (`"clean": true`) in the final summary. Survivors (exit 1) are a blocking failure.
 3. Only exception: an explicitly continuing timed loop keeps the lab alive; the continuation that ends the loop inherits the teardown obligation. A stalled or aborted run tears down like any other — the stall evidence lives in files, not in live processes.
 
+*Done when:* the current lab's `teardown.json` reports `"clean": true` and no owned process survives.
+
 ## Error Handling
 
-- If `bootstrap-qa-env.py` fails to load the playbook, validate the playbook .md against `references/playbook-schema.json` and re-run. Do not bypass the playbook by falling back to the legacy skeleton charter.
+- If bootstrap fails to load the playbook, validate the playbook against `.agents/skills/agh/real-scenario-qa/references/playbook-schema.json`; a real-scenario run never falls back to a generic charter.
 - If the kickoff helper aborts on a forbidden phrase, rewrite the playbook's `kickoff_brief`. Do not edit `references/forbidden-prompt-phrases.md` to remove the rule.
 - If `observe-runtime.py` reports a stall, do NOT inject a prompt to wake the agent. The runtime stall IS the bug under test. File it in `docs/qa/bugs/` against the AGH runtime.
 - If a required deliverable type cannot be parsed by the auditor (e.g., a TSX file with non-standard exports), fix the artifact in the workspace via the agent that authored it (re-prompting in-persona is fine; new operator prompts are not). If the agent cannot fix it, that is a runtime bug.

@@ -10,10 +10,11 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 // ClaimPreparedWorkPrompt is the work-effect linearization: queue claim, token digest, and open turn commit together.
-func (g *GlobalDB) ClaimPreparedWorkPrompt(
+func (g *GoalRepo) ClaimPreparedWorkPrompt(
 	ctx context.Context,
 	req goal.ClaimPreparedWorkPromptRequest,
 ) (goal.ClaimedPrompt, error) {
@@ -36,7 +37,7 @@ func (g *GlobalDB) ClaimPreparedWorkPrompt(
 	return claimed, nil
 }
 
-func (g *GlobalDB) claimPreparedWorkPromptWithExecutor(
+func (g *GoalRepo) claimPreparedWorkPromptWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	req goal.ClaimPreparedWorkPromptRequest,
@@ -111,29 +112,15 @@ func insertOpenGoalTurn(
 	turn int,
 	now time.Time,
 ) error {
-	_, err := exec.ExecContext(
-		ctx,
-		`INSERT INTO loop_goal_turns (
-			loop_run_id, seq, generation, node_id, item_index, turn,
-			session_id, binding_handle, binding_epoch, prompt_id, prompt_attempt,
-			usage_base_tokens, actor_kind, actor_id, started_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		string(req.Key.LoopRunID),
-		sequence,
-		req.Key.Generation,
-		string(req.Key.NodeID),
-		req.Key.ItemIndex,
-		turn,
-		strings.TrimSpace(req.SessionID),
-		strings.TrimSpace(req.BindingHandle),
-		req.BindingEpoch,
-		strings.TrimSpace(req.PromptID),
-		row.promptAttempt,
-		req.UsageBaseTokens,
-		strings.TrimSpace(req.ActorKind),
-		strings.TrimSpace(req.ActorID),
-		store.FormatTimestamp(now),
-	)
+	err := sqlcgen.New(exec).InsertOpenGoalTurn(ctx, sqlcgen.InsertOpenGoalTurnParams{
+		LoopRunID: string(req.Key.LoopRunID), Seq: sequence, Generation: int64(req.Key.Generation),
+		NodeID: string(req.Key.NodeID), ItemIndex: int64(req.Key.ItemIndex), Turn: int64(turn),
+		SessionID: strings.TrimSpace(req.SessionID), BindingHandle: strings.TrimSpace(req.BindingHandle),
+		BindingEpoch: req.BindingEpoch, PromptID: strings.TrimSpace(req.PromptID),
+		PromptAttempt: int64(row.promptAttempt), UsageBaseTokens: req.UsageBaseTokens,
+		ActorKind: strings.TrimSpace(req.ActorKind), ActorID: strings.TrimSpace(req.ActorID),
+		StartedAt: store.FormatTimestamp(now),
+	})
 	if err != nil {
 		return fmt.Errorf("store: insert open Goal turn: %w", err)
 	}
@@ -147,29 +134,17 @@ func startGoalWorkCheckpoint(
 	turn int,
 	now time.Time,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_goal_checkpoints
-		 SET phase = 'prompting', turns_used = ?, updated_at = ?
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		   AND control_epoch = ? AND binding_epoch = ? AND phase = 'queued'
-		   AND task_run_id = ? AND queue_entry_id = ? AND prompt_id = ?`,
-		turn,
-		store.FormatTimestamp(now),
-		string(req.Key.LoopRunID),
-		req.Key.Generation,
-		string(req.Key.NodeID),
-		req.Key.ItemIndex,
-		req.ExpectedControlEpoch,
-		req.BindingEpoch,
-		strings.TrimSpace(req.TaskRunID),
-		strings.TrimSpace(req.QueueEntryID),
-		strings.TrimSpace(req.PromptID),
-	)
+	affected, err := sqlcgen.New(exec).StartGoalWorkCheckpoint(ctx, sqlcgen.StartGoalWorkCheckpointParams{
+		TurnsUsed: int64(turn), UpdatedAt: store.FormatTimestamp(now), LoopRunID: string(req.Key.LoopRunID),
+		Generation: int64(req.Key.Generation), NodeID: string(req.Key.NodeID), ItemIndex: int64(req.Key.ItemIndex),
+		ControlEpoch: req.ExpectedControlEpoch, BindingEpoch: goalNullableInt64(&req.BindingEpoch),
+		TaskRunID: goalNullableString(req.TaskRunID), QueueEntryID: goalNullableString(req.QueueEntryID),
+		PromptID: goalNullableString(req.PromptID),
+	})
 	if err != nil {
 		return fmt.Errorf("store: start Goal work checkpoint: %w", err)
 	}
-	return requireGoalRowsAffected(result, "start Goal work checkpoint")
+	return requireGoalAffectedCount(affected, "start Goal work checkpoint")
 }
 
 func appendGoalTurnStartedEvent(
@@ -204,7 +179,7 @@ func appendGoalTurnStartedEvent(
 }
 
 // ClaimPreparedCompaction starts one compact operation without allocating a work turn.
-func (g *GlobalDB) ClaimPreparedCompaction(
+func (g *GoalRepo) ClaimPreparedCompaction(
 	ctx context.Context,
 	req goal.ClaimPreparedCompactionRequest,
 ) (goal.ClaimedPrompt, error) {
@@ -268,28 +243,17 @@ func claimPreparedGoalCompactionWithExecutor(
 	); err != nil {
 		return goal.ClaimedPrompt{}, err
 	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_goal_checkpoints
-		 SET phase = 'compacting', updated_at = ?
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		   AND control_epoch = ? AND binding_epoch = ? AND phase = 'queued'
-		   AND task_run_id = ? AND queue_entry_id = ? AND prompt_id = ?`,
-		store.FormatTimestamp(now),
-		string(req.Key.LoopRunID),
-		req.Key.Generation,
-		string(req.Key.NodeID),
-		req.Key.ItemIndex,
-		req.ExpectedControlEpoch,
-		req.BindingEpoch,
-		strings.TrimSpace(req.TaskRunID),
-		strings.TrimSpace(req.QueueEntryID),
-		strings.TrimSpace(req.PromptID),
-	)
+	affected, err := sqlcgen.New(exec).StartGoalCompactionCheckpoint(ctx, sqlcgen.StartGoalCompactionCheckpointParams{
+		UpdatedAt: store.FormatTimestamp(now), LoopRunID: string(req.Key.LoopRunID),
+		Generation: int64(req.Key.Generation), NodeID: string(req.Key.NodeID), ItemIndex: int64(req.Key.ItemIndex),
+		ControlEpoch: req.ExpectedControlEpoch, BindingEpoch: goalNullableInt64(&req.BindingEpoch),
+		TaskRunID: goalNullableString(req.TaskRunID), QueueEntryID: goalNullableString(req.QueueEntryID),
+		PromptID: goalNullableString(req.PromptID),
+	})
 	if err != nil {
 		return goal.ClaimedPrompt{}, fmt.Errorf("store: start Goal compaction checkpoint: %w", err)
 	}
-	if err := requireGoalRowsAffected(result, "start Goal compaction checkpoint"); err != nil {
+	if err := requireGoalAffectedCount(affected, "start Goal compaction checkpoint"); err != nil {
 		return goal.ClaimedPrompt{}, err
 	}
 	checkpoint.Phase = goalCheckpointPhaseCompacting
@@ -437,37 +401,25 @@ func claimGoalQueueRow(
 	tokenHash string,
 	now time.Time,
 ) error {
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE session_input_queue
-		 SET status = 'dispatching', dispatchable = 1, activated_at = ?, dispatch_started_at = ?,
-		     attempt_count = attempt_count + 1, operation_usage_base_tokens = ?,
-		     dispatch_token_hash = ?, fence_kind = NULL, fence_disposition = NULL,
-		     fence_reason_code = NULL, fenced_at = NULL, updated_at = ?
-		 WHERE id = ? AND status = 'queued' AND dispatchable = 0 AND terminal_at IS NULL
-		   AND owner_kind = ? AND owner_epoch = ?`,
-		store.FormatTimestamp(now),
-		store.FormatTimestamp(now),
-		goalReportedTokens(usageBase, usageBaseReported),
-		tokenHash,
-		store.FormatTimestamp(now),
-		row.id,
-		goalPromptOwnerKind,
-		controlEpoch,
-	)
+	baseTokens, err := goalSQLNullInt64(goalReportedTokens(usageBase, usageBaseReported))
+	if err != nil {
+		return err
+	}
+	affected, err := sqlcgen.New(exec).ClaimGoalQueueRow(ctx, sqlcgen.ClaimGoalQueueRowParams{
+		ActivatedAt: store.FormatTimestamp(now), DispatchStartedAt: store.FormatTimestamp(now),
+		OperationUsageBaseTokens: baseTokens, DispatchTokenHash: goalNullableString(tokenHash),
+		UpdatedAt: store.FormatTimestamp(now), ID: row.id, OwnerKind: goalNullableString(goalPromptOwnerKind),
+		OwnerEpoch: goalNullableInt64(&controlEpoch),
+	})
 	if err != nil {
 		return fmt.Errorf("store: claim prepared Goal queue row: %w", err)
 	}
-	return requireGoalRowsAffected(result, "claim prepared Goal queue row")
+	return requireGoalAffectedCount(affected, "claim prepared Goal queue row")
 }
 
 func nextGoalTurnSequence(ctx context.Context, exec taskSQLExecutor, runID looppkg.RunID) (int64, error) {
-	var seq int64
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT COALESCE(MAX(seq), 0) + 1 FROM loop_goal_turns WHERE loop_run_id = ?`,
-		string(runID),
-	).Scan(&seq); err != nil {
+	seq, err := sqlcgen.New(exec).GetNextGoalTurnSequence(ctx, string(runID))
+	if err != nil {
 		return 0, fmt.Errorf("store: allocate Goal turn sequence: %w", err)
 	}
 	return seq, nil

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	loop "github.com/compozy/agh/internal/loop"
-	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -34,7 +34,7 @@ const taskPriorityValueSQL = `CASE t.priority
 END`
 
 // ClaimNextRun atomically selects and claims the next eligible queued task run.
-func (g *GlobalDB) ClaimNextRun(
+func (g *TaskRunRepo) ClaimNextRun(
 	ctx context.Context,
 	criteria taskpkg.ClaimCriteria,
 ) (taskpkg.ClaimResult, error) {
@@ -47,7 +47,7 @@ func (g *GlobalDB) ClaimNextRun(
 	}
 
 	var result taskpkg.ClaimResult
-	if err := g.withTaskImmediateTransaction(ctx, "claim next task run", func(exec taskSQLExecutor) error {
+	if err := g.tasks.withTaskImmediateTransaction(ctx, "claim next task run", func(exec taskSQLExecutor) error {
 		if err := g.ensureClaimerHasNoActiveLease(ctx, exec, normalized); err != nil {
 			return err
 		}
@@ -75,14 +75,14 @@ func (g *GlobalDB) ClaimNextRun(
 			return err
 		}
 
-		run, err := g.getTaskRunWithExecutor(ctx, exec, runID)
+		run, err := g.tasks.getTaskRunWithExecutor(ctx, exec, runID)
 		if err != nil {
 			return err
 		}
 		if err := appendLoopNodeRunningEventWithExecutor(ctx, exec, run, normalized.Now); err != nil {
 			return err
 		}
-		taskRecord, err := g.getTaskWithExecutor(ctx, exec, run.TaskID)
+		taskRecord, err := g.tasks.getTaskWithExecutor(ctx, exec, run.TaskID)
 		if err != nil {
 			return err
 		}
@@ -112,7 +112,7 @@ func (g *GlobalDB) ClaimNextRun(
 }
 
 // HeartbeatRunLease extends one active task-run lease after token verification.
-func (g *GlobalDB) HeartbeatRunLease(
+func (g *TaskRunRepo) HeartbeatRunLease(
 	ctx context.Context,
 	heartbeat taskpkg.LeaseHeartbeat,
 ) (taskpkg.Run, error) {
@@ -125,8 +125,8 @@ func (g *GlobalDB) HeartbeatRunLease(
 	}
 
 	var updated taskpkg.Run
-	if err := g.withTaskImmediateTransaction(ctx, "heartbeat task run lease", func(exec taskSQLExecutor) error {
-		current, err := g.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
+	if err := g.tasks.withTaskImmediateTransaction(ctx, "heartbeat task run lease", func(exec taskSQLExecutor) error {
+		current, err := g.tasks.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
 		if err != nil {
 			return err
 		}
@@ -134,38 +134,24 @@ func (g *GlobalDB) HeartbeatRunLease(
 			return err
 		}
 		leaseUntil := normalized.Now.Add(normalized.LeaseDuration).UTC()
-		result, err := exec.ExecContext(
-			ctx,
-			`UPDATE task_runs
-				 SET lease_until = ?, heartbeat_at = ?, claim_token = ?,
-				     tokens_used = CASE
-				       WHEN ? > tokens_used THEN ?
-				       ELSE tokens_used
-				     END
-				 WHERE id = ? AND claim_token_hash = ? AND status IN (?, ?, ?)`,
-			store.FormatTimestamp(leaseUntil),
-			store.FormatTimestamp(normalized.Now),
-			normalized.ClaimToken,
-			normalized.TokensUsed,
-			normalized.TokensUsed,
-			normalized.RunID,
-			current.ClaimTokenHash,
-			taskpkg.TaskRunStatusClaimed.String(),
-			taskpkg.TaskRunStatusStarting.String(),
-			taskpkg.TaskRunStatusRunning.String(),
-		)
+		affected, err := sqlcgen.New(exec).HeartbeatTaskRunLease(ctx, sqlcgen.HeartbeatTaskRunLeaseParams{
+			LeaseUntil:     nullableTaskTime(leaseUntil),
+			HeartbeatAt:    nullableTaskTime(normalized.Now),
+			ClaimToken:     nullableTaskString(normalized.ClaimToken),
+			TokensUsed:     normalized.TokensUsed,
+			ID:             normalized.RunID,
+			ClaimTokenHash: nullableTaskString(current.ClaimTokenHash),
+			ClaimedStatus:  taskpkg.TaskRunStatusClaimed.String(),
+			StartingStatus: taskpkg.TaskRunStatusStarting.String(),
+			RunningStatus:  taskpkg.TaskRunStatusRunning.String(),
+		})
 		if err != nil {
 			return fmt.Errorf("store: heartbeat task run lease %q: %w", normalized.RunID, err)
 		}
-		if err := requireRowsAffected(
-			result,
-			taskpkg.ErrTaskRunNotFound,
-			normalized.RunID,
-			"task run lease",
-		); err != nil {
-			return err
+		if affected == 0 {
+			return fmt.Errorf("store: task run lease %q: %w", normalized.RunID, taskpkg.ErrTaskRunNotFound)
 		}
-		updated, err = g.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
+		updated, err = g.tasks.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
 		if err != nil {
 			return err
 		}
@@ -176,7 +162,7 @@ func (g *GlobalDB) HeartbeatRunLease(
 	return updated, nil
 }
 
-func (g *GlobalDB) appendLoopTokenTickForHeartbeat(
+func (g *TaskRunRepo) appendLoopTokenTickForHeartbeat(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	run taskpkg.Run,
@@ -193,12 +179,8 @@ func (g *GlobalDB) appendLoopTokenTickForHeartbeat(
 	if tokensTotal <= 0 {
 		return nil
 	}
-	var workspaceID string
-	if err := exec.QueryRowContext(
-		ctx,
-		`SELECT workspace_id FROM loop_runs WHERE id = ?`,
-		loopRunID,
-	).Scan(&workspaceID); err != nil {
+	workspaceID, err := sqlcgen.New(exec).GetLoopRunWorkspaceID(ctx, loopRunID)
+	if err != nil {
 		return fmt.Errorf("store: load loop run %q workspace for token tick: %w", loopRunID, err)
 	}
 	return appendLoopTokenTickEventWithExecutor(
@@ -214,7 +196,7 @@ func (g *GlobalDB) appendLoopTokenTickForHeartbeat(
 }
 
 // ReleaseRunLease clears an active task-run lease after token verification and requeues the run.
-func (g *GlobalDB) ReleaseRunLease(
+func (g *TaskRunRepo) ReleaseRunLease(
 	ctx context.Context,
 	release taskpkg.LeaseRelease,
 ) (taskpkg.Run, error) {
@@ -227,8 +209,8 @@ func (g *GlobalDB) ReleaseRunLease(
 	}
 
 	var updated taskpkg.Run
-	if err := g.withTaskImmediateTransaction(ctx, "release task run lease", func(exec taskSQLExecutor) error {
-		current, err := g.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
+	if err := g.tasks.withTaskImmediateTransaction(ctx, "release task run lease", func(exec taskSQLExecutor) error {
+		current, err := g.tasks.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
 		if err != nil {
 			return err
 		}
@@ -241,7 +223,7 @@ func (g *GlobalDB) ReleaseRunLease(
 		if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
 			return err
 		}
-		updated, err = g.getTaskRunWithExecutor(ctx, exec, current.ID)
+		updated, err = g.tasks.getTaskRunWithExecutor(ctx, exec, current.ID)
 		return err
 	}); err != nil {
 		return taskpkg.Run{}, err

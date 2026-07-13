@@ -10,8 +10,8 @@ import (
 	"time"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
-	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/testutil"
 )
 
@@ -59,10 +59,7 @@ func newRegistryTestEnvWithBundleActivations(t *testing.T) registryTestEnv {
 
 	dbPath := t.TempDir() + "/agh-registry.db"
 	db, err := store.OpenSQLiteDatabase(testutil.Context(t), dbPath, func(ctx context.Context, db *sql.DB) error {
-		statements := append([]string{
-			registryTestExtensionsTableSchema,
-		}, resources.SchemaStatements()...)
-		return store.EnsureSchema(ctx, db, statements)
+		return store.Apply(ctx, db, globaldb.MigrationStream())
 	})
 	if err != nil {
 		t.Fatalf("OpenSQLiteDatabase() error = %v", err)

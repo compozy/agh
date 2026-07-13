@@ -2,13 +2,13 @@ package globaldb
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/goal"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
 type stoppableGoalCheckpointKey struct {
@@ -74,39 +74,17 @@ func loadStoppableGoalCheckpointKeys(
 	exec taskSQLExecutor,
 	request looppkg.GoalRunStopRequest,
 ) ([]stoppableGoalCheckpointKey, error) {
-	rows, err := exec.QueryContext(
-		ctx,
-		`SELECT generation, node_id, item_index
-		 FROM loop_goal_checkpoints
-		 WHERE loop_run_id = ? AND phase != 'terminal'
-		 ORDER BY generation ASC, node_id ASC, item_index ASC`,
-		string(request.RunID),
-	)
+	rows, err := sqlcgen.New(exec).ListStoppableGoalCheckpointKeys(ctx, string(request.RunID))
 	if err != nil {
 		return nil, fmt.Errorf("store: list stoppable Goal checkpoints: %w", err)
 	}
-	keys := make([]stoppableGoalCheckpointKey, 0)
-	for rows.Next() {
-		var key stoppableGoalCheckpointKey
-		if err := rows.Scan(&key.generation, &key.nodeID, &key.itemIndex); err != nil {
-			return nil, closeGoalStopRows(rows, fmt.Errorf("store: scan stoppable Goal checkpoint: %w", err))
-		}
-		keys = append(keys, key)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, closeGoalStopRows(rows, fmt.Errorf("store: iterate stoppable Goal checkpoints: %w", err))
-	}
-	if err := rows.Close(); err != nil {
-		return nil, fmt.Errorf("store: close stoppable Goal checkpoints: %w", err)
+	keys := make([]stoppableGoalCheckpointKey, 0, len(rows))
+	for _, row := range rows {
+		keys = append(keys, stoppableGoalCheckpointKey{
+			generation: int(row.Generation), nodeID: looppkg.NodeID(row.NodeID), itemIndex: int(row.ItemIndex),
+		})
 	}
 	return keys, nil
-}
-
-func closeGoalStopRows(rows interface{ Close() error }, cause error) error {
-	if err := rows.Close(); err != nil {
-		return errors.Join(cause, fmt.Errorf("store: close stoppable Goal checkpoints: %w", err))
-	}
-	return cause
 }
 
 func terminalizeStoppedGoalCheckpoint(
@@ -117,36 +95,26 @@ func terminalizeStoppedGoalCheckpoint(
 	enqueueProjection bool,
 ) error {
 	revoke := stoppedGoalRevokeRequest(request, checkpoint)
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_goal_checkpoints
-		 SET control_epoch = control_epoch + 1, phase = 'terminal', goal_status = 'paused', control_cause = ?,
-		     control_actor_kind = ?, control_actor_id = ?, control_requested_at = ?,
-		     queue_entry_id = NULL, prompt_id = NULL, prompt_kind = NULL, prompt_attempt = 0,
-		     judge_attempt_id = NULL,
-		     report_prompt_id = NULL, report_status = NULL, report_evidence_ref = NULL,
-		     report_binding_epoch = NULL, report_actor_kind = NULL, report_actor_id = NULL,
-		     report_recorded_at = NULL, compaction_cancel_prompt_id = NULL,
-		     compaction_cancel_cause = NULL, compaction_cancel_requested_at = NULL,
-		     updated_at = ?
-		 WHERE loop_run_id = ? AND generation = ? AND node_id = ? AND item_index = ?
-		   AND control_epoch = ? AND phase = ? AND phase != 'terminal'`,
-		string(revoke.Cause),
-		revoke.ActorKind,
-		revoke.ActorID,
-		store.FormatTimestamp(request.StoppedAt),
-		store.FormatTimestamp(request.StoppedAt),
-		string(request.RunID),
-		checkpoint.Key.Generation,
-		string(checkpoint.Key.NodeID),
-		checkpoint.Key.ItemIndex,
-		checkpoint.ControlEpoch,
-		checkpoint.Phase,
-	)
+	affected, err := sqlcgen.New(exec).
+		TerminalizeStoppedGoalCheckpoint(ctx, sqlcgen.TerminalizeStoppedGoalCheckpointParams{
+			ControlCause:     goalNullableString(string(revoke.Cause)),
+			ControlActorKind: goalNullableString(revoke.ActorKind),
+			ControlActorID: goalNullableString(
+				revoke.ActorID,
+			),
+			ControlRequestedAt: store.FormatTimestamp(request.StoppedAt),
+			UpdatedAt:          store.FormatTimestamp(request.StoppedAt),
+			LoopRunID:          string(request.RunID),
+			Generation:         int64(checkpoint.Key.Generation),
+			NodeID:             string(checkpoint.Key.NodeID),
+			ItemIndex:          int64(checkpoint.Key.ItemIndex),
+			ControlEpoch:       checkpoint.ControlEpoch,
+			ExpectedPhase:      checkpoint.Phase,
+		})
 	if err != nil {
 		return fmt.Errorf("store: terminalize stopped Goal checkpoint: %w", err)
 	}
-	if err := requireGoalRowsAffected(result, "terminalize stopped Goal checkpoint"); err != nil {
+	if err := requireGoalAffectedCount(affected, "terminalize stopped Goal checkpoint"); err != nil {
 		return err
 	}
 	if err := projectGoalCheckpointCounts(
@@ -183,48 +151,23 @@ func closeStoppedGoalBindings(
 	exec taskSQLExecutor,
 	request looppkg.GoalRunStopRequest,
 ) error {
-	rows, err := exec.QueryContext(
-		ctx,
-		`SELECT handle, binding_epoch, session_id
-		 FROM loop_session_bindings
-		 WHERE loop_run_id = ? AND workspace_id = ? AND state = 'active'
-		 ORDER BY handle ASC, binding_epoch ASC`,
-		string(request.RunID),
-		string(request.WorkspaceID),
-	)
+	rows, err := sqlcgen.New(exec).ListActiveGoalBindingsForStop(ctx, sqlcgen.ListActiveGoalBindingsForStopParams{
+		LoopRunID: string(request.RunID), WorkspaceID: string(request.WorkspaceID),
+	})
 	if err != nil {
 		return fmt.Errorf("store: list stopped Goal bindings: %w", err)
 	}
-	type stoppedBinding struct {
-		handle    string
-		epoch     int64
-		sessionID string
-	}
-	bindings := make([]stoppedBinding, 0)
-	for rows.Next() {
-		var binding stoppedBinding
-		if err := rows.Scan(&binding.handle, &binding.epoch, &binding.sessionID); err != nil {
-			return closeGoalStopRows(rows, fmt.Errorf("store: scan stopped Goal binding: %w", err))
-		}
-		bindings = append(bindings, binding)
-	}
-	if err := rows.Err(); err != nil {
-		return closeGoalStopRows(rows, fmt.Errorf("store: iterate stopped Goal bindings: %w", err))
-	}
-	if err := rows.Close(); err != nil {
-		return fmt.Errorf("store: close stopped Goal binding rows: %w", err)
-	}
-	for _, binding := range bindings {
+	for _, binding := range rows {
 		if err := closeGoalBindingWithCleanup(
 			ctx,
 			exec,
 			goal.BindingKey{
 				WorkspaceID: request.WorkspaceID,
 				LoopRunID:   request.RunID,
-				Handle:      binding.handle,
+				Handle:      binding.Handle,
 			},
-			binding.epoch,
-			binding.sessionID,
+			binding.BindingEpoch,
+			binding.SessionID,
 			goal.SessionCleanupCauseStop,
 			request.StoppedAt,
 		); err != nil {
@@ -239,56 +182,28 @@ func failStoppedCreatingGoalBindings(
 	exec taskSQLExecutor,
 	request looppkg.GoalRunStopRequest,
 ) error {
-	rows, err := exec.QueryContext(
-		ctx,
-		`SELECT handle, binding_epoch FROM loop_session_bindings
-		 WHERE loop_run_id = ? AND workspace_id = ? AND ownership = 'run-owned' AND state = 'creating'
-		 ORDER BY handle ASC, binding_epoch ASC`,
-		string(request.RunID),
-		string(request.WorkspaceID),
-	)
+	rows, err := sqlcgen.New(exec).ListCreatingGoalBindingsForStop(ctx, sqlcgen.ListCreatingGoalBindingsForStopParams{
+		LoopRunID: string(request.RunID), WorkspaceID: string(request.WorkspaceID),
+	})
 	if err != nil {
 		return fmt.Errorf("store: list stopped creating Goal bindings: %w", err)
 	}
-	type creatingBinding struct {
-		handle string
-		epoch  int64
-	}
-	creating := make([]creatingBinding, 0)
-	for rows.Next() {
-		var binding creatingBinding
-		if err := rows.Scan(&binding.handle, &binding.epoch); err != nil {
-			return closeGoalStopRows(rows, fmt.Errorf("store: scan stopped creating Goal binding: %w", err))
-		}
-		creating = append(creating, binding)
-	}
-	if err := rows.Err(); err != nil {
-		return closeGoalStopRows(rows, fmt.Errorf("store: iterate stopped creating Goal bindings: %w", err))
-	}
-	if err := rows.Close(); err != nil {
-		return fmt.Errorf("store: close stopped creating Goal binding rows: %w", err)
-	}
-	for _, candidate := range creating {
-		key := goal.BindingKey{WorkspaceID: request.WorkspaceID, LoopRunID: request.RunID, Handle: candidate.handle}
-		binding, err := getSessionBindingAttemptWithExecutor(ctx, exec, key, candidate.epoch)
+	for _, candidate := range rows {
+		key := goal.BindingKey{WorkspaceID: request.WorkspaceID, LoopRunID: request.RunID, Handle: candidate.Handle}
+		binding, err := getSessionBindingAttemptWithExecutor(ctx, exec, key, candidate.BindingEpoch)
 		if err != nil {
 			return err
 		}
-		result, err := exec.ExecContext(
-			ctx,
-			`UPDATE loop_session_bindings
-			 SET state = 'failed', failure_code = ?, failed_at = ?
-			 WHERE loop_run_id = ? AND handle = ? AND binding_epoch = ? AND state = 'creating'`,
-			goalBindingFailureStopCreationUnsettled,
-			store.FormatTimestamp(request.StoppedAt),
-			string(request.RunID),
-			candidate.handle,
-			candidate.epoch,
-		)
+		affected, err := sqlcgen.New(exec).
+			FailGoalBindingCreationAttempt(ctx, sqlcgen.FailGoalBindingCreationAttemptParams{
+				FailureCode: goalNullableString(goalBindingFailureStopCreationUnsettled),
+				FailedAt:    store.FormatTimestamp(request.StoppedAt), LoopRunID: string(request.RunID),
+				Handle: candidate.Handle, BindingEpoch: candidate.BindingEpoch,
+			})
 		if err != nil {
 			return fmt.Errorf("store: fail stopped creating Goal binding: %w", err)
 		}
-		if err := requireGoalRowsAffected(result, "fail stopped creating Goal binding"); err != nil {
+		if err := requireGoalAffectedCount(affected, "fail stopped creating Goal binding"); err != nil {
 			return err
 		}
 		if err := enqueueGoalSessionCleanupWithExecutor(

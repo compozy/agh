@@ -12,6 +12,7 @@ const (
 	sessionEventMetadataColumns = "id, sequence, turn_id, type, agent_name, timestamp"
 )
 
+// dynamic-sql: selected projection, optional event predicates, cursor bounds, and reverse-limit paging change shape.
 func buildEventQuerySQL(columns string, query store.EventQuery) (string, []any, error) {
 	projection := strings.TrimSpace(columns)
 	if projection == "" {

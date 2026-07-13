@@ -1,7 +1,6 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 
-import { listGoalTurns } from "../adapters/loops-api";
-import { loopsKeys } from "../lib/query-keys";
+import { goalTurnsOptions } from "../lib/query-options";
 import type { GoalTurn, GoalTurnFilter } from "../types";
 import type { LoopGoalTurnLive } from "../lib/loop-events";
 
@@ -16,11 +15,7 @@ export function useGoalTurns(
 ) {
   const { enabled = true, node, item, limit = 50 } = options;
   return useInfiniteQuery({
-    queryKey: loopsKeys.goalTurns(workspaceId, runId, { node, item, limit }),
-    queryFn: ({ pageParam, signal }) =>
-      listGoalTurns(workspaceId, runId, { node, item, limit, after_seq: pageParam }, signal),
-    initialPageParam: 0,
-    getNextPageParam: page => page.next_after_seq ?? undefined,
+    ...goalTurnsOptions(workspaceId, runId, { node, item, limit }),
     enabled: enabled && workspaceId !== "" && runId !== "",
     select: data => ({
       ...data,

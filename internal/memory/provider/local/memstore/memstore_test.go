@@ -24,6 +24,7 @@ func TestAdapter(t *testing.T) {
 			baseDir+"/agh-home/memory",
 			memory.WithCatalogDatabasePath(baseDir+"/agh.db"),
 		).ForWorkspace(workspaceRoot)
+		openAdapterTestCatalog(t, store)
 		adapter := memstore.New(store)
 		if err := adapter.EnsureDirs(); err != nil {
 			t.Fatalf("Adapter.EnsureDirs() error = %v", err)
@@ -121,6 +122,18 @@ func TestAdapter(t *testing.T) {
 		var adapter *memstore.Adapter
 		if err := adapter.EnsureDirs(); err == nil {
 			t.Fatal("nil Adapter.EnsureDirs() error = nil, want error")
+		}
+	})
+}
+
+func openAdapterTestCatalog(t *testing.T, store *memory.Store) {
+	t.Helper()
+	if err := store.OpenCatalog(testutil.Context(t)); err != nil {
+		t.Fatalf("Store.OpenCatalog() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := store.CloseCatalog(testutil.Context(t)); err != nil {
+			t.Errorf("Store.CloseCatalog() error = %v", err)
 		}
 	})
 }
