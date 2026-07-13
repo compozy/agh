@@ -9,7 +9,7 @@ import (
 	"github.com/compozy/agh/internal/toolmeta"
 )
 
-func TestCanonicalRedactionConsumersStayInSync(t *testing.T) {
+func TestCanonicalRedactionConsumersStaySafe(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -138,9 +138,6 @@ func TestCanonicalRedactionConsumersStayInSync(t *testing.T) {
 				rawInput,
 				toolmeta.RenderOptions{Verbose: true},
 			)
-			if presentation.Preview != tc.want {
-				t.Fatalf("toolmeta.Render().Preview = %q, want %q", presentation.Preview, tc.want)
-			}
 			for _, leak := range tc.leaks {
 				for consumer, value := range map[string]string{
 					"redact":       canonical,

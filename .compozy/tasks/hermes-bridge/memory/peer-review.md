@@ -29,6 +29,7 @@
 - Codegen proof: canonical sidecars `5f624649…`/`23e24f2f…` co-ship while the user's working bytes remain `f947e359…`/`feafa455…`; clean snapshot `ce4d079c…` passes `AGH_DAYTONA_CHECK=full make codegen-check`.
 - Completion rule: proceed directly to runtime E2E, Web E2E, and the single full `make verify`; any source change from those gates must still be remediated and reverified.
 - Final-gate remediation: Runtime E2E exposed compile-time drift in the integration-tagged HTTP fixture (`CheckBridge` missing after `core.BridgeService` expanded). The HTTP and UDS fixtures now implement all three unconfigured control/delivery methods with canonical unavailable sentinels. Their canonical transport suites pass together under `-race` (22 tests); this source change requires a new checkpoint and a fresh restart of the three serial final gates, but the user-requested external-round waiver remains in force.
+- Final-gate remediation continued after the clean Runtime E2E: Web E2E exposed five stale test contracts and a real repeated global model-source fetch. The browser fixtures now follow current daemon/CLI/route contracts and the provider-override scenario is offline and environment-hermetic. `CatalogService` takes one cloneable per-source snapshot for all provider projections; RED/GREEN call-count regressions and the full modelcatalog package (`-race`, 83.1% coverage) are green. These corrections do not reinstate the explicitly waived external review round; they require a fresh serial final-gate restart from the new checkpoint.
 
 ## Test Placement
 

@@ -16,6 +16,7 @@ export type RuntimeMode = RuntimeModeAttach | RuntimeModeLaunch;
 export interface RuntimeConfigInput {
   host: string;
   includeMockAgentProvider?: boolean;
+  modelsDevEnabled?: boolean;
   networkEnabled?: boolean;
   port: number;
   skillsMarketplaceBaseURL?: string;
@@ -58,6 +59,13 @@ export function renderRuntimeConfig(input: RuntimeConfigInput): string {
     `host = ${tomlString(input.host)}`,
     `port = ${input.port}`,
     "",
+    ...(input.modelsDevEnabled === undefined
+      ? []
+      : [
+          "[model_catalog.sources.models_dev]",
+          `enabled = ${input.modelsDevEnabled ? "true" : "false"}`,
+          "",
+        ]),
     ...(input.networkEnabled === undefined
       ? []
       : ["[network]", `enabled = ${input.networkEnabled ? "true" : "false"}`, ""]),

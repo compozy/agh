@@ -219,7 +219,7 @@ test("operator retries failed work and sees an auditable run review gate", async
   const retryResponsePromise = appPage.waitForResponse(
     response =>
       response.request().method() === "POST" &&
-      response.url().endsWith(`/api/tasks/${encodeURIComponent(task.id)}/runs`)
+      response.url().endsWith(`/api/runs/${encodeURIComponent(failedRun.id)}/retry`)
   );
   await ui.inboxRetry(task.id).click();
   expect((await retryResponsePromise).ok()).toBe(true);

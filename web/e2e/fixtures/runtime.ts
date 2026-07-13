@@ -53,6 +53,7 @@ export interface BrowserRuntimeOptions {
   artifactRootDir: string;
   env?: NodeJS.ProcessEnv;
   host?: string;
+  modelsDevEnabled?: boolean;
   networkEnabled?: boolean;
   readyTimeoutMs?: number;
   seed?: BrowserRuntimeSeed;
@@ -163,6 +164,7 @@ export async function createBrowserRuntime(
       renderRuntimeConfig({
         host: boundHost,
         includeMockAgentProvider: (options.seed?.mockAgents?.length ?? 0) > 0,
+        modelsDevEnabled: options.modelsDevEnabled,
         networkEnabled: options.networkEnabled,
         port: httpPort,
         skillsMarketplaceBaseURL: skillMarketplace?.baseURL,

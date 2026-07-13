@@ -137,6 +137,17 @@ describe("runtime helpers", () => {
     ).toContain("[network]\nenabled = true\n");
   });
 
+  it("renders models.dev disablement when a browser scenario requires offline catalog refresh", () => {
+    expect(
+      renderRuntimeConfig({
+        host: "127.0.0.1",
+        modelsDevEnabled: false,
+        port: 4321,
+        socketPath: "/tmp/agh.sock",
+      })
+    ).toContain("[model_catalog.sources.models_dev]\nenabled = false\n");
+  });
+
   it("renders network disablement when requested by the browser runtime", () => {
     expect(
       renderRuntimeConfig({

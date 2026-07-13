@@ -29,6 +29,7 @@ import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures
 
 const NOW = "2026-07-12T12:00:00Z";
 const CREATED_BRIDGE_ID = "brg_browser_slack_setup";
+const CREATED_WEBHOOK_PUBLIC_URL = "https://hooks.example.com/browser-slack-setup";
 const PROVIDER_KEY = "ext-slack::slack";
 
 const slackProvider: BridgeProvider = {
@@ -113,7 +114,7 @@ test("Should wait for Slack create 201 before manifest, copy daemon JSON, and op
   await ui.createScopeSelect.selectOption("global");
   await ui.createProviderConfigInput.fill(
     JSON.stringify({
-      webhook: { public_url: "https://hooks.example.com/browser-slack-setup" },
+      webhook: { public_url: CREATED_WEBHOOK_PUBLIC_URL },
     })
   );
   await ui.createWizardNext.click();
@@ -343,7 +344,11 @@ async function installBridgeDaemonRoutes(page: Page, daemon: BridgeDaemonScenari
       daemon.events.push("create:request");
       const body = request.postDataJSON() as CreateBridgeRequest;
       daemon.createBodies.push(body);
-      daemon.bridge = bridgeFromCreateRequest(body, daemon.createdBridgeID);
+      daemon.bridge = bridgeFromCreateRequest(
+        body,
+        daemon.createdBridgeID,
+        CREATED_WEBHOOK_PUBLIC_URL
+      );
       daemon.health = makeBridgeHealth(daemon.bridge, "disabled");
       await fulfillJSON(route, 201, { bridge: daemon.bridge, health: daemon.health });
       daemon.events.push("create:201");
@@ -450,7 +455,11 @@ function bridgeListResponse(daemon: BridgeDaemonScenario): BridgesListResponse {
   };
 }
 
-function bridgeFromCreateRequest(body: CreateBridgeRequest, id: string): BridgeSummary {
+function bridgeFromCreateRequest(
+  body: CreateBridgeRequest,
+  id: string,
+  webhookPublicURL: string
+): BridgeSummary {
   return {
     ...body,
     created_at: NOW,
@@ -459,6 +468,7 @@ function bridgeFromCreateRequest(body: CreateBridgeRequest, id: string): BridgeS
     source: "dynamic",
     status: body.enabled ? "starting" : "disabled",
     updated_at: NOW,
+    webhook_public_url: webhookPublicURL,
   };
 }
 
@@ -488,6 +498,7 @@ function makeSlackBridge({
     source: "dynamic",
     status: enabled ? "ready" : "disabled",
     updated_at: NOW,
+    webhook_public_url: `https://hooks.example.com/${id}`,
   };
 }
 

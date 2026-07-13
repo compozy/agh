@@ -236,7 +236,7 @@ test("operator manages Skills against a real daemon and proves next-session prom
     skills_enabled_state: "enabled",
     skills_item_count: 0,
     skills_search_active: false,
-    skills_view_visible: false,
+    skills_view_visible: true,
   });
   expect(routeState.skills_active_tab).toBeUndefined();
   expect(routeState.skills_selected_item).toBeUndefined();
