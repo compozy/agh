@@ -999,7 +999,7 @@ func newCoordinatorRunnerForControlTest(
 	loopRun, snapshot := pinCoordinatorResolvedForTest(t, loopRun, resolved, effective)
 	runner, err := NewCoordinatorRunner(
 		&coordinatorRunnerTaskRunReader{runs: runs},
-		coordinatorRunnerLoopStore{run: loopRun, snapshot: snapshot},
+		&coordinatorRunnerLoopStore{run: loopRun, snapshot: snapshot},
 		outputs,
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 	)

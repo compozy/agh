@@ -92,8 +92,8 @@ type networkSubscriptionStore interface {
 	) ([]store.NetworkSubscriptionEntry, error)
 }
 
-type threadPeerTokenStatsUpdater interface {
-	UpdateNetworkThreadPeerTokenStats(ctx context.Context, update store.NetworkThreadPeerTokenStatsUpdate) error
+type threadSessionTokenStatsUpdater interface {
+	UpdateNetworkThreadSessionTokenStats(ctx context.Context, update store.NetworkThreadSessionTokenStatsUpdate) error
 }
 
 type managedSession struct {
@@ -333,7 +333,6 @@ func (m *Manager) initRouter(cfg aghconfig.NetworkConfig) error {
 		WithRouterClock(m.now),
 		WithRouterThreadParticipantResolver(participantResolver),
 		WithRouterChannelPolicyResolver(channelPolicyResolver),
-		WithRouterActivationTopK(cfg.ActivationTopK),
 		WithRouterLogger(m.logger),
 	)
 	if err != nil {
@@ -365,23 +364,12 @@ func (m *Manager) initDeliveries(cfg aghconfig.NetworkConfig, prompter deliveryP
 		withDeliveryClock(m.now),
 		withDeliveryDeliveredHook(m.recordDelivered),
 		withDeliveryDroppedHook(m.recordDropped),
-		withDeliveryGuidanceStore(deliveryGuidanceStoreFromCandidate(m.conversations)),
-		withDeliveryDigestCoalescing(cfg.DigestFlushInterval, cfg.DigestMaxEnvelopes),
-		withDeliveryStructuredBodyMaxBytes(cfg.DeliveryStructuredBodyMaxBytes),
 	)
 	if err != nil {
 		return err
 	}
 	m.deliveries = deliveries
 	return nil
-}
-
-func deliveryGuidanceStoreFromCandidate(candidate any) deliveryGuidanceStore {
-	guidanceStore, ok := candidate.(deliveryGuidanceStore)
-	if !ok {
-		return nil
-	}
-	return guidanceStore
 }
 
 func (m *Manager) rollbackInit(ctx context.Context, initErr error) error {
@@ -1226,8 +1214,8 @@ func deliverySubscriptionMode(
 	}
 	workspaceID := strings.TrimSpace(delivery.Envelope.WorkspaceID)
 	channel := strings.TrimSpace(delivery.Envelope.Channel)
-	peerID := strings.TrimSpace(delivery.PeerID)
-	if workspaceID == "" || channel == "" || peerID == "" {
+	sessionID := strings.TrimSpace(delivery.SessionID)
+	if workspaceID == "" || channel == "" || sessionID == "" {
 		return store.NetworkSubscriptionModeFull, nil
 	}
 	if delivery.Envelope.ThreadID != nil {
@@ -1240,7 +1228,7 @@ func deliverySubscriptionMode(
 					WorkspaceID: workspaceID,
 					Channel:     channel,
 					ThreadID:    threadID,
-					PeerID:      peerID,
+					SessionID:   sessionID,
 					Limit:       10,
 				},
 				threadID,
@@ -1260,7 +1248,7 @@ func deliverySubscriptionMode(
 		store.NetworkSubscriptionQuery{
 			WorkspaceID: workspaceID,
 			Channel:     channel,
-			PeerID:      peerID,
+			SessionID:   sessionID,
 			Limit:       50,
 		},
 		"",
@@ -1898,7 +1886,7 @@ func (m *Manager) recordAuditRejected(ctx context.Context, sessionID string, env
 
 func (m *Manager) recordDelivered(
 	sessionID string,
-	peerID string,
+	_ string,
 	envelope Envelope,
 	_ string,
 	_ time.Duration,
@@ -1920,33 +1908,33 @@ func (m *Manager) recordDelivered(
 			)
 		}
 	}
-	m.recordThreadPeerPromptCost(peerID, envelope, cost)
+	m.recordThreadSessionPromptCost(sessionID, envelope, cost)
 	if m.stats == nil {
 		return
 	}
 	m.stats.recordDelivered(envelope)
 }
 
-func (m *Manager) recordThreadPeerPromptCost(peerID string, envelope Envelope, cost deliveredPromptCost) {
+func (m *Manager) recordThreadSessionPromptCost(sessionID string, envelope Envelope, cost deliveredPromptCost) {
 	if m == nil || m.conversations == nil || !envelopeTargetsThread(envelope) {
 		return
 	}
-	updater, ok := m.conversations.(threadPeerTokenStatsUpdater)
+	updater, ok := m.conversations.(threadSessionTokenStatsUpdater)
 	if !ok {
 		return
 	}
-	targetPeerID := strings.TrimSpace(peerID)
-	if targetPeerID == "" {
+	targetSessionID := strings.TrimSpace(sessionID)
+	if targetSessionID == "" {
 		return
 	}
 	deliveredAt := m.now().UTC()
-	err := updater.UpdateNetworkThreadPeerTokenStats(
+	err := updater.UpdateNetworkThreadSessionTokenStats(
 		m.lifecycleCtx,
-		store.NetworkThreadPeerTokenStatsUpdate{
+		store.NetworkThreadSessionTokenStatsUpdate{
 			WorkspaceID:           strings.TrimSpace(envelope.WorkspaceID),
 			Channel:               strings.TrimSpace(envelope.Channel),
 			ThreadID:              strings.TrimSpace(*envelope.ThreadID),
-			PeerID:                targetPeerID,
+			SessionID:             targetSessionID,
 			DeliveredCount:        1,
 			PromptSizeBytes:       cost.PromptSizeBytes,
 			EstimatedPromptTokens: cost.EstimatedPromptTokens,
@@ -1956,9 +1944,9 @@ func (m *Manager) recordThreadPeerPromptCost(peerID string, envelope Envelope, c
 	)
 	if err != nil {
 		m.logger.Warn(
-			"network.thread_peer_token_stats.update_failed",
-			"peer_id",
-			targetPeerID,
+			"network.thread_session_token_stats.update_failed",
+			"session_id",
+			targetSessionID,
 			"envelope_id",
 			envelope.ID,
 			"error",

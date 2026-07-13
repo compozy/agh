@@ -77,8 +77,6 @@ const (
 	HarnessAugmenterSkills HarnessAugmenter = "skills"
 	// HarnessAugmenterDurableMemory enables the durable memory recall augmenter.
 	HarnessAugmenterDurableMemory HarnessAugmenter = "durable_memory"
-	// HarnessAugmenterNetworkResponseRegister injects compact network-response etiquette.
-	HarnessAugmenterNetworkResponseRegister HarnessAugmenter = "network_response_register"
 )
 
 // ReentryMode identifies how a resolved policy participates in synthetic reentry.
@@ -121,7 +119,6 @@ type HarnessRuntimeSignals struct {
 	SkillsAugmenter                     bool
 	SituationAugmenter                  bool
 	DurableMemoryAugmenter              bool
-	NetworkResponseRegisterAugmenter    bool
 	SyntheticTurnsEnabled               bool
 	DetachedTaskRuntimeEnabled          bool
 }
@@ -550,9 +547,6 @@ func (r *HarnessContextResolver) resolveAugmenters(
 		augmenters = append(augmenters, HarnessAugmenterSkills)
 	}
 	if turnCtx.Origin == TurnOriginNetwork {
-		if r.runtime.NetworkResponseRegisterAugmenter {
-			augmenters = append(augmenters, HarnessAugmenterNetworkResponseRegister)
-		}
 		return augmenters
 	}
 	if turnCtx.Origin != TurnOriginUser {

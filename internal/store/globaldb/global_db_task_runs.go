@@ -133,7 +133,11 @@ func updateTaskRunRecordWithExecutor(
 	exec taskSQLExecutor,
 	run taskpkg.Run,
 ) error {
-	affected, err := sqlcgen.New(exec).UpdateTaskRun(ctx, updateTaskRunParams(run))
+	params, err := updateTaskRunParams(run)
+	if err != nil {
+		return err
+	}
+	affected, err := sqlcgen.New(exec).UpdateTaskRun(ctx, params)
 	if err != nil {
 		return fmt.Errorf("store: update task run %q: %w", run.ID, err)
 	}
@@ -218,7 +222,7 @@ func (g *TaskRepo) listTaskRunsWithExecutor(
 		store.StringClause("task_id", normalized.TaskID),
 		store.StringClause("status", normalized.Status.String()),
 		store.StringClause("session_id", normalized.SessionID),
-		store.StringClause("coordination_channel_id", normalized.CoordinationChannelID),
+		store.StringClause("network_channel", normalized.CoordinationChannelID),
 		store.StringClause("designation_group_id", normalized.DesignationGroupID),
 	)
 	sqlQuery = store.AppendWhere(sqlQuery, where)

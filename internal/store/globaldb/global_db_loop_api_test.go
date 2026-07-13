@@ -12,6 +12,7 @@ import (
 
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/testutil"
 )
 
@@ -305,6 +306,9 @@ func TestGlobalDBLoopAPIRunsShouldRemainWorkspaceScoped(t *testing.T) {
 		}
 		if runs[0].ID != alpha.ID || runs[0].WorkspaceID != "ws-a" || runs[0].Inputs["ticket"] != "A" {
 			t.Fatalf("ListLoopRuns() run = %#v", runs[0])
+		}
+		if got, want := runs[0].NetworkSpec, participation.LocalSpec(); got != want {
+			t.Fatalf("ListLoopRuns() NetworkSpec = %#v, want %#v", got, want)
 		}
 
 		foreign, err := globalDB.ListLoopRuns(ctx, looppkg.RunListQuery{WorkspaceID: "ws-b", Limit: 10})

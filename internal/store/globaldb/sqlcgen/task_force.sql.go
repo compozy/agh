@@ -23,38 +23,43 @@ SET task_id = ?1,
     origin_kind = ?9,
     origin_ref = ?10,
     idempotency_key = ?11,
-    network_channel = ?12,
+    network_spec_json = ?12,
+    network_mode = ?13,
+    network_channel = ?14,
+    network_source = ?15,
     claim_token = NULL,
-    claim_token_hash = ?13,
-    lease_until = ?14,
-    heartbeat_at = ?15,
-    coordination_channel_id = ?16,
-    queued_at = ?17,
-    claimed_at = ?18,
-    started_at = ?19,
-    ended_at = ?20,
-    error = ?21,
-    metadata_json = ?22,
-    result_json = ?23,
-    review_required = ?24,
-    review_request_round = ?25,
-    review_policy_snapshot = ?26,
-    review_request_id = ?27,
-    parent_run_id = ?28,
-    review_id = ?29,
-    review_round = ?30,
-    continuation_reason = ?31,
-    missing_work_json = ?32,
-    next_round_guidance = ?33
-WHERE id = ?34
-  AND status = ?35
-  AND COALESCE(session_id, '') = ?36
-  AND COALESCE(claim_token_hash, '') = ?37
-  AND COALESCE(lease_until, '') = ?38
+    claim_token_hash = ?16,
+    lease_until = ?17,
+    heartbeat_at = ?18,
+    queued_at = ?19,
+    claimed_at = ?20,
+    started_at = ?21,
+    ended_at = ?22,
+    error = ?23,
+    metadata_json = ?24,
+    result_json = ?25,
+    review_required = ?26,
+    review_request_round = ?27,
+    review_policy_snapshot = ?28,
+    review_request_id = ?29,
+    parent_run_id = ?30,
+    review_id = ?31,
+    review_round = ?32,
+    continuation_reason = ?33,
+    missing_work_json = ?34,
+    next_round_guidance = ?35,
+    network_wake_id = ?36,
+    network_target_session_id = ?37,
+    network_owner_key = ?38
+WHERE id = ?39
+  AND status = ?40
+  AND COALESCE(session_id, '') = ?41
+  AND COALESCE(claim_token_hash, '') = ?42
+  AND COALESCE(lease_until, '') = ?43
 `
 
 type ForceUpdateTaskRunSnapshotParams struct {
-	TaskID                 string         `json:"task_id"`
+	TaskID                 sql.NullString `json:"task_id"`
 	Status                 string         `json:"status"`
 	Attempt                int64          `json:"attempt"`
 	PreviousRunID          sql.NullString `json:"previous_run_id"`
@@ -65,11 +70,13 @@ type ForceUpdateTaskRunSnapshotParams struct {
 	OriginKind             string         `json:"origin_kind"`
 	OriginRef              string         `json:"origin_ref"`
 	IdempotencyKey         sql.NullString `json:"idempotency_key"`
+	NetworkSpecJson        string         `json:"network_spec_json"`
+	NetworkMode            string         `json:"network_mode"`
 	NetworkChannel         sql.NullString `json:"network_channel"`
+	NetworkSource          string         `json:"network_source"`
 	ClaimTokenHash         sql.NullString `json:"claim_token_hash"`
 	LeaseUntil             sql.NullString `json:"lease_until"`
 	HeartbeatAt            sql.NullString `json:"heartbeat_at"`
-	CoordinationChannelID  sql.NullString `json:"coordination_channel_id"`
 	QueuedAt               string         `json:"queued_at"`
 	ClaimedAt              sql.NullString `json:"claimed_at"`
 	StartedAt              sql.NullString `json:"started_at"`
@@ -87,6 +94,9 @@ type ForceUpdateTaskRunSnapshotParams struct {
 	ContinuationReason     string         `json:"continuation_reason"`
 	MissingWorkJson        string         `json:"missing_work_json"`
 	NextRoundGuidance      string         `json:"next_round_guidance"`
+	NetworkWakeID          sql.NullString `json:"network_wake_id"`
+	NetworkTargetSessionID sql.NullString `json:"network_target_session_id"`
+	NetworkOwnerKey        sql.NullString `json:"network_owner_key"`
 	ID                     string         `json:"id"`
 	PreviousStatus         string         `json:"previous_status"`
 	PreviousSessionID      sql.NullString `json:"previous_session_id"`
@@ -107,11 +117,13 @@ func (q *Queries) ForceUpdateTaskRunSnapshot(ctx context.Context, arg ForceUpdat
 		arg.OriginKind,
 		arg.OriginRef,
 		arg.IdempotencyKey,
+		arg.NetworkSpecJson,
+		arg.NetworkMode,
 		arg.NetworkChannel,
+		arg.NetworkSource,
 		arg.ClaimTokenHash,
 		arg.LeaseUntil,
 		arg.HeartbeatAt,
-		arg.CoordinationChannelID,
 		arg.QueuedAt,
 		arg.ClaimedAt,
 		arg.StartedAt,
@@ -129,6 +141,9 @@ func (q *Queries) ForceUpdateTaskRunSnapshot(ctx context.Context, arg ForceUpdat
 		arg.ContinuationReason,
 		arg.MissingWorkJson,
 		arg.NextRoundGuidance,
+		arg.NetworkWakeID,
+		arg.NetworkTargetSessionID,
+		arg.NetworkOwnerKey,
 		arg.ID,
 		arg.PreviousStatus,
 		arg.PreviousSessionID,
@@ -160,7 +175,7 @@ const listTaskRunIDsForTask = `-- name: ListTaskRunIDsForTask :many
 SELECT id FROM task_runs WHERE task_id = ?1
 `
 
-func (q *Queries) ListTaskRunIDsForTask(ctx context.Context, taskID string) ([]string, error) {
+func (q *Queries) ListTaskRunIDsForTask(ctx context.Context, taskID sql.NullString) ([]string, error) {
 	rows, err := q.db.QueryContext(ctx, listTaskRunIDsForTask, taskID)
 	if err != nil {
 		return nil, err

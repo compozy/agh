@@ -468,18 +468,37 @@ type taskOrchestrationReviewOverlay struct {
 }
 
 type networkOverlay struct {
-	Enabled                        *bool          `toml:"enabled"`
-	DefaultChannel                 *string        `toml:"default_channel"`
-	Port                           *int           `toml:"port"`
-	MaxPayload                     *int           `toml:"max_payload"`
-	GreetInterval                  *int           `toml:"greet_interval"`
-	MaxReplayAge                   *int           `toml:"max_replay_age"`
-	MaxQueueDepth                  *int           `toml:"max_queue_depth"`
-	ActivationTopK                 *int           `toml:"activation_top_k"`
-	DigestFlushInterval            *time.Duration `toml:"digest_flush_interval"`
-	DigestMaxEnvelopes             *int           `toml:"digest_max_envelopes"`
-	ResponseGuidanceMaxBytes       *int           `toml:"response_guidance_max_bytes"`
-	DeliveryStructuredBodyMaxBytes *int           `toml:"delivery_structured_body_max_bytes"`
+	Enabled       *bool              `toml:"enabled"`
+	GreetInterval *int               `toml:"greet_interval"`
+	MaxReplayAge  *int               `toml:"max_replay_age"`
+	MaxQueueDepth *int               `toml:"max_queue_depth"`
+	Live          networkLiveOverlay `toml:"live"`
+}
+
+type networkLiveOverlay struct {
+	Defaults networkLiveDefaultsOverlay `toml:"defaults"`
+	Limits   networkLiveLimitsOverlay   `toml:"limits"`
+}
+
+type networkLiveDefaultsOverlay struct {
+	MaxWakes         *int    `toml:"max_wakes"`
+	MaxWakeWallTime  *string `toml:"max_wake_wall_time"`
+	MaxTotalWallTime *string `toml:"max_total_wall_time"`
+	MaxInputTokens   *int64  `toml:"max_input_tokens"`
+	MaxOutputTokens  *int64  `toml:"max_output_tokens"`
+	MaxWakeDepth     *int    `toml:"max_wake_depth"`
+	CoalesceWindow   *string `toml:"coalesce_window"`
+}
+
+type networkLiveLimitsOverlay struct {
+	MaxWakes          *int    `toml:"max_wakes"`
+	MaxWakeWallTime   *string `toml:"max_wake_wall_time"`
+	MaxTotalWallTime  *string `toml:"max_total_wall_time"`
+	MaxInputTokens    *int64  `toml:"max_input_tokens"`
+	MaxOutputTokens   *int64  `toml:"max_output_tokens"`
+	MaxWakeDepth      *int    `toml:"max_wake_depth"`
+	MinCoalesceWindow *string `toml:"min_coalesce_window"`
+	MaxCoalesceWindow *string `toml:"max_coalesce_window"`
 }
 
 type autonomyOverlay struct {
@@ -1485,15 +1504,6 @@ func (o networkOverlay) Apply(dst *NetworkConfig) {
 	if o.Enabled != nil {
 		dst.Enabled = *o.Enabled
 	}
-	if o.DefaultChannel != nil {
-		dst.DefaultChannel = *o.DefaultChannel
-	}
-	if o.Port != nil {
-		dst.Port = *o.Port
-	}
-	if o.MaxPayload != nil {
-		dst.MaxPayload = *o.MaxPayload
-	}
 	if o.GreetInterval != nil {
 		dst.GreetInterval = *o.GreetInterval
 	}
@@ -1503,20 +1513,38 @@ func (o networkOverlay) Apply(dst *NetworkConfig) {
 	if o.MaxQueueDepth != nil {
 		dst.MaxQueueDepth = *o.MaxQueueDepth
 	}
-	if o.ActivationTopK != nil {
-		dst.ActivationTopK = *o.ActivationTopK
-	}
-	if o.DigestFlushInterval != nil {
-		dst.DigestFlushInterval = *o.DigestFlushInterval
-	}
-	if o.DigestMaxEnvelopes != nil {
-		dst.DigestMaxEnvelopes = *o.DigestMaxEnvelopes
-	}
-	if o.ResponseGuidanceMaxBytes != nil {
-		dst.ResponseGuidanceMaxBytes = *o.ResponseGuidanceMaxBytes
-	}
-	if o.DeliveryStructuredBodyMaxBytes != nil {
-		dst.DeliveryStructuredBodyMaxBytes = *o.DeliveryStructuredBodyMaxBytes
+	o.Live.Apply(&dst.Live)
+}
+
+func (o networkLiveOverlay) Apply(dst *NetworkLiveConfig) {
+	o.Defaults.Apply(&dst.Defaults)
+	o.Limits.Apply(&dst.Limits)
+}
+
+func (o networkLiveDefaultsOverlay) Apply(dst *NetworkLiveDefaultsConfig) {
+	applyOptional(o.MaxWakes, &dst.MaxWakes)
+	applyOptional(o.MaxWakeWallTime, &dst.MaxWakeWallTime)
+	applyOptional(o.MaxTotalWallTime, &dst.MaxTotalWallTime)
+	applyOptional(o.MaxInputTokens, &dst.MaxInputTokens)
+	applyOptional(o.MaxOutputTokens, &dst.MaxOutputTokens)
+	applyOptional(o.MaxWakeDepth, &dst.MaxWakeDepth)
+	applyOptional(o.CoalesceWindow, &dst.CoalesceWindow)
+}
+
+func (o networkLiveLimitsOverlay) Apply(dst *NetworkLiveLimitsConfig) {
+	applyOptional(o.MaxWakes, &dst.MaxWakes)
+	applyOptional(o.MaxWakeWallTime, &dst.MaxWakeWallTime)
+	applyOptional(o.MaxTotalWallTime, &dst.MaxTotalWallTime)
+	applyOptional(o.MaxInputTokens, &dst.MaxInputTokens)
+	applyOptional(o.MaxOutputTokens, &dst.MaxOutputTokens)
+	applyOptional(o.MaxWakeDepth, &dst.MaxWakeDepth)
+	applyOptional(o.MinCoalesceWindow, &dst.MinCoalesceWindow)
+	applyOptional(o.MaxCoalesceWindow, &dst.MaxCoalesceWindow)
+}
+
+func applyOptional[T any](source *T, target *T) {
+	if source != nil {
+		*target = *source
 	}
 }
 

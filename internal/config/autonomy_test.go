@@ -531,9 +531,6 @@ command = "/bin/global"
 
 [network]
 enabled = true
-default_channel = "builders"
-port = 4333
-max_payload = 65536
 greet_interval = 45
 max_replay_age = 600
 max_queue_depth = 250
@@ -624,8 +621,8 @@ max_children = 2
 	if got, want := len(decls), 2; got != want {
 		t.Fatalf("len(HookDeclarations()) = %d, want %d", got, want)
 	}
-	if cfg.Network.DefaultChannel != "builders" || cfg.Network.MaxQueueDepth != 400 {
-		t.Fatalf("Load() Network = %#v, want preserved channel and workspace queue depth", cfg.Network)
+	if !cfg.Network.Enabled || cfg.Network.MaxQueueDepth != 400 {
+		t.Fatalf("Load() Network = %#v, want enabled with workspace queue depth", cfg.Network)
 	}
 	if cfg.Memory.Dream.MinHours != 36 || cfg.Memory.Dream.MinSessions != 6 {
 		t.Fatalf("Load() Memory.Dream = %#v, want merged dream config", cfg.Memory.Dream)

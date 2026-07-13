@@ -658,8 +658,8 @@ func TestConfigCommandsUseWorkspaceScopeAndValidateBeforeWriting(t *testing.T) {
 		deps,
 		"config",
 		"set",
-		"network.default_channel",
-		"builders",
+		"network.live.defaults.max_wakes",
+		"12",
 		"--scope",
 		"workspace",
 		"-o",
@@ -673,8 +673,8 @@ func TestConfigCommandsUseWorkspaceScopeAndValidateBeforeWriting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile(workspace config) error = %v", err)
 	}
-	if !strings.Contains(string(contents), `default_channel = "builders"`) {
-		t.Fatalf("workspace config = %s, want default_channel builders", string(contents))
+	if !strings.Contains(string(contents), "max_wakes = 12") {
+		t.Fatalf("workspace config = %s, want network Live max_wakes 12", string(contents))
 	}
 
 	before := string(contents)

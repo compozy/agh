@@ -42,12 +42,13 @@ var (
 const capabilityBodyExample = `  --body '{"capability":{"id":"reply-workflow","summary":"Compact inline checklist.","outcome":"A reusable reply workflow.","version":"1.0.0","digest":"sha256:replace-me","execution_outline":["Inspect request","Draft response"],"requirements":["workspace-write"]}}' \`
 
 const (
-	defaultDeliveryRetryBaseDelay  = 250 * time.Millisecond
-	defaultDeliveryRetryMaxDelay   = 5 * time.Second
-	deliveryDropReasonQueueFull    = "queue_overflow"
-	networkMessageTrustUntrusted   = "untrusted"
-	protocolGuidanceDirectRoomText = "Direct-room chat uses `--kind say --surface direct`."
-	compactReplyGuidanceText       = "Full protocol examples were already provided earlier in this session; run `agh network --help` for command details."
+	defaultDeliveryRetryBaseDelay         = 250 * time.Millisecond
+	defaultDeliveryRetryMaxDelay          = 5 * time.Second
+	defaultDeliveryStructuredBodyMaxBytes = 4 * 1024
+	deliveryDropReasonQueueFull           = "queue_overflow"
+	networkMessageTrustUntrusted          = "untrusted"
+	protocolGuidanceDirectRoomText        = "Direct-room chat uses `--kind say --surface direct`."
+	compactReplyGuidanceText              = "Full protocol examples were already provided earlier in this session; run `agh network --help` for command details."
 )
 
 type deliveryPrompter interface {
@@ -70,18 +71,16 @@ type deliveredPromptCost struct {
 }
 
 type deliveryCoordinator struct {
-	lifecycleCtx           context.Context
-	prompter               deliveryPrompter
-	guidanceStore          deliveryGuidanceStore
-	maxQueueDepth          int
-	digestFlushInterval    time.Duration
-	digestMaxEnvelopes     int
-	structuredBodyMaxBytes int
-	logger                 *slog.Logger
-	now                    func() time.Time
-	retryBaseDelay         time.Duration
-	retryMaxDelay          time.Duration
-	scheduleRetry          deliveryRetryScheduler
+	lifecycleCtx        context.Context
+	prompter            deliveryPrompter
+	maxQueueDepth       int
+	digestFlushInterval time.Duration
+	digestMaxEnvelopes  int
+	logger              *slog.Logger
+	now                 func() time.Time
+	retryBaseDelay      time.Duration
+	retryMaxDelay       time.Duration
+	scheduleRetry       deliveryRetryScheduler
 
 	mu            sync.Mutex
 	queues        map[string]*inboundQueue
@@ -137,11 +136,6 @@ type deliveryGuidanceState struct {
 	loaded            bool
 }
 
-type deliveryGuidanceStore interface {
-	GetNetworkDeliveryGuidanceState(ctx context.Context, sessionID string) (store.NetworkDeliveryGuidanceState, error)
-	PutNetworkDeliveryGuidanceState(ctx context.Context, state store.NetworkDeliveryGuidanceState) error
-}
-
 type networkMessageGuidanceMode int
 
 const (
@@ -195,22 +189,10 @@ func withDeliveryRetryScheduler(scheduler deliveryRetryScheduler) deliveryOption
 	}
 }
 
-func withDeliveryGuidanceStore(guidanceStore deliveryGuidanceStore) deliveryOption {
-	return func(coordinator *deliveryCoordinator) {
-		coordinator.guidanceStore = guidanceStore
-	}
-}
-
 func withDeliveryDigestCoalescing(flushInterval time.Duration, maxEnvelopes int) deliveryOption {
 	return func(coordinator *deliveryCoordinator) {
 		coordinator.digestFlushInterval = flushInterval
 		coordinator.digestMaxEnvelopes = maxEnvelopes
-	}
-}
-
-func withDeliveryStructuredBodyMaxBytes(maxBytes int) deliveryOption {
-	return func(coordinator *deliveryCoordinator) {
-		coordinator.structuredBodyMaxBytes = maxBytes
 	}
 }
 
@@ -275,10 +257,6 @@ func newDeliveryCoordinator(
 	if coordinator.digestFlushInterval < 0 {
 		coordinator.digestFlushInterval = 0
 	}
-	if coordinator.structuredBodyMaxBytes < 0 {
-		coordinator.structuredBodyMaxBytes = 0
-	}
-
 	return coordinator, nil
 }
 
@@ -540,27 +518,7 @@ func (c *deliveryCoordinator) guidanceModeForDelivery(
 
 	c.mu.Lock()
 	state := c.guidance[target]
-	needsLoad := !state.loaded && c.guidanceStore != nil
 	c.mu.Unlock()
-
-	if needsLoad {
-		if stored, err := c.guidanceStore.GetNetworkDeliveryGuidanceState(c.lifecycleCtx, target); err == nil {
-			loaded := deliveryGuidanceState{
-				replyDelivered:    stored.ReplyGuidanceDelivered,
-				protocolDelivered: stored.ProtocolGuidanceDelivered,
-				loaded:            true,
-			}
-			c.mu.Lock()
-			current := c.guidance[target]
-			if !current.loaded {
-				state = loaded
-				c.guidance[target] = loaded
-			} else {
-				state = current
-			}
-			c.mu.Unlock()
-		}
-	}
 	if !state.replyDelivered {
 		return networkMessageGuidanceVerbose
 	}
@@ -590,27 +548,7 @@ func (c *deliveryCoordinator) markGuidanceDelivered(sessionID string, item queue
 		state.protocolDelivered = true
 	}
 	c.guidance[target] = state
-	guidanceStore := c.guidanceStore
-	persistedState := store.NetworkDeliveryGuidanceState{
-		SessionID:                 target,
-		ReplyGuidanceDelivered:    state.replyDelivered,
-		ProtocolGuidanceDelivered: state.protocolDelivered,
-	}
 	c.mu.Unlock()
-
-	if guidanceStore == nil {
-		return
-	}
-	err := guidanceStore.PutNetworkDeliveryGuidanceState(c.lifecycleCtx, persistedState)
-	if err != nil && c.logger != nil {
-		c.logger.Warn(
-			"network.delivery_guidance.persist_failed",
-			"session_id",
-			target,
-			"error",
-			err,
-		)
-	}
 }
 
 func (c *deliveryCoordinator) trigger(sessionID string) {
@@ -1379,7 +1317,7 @@ func (c *deliveryCoordinator) formatNetworkMessageWithDeliveryMode(
 		envelope,
 		guidanceMode,
 		deliveryMode,
-		c.structuredBodyMaxBytes,
+		defaultDeliveryStructuredBodyMaxBytes,
 	)
 }
 

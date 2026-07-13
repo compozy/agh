@@ -23,7 +23,6 @@ func taskRecordFromFields(record taskpkg.Task, fields *taskScanFields) (taskpkg.
 		fields.scope,
 		fields.workspaceID,
 		fields.parentTaskID,
-		fields.networkChannel,
 		fields.description,
 		fields.priority,
 		fields.maxAttempts,
@@ -84,7 +83,6 @@ type taskScanFields struct {
 	scope                string
 	workspaceID          sql.NullString
 	parentTaskID         sql.NullString
-	networkChannel       sql.NullString
 	description          sql.NullString
 	priority             string
 	maxAttempts          int
@@ -122,7 +120,6 @@ func scanTaskRecordColumns(scanner rowScanner) (taskpkg.Task, taskScanFields, er
 		&fields.scope,
 		&fields.workspaceID,
 		&fields.parentTaskID,
-		&fields.networkChannel,
 		&record.Title,
 		&fields.description,
 		&fields.priority,

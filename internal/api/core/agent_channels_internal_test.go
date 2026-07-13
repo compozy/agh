@@ -631,17 +631,17 @@ func (s agentCoreNetworkStore) ListThreadParticipants(
 	return nil, nil
 }
 
-func (s agentCoreNetworkStore) UpdateNetworkThreadPeerTokenStats(
+func (s agentCoreNetworkStore) UpdateNetworkThreadSessionTokenStats(
 	context.Context,
-	store.NetworkThreadPeerTokenStatsUpdate,
+	store.NetworkThreadSessionTokenStatsUpdate,
 ) error {
 	return nil
 }
 
-func (s agentCoreNetworkStore) ListNetworkThreadPeerTokenStats(
+func (s agentCoreNetworkStore) ListNetworkThreadSessionTokenStats(
 	context.Context,
-	store.NetworkThreadPeerTokenStatsQuery,
-) ([]store.NetworkThreadPeerTokenStats, error) {
+	store.NetworkThreadSessionTokenStatsQuery,
+) ([]store.NetworkThreadSessionTokenStats, error) {
 	return nil, nil
 }
 
@@ -729,20 +729,6 @@ func (s agentCoreNetworkStore) ListNetworkSubscriptions(
 }
 
 func (s agentCoreNetworkStore) DeleteNetworkSubscription(context.Context, store.NetworkSubscriptionRef) error {
-	return nil
-}
-
-func (s agentCoreNetworkStore) GetNetworkDeliveryGuidanceState(
-	context.Context,
-	string,
-) (store.NetworkDeliveryGuidanceState, error) {
-	return store.NetworkDeliveryGuidanceState{}, nil
-}
-
-func (s agentCoreNetworkStore) PutNetworkDeliveryGuidanceState(
-	context.Context,
-	store.NetworkDeliveryGuidanceState,
-) error {
 	return nil
 }
 

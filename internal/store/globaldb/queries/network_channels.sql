@@ -67,8 +67,8 @@ ON CONFLICT(workspace_id, channel, kind) DO UPDATE SET
   message_count = message_count + 1;
 
 -- name: InsertNetworkChannelParticipant :execrows
-INSERT OR IGNORE INTO network_channel_participants (workspace_id, channel, peer_id)
-VALUES (sqlc.arg(workspace_id), sqlc.arg(channel), sqlc.arg(peer_id));
+INSERT OR IGNORE INTO network_channel_participants (workspace_id, channel, session_id)
+VALUES (sqlc.arg(workspace_id), sqlc.arg(channel), sqlc.arg(session_id));
 
 -- name: IncrementNetworkChannelParticipantCount :exec
 UPDATE network_channel_stats

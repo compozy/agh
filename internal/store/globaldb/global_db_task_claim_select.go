@@ -63,7 +63,7 @@ func (g *TaskRunRepo) selectClaimableRunID(
 		args = append(args, string(taskpkg.ScopeGlobal))
 	}
 	if strings.TrimSpace(criteria.CoordinationChannelID) != "" {
-		where = append(where, "tr.coordination_channel_id = ?")
+		where = append(where, "tr.network_channel = ?")
 		args = append(args, criteria.CoordinationChannelID)
 	}
 	where, args = appendProfileClaimFilters(where, args, criteria)

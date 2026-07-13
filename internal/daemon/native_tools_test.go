@@ -3402,11 +3402,12 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
 		sessionID := "sess-local"
-		directID, peerA, peerB, err := network.DirectRoomIdentity(
+		remoteSessionID := "sess-reviewer"
+		directID, sessionA, sessionB, err := store.NetworkDirectRoomIdentity(
 			nativeNetworkTestWorkspaceID,
 			"builders",
-			"coder.sess-abc",
-			"reviewer.sess-xyz",
+			sessionID,
+			remoteSessionID,
 		)
 		if err != nil {
 			t.Fatalf("DirectRoomIdentity() error = %v", err)
@@ -3445,7 +3446,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				query store.NetworkDirectRoomQuery,
 			) (store.NetworkDirectRoomPage, error) {
 				if ref.WorkspaceID != nativeNetworkTestWorkspaceID || ref.Channel != "builders" ||
-					query.PeerID != "reviewer.sess-xyz" ||
+					query.SessionID != remoteSessionID ||
 					query.Limit != 3 {
 					t.Fatalf("ListDirectRooms ref/query = %#v/%#v, want requested filters", ref, query)
 				}
@@ -3453,8 +3454,8 @@ func TestDaemonNativeTools(t *testing.T) {
 					WorkspaceID:        ref.WorkspaceID,
 					Channel:            ref.Channel,
 					DirectID:           directID,
-					PeerA:              peerA,
-					PeerB:              peerB,
+					SessionA:           sessionA,
+					SessionB:           sessionB,
 					OpenedAt:           now,
 					LastActivityAt:     now,
 					MessageCount:       1,
@@ -3468,8 +3469,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			) (store.NetworkDirectRoomSummary, error) {
 				resolveCalls++
 				if entry.WorkspaceID != nativeNetworkTestWorkspaceID || entry.Channel != "builders" ||
-					entry.DirectID != directID || entry.PeerA != peerA ||
-					entry.PeerB != peerB {
+					entry.DirectID != directID || entry.SessionA != sessionA ||
+					entry.SessionB != sessionB {
 					t.Fatalf("ResolveDirectRoom entry = %#v, want deterministic direct room", entry)
 				}
 				if summary, ok := resolvedDirects[entry.DirectID]; ok {
@@ -3479,8 +3480,8 @@ func TestDaemonNativeTools(t *testing.T) {
 					WorkspaceID:        entry.WorkspaceID,
 					Channel:            entry.Channel,
 					DirectID:           entry.DirectID,
-					PeerA:              entry.PeerA,
-					PeerB:              entry.PeerB,
+					SessionA:           entry.SessionA,
+					SessionB:           entry.SessionB,
 					OpenedAt:           entry.OpenedAt,
 					LastActivityAt:     entry.LastActivityAt,
 					MessageCount:       0,
@@ -3548,24 +3549,23 @@ func TestDaemonNativeTools(t *testing.T) {
 					)
 				}
 				return store.NetworkWorkEntry{
-					WorkID:          workID,
-					WorkspaceID:     workspaceID,
-					Channel:         "builders",
-					Surface:         store.NetworkSurfaceThread,
-					ThreadID:        "thread_launch",
-					OpenedByPeerID:  "coder.sess-abc",
-					OpenedSessionID: sessionID,
-					TargetPeerID:    "reviewer.sess-xyz",
-					State:           "needs_input",
-					OpenedAt:        now,
-					LastActivityAt:  now,
+					WorkID:            workID,
+					WorkspaceID:       workspaceID,
+					Channel:           "builders",
+					Surface:           store.NetworkSurfaceThread,
+					ThreadID:          "thread_launch",
+					OpenedBySessionID: sessionID,
+					TargetSessionID:   remoteSessionID,
+					State:             "needs_input",
+					OpenedAt:          now,
+					LastActivityAt:    now,
 				}, nil
 			},
 		}
 		networkService := &nativeNetworkStub{
 			peers: []network.PeerInfo{
 				{SessionID: &sessionID, PeerID: "coder.sess-abc", Channel: "builders", Local: true},
-				{PeerID: "reviewer.sess-xyz", Channel: "builders", Local: false},
+				{SessionID: &remoteSessionID, PeerID: "reviewer.sess-xyz", Channel: "builders", Local: false},
 			},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -3862,8 +3862,13 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		storeErr := errors.New("direct list failed")
+		remoteSessionID := "sess-reviewer"
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Network:    &nativeNetworkStub{},
+			Network: &nativeNetworkStub{peers: []network.PeerInfo{{
+				SessionID: &remoteSessionID,
+				PeerID:    "reviewer.sess-xyz",
+				Channel:   "builders",
+			}}},
 			Workspaces: nativeNetworkTestWorkspaceService(t),
 			NetworkStore: apitest.StubNetworkStore{
 				ListDirectRoomsFn: func(

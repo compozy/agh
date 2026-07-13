@@ -52,16 +52,6 @@ func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetw
 				}),
 				daemonInstance.situationContext.Augment,
 			),
-			// Mirror boot.go: the network response register augmenter is registered
-			// whenever response guidance is configured, so the resolver can enable it
-			// on network turns without tripping the "enabled but not registered" guard.
-			promptInputAugmenterDescriptor{
-				Name:           HarnessAugmenterNetworkResponseRegister,
-				Order:          networkResponseAugmenterOrder,
-				Budget:         cfg.Network.ResponseGuidanceMaxBytes,
-				BudgetBehavior: promptInputAugmenterBudgetBehaviorTrim,
-				Augmenter:      newNetworkResponseRegisterAugmenter(),
-			},
 			promptInputAugmenterDescriptor{
 				Name:   suffixAugmenter,
 				Order:  200,

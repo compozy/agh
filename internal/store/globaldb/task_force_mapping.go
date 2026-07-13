@@ -9,10 +9,18 @@ import (
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
-func forceTaskRunSnapshotParams(previous taskpkg.Run, next taskpkg.Run) sqlcgen.ForceUpdateTaskRunSnapshotParams {
+func forceTaskRunSnapshotParams(
+	previous taskpkg.Run,
+	next taskpkg.Run,
+) (sqlcgen.ForceUpdateTaskRunSnapshotParams, error) {
 	lineage := taskRunReviewLineage(next)
+	network, err := encodeParticipationSnapshot(next.NetworkSpecSnapshot())
+	if err != nil {
+		return sqlcgen.ForceUpdateTaskRunSnapshotParams{}, err
+	}
+	wakeID, targetSessionID, ownerKey := next.NetworkWakeCorrelation()
 	return sqlcgen.ForceUpdateTaskRunSnapshotParams{
-		TaskID:                 next.TaskID,
+		TaskID:                 nullableTaskString(next.TaskID),
 		Status:                 next.Status.String(),
 		Attempt:                int64(next.Attempt),
 		PreviousRunID:          nullableTaskString(next.PreviousRunID),
@@ -23,11 +31,13 @@ func forceTaskRunSnapshotParams(previous taskpkg.Run, next taskpkg.Run) sqlcgen.
 		OriginKind:             string(next.Origin.Kind),
 		OriginRef:              next.Origin.Ref,
 		IdempotencyKey:         nullableTaskString(next.IdempotencyKey),
-		NetworkChannel:         nullableTaskString(next.NetworkChannel),
+		NetworkSpecJson:        network.JSON,
+		NetworkMode:            network.Mode,
+		NetworkChannel:         network.Channel,
+		NetworkSource:          network.Source,
 		ClaimTokenHash:         nullableTaskString(next.ClaimTokenHash),
 		LeaseUntil:             nullableTaskTime(next.LeaseUntil),
 		HeartbeatAt:            nullableTaskTime(next.HeartbeatAt),
-		CoordinationChannelID:  nullableTaskString(next.CoordinationChannelID),
 		QueuedAt:               store.FormatTimestamp(next.QueuedAt),
 		ClaimedAt:              nullableTaskTime(next.ClaimedAt),
 		StartedAt:              nullableTaskTime(next.StartedAt),
@@ -45,10 +55,13 @@ func forceTaskRunSnapshotParams(previous taskpkg.Run, next taskpkg.Run) sqlcgen.
 		ContinuationReason:     lineage.ContinuationReason,
 		MissingWorkJson:        string(lineage.MissingWork),
 		NextRoundGuidance:      lineage.NextRoundGuidance,
+		NetworkWakeID:          nullableTaskString(wakeID),
+		NetworkTargetSessionID: nullableTaskString(targetSessionID),
+		NetworkOwnerKey:        nullableTaskString(ownerKey),
 		ID:                     next.ID,
 		PreviousStatus:         previous.Status.Normalize().String(),
 		PreviousSessionID:      sql.NullString{String: strings.TrimSpace(previous.SessionID), Valid: true},
 		PreviousClaimTokenHash: sql.NullString{String: strings.TrimSpace(previous.ClaimTokenHash), Valid: true},
 		PreviousLeaseUntil:     sql.NullString{String: forceRunCASTimestamp(previous.LeaseUntil), Valid: true},
-	}
+	}, nil
 }

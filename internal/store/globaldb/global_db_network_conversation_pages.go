@@ -228,21 +228,21 @@ func networkThreadSummarySelect() string {
 		message_count, participant_count, open_work_count,
 		COALESCE((
 			SELECT SUM(stats.delivered_count)
-			FROM network_thread_peer_token_stats AS stats
+			FROM network_thread_session_token_stats AS stats
 			WHERE stats.workspace_id = network_threads.workspace_id
 				AND stats.channel = network_threads.channel
 				AND stats.thread_id = network_threads.thread_id
 		), 0),
 		COALESCE((
 			SELECT SUM(stats.prompt_size_bytes)
-			FROM network_thread_peer_token_stats AS stats
+			FROM network_thread_session_token_stats AS stats
 			WHERE stats.workspace_id = network_threads.workspace_id
 				AND stats.channel = network_threads.channel
 				AND stats.thread_id = network_threads.thread_id
 		), 0),
 		COALESCE((
 			SELECT SUM(stats.estimated_prompt_tokens)
-			FROM network_thread_peer_token_stats AS stats
+			FROM network_thread_session_token_stats AS stats
 			WHERE stats.workspace_id = network_threads.workspace_id
 				AND stats.channel = network_threads.channel
 				AND stats.thread_id = network_threads.thread_id
@@ -253,7 +253,7 @@ func networkThreadSummarySelect() string {
 
 func networkDirectRoomSummarySelect() string {
 	return `SELECT
-		workspace_id, channel, direct_id, peer_a, peer_b,
+		workspace_id, channel, direct_id, session_a, session_b,
 		opened_at, opened_sequence, last_activity_at, last_activity_sequence,
 		message_count, open_work_count, last_message_preview
 	FROM network_direct_rooms`

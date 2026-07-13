@@ -3,6 +3,7 @@ package globaldb
 import (
 	"encoding/base64"
 	"errors"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,8 +20,8 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 	t.Run("Should return one durable room for concurrent resolves of the same pair", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
-		expectedID, expectedPeerA, expectedPeerB, err := store.NetworkDirectRoomIdentity(
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		expectedID, expectedSessionA, expectedSessionB, err := store.NetworkDirectRoomIdentity(
 			networkStoreTestWorkspaceID,
 			"builders",
 			"reviewer.sess-xyz",
@@ -46,14 +47,16 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 				summary, resolveErr := globalDB.ResolveDirectRoom(testutil.Context(t), store.NetworkDirectRoomEntry{
 					WorkspaceID: networkStoreTestWorkspaceID,
 					Channel:     "builders",
-					PeerA:       peerA,
-					PeerB:       peerB,
+					SessionA:    peerA,
+					SessionB:    peerB,
 				})
 				if resolveErr != nil {
 					errs <- resolveErr
 					return
 				}
-				if summary.DirectID != expectedID || summary.PeerA != expectedPeerA || summary.PeerB != expectedPeerB {
+				if summary.DirectID != expectedID ||
+					summary.SessionA != expectedSessionA ||
+					summary.SessionB != expectedSessionB {
 					errs <- errors.New("resolved direct room summary did not match deterministic identity")
 				}
 			}(index)
@@ -85,7 +88,7 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 	t.Run("Should fail closed when a deterministic direct id is already bound to another pair", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		directID, _, _, err := store.NetworkDirectRoomIdentity(
 			networkStoreTestWorkspaceID,
 			"builders",
@@ -100,8 +103,8 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 		_, err = globalDB.ResolveDirectRoom(testutil.Context(t), store.NetworkDirectRoomEntry{
 			WorkspaceID: networkStoreTestWorkspaceID,
 			Channel:     "builders",
-			PeerA:       "coder.sess-abc",
-			PeerB:       "reviewer.sess-xyz",
+			SessionA:    "coder.sess-abc",
+			SessionB:    "reviewer.sess-xyz",
 		})
 		if !errors.Is(err, store.ErrNetworkDirectRoomCollision) {
 			t.Fatalf("ResolveDirectRoom(collision) error = %v, want ErrNetworkDirectRoomCollision", err)
@@ -111,14 +114,14 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 	t.Run("Should anchor the first message in a room resolved before its timeline exists", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		ctx := testutil.Context(t)
 		openedAt := time.Date(2026, 7, 11, 19, 0, 0, 0, time.UTC)
 		room, err := globalDB.ResolveDirectRoom(ctx, store.NetworkDirectRoomEntry{
 			WorkspaceID:    networkStoreTestWorkspaceID,
 			Channel:        "builders",
-			PeerA:          "coder.sess-abc",
-			PeerB:          "reviewer.sess-xyz",
+			SessionA:       "coder.sess-abc",
+			SessionB:       "reviewer.sess-xyz",
 			OpenedAt:       openedAt,
 			LastActivityAt: openedAt,
 		})
@@ -135,8 +138,8 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 		if _, err := globalDB.ResolveDirectRoom(ctx, store.NetworkDirectRoomEntry{
 			WorkspaceID:    networkStoreTestWorkspaceID,
 			Channel:        "builders",
-			PeerA:          "coder.sess-abc",
-			PeerB:          "planner.sess-123",
+			SessionA:       "coder.sess-abc",
+			SessionB:       "planner.sess-123",
 			OpenedAt:       openedAt.Add(time.Minute),
 			LastActivityAt: openedAt.Add(time.Minute),
 		}); err != nil {
@@ -242,7 +245,7 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 	t.Run("Should open a thread and derive message and participant counts from committed rows", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		startedAt := time.Date(2026, 5, 5, 14, 0, 0, 0, time.UTC)
 		messages := []store.NetworkConversationMessage{
 			threadMessage("msg_thread_root", "thread_store_counts", "coder.sess-abc", "hello builders", startedAt),
@@ -294,7 +297,7 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 		if got, want := thread.MessageCount, 3; got != want {
 			t.Fatalf("thread.MessageCount = %d, want %d", got, want)
 		}
-		if got, want := thread.ParticipantCount, 3; got != want {
+		if got, want := thread.ParticipantCount, 2; got != want {
 			t.Fatalf("thread.ParticipantCount = %d, want %d", got, want)
 		}
 		if got, want := thread.LastMessagePreview, "reviewing"; got != want {
@@ -315,7 +318,7 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 		if got, want := threads.Threads[0].ThreadID, "thread_store_counts"; got != want {
 			t.Fatalf("threads[0].ThreadID = %q, want %q", got, want)
 		}
-		if got, want := threads.Threads[0].ParticipantCount, 3; got != want {
+		if got, want := threads.Threads[0].ParticipantCount, 2; got != want {
 			t.Fatalf("threads[0].ParticipantCount = %d, want %d", got, want)
 		}
 
@@ -329,11 +332,11 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 		}
 		participantSet := make(map[string]bool, len(participants))
 		for _, participant := range participants {
-			participantSet[participant.PeerID] = true
+			participantSet[participant.SessionID] = true
 		}
-		for _, want := range []string{"coder.sess-abc", "reviewer.sess-xyz", "planner.sess-plan"} {
+		for _, want := range []string{"coder.sess-abc", "reviewer.sess-xyz"} {
 			if !participantSet[want] {
-				t.Fatalf("participants = %#v, want peer %q", participantSet, want)
+				t.Fatalf("participants = %#v, want session %q", participantSet, want)
 			}
 		}
 
@@ -370,10 +373,10 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 		}
 	})
 
-	t.Run("Should aggregate delivered prompt cost by thread peer", func(t *testing.T) {
+	t.Run("Should aggregate delivered prompt cost by thread session", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		startedAt := time.Date(2026, 5, 5, 14, 30, 0, 0, time.UTC)
 		thread := threadMessage(
 			"msg_thread_cost_root",
@@ -386,12 +389,12 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 			t.Fatalf("WriteConversationMessage(thread) error = %v", err)
 		}
 
-		updates := []store.NetworkThreadPeerTokenStatsUpdate{
+		updates := []store.NetworkThreadSessionTokenStatsUpdate{
 			{
 				WorkspaceID:           networkStoreTestWorkspaceID,
 				Channel:               "builders",
 				ThreadID:              "thread_store_cost",
-				PeerID:                "reviewer.sess-xyz",
+				SessionID:             "reviewer.sess-xyz",
 				DeliveredCount:        1,
 				PromptSizeBytes:       400,
 				EstimatedPromptTokens: 100,
@@ -402,7 +405,7 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 				WorkspaceID:           networkStoreTestWorkspaceID,
 				Channel:               "builders",
 				ThreadID:              "thread_store_cost",
-				PeerID:                "reviewer.sess-xyz",
+				SessionID:             "reviewer.sess-xyz",
 				DeliveredCount:        1,
 				PromptSizeBytes:       200,
 				EstimatedPromptTokens: 50,
@@ -411,14 +414,14 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 			},
 		}
 		for _, update := range updates {
-			if err := globalDB.UpdateNetworkThreadPeerTokenStats(testutil.Context(t), update); err != nil {
-				t.Fatalf("UpdateNetworkThreadPeerTokenStats() error = %v", err)
+			if err := globalDB.UpdateNetworkThreadSessionTokenStats(testutil.Context(t), update); err != nil {
+				t.Fatalf("UpdateNetworkThreadSessionTokenStats() error = %v", err)
 			}
 		}
 
-		stats, err := globalDB.ListNetworkThreadPeerTokenStats(
+		stats, err := globalDB.ListNetworkThreadSessionTokenStats(
 			testutil.Context(t),
-			store.NetworkThreadPeerTokenStatsQuery{
+			store.NetworkThreadSessionTokenStatsQuery{
 				WorkspaceID: networkStoreTestWorkspaceID,
 				Channel:     "builders",
 				ThreadID:    "thread_store_cost",
@@ -426,7 +429,7 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 			},
 		)
 		if err != nil {
-			t.Fatalf("ListNetworkThreadPeerTokenStats() error = %v", err)
+			t.Fatalf("ListNetworkThreadSessionTokenStats() error = %v", err)
 		}
 		if got, want := len(stats), 1; got != want {
 			t.Fatalf("len(stats) = %d, want %d", got, want)
@@ -473,7 +476,7 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 	t.Run("Should update only the matching direct room and isolate thread and direct queries", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		startedAt := time.Date(2026, 5, 5, 15, 0, 0, 0, time.UTC)
 		directID, _, _, err := store.NetworkDirectRoomIdentity(
 			networkStoreTestWorkspaceID,
@@ -591,7 +594,7 @@ func TestGlobalDBConversationQueriesSupportCursorsAndFilters(t *testing.T) {
 	t.Run("Should page thread and direct summaries and filter conversation messages", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		startedAt := time.Date(2026, 5, 5, 18, 0, 0, 0, time.UTC)
 		threadMessages := []store.NetworkConversationMessage{
 			threadMessage("msg_query_one", "thread_query_cursors", "coder.sess-abc", "first", startedAt),
@@ -731,8 +734,8 @@ func TestGlobalDBConversationQueriesSupportCursorsAndFilters(t *testing.T) {
 			testutil.Context(t),
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
 			store.NetworkDirectRoomQuery{
-				PeerID: "coder.sess-abc",
-				Limit:  1,
+				SessionID: "coder.sess-abc",
+				Limit:     1,
 			},
 		)
 		if err != nil {
@@ -753,9 +756,9 @@ func TestGlobalDBConversationQueriesSupportCursorsAndFilters(t *testing.T) {
 			testutil.Context(t),
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
 			store.NetworkDirectRoomQuery{
-				PeerID: "coder.sess-abc",
-				Limit:  1,
-				After:  firstDirectPage.NextCursor,
+				SessionID: "coder.sess-abc",
+				Limit:     1,
+				After:     firstDirectPage.NextCursor,
 			},
 		)
 		if err != nil {
@@ -780,7 +783,7 @@ func TestGlobalDBConversationQueriesUseStableCompleteOrdering(t *testing.T) {
 	t.Run("Should filter before paging and walk alphabetical thread pages without gaps", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		startedAt := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
 		messages := []store.NetworkConversationMessage{
 			threadMessage("msg_sort_zulu", "thread_sort_zulu", "peer.zulu", "Zulu", startedAt),
@@ -896,7 +899,7 @@ func TestGlobalDBConversationQueriesUseStableCompleteOrdering(t *testing.T) {
 	t.Run("Should continue from the captured sort tuple when the anchor mutates", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		startedAt := time.Date(2026, 7, 10, 14, 0, 0, 0, time.UTC)
 		for index, threadID := range []string{"thread_mutation_oldest", "thread_mutation_anchor", "thread_mutation_newest"} {
 			message := threadMessage(
@@ -953,7 +956,7 @@ func TestGlobalDBConversationQueriesUseStableCompleteOrdering(t *testing.T) {
 	t.Run("Should return the latest message tail in chronological order", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		startedAt := time.Date(2026, 7, 10, 13, 0, 0, 0, time.UTC)
 		for _, id := range []string{"zulu", "yankee", "xray", "whiskey", "victor"} {
 			message := threadMessage(
@@ -1017,7 +1020,7 @@ func TestGlobalDBNetworkChannelProjectionTracksTimelineWrites(t *testing.T) {
 	t.Run("Should aggregate channel timeline projections atomically", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		startedAt := time.Date(2026, 7, 10, 14, 0, 0, 0, time.UTC)
 		first := threadMessage(
 			"msg_projection_first",
@@ -1087,7 +1090,7 @@ func TestGlobalDBNetworkChannelProjectionTracksTimelineWrites(t *testing.T) {
 		if got, want := projection.PresenceCount, 1; got != want {
 			t.Fatalf("projection.PresenceCount = %d, want %d", got, want)
 		}
-		if got, want := projection.HistoricalParticipantCount, 5; got != want {
+		if got, want := projection.HistoricalParticipantCount, 3; got != want {
 			t.Fatalf("projection.HistoricalParticipantCount = %d, want %d", got, want)
 		}
 		if projection.LastActivityAt == nil || !projection.LastActivityAt.Equal(startedAt.Add(2*time.Minute)) {
@@ -1139,7 +1142,7 @@ func TestGlobalDBWriteConversationMessageWorkReceiptTransitions(t *testing.T) {
 	t.Run("Should apply receipt states and resume needs-input work from a say message", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		startedAt := time.Date(2026, 5, 5, 19, 0, 0, 0, time.UTC)
 		opening := threadMessage(
 			"msg_receipt_open",
@@ -1232,7 +1235,7 @@ func TestGlobalDBWriteConversationMessageRejectsInvalidLifecycleWrites(t *testin
 	t.Run("Should reject invalid work mutations without keeping timeline or audit side effects", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		startedAt := time.Date(2026, 5, 5, 20, 0, 0, 0, time.UTC)
 		receiptWithoutWork := threadReceiptMessage(
 			"msg_receipt_missing_work",
@@ -1381,7 +1384,7 @@ func TestGlobalDBConversationQueryErrors(t *testing.T) {
 	t.Run("Should reject invalid cursors and missing conversation rows", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		startedAt := time.Date(2026, 5, 5, 21, 0, 0, 0, time.UTC)
 		if _, err := globalDB.WriteConversationMessage(
 			testutil.Context(t),
@@ -1442,9 +1445,9 @@ func TestGlobalDBConversationQueryErrors(t *testing.T) {
 			testutil.Context(t),
 			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
 			store.NetworkDirectRoomQuery{
-				PeerID: "other.sess-peer",
-				Limit:  10,
-				After:  directID,
+				SessionID: "other.sess-peer",
+				Limit:     10,
+				After:     directID,
 			},
 		)
 		if err == nil {
@@ -1482,7 +1485,7 @@ func TestGlobalDBWriteConversationMessageIdempotencyAndRollback(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			globalDB := openTestGlobalDB(t)
+			globalDB := openNetworkConversationRepositoryTestDB(t)
 			startedAt := time.Date(2026, 5, 5, 16, 0, 0, 0, time.UTC)
 			opening := threadMessage("msg_work_open", "thread_store_work", "coder.sess-abc", "please review", startedAt)
 			opening.PeerTo = "reviewer.sess-xyz"
@@ -1581,7 +1584,7 @@ func TestGlobalDBWriteConversationMessageIdempotencyAndRollback(t *testing.T) {
 	t.Run("Should roll back message and side effects when direct room binding fails", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		directID, _, _, err := store.NetworkDirectRoomIdentity(
 			networkStoreTestWorkspaceID,
 			"builders",
@@ -1630,7 +1633,7 @@ func TestGlobalDBWriteConversationMessageRejectsRawClaimTokens(t *testing.T) {
 	t.Run("Should reject raw claim tokens before persisting message or audit rows", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openNetworkConversationRepositoryTestDB(t)
 		message := threadMessage(
 			"msg_raw_claim_token",
 			"thread_store_redaction",
@@ -1704,7 +1707,7 @@ func threadMessage(
 ) store.NetworkConversationMessage {
 	return store.NetworkConversationMessage{
 		MessageID:   messageID,
-		SessionID:   "sess-" + messageID,
+		SessionID:   peerFrom,
 		WorkspaceID: networkStoreTestWorkspaceID,
 		Channel:     "builders",
 		Surface:     store.NetworkSurfaceThread,
@@ -1729,7 +1732,7 @@ func threadTraceMessage(
 ) store.NetworkConversationMessage {
 	return store.NetworkConversationMessage{
 		MessageID:   messageID,
-		SessionID:   "sess-" + messageID,
+		SessionID:   peerFrom,
 		WorkspaceID: networkStoreTestWorkspaceID,
 		Channel:     "builders",
 		Surface:     store.NetworkSurfaceThread,
@@ -1754,7 +1757,7 @@ func threadReceiptMessage(
 ) store.NetworkConversationMessage {
 	return store.NetworkConversationMessage{
 		MessageID:   messageID,
-		SessionID:   "sess-" + messageID,
+		SessionID:   peerFrom,
 		WorkspaceID: networkStoreTestWorkspaceID,
 		Channel:     "builders",
 		Surface:     store.NetworkSurfaceThread,
@@ -1786,7 +1789,7 @@ func writeDirectMessage(
 	}
 	result, err := globalDB.WriteConversationMessage(testutil.Context(t), store.NetworkConversationMessage{
 		MessageID:   messageID,
-		SessionID:   "sess-" + messageID,
+		SessionID:   peerFrom,
 		WorkspaceID: networkStoreTestWorkspaceID,
 		Channel:     "builders",
 		Surface:     store.NetworkSurfaceDirect,
@@ -1801,6 +1804,57 @@ func writeDirectMessage(
 		Timestamp:   timestamp,
 	})
 	return directID, result, err
+}
+
+func openNetworkConversationRepositoryTestDB(t *testing.T) *GlobalDB {
+	t.Helper()
+
+	globalDB := openTestGlobalDB(t)
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"network-store",
+		filepath.Join(t.TempDir(), "workspace"),
+	)
+	now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
+	for _, sessionID := range []string{
+		"alpha.sess",
+		"coder.sess-abc",
+		"founder.sess-main",
+		"other.sess-peer",
+		"peer.alpha",
+		"peer.author",
+		"peer.beta",
+		"peer.direct",
+		"peer.mentioned",
+		"peer.mutation",
+		"peer.presence",
+		"peer.reviewer",
+		"peer.second",
+		"peer.tail",
+		"peer.work",
+		"peer.zulu",
+		"planner.sess-123",
+		"planner.sess-plan",
+		"reviewer.sess-xyz",
+		"sess-direct",
+		"sess-direct-collision",
+		"sess-projection-presence",
+		"zulu.sess",
+	} {
+		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+			ID:          sessionID,
+			AgentName:   "coder",
+			Provider:    "claude",
+			WorkspaceID: workspaceID,
+			State:       "active",
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}); err != nil {
+			t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
+		}
+	}
+	return globalDB
 }
 
 func messageIDs(messages []store.NetworkConversationMessage) []string {

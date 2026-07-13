@@ -71,7 +71,7 @@ func networkDirectRoomFromGenerated(
 	}
 	summary := store.NetworkDirectRoomSummary{
 		WorkspaceID: row.WorkspaceID, Channel: row.Channel, DirectID: row.DirectID,
-		PeerA: row.PeerA, PeerB: row.PeerB, OpenedAt: openedAt, OpenedSequence: row.OpenedSequence,
+		SessionA: row.SessionA, SessionB: row.SessionB, OpenedAt: openedAt, OpenedSequence: row.OpenedSequence,
 		LastActivityAt: lastActivityAt, LastActivitySequence: row.LastActivitySequence,
 		MessageCount: int(row.MessageCount), OpenWorkCount: int(row.OpenWorkCount),
 		LastMessagePreview: row.LastMessagePreview,

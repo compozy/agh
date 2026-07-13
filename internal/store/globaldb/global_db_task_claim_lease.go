@@ -145,7 +145,7 @@ func (g *TaskRunRepo) ListAutonomyLeaseHandles(
 
 func autonomyLeaseHandleFromGenerated(row sqlcgen.ListAutonomyLeaseHandlesRow) (taskpkg.AutonomyLeaseHandle, error) {
 	handle := taskpkg.AutonomyLeaseHandle{
-		RunID: row.ID, TaskID: row.TaskID, WorkspaceID: row.WorkspaceID,
+		RunID: row.ID, TaskID: taskNullStringValue(row.TaskID), WorkspaceID: row.WorkspaceID,
 		Status: taskpkg.ParseRunStatus(row.Status).Normalize(), SessionID: row.SessionID,
 		ClaimToken: row.ClaimToken, ClaimTokenHash: row.ClaimTokenHash,
 	}

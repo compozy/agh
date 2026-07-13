@@ -47,20 +47,24 @@ func (n *daemonNativeTools) networkThreads(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	query := store.NetworkThreadQuery{
-		Search:  strings.TrimSpace(input.Query),
-		PeerID:  strings.TrimSpace(input.PeerID),
-		Sort:    strings.TrimSpace(input.Sort),
-		HasWork: input.HasWork,
-		Limit:   input.Limit,
-		After:   strings.TrimSpace(input.After),
-	}
-	if err := query.Validate(); err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
-	}
 	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
+	}
+	sessionID, err := n.resolveNativeNetworkPeerSessionID(ctx, workspaceID, channel, input.PeerID)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	query := store.NetworkThreadQuery{
+		Search:    strings.TrimSpace(input.Query),
+		SessionID: sessionID,
+		Sort:      strings.TrimSpace(input.Sort),
+		HasWork:   input.HasWork,
+		Limit:     input.Limit,
+		After:     strings.TrimSpace(input.After),
+	}
+	if err := query.Validate(); err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
 	}
 	page, err := n.deps.NetworkStore.ListThreads(
 		ctx,
@@ -101,20 +105,24 @@ func (n *daemonNativeTools) networkDirects(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	query := store.NetworkDirectRoomQuery{
-		Search:  strings.TrimSpace(input.Query),
-		PeerID:  strings.TrimSpace(input.PeerID),
-		Sort:    strings.TrimSpace(input.Sort),
-		HasWork: input.HasWork,
-		Limit:   input.Limit,
-		After:   strings.TrimSpace(input.After),
-	}
-	if err := query.Validate(); err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
-	}
 	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
+	}
+	sessionID, err := n.resolveNativeNetworkPeerSessionID(ctx, workspaceID, channel, input.PeerID)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	query := store.NetworkDirectRoomQuery{
+		Search:    strings.TrimSpace(input.Query),
+		SessionID: sessionID,
+		Sort:      strings.TrimSpace(input.Sort),
+		HasWork:   input.HasWork,
+		Limit:     input.Limit,
+		After:     strings.TrimSpace(input.After),
+	}
+	if err := query.Validate(); err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
 	}
 	page, err := n.deps.NetworkStore.ListDirectRooms(
 		ctx,

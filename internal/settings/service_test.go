@@ -192,8 +192,8 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				if envelope.Network == nil {
 					t.Fatal("Network section = nil")
 				}
-				if got, want := envelope.Network.Config.DefaultChannel, "ops"; got != want {
-					t.Fatalf("Network default channel = %q, want %q", got, want)
+				if got, want := envelope.Network.Config.Live.Defaults.MaxWakes, 12; got != want {
+					t.Fatalf("Network Live default max wakes = %d, want %d", got, want)
 				}
 				if got, want := envelope.Network.Runtime.Status, "running"; got != want {
 					t.Fatalf("Network runtime status = %q, want %q", got, want)
@@ -3986,6 +3986,8 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 	memoryConfig.Dream.MinHours = 12
 	memoryConfig.Dream.MinSessions = 3
 	memoryConfig.Dream.CheckInterval = 15 * time.Minute
+	networkConfig := aghconfig.DefaultNetworkConfig()
+	networkConfig.Live.Defaults.MaxWakes = 12
 
 	tests := []struct {
 		name    string
@@ -4038,17 +4040,9 @@ func TestUpdateSectionRestartRequiredSections(t *testing.T) {
 			name: "network",
 			request: SectionUpdateRequest{
 				SectionRequest: SectionRequest{Section: SectionNetwork},
-				Network: &aghconfig.NetworkConfig{
-					Enabled:        true,
-					DefaultChannel: "alerts",
-					Port:           4222,
-					MaxPayload:     4096,
-					GreetInterval:  15,
-					MaxReplayAge:   60,
-					MaxQueueDepth:  10,
-				},
+				Network:        &networkConfig,
 			},
-			want: `default_channel = "alerts"`,
+			want: `max_wakes = 12`,
 		},
 		{
 			name: "observability",
@@ -5060,12 +5054,28 @@ backend = "local"
 
 [network]
 enabled = true
-default_channel = "ops"
-port = 4222
-max_payload = 4096
 greet_interval = 15
 max_replay_age = 60
 max_queue_depth = 10
+
+[network.live.defaults]
+max_wakes = 12
+max_wake_wall_time = "5m"
+max_total_wall_time = "30m"
+max_input_tokens = 200000
+max_output_tokens = 50000
+max_wake_depth = 3
+coalesce_window = "500ms"
+
+[network.live.limits]
+max_wakes = 64
+max_wake_wall_time = "15m"
+max_total_wall_time = "2h"
+max_input_tokens = 1000000
+max_output_tokens = 200000
+max_wake_depth = 5
+min_coalesce_window = "100ms"
+max_coalesce_window = "5s"
 
 [observability]
 enabled = true

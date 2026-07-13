@@ -22,7 +22,6 @@ const (
 	defaultTransportShutdownTimeout = 5 * time.Second
 	defaultTransportPublishTimeout  = 5 * time.Second
 	subjectPrefix                   = "agh.network.v0"
-	maxNATSPayloadBytes             = int(^uint32(0) >> 1)
 )
 
 // TransportOption customizes embedded transport startup behavior.
@@ -103,10 +102,7 @@ func NewTransport(ctx context.Context, cfg aghconfig.NetworkConfig, opts ...Tran
 	options := resolveTransportOptions(opts...)
 
 	token := rand.Text()
-	serverOptions, err := newEmbeddedServerOptions(cfg, token)
-	if err != nil {
-		return nil, err
-	}
+	serverOptions := newEmbeddedServerOptions(token)
 
 	natsServer, err := server.NewServer(serverOptions)
 	if err != nil {
@@ -184,34 +180,14 @@ func resolveTransportOptions(opts ...TransportOption) transportOptions {
 	return options
 }
 
-func newEmbeddedServerOptions(cfg aghconfig.NetworkConfig, token string) (*server.Options, error) {
-	maxPayload, err := natsMaxPayload(cfg.MaxPayload)
-	if err != nil {
-		return nil, err
-	}
-
+func newEmbeddedServerOptions(token string) *server.Options {
 	return &server.Options{
 		Authorization: token,
 		Host:          "127.0.0.1",
-		Port:          cfg.Port,
+		Port:          -1,
 		NoSigs:        true,
-		MaxPayload:    maxPayload,
-	}, nil
-}
-
-func natsMaxPayload(maxPayload int) (int32, error) {
-	if maxPayload < 0 {
-		return 0, fmt.Errorf("%w: network max payload must be non-negative", ErrInvalidField)
+		MaxPayload:    server.MAX_PAYLOAD_SIZE,
 	}
-	if maxPayload > maxNATSPayloadBytes {
-		return 0, fmt.Errorf(
-			"%w: network max payload %d exceeds supported limit %d",
-			ErrInvalidField,
-			maxPayload,
-			maxNATSPayloadBytes,
-		)
-	}
-	return int32(maxPayload), nil
 }
 
 // Port reports the resolved listener port. Random-port servers return the

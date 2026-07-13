@@ -75,8 +75,8 @@ func (h *BaseHandlers) networkRecentPayloads(
 			LastMessagePreview: strings.TrimSpace(recent.LastMessagePreview),
 			Title:              strings.TrimSpace(recent.Title),
 			ParticipantCount:   recent.ParticipantCount,
-			PeerA:              strings.TrimSpace(recent.PeerA),
-			PeerB:              strings.TrimSpace(recent.PeerB),
+			PeerA:              strings.TrimSpace(recent.SessionA),
+			PeerB:              strings.TrimSpace(recent.SessionB),
 		})
 	}
 	return payloads, nil

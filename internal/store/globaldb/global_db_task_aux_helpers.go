@@ -166,7 +166,7 @@ func nextTaskRunAttemptNumberWithExecutor(
 	exec taskSQLExecutor,
 	taskRecord taskpkg.Task,
 ) (int, error) {
-	current, err := sqlcgen.New(exec).MaxTaskRunAttempt(ctx, taskRecord.ID)
+	current, err := sqlcgen.New(exec).MaxTaskRunAttempt(ctx, nullableTaskString(taskRecord.ID))
 	if err != nil {
 		return 0, fmt.Errorf("store: query next task run attempt for %q: %w", taskRecord.ID, err)
 	}
@@ -298,7 +298,7 @@ func (g *TaskRepo) findOpenRunIDForQueuedRunReservation(
 ) (string, error) {
 	normalizedDesignationGroupID := strings.TrimSpace(designationGroupID)
 	runID, err := sqlcgen.New(exec).GetOpenTaskRunID(ctx, sqlcgen.GetOpenTaskRunIDParams{
-		TaskID:             taskID,
+		TaskID:             nullableTaskString(taskID),
 		CompletedStatus:    taskpkg.TaskRunStatusCompleted.String(),
 		FailedStatus:       taskpkg.TaskRunStatusFailed.String(),
 		CanceledStatus:     taskpkg.TaskRunStatusCanceled.String(),
@@ -318,11 +318,4 @@ func normalizeStoredTaskMaxAttempts(maxAttempts int) int {
 		return taskpkg.DefaultTaskMaxAttempts
 	}
 	return maxAttempts
-}
-
-func resolveStoredRunChannel(requested string, taskChannel string) string {
-	if strings.TrimSpace(requested) != "" {
-		return strings.TrimSpace(requested)
-	}
-	return strings.TrimSpace(taskChannel)
 }

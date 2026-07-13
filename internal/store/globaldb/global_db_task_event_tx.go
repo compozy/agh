@@ -181,5 +181,5 @@ func taskEventRunTaskID(ctx context.Context, exec taskSQLExecutor, runID string)
 		}
 		return "", fmt.Errorf("store: lookup task run %q: %w", trimmedID, err)
 	}
-	return strings.TrimSpace(taskID), nil
+	return taskNullStringValue(taskID), nil
 }

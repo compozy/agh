@@ -421,10 +421,10 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 			closeErr := migrated.Close(ctx)
 			t.Fatalf("Status(global after migration) error = %v; close error = %v", err, closeErr)
 		}
-		if migratedStatus.Version != 7 || migratedStatus.AppliedCount != 7 {
+		if migratedStatus.Version != 8 || migratedStatus.AppliedCount != 8 {
 			closeErr := migrated.Close(ctx)
 			t.Fatalf(
-				"Status(global after migration) = %#v, want version 7 with 7 applied migrations; close error = %v",
+				"Status(global after migration) = %#v, want version 8 with 8 applied migrations; close error = %v",
 				migratedStatus,
 				closeErr,
 			)
@@ -523,17 +523,17 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 
 		migrated, err := OpenGlobalDB(ctx, databasePath)
 		if err != nil {
-			t.Fatalf("OpenGlobalDB(migrate v7) error = %v", err)
+			t.Fatalf("OpenGlobalDB(migrate v8) error = %v", err)
 		}
 		assertUnboundMCPAuthMigrationRow(ctx, t, migrated.db)
 		status, err := store.Status(ctx, migrated.db, MigrationStream())
 		if err != nil {
 			closeErr := migrated.Close(ctx)
-			t.Fatalf("Status(global v7) error = %v; close error = %v", err, closeErr)
+			t.Fatalf("Status(global v8) error = %v; close error = %v", err, closeErr)
 		}
-		if status.Version != 7 || status.AppliedCount != 7 {
+		if status.Version != 8 || status.AppliedCount != 8 {
 			closeErr := migrated.Close(ctx)
-			t.Fatalf("Status(global v7) = %#v; close error = %v", status, closeErr)
+			t.Fatalf("Status(global v8) = %#v; close error = %v", status, closeErr)
 		}
 		if err := migrated.Close(ctx); err != nil {
 			t.Fatalf("Close(migrated) error = %v", err)
@@ -541,7 +541,7 @@ func TestMCPAuthTokenScopeMigration(t *testing.T) {
 
 		reopened, err := OpenGlobalDB(ctx, databasePath)
 		if err != nil {
-			t.Fatalf("OpenGlobalDB(reopen v7) error = %v", err)
+			t.Fatalf("OpenGlobalDB(reopen v8) error = %v", err)
 		}
 		t.Cleanup(func() {
 			if err := reopened.Close(testutil.Context(t)); err != nil {

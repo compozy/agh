@@ -593,7 +593,8 @@ func TestConfigApplyServiceCuratesProviderModelsLive(t *testing.T) {
 				t.Fatalf("config is missing %q:\n%s", want, configText)
 			}
 		}
-		if strings.Contains(configText, `featured = true`) || strings.Contains(configText, `deprecated = true`) {
+		curatedTable := tomlTableForTest(t, configText, `[[providers.codex.models.curated]]`)
+		if strings.Contains(curatedTable, `featured = true`) || strings.Contains(curatedTable, `deprecated = true`) {
 			t.Fatalf("config persisted false curation flags as true:\n%s", configText)
 		}
 		for _, forbidden := range []string{
@@ -606,7 +607,7 @@ func TestConfigApplyServiceCuratesProviderModelsLive(t *testing.T) {
 			`cost_output_per_million =`,
 			`release_date =`,
 		} {
-			if strings.Contains(configText, forbidden) {
+			if strings.Contains(curatedTable, forbidden) {
 				t.Fatalf("config froze catalog enrichment %q:\n%s", forbidden, configText)
 			}
 		}
@@ -815,6 +816,20 @@ featured = true
 			t.Fatalf("ApplyActiveConfig() calls = %d, want 0", applier.calls)
 		}
 	})
+}
+
+func tomlTableForTest(t *testing.T, document string, header string) string {
+	t.Helper()
+
+	start := strings.Index(document, header)
+	if start < 0 {
+		t.Fatalf("TOML document is missing table %q:\n%s", header, document)
+	}
+	table := document[start:]
+	if next := strings.Index(table[len(header):], "\n["); next >= 0 {
+		table = table[:len(header)+next]
+	}
+	return table
 }
 
 func TestConfigApplyServiceReloadClassifiesUnknownPathsConservatively(t *testing.T) {

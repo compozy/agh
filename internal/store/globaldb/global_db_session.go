@@ -318,7 +318,11 @@ func (g *SessionRepo) registerSession(ctx context.Context, exec globalSQLExecuto
 	if err != nil {
 		return err
 	}
-	return sqlcgen.New(exec).UpsertSession(ctx, upsertSessionParams(record))
+	params, err := upsertSessionParams(record)
+	if err != nil {
+		return err
+	}
+	return sqlcgen.New(exec).UpsertSession(ctx, params)
 }
 
 type sessionCatalogRecord struct {

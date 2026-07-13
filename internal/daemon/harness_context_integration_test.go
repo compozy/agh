@@ -59,23 +59,12 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		discardLogger(),
 		daemonInstance.harnessResolver,
 		nil,
-		append(
-			defaultPromptInputAugmenterDescriptors(
-				memory.NewRecallAugmenter(daemonInstance.memoryStore),
-				newSkillsCatalogAugmenter(daemonInstance.skillsRegistry, func() promptSkillsWorkspaceResolver {
-					return workspaceResolver
-				}),
-				daemonInstance.situationContext.Augment,
-			),
-			// Mirror boot.go: register the network response register augmenter so the
-			// resolver can enable it on network turns without tripping the guard.
-			promptInputAugmenterDescriptor{
-				Name:           HarnessAugmenterNetworkResponseRegister,
-				Order:          networkResponseAugmenterOrder,
-				Budget:         cfg.Network.ResponseGuidanceMaxBytes,
-				BudgetBehavior: promptInputAugmenterBudgetBehaviorTrim,
-				Augmenter:      newNetworkResponseRegisterAugmenter(),
-			},
+		defaultPromptInputAugmenterDescriptors(
+			memory.NewRecallAugmenter(daemonInstance.memoryStore),
+			newSkillsCatalogAugmenter(daemonInstance.skillsRegistry, func() promptSkillsWorkspaceResolver {
+				return workspaceResolver
+			}),
+			daemonInstance.situationContext.Augment,
 		)...,
 	)
 	if err != nil {
@@ -259,10 +248,10 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	}
 	if !slices.Equal(
 		networkResolved.Policy.EnableAugmenters,
-		[]HarnessAugmenter{HarnessAugmenterSkills, HarnessAugmenterNetworkResponseRegister},
+		[]HarnessAugmenter{HarnessAugmenterSkills},
 	) {
 		t.Fatalf(
-			"network EnableAugmenters = %#v, want skills and network response register",
+			"network EnableAugmenters = %#v, want skills",
 			networkResolved.Policy.EnableAugmenters,
 		)
 	}

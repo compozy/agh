@@ -16,11 +16,10 @@ import (
 )
 
 const (
-	durableMemoryAugmenterOrder   = 100
-	skillsAugmenterOrder          = 150
-	networkResponseAugmenterOrder = 175
-	situationAugmenterOrder       = 200
-	situationAugmenterBudget      = 20_000
+	durableMemoryAugmenterOrder = 100
+	skillsAugmenterOrder        = 150
+	situationAugmenterOrder     = 200
+	situationAugmenterBudget    = 20_000
 )
 
 type promptInputAugmenterBudgetBehavior string

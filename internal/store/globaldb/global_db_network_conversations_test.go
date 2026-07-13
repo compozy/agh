@@ -2,9 +2,11 @@ package globaldb
 
 import (
 	"database/sql"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/testutil"
@@ -55,8 +57,8 @@ func TestOpenGlobalDBCreatesNetworkConversationSchema(t *testing.T) {
 			globalDB.db,
 			"network_direct_rooms",
 			"idx_network_direct_rooms_activity",
-			"idx_network_direct_rooms_peer_a",
-			"idx_network_direct_rooms_peer_b",
+			"idx_network_direct_rooms_session_a",
+			"idx_network_direct_rooms_session_b",
 		)
 		assertIndexesPresent(
 			t,
@@ -69,7 +71,7 @@ func TestOpenGlobalDBCreatesNetworkConversationSchema(t *testing.T) {
 			t,
 			globalDB.db,
 			"network_direct_rooms",
-			[]string{"workspace_id", "channel", "peer_a", "peer_b"},
+			[]string{"workspace_id", "channel", "session_a", "session_b"},
 		)
 		assertForeignKeysEnabled(t, globalDB.db)
 	})
@@ -84,6 +86,7 @@ func TestNetworkConversationConstraints(t *testing.T) {
 		ctx := testutil.Context(t)
 		globalDB := openTestGlobalDB(t)
 		assertForeignKeysEnabled(t, globalDB.db)
+		registerNetworkConversationSessions(t, globalDB, "coder.sess-abc", "reviewer.sess-xyz")
 
 		insertDirectRoom(
 			t,
@@ -97,7 +100,7 @@ func TestNetworkConversationConstraints(t *testing.T) {
 		_, err := globalDB.db.ExecContext(
 			ctx,
 			`INSERT INTO network_direct_rooms (
-				workspace_id, channel, direct_id, peer_a, peer_b, opened_at, last_activity_at
+				workspace_id, channel, direct_id, session_a, session_b, opened_at, last_activity_at
 			) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 			networkConversationTestWorkspaceID,
 			"builders",
@@ -112,7 +115,7 @@ func TestNetworkConversationConstraints(t *testing.T) {
 		_, err = globalDB.db.ExecContext(
 			ctx,
 			`INSERT INTO network_direct_rooms (
-				workspace_id, channel, direct_id, peer_a, peer_b, opened_at, last_activity_at
+				workspace_id, channel, direct_id, session_a, session_b, opened_at, last_activity_at
 			) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 			networkConversationTestWorkspaceID,
 			"builders",
@@ -131,11 +134,12 @@ func TestNetworkConversationConstraints(t *testing.T) {
 		ctx := testutil.Context(t)
 		globalDB := openTestGlobalDB(t)
 		assertForeignKeysEnabled(t, globalDB.db)
+		registerNetworkConversationSessions(t, globalDB, "coder.sess-abc", "reviewer.sess-xyz")
 
 		_, err := globalDB.db.ExecContext(
 			ctx,
 			`INSERT INTO network_work (
-				work_id, workspace_id, channel, surface, thread_id, opened_by_peer_id, state, opened_at, last_activity_at
+				work_id, workspace_id, channel, surface, thread_id, opened_by_session_id, state, opened_at, last_activity_at
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			"work_missing_thread",
 			networkConversationTestWorkspaceID,
@@ -192,12 +196,13 @@ func TestNetworkConversationConstraints(t *testing.T) {
 		ctx := testutil.Context(t)
 		globalDB := openTestGlobalDB(t)
 		assertForeignKeysEnabled(t, globalDB.db)
+		registerNetworkConversationSessions(t, globalDB, "coder.sess-abc")
 
 		insertThread(t, globalDB.db, "builders", "thread_cascade", "msg_root_cascade")
 		if _, err := globalDB.db.ExecContext(
 			ctx,
 			`INSERT INTO network_thread_participants (
-				workspace_id, channel, thread_id, peer_id, first_message_id, first_seen_at, last_seen_at
+				workspace_id, channel, thread_id, session_id, first_message_id, first_seen_at, last_seen_at
 			) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 			networkConversationTestWorkspaceID,
 			"builders",
@@ -261,21 +266,21 @@ func insertDirectRoom(
 	workspaceID string,
 	channel string,
 	directID string,
-	peerA string,
-	peerB string,
+	sessionA string,
+	sessionB string,
 ) {
 	t.Helper()
 
 	if _, err := db.ExecContext(
 		testutil.Context(t),
 		`INSERT INTO network_direct_rooms (
-			workspace_id, channel, direct_id, peer_a, peer_b, opened_at, last_activity_at
+			workspace_id, channel, direct_id, session_a, session_b, opened_at, last_activity_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		workspaceID,
 		channel,
 		directID,
-		peerA,
-		peerB,
+		sessionA,
+		sessionB,
 		"2026-05-05T12:00:00Z",
 		"2026-05-05T12:00:00Z",
 	); err != nil {
@@ -289,7 +294,7 @@ func insertWorkForThread(t *testing.T, db *sql.DB, workID string, channel string
 	if _, err := db.ExecContext(
 		testutil.Context(t),
 		`INSERT INTO network_work (
-			work_id, workspace_id, channel, surface, thread_id, opened_by_peer_id, state, opened_at, last_activity_at
+			work_id, workspace_id, channel, surface, thread_id, opened_by_session_id, state, opened_at, last_activity_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		workID,
 		networkConversationTestWorkspaceID,
@@ -311,7 +316,7 @@ func insertWorkForDirect(t *testing.T, db *sql.DB, workID string, channel string
 	if _, err := db.ExecContext(
 		testutil.Context(t),
 		`INSERT INTO network_work (
-			work_id, workspace_id, channel, surface, direct_id, opened_by_peer_id, state, opened_at, last_activity_at
+			work_id, workspace_id, channel, surface, direct_id, opened_by_session_id, state, opened_at, last_activity_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		workID,
 		networkConversationTestWorkspaceID,
@@ -324,6 +329,31 @@ func insertWorkForDirect(t *testing.T, db *sql.DB, workID string, channel string
 		"2026-05-05T12:00:00Z",
 	); err != nil {
 		t.Fatalf("insert network direct work %q error = %v", workID, err)
+	}
+}
+
+func registerNetworkConversationSessions(t *testing.T, globalDB *GlobalDB, sessionIDs ...string) {
+	t.Helper()
+
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"network-conversation",
+		filepath.Join(t.TempDir(), "workspace"),
+	)
+	now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
+	for _, sessionID := range sessionIDs {
+		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+			ID:          sessionID,
+			AgentName:   "coder",
+			Provider:    "claude",
+			WorkspaceID: workspaceID,
+			State:       "active",
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}); err != nil {
+			t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
+		}
 	}
 }
 

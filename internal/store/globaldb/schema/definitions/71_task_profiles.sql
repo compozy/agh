@@ -25,6 +25,14 @@ CREATE TABLE task_execution_profiles (
 			runtime_mode             TEXT NOT NULL DEFAULT 'default' CHECK (
 				runtime_mode IN ('default', 'evidence')
 			),
+			network_mode             TEXT NOT NULL DEFAULT '' CHECK (network_mode IN ('', 'local', 'live')),
+			network_channel_strategy TEXT CHECK (
+				network_channel_strategy IS NULL OR network_channel_strategy IN ('named', 'run', 'loop_run')
+			),
+			network_channel          TEXT,
+			network_bounds_json      TEXT CHECK (
+				network_bounds_json IS NULL OR json_valid(network_bounds_json)
+			),
 			CHECK (
 				(sandbox_mode = 'ref' AND sandbox_ref <> '') OR
 				(sandbox_mode <> 'ref' AND sandbox_ref = '')

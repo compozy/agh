@@ -64,12 +64,12 @@ func (q *Queries) InsertNetworkAudit(ctx context.Context, arg InsertNetworkAudit
 }
 
 const listNetworkThreadParticipants = `-- name: ListNetworkThreadParticipants :many
-SELECT workspace_id, channel, thread_id, peer_id, first_message_id, first_seen_at, last_seen_at
+SELECT workspace_id, channel, thread_id, session_id, first_message_id, first_seen_at, last_seen_at
 FROM network_thread_participants
 WHERE workspace_id = ?1
   AND channel = ?2
   AND thread_id = ?3
-ORDER BY last_seen_at DESC, peer_id ASC
+ORDER BY last_seen_at DESC, session_id ASC
 `
 
 type ListNetworkThreadParticipantsParams struct {
@@ -91,7 +91,7 @@ func (q *Queries) ListNetworkThreadParticipants(ctx context.Context, arg ListNet
 			&i.WorkspaceID,
 			&i.Channel,
 			&i.ThreadID,
-			&i.PeerID,
+			&i.SessionID,
 			&i.FirstMessageID,
 			&i.FirstSeenAt,
 			&i.LastSeenAt,
@@ -109,38 +109,38 @@ func (q *Queries) ListNetworkThreadParticipants(ctx context.Context, arg ListNet
 	return items, nil
 }
 
-const upsertNetworkThreadPeerTokenStats = `-- name: UpsertNetworkThreadPeerTokenStats :exec
-INSERT INTO network_thread_peer_token_stats (
-  workspace_id, channel, thread_id, peer_id, delivered_count, prompt_size_bytes,
+const upsertNetworkThreadSessionTokenStats = `-- name: UpsertNetworkThreadSessionTokenStats :exec
+INSERT INTO network_thread_session_token_stats (
+  workspace_id, channel, thread_id, session_id, delivered_count, prompt_size_bytes,
   estimated_prompt_tokens, first_delivered_at, last_delivered_at, updated_at
 ) VALUES (
   ?1, ?2, ?3, ?4,
   ?5, ?6, ?7,
   ?8, ?9, ?10
 )
-ON CONFLICT(workspace_id, channel, thread_id, peer_id) DO UPDATE SET
-  delivered_count = network_thread_peer_token_stats.delivered_count + excluded.delivered_count,
-  prompt_size_bytes = network_thread_peer_token_stats.prompt_size_bytes + excluded.prompt_size_bytes,
+ON CONFLICT(workspace_id, channel, thread_id, session_id) DO UPDATE SET
+  delivered_count = network_thread_session_token_stats.delivered_count + excluded.delivered_count,
+  prompt_size_bytes = network_thread_session_token_stats.prompt_size_bytes + excluded.prompt_size_bytes,
   estimated_prompt_tokens =
-    network_thread_peer_token_stats.estimated_prompt_tokens + excluded.estimated_prompt_tokens,
+    network_thread_session_token_stats.estimated_prompt_tokens + excluded.estimated_prompt_tokens,
   first_delivered_at = CASE
-    WHEN network_thread_peer_token_stats.first_delivered_at <= excluded.first_delivered_at
-      THEN network_thread_peer_token_stats.first_delivered_at
+    WHEN network_thread_session_token_stats.first_delivered_at <= excluded.first_delivered_at
+      THEN network_thread_session_token_stats.first_delivered_at
     ELSE excluded.first_delivered_at
   END,
   last_delivered_at = CASE
-    WHEN network_thread_peer_token_stats.last_delivered_at >= excluded.last_delivered_at
-      THEN network_thread_peer_token_stats.last_delivered_at
+    WHEN network_thread_session_token_stats.last_delivered_at >= excluded.last_delivered_at
+      THEN network_thread_session_token_stats.last_delivered_at
     ELSE excluded.last_delivered_at
   END,
   updated_at = excluded.updated_at
 `
 
-type UpsertNetworkThreadPeerTokenStatsParams struct {
+type UpsertNetworkThreadSessionTokenStatsParams struct {
 	WorkspaceID           string `json:"workspace_id"`
 	Channel               string `json:"channel"`
 	ThreadID              string `json:"thread_id"`
-	PeerID                string `json:"peer_id"`
+	SessionID             string `json:"session_id"`
 	DeliveredCount        int64  `json:"delivered_count"`
 	PromptSizeBytes       int64  `json:"prompt_size_bytes"`
 	EstimatedPromptTokens int64  `json:"estimated_prompt_tokens"`
@@ -149,12 +149,12 @@ type UpsertNetworkThreadPeerTokenStatsParams struct {
 	UpdatedAt             string `json:"updated_at"`
 }
 
-func (q *Queries) UpsertNetworkThreadPeerTokenStats(ctx context.Context, arg UpsertNetworkThreadPeerTokenStatsParams) error {
-	_, err := q.db.ExecContext(ctx, upsertNetworkThreadPeerTokenStats,
+func (q *Queries) UpsertNetworkThreadSessionTokenStats(ctx context.Context, arg UpsertNetworkThreadSessionTokenStatsParams) error {
+	_, err := q.db.ExecContext(ctx, upsertNetworkThreadSessionTokenStats,
 		arg.WorkspaceID,
 		arg.Channel,
 		arg.ThreadID,
-		arg.PeerID,
+		arg.SessionID,
 		arg.DeliveredCount,
 		arg.PromptSizeBytes,
 		arg.EstimatedPromptTokens,

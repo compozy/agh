@@ -218,7 +218,7 @@ func lastCoordinatorTaskIDForLoopRun(
 		}
 		return "", fmt.Errorf("store: find coordinator task for loop run %q: %w", loopRunID, err)
 	}
-	return strings.TrimSpace(taskID), nil
+	return taskNullStringValue(taskID), nil
 }
 
 func errorsIsNoRows(err error) bool {

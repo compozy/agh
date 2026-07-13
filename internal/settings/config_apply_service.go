@@ -570,6 +570,11 @@ func (s *service) classifySectionApplyRequest(
 			return lifecycle.RestartRequired
 		}
 		return s.classifyHooksExtensionsRequest(ctx, req)
+	case SectionNetwork:
+		if req.Network == nil {
+			return lifecycle.RestartRequired
+		}
+		return s.classifyNetworkRequest(ctx, req)
 	default:
 		return lifecycle.RestartRequired
 	}

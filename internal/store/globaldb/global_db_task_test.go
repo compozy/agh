@@ -15,6 +15,7 @@ import (
 	"time"
 
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
@@ -47,7 +48,6 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"scope",
 		"workspace_id",
 		"parent_task_id",
-		"network_channel",
 		"title",
 		"description",
 		"priority",
@@ -132,7 +132,10 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"origin_kind",
 		"origin_ref",
 		"idempotency_key",
+		"network_spec_json",
+		"network_mode",
 		"network_channel",
+		"network_source",
 		"designation_group_id",
 		"queued_at",
 		"claimed_at",
@@ -163,10 +166,12 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"claim_token_hash",
 		"lease_until",
 		"heartbeat_at",
-		"coordination_channel_id",
 		"run_kind",
 		"loop_run_id",
 		"tokens_used",
+		"network_wake_id",
+		"network_target_session_id",
+		"network_owner_key",
 	})
 	assertTableColumns(t, globalDB.db, "task_run_required_capabilities", []string{
 		"run_id",
@@ -210,7 +215,6 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"idx_tasks_approval_state",
 		"idx_tasks_parent",
 		"idx_tasks_owner",
-		"idx_tasks_channel",
 		"idx_tasks_current_run",
 		"idx_tasks_paused",
 		"idx_tasks_review_policy",
@@ -234,7 +238,6 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"idx_task_runs_channel",
 		"idx_task_runs_pending_claim",
 		"idx_task_runs_active_lease_recovery",
-		"idx_task_runs_coordination_channel",
 		"idx_task_runs_session_status",
 		"idx_task_runs_parent_run",
 		"idx_task_runs_review_request",
@@ -276,6 +279,28 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 	assertTableSQLContains(t, globalDB.db, "task_blocks", "CHECK (kind IN ('needs_input','capability','transient'))")
 	assertTableSQLContains(t, globalDB.db, "task_blocks", "CHECK (length(reason) > 0)")
 	assertTasksStatusAcceptsNeedsAttention(t, globalDB, "task-schema-needs-attention")
+	assertTaskRunTokensUsedRejectsNegativeValues(t, globalDB)
+}
+
+func assertTaskRunTokensUsedRejectsNegativeValues(t *testing.T, globalDB *GlobalDB) {
+	t.Helper()
+
+	ctx := testutil.Context(t)
+	taskRecord := taskRecordForTest("task-schema-tokens-used")
+	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+		t.Fatalf("CreateTask(tokens constraint) error = %v", err)
+	}
+	run := taskRunForTest("run-schema-tokens-used", taskRecord.ID)
+	if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+		t.Fatalf("CreateTaskRun(tokens constraint) error = %v", err)
+	}
+	if _, err := globalDB.db.ExecContext(
+		ctx,
+		`UPDATE task_runs SET tokens_used = -1 WHERE id = ?`,
+		run.ID,
+	); err == nil || !strings.Contains(err.Error(), "CHECK constraint failed") {
+		t.Fatalf("negative tokens_used update error = %v, want check constraint failure", err)
+	}
 }
 
 func TestGlobalDBTaskRunsCoordinatorExclusivityIndex(t *testing.T) {
@@ -459,7 +484,6 @@ func TestGlobalDBTaskRoundTripPreservesNullableFields(t *testing.T) {
 	child.Scope = taskpkg.ScopeWorkspace
 	child.WorkspaceID = workspaceID
 	child.ParentTaskID = parent.ID
-	child.NetworkChannel = "finance"
 	child.Priority = taskpkg.PriorityUrgent
 	child.MaxAttempts = 5
 	child.AutoEnqueueOnReady = true
@@ -746,7 +770,6 @@ func TestGlobalDBListTasksFilters(t *testing.T) {
 	readyTask.ApprovalPolicy = taskpkg.ApprovalPolicyManual
 	readyTask.ApprovalState = taskpkg.ApprovalStateApproved
 	readyTask.Owner = ownershipForTest(taskpkg.OwnerKindHuman, "alice")
-	readyTask.NetworkChannel = "finance"
 
 	childTask := taskRecordForTest("task-filter-child")
 	childTask.CreatedAt = childTask.CreatedAt.Add(2 * time.Minute)
@@ -759,7 +782,6 @@ func TestGlobalDBListTasksFilters(t *testing.T) {
 	childTask.ApprovalPolicy = taskpkg.ApprovalPolicyManual
 	childTask.ApprovalState = taskpkg.ApprovalStatePending
 	childTask.Owner = ownershipForTest(taskpkg.OwnerKindPool, "backlog")
-	childTask.NetworkChannel = "engineering"
 
 	for _, record := range []taskpkg.Task{globalTask, readyTask, childTask} {
 		if err := globalDB.CreateTask(testutil.Context(t), record); err != nil {
@@ -811,11 +833,6 @@ func TestGlobalDBListTasksFilters(t *testing.T) {
 			name:  "owner ref",
 			query: taskpkg.Query{OwnerRef: "alice"},
 			want:  []string{readyTask.ID},
-		},
-		{
-			name:  "channel",
-			query: taskpkg.Query{NetworkChannel: "engineering"},
-			want:  []string{childTask.ID},
 		},
 		{
 			name:  "limit",
@@ -2278,13 +2295,29 @@ func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 	runningRun.Status = taskpkg.TaskRunStatusRunning
 	runningRun.ClaimedBy = actorForTest(taskpkg.ActorKindDaemon, "scheduler")
 	runningRun.SessionID = "sess-task-run"
+	runningRun.NetworkSpec = participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     "ws-task-run",
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       "finance",
+		Source:          participation.SourceExplicitRequest,
+		Bounds: participation.Bounds{
+			MaxWakes:         3,
+			MaxWakeWallTime:  "2m",
+			MaxTotalWallTime: "10m",
+			MaxInputTokens:   4096,
+			MaxOutputTokens:  2048,
+			MaxWakeDepth:     2,
+			CoalesceWindow:   "500ms",
+		},
+	}
 	runningRun.NetworkChannel = "finance"
 	runningRun.ClaimedAt = queuedRun.QueuedAt.Add(30 * time.Second)
 	runningRun.StartedAt = queuedRun.QueuedAt.Add(time.Minute)
 	runningRun.ClaimTokenHash = "sha256:" + strings.Repeat("a", 64)
 	runningRun.LeaseUntil = runningRun.ClaimedAt.Add(10 * time.Minute)
 	runningRun.HeartbeatAt = runningRun.ClaimedAt.Add(15 * time.Second)
-	runningRun.CoordinationChannelID = "coord-run-queued"
 	runningRun.RequiredCapabilities = []string{"golang", "sqlite"}
 	runningRun.PreferredCapabilities = []string{"claude", "codex"}
 	if err := globalDB.UpdateTaskRun(testutil.Context(t), runningRun); err != nil {
@@ -2307,18 +2340,6 @@ func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 	if got, want := len(runsBySession), 1; got != want {
 		t.Fatalf("len(ListTaskRuns(session)) = %d, want %d", got, want)
 	}
-
-	runsByChannel, err := globalDB.ListTaskRuns(
-		testutil.Context(t),
-		taskpkg.RunQuery{CoordinationChannelID: "coord-run-queued"},
-	)
-	if err != nil {
-		t.Fatalf("ListTaskRuns(coordination channel) error = %v", err)
-	}
-	if got, want := len(runsByChannel), 1; got != want {
-		t.Fatalf("len(ListTaskRuns(coordination channel)) = %d, want %d", got, want)
-	}
-	assertTaskRunEqual(t, runsByChannel[0], runningRun)
 
 	runsByStatus, err := globalDB.ListTaskRunsByStatus(
 		testutil.Context(t),
@@ -2603,6 +2624,88 @@ func TestGlobalDBReserveQueuedRunDeduplicatesConcurrentIdempotentRequests(t *tes
 	}
 	if got, want := string(storedRun.Metadata), string(metadata); got != want {
 		t.Fatalf("GetTaskRunByIdempotencyKey() metadata = %s, want %s", got, want)
+	}
+}
+
+func TestGlobalDBReserveQueuedRunPersistsResolvedNetworkSnapshot(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	taskRecord := taskRecordForTest("task-run-reserve-network-snapshot")
+	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+
+	resolved := participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     "ws-network-snapshot",
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       "ops",
+		Source:          participation.SourceExplicitRequest,
+		Bounds: participation.Bounds{
+			MaxWakes:         3,
+			MaxWakeWallTime:  "30s",
+			MaxTotalWallTime: "2m",
+			MaxInputTokens:   4096,
+			MaxOutputTokens:  2048,
+			MaxWakeDepth:     2,
+			CoalesceWindow:   "250ms",
+		},
+	}
+	reservation := queuedRunReservationForTest(
+		taskRecord.ID,
+		"run-reserve-network-snapshot",
+		"network-snapshot-key",
+		taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
+		"",
+		nil,
+		time.Date(2026, 7, 13, 13, 0, 0, 0, time.UTC),
+	)
+	reservation.NetworkSpec = resolved
+	_, run, existing, err := globalDB.ReserveQueuedRun(ctx, reservation)
+	if err != nil {
+		t.Fatalf("ReserveQueuedRun() error = %v", err)
+	}
+	if existing {
+		t.Fatal("ReserveQueuedRun() existing = true, want false")
+	}
+	if !reflect.DeepEqual(run.NetworkSpec, resolved) {
+		t.Fatalf("ReserveQueuedRun().NetworkSpec = %#v, want %#v", run.NetworkSpec, resolved)
+	}
+
+	var (
+		rawSnapshot string
+		mode        string
+		channel     sql.NullString
+		source      string
+	)
+	if err := globalDB.db.QueryRowContext(
+		ctx,
+		`SELECT network_spec_json, network_mode, network_channel, network_source
+		 FROM task_runs WHERE id = ?`,
+		run.ID,
+	).Scan(&rawSnapshot, &mode, &channel, &source); err != nil {
+		t.Fatalf("query reserved task-run snapshot error = %v", err)
+	}
+	stored, err := decodeParticipationSnapshot(rawSnapshot, mode, channel, source)
+	if err != nil {
+		t.Fatalf("decodeParticipationSnapshot() error = %v", err)
+	}
+	if !reflect.DeepEqual(stored, resolved) {
+		t.Fatalf("stored NetworkSpec = %#v, want %#v", stored, resolved)
+	}
+	var idempotencyRows int
+	if err := globalDB.db.QueryRowContext(
+		ctx,
+		`SELECT COUNT(*) FROM task_run_idempotency WHERE run_id = ?`,
+		run.ID,
+	).Scan(&idempotencyRows); err != nil {
+		t.Fatalf("count reserved idempotency rows error = %v", err)
+	}
+	if idempotencyRows != 1 {
+		t.Fatalf("reserved idempotency row count = %d, want 1", idempotencyRows)
 	}
 }
 
@@ -3484,12 +3587,13 @@ func storeLeasedTaskRunForBlockTest(
 func taskRunForTest(id string, taskID string) taskpkg.Run {
 	queuedAt := time.Date(2026, 4, 14, 13, 0, 0, 0, time.UTC)
 	return taskpkg.Run{
-		ID:       id,
-		TaskID:   taskID,
-		Status:   taskpkg.TaskRunStatusQueued,
-		Attempt:  1,
-		Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
-		QueuedAt: queuedAt,
+		ID:              id,
+		TaskID:          taskID,
+		Status:          taskpkg.TaskRunStatusQueued,
+		Attempt:         1,
+		Origin:          taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
+		RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: participation.LocalSpec()},
+		QueuedAt:        queuedAt,
 	}
 }
 
@@ -3665,7 +3769,6 @@ func assertTaskBlockingSchema(t *testing.T, db *sql.DB) {
 		"idx_tasks_approval_state",
 		"idx_tasks_parent",
 		"idx_tasks_owner",
-		"idx_tasks_channel",
 		"idx_tasks_current_run",
 		"idx_tasks_paused",
 		"idx_tasks_review_policy",
@@ -3769,9 +3872,9 @@ func assertTaskRunEqual(t *testing.T, got taskpkg.Run, want taskpkg.Run) {
 		got.SessionID != want.SessionID ||
 		got.Origin != want.Origin ||
 		got.IdempotencyKey != want.IdempotencyKey ||
+		got.NetworkSpec != want.NetworkSpec ||
 		got.NetworkChannel != want.NetworkChannel ||
 		got.ClaimTokenHash != want.ClaimTokenHash ||
-		got.CoordinationChannelID != want.CoordinationChannelID ||
 		!got.QueuedAt.Equal(want.QueuedAt) ||
 		!got.ClaimedAt.Equal(want.ClaimedAt) ||
 		!got.StartedAt.Equal(want.StartedAt) ||

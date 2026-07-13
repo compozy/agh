@@ -518,8 +518,8 @@ func TestManagerPersistsConversationsBeforeRuntimeSideEffects(t *testing.T) {
 		if got, want := update.ThreadID, testThreadRef().ThreadID; got != want {
 			t.Fatalf("token update ThreadID = %q, want %q", got, want)
 		}
-		if got, want := update.PeerID, "reviewer.sess-b"; got != want {
-			t.Fatalf("token update PeerID = %q, want %q", got, want)
+		if got, want := update.SessionID, "sess-reviewer"; got != want {
+			t.Fatalf("token update SessionID = %q, want %q", got, want)
 		}
 		if got, want := update.DeliveredCount, int64(1); got != want {
 			t.Fatalf("token update DeliveredCount = %d, want %d", got, want)
@@ -1865,20 +1865,10 @@ func TestManagerRecordInboundAuditCapturesRejectedAndGeneratedEntries(t *testing
 }
 
 func testManagerConfig() aghconfig.NetworkConfig {
-	return aghconfig.NetworkConfig{
-		Enabled:                        true,
-		DefaultChannel:                 "builders",
-		Port:                           -1,
-		MaxPayload:                     1 << 20,
-		GreetInterval:                  1,
-		MaxReplayAge:                   300,
-		MaxQueueDepth:                  8,
-		ActivationTopK:                 8,
-		DigestFlushInterval:            30 * time.Second,
-		DigestMaxEnvelopes:             20,
-		ResponseGuidanceMaxBytes:       2048,
-		DeliveryStructuredBodyMaxBytes: 4096,
-	}
+	cfg := aghconfig.DefaultNetworkConfig()
+	cfg.GreetInterval = 1
+	cfg.MaxQueueDepth = 8
+	return cfg
 }
 
 func TestDeliverySubscriptionModeResolvesPrecedenceAndExemptions(t *testing.T) {
@@ -1895,13 +1885,14 @@ func TestDeliverySubscriptionModeResolvesPrecedenceAndExemptions(t *testing.T) {
 		envelope.DirectID = nil
 		envelope.To = nil
 		subscriptions := fakeNetworkSubscriptionStore{entries: []store.NetworkSubscriptionEntry{
-			testNetworkSubscriptionEntry("", "reviewer.sess-xyz", store.NetworkSubscriptionModeMute, nil),
-			testNetworkSubscriptionEntry(threadID, "reviewer.sess-xyz", store.NetworkSubscriptionModeDigest, nil),
+			testNetworkSubscriptionEntry("", "sess-reviewer", store.NetworkSubscriptionModeMute, nil),
+			testNetworkSubscriptionEntry(threadID, "sess-reviewer", store.NetworkSubscriptionModeDigest, nil),
 		}}
 
 		mode, err := deliverySubscriptionMode(t.Context(), subscriptions, Delivery{
-			PeerID:   "reviewer.sess-xyz",
-			Envelope: envelope,
+			SessionID: "sess-reviewer",
+			PeerID:    "reviewer.sess-xyz",
+			Envelope:  envelope,
 		})
 		if err != nil {
 			t.Fatalf("deliverySubscriptionMode() error = %v", err)
@@ -1924,16 +1915,17 @@ func TestDeliverySubscriptionModeResolvesPrecedenceAndExemptions(t *testing.T) {
 		subscriptions := fakeNetworkSubscriptionStore{entries: []store.NetworkSubscriptionEntry{
 			testNetworkSubscriptionEntry(
 				"",
-				"reviewer.sess-xyz",
+				"sess-reviewer",
 				store.NetworkSubscriptionModeFull,
 				[]string{"urgent"},
 			),
 		}}
 
 		mode, err := deliverySubscriptionMode(t.Context(), subscriptions, Delivery{
-			PeerID:   "reviewer.sess-xyz",
-			Envelope: envelope,
-			Mode:     store.NetworkSubscriptionModeDigest,
+			SessionID: "sess-reviewer",
+			PeerID:    "reviewer.sess-xyz",
+			Envelope:  envelope,
+			Mode:      store.NetworkSubscriptionModeDigest,
 		})
 		if err != nil {
 			t.Fatalf("deliverySubscriptionMode() error = %v", err)
@@ -1949,12 +1941,13 @@ func TestDeliverySubscriptionModeResolvesPrecedenceAndExemptions(t *testing.T) {
 		envelope := testDeliveryEnvelope(t, "msg-mentioned-muted", "please look")
 		envelope.Mentions = []string{"reviewer.sess-xyz"}
 		subscriptions := fakeNetworkSubscriptionStore{entries: []store.NetworkSubscriptionEntry{
-			testNetworkSubscriptionEntry("", "reviewer.sess-xyz", store.NetworkSubscriptionModeMute, nil),
+			testNetworkSubscriptionEntry("", "sess-reviewer", store.NetworkSubscriptionModeMute, nil),
 		}}
 
 		mode, err := deliverySubscriptionMode(t.Context(), subscriptions, Delivery{
-			PeerID:   "reviewer.sess-xyz",
-			Envelope: envelope,
+			SessionID: "sess-reviewer",
+			PeerID:    "reviewer.sess-xyz",
+			Envelope:  envelope,
 		})
 		if err != nil {
 			t.Fatalf("deliverySubscriptionMode() error = %v", err)
@@ -1969,12 +1962,13 @@ func TestDeliverySubscriptionModeResolvesPrecedenceAndExemptions(t *testing.T) {
 
 		envelope := testDeliveryEnvelope(t, "msg-addressed-muted", "direct update")
 		subscriptions := fakeNetworkSubscriptionStore{entries: []store.NetworkSubscriptionEntry{
-			testNetworkSubscriptionEntry("", "reviewer.sess-xyz", store.NetworkSubscriptionModeMute, nil),
+			testNetworkSubscriptionEntry("", "sess-reviewer", store.NetworkSubscriptionModeMute, nil),
 		}}
 
 		mode, err := deliverySubscriptionMode(t.Context(), subscriptions, Delivery{
-			PeerID:   "reviewer.sess-xyz",
-			Envelope: envelope,
+			SessionID: "sess-reviewer",
+			PeerID:    "reviewer.sess-xyz",
+			Envelope:  envelope,
 		})
 		if err != nil {
 			t.Fatalf("deliverySubscriptionMode() error = %v", err)
@@ -2032,7 +2026,7 @@ type recordingConversationStore struct {
 	mu                  sync.Mutex
 	entries             []store.NetworkConversationMessage
 	participants        []store.NetworkThreadParticipant
-	tokenUpdates        []store.NetworkThreadPeerTokenStatsUpdate
+	tokenUpdates        []store.NetworkThreadSessionTokenStatsUpdate
 	publishCount        func() int
 	promptCount         func() int
 	publishCountAtWrite int
@@ -2058,7 +2052,7 @@ func (s fakeNetworkSubscriptionStore) ListNetworkSubscriptions(
 	for _, entry := range s.entries {
 		if strings.TrimSpace(entry.WorkspaceID) != strings.TrimSpace(query.WorkspaceID) ||
 			strings.TrimSpace(entry.Channel) != strings.TrimSpace(query.Channel) ||
-			strings.TrimSpace(entry.PeerID) != strings.TrimSpace(query.PeerID) {
+			strings.TrimSpace(entry.SessionID) != strings.TrimSpace(query.SessionID) {
 			continue
 		}
 		if strings.TrimSpace(query.ThreadID) != "" &&
@@ -2072,7 +2066,7 @@ func (s fakeNetworkSubscriptionStore) ListNetworkSubscriptions(
 
 func testNetworkSubscriptionEntry(
 	threadID string,
-	peerID string,
+	sessionID string,
 	mode string,
 	keywords []string,
 ) store.NetworkSubscriptionEntry {
@@ -2080,7 +2074,7 @@ func testNetworkSubscriptionEntry(
 		WorkspaceID:    testWorkspaceID,
 		Channel:        "builders",
 		ThreadID:       strings.TrimSpace(threadID),
-		PeerID:         strings.TrimSpace(peerID),
+		SessionID:      strings.TrimSpace(sessionID),
 		Mode:           strings.TrimSpace(mode),
 		KeywordFilters: normalizeStringList(keywords),
 	}
@@ -2129,9 +2123,9 @@ func (s *recordingConversationStore) ListThreadParticipants(
 	return participants, nil
 }
 
-func (s *recordingConversationStore) UpdateNetworkThreadPeerTokenStats(
+func (s *recordingConversationStore) UpdateNetworkThreadSessionTokenStats(
 	_ context.Context,
-	update store.NetworkThreadPeerTokenStatsUpdate,
+	update store.NetworkThreadSessionTokenStatsUpdate,
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -2139,10 +2133,10 @@ func (s *recordingConversationStore) UpdateNetworkThreadPeerTokenStats(
 	return nil
 }
 
-func (s *recordingConversationStore) ListNetworkThreadPeerTokenStats(
+func (s *recordingConversationStore) ListNetworkThreadSessionTokenStats(
 	context.Context,
-	store.NetworkThreadPeerTokenStatsQuery,
-) ([]store.NetworkThreadPeerTokenStats, error) {
+	store.NetworkThreadSessionTokenStatsQuery,
+) ([]store.NetworkThreadSessionTokenStats, error) {
 	return nil, nil
 }
 
@@ -2155,11 +2149,11 @@ func (s *recordingConversationStore) entry(index int) store.NetworkConversationM
 	return s.entries[index]
 }
 
-func (s *recordingConversationStore) tokenUpdate(index int) store.NetworkThreadPeerTokenStatsUpdate {
+func (s *recordingConversationStore) tokenUpdate(index int) store.NetworkThreadSessionTokenStatsUpdate {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if index < 0 || index >= len(s.tokenUpdates) {
-		return store.NetworkThreadPeerTokenStatsUpdate{}
+		return store.NetworkThreadSessionTokenStatsUpdate{}
 	}
 	return s.tokenUpdates[index]
 }
@@ -2180,29 +2174,27 @@ func (s *recordingConversationStore) recordThreadParticipantsLocked(entry store.
 	if entry.Surface != store.NetworkSurfaceThread || strings.TrimSpace(entry.ThreadID) == "" {
 		return
 	}
-	s.addThreadParticipantLocked(entry, entry.PeerFrom)
-	s.addThreadParticipantLocked(entry, entry.PeerTo)
+	s.addThreadParticipantLocked(entry)
 }
 
 func (s *recordingConversationStore) addThreadParticipantLocked(
 	entry store.NetworkConversationMessage,
-	peerID string,
 ) {
-	peerID = strings.TrimSpace(peerID)
-	if peerID == "" {
+	sessionID := strings.TrimSpace(entry.SessionID)
+	if sessionID == "" {
 		return
 	}
 	participant := store.NetworkThreadParticipant{
 		WorkspaceID: entry.WorkspaceID,
 		Channel:     entry.Channel,
 		ThreadID:    entry.ThreadID,
-		PeerID:      peerID,
+		SessionID:   sessionID,
 	}
 	for _, existing := range s.participants {
 		if existing.WorkspaceID == participant.WorkspaceID &&
 			existing.Channel == participant.Channel &&
 			existing.ThreadID == participant.ThreadID &&
-			existing.PeerID == participant.PeerID {
+			existing.SessionID == participant.SessionID {
 			return
 		}
 	}

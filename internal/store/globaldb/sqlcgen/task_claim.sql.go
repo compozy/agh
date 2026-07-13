@@ -286,36 +286,6 @@ func (q *Queries) HeartbeatTaskRunLease(ctx context.Context, arg HeartbeatTaskRu
 	return result.RowsAffected()
 }
 
-const insertNetworkChannelForTask = `-- name: InsertNetworkChannelForTask :exec
-INSERT INTO network_channels (
-  channel, workspace_id, purpose, created_by, created_at, updated_at
-) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6
-)
-`
-
-type InsertNetworkChannelForTaskParams struct {
-	Channel     string         `json:"channel"`
-	WorkspaceID string         `json:"workspace_id"`
-	Purpose     string         `json:"purpose"`
-	CreatedBy   sql.NullString `json:"created_by"`
-	CreatedAt   string         `json:"created_at"`
-	UpdatedAt   string         `json:"updated_at"`
-}
-
-func (q *Queries) InsertNetworkChannelForTask(ctx context.Context, arg InsertNetworkChannelForTaskParams) error {
-	_, err := q.db.ExecContext(ctx, insertNetworkChannelForTask,
-		arg.Channel,
-		arg.WorkspaceID,
-		arg.Purpose,
-		arg.CreatedBy,
-		arg.CreatedAt,
-		arg.UpdatedAt,
-	)
-	return err
-}
-
 const listAutonomyLeaseHandles = `-- name: ListAutonomyLeaseHandles :many
 SELECT tr.id, tr.task_id, COALESCE(t.workspace_id, '') AS workspace_id, tr.status,
        COALESCE(tr.session_id, '') AS session_id, tr.claimed_by_kind, tr.claimed_by_ref,
@@ -330,7 +300,7 @@ ORDER BY COALESCE(tr.lease_until, '') DESC, tr.id ASC
 
 type ListAutonomyLeaseHandlesRow struct {
 	ID             string         `json:"id"`
-	TaskID         string         `json:"task_id"`
+	TaskID         sql.NullString `json:"task_id"`
 	WorkspaceID    string         `json:"workspace_id"`
 	Status         string         `json:"status"`
 	SessionID      string         `json:"session_id"`

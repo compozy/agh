@@ -11,7 +11,7 @@ import (
 	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
-// PutNetworkSubscription upserts one peer delivery preference.
+// PutNetworkSubscription upserts one session delivery preference.
 func (g *NetworkRepo) PutNetworkSubscription(ctx context.Context, entry store.NetworkSubscriptionEntry) error {
 	if err := g.checkReady(ctx, "put network subscription"); err != nil {
 		return err
@@ -30,7 +30,7 @@ func (g *NetworkRepo) PutNetworkSubscription(ctx context.Context, entry store.Ne
 		WorkspaceID:        normalized.WorkspaceID,
 		Channel:            normalized.Channel,
 		ThreadID:           normalized.ThreadID,
-		PeerID:             normalized.PeerID,
+		SessionID:          normalized.SessionID,
 		Mode:               normalized.Mode,
 		KeywordFiltersJson: stringSliceJSONString(normalized.KeywordFilters),
 		CreatedAt:          store.FormatTimestamp(normalized.CreatedAt),
@@ -41,7 +41,7 @@ func (g *NetworkRepo) PutNetworkSubscription(ctx context.Context, entry store.Ne
 	return nil
 }
 
-// ListNetworkSubscriptions returns peer delivery preferences in deterministic order.
+// ListNetworkSubscriptions returns session delivery preferences in deterministic order.
 func (g *NetworkRepo) ListNetworkSubscriptions(
 	ctx context.Context,
 	query store.NetworkSubscriptionQuery,
@@ -53,7 +53,7 @@ func (g *NetworkRepo) ListNetworkSubscriptions(
 		WorkspaceID: strings.TrimSpace(query.WorkspaceID),
 		Channel:     strings.TrimSpace(query.Channel),
 		ThreadID:    strings.TrimSpace(query.ThreadID),
-		PeerID:      strings.TrimSpace(query.PeerID),
+		SessionID:   strings.TrimSpace(query.SessionID),
 		Limit:       query.Limit,
 	}
 	if err := normalized.Validate(); err != nil {
@@ -61,16 +61,16 @@ func (g *NetworkRepo) ListNetworkSubscriptions(
 	}
 	// dynamic-sql: optional identity filters and the caller-provided limit change the statement shape.
 	sqlQuery := `SELECT
-		workspace_id, channel, thread_id, peer_id, mode, keyword_filters_json, created_at, updated_at
+		workspace_id, channel, thread_id, session_id, mode, keyword_filters_json, created_at, updated_at
 		FROM network_subscriptions`
 	where, args := store.BuildClauses(
 		store.StringClause("workspace_id", normalized.WorkspaceID),
 		store.StringClause("channel", normalized.Channel),
 		store.StringClause("thread_id", normalized.ThreadID),
-		store.StringClause("peer_id", normalized.PeerID),
+		store.StringClause("session_id", normalized.SessionID),
 	)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
-	sqlQuery += " ORDER BY thread_id DESC, peer_id ASC"
+	sqlQuery += " ORDER BY channel ASC, thread_id DESC, session_id ASC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, normalized.Limit)
 
 	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
@@ -111,7 +111,7 @@ func (g *NetworkRepo) DeleteNetworkSubscription(ctx context.Context, ref store.N
 		WorkspaceID: strings.TrimSpace(ref.WorkspaceID),
 		Channel:     strings.TrimSpace(ref.Channel),
 		ThreadID:    strings.TrimSpace(ref.ThreadID),
-		PeerID:      strings.TrimSpace(ref.PeerID),
+		SessionID:   strings.TrimSpace(ref.SessionID),
 	}
 	if err := normalized.Validate(); err != nil {
 		return fmt.Errorf("store: validate network subscription ref: %w", err)
@@ -120,84 +120,9 @@ func (g *NetworkRepo) DeleteNetworkSubscription(ctx context.Context, ref store.N
 		WorkspaceID: normalized.WorkspaceID,
 		Channel:     normalized.Channel,
 		ThreadID:    normalized.ThreadID,
-		PeerID:      normalized.PeerID,
+		SessionID:   normalized.SessionID,
 	}); err != nil {
 		return fmt.Errorf("store: delete network subscription: %w", err)
-	}
-	return nil
-}
-
-// GetNetworkDeliveryGuidanceState returns durable guidance state for one session.
-func (g *NetworkRepo) GetNetworkDeliveryGuidanceState(
-	ctx context.Context,
-	sessionID string,
-) (store.NetworkDeliveryGuidanceState, error) {
-	if err := g.checkReady(ctx, "get network delivery guidance state"); err != nil {
-		return store.NetworkDeliveryGuidanceState{}, err
-	}
-	trimmed := strings.TrimSpace(sessionID)
-	if trimmed == "" {
-		return store.NetworkDeliveryGuidanceState{}, fmt.Errorf(
-			"store: network delivery guidance session_id is required",
-		)
-	}
-	row, err := g.queries.GetNetworkDeliveryGuidanceState(ctx, trimmed)
-	if err != nil {
-		return store.NetworkDeliveryGuidanceState{}, err
-	}
-	createdAt, err := store.ParseTimestamp(row.CreatedAt)
-	if err != nil {
-		return store.NetworkDeliveryGuidanceState{}, fmt.Errorf(
-			"store: parse network delivery guidance state created_at: %w",
-			err,
-		)
-	}
-	updatedAt, err := store.ParseTimestamp(row.UpdatedAt)
-	if err != nil {
-		return store.NetworkDeliveryGuidanceState{}, fmt.Errorf(
-			"store: parse network delivery guidance state updated_at: %w",
-			err,
-		)
-	}
-	return store.NetworkDeliveryGuidanceState{
-		SessionID:                 row.SessionID,
-		ReplyGuidanceDelivered:    row.ReplyGuidanceDelivered,
-		ProtocolGuidanceDelivered: row.ProtocolGuidanceDelivered,
-		CreatedAt:                 createdAt,
-		UpdatedAt:                 updatedAt,
-	}, nil
-}
-
-// PutNetworkDeliveryGuidanceState upserts durable guidance state for one session.
-func (g *NetworkRepo) PutNetworkDeliveryGuidanceState(
-	ctx context.Context,
-	state store.NetworkDeliveryGuidanceState,
-) error {
-	if err := g.checkReady(ctx, "put network delivery guidance state"); err != nil {
-		return err
-	}
-	normalized := state
-	normalized.SessionID = strings.TrimSpace(normalized.SessionID)
-	if normalized.CreatedAt.IsZero() {
-		normalized.CreatedAt = g.now()
-	}
-	if normalized.UpdatedAt.IsZero() {
-		normalized.UpdatedAt = normalized.CreatedAt
-	}
-	if err := normalized.Validate(); err != nil {
-		return fmt.Errorf("store: validate network delivery guidance state: %w", err)
-	}
-	if err := g.queries.UpsertNetworkDeliveryGuidanceState(
-		ctx,
-		sqlcgen.UpsertNetworkDeliveryGuidanceStateParams{
-			SessionID:                 normalized.SessionID,
-			ReplyGuidanceDelivered:    normalized.ReplyGuidanceDelivered,
-			ProtocolGuidanceDelivered: normalized.ProtocolGuidanceDelivered,
-			CreatedAt:                 store.FormatTimestamp(normalized.CreatedAt),
-			UpdatedAt:                 store.FormatTimestamp(normalized.UpdatedAt),
-		},
-	); err != nil {
-		return fmt.Errorf("store: upsert network delivery guidance state: %w", err)
 	}
 	return nil
 }

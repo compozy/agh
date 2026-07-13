@@ -178,18 +178,18 @@ func (q *Queries) IncrementNetworkChannelPresence(ctx context.Context, arg Incre
 }
 
 const insertNetworkChannelParticipant = `-- name: InsertNetworkChannelParticipant :execrows
-INSERT OR IGNORE INTO network_channel_participants (workspace_id, channel, peer_id)
+INSERT OR IGNORE INTO network_channel_participants (workspace_id, channel, session_id)
 VALUES (?1, ?2, ?3)
 `
 
 type InsertNetworkChannelParticipantParams struct {
 	WorkspaceID string `json:"workspace_id"`
 	Channel     string `json:"channel"`
-	PeerID      string `json:"peer_id"`
+	SessionID   string `json:"session_id"`
 }
 
 func (q *Queries) InsertNetworkChannelParticipant(ctx context.Context, arg InsertNetworkChannelParticipantParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, insertNetworkChannelParticipant, arg.WorkspaceID, arg.Channel, arg.PeerID)
+	result, err := q.db.ExecContext(ctx, insertNetworkChannelParticipant, arg.WorkspaceID, arg.Channel, arg.SessionID)
 	if err != nil {
 		return 0, err
 	}

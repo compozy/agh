@@ -5,7 +5,7 @@ WHERE id = sqlc.arg(id) AND status = sqlc.arg(queued_status);
 
 -- name: ForceUpdateTaskRunSnapshot :execrows
 UPDATE task_runs
-SET task_id = sqlc.arg(task_id),
+SET task_id = sqlc.narg(task_id),
     status = sqlc.arg(status),
     attempt = sqlc.arg(attempt),
     previous_run_id = sqlc.narg(previous_run_id),
@@ -16,12 +16,14 @@ SET task_id = sqlc.arg(task_id),
     origin_kind = sqlc.arg(origin_kind),
     origin_ref = sqlc.arg(origin_ref),
     idempotency_key = sqlc.narg(idempotency_key),
+    network_spec_json = sqlc.arg(network_spec_json),
+    network_mode = sqlc.arg(network_mode),
     network_channel = sqlc.narg(network_channel),
+    network_source = sqlc.arg(network_source),
     claim_token = NULL,
     claim_token_hash = sqlc.narg(claim_token_hash),
     lease_until = sqlc.narg(lease_until),
     heartbeat_at = sqlc.narg(heartbeat_at),
-    coordination_channel_id = sqlc.narg(coordination_channel_id),
     queued_at = sqlc.arg(queued_at),
     claimed_at = sqlc.narg(claimed_at),
     started_at = sqlc.narg(started_at),
@@ -38,7 +40,10 @@ SET task_id = sqlc.arg(task_id),
     review_round = sqlc.arg(review_round),
     continuation_reason = sqlc.arg(continuation_reason),
     missing_work_json = sqlc.arg(missing_work_json),
-    next_round_guidance = sqlc.arg(next_round_guidance)
+    next_round_guidance = sqlc.arg(next_round_guidance),
+    network_wake_id = sqlc.narg(network_wake_id),
+    network_target_session_id = sqlc.narg(network_target_session_id),
+    network_owner_key = sqlc.narg(network_owner_key)
 WHERE id = sqlc.arg(id)
   AND status = sqlc.arg(previous_status)
   AND COALESCE(session_id, '') = sqlc.arg(previous_session_id)

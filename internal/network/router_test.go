@@ -130,7 +130,7 @@ func TestRouterRoutesBroadcastAndDirectToCorrectSubjectsAndTargets(t *testing.T)
 					WorkspaceID: testWorkspaceID,
 					Channel:     "builders",
 					ThreadID:    testThreadRef().ThreadID,
-					PeerID:      target.PeerID,
+					SessionID:   "sess-b",
 				}}, nil
 			},
 		)),
@@ -390,7 +390,7 @@ func TestRouterRoutesThreadBroadcastByPersistedParticipants(t *testing.T) {
 						WorkspaceID: testWorkspaceID,
 						Channel:     "builders",
 						ThreadID:    "thread_review_scope",
-						PeerID:      "reviewer.sess-b",
+						SessionID:   "sess-reviewer",
 					}}, nil
 				},
 			)),

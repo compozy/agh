@@ -10,7 +10,15 @@ import (
 	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
 )
 
-func loopRunInsertParams(run looppkg.Run, inputsJSON []byte, metadataJSON []byte) sqlcgen.InsertLoopRunParams {
+func loopRunInsertParams(
+	run looppkg.Run,
+	inputsJSON []byte,
+	metadataJSON []byte,
+) (sqlcgen.InsertLoopRunParams, error) {
+	network, err := encodeParticipationSnapshot(run.NetworkSpecSnapshot())
+	if err != nil {
+		return sqlcgen.InsertLoopRunParams{}, err
+	}
 	return sqlcgen.InsertLoopRunParams{
 		ID:                      string(run.ID),
 		WorkspaceID:             string(run.WorkspaceID),
@@ -50,7 +58,11 @@ func loopRunInsertParams(run looppkg.Run, inputsJSON []byte, metadataJSON []byte
 			run.Origin.PolicySpecDigest,
 		),
 		OriginCreationDigest: nullString(run.Origin.CreationDigest),
-	}
+		NetworkSpecJson:      network.JSON,
+		NetworkMode:          network.Mode,
+		NetworkChannel:       network.Channel,
+		NetworkSource:        network.Source,
+	}, nil
 }
 
 func loopRunFromGenerated(row *sqlcgen.LoopRun) (looppkg.Run, error) {
@@ -77,7 +89,9 @@ func loopRunFromGenerated(row *sqlcgen.LoopRun) (looppkg.Run, error) {
 		startedOriginKind: row.StartedOriginKind, startedOriginRef: row.StartedOriginRef,
 		originKind: row.OriginKind, originSessionID: row.OriginSessionID,
 		originProfileRef: row.OriginCreationProfileRef, originPolicy: row.OriginPolicySpecDigest,
-		originCreation: row.OriginCreationDigest,
+		originCreation:  row.OriginCreationDigest,
+		networkSpecJSON: row.NetworkSpecJson, networkMode: row.NetworkMode,
+		networkChannel: row.NetworkChannel, networkSource: row.NetworkSource,
 	}
 	return values.toRun()
 }

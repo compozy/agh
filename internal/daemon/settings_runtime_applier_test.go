@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	diagcontract "github.com/compozy/agh/internal/diagnosticcontract"
@@ -58,19 +59,22 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		t.Parallel()
 
 		previous := aghconfig.Config{
+			Network: aghconfig.DefaultNetworkConfig(),
 			Providers: map[string]aghconfig.ProviderConfig{
 				"codex": {Command: "codex acp", AuthMode: aghconfig.ProviderAuthModeNativeCLI},
 			},
 		}
-		next := aghconfig.Config{
-			Providers: map[string]aghconfig.ProviderConfig{
-				"codex": {Command: "codex acp --next", AuthMode: aghconfig.ProviderAuthModeNativeCLI},
-			},
+		next := previous
+		next.Network.Enabled = false
+		next.Providers = map[string]aghconfig.ProviderConfig{
+			"codex": {Command: "codex acp --next", AuthMode: aghconfig.ProviderAuthModeNativeCLI},
 		}
 		syncCalls := 0
-		daemonInstance := &Daemon{}
+		daemonInstance := &Daemon{config: previous}
+		availability := &recordingNetworkAvailabilityStore{}
 		failures := daemonSettingsRuntimeApplier{
-			daemon: daemonInstance,
+			daemon:              daemonInstance,
+			networkAvailability: availability,
 			state: &bootState{
 				cfg: previous,
 				toolMCPResources: toolMCPPublisherFunc(func(context.Context) error {
@@ -93,6 +97,102 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		}
 		if got := daemonInstance.config.Providers["codex"].Command; got != "codex acp" {
 			t.Fatalf("restored daemon config command = %q, want previous", got)
+		}
+		if len(availability.enabled) != 0 || len(availability.updatedBy) != 0 {
+			t.Fatalf(
+				"availability writes/actors = %#v/%#v, want none before dependency success",
+				availability.enabled,
+				availability.updatedBy,
+			)
+		}
+	})
+
+	t.Run("Should persist a network availability transition before advancing config", func(t *testing.T) {
+		t.Parallel()
+
+		previous := aghconfig.Config{Network: aghconfig.DefaultNetworkConfig()}
+		next := previous
+		next.Network.Enabled = false
+		daemonInstance := &Daemon{config: previous}
+		var enabledAtWrite bool
+		availability := &recordingNetworkAvailabilityStore{
+			beforeWrite: func(bool) {
+				enabledAtWrite = daemonInstance.config.Network.Enabled
+			},
+		}
+		failures := daemonSettingsRuntimeApplier{
+			daemon:              daemonInstance,
+			state:               &bootState{cfg: previous},
+			networkAvailability: availability,
+		}.ApplyActiveConfig(t.Context(), &next)
+		if len(failures) != 0 {
+			t.Fatalf("ApplyActiveConfig() failures = %#v, want none", failures)
+		}
+		if len(availability.enabled) != 1 || availability.enabled[0] {
+			t.Fatalf("availability writes = %#v, want one disabled write", availability.enabled)
+		}
+		if availability.updatedBy[0] != "config.apply" {
+			t.Fatalf("availability actor = %q, want config.apply", availability.updatedBy[0])
+		}
+		if !enabledAtWrite {
+			t.Fatal("daemon network enabled at availability write = false, want previous config still published")
+		}
+		if daemonInstance.config.Network.Enabled {
+			t.Fatal("daemon network enabled = true, want applied false")
+		}
+	})
+
+	t.Run("Should keep previous config when availability persistence fails", func(t *testing.T) {
+		t.Parallel()
+
+		previous := aghconfig.Config{Network: aghconfig.DefaultNetworkConfig()}
+		next := previous
+		next.Network.Enabled = false
+		daemonInstance := &Daemon{config: previous}
+		failures := daemonSettingsRuntimeApplier{
+			daemon: daemonInstance,
+			state:  &bootState{cfg: previous},
+			networkAvailability: &recordingNetworkAvailabilityStore{
+				err: errors.New("availability write boom"),
+			},
+		}.ApplyActiveConfig(t.Context(), &next)
+		if len(failures) != 1 || failures[0].Subsystem != "network_availability" {
+			t.Fatalf("ApplyActiveConfig() failures = %#v, want network availability failure", failures)
+		}
+		if !daemonInstance.config.Network.Enabled {
+			t.Fatal("daemon network enabled = false, want previous config retained")
+		}
+	})
+
+	t.Run("Should rollback applied dependencies when availability persistence fails", func(t *testing.T) {
+		t.Parallel()
+
+		previous := aghconfig.Config{Network: aghconfig.DefaultNetworkConfig()}
+		next := previous
+		next.Network.Enabled = false
+		daemonInstance := &Daemon{config: previous}
+		syncCalls := 0
+		failures := daemonSettingsRuntimeApplier{
+			daemon: daemonInstance,
+			state: &bootState{
+				cfg: previous,
+				toolMCPResources: toolMCPPublisherFunc(func(context.Context) error {
+					syncCalls++
+					return nil
+				}),
+			},
+			networkAvailability: &recordingNetworkAvailabilityStore{
+				err: errors.New("availability write boom"),
+			},
+		}.ApplyActiveConfig(t.Context(), &next)
+		if len(failures) != 1 || failures[0].Subsystem != "network_availability" {
+			t.Fatalf("ApplyActiveConfig() failures = %#v, want network availability failure", failures)
+		}
+		if syncCalls != 2 {
+			t.Fatalf("MCP Sync calls = %d, want apply plus rollback", syncCalls)
+		}
+		if !daemonInstance.config.Network.Enabled {
+			t.Fatal("daemon network enabled = false, want previous config retained")
 		}
 	})
 
@@ -245,6 +345,40 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 		}
 		assertMarketplaceRuntimeEntry(t, runtime, "rollback-first")
 	})
+}
+
+type recordingNetworkAvailabilityStore struct {
+	enabled     []bool
+	updatedBy   []string
+	beforeWrite func(bool)
+	err         error
+}
+
+func (s *recordingNetworkAvailabilityStore) GetNetworkAvailability(
+	context.Context,
+) (store.NetworkAvailability, error) {
+	return store.NetworkAvailability{}, nil
+}
+
+func (s *recordingNetworkAvailabilityStore) SetNetworkAvailability(
+	_ context.Context,
+	enabled bool,
+	updatedBy string,
+) (store.NetworkAvailability, error) {
+	if s.beforeWrite != nil {
+		s.beforeWrite(enabled)
+	}
+	s.enabled = append(s.enabled, enabled)
+	s.updatedBy = append(s.updatedBy, updatedBy)
+	if s.err != nil {
+		return store.NetworkAvailability{}, s.err
+	}
+	return store.NetworkAvailability{
+		Enabled:   enabled,
+		Epoch:     int64(len(s.enabled)),
+		UpdatedAt: time.Now().UTC(),
+		UpdatedBy: updatedBy,
+	}, nil
 }
 
 func assertMissingCLIReport(t *testing.T, label string, report providers.PreStartReport) {

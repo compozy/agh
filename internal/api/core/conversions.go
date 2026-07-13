@@ -1842,18 +1842,10 @@ func settingsAutomationConfigPayload(value settingspkg.AutomationSettings) contr
 
 func settingsNetworkConfigPayload(value aghconfig.NetworkConfig) contract.SettingsNetworkConfigPayload {
 	return contract.SettingsNetworkConfigPayload{
-		Enabled:                        value.Enabled,
-		DefaultChannel:                 strings.TrimSpace(value.DefaultChannel),
-		Port:                           value.Port,
-		MaxPayload:                     value.MaxPayload,
-		GreetInterval:                  value.GreetInterval,
-		MaxReplayAge:                   value.MaxReplayAge,
-		MaxQueueDepth:                  value.MaxQueueDepth,
-		ActivationTopK:                 value.ActivationTopK,
-		DigestFlushInterval:            value.DigestFlushInterval.String(),
-		DigestMaxEnvelopes:             value.DigestMaxEnvelopes,
-		ResponseGuidanceMaxBytes:       value.ResponseGuidanceMaxBytes,
-		DeliveryStructuredBodyMaxBytes: value.DeliveryStructuredBodyMaxBytes,
+		Enabled:       value.Enabled,
+		GreetInterval: value.GreetInterval,
+		MaxReplayAge:  value.MaxReplayAge,
+		MaxQueueDepth: value.MaxQueueDepth,
 	}
 }
 

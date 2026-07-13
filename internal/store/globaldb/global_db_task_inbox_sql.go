@@ -12,7 +12,7 @@ latest_inbox_run_candidates AS (
 	SELECT
 		id, task_id, status, attempt, previous_run_id, failure_kind, claimed_by_kind,
 		claimed_by_ref, session_id, lease_until, heartbeat_at,
-		coordination_channel_id, queued_at, claimed_at, started_at,
+		network_channel, queued_at, claimed_at, started_at,
 		ended_at, error,
 		ROW_NUMBER() OVER (
 			PARTITION BY task_id
@@ -47,7 +47,7 @@ inbox_candidates AS (
 		lr.session_id AS run_session_id,
 		lr.lease_until AS run_lease_until,
 		lr.heartbeat_at AS run_heartbeat_at,
-		lr.coordination_channel_id AS run_coordination_channel_id,
+		lr.network_channel AS run_coordination_channel_id,
 		lr.queued_at AS run_queued_at,
 		lr.claimed_at AS run_claimed_at,
 		lr.started_at AS run_started_at,

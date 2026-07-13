@@ -448,7 +448,6 @@ func validateDetachedHarnessTaskMatch(
 ) error {
 	if record.Scope != req.Scope ||
 		record.WorkspaceID != req.WorkspaceID ||
-		record.NetworkChannel != req.NetworkChannel ||
 		record.Title != req.Summary ||
 		record.Description != req.Description ||
 		record.CreatedBy != actor.Actor ||

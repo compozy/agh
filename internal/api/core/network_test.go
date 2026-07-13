@@ -905,18 +905,18 @@ func TestBaseHandlersNetworkConversationReadPaths(t *testing.T) {
 				EstimatedPromptTokens: 160,
 			}, nil
 		},
-		ListNetworkThreadPeerTokenStatsFn: func(
+		ListNetworkThreadSessionTokenStatsFn: func(
 			_ context.Context,
-			query store.NetworkThreadPeerTokenStatsQuery,
-		) ([]store.NetworkThreadPeerTokenStats, error) {
+			query store.NetworkThreadSessionTokenStatsQuery,
+		) ([]store.NetworkThreadSessionTokenStats, error) {
 			if query.WorkspaceID == "" || query.Channel != "builders" || query.ThreadID != threadID {
 				t.Fatalf("ListNetworkThreadPeerTokenStats() query=%#v, want builders/%s", query, threadID)
 			}
-			return []store.NetworkThreadPeerTokenStats{{
+			return []store.NetworkThreadSessionTokenStats{{
 				WorkspaceID:           query.WorkspaceID,
 				Channel:               query.Channel,
 				ThreadID:              query.ThreadID,
-				PeerID:                "reviewer.sess-xyz",
+				SessionID:             "sess-reviewer",
 				DeliveredCount:        2,
 				PromptSizeBytes:       640,
 				EstimatedPromptTokens: 160,
@@ -930,7 +930,7 @@ func TestBaseHandlersNetworkConversationReadPaths(t *testing.T) {
 			query store.NetworkDirectRoomQuery,
 		) (store.NetworkDirectRoomPage, error) {
 			if ref.WorkspaceID == "" || ref.Channel != "builders" ||
-				query.PeerID != "reviewer.sess-xyz" ||
+				query.SessionID != "reviewer.sess-xyz" ||
 				query.Limit != 3 {
 				t.Fatalf(
 					"ListDirectRooms() ref=%#v query=%#v, want workspace builders reviewer limit",
@@ -942,8 +942,8 @@ func TestBaseHandlersNetworkConversationReadPaths(t *testing.T) {
 				WorkspaceID:    ref.WorkspaceID,
 				Channel:        ref.Channel,
 				DirectID:       directID,
-				PeerA:          "coder.sess-abc",
-				PeerB:          "reviewer.sess-xyz",
+				SessionA:       "sess-coder",
+				SessionB:       "sess-reviewer",
 				OpenedAt:       openedAt,
 				LastActivityAt: openedAt,
 				MessageCount:   1,
@@ -963,8 +963,8 @@ func TestBaseHandlersNetworkConversationReadPaths(t *testing.T) {
 				WorkspaceID:    ref.WorkspaceID,
 				Channel:        ref.Channel,
 				DirectID:       gotDirectID,
-				PeerA:          "coder.sess-abc",
-				PeerB:          "reviewer.sess-xyz",
+				SessionA:       "sess-coder",
+				SessionB:       "sess-reviewer",
 				OpenedAt:       openedAt,
 				LastActivityAt: openedAt,
 			}, nil
@@ -1092,8 +1092,8 @@ func TestBaseHandlersNetworkConversationReadPaths(t *testing.T) {
 		if got, want := payload.Thread.CoordinationCost.EstimatedPromptTokens, int64(160); got != want {
 			t.Fatalf("thread.CoordinationCost.EstimatedPromptTokens = %d, want %d", got, want)
 		}
-		if len(payload.PeerCosts) != 1 || payload.PeerCosts[0].PeerID != "reviewer.sess-xyz" {
-			t.Fatalf("thread peer_costs = %#v, want reviewer cost", payload.PeerCosts)
+		if len(payload.PeerCosts) != 1 || payload.PeerCosts[0].PeerID != "sess-reviewer" {
+			t.Fatalf("thread peer_costs = %#v, want reviewer session cost", payload.PeerCosts)
 		}
 		if got, want := payload.PeerCosts[0].PromptSizeBytes, int64(640); got != want {
 			t.Fatalf("thread peer_costs[0].PromptSizeBytes = %d, want %d", got, want)
@@ -1234,11 +1234,11 @@ func TestBaseHandlersNetworkConversationReadPaths(t *testing.T) {
 func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 	t.Parallel()
 
-	directID, directPeerA, directPeerB, err := network.DirectRoomIdentity(
+	directID, directSessionA, directSessionB, err := store.NetworkDirectRoomIdentity(
 		"ws-workspace",
 		"builders",
-		"reviewer.sess-a",
-		"coder.sess-remote",
+		"sess-a",
+		"sess-remote",
 	)
 	if err != nil {
 		t.Fatalf("DirectRoomIdentity() error = %v", err)
@@ -1315,10 +1315,12 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 			}}
 			if channel == "" {
 				remoteDisplayName := "Coder"
+				remoteSessionID := "sess-remote"
 				peers = append(peers, network.PeerInfo{
-					PeerID:  "coder.sess-remote",
-					Channel: "builders",
-					Local:   false,
+					SessionID: &remoteSessionID,
+					PeerID:    "coder.sess-remote",
+					Channel:   "builders",
+					Local:     false,
 					PeerCard: network.PeerCard{
 						PeerID:      "coder.sess-remote",
 						DisplayName: &remoteDisplayName,
@@ -1414,8 +1416,8 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 				WorkspaceID: "ws-workspace",
 				Channel:     "builders",
 				DirectID:    directID,
-				PeerA:       directPeerA,
-				PeerB:       directPeerB,
+				SessionA:    directSessionA,
+				SessionB:    directSessionB,
 			}, nil
 		},
 		GetNetworkChannelFn: func(_ context.Context, ref store.NetworkChannelRef) (store.NetworkChannelEntry, error) {
@@ -1466,7 +1468,7 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 			for _, entry := range networkSubscriptions {
 				if entry.WorkspaceID != query.WorkspaceID ||
 					entry.Channel != query.Channel ||
-					entry.PeerID != query.PeerID {
+					entry.SessionID != query.SessionID {
 					continue
 				}
 				if strings.TrimSpace(query.ThreadID) != "" && entry.ThreadID != query.ThreadID {

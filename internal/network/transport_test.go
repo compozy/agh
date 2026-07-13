@@ -22,9 +22,10 @@ func TestNewTransportRejectsMissingRuntimeInputs(t *testing.T) {
 	}
 
 	invalid := cfg
-	invalid.MaxPayload = 0
-	if _, err := NewTransport(context.Background(), invalid); err == nil {
-		t.Fatal("NewTransport(invalid config) error = nil, want non-nil")
+	invalid.MaxQueueDepth = 0
+	if _, err := NewTransport(context.Background(), invalid); err == nil ||
+		!strings.Contains(err.Error(), "network.max_queue_depth") {
+		t.Fatalf("NewTransport(invalid config) error = %v, want max queue depth validation", err)
 	}
 }
 
@@ -170,20 +171,7 @@ func TestTransportLifecycleAndMethodGuards(t *testing.T) {
 }
 
 func testNetworkConfig() aghconfig.NetworkConfig {
-	return aghconfig.NetworkConfig{
-		Enabled:                        true,
-		DefaultChannel:                 "default",
-		Port:                           -1,
-		MaxPayload:                     1 << 20,
-		GreetInterval:                  30,
-		MaxReplayAge:                   300,
-		MaxQueueDepth:                  100,
-		ActivationTopK:                 8,
-		DigestFlushInterval:            30 * time.Second,
-		DigestMaxEnvelopes:             20,
-		ResponseGuidanceMaxBytes:       2048,
-		DeliveryStructuredBodyMaxBytes: 4096,
-	}
+	return aghconfig.DefaultNetworkConfig()
 }
 
 func nilTransportContext() context.Context {

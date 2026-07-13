@@ -145,18 +145,7 @@ func upsertNetworkThreadParticipantsForMessage(
 	exec networkSQLExecutor,
 	message store.NetworkConversationMessage,
 ) error {
-	if err := upsertNetworkThreadParticipant(ctx, exec, message); err != nil {
-		return err
-	}
-	if err := upsertNetworkThreadTargetParticipant(ctx, exec, message); err != nil {
-		return err
-	}
-	for _, mention := range message.Mentions {
-		if err := upsertNetworkThreadParticipantPeer(ctx, exec, message, mention); err != nil {
-			return err
-		}
-	}
-	return nil
+	return upsertNetworkThreadParticipant(ctx, exec, message)
 }
 
 // GetThread returns one public-thread summary.

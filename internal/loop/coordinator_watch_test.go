@@ -625,7 +625,7 @@ func newWatchCoordinatorRunnerWithGraphForTest(
 	)
 	runner, err := NewCoordinatorRunner(
 		&coordinatorRunnerTaskRunReader{runs: runs},
-		coordinatorRunnerLoopStore{run: loopRun, snapshot: snapshot},
+		&coordinatorRunnerLoopStore{run: loopRun, snapshot: snapshot},
 		outputs,
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 		WithCoordinatorWatchPoller(poller),
@@ -705,7 +705,7 @@ func newWatchEventsCoordinatorRunnerForTest(
 	)
 	runner, err := NewCoordinatorRunner(
 		&coordinatorRunnerTaskRunReader{runs: map[string]task.Run{coordinatorRun.ID: coordinatorRun}},
-		coordinatorRunnerLoopStore{run: loopRun, snapshot: snapshot},
+		&coordinatorRunnerLoopStore{run: loopRun, snapshot: snapshot},
 		outputs,
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 		WithCoordinatorWatchEventsLedger(ledger),

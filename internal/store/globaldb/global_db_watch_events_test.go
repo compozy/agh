@@ -528,6 +528,10 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
+		registerWatchSessionForTest(ctx, t, globalDB, "coder.sess-a", "ws-a", "coder")
+		registerWatchSessionForTest(ctx, t, globalDB, "reviewer.sess-a", "ws-a", "reviewer")
+		registerWatchSessionForTest(ctx, t, globalDB, "coder.sess-b", "ws-b", "coder")
+		registerWatchSessionForTest(ctx, t, globalDB, "reviewer.sess-b", "ws-b", "reviewer")
 		base := time.Date(2026, 7, 8, 20, 30, 0, 0, time.UTC)
 		opening := networkWatchThreadMessageForTest(
 			"ws-a",
@@ -1379,6 +1383,10 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 8, 21, 30, 0, 0, time.UTC)
 		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
+		registerWatchSessionForTest(ctx, t, globalDB, "coder.sess-a", "ws-a", "coder")
+		registerWatchSessionForTest(ctx, t, globalDB, "reviewer.sess-a", "ws-a", "reviewer")
+		registerWatchSessionForTest(ctx, t, globalDB, "coder.sess-b", "ws-b", "coder")
+		registerWatchSessionForTest(ctx, t, globalDB, "reviewer.sess-b", "ws-b", "reviewer")
 		created := parkWatchEventsLoopWithDefinitionForTest(
 			ctx,
 			t,
@@ -2037,7 +2045,7 @@ func networkWatchThreadMessageForTest(
 ) store.NetworkConversationMessage {
 	return store.NetworkConversationMessage{
 		MessageID:   messageID,
-		SessionID:   "sess-" + messageID,
+		SessionID:   peerFrom,
 		WorkspaceID: workspaceID,
 		Channel:     "builders",
 		Surface:     store.NetworkSurfaceThread,
@@ -2071,7 +2079,7 @@ func networkWatchDirectMessageForTest(
 ) store.NetworkConversationMessage {
 	return store.NetworkConversationMessage{
 		MessageID:   messageID,
-		SessionID:   "sess-" + messageID,
+		SessionID:   peerFrom,
 		WorkspaceID: workspaceID,
 		Channel:     "builders",
 		Surface:     store.NetworkSurfaceDirect,
@@ -2098,7 +2106,7 @@ func networkWatchTraceMessageForTest(
 ) store.NetworkConversationMessage {
 	return store.NetworkConversationMessage{
 		MessageID:   messageID,
-		SessionID:   "sess-" + messageID,
+		SessionID:   peerFrom,
 		WorkspaceID: workspaceID,
 		Channel:     "builders",
 		Surface:     store.NetworkSurfaceThread,

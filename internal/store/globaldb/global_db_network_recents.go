@@ -46,8 +46,8 @@ func (g *NetworkRepo) ListNetworkRecents(
 			LastMessagePreview:   row.LastMessagePreview,
 			Title:                row.Title,
 			ParticipantCount:     int(row.ParticipantCount),
-			PeerA:                row.PeerA,
-			PeerB:                row.PeerB,
+			SessionA:             row.SessionA,
+			SessionB:             row.SessionB,
 		})
 	}
 	return recents, nil

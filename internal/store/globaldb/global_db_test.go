@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -16,12 +18,16 @@ import (
 	"testing"
 	"time"
 
+	looppkg "github.com/compozy/agh/internal/loop"
 	mcpauth "github.com/compozy/agh/internal/mcp/auth"
 	memorypkg "github.com/compozy/agh/internal/memory"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
+	globalschema "github.com/compozy/agh/internal/store/globaldb/schema"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
 	aghworkspace "github.com/compozy/agh/internal/workspace"
+	"github.com/pressly/goose/v3"
 )
 
 type SessionInfo = store.SessionInfo
@@ -133,8 +139,34 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 			"network_channel_stats",
 			"network_channel_participants",
 			"network_channel_kind_counts",
+			"workspace_network_coordination",
+			"network_coordination_invitations",
+			"network_availability",
+			"network_message_dispositions",
+			"network_live_wakes",
+			"network_wake_sources",
+			"network_participation_budgets",
 			"scheduler_pause",
 		)
+		for _, table := range []string{"sessions", "task_runs", "loop_runs"} {
+			assertTableHasColumns(t, globalDB.db, table, []string{
+				"network_spec_json",
+				"network_mode",
+				"network_channel",
+				"network_source",
+			})
+		}
+		assertTableExcludesColumns(t, globalDB.db, "sessions", []string{"channel"})
+		assertTableExcludesColumns(t, globalDB.db, "tasks", []string{"network_channel"})
+		assertTableExcludesColumns(t, globalDB.db, "task_runs", []string{"coordination_channel_id"})
+		assertTableHasColumns(t, globalDB.db, "network_channel_participants", []string{"session_id"})
+		assertTableHasColumns(t, globalDB.db, "network_direct_rooms", []string{"session_a", "session_b"})
+		assertTableHasColumns(t, globalDB.db, "network_subscriptions", []string{"session_id"})
+		assertTableHasColumns(t, globalDB.db, "network_thread_participants", []string{"session_id"})
+		assertTableExcludesColumns(t, globalDB.db, "network_channel_participants", []string{"peer_id"})
+		assertTableExcludesColumns(t, globalDB.db, "network_direct_rooms", []string{"peer_a", "peer_b"})
+		assertTableExcludesColumns(t, globalDB.db, "network_subscriptions", []string{"peer_id"})
+		assertTableExcludesColumns(t, globalDB.db, "network_thread_participants", []string{"peer_id"})
 		assertTableHasColumns(t, globalDB.db, "event_summaries", []string{
 			"provider",
 			"outcome",
@@ -191,8 +223,8 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(global) error = %v", err)
 		}
-		if status.Version != 7 || status.AppliedCount != 7 {
-			t.Fatalf("Status(global) = %#v, want version/applied count 7", status)
+		if status.Version != 8 || status.AppliedCount != 8 {
+			t.Fatalf("Status(global) = %#v, want version/applied count 8", status)
 		}
 		workspaces, err := globalDB.ListWorkspaces(testutil.Context(t))
 		if err != nil {
@@ -308,6 +340,351 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 			t.Fatalf("GetWorkspace(after reopen) = %#v, want %#v", loaded, workspace)
 		}
 	})
+
+	t.Run("Should apply the destructive participation cut once and retain canonical Local history", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		createPreCutNetworkParticipationFixture(ctx, t, path)
+
+		first, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(first post-cut) error = %v", err)
+		}
+		firstClosed := false
+		t.Cleanup(func() {
+			if firstClosed {
+				return
+			}
+			if err := first.Close(testutil.Context(t)); err != nil {
+				t.Fatalf("Close(first post-cut cleanup) error = %v", err)
+			}
+		})
+		assertPostCutNetworkParticipationFixture(t, first)
+		firstStatus, err := store.Status(ctx, first.db, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(first post-cut) error = %v", err)
+		}
+		if firstStatus.Version != 8 || firstStatus.AppliedCount != 8 {
+			t.Fatalf("Status(first post-cut) = %#v, want version/applied count 8", firstStatus)
+		}
+		if err := first.Close(ctx); err != nil {
+			t.Fatalf("Close(first post-cut) error = %v", err)
+		}
+		firstClosed = true
+
+		second, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(second post-cut) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := second.Close(testutil.Context(t)); err != nil {
+				t.Fatalf("Close(second post-cut) error = %v", err)
+			}
+		})
+		assertPostCutNetworkParticipationFixture(t, second)
+		secondStatus, err := store.Status(ctx, second.db, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(second post-cut) error = %v", err)
+		}
+		if secondStatus != firstStatus {
+			t.Fatalf("Status(second post-cut) = %#v, want unchanged %#v", secondStatus, firstStatus)
+		}
+	})
+}
+
+func createPreCutNetworkParticipationFixture(ctx context.Context, t *testing.T, path string) {
+	t.Helper()
+
+	legacyDB, err := sql.Open(sqliteDriverName, path)
+	if err != nil {
+		t.Fatalf("sql.Open(pre-cut fixture) error = %v", err)
+	}
+	legacyClosed := false
+	t.Cleanup(func() {
+		if legacyClosed {
+			return
+		}
+		if err := legacyDB.Close(); err != nil {
+			t.Fatalf("Close(pre-cut fixture cleanup) error = %v", err)
+		}
+	})
+	migrationFS, err := fs.Sub(globalschema.Files, "migrations")
+	if err != nil {
+		t.Fatalf("fs.Sub(global migrations) error = %v", err)
+	}
+	provider, err := goose.NewProvider(
+		goose.DialectSQLite3,
+		legacyDB,
+		migrationFS,
+		goose.WithTableName(globalMigrationVersionTable),
+		goose.WithDisableGlobalRegistry(true),
+	)
+	if err != nil {
+		t.Fatalf("goose.NewProvider(pre-cut fixture) error = %v", err)
+	}
+	if _, err := provider.UpTo(ctx, 1); err != nil {
+		t.Fatalf("provider.UpTo(pre-cut fixture, 1) error = %v", err)
+	}
+
+	statements := []struct {
+		name string
+		sql  string
+	}{
+		{
+			name: "workspace",
+			sql: `INSERT INTO workspaces (
+				id, root_dir, name, created_at, updated_at
+			) VALUES (
+				'ws-precut', '/tmp/agh-precut', 'precut',
+				'2026-07-13T10:00:00Z', '2026-07-13T10:00:00Z'
+			)`,
+		},
+		{
+			name: "session",
+			sql: `INSERT INTO sessions (
+				id, agent_name, workspace_id, channel, state, created_at, updated_at
+			) VALUES (
+				'sess-precut', 'coder', 'ws-precut', 'coord-run-precut', 'stopped',
+				'2026-07-13T10:01:00Z', '2026-07-13T10:02:00Z'
+			)`,
+		},
+		{
+			name: "task",
+			sql: `INSERT INTO tasks (
+				id, scope, workspace_id, network_channel, title, status,
+				created_by_kind, created_by_ref, origin_kind, origin_ref, created_at, updated_at
+			) VALUES (
+				'task-precut', 'workspace', 'ws-precut', 'coord-run-precut', 'Pre-cut task', 'completed',
+				'daemon', 'scheduler', 'daemon', 'scheduler',
+				'2026-07-13T10:03:00Z', '2026-07-13T10:04:00Z'
+			)`,
+		},
+		{
+			name: "task run",
+			sql: `INSERT INTO task_runs (
+				id, task_id, status, attempt, origin_kind, origin_ref,
+				network_channel, coordination_channel_id, queued_at
+			) VALUES (
+				'run-precut', 'task-precut', 'completed', 1, 'daemon', 'scheduler',
+				'coord-run-precut', 'coord-run-precut', '2026-07-13T10:05:00Z'
+			)`,
+		},
+		{
+			name: "loop run",
+			sql: `INSERT INTO loop_runs (
+				id, workspace_id, loop_name, status, last_progress_at, inputs_json
+			) VALUES (
+				'loop-precut', 'ws-precut', 'precut-loop', 'done',
+				'2026-07-13T10:06:00Z', '{}'
+			)`,
+		},
+		{
+			name: "auto-created coordination channel",
+			sql: `INSERT INTO network_channels (
+				workspace_id, channel, purpose, created_by, created_at, updated_at
+			) VALUES (
+				'ws-precut', 'coord-run-precut', 'task_run_coordination', 'scheduler',
+				'2026-07-13T10:07:00Z', '2026-07-13T10:07:00Z'
+			)`,
+		},
+		{
+			name: "peer channel participant",
+			sql: `INSERT INTO network_channel_participants (
+				workspace_id, channel, peer_id
+			) VALUES ('ws-precut', 'coord-run-precut', 'peer-a')`,
+		},
+		{
+			name: "peer direct room",
+			sql: `INSERT INTO network_direct_rooms (
+				workspace_id, channel, direct_id, peer_a, peer_b, opened_at, last_activity_at
+			) VALUES (
+				'ws-precut', 'coord-run-precut', 'direct-precut', 'peer-a', 'peer-b',
+				'2026-07-13T10:08:00Z', '2026-07-13T10:08:00Z'
+			)`,
+		},
+		{
+			name: "thread",
+			sql: `INSERT INTO network_threads (
+				workspace_id, channel, thread_id, root_message_id, opened_at, last_activity_at
+			) VALUES (
+				'ws-precut', 'coord-run-precut', 'thread-precut', 'msg-root',
+				'2026-07-13T10:09:00Z', '2026-07-13T10:09:00Z'
+			)`,
+		},
+		{
+			name: "peer subscription",
+			sql: `INSERT INTO network_subscriptions (
+				workspace_id, channel, thread_id, peer_id, mode, created_at, updated_at
+			) VALUES (
+				'ws-precut', 'coord-run-precut', 'thread-precut', 'peer-a', 'full',
+				'2026-07-13T10:10:00Z', '2026-07-13T10:10:00Z'
+			)`,
+		},
+		{
+			name: "peer thread participant",
+			sql: `INSERT INTO network_thread_participants (
+				workspace_id, channel, thread_id, peer_id, first_message_id, first_seen_at, last_seen_at
+			) VALUES (
+				'ws-precut', 'coord-run-precut', 'thread-precut', 'peer-a', 'msg-root',
+				'2026-07-13T10:11:00Z', '2026-07-13T10:11:00Z'
+			)`,
+		},
+		{
+			name: "delivery guidance state",
+			sql: `INSERT INTO network_delivery_guidance_state (
+				session_id, reply_guidance_delivered, protocol_guidance_delivered, created_at, updated_at
+			) VALUES (
+				'sess-precut', 1, 1, '2026-07-13T10:12:00Z', '2026-07-13T10:12:00Z'
+			)`,
+		},
+	}
+	for _, statement := range statements {
+		if _, err := legacyDB.ExecContext(ctx, statement.sql); err != nil {
+			t.Fatalf("seed pre-cut %s error = %v", statement.name, err)
+		}
+	}
+	if err := legacyDB.Close(); err != nil {
+		t.Fatalf("Close(pre-cut fixture) error = %v", err)
+	}
+	legacyClosed = true
+}
+
+func assertPostCutNetworkParticipationFixture(t *testing.T, globalDB *GlobalDB) {
+	t.Helper()
+
+	ctx := testutil.Context(t)
+	for _, table := range []string{"sessions", "task_runs", "loop_runs"} {
+		assertOwnerTableCanonicalLocal(t, globalDB.db, table)
+	}
+	assertTableExcludesColumns(t, globalDB.db, "sessions", []string{"channel"})
+	assertTableExcludesColumns(t, globalDB.db, "tasks", []string{"network_channel"})
+	assertTableExcludesColumns(t, globalDB.db, "task_runs", []string{"coordination_channel_id"})
+	assertTableExcludesColumns(t, globalDB.db, "network_channel_participants", []string{"peer_id"})
+	assertTableExcludesColumns(t, globalDB.db, "network_direct_rooms", []string{"peer_a", "peer_b"})
+	assertTableExcludesColumns(t, globalDB.db, "network_subscriptions", []string{"peer_id"})
+	assertTableExcludesColumns(t, globalDB.db, "network_thread_participants", []string{"peer_id"})
+
+	guidanceExists, err := tableExists(ctx, globalDB.db, "network_delivery_guidance_state")
+	if err != nil {
+		t.Fatalf("tableExists(network_delivery_guidance_state) error = %v", err)
+	}
+	if guidanceExists {
+		t.Fatal("network_delivery_guidance_state still exists after destructive cut")
+	}
+	for _, relation := range []struct {
+		name  string
+		query string
+	}{
+		{name: "network_channel_participants", query: `SELECT COUNT(*) FROM network_channel_participants`},
+		{name: "network_direct_rooms", query: `SELECT COUNT(*) FROM network_direct_rooms`},
+		{name: "network_subscriptions", query: `SELECT COUNT(*) FROM network_subscriptions`},
+		{name: "network_thread_participants", query: `SELECT COUNT(*) FROM network_thread_participants`},
+	} {
+		var count int
+		if err := globalDB.db.QueryRowContext(ctx, relation.query).Scan(&count); err != nil {
+			t.Fatalf("count %s error = %v", relation.name, err)
+		}
+		if count != 0 {
+			t.Fatalf("%s row count after destructive cut = %d, want 0", relation.name, count)
+		}
+	}
+	var autoChannelCount int
+	if err := globalDB.db.QueryRowContext(
+		ctx,
+		`SELECT COUNT(*) FROM network_channels WHERE purpose = 'task_run_coordination'`,
+	).Scan(&autoChannelCount); err != nil {
+		t.Fatalf("count task_run_coordination channels error = %v", err)
+	}
+	if autoChannelCount != 0 {
+		t.Fatalf("task_run_coordination channel count = %d, want 0", autoChannelCount)
+	}
+
+	sessions, err := globalDB.ListSessions(ctx, store.SessionListQuery{ID: "sess-precut", Limit: 10})
+	if err != nil {
+		t.Fatalf("ListSessions(pre-cut history) error = %v", err)
+	}
+	if len(sessions) != 1 || !reflect.DeepEqual(sessions[0].NetworkSpec, participation.LocalSpec()) {
+		t.Fatalf("ListSessions(pre-cut history) = %#v, want one canonical Local session", sessions)
+	}
+	taskRun, err := globalDB.GetTaskRun(ctx, "run-precut")
+	if err != nil {
+		t.Fatalf("GetTaskRun(pre-cut history) error = %v", err)
+	}
+	if !reflect.DeepEqual(taskRun.NetworkSpec, participation.LocalSpec()) {
+		t.Fatalf("GetTaskRun(pre-cut history).NetworkSpec = %#v, want canonical Local", taskRun.NetworkSpec)
+	}
+	loopRun, err := globalDB.GetLoopRun(ctx, looppkg.WorkspaceID("ws-precut"), looppkg.RunID("loop-precut"))
+	if err != nil {
+		t.Fatalf("GetLoopRun(pre-cut history) error = %v", err)
+	}
+	if !reflect.DeepEqual(loopRun.NetworkSpec, participation.LocalSpec()) {
+		t.Fatalf("GetLoopRun(pre-cut history).NetworkSpec = %#v, want canonical Local", loopRun.NetworkSpec)
+	}
+}
+
+func assertOwnerTableCanonicalLocal(t *testing.T, db *sql.DB, table string) {
+	t.Helper()
+
+	queries := map[string]string{
+		"sessions":  `SELECT network_spec_json, network_mode, network_channel, network_source FROM sessions`,
+		"task_runs": `SELECT network_spec_json, network_mode, network_channel, network_source FROM task_runs`,
+		"loop_runs": `SELECT network_spec_json, network_mode, network_channel, network_source FROM loop_runs`,
+	}
+	query, ok := queries[table]
+	if !ok {
+		t.Fatalf("assertOwnerTableCanonicalLocal(%q) has no canonical query", table)
+	}
+	rows, err := db.QueryContext(testutil.Context(t), query)
+	if err != nil {
+		t.Fatalf("query %s network snapshots error = %v", table, err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			t.Fatalf("close %s network snapshot rows error = %v", table, err)
+		}
+	}()
+	expectedJSON, err := json.Marshal(participation.LocalSpec())
+	if err != nil {
+		t.Fatalf("json.Marshal(canonical Local) error = %v", err)
+	}
+	count := 0
+	for rows.Next() {
+		var (
+			rawSnapshot string
+			mode        string
+			channel     sql.NullString
+			source      string
+		)
+		if err := rows.Scan(&rawSnapshot, &mode, &channel, &source); err != nil {
+			t.Fatalf("scan %s network snapshot error = %v", table, err)
+		}
+		count++
+		if rawSnapshot != string(expectedJSON) || mode != "local" || channel.Valid || source != "built_in_local" {
+			t.Fatalf(
+				"%s network snapshot = (%q, %q, %#v, %q), want canonical Local projections",
+				table,
+				rawSnapshot,
+				mode,
+				channel,
+				source,
+			)
+		}
+		decoded, err := decodeParticipationSnapshot(rawSnapshot, mode, channel, source)
+		if err != nil {
+			t.Fatalf("decode %s network snapshot error = %v", table, err)
+		}
+		if !reflect.DeepEqual(decoded, participation.LocalSpec()) {
+			t.Fatalf("decoded %s NetworkSpec = %#v, want canonical Local", table, decoded)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate %s network snapshots error = %v", table, err)
+	}
+	if count != 1 {
+		t.Fatalf("%s retained owner count = %d, want 1", table, count)
+	}
 }
 
 func TestOpenGlobalDBRefusesLegacyDatabaseWithoutMutation(t *testing.T) {
@@ -1525,11 +1902,11 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 	)
 
 	session := SessionInfo{
-		ID:          "sess-workspace-id",
-		AgentName:   "coder",
-		WorkspaceID: workspaceID,
-		Channel:     "builders",
-		State:       "active",
+		ID:                  "sess-workspace-id",
+		AgentName:           "coder",
+		WorkspaceID:         workspaceID,
+		SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
+		State:               "active",
 		Liveness: &store.SessionLivenessMeta{
 			SubprocessPID: 77,
 			LastUpdateAt:  ptrTime(time.Date(2026, 4, 3, 13, 1, 0, 0, time.UTC)),
@@ -1562,8 +1939,11 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 	if got, want := sessions[0].WorkspaceID, workspaceID; got != want {
 		t.Fatalf("sessions[0].WorkspaceID = %q, want %q", got, want)
 	}
-	if got, want := sessions[0].Channel, "builders"; got != want {
+	if got, want := sessions[0].Channel, ""; got != want {
 		t.Fatalf("sessions[0].Channel = %q, want %q", got, want)
+	}
+	if got, want := sessions[0].NetworkSpec, participation.LocalSpec(); got != want {
+		t.Fatalf("sessions[0].NetworkSpec = %#v, want %#v", got, want)
 	}
 	if sessions[0].Sandbox == nil {
 		t.Fatal("sessions[0].Sandbox = nil, want sandbox metadata")
@@ -1609,7 +1989,6 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 			"provider",
 			"workspace_id",
 			"session_type",
-			"channel",
 			"state",
 			"acp_session_id",
 			"stop_reason",
@@ -1651,6 +2030,10 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 			"creation_digest",
 			"policy_spec_digest",
 			"creation_profile_ref",
+			"network_spec_json",
+			"network_mode",
+			"network_channel",
+			"network_source",
 		},
 	)
 }

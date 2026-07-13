@@ -172,8 +172,6 @@ type NetworkPreferenceStore interface {
 	PutNetworkSubscription(ctx context.Context, entry NetworkSubscriptionEntry) error
 	ListNetworkSubscriptions(ctx context.Context, query NetworkSubscriptionQuery) ([]NetworkSubscriptionEntry, error)
 	DeleteNetworkSubscription(ctx context.Context, ref NetworkSubscriptionRef) error
-	GetNetworkDeliveryGuidanceState(ctx context.Context, key string) (NetworkDeliveryGuidanceState, error)
-	PutNetworkDeliveryGuidanceState(ctx context.Context, state NetworkDeliveryGuidanceState) error
 	PutNetworkTaskThreadOrigin(ctx context.Context, origin NetworkTaskThreadOrigin) error
 	ListNetworkTaskThreadOrigins(
 		ctx context.Context,

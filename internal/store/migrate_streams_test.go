@@ -3,7 +3,6 @@ package store_test
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"io/fs"
 	"path"
 	"path/filepath"
@@ -149,7 +148,7 @@ func TestProductionMigrationStreams(t *testing.T) {
 			t.Fatalf("Apply(memory) error = %v", err)
 		}
 		wantStatus := map[string]store.StreamStatus{
-			globalStream.Name: {Version: 7, AppliedCount: 7},
+			globalStream.Name: {Version: 8, AppliedCount: 8},
 			memoryStream.Name: {Version: 1, AppliedCount: 1},
 		}
 		for _, stream := range []store.MigrationStream{globalStream, memoryStream} {
@@ -183,6 +182,9 @@ func TestMigrationSchemaEquivalence(t *testing.T) {
 			migrationDB := openStreamTestDB(t, item.name+"-migration.db")
 			if err := store.Apply(ctx, migrationDB, item.stream); err != nil {
 				t.Fatalf("Apply(%s) error = %v", item.name, err)
+			}
+			if _, err := migrationDB.ExecContext(ctx, "DROP TABLE "+item.stream.VersionTable); err != nil {
+				t.Fatalf("drop %s migration version table: %v", item.name, err)
 			}
 			schemaDB := openStreamTestDB(t, item.name+"-schema.db")
 			executeDeclarativeSchema(t, schemaDB, item.schemaFS, item.declarativeSource)
@@ -378,35 +380,48 @@ func openStreamTestDB(t *testing.T, name string) *sql.DB {
 	return db
 }
 
-func normalizedSQLiteSchema(t *testing.T, db *sql.DB, excludedVersionTable string) string {
+func inspectSQLiteRealm(t *testing.T, db *sql.DB) (atlasschema.Differ, *atlasschema.Realm) {
 	t.Helper()
-	rows, err := db.QueryContext(testutil.Context(t), `SELECT type, name, sql FROM sqlite_master
-		WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' ORDER BY type, name`)
+	driver, err := atlassqlite.Open(db)
 	if err != nil {
-		t.Fatalf("query sqlite_master: %v", err)
+		t.Fatalf("open Atlas SQLite driver: %v", err)
 	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			t.Errorf("close sqlite_master rows: %v", err)
-		}
-	}()
-	objects := make([]string, 0)
-	for rows.Next() {
-		var kind string
-		var name string
-		var statement string
-		if err := rows.Scan(&kind, &name, &statement); err != nil {
-			t.Fatalf("scan sqlite_master: %v", err)
-		}
-		if name == excludedVersionTable {
-			continue
-		}
-		objects = append(objects, fmt.Sprintf("%s|%s|%s", kind, name, normalizeSchemaSQL(statement)))
+	realm, err := driver.InspectRealm(testutil.Context(t), nil)
+	if err != nil {
+		t.Fatalf("inspect SQLite realm: %v", err)
 	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate sqlite_master: %v", err)
+	return driver, realm
+}
+
+func normalizeSQLiteGeneratedIndexes(realm *atlasschema.Realm) {
+	for _, schemaObject := range realm.Schemas {
+		for _, table := range schemaObject.Tables {
+			for _, index := range table.Indexes {
+				if !strings.HasPrefix(index.Name, "sqlite_autoindex_") || sqliteIndexOrigin(index) != "u" {
+					continue
+				}
+				parts := make([]string, 0, len(index.Parts)+1)
+				parts = append(parts, table.Name)
+				for _, part := range index.Parts {
+					if part.C != nil {
+						parts = append(parts, part.C.Name)
+					}
+				}
+				if len(parts) > 1 {
+					index.Name = strings.Join(parts, "_")
+				}
+			}
+		}
 	}
-	return strings.Join(objects, "\n")
+}
+
+func sqliteIndexOrigin(index *atlasschema.Index) string {
+	for _, attribute := range index.Attrs {
+		if origin, ok := attribute.(*atlassqlite.IndexOrigin); ok {
+			return origin.O
+		}
+	}
+	return ""
 }
 
 func normalizedSQLiteObjects(t *testing.T, db *sql.DB, objectTypes ...string) string {
@@ -455,7 +470,6 @@ func sqliteTableExists(t *testing.T, db *sql.DB, table string) bool {
 	}
 	return exists
 }
-
 func normalizeSchemaSQL(statement string) string {
 	normalized := strings.Join(strings.Fields(strings.ReplaceAll(statement, "`", "")), " ")
 	normalized = strings.ReplaceAll(normalized, "( ", "(")

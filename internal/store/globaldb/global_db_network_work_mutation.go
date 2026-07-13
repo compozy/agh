@@ -74,9 +74,9 @@ func openNetworkWorkWithExecutor(
 	if err := sqlcgen.New(exec).InsertNetworkWork(ctx, sqlcgen.InsertNetworkWorkParams{
 		WorkID: entry.WorkID, WorkspaceID: entry.WorkspaceID, Channel: entry.Channel,
 		Surface: entry.Surface, ThreadID: nullableNetworkString(entry.ThreadID),
-		DirectID: nullableNetworkString(entry.DirectID), OpenedByPeerID: entry.PeerFrom,
-		OpenedSessionID: entry.SessionID, TargetPeerID: entry.PeerTo,
-		State: store.NetworkWorkStateSubmitted, OpenedAt: store.FormatTimestamp(entry.Timestamp),
+		DirectID: nullableNetworkString(entry.DirectID), OpenedBySessionID: entry.SessionID,
+		TargetSessionID: sql.NullString{},
+		State:           store.NetworkWorkStateSubmitted, OpenedAt: store.FormatTimestamp(entry.Timestamp),
 		LastActivityAt: store.FormatTimestamp(entry.Timestamp),
 	}); err != nil {
 		return networkWorkMutation{}, fmt.Errorf("store: insert network work: %w", err)
@@ -117,8 +117,8 @@ func networkWorkFromGenerated(row sqlcgen.NetworkWork) (store.NetworkWorkEntry, 
 	}
 	entry := store.NetworkWorkEntry{
 		WorkID: row.WorkID, WorkspaceID: row.WorkspaceID, Channel: row.Channel, Surface: row.Surface,
-		ThreadID: row.ThreadID.String, DirectID: row.DirectID.String, OpenedByPeerID: row.OpenedByPeerID,
-		OpenedSessionID: row.OpenedSessionID, TargetPeerID: row.TargetPeerID, State: row.State,
+		ThreadID: row.ThreadID.String, DirectID: row.DirectID.String,
+		OpenedBySessionID: row.OpenedBySessionID, TargetSessionID: row.TargetSessionID.String, State: row.State,
 		OpenedAt: openedAt, LastActivityAt: lastActivityAt,
 	}
 	if row.TerminalAt.Valid {

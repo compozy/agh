@@ -72,7 +72,7 @@ func TestCoordinatorRunnerShouldExecutePinnedDefinitionSnapshot(t *testing.T) {
 		}
 		runner, err := NewCoordinatorRunner(
 			&coordinatorRunnerTaskRunReader{run: coordinatorRun},
-			coordinatorRunnerLoopStore{
+			&coordinatorRunnerLoopStore{
 				run: run,
 				snapshot: &DefinitionSnapshot{
 					WorkspaceID: run.WorkspaceID,

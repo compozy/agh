@@ -2,12 +2,10 @@ package globaldb
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
@@ -64,7 +62,6 @@ func (g *TaskRepo) normalizeQueuedRunReservationInput(
 	}
 	normalizedReservation.Origin = normalizedOrigin
 	normalizedReservation.IdempotencyKey = strings.TrimSpace(normalizedReservation.IdempotencyKey)
-	normalizedReservation.RequestedChannel = strings.TrimSpace(normalizedReservation.RequestedChannel)
 	normalizedReservation.DesignationGroupID = strings.TrimSpace(normalizedReservation.DesignationGroupID)
 	normalizedReservation.Metadata = normalizeTaskJSON(normalizedReservation.Metadata)
 	if err := normalizedReservation.Validate("queue_run_reservation"); err != nil {
@@ -81,7 +78,7 @@ func (g *TaskRepo) normalizeQueuedRunReservationInput(
 		loopRunID:          normalizedReservation.LoopRunID,
 		idempotencyKey:     normalizedReservation.IdempotencyKey,
 		origin:             normalizedOrigin,
-		requestedChannel:   normalizedReservation.RequestedChannel,
+		networkSpec:        normalizedReservation.NetworkSpec,
 		designationGroupID: normalizedReservation.DesignationGroupID,
 		metadata:           normalizedReservation.Metadata,
 		queuedAt:           normalizedQueuedAt,
@@ -184,33 +181,20 @@ func (g *TaskRepo) createQueuedRunWithExecutor(
 		return taskpkg.Run{}, err
 	}
 
-	networkChannel := resolveStoredRunChannel(input.requestedChannel, taskRecord.NetworkChannel)
-	coordinationChannelID := coordinationChannelIDForQueuedRun(taskRecord, networkChannel, input.runID)
-	if err := ensureQueuedRunCoordinationChannel(
-		ctx,
-		exec,
-		taskRecord,
-		coordinationChannelID,
-		input.origin,
-		input.queuedAt,
-	); err != nil {
-		return taskpkg.Run{}, err
-	}
 	run := taskpkg.Run{
-		ID:                    input.runID,
-		TaskID:                taskRecord.ID,
-		RunKind:               input.runKind,
-		LoopRunID:             input.loopRunID,
-		Status:                taskpkg.TaskRunStatusQueued,
-		Attempt:               runAttempt,
-		Origin:                input.origin,
-		IdempotencyKey:        input.idempotencyKey,
-		NetworkChannel:        networkChannel,
-		DesignationGroupID:    input.designationGroupID,
-		CoordinationChannelID: coordinationChannelID,
-		Metadata:              input.metadata,
-		QueuedAt:              input.queuedAt,
+		ID:                 input.runID,
+		TaskID:             taskRecord.ID,
+		RunKind:            input.runKind,
+		LoopRunID:          input.loopRunID,
+		Status:             taskpkg.TaskRunStatusQueued,
+		Attempt:            runAttempt,
+		Origin:             input.origin,
+		IdempotencyKey:     input.idempotencyKey,
+		DesignationGroupID: input.designationGroupID,
+		Metadata:           input.metadata,
+		QueuedAt:           input.queuedAt,
 	}
+	run.SetNetworkState(input.networkSpec, "", "", "")
 	normalizedRun, err := g.normalizeTaskRunForCreate(run)
 	if err != nil {
 		return taskpkg.Run{}, err
@@ -230,119 +214,6 @@ func taskRunAttemptFromInt(value int) (int32, error) {
 		return 0, fmt.Errorf("%w: task run attempt out of range: %d", taskpkg.ErrValidation, value)
 	}
 	return int32(value), nil
-}
-
-func coordinationChannelIDForQueuedRun(taskRecord taskpkg.Task, networkChannel string, runID string) string {
-	if taskRecord.Scope.Normalize() != taskpkg.ScopeWorkspace {
-		return ""
-	}
-	if trimmed := strings.TrimSpace(networkChannel); trimmed != "" {
-		return trimmed
-	}
-	return derivedRunCoordinationChannelID(runID)
-}
-
-func ensureQueuedRunCoordinationChannel(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	taskRecord taskpkg.Task,
-	channelID string,
-	origin taskpkg.Origin,
-	queuedAt time.Time,
-) error {
-	trimmedChannelID := strings.TrimSpace(channelID)
-	if trimmedChannelID == "" {
-		return nil
-	}
-	trimmedWorkspaceID := strings.TrimSpace(taskRecord.WorkspaceID)
-	if trimmedWorkspaceID == "" {
-		return fmt.Errorf(
-			"%w: workspace task %q requires workspace_id for coordination channel",
-			taskpkg.ErrValidation,
-			taskRecord.ID,
-		)
-	}
-
-	entry, err := networkChannelEntry(ctx, exec, trimmedChannelID)
-	switch {
-	case err == nil:
-		if strings.TrimSpace(entry.WorkspaceID) != trimmedWorkspaceID {
-			return fmt.Errorf(
-				"%w: coordination channel %q belongs to workspace %q, not %q",
-				taskpkg.ErrValidation,
-				trimmedChannelID,
-				entry.WorkspaceID,
-				trimmedWorkspaceID,
-			)
-		}
-		return nil
-	case errors.Is(err, sql.ErrNoRows):
-	default:
-		return err
-	}
-
-	timestamp := queuedAt.UTC()
-	if timestamp.IsZero() {
-		timestamp = time.Now().UTC()
-	}
-	err = sqlcgen.New(exec).InsertNetworkChannelForTask(ctx, sqlcgen.InsertNetworkChannelForTaskParams{
-		Channel: trimmedChannelID, WorkspaceID: trimmedWorkspaceID,
-		Purpose:   "task_run_coordination",
-		CreatedBy: nullableTaskString(coordinationChannelCreatedBy(origin)),
-		CreatedAt: store.FormatTimestamp(timestamp), UpdatedAt: store.FormatTimestamp(timestamp),
-	})
-	if err != nil {
-		return fmt.Errorf("store: create task-run coordination channel %q: %w", trimmedChannelID, err)
-	}
-	return nil
-}
-
-func derivedRunCoordinationChannelID(runID string) string {
-	seed := strings.ToLower(strings.TrimSpace(runID))
-	cleaned := make([]rune, 0, len(seed))
-	lastDash := false
-	for _, r := range seed {
-		switch {
-		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '_':
-			cleaned = append(cleaned, r)
-			lastDash = false
-		case r == '-':
-			if len(cleaned) > 0 && !lastDash {
-				cleaned = append(cleaned, r)
-				lastDash = true
-			}
-		default:
-			if len(cleaned) > 0 && !lastDash {
-				cleaned = append(cleaned, '-')
-				lastDash = true
-			}
-		}
-		if len(cleaned) >= 58 {
-			break
-		}
-	}
-	value := strings.Trim(string(cleaned), "-_")
-	if value == "" || !validCoordinationChannelStart(value[0]) {
-		sum := sha256.Sum256([]byte(seed))
-		value = fmt.Sprintf("run-%x", sum[:6])
-	}
-	return "coord-" + value
-}
-
-func validCoordinationChannelStart(value byte) bool {
-	return (value >= 'a' && value <= 'z') || (value >= '0' && value <= '9')
-}
-
-func coordinationChannelCreatedBy(origin taskpkg.Origin) string {
-	kind := strings.TrimSpace(string(origin.Kind.Normalize()))
-	ref := strings.TrimSpace(origin.Ref)
-	if kind == "" {
-		return ref
-	}
-	if ref == "" {
-		return kind
-	}
-	return kind + ":" + ref
 }
 
 func insertQueuedTaskRun(ctx context.Context, exec taskSQLExecutor, run taskpkg.Run) error {

@@ -73,7 +73,7 @@ CREATE TABLE task_run_starvation (
 
 CREATE TABLE "task_runs" (
 		id              TEXT PRIMARY KEY,
-		task_id         TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+		task_id         TEXT REFERENCES tasks(id) ON DELETE CASCADE,
 		status          TEXT NOT NULL,
 		attempt         INTEGER NOT NULL CHECK (attempt > 0),
 		previous_run_id TEXT,
@@ -94,7 +94,16 @@ CREATE TABLE "task_runs" (
 		),
 		origin_ref      TEXT NOT NULL,
 		idempotency_key TEXT,
+		network_spec_json TEXT NOT NULL DEFAULT '{"version":"network-participation/v1","mode":"local","source":"built_in_local"}'
+			CHECK (json_valid(network_spec_json)),
+		network_mode TEXT NOT NULL DEFAULT 'local' CHECK (network_mode IN ('local', 'live')),
 		network_channel TEXT,
+		network_source TEXT NOT NULL DEFAULT 'built_in_local' CHECK (
+			network_source IN (
+				'explicit_request', 'task_profile', 'workspace_coordination',
+				'loop_definition', 'automation_job', 'built_in_local'
+			)
+		),
 		designation_group_id TEXT NOT NULL DEFAULT '',
 		queued_at       TEXT NOT NULL,
 		claimed_at      TEXT,
@@ -128,12 +137,25 @@ CREATE TABLE "task_runs" (
 		claim_token_hash TEXT,
 		lease_until TEXT,
 		heartbeat_at TEXT,
-		coordination_channel_id TEXT, run_kind TEXT NOT NULL DEFAULT 'worker', loop_run_id TEXT, tokens_used INTEGER NOT NULL DEFAULT 0,
+		run_kind TEXT NOT NULL DEFAULT 'worker' CHECK (run_kind IN ('worker', 'coordinator', 'network_wake')),
+		loop_run_id TEXT,
+		tokens_used INTEGER NOT NULL DEFAULT 0 CHECK (tokens_used >= 0),
+		network_wake_id TEXT,
+		network_target_session_id TEXT,
+		network_owner_key TEXT,
 		CHECK (
 			(claimed_by_kind IS NULL AND claimed_by_ref IS NULL) OR
 			(claimed_by_kind IS NOT NULL AND claimed_by_ref IS NOT NULL)
 		),
-		CHECK (status <> 'queued' OR session_id IS NULL)
+		CHECK (status <> 'queued' OR session_id IS NULL),
+		CHECK (run_kind = 'network_wake' OR task_id IS NOT NULL),
+		CHECK (run_kind <> 'network_wake' OR task_id IS NULL),
+		CHECK (
+			(run_kind = 'network_wake' AND network_wake_id IS NOT NULL
+				AND network_target_session_id IS NOT NULL AND network_owner_key IS NOT NULL) OR
+			(run_kind <> 'network_wake' AND network_wake_id IS NULL
+				AND network_target_session_id IS NULL AND network_owner_key IS NULL)
+		)
 	);
 
 CREATE INDEX idx_task_run_idempotency_run ON task_run_idempotency(run_id);
@@ -173,9 +195,6 @@ CREATE INDEX idx_task_runs_active_lease_recovery
 
 CREATE INDEX idx_task_runs_channel ON task_runs(network_channel);
 
-CREATE INDEX idx_task_runs_coordination_channel
-			ON task_runs(coordination_channel_id, queued_at DESC, id DESC);
-
 CREATE INDEX idx_task_runs_designation_group ON task_runs(task_id, designation_group_id);
 
 CREATE INDEX idx_task_runs_parent_run ON task_runs(parent_run_id);
@@ -193,6 +212,10 @@ CREATE INDEX idx_task_runs_session ON task_runs(session_id);
 
 CREATE INDEX idx_task_runs_session_status
 			ON task_runs(session_id, status, lease_until);
+
+CREATE INDEX idx_task_runs_target_session
+			ON task_runs(network_target_session_id, status, queued_at, id)
+			WHERE run_kind = 'network_wake';
 
 CREATE INDEX idx_task_runs_status ON task_runs(status);
 

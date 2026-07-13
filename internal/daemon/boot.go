@@ -261,7 +261,6 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 		SkillsAugmenter:                     state.skillsRegistry != nil,
 		SituationAugmenter:                  state.situationContext != nil,
 		DurableMemoryAugmenter:              state.memoryStore != nil,
-		NetworkResponseRegisterAugmenter:    state.cfg.Network.ResponseGuidanceMaxBytes > 0,
 		SyntheticTurnsEnabled:               true,
 		DetachedTaskRuntimeEnabled:          true,
 	})
@@ -273,7 +272,7 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 				prependProviders,
 				appendProviders,
 				state.situationContext,
-				state.cfg.Network.ResponseGuidanceMaxBytes,
+				0,
 			)...,
 		),
 	)
@@ -285,19 +284,6 @@ func (d *Daemon) bootPromptProviders(ctx context.Context, state *bootState) erro
 		}),
 		state.situationContext.Augment,
 	)
-	if state.cfg.Network.ResponseGuidanceMaxBytes > 0 {
-		promptAugmenterDescriptors = append(
-			promptAugmenterDescriptors,
-			promptInputAugmenterDescriptor{
-				Name:           HarnessAugmenterNetworkResponseRegister,
-				Order:          networkResponseAugmenterOrder,
-				Budget:         state.cfg.Network.ResponseGuidanceMaxBytes,
-				BudgetBehavior: promptInputAugmenterBudgetBehaviorTrim,
-				Critical:       false,
-				Augmenter:      newNetworkResponseRegisterAugmenter(),
-			},
-		)
-	}
 	promptAugmenter, err := newPromptInputCompositeAugmenter(
 		state.logger,
 		state.harnessResolver,
@@ -1448,7 +1434,6 @@ func (d *Daemon) bootBundles(_ context.Context, state *bootState) error {
 			)
 		},
 		bundlepkg.WithWorkspaceResolver(state.workspaceResolver),
-		bundlepkg.WithConfiguredDefaultChannel(state.cfg.Network.DefaultChannel),
 		bundlepkg.WithLogger(state.logger),
 		bundlepkg.WithNow(d.now),
 	)

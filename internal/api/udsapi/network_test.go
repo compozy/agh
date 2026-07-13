@@ -160,6 +160,7 @@ func TestNetworkDirectResolveCreatesRoom(t *testing.T) {
 		handlers.Config.Network.Enabled = true
 
 		localSessionID := "sess-local"
+		remoteSessionID := "sess-remote"
 		handlers.Network = stubNetworkService{
 			ListPeersFn: func(_ context.Context, workspaceID string, channel string) ([]network.PeerInfo, error) {
 				if workspaceID != networkUDSTestWorkspaceID {
@@ -176,21 +177,22 @@ func TestNetworkDirectResolveCreatesRoom(t *testing.T) {
 						SessionID: &localSessionID,
 					},
 					{
-						PeerID:  "reviewer.sess-xyz",
-						Channel: "builders",
+						PeerID:    "reviewer.sess-xyz",
+						Channel:   "builders",
+						SessionID: &remoteSessionID,
 					},
 				}, nil
 			},
 		}
 
-		wantDirectID, wantPeerA, wantPeerB, err := network.DirectRoomIdentity(
+		wantDirectID, wantSessionA, wantSessionB, err := store.NetworkDirectRoomIdentity(
 			networkUDSTestWorkspaceID,
 			"builders",
-			"coder.sess-abc",
-			"reviewer.sess-xyz",
+			localSessionID,
+			remoteSessionID,
 		)
 		if err != nil {
-			t.Fatalf("DirectRoomIdentity() error = %v", err)
+			t.Fatalf("NetworkDirectRoomIdentity() error = %v", err)
 		}
 		handlers.NetworkStore = testutil.StubNetworkStore{
 			ResolveDirectRoomFn: func(
@@ -199,15 +201,15 @@ func TestNetworkDirectResolveCreatesRoom(t *testing.T) {
 			) (store.NetworkDirectRoomSummary, error) {
 				if entry.Channel != "builders" ||
 					entry.DirectID != wantDirectID ||
-					entry.PeerA != wantPeerA ||
-					entry.PeerB != wantPeerB {
+					entry.SessionA != wantSessionA ||
+					entry.SessionB != wantSessionB {
 					t.Fatalf("ResolveDirectRoom() entry = %#v, want deterministic direct-room identity", entry)
 				}
 				return store.NetworkDirectRoomSummary{
 					Channel:        entry.Channel,
 					DirectID:       entry.DirectID,
-					PeerA:          entry.PeerA,
-					PeerB:          entry.PeerB,
+					SessionA:       entry.SessionA,
+					SessionB:       entry.SessionB,
 					OpenedAt:       time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC),
 					LastActivityAt: time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC),
 				}, nil
@@ -229,8 +231,8 @@ func TestNetworkDirectResolveCreatesRoom(t *testing.T) {
 		var payload contract.NetworkDirectRoomResponse
 		decodeJSONResponse(t, resp, &payload)
 		if payload.Direct.DirectID != wantDirectID ||
-			payload.Direct.PeerA != wantPeerA ||
-			payload.Direct.PeerB != wantPeerB {
+			payload.Direct.PeerA != wantSessionA ||
+			payload.Direct.PeerB != wantSessionB {
 			t.Fatalf("direct resolve payload = %#v, want deterministic room", payload.Direct)
 		}
 	})

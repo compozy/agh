@@ -1,13 +1,13 @@
 -- name: InsertTask :exec
 INSERT INTO tasks (
-  id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
+  id, identifier, scope, workspace_id, parent_task_id, title, description,
   priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
   owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
   created_at, updated_at, closed_at, paused, paused_by, paused_at, paused_reason, wake_creator,
   metadata_json
 ) VALUES (
   sqlc.arg(id), sqlc.narg(identifier), sqlc.arg(scope), sqlc.narg(workspace_id),
-  sqlc.narg(parent_task_id), sqlc.narg(network_channel), sqlc.arg(title), sqlc.narg(description),
+  sqlc.narg(parent_task_id), sqlc.arg(title), sqlc.narg(description),
   sqlc.arg(priority), sqlc.arg(max_attempts), sqlc.arg(auto_enqueue_on_ready), sqlc.arg(status),
   sqlc.arg(approval_policy), sqlc.arg(approval_state), sqlc.narg(owner_kind), sqlc.narg(owner_ref),
   sqlc.arg(created_by_kind), sqlc.arg(created_by_ref), sqlc.arg(origin_kind), sqlc.arg(origin_ref),
@@ -25,7 +25,6 @@ SET identifier = sqlc.narg(identifier),
     scope = sqlc.arg(scope),
     workspace_id = sqlc.narg(workspace_id),
     parent_task_id = sqlc.narg(parent_task_id),
-    network_channel = sqlc.narg(network_channel),
     title = sqlc.arg(title),
     description = sqlc.narg(description),
     priority = sqlc.arg(priority),
@@ -56,7 +55,7 @@ WHERE id = sqlc.arg(id);
 
 -- name: GetTask :one
 SELECT
-  id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
+  id, identifier, scope, workspace_id, parent_task_id, title, description,
   priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
   owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
   created_at, updated_at, closed_at, current_run_id,
@@ -79,28 +78,31 @@ SELECT id FROM tasks WHERE tasks.id = sqlc.arg(task_id);
 INSERT INTO task_runs (
   id, task_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind,
   claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
-  network_channel, designation_group_id, claim_token, claim_token_hash, lease_until,
-  heartbeat_at, coordination_channel_id, queued_at, claimed_at, started_at, ended_at,
+  network_spec_json, network_mode, network_channel, network_source, designation_group_id,
+  claim_token, claim_token_hash, lease_until, heartbeat_at, queued_at, claimed_at, started_at, ended_at,
   tokens_used, error, metadata_json, result_json, review_required, review_request_round,
   review_policy_snapshot, review_request_id, parent_run_id, review_id, review_round,
-  continuation_reason, missing_work_json, next_round_guidance
+  continuation_reason, missing_work_json, next_round_guidance,
+  network_wake_id, network_target_session_id, network_owner_key
 ) VALUES (
-  sqlc.arg(id), sqlc.arg(task_id), sqlc.arg(run_kind), sqlc.narg(loop_run_id), sqlc.arg(status),
+  sqlc.arg(id), sqlc.narg(task_id), sqlc.arg(run_kind), sqlc.narg(loop_run_id), sqlc.arg(status),
   sqlc.arg(attempt), sqlc.narg(previous_run_id), sqlc.arg(failure_kind), sqlc.narg(claimed_by_kind),
   sqlc.narg(claimed_by_ref), sqlc.narg(session_id), sqlc.arg(origin_kind), sqlc.arg(origin_ref),
-  sqlc.narg(idempotency_key), sqlc.narg(network_channel), sqlc.arg(designation_group_id),
+  sqlc.narg(idempotency_key), sqlc.arg(network_spec_json), sqlc.arg(network_mode),
+  sqlc.narg(network_channel), sqlc.arg(network_source), sqlc.arg(designation_group_id),
   NULL, sqlc.narg(claim_token_hash), sqlc.narg(lease_until), sqlc.narg(heartbeat_at),
-  sqlc.narg(coordination_channel_id), sqlc.arg(queued_at), sqlc.narg(claimed_at),
-  sqlc.narg(started_at), sqlc.narg(ended_at), sqlc.arg(tokens_used), sqlc.narg(error),
+  sqlc.arg(queued_at), sqlc.narg(claimed_at), sqlc.narg(started_at), sqlc.narg(ended_at),
+  sqlc.arg(tokens_used), sqlc.narg(error),
   sqlc.narg(metadata_json), sqlc.narg(result_json), sqlc.arg(review_required),
   sqlc.arg(review_request_round), sqlc.arg(review_policy_snapshot), sqlc.narg(review_request_id),
   sqlc.narg(parent_run_id), sqlc.narg(review_id), sqlc.arg(review_round),
-  sqlc.arg(continuation_reason), sqlc.arg(missing_work_json), sqlc.arg(next_round_guidance)
+  sqlc.arg(continuation_reason), sqlc.arg(missing_work_json), sqlc.arg(next_round_guidance),
+  sqlc.narg(network_wake_id), sqlc.narg(network_target_session_id), sqlc.narg(network_owner_key)
 );
 
 -- name: UpdateTaskRun :execrows
 UPDATE task_runs
-SET task_id = sqlc.arg(task_id),
+SET task_id = sqlc.narg(task_id),
     run_kind = sqlc.arg(run_kind),
     loop_run_id = sqlc.narg(loop_run_id),
     status = sqlc.arg(status),
@@ -113,13 +115,15 @@ SET task_id = sqlc.arg(task_id),
     origin_kind = sqlc.arg(origin_kind),
     origin_ref = sqlc.arg(origin_ref),
     idempotency_key = sqlc.narg(idempotency_key),
+    network_spec_json = sqlc.arg(network_spec_json),
+    network_mode = sqlc.arg(network_mode),
     network_channel = sqlc.narg(network_channel),
+    network_source = sqlc.arg(network_source),
     designation_group_id = sqlc.arg(designation_group_id),
     claim_token = NULL,
     claim_token_hash = sqlc.narg(claim_token_hash),
     lease_until = sqlc.narg(lease_until),
     heartbeat_at = sqlc.narg(heartbeat_at),
-    coordination_channel_id = sqlc.narg(coordination_channel_id),
     queued_at = sqlc.arg(queued_at),
     claimed_at = sqlc.narg(claimed_at),
     started_at = sqlc.narg(started_at),
@@ -137,18 +141,22 @@ SET task_id = sqlc.arg(task_id),
     review_round = sqlc.arg(review_round),
     continuation_reason = sqlc.arg(continuation_reason),
     missing_work_json = sqlc.arg(missing_work_json),
-    next_round_guidance = sqlc.arg(next_round_guidance)
+    next_round_guidance = sqlc.arg(next_round_guidance),
+    network_wake_id = sqlc.narg(network_wake_id),
+    network_target_session_id = sqlc.narg(network_target_session_id),
+    network_owner_key = sqlc.narg(network_owner_key)
 WHERE id = sqlc.arg(id);
 
 -- name: GetTaskRun :one
 SELECT
   id, task_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind,
   claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
-  network_channel, designation_group_id, '' AS claim_token, claim_token_hash, lease_until,
-  heartbeat_at, coordination_channel_id, queued_at, claimed_at, started_at, ended_at,
+  network_spec_json, network_mode, network_channel, network_source, designation_group_id,
+  '' AS claim_token, claim_token_hash, lease_until, heartbeat_at, queued_at, claimed_at, started_at, ended_at,
   tokens_used, error, metadata_json, result_json, review_required, review_request_round,
   review_policy_snapshot, review_request_id, parent_run_id, review_id, review_round,
-  continuation_reason, missing_work_json, next_round_guidance
+  continuation_reason, missing_work_json, next_round_guidance,
+  network_wake_id, network_target_session_id, network_owner_key
 FROM task_runs
 WHERE id = sqlc.arg(id);
 
@@ -162,11 +170,12 @@ WHERE session_id = sqlc.arg(session_id)
 SELECT
   id, task_id, run_kind, loop_run_id, status, attempt, previous_run_id, failure_kind,
   claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
-  network_channel, designation_group_id, '' AS claim_token, claim_token_hash, lease_until,
-  heartbeat_at, coordination_channel_id, queued_at, claimed_at, started_at, ended_at,
+  network_spec_json, network_mode, network_channel, network_source, designation_group_id,
+  '' AS claim_token, claim_token_hash, lease_until, heartbeat_at, queued_at, claimed_at, started_at, ended_at,
   tokens_used, error, metadata_json, result_json, review_required, review_request_round,
   review_policy_snapshot, review_request_id, parent_run_id, review_id, review_round,
-  continuation_reason, missing_work_json, next_round_guidance
+  continuation_reason, missing_work_json, next_round_guidance,
+  network_wake_id, network_target_session_id, network_owner_key
 FROM task_runs
 WHERE status IN (sqlc.slice(statuses))
 ORDER BY queued_at ASC, id ASC;

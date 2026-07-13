@@ -32,10 +32,9 @@ const (
 		"the authoritative current skill state for this turn."
 	currentSkillsCatalogFinalLine = "If current tool policy denies canonical `agh__skill_view`, " +
 		"use `agh skill view <name>` as an operator fallback."
-	durableMemoryOpen             = "<turn-recall>"
-	durableMemoryClose            = "</turn-recall>"
-	networkResponseRegisterPrefix = "Network response register:"
-	inboundBridgePromptPrefix     = "Inbound bridge message"
+	durableMemoryOpen         = "<turn-recall>"
+	durableMemoryClose        = "</turn-recall>"
+	inboundBridgePromptPrefix = "Inbound bridge message"
 )
 
 // LoadFixture parses and validates one fixture file.
@@ -361,7 +360,7 @@ func lastLineMarkerIndex(text string, marker string) int {
 }
 
 func stripKnownPromptAugmentation(prompt string) string {
-	next := stripLeadingNetworkResponseRegister(prompt)
+	next := prompt
 	next = stripLeadingPromptBlock(next, aghSituationContextOpen, aghSituationContextClose)
 	next = stripLeadingSkillsCatalogBlock(next, currentAvailableSkillsOpen, currentAvailableSkillsClose)
 	next = stripLeadingSkillsCatalogBlock(next, availableSkillsOpen, availableSkillsClose)
@@ -409,18 +408,6 @@ func stripLeadingSkillsCatalogInstructions(prompt string) (string, bool) {
 		return trimmed, false
 	}
 	return strings.TrimSpace(rest), true
-}
-
-func stripLeadingNetworkResponseRegister(prompt string) string {
-	trimmed := strings.TrimSpace(prompt)
-	if !strings.HasPrefix(trimmed, networkResponseRegisterPrefix) {
-		return trimmed
-	}
-	_, after, ok := strings.Cut(trimmed, "\n\n")
-	if !ok {
-		return trimmed
-	}
-	return strings.TrimSpace(after)
 }
 
 func stripLeadingSelfClosingPromptBlock(prompt string, block string) string {

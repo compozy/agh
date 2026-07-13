@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
@@ -253,6 +254,7 @@ func seedNetworkStatusObserverThread(
 	t *testing.T,
 	db interface {
 		InsertWorkspace(context.Context, workspacepkg.Workspace) error
+		RegisterSession(context.Context, store.SessionInfo) error
 		WriteNetworkChannel(context.Context, store.NetworkChannelEntry) error
 		WriteConversationMessage(
 			context.Context,
@@ -271,6 +273,18 @@ func seedNetworkStatusObserverThread(
 		UpdatedAt: now,
 	}); err != nil {
 		t.Fatalf("InsertWorkspace() error = %v", err)
+	}
+	if err := db.RegisterSession(ctx, store.SessionInfo{
+		ID:                  "sess-origin",
+		AgentName:           "reviewer",
+		WorkspaceID:         "wks_status",
+		SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
+		SessionType:         "system",
+		State:               "stopped",
+		CreatedAt:           now,
+		UpdatedAt:           now,
+	}); err != nil {
+		t.Fatalf("RegisterSession() error = %v", err)
 	}
 	if err := db.WriteNetworkChannel(ctx, store.NetworkChannelEntry{
 		WorkspaceID:  "wks_status",

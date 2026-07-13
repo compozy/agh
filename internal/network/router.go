@@ -1615,8 +1615,9 @@ func (r *Router) threadParticipantSet(ctx context.Context, envelope Envelope) (m
 	}
 	participantSet := make(map[string]bool, len(participants))
 	for _, participant := range participants {
-		if peerID := strings.TrimSpace(participant.PeerID); peerID != "" {
-			participantSet[peerID] = true
+		local, ok := r.peers.LocalBySession(participant.SessionID)
+		if ok {
+			participantSet[local.PeerID] = true
 		}
 	}
 	return participantSet, nil

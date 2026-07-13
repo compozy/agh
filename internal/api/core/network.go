@@ -211,36 +211,36 @@ func (h *BaseHandlers) populateNetworkDirectSendTarget(
 	if err != nil {
 		return err
 	}
-	peers, err := service.ListPeers(ctx, scope.NetworkWorkspaceID(), channel)
+	sessionID := strings.TrimSpace(req.SessionID)
+	targetSessionID := ""
+	switch sessionID {
+	case strings.TrimSpace(direct.SessionA):
+		targetSessionID = strings.TrimSpace(direct.SessionB)
+	case strings.TrimSpace(direct.SessionB):
+		targetSessionID = strings.TrimSpace(direct.SessionA)
+	default:
+		return fmt.Errorf(
+			"%w: session %q is not part of direct room %q",
+			network.ErrInvalidField,
+			sessionID,
+			directID,
+		)
+	}
+	peers, err := service.ListPeers(ctx, scope.NetworkWorkspaceID(), "")
 	if err != nil {
 		return err
 	}
-	sessionID := strings.TrimSpace(req.SessionID)
 	for _, peer := range peers {
-		if peer.SessionID == nil || strings.TrimSpace(*peer.SessionID) != sessionID {
+		if peer.SessionID == nil || strings.TrimSpace(*peer.SessionID) != targetSessionID {
 			continue
 		}
-		peerID := strings.TrimSpace(peer.PeerID)
-		switch peerID {
-		case strings.TrimSpace(direct.PeerA):
-			req.To = strings.TrimSpace(direct.PeerB)
-			return nil
-		case strings.TrimSpace(direct.PeerB):
-			req.To = strings.TrimSpace(direct.PeerA)
-			return nil
-		default:
-			return fmt.Errorf(
-				"%w: session peer %q is not part of direct room %q",
-				network.ErrInvalidField,
-				peerID,
-				directID,
-			)
-		}
+		req.To = strings.TrimSpace(peer.PeerID)
+		return nil
 	}
 	return fmt.Errorf(
 		"%w: session=%q channel=%q",
-		network.ErrLocalPeerNotFound,
-		sessionID,
+		network.ErrTargetPeerNotFound,
+		targetSessionID,
 		channel,
 	)
 }

@@ -217,8 +217,9 @@ type Run struct {
 	ControlActor          task.ActorIdentity
 	ControlRequestedAt    time.Time
 	GoalContextNudgeRatio float64
-	Origin                *RunOrigin
-	Inputs                map[string]any
+	*RunNetworkState
+	Origin *RunOrigin
+	Inputs map[string]any
 }
 
 // DefinitionSnapshot is the content-addressed executed definition pinned by one or more runs.

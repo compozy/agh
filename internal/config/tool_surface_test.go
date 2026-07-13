@@ -312,9 +312,9 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			denial: ConfigPathTrustForbidden,
 		},
 		{
-			name:   "Should reject network port trust root",
+			name:   "Should reject removed network port path",
 			path:   "network.port",
-			denial: ConfigPathTrustForbidden,
+			denial: ConfigPathForbidden,
 		},
 		{
 			name:   "Should reject tool policy trust root",
@@ -360,6 +360,76 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			}
 			if tc.denial == ConfigPathAllowed && policy.Kind != tc.kind {
 				t.Fatalf("PathPolicy.Kind = %d, want %d", policy.Kind, tc.kind)
+			}
+		})
+	}
+}
+
+func TestToolConfigPathPolicyShouldExposeOnlyCurrentNetworkPaths(t *testing.T) {
+	t.Parallel()
+
+	allowed := map[string]ValueKind{
+		"network.live.defaults.max_wakes":           ConfigValueInt,
+		"network.live.defaults.max_wake_wall_time":  ConfigValueString,
+		"network.live.defaults.max_total_wall_time": ConfigValueString,
+		"network.live.defaults.max_input_tokens":    ConfigValueInt64,
+		"network.live.defaults.max_output_tokens":   ConfigValueInt64,
+		"network.live.defaults.max_wake_depth":      ConfigValueInt,
+		"network.live.defaults.coalesce_window":     ConfigValueString,
+		networkLiveLimitsMaxWakesPath:               ConfigValueInt,
+		"network.live.limits.max_wake_wall_time":    ConfigValueString,
+		"network.live.limits.max_total_wall_time":   ConfigValueString,
+		"network.live.limits.max_input_tokens":      ConfigValueInt64,
+		"network.live.limits.max_output_tokens":     ConfigValueInt64,
+		"network.live.limits.max_wake_depth":        ConfigValueInt,
+		networkLiveLimitsMinCoalesceWindowPath:      ConfigValueString,
+		"network.live.limits.max_coalesce_window":   ConfigValueString,
+	}
+	for pathValue, wantKind := range allowed {
+		t.Run("Should allow "+pathValue, func(t *testing.T) {
+			t.Parallel()
+
+			path, err := ParseDottedConfigPath(pathValue)
+			if err != nil {
+				t.Fatalf("ParseDottedConfigPath() error = %v", err)
+			}
+			policy, err := ClassifyToolConfigPath(path)
+			if err != nil {
+				t.Fatalf("ClassifyToolConfigPath() error = %v", err)
+			}
+			if policy.Denial != ConfigPathAllowed {
+				t.Fatalf("PathPolicy.Denial = %q, want allowed", policy.Denial)
+			}
+			if policy.Kind != wantKind {
+				t.Fatalf("PathPolicy.Kind = %d, want %d", policy.Kind, wantKind)
+			}
+		})
+	}
+
+	removed := []string{
+		"network.default_channel",
+		"network.port",
+		"network.max_payload",
+		"network.activation_top_k",
+		"network.digest_flush_interval",
+		"network.digest_max_envelopes",
+		"network.response_guidance_max_bytes",
+		"network.delivery_structured_body_max_bytes",
+	}
+	for _, pathValue := range removed {
+		t.Run("Should reject "+pathValue, func(t *testing.T) {
+			t.Parallel()
+
+			path, err := ParseDottedConfigPath(pathValue)
+			if err != nil {
+				t.Fatalf("ParseDottedConfigPath() error = %v", err)
+			}
+			policy, err := ClassifyToolConfigPath(path)
+			if err != nil {
+				t.Fatalf("ClassifyToolConfigPath() error = %v", err)
+			}
+			if policy.Denial != ConfigPathForbidden {
+				t.Fatalf("PathPolicy.Denial = %q, want %q", policy.Denial, ConfigPathForbidden)
 			}
 		})
 	}

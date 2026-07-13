@@ -19,16 +19,18 @@ func updateTaskCurrentRunProjectionForRunUpdate(
 ) error {
 	currentActive := taskRunProjectsCurrent(current.Status)
 	nextActive := taskRunProjectsCurrent(next.Status)
-	if currentActive && strings.TrimSpace(current.TaskID) != strings.TrimSpace(next.TaskID) {
-		if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
+	currentTaskID := strings.TrimSpace(current.TaskID)
+	nextTaskID := strings.TrimSpace(next.TaskID)
+	if currentActive && currentTaskID != "" && currentTaskID != nextTaskID {
+		if err := clearTaskCurrentRunProjection(ctx, exec, currentTaskID, current.ID); err != nil {
 			return err
 		}
 	}
-	if nextActive {
-		return setTaskCurrentRunProjection(ctx, exec, next.TaskID, next.ID)
+	if nextActive && nextTaskID != "" {
+		return setTaskCurrentRunProjection(ctx, exec, nextTaskID, next.ID)
 	}
-	if currentActive {
-		return clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID)
+	if currentActive && currentTaskID != "" {
+		return clearTaskCurrentRunProjection(ctx, exec, currentTaskID, current.ID)
 	}
 	return nil
 }
@@ -50,7 +52,10 @@ func setTaskCurrentRunProjectionForRun(
 		}
 		return fmt.Errorf("store: load task id for current run projection %q: %w", trimmedRunID, err)
 	}
-	return setTaskCurrentRunProjection(ctx, exec, taskID, trimmedRunID)
+	if !taskID.Valid {
+		return nil
+	}
+	return setTaskCurrentRunProjection(ctx, exec, taskID.String, trimmedRunID)
 }
 
 func setTaskCurrentRunProjection(

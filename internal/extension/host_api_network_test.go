@@ -13,9 +13,11 @@ import (
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	extensioncontract "github.com/compozy/agh/internal/extension/contract"
 	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/testutil"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 const hostAPINetworkWorkspaceID = "ws-host-network"
@@ -319,11 +321,11 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 	if err != nil {
 		t.Fatalf("WriteConversationMessage(thread) error = %v", err)
 	}
-	directID, _, _, err := network.DirectRoomIdentity(
+	directID, _, _, err := store.NetworkDirectRoomIdentity(
 		hostAPINetworkWorkspaceID,
 		"builders",
-		"agent.local",
-		"peer.remote",
+		"sess-local",
+		"sess-remote",
 	)
 	if err != nil {
 		t.Fatalf("DirectRoomIdentity() error = %v", err)
@@ -336,8 +338,8 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 		Surface:     store.NetworkSurfaceDirect,
 		DirectID:    directID,
 		Direction:   "sent",
-		PeerFrom:    "agent.local",
-		PeerTo:      "peer.remote",
+		PeerFrom:    "sess-local",
+		PeerTo:      "sess-remote",
 		Kind:        store.NetworkKindSay,
 		Text:        "hello direct",
 		PreviewText: "direct preview",
@@ -375,8 +377,9 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 				JoinedAt:  &joinedAt,
 			},
 			{
-				PeerID:  "peer.remote",
-				Channel: "builders",
+				SessionID: hostAPINetworkStringPtr("sess-remote"),
+				PeerID:    "peer.remote",
+				Channel:   "builders",
 				PeerCard: network.PeerCard{
 					PeerID:              "peer.remote",
 					DisplayName:         &displayName,
@@ -667,10 +670,11 @@ func TestHostAPIHandlerNetworkDirectResolveShouldBeIdempotentUnderRace(t *testin
 				PeerCard:  network.PeerCard{PeerID: "agent.local"},
 			},
 			{
-				PeerID:   "peer.remote",
-				Channel:  "builders",
-				Local:    false,
-				PeerCard: network.PeerCard{PeerID: "peer.remote"},
+				SessionID: hostAPINetworkStringPtr("sess-remote"),
+				PeerID:    "peer.remote",
+				Channel:   "builders",
+				Local:     false,
+				PeerCard:  network.PeerCard{PeerID: "peer.remote"},
 			},
 		},
 	}
@@ -715,11 +719,11 @@ func TestHostAPIHandlerNetworkDirectResolveShouldBeIdempotentUnderRace(t *testin
 	for err := range errs {
 		t.Fatalf("Handle(network/direct/resolve concurrent) error = %v", err)
 	}
-	expectedID, _, _, err := network.DirectRoomIdentity(
+	expectedID, _, _, err := store.NetworkDirectRoomIdentity(
 		hostAPINetworkWorkspaceID,
 		"builders",
-		"agent.local",
-		"peer.remote",
+		"sess-local",
+		"sess-remote",
 	)
 	if err != nil {
 		t.Fatalf("DirectRoomIdentity() error = %v", err)
@@ -983,6 +987,51 @@ func openHostAPINetworkTestStore(t testing.TB) *globaldb.GlobalDB {
 			t.Errorf("GlobalDB.Close() error = %v", err)
 		}
 	})
+	now := time.Date(2026, 4, 10, 17, 0, 0, 0, time.UTC)
+	if err := db.InsertWorkspace(testutil.Context(t), workspacepkg.Workspace{
+		ID:        hostAPINetworkWorkspaceID,
+		RootDir:   t.TempDir(),
+		Name:      "host-api-network",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("InsertWorkspace() error = %v", err)
+	}
+	for _, sessionInfo := range []store.SessionInfo{
+		{
+			ID:                  "sess-local",
+			AgentName:           "local",
+			WorkspaceID:         hostAPINetworkWorkspaceID,
+			SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
+			SessionType:         "system",
+			State:               "stopped",
+			CreatedAt:           now,
+			UpdatedAt:           now,
+		},
+		{
+			ID:                  "sess-remote",
+			AgentName:           "remote",
+			WorkspaceID:         hostAPINetworkWorkspaceID,
+			SessionNetworkState: &store.SessionNetworkState{NetworkSpec: participation.LocalSpec()},
+			SessionType:         "system",
+			State:               "stopped",
+			CreatedAt:           now,
+			UpdatedAt:           now,
+		},
+	} {
+		if err := db.RegisterSession(testutil.Context(t), sessionInfo); err != nil {
+			t.Fatalf("RegisterSession(%s) error = %v", sessionInfo.ID, err)
+		}
+	}
+	if err := db.WriteNetworkChannel(testutil.Context(t), store.NetworkChannelEntry{
+		WorkspaceID: hostAPINetworkWorkspaceID,
+		Channel:     "builders",
+		Purpose:     "Host API test coordination",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}); err != nil {
+		t.Fatalf("WriteNetworkChannel() error = %v", err)
+	}
 	return db
 }
 

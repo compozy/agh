@@ -52,12 +52,13 @@ func ValidStopReason(r StopReason) bool {
 
 // SessionInfo is the canonical session index row stored in the global database.
 type SessionInfo struct {
-	ID               string
-	Name             string
-	AgentName        string
-	Provider         string
-	WorkspaceID      string
-	Channel          string
+	ID          string
+	Name        string
+	AgentName   string
+	Provider    string
+	WorkspaceID string
+	Channel     string
+	*SessionNetworkState
 	SessionType      string
 	Lineage          *SessionLineage
 	State            string

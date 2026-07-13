@@ -114,14 +114,6 @@ SELECT channel, workspace_id, purpose, fanout_policy,
 FROM network_channels
 WHERE channel = sqlc.arg(channel);
 
--- name: InsertNetworkChannelForTask :exec
-INSERT INTO network_channels (
-  channel, workspace_id, purpose, created_by, created_at, updated_at
-) VALUES (
-  sqlc.arg(channel), sqlc.arg(workspace_id), sqlc.arg(purpose), sqlc.narg(created_by),
-  sqlc.arg(created_at), sqlc.arg(updated_at)
-);
-
 -- name: ClaimTaskRun :execrows
 UPDATE task_runs
 SET status = sqlc.arg(claimed_status),

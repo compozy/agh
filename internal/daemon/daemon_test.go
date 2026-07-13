@@ -6595,20 +6595,6 @@ func (r *recordingRegistry) DeleteNetworkSubscription(context.Context, store.Net
 	return nil
 }
 
-func (r *recordingRegistry) GetNetworkDeliveryGuidanceState(
-	context.Context,
-	string,
-) (store.NetworkDeliveryGuidanceState, error) {
-	return store.NetworkDeliveryGuidanceState{}, sql.ErrNoRows
-}
-
-func (r *recordingRegistry) PutNetworkDeliveryGuidanceState(
-	context.Context,
-	store.NetworkDeliveryGuidanceState,
-) error {
-	return nil
-}
-
 func (r *recordingRegistry) PutNetworkTaskThreadOrigin(context.Context, store.NetworkTaskThreadOrigin) error {
 	return nil
 }

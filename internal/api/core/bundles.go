@@ -188,9 +188,6 @@ func (h *BaseHandlers) defaultSessionChannel(ctx context.Context, explicit strin
 			return strings.TrimSpace(settings.EffectiveDefaultChannel), nil
 		}
 	}
-	if h != nil && h.Config.Network.Enabled {
-		return strings.TrimSpace(h.Config.Network.DefaultChannel), nil
-	}
 	return "", nil
 }
 

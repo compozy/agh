@@ -179,12 +179,17 @@ func TestApplyConfigOverlayFileAppliesNetworkOverlay(t *testing.T) {
 		writeFile(t, overlayPath, `
 [network]
 enabled = true
-default_channel = "builders"
-port = 4555
-max_payload = 12345
 greet_interval = 15
 max_replay_age = 90
 max_queue_depth = 12
+
+[network.live.defaults]
+max_wakes = 10
+coalesce_window = "750ms"
+
+[network.live.limits]
+max_wakes = 72
+max_coalesce_window = "6s"
 `)
 
 		if err := ApplyConfigOverlayFile(overlayPath, &cfg); err != nil {
@@ -194,15 +199,6 @@ max_queue_depth = 12
 		if !cfg.Network.Enabled {
 			t.Fatal("ApplyConfigOverlayFile() Network.Enabled = false, want true")
 		}
-		if got, want := cfg.Network.DefaultChannel, "builders"; got != want {
-			t.Fatalf("ApplyConfigOverlayFile() Network.DefaultChannel = %q, want %q", got, want)
-		}
-		if got, want := cfg.Network.Port, 4555; got != want {
-			t.Fatalf("ApplyConfigOverlayFile() Network.Port = %d, want %d", got, want)
-		}
-		if got, want := cfg.Network.MaxPayload, 12345; got != want {
-			t.Fatalf("ApplyConfigOverlayFile() Network.MaxPayload = %d, want %d", got, want)
-		}
 		if got, want := cfg.Network.GreetInterval, 15; got != want {
 			t.Fatalf("ApplyConfigOverlayFile() Network.GreetInterval = %d, want %d", got, want)
 		}
@@ -211,6 +207,18 @@ max_queue_depth = 12
 		}
 		if got, want := cfg.Network.MaxQueueDepth, 12; got != want {
 			t.Fatalf("ApplyConfigOverlayFile() Network.MaxQueueDepth = %d, want %d", got, want)
+		}
+		if got, want := cfg.Network.Live.Defaults.MaxWakes, 10; got != want {
+			t.Fatalf("ApplyConfigOverlayFile() Network.Live.Defaults.MaxWakes = %d, want %d", got, want)
+		}
+		if got, want := cfg.Network.Live.Limits.MaxWakes, 72; got != want {
+			t.Fatalf("ApplyConfigOverlayFile() Network.Live.Limits.MaxWakes = %d, want %d", got, want)
+		}
+		if got, want := cfg.Network.Live.Defaults.CoalesceWindow, "750ms"; got != want {
+			t.Fatalf("ApplyConfigOverlayFile() Network.Live.Defaults.CoalesceWindow = %s, want %s", got, want)
+		}
+		if got, want := cfg.Network.Live.Limits.MaxCoalesceWindow, "6s"; got != want {
+			t.Fatalf("ApplyConfigOverlayFile() Network.Live.Limits.MaxCoalesceWindow = %s, want %s", got, want)
 		}
 	})
 }
@@ -356,13 +364,14 @@ func TestValidateWrapsNetworkErrorsWithConfigContext(t *testing.T) {
 		}
 
 		cfg := DefaultWithHome(homePaths)
-		cfg.Network.Port = 0
+		cfg.Network.Live.Defaults.MaxWakes = cfg.Network.Live.Limits.MaxWakes + 1
 
 		err = cfg.Validate()
 		if err == nil {
 			t.Fatal("Validate() error = nil, want non-nil")
 		}
-		if !strings.Contains(err.Error(), "validate network config") || !strings.Contains(err.Error(), "network.port") {
+		if !strings.Contains(err.Error(), "validate network config") ||
+			!strings.Contains(err.Error(), networkLiveLimitsMaxWakesPath) {
 			t.Fatalf("Validate() error = %q, want config and network context", err)
 		}
 	})

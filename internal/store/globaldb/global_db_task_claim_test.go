@@ -108,7 +108,7 @@ func TestGlobalDBClaimNextRunConcurrentSingleWinner(t *testing.T) {
 	)
 }
 
-func TestGlobalDBClaimNextRunFiltersByCapabilitiesScopeAndChannel(t *testing.T) {
+func TestGlobalDBClaimNextRunFiltersByCapabilitiesAndScope(t *testing.T) {
 	globalDB := openTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	workspaceID := registerWorkspaceForGlobalTests(
@@ -133,7 +133,6 @@ func TestGlobalDBClaimNextRunFiltersByCapabilitiesScopeAndChannel(t *testing.T) 
 		t.Fatalf("CreateTask(matching) error = %v", err)
 	}
 	matchingRun := taskRunForTest("run-claim-match", matchingTask.ID)
-	matchingRun.CoordinationChannelID = "coord.filters"
 	matchingRun.RequiredCapabilities = []string{"golang", "sqlite"}
 	matchingRun.PreferredCapabilities = []string{"codex"}
 	if err := globalDB.CreateTaskRun(ctx, matchingRun); err != nil {
@@ -148,7 +147,6 @@ func TestGlobalDBClaimNextRunFiltersByCapabilitiesScopeAndChannel(t *testing.T) 
 		t.Fatalf("CreateTask(missing capability) error = %v", err)
 	}
 	missingCapabilityRun := taskRunForTest("run-claim-rust", missingCapabilityTask.ID)
-	missingCapabilityRun.CoordinationChannelID = "coord.filters"
 	missingCapabilityRun.RequiredCapabilities = []string{"rust"}
 	if err := globalDB.CreateTaskRun(ctx, missingCapabilityRun); err != nil {
 		t.Fatalf("CreateTaskRun(missing capability) error = %v", err)
@@ -162,20 +160,18 @@ func TestGlobalDBClaimNextRunFiltersByCapabilitiesScopeAndChannel(t *testing.T) 
 		t.Fatalf("CreateTask(other workspace) error = %v", err)
 	}
 	otherWorkspaceRun := taskRunForTest("run-claim-other-workspace", otherWorkspaceTask.ID)
-	otherWorkspaceRun.CoordinationChannelID = "coord.filters"
 	otherWorkspaceRun.RequiredCapabilities = []string{"golang"}
 	if err := globalDB.CreateTaskRun(ctx, otherWorkspaceRun); err != nil {
 		t.Fatalf("CreateTaskRun(other workspace) error = %v", err)
 	}
 
 	claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-		Scope:                 taskpkg.ScopeWorkspace,
-		WorkspaceID:           workspaceID,
-		ClaimerSessionID:      "sess-capable",
-		RequiredCapabilities:  []string{"golang", "sqlite", "codex"},
-		CoordinationChannelID: "coord.filters",
-		LeaseDuration:         time.Minute,
-		Now:                   time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC),
+		Scope:                taskpkg.ScopeWorkspace,
+		WorkspaceID:          workspaceID,
+		ClaimerSessionID:     "sess-capable",
+		RequiredCapabilities: []string{"golang", "sqlite", "codex"},
+		LeaseDuration:        time.Minute,
+		Now:                  time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC),
 	})
 	if err != nil {
 		t.Fatalf("ClaimNextRun() error = %v", err)
@@ -185,13 +181,12 @@ func TestGlobalDBClaimNextRunFiltersByCapabilitiesScopeAndChannel(t *testing.T) 
 	}
 
 	if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-		Scope:                 taskpkg.ScopeWorkspace,
-		WorkspaceID:           workspaceID,
-		ClaimerSessionID:      "sess-golang-only",
-		RequiredCapabilities:  []string{"golang"},
-		CoordinationChannelID: "coord.filters",
-		LeaseDuration:         time.Minute,
-		Now:                   time.Date(2026, 4, 26, 12, 1, 0, 0, time.UTC),
+		Scope:                taskpkg.ScopeWorkspace,
+		WorkspaceID:          workspaceID,
+		ClaimerSessionID:     "sess-golang-only",
+		RequiredCapabilities: []string{"golang"},
+		LeaseDuration:        time.Minute,
+		Now:                  time.Date(2026, 4, 26, 12, 1, 0, 0, time.UTC),
 	}); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
 		t.Fatalf("ClaimNextRun(golang only) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
 	}
@@ -616,19 +611,17 @@ func TestGlobalDBClaimNextRunFiltersByTaskOwner(t *testing.T) {
 			t.Fatalf("CreateTask() error = %v", err)
 		}
 		run := taskRunForTest("run-owner-filter", taskRecord.ID)
-		run.CoordinationChannelID = "design-review"
 		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
 			t.Fatalf("CreateTaskRun() error = %v", err)
 		}
 
 		_, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:                 taskpkg.ScopeWorkspace,
-			WorkspaceID:           workspaceID,
-			ClaimerSessionID:      "sess-wrong-agent",
-			AgentName:             "analytics-engineer-agent",
-			CoordinationChannelID: "design-review",
-			LeaseDuration:         time.Minute,
-			Now:                   now,
+			Scope:            taskpkg.ScopeWorkspace,
+			WorkspaceID:      workspaceID,
+			ClaimerSessionID: "sess-wrong-agent",
+			AgentName:        "analytics-engineer-agent",
+			LeaseDuration:    time.Minute,
+			Now:              now,
 		})
 		if !errors.Is(err, taskpkg.ErrNoClaimableRun) {
 			t.Fatalf(
@@ -647,13 +640,12 @@ func TestGlobalDBClaimNextRunFiltersByTaskOwner(t *testing.T) {
 		}
 
 		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:                 taskpkg.ScopeWorkspace,
-			WorkspaceID:           workspaceID,
-			ClaimerSessionID:      "sess-frontend",
-			AgentName:             "frontend-engineer-agent",
-			CoordinationChannelID: "design-review",
-			LeaseDuration:         time.Minute,
-			Now:                   now.Add(time.Second),
+			Scope:            taskpkg.ScopeWorkspace,
+			WorkspaceID:      workspaceID,
+			ClaimerSessionID: "sess-frontend",
+			AgentName:        "frontend-engineer-agent",
+			LeaseDuration:    time.Minute,
+			Now:              now.Add(time.Second),
 		})
 		if err != nil {
 			t.Fatalf("ClaimNextRun(matching owner) error = %v", err)
@@ -1581,251 +1573,6 @@ func TestClearTaskCurrentRunProjectionDetectsConcurrentProjectionChange(t *testi
 	assertTaskCurrentRunProjection(ctx, t, globalDB, taskRecord.ID, otherRun.ID)
 }
 
-func TestGlobalDBClaimNextRunReturnsSafeCoordinationChannelMetadata(t *testing.T) {
-	globalDB := openTestGlobalDB(t)
-	ctx := testutil.Context(t)
-	workspaceID := registerWorkspaceForGlobalTests(
-		t,
-		globalDB,
-		"claim-channel",
-		filepath.Join(t.TempDir(), "claim-channel"),
-	)
-	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-	globalDB.now = func() time.Time { return now }
-	if err := globalDB.WriteNetworkChannel(ctx, store.NetworkChannelEntry{
-		Channel:     "coord.core",
-		WorkspaceID: workspaceID,
-		Purpose:     "Worker coordination",
-		CreatedBy:   "coordinator",
-	}); err != nil {
-		t.Fatalf("WriteNetworkChannel() error = %v", err)
-	}
-
-	taskRecord := taskRecordForTest("task-channel-claim")
-	taskRecord.Scope = taskpkg.ScopeWorkspace
-	taskRecord.WorkspaceID = workspaceID
-	taskRecord.Status = taskpkg.TaskStatusReady
-	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
-		t.Fatalf("CreateTask() error = %v", err)
-	}
-	run := taskRunForTest("run-channel-claim", taskRecord.ID)
-	run.CoordinationChannelID = "coord.core"
-	run.Metadata = json.RawMessage(`{"workflow_id":"wf-1"}`)
-	if err := globalDB.CreateTaskRun(ctx, run); err != nil {
-		t.Fatalf("CreateTaskRun() error = %v", err)
-	}
-
-	claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-		Scope:            taskpkg.ScopeWorkspace,
-		WorkspaceID:      workspaceID,
-		ClaimerSessionID: "sess-channel",
-		LeaseDuration:    time.Minute,
-		Now:              now.Add(time.Second),
-	})
-	if err != nil {
-		t.Fatalf("ClaimNextRun() error = %v", err)
-	}
-	if claim.CoordinationChannel == nil {
-		t.Fatal("CoordinationChannel = nil, want metadata for channel-bound run")
-	}
-	if got, want := claim.CoordinationChannel.ID, "coord.core"; got != want {
-		t.Fatalf("CoordinationChannel.ID = %q, want %q", got, want)
-	}
-	if got, want := claim.CoordinationChannel.DisplayName, "coord.core"; got != want {
-		t.Fatalf("CoordinationChannel.DisplayName = %q, want %q", got, want)
-	}
-	if got, want := claim.CoordinationChannel.Purpose, "Worker coordination"; got != want {
-		t.Fatalf("CoordinationChannel.Purpose = %q, want %q", got, want)
-	}
-	if got, want := claim.CoordinationChannel.WorkflowID, "wf-1"; got != want {
-		t.Fatalf("CoordinationChannel.WorkflowID = %q, want %q", got, want)
-	}
-	encodedChannel, err := json.Marshal(claim.CoordinationChannel)
-	if err != nil {
-		t.Fatalf("json.Marshal(CoordinationChannel) error = %v", err)
-	}
-	var channelObject map[string]any
-	if err := json.Unmarshal(encodedChannel, &channelObject); err != nil {
-		t.Fatalf("CoordinationChannel did not marshal to JSON object: %s: %v", encodedChannel, err)
-	}
-	if containsJSONKey(t, encodedChannel, "claim_token") {
-		t.Fatalf("CoordinationChannel JSON contains claim_token: %s", encodedChannel)
-	}
-	if _, err := globalDB.ReleaseRunLease(ctx, taskpkg.LeaseRelease{
-		RunID:      claim.Run.ID,
-		ClaimToken: "coord.core",
-		Reason:     "channel metadata is not ownership",
-		Now:        now.Add(2 * time.Second),
-	}); !errors.Is(err, taskpkg.ErrInvalidClaimToken) {
-		t.Fatalf(
-			"ReleaseRunLease(channel as token) error = %v, want %v",
-			err,
-			taskpkg.ErrInvalidClaimToken,
-		)
-	}
-}
-
-func TestGlobalDBClaimNextRunReturnsWorkspaceNetworkChannelMetadata(t *testing.T) {
-	globalDB := openTestGlobalDB(t)
-	ctx := testutil.Context(t)
-	workspaceID := registerWorkspaceForGlobalTests(
-		t,
-		globalDB,
-		"claim-network-channel",
-		filepath.Join(t.TempDir(), "claim-network-channel"),
-	)
-	now := time.Date(2026, 4, 26, 12, 30, 0, 0, time.UTC)
-	globalDB.now = func() time.Time { return now }
-	if err := globalDB.WriteNetworkChannel(ctx, store.NetworkChannelEntry{
-		Channel:     "builders",
-		WorkspaceID: workspaceID,
-		Purpose:     "Build coordination",
-		CreatedBy:   "coordinator",
-	}); err != nil {
-		t.Fatalf("WriteNetworkChannel() error = %v", err)
-	}
-
-	taskRecord := taskRecordForTest("task-network-channel-claim")
-	taskRecord.Scope = taskpkg.ScopeWorkspace
-	taskRecord.WorkspaceID = workspaceID
-	taskRecord.Status = taskpkg.TaskStatusReady
-	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
-		t.Fatalf("CreateTask() error = %v", err)
-	}
-	_, run, existing, err := globalDB.ReserveQueuedRun(
-		ctx,
-		queuedRunReservationForTest(
-			taskRecord.ID,
-			"run-network-channel-claim",
-			"idem-network-channel-claim",
-			taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
-			"builders",
-			json.RawMessage(`{"workflow_id":"wf-build"}`),
-			now,
-		),
-	)
-	if err != nil {
-		t.Fatalf("ReserveQueuedRun() error = %v", err)
-	}
-	if existing {
-		t.Fatal("ReserveQueuedRun() existing = true, want new run")
-	}
-	if got, want := run.CoordinationChannelID, "builders"; got != want {
-		t.Fatalf("ReserveQueuedRun().CoordinationChannelID = %q, want %q", got, want)
-	}
-
-	claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-		Scope:            taskpkg.ScopeWorkspace,
-		WorkspaceID:      workspaceID,
-		ClaimerSessionID: "sess-build",
-		LeaseDuration:    time.Minute,
-		Now:              now.Add(time.Second),
-	})
-	if err != nil {
-		t.Fatalf("ClaimNextRun() error = %v", err)
-	}
-	if claim.CoordinationChannel == nil {
-		t.Fatal("CoordinationChannel = nil, want metadata for workspace channel-bound run")
-	}
-	if got, want := claim.CoordinationChannel.ID, "builders"; got != want {
-		t.Fatalf("CoordinationChannel.ID = %q, want %q", got, want)
-	}
-	if got, want := claim.CoordinationChannel.Purpose, "Build coordination"; got != want {
-		t.Fatalf("CoordinationChannel.Purpose = %q, want %q", got, want)
-	}
-	if got, want := claim.CoordinationChannel.WorkflowID, "wf-build"; got != want {
-		t.Fatalf("CoordinationChannel.WorkflowID = %q, want %q", got, want)
-	}
-}
-
-func TestGlobalDBReserveQueuedRunCreatesStableWorkspaceCoordinationChannel(t *testing.T) {
-	globalDB := openTestGlobalDB(t)
-	ctx := testutil.Context(t)
-	workspaceID := registerWorkspaceForGlobalTests(
-		t,
-		globalDB,
-		"derived-run-channel",
-		filepath.Join(t.TempDir(), "derived-run-channel"),
-	)
-
-	taskRecord := taskRecordForTest("task-derived-channel")
-	taskRecord.Scope = taskpkg.ScopeWorkspace
-	taskRecord.WorkspaceID = workspaceID
-	taskRecord.Status = taskpkg.TaskStatusReady
-	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
-		t.Fatalf("CreateTask() error = %v", err)
-	}
-	origin := taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task start"}
-	queuedAt := time.Date(2026, 4, 26, 13, 0, 0, 0, time.UTC)
-
-	_, first, existing, err := globalDB.ReserveQueuedRun(
-		ctx,
-		queuedRunReservationForTest(
-			taskRecord.ID,
-			"run-derived-channel",
-			"idem-derived-channel",
-			origin,
-			"",
-			nil,
-			queuedAt,
-		),
-	)
-	if err != nil {
-		t.Fatalf("ReserveQueuedRun(first) error = %v", err)
-	}
-	if existing {
-		t.Fatal("ReserveQueuedRun(first) existing = true, want false")
-	}
-	if got, want := first.CoordinationChannelID, "coord-run-derived-channel"; got != want {
-		t.Fatalf("first.CoordinationChannelID = %q, want %q", got, want)
-	}
-	channel, err := globalDB.GetNetworkChannel(ctx, store.NetworkChannelRef{
-		WorkspaceID: workspaceID,
-		Channel:     first.CoordinationChannelID,
-	})
-	if err != nil {
-		t.Fatalf("GetNetworkChannel(derived) error = %v", err)
-	}
-	if got, want := channel.WorkspaceID, workspaceID; got != want {
-		t.Fatalf("channel.WorkspaceID = %q, want %q", got, want)
-	}
-	if got, want := channel.Purpose, "task_run_coordination"; got != want {
-		t.Fatalf("channel.Purpose = %q, want %q", got, want)
-	}
-
-	_, second, existing, err := globalDB.ReserveQueuedRun(
-		ctx,
-		queuedRunReservationForTest(
-			taskRecord.ID,
-			"run-duplicate-ignored",
-			"idem-derived-channel",
-			origin,
-			"",
-			nil,
-			queuedAt.Add(time.Minute),
-		),
-	)
-	if err != nil {
-		t.Fatalf("ReserveQueuedRun(second) error = %v", err)
-	}
-	if !existing {
-		t.Fatal("ReserveQueuedRun(second) existing = false, want true")
-	}
-	if got, want := second.ID, first.ID; got != want {
-		t.Fatalf("second.ID = %q, want %q", got, want)
-	}
-	channels, err := globalDB.ListNetworkChannels(
-		ctx,
-		store.NetworkChannelQuery{WorkspaceID: workspaceID},
-	)
-	if err != nil {
-		t.Fatalf("ListNetworkChannels() error = %v", err)
-	}
-	if len(channels) != 1 {
-		t.Fatalf("len(ListNetworkChannels) = %d, want 1", len(channels))
-	}
-}
-
 func TestGlobalDBClaimNextRunSkipsBlockedTasks(t *testing.T) {
 	t.Parallel()
 
@@ -2270,37 +2017,6 @@ func leasedRunForGlobalTest(
 	run.HeartbeatAt = leaseUntil.Add(-30 * time.Second)
 	run.LeaseUntil = leaseUntil
 	return run
-}
-
-func containsJSONKey(t *testing.T, raw []byte, key string) bool {
-	t.Helper()
-
-	var decoded any
-	if err := json.Unmarshal(raw, &decoded); err != nil {
-		t.Fatalf("json.Unmarshal(%s) error = %v", raw, err)
-	}
-	return containsJSONKeyValue(decoded, key)
-}
-
-func containsJSONKeyValue(value any, key string) bool {
-	switch typed := value.(type) {
-	case map[string]any:
-		for field, nested := range typed {
-			if field == key {
-				return true
-			}
-			if containsJSONKeyValue(nested, key) {
-				return true
-			}
-		}
-	case []any:
-		for _, nested := range typed {
-			if containsJSONKeyValue(nested, key) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackWhenFinalizerFails(t *testing.T) {

@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -23,7 +22,6 @@ import (
 
 const (
 	configCLIKey                             = "cli"
-	configDefaultKey                         = "default"
 	configDefaultsAgentPath                  = "defaults.agent"
 	configDreamingKey                        = "dreaming"
 	configExtractorKey                       = "extractor"
@@ -39,7 +37,6 @@ const (
 	configProviderKey                        = "provider"
 	configToolKey                            = "tool"
 	configUDSKey                             = "uds"
-	maxNetworkByteSize                       = 1<<31 - 1
 )
 
 const (
@@ -450,22 +447,6 @@ type ExtensionsResourceRateLimitConfig struct {
 	Queue    int           `toml:"queue"`
 }
 
-// NetworkConfig controls the embedded AGH network runtime.
-type NetworkConfig struct {
-	Enabled                        bool          `toml:"enabled"`
-	DefaultChannel                 string        `toml:"default_channel"`
-	Port                           int           `toml:"port"`
-	MaxPayload                     int           `toml:"max_payload"`
-	GreetInterval                  int           `toml:"greet_interval"`
-	MaxReplayAge                   int           `toml:"max_replay_age"`
-	MaxQueueDepth                  int           `toml:"max_queue_depth"`
-	ActivationTopK                 int           `toml:"activation_top_k"`
-	DigestFlushInterval            time.Duration `toml:"digest_flush_interval"`
-	DigestMaxEnvelopes             int           `toml:"digest_max_envelopes"`
-	ResponseGuidanceMaxBytes       int           `toml:"response_guidance_max_bytes"`
-	DeliveryStructuredBodyMaxBytes int           `toml:"delivery_structured_body_max_bytes"`
-}
-
 // SandboxProfile defines one reusable execution sandbox profile.
 type SandboxProfile struct {
 	Backend     string            `toml:"backend"`
@@ -737,24 +718,6 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			Coordinator:          DefaultCoordinatorConfig(),
 			Scheduler:            DefaultSchedulerConfig(),
 		},
-	}
-}
-
-// DefaultNetworkConfig returns built-in AGH Network runtime defaults.
-func DefaultNetworkConfig() NetworkConfig {
-	return NetworkConfig{
-		Enabled:                        true,
-		DefaultChannel:                 configDefaultKey,
-		Port:                           -1,
-		MaxPayload:                     1 << 20,
-		GreetInterval:                  30,
-		MaxReplayAge:                   300,
-		MaxQueueDepth:                  100,
-		ActivationTopK:                 3,
-		DigestFlushInterval:            250 * time.Millisecond,
-		DigestMaxEnvelopes:             10,
-		ResponseGuidanceMaxBytes:       512,
-		DeliveryStructuredBodyMaxBytes: 4096,
 	}
 }
 
@@ -1642,100 +1605,6 @@ func (c ExtensionsResourceRateLimitConfig) Validate(path string) error {
 		return fmt.Errorf("%s.queue must be zero or positive: %d", path, c.Queue)
 	}
 	return nil
-}
-
-var networkChannelPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,63}$`)
-
-const maxNetworkDurationSeconds = int64(1<<63-1) / int64(time.Second)
-
-// Validate ensures the network configuration is internally consistent.
-func (c NetworkConfig) Validate() error {
-	defaultChannel := strings.TrimSpace(c.DefaultChannel)
-	if defaultChannel == "" {
-		return errors.New("network.default_channel is required")
-	}
-	if !networkChannelPattern.MatchString(defaultChannel) {
-		return fmt.Errorf("network.default_channel must match %q: %q", networkChannelPattern.String(), c.DefaultChannel)
-	}
-	if c.Port != -1 && (c.Port <= 0 || c.Port > 65535) {
-		return fmt.Errorf("network.port must be -1 or between 1 and 65535: %d", c.Port)
-	}
-	if c.MaxPayload <= 0 {
-		return fmt.Errorf("network.max_payload must be positive: %d", c.MaxPayload)
-	}
-	if c.MaxPayload > maxNetworkByteSize {
-		return fmt.Errorf("network.max_payload must be <= %d: %d", maxNetworkByteSize, c.MaxPayload)
-	}
-	if c.GreetInterval <= 0 {
-		return fmt.Errorf("network.greet_interval must be positive seconds: %d", c.GreetInterval)
-	}
-	if int64(c.GreetInterval) > maxNetworkDurationSeconds {
-		return fmt.Errorf(
-			"network.greet_interval must be between 1 and %d seconds: %d",
-			maxNetworkDurationSeconds,
-			c.GreetInterval,
-		)
-	}
-	if c.MaxReplayAge <= 0 {
-		return fmt.Errorf("network.max_replay_age must be positive seconds: %d", c.MaxReplayAge)
-	}
-	if int64(c.MaxReplayAge) > maxNetworkDurationSeconds {
-		return fmt.Errorf(
-			"network.max_replay_age must be between 1 and %d seconds: %d",
-			maxNetworkDurationSeconds,
-			c.MaxReplayAge,
-		)
-	}
-	if c.MaxQueueDepth <= 0 {
-		return fmt.Errorf("network.max_queue_depth must be positive: %d", c.MaxQueueDepth)
-	}
-	if c.ActivationTopK <= 0 {
-		return fmt.Errorf("network.activation_top_k must be positive: %d", c.ActivationTopK)
-	}
-	if c.DigestFlushInterval <= 0 {
-		return fmt.Errorf("network.digest_flush_interval must be positive: %s", c.DigestFlushInterval)
-	}
-	if c.DigestMaxEnvelopes <= 0 {
-		return fmt.Errorf("network.digest_max_envelopes must be positive: %d", c.DigestMaxEnvelopes)
-	}
-	if c.ResponseGuidanceMaxBytes <= 0 {
-		return fmt.Errorf(
-			"network.response_guidance_max_bytes must be positive: %d",
-			c.ResponseGuidanceMaxBytes,
-		)
-	}
-	if c.ResponseGuidanceMaxBytes > maxNetworkByteSize {
-		return fmt.Errorf(
-			"network.response_guidance_max_bytes must be <= %d: %d",
-			maxNetworkByteSize,
-			c.ResponseGuidanceMaxBytes,
-		)
-	}
-	if c.DeliveryStructuredBodyMaxBytes <= 0 {
-		return fmt.Errorf(
-			"network.delivery_structured_body_max_bytes must be positive: %d",
-			c.DeliveryStructuredBodyMaxBytes,
-		)
-	}
-	if c.DeliveryStructuredBodyMaxBytes > maxNetworkByteSize {
-		return fmt.Errorf(
-			"network.delivery_structured_body_max_bytes must be <= %d: %d",
-			maxNetworkByteSize,
-			c.DeliveryStructuredBodyMaxBytes,
-		)
-	}
-
-	return nil
-}
-
-// GreetIntervalDuration returns the configured heartbeat interval as a duration.
-func (c NetworkConfig) GreetIntervalDuration() time.Duration {
-	return time.Duration(c.GreetInterval) * time.Second
-}
-
-// MaxReplayAgeDuration returns the configured replay age window as a duration.
-func (c NetworkConfig) MaxReplayAgeDuration() time.Duration {
-	return time.Duration(c.MaxReplayAge) * time.Second
 }
 
 // Validate ensures the marketplace configuration is internally consistent when configured.

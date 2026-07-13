@@ -182,7 +182,6 @@ func coordinatorPlanRunReservation(
 		loopRunID:          normalized.LoopRunID,
 		idempotencyKey:     normalized.IdempotencyKey,
 		origin:             origin,
-		requestedChannel:   normalized.NetworkChannel,
 		designationGroupID: normalized.DesignationGroupID,
 		metadata:           normalizeTaskJSON(normalized.Metadata),
 		queuedAt:           queuedAt,

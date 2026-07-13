@@ -95,46 +95,6 @@ func (h *HostAPIHandler) handleNetworkPeers(ctx context.Context, raw json.RawMes
 	return hostAPINetworkPeerPayloads(peers), nil
 }
 
-func (h *HostAPIHandler) handleNetworkThreads(ctx context.Context, raw json.RawMessage) (any, error) {
-	var params extensioncontract.NetworkThreadsParams
-	if err := decodeHostAPIParams(raw, &params); err != nil {
-		return nil, err
-	}
-	networkStore, err := h.requireHostAPINetworkStore()
-	if err != nil {
-		return nil, err
-	}
-	channel, err := hostAPINetworkChannel(params.Channel)
-	if err != nil {
-		return nil, err
-	}
-	query, err := hostAPINetworkThreadQuery(params)
-	if err != nil {
-		return nil, err
-	}
-	workspaceID, err := h.hostAPINetworkWorkspaceID(ctx, params.WorkspaceID)
-	if err != nil {
-		return nil, err
-	}
-	page, err := networkStore.ListThreads(
-		ctx,
-		store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: channel},
-		query,
-	)
-	if err != nil {
-		return nil, mapHostAPINetworkRPCError(err)
-	}
-	return apicontract.NetworkThreadsResponse{
-		Threads: hostAPINetworkThreadSummaryPayloads(page.Threads),
-		Page: apicontract.CountedCursorPagePayload{
-			NextCursor: page.NextCursor,
-			HasMore:    page.HasMore,
-			Total:      page.Total,
-			Limit:      page.Limit,
-		},
-	}, nil
-}
-
 func (h *HostAPIHandler) handleNetworkThreadGet(ctx context.Context, raw json.RawMessage) (any, error) {
 	var params extensioncontract.NetworkThreadTargetParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
@@ -200,46 +160,6 @@ func (h *HostAPIHandler) handleNetworkThreadMessages(ctx context.Context, raw js
 	return apicontract.NetworkThreadMessagesResponse{Messages: payload, Page: page}, nil
 }
 
-func (h *HostAPIHandler) handleNetworkDirects(ctx context.Context, raw json.RawMessage) (any, error) {
-	var params extensioncontract.NetworkDirectsParams
-	if err := decodeHostAPIParams(raw, &params); err != nil {
-		return nil, err
-	}
-	networkStore, err := h.requireHostAPINetworkStore()
-	if err != nil {
-		return nil, err
-	}
-	channel, err := hostAPINetworkChannel(params.Channel)
-	if err != nil {
-		return nil, err
-	}
-	query, err := hostAPINetworkDirectRoomQuery(params)
-	if err != nil {
-		return nil, err
-	}
-	workspaceID, err := h.hostAPINetworkWorkspaceID(ctx, params.WorkspaceID)
-	if err != nil {
-		return nil, err
-	}
-	page, err := networkStore.ListDirectRooms(
-		ctx,
-		store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: channel},
-		query,
-	)
-	if err != nil {
-		return nil, mapHostAPINetworkRPCError(err)
-	}
-	return apicontract.NetworkDirectRoomsResponse{
-		Directs: hostAPINetworkDirectRoomPayloads(page.Directs),
-		Page: apicontract.CountedCursorPagePayload{
-			NextCursor: page.NextCursor,
-			HasMore:    page.HasMore,
-			Total:      page.Total,
-			Limit:      page.Limit,
-		},
-	}, nil
-}
-
 func (h *HostAPIHandler) handleNetworkDirectResolve(ctx context.Context, raw json.RawMessage) (any, error) {
 	var params extensioncontract.NetworkDirectResolveParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
@@ -273,7 +193,12 @@ func (h *HostAPIHandler) handleNetworkDirectResolve(ctx context.Context, raw jso
 	if err != nil {
 		return nil, mapHostAPINetworkRPCError(err)
 	}
-	directID, peerA, peerB, err := network.DirectRoomIdentity(workspaceID, channel, local.PeerID, remote.PeerID)
+	directID, sessionA, sessionB, err := store.NetworkDirectRoomIdentity(
+		workspaceID,
+		channel,
+		*local.SessionID,
+		*remote.SessionID,
+	)
 	if err != nil {
 		return nil, mapHostAPINetworkRPCError(err)
 	}
@@ -282,8 +207,8 @@ func (h *HostAPIHandler) handleNetworkDirectResolve(ctx context.Context, raw jso
 		WorkspaceID:    workspaceID,
 		Channel:        channel,
 		DirectID:       directID,
-		PeerA:          peerA,
-		PeerB:          peerB,
+		SessionA:       sessionA,
+		SessionB:       sessionB,
 		OpenedAt:       now,
 		LastActivityAt: now,
 	})
@@ -430,6 +355,13 @@ func (h *HostAPIHandler) resolveHostAPIDirectPeers(
 			network.ErrTargetPeerNotFound,
 			peerID,
 			channel,
+		)
+	}
+	if remote.SessionID == nil || strings.TrimSpace(*remote.SessionID) == "" {
+		return network.PeerInfo{}, network.PeerInfo{}, fmt.Errorf(
+			"%w: peer_id=%q has no participating session",
+			network.ErrTargetPeerNotFound,
+			peerID,
 		)
 	}
 	return local, remote, nil
@@ -777,8 +709,8 @@ func hostAPINetworkDirectRoomPayload(direct store.NetworkDirectRoomSummary) apic
 		WorkspaceID:        strings.TrimSpace(direct.WorkspaceID),
 		Channel:            strings.TrimSpace(direct.Channel),
 		DirectID:           strings.TrimSpace(direct.DirectID),
-		PeerA:              strings.TrimSpace(direct.PeerA),
-		PeerB:              strings.TrimSpace(direct.PeerB),
+		PeerA:              strings.TrimSpace(direct.SessionA),
+		PeerB:              strings.TrimSpace(direct.SessionB),
 		OpenedAt:           hostAPITimeValuePtr(direct.OpenedAt),
 		LastActivityAt:     hostAPITimeValuePtr(direct.LastActivityAt),
 		MessageCount:       direct.MessageCount,
@@ -832,9 +764,7 @@ func hostAPINetworkWorkPayload(work store.NetworkWorkEntry) apicontract.NetworkW
 		Surface:         strings.TrimSpace(work.Surface),
 		ThreadID:        strings.TrimSpace(work.ThreadID),
 		DirectID:        strings.TrimSpace(work.DirectID),
-		OpenedByPeerID:  strings.TrimSpace(work.OpenedByPeerID),
-		OpenedSessionID: strings.TrimSpace(work.OpenedSessionID),
-		TargetPeerID:    strings.TrimSpace(work.TargetPeerID),
+		OpenedSessionID: strings.TrimSpace(work.OpenedBySessionID),
 		State:           strings.TrimSpace(work.State),
 		OpenedAt:        hostAPITimeValuePtr(work.OpenedAt),
 		LastActivityAt:  hostAPITimeValuePtr(work.LastActivityAt),

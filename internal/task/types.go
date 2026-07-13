@@ -168,6 +168,8 @@ const (
 	RunKindWorker
 	// RunKindCoordinator identifies in-daemon generation coordinator runs.
 	RunKindCoordinator
+	// RunKindNetworkWake identifies durable Network admission work without a task anchor.
+	RunKindNetworkWake
 )
 
 // String returns the durable string representation of the task-run kind.
@@ -177,6 +179,8 @@ func (k RunKind) String() string {
 		return "worker"
 	case RunKindCoordinator:
 		return "coordinator"
+	case RunKindNetworkWake:
+		return "network_wake"
 	default:
 		return ""
 	}
@@ -467,18 +471,19 @@ type RunReviewLineage struct {
 
 // Run is the durable execution record for one task attempt.
 type Run struct {
-	ID                    string            `json:"id"`
-	TaskID                string            `json:"task_id"`
-	Attempt               int32             `json:"attempt"`
-	RunKind               RunKind           `json:"run_kind,omitempty"`
-	LoopRunID             string            `json:"loop_run_id,omitempty"`
-	Status                RunStatus         `json:"status"`
-	PreviousRunID         string            `json:"previous_run_id,omitempty"`
-	FailureKind           string            `json:"failure_kind,omitempty"`
-	ClaimedBy             *ActorIdentity    `json:"claimed_by,omitempty"`
-	SessionID             string            `json:"session_id,omitempty"`
-	Origin                Origin            `json:"origin"`
-	IdempotencyKey        string            `json:"idempotency_key,omitempty"`
+	ID             string         `json:"id"`
+	TaskID         string         `json:"task_id"`
+	Attempt        int32          `json:"attempt"`
+	RunKind        RunKind        `json:"run_kind,omitempty"`
+	Status         RunStatus      `json:"status"`
+	LoopRunID      string         `json:"loop_run_id,omitempty"`
+	PreviousRunID  string         `json:"previous_run_id,omitempty"`
+	FailureKind    string         `json:"failure_kind,omitempty"`
+	ClaimedBy      *ActorIdentity `json:"claimed_by,omitempty"`
+	SessionID      string         `json:"session_id,omitempty"`
+	Origin         Origin         `json:"origin"`
+	IdempotencyKey string         `json:"idempotency_key,omitempty"`
+	*RunNetworkState
 	NetworkChannel        string            `json:"network_channel,omitempty"`
 	DesignationGroupID    string            `json:"designation_group_id,omitempty"`
 	ClaimTokenHash        string            `json:"claim_token_hash,omitempty"`
@@ -733,20 +738,6 @@ type EnqueueRun struct {
 	NetworkChannel     string          `json:"network_channel,omitempty"`
 	DesignationGroupID string          `json:"designation_group_id,omitempty"`
 	Metadata           json.RawMessage `json:"metadata,omitempty"`
-}
-
-// QueueRunReservation captures the canonical store-level queue reservation input.
-type QueueRunReservation struct {
-	TaskID             string          `json:"task_id"`
-	RunID              string          `json:"run_id"`
-	RunKind            RunKind         `json:"run_kind,omitempty"`
-	LoopRunID          string          `json:"loop_run_id,omitempty"`
-	IdempotencyKey     string          `json:"idempotency_key,omitempty"`
-	Origin             Origin          `json:"origin"`
-	RequestedChannel   string          `json:"requested_channel,omitempty"`
-	DesignationGroupID string          `json:"designation_group_id,omitempty"`
-	Metadata           json.RawMessage `json:"metadata,omitempty"`
-	QueuedAt           time.Time       `json:"queued_at"`
 }
 
 // ClaimRun captures one run-claim request.

@@ -54,7 +54,8 @@ ORDER BY updated_at DESC, session_id DESC;
 
 -- name: UpsertSession :exec
 INSERT INTO sessions (
-  id, name, agent_name, provider, workspace_id, session_type, channel, state,
+  id, name, agent_name, provider, workspace_id, session_type,
+  network_spec_json, network_mode, network_channel, network_source, state,
   parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
   auto_stop_on_parent, spawn_budget_json, permission_policy_json,
   acp_session_id, stop_reason, stop_detail, failure_kind, failure_summary, crash_bundle_path,
@@ -65,7 +66,8 @@ INSERT INTO sessions (
   created_at, updated_at
 ) VALUES (
   sqlc.arg(id), sqlc.narg(name), sqlc.arg(agent_name), sqlc.arg(provider), sqlc.arg(workspace_id),
-  sqlc.arg(session_type), sqlc.arg(channel), sqlc.arg(state), sqlc.narg(parent_session_id),
+  sqlc.arg(session_type), sqlc.arg(network_spec_json), sqlc.arg(network_mode),
+  sqlc.narg(network_channel), sqlc.arg(network_source), sqlc.arg(state), sqlc.narg(parent_session_id),
   sqlc.narg(root_session_id), sqlc.arg(spawn_depth), sqlc.narg(spawn_role), sqlc.narg(ttl_expires_at),
   sqlc.arg(auto_stop_on_parent), sqlc.arg(spawn_budget_json), sqlc.arg(permission_policy_json),
   sqlc.narg(acp_session_id), sqlc.narg(stop_reason), sqlc.narg(stop_detail), sqlc.narg(failure_kind),
@@ -84,7 +86,10 @@ ON CONFLICT(id) DO UPDATE SET
   provider = excluded.provider,
   workspace_id = excluded.workspace_id,
   session_type = excluded.session_type,
-  channel = excluded.channel,
+  network_spec_json = excluded.network_spec_json,
+  network_mode = excluded.network_mode,
+  network_channel = excluded.network_channel,
+  network_source = excluded.network_source,
   state = excluded.state,
   parent_session_id = excluded.parent_session_id,
   root_session_id = excluded.root_session_id,

@@ -1011,7 +1011,7 @@ func taskDashboardActiveRunItems(
 			Attempt:        int(run.Attempt),
 			MaxAttempts:    taskItem.MaxAttempts,
 			SessionID:      strings.TrimSpace(run.SessionID),
-			NetworkChannel: strings.TrimSpace(run.NetworkChannel),
+			NetworkChannel: taskRunParticipationChannel(run),
 			LastActivityAt: dashboardRunActivityAt(run),
 			AgeMilli:       dashboardRunAge(run, currentTime).Milliseconds(),
 			HealthStatus:   dashboardStatusForAny(stuck),
@@ -1051,12 +1051,11 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 	}
 
 	tasks, err := o.registry.ListTasks(ctx, taskpkg.Query{
-		Scope:          query.Scope,
-		WorkspaceID:    strings.TrimSpace(query.WorkspaceID),
-		OwnerKind:      query.OwnerKind.Normalize(),
-		OwnerRef:       strings.TrimSpace(query.OwnerRef),
-		NetworkChannel: strings.TrimSpace(query.NetworkChannel),
-		Search:         strings.TrimSpace(query.Search),
+		Scope:       query.Scope,
+		WorkspaceID: strings.TrimSpace(query.WorkspaceID),
+		OwnerKind:   query.OwnerKind.Normalize(),
+		OwnerRef:    strings.TrimSpace(query.OwnerRef),
+		Search:      strings.TrimSpace(query.Search),
 	})
 	if err != nil {
 		return taskSnapshot{}, fmt.Errorf("observe: list tasks for summary: %w", err)
@@ -1074,12 +1073,13 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 		tasks[idx].DependencyCount = taskpkg.ClampSummaryCount(dependencyCounts[taskID])
 	}
 
-	tasksByID, taskIDs := taskSummaryIndex(tasks)
-
 	runs, err := o.registry.ListTaskRuns(ctx, taskpkg.RunQuery{})
 	if err != nil {
 		return taskSnapshot{}, fmt.Errorf("observe: list task runs for summary: %w", err)
 	}
+	tasks = projectTaskParticipationChannels(tasks, runs)
+	tasks = filterTasksByNetworkChannel(tasks, query.NetworkChannel)
+	tasksByID, taskIDs := taskSummaryIndex(tasks)
 	runs = filterRuns(runs, taskIDs, query)
 
 	runsByID := make(map[string]taskpkg.Run, len(runs))
@@ -1115,23 +1115,6 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 		tasksByID: tasksByID,
 		runsByID:  runsByID,
 	}, nil
-}
-
-func taskSummaryIndex(
-	tasks []taskpkg.Summary,
-) (map[string]taskpkg.Summary, map[string]struct{}) {
-	tasksByID := make(map[string]taskpkg.Summary, len(tasks))
-	taskIDs := make(map[string]struct{}, len(tasks))
-	for idx := range tasks {
-		item := &tasks[idx]
-		taskID := strings.TrimSpace(item.ID)
-		if taskID == "" {
-			continue
-		}
-		tasksByID[taskID] = *item
-		taskIDs[taskID] = struct{}{}
-	}
-	return tasksByID, taskIDs
 }
 
 func (o *Observer) loadTaskDependencyCounts(
@@ -1295,7 +1278,7 @@ func summarizeTaskOrigins(tasks []taskpkg.Summary) []TaskOriginTotal {
 func summarizeRuns(runs []taskpkg.Run) []TaskRunTotal {
 	counts := make(map[string]TaskRunTotal)
 	for _, item := range runs {
-		channel := strings.TrimSpace(item.NetworkChannel)
+		channel := taskRunParticipationChannel(item)
 		key := item.Status.Normalize().String() + "\x00" + string(item.Origin.Kind.Normalize()) + "\x00" + channel
 		current := counts[key]
 		current.Status = item.Status.Normalize()
@@ -1357,7 +1340,7 @@ func summarizeQueueDepth(runs []taskpkg.Run, now func() time.Time) []TaskQueueDe
 		if item.Status.Normalize() != taskpkg.TaskRunStatusQueued {
 			continue
 		}
-		channel := strings.TrimSpace(item.NetworkChannel)
+		channel := taskRunParticipationChannel(item)
 		current := counts[channel]
 		current.NetworkChannel = channel
 		current.Count++
@@ -1495,7 +1478,7 @@ func findStuckRuns(runs []taskpkg.Run, now time.Time, cfg TaskHealthConfig) []St
 			RunID:          strings.TrimSpace(item.ID),
 			Status:         item.Status.Normalize(),
 			OriginKind:     item.Origin.Kind.Normalize(),
-			NetworkChannel: strings.TrimSpace(item.NetworkChannel),
+			NetworkChannel: taskRunParticipationChannel(item),
 			SessionID:      strings.TrimSpace(item.SessionID),
 			AgeMillis:      age.Milliseconds(),
 		})
@@ -1634,7 +1617,7 @@ func filterRuns(runs []taskpkg.Run, taskIDs map[string]struct{}, query TaskSumma
 		if normalizedOrigin != "" && item.Origin.Kind.Normalize() != normalizedOrigin {
 			continue
 		}
-		if channel != "" && strings.TrimSpace(item.NetworkChannel) != channel {
+		if channel != "" && taskRunParticipationChannel(item) != channel {
 			continue
 		}
 		filtered = append(filtered, item)
@@ -1710,7 +1693,7 @@ func eventChannel(
 	runsByID map[string]taskpkg.Run,
 ) string {
 	if run, ok := runsByID[strings.TrimSpace(event.RunID)]; ok {
-		return strings.TrimSpace(run.NetworkChannel)
+		return taskRunParticipationChannel(run)
 	}
 	if taskItem, ok := tasksByID[strings.TrimSpace(event.TaskID)]; ok {
 		return strings.TrimSpace(taskItem.NetworkChannel)

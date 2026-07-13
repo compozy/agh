@@ -249,30 +249,17 @@ func (g *TaskRunRepo) insertRetryTaskRun(
 	if err != nil {
 		return taskpkg.RetryRunResult{}, err
 	}
-	networkChannel := resolveStoredRunChannel(source.NetworkChannel, taskRecord.NetworkChannel)
-	coordinationChannelID := coordinationChannelIDForQueuedRun(taskRecord, networkChannel, args.newRunID)
-	if err := ensureQueuedRunCoordinationChannel(
-		ctx,
-		exec,
-		taskRecord,
-		coordinationChannelID,
-		args.origin,
-		args.queuedAt,
-	); err != nil {
-		return taskpkg.RetryRunResult{}, err
-	}
 	run := taskpkg.Run{
-		ID:                    args.newRunID,
-		TaskID:                taskRecord.ID,
-		Status:                taskpkg.TaskRunStatusQueued,
-		Attempt:               runAttempt,
-		PreviousRunID:         source.ID,
-		Origin:                args.origin,
-		NetworkChannel:        networkChannel,
-		CoordinationChannelID: coordinationChannelID,
-		Metadata:              args.metadata,
-		QueuedAt:              args.queuedAt,
+		ID:            args.newRunID,
+		TaskID:        taskRecord.ID,
+		Status:        taskpkg.TaskRunStatusQueued,
+		Attempt:       runAttempt,
+		PreviousRunID: source.ID,
+		Origin:        args.origin,
+		Metadata:      args.metadata,
+		QueuedAt:      args.queuedAt,
 	}
+	run.SetNetworkState(source.NetworkSpecSnapshot(), "", "", "")
 	normalizedRun, err := g.tasks.normalizeTaskRunForCreate(run)
 	if err != nil {
 		return taskpkg.RetryRunResult{}, err

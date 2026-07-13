@@ -109,6 +109,13 @@ func normalizeTaskRunRecord(run taskpkg.Run) taskpkg.Run {
 	normalized.Origin.Kind = normalized.Origin.Kind.Normalize()
 	normalized.Origin.Ref = strings.TrimSpace(normalized.Origin.Ref)
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
+	wakeID, targetSessionID, ownerKey := normalized.NetworkWakeCorrelation()
+	normalized.SetNetworkState(
+		normalized.NetworkSpecSnapshot(),
+		wakeID,
+		targetSessionID,
+		ownerKey,
+	)
 	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
 	normalized.DesignationGroupID = strings.TrimSpace(normalized.DesignationGroupID)
 	normalized.ClaimTokenHash = strings.TrimSpace(normalized.ClaimTokenHash)

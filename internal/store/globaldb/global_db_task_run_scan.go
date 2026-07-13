@@ -13,10 +13,11 @@ import (
 
 func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 	var run taskpkg.Run
+	var taskID sql.NullString
 	var fields taskRunScanFields
 	if err := scanner.Scan(
 		&run.ID,
-		&run.TaskID,
+		&taskID,
 		&fields.runKind,
 		&fields.loopRunID,
 		&fields.status,
@@ -29,13 +30,15 @@ func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 		&fields.originKind,
 		&run.Origin.Ref,
 		&fields.idempotencyKey,
+		&fields.networkSpecJSON,
+		&fields.networkMode,
 		&fields.networkChannel,
+		&fields.networkSource,
 		&fields.designationGroupID,
 		&fields.claimToken,
 		&fields.claimTokenHash,
 		&fields.leaseUntilRaw,
 		&fields.heartbeatAtRaw,
-		&fields.coordChannelID,
 		&fields.queuedAtRaw,
 		&fields.claimedAtRaw,
 		&fields.startedAtRaw,
@@ -54,48 +57,57 @@ func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 		&fields.continuationReason,
 		&fields.missingWorkJSON,
 		&fields.nextRoundGuidance,
+		&fields.networkWakeID,
+		&fields.networkTargetSessionID,
+		&fields.networkOwnerKey,
 	); err != nil {
 		return taskpkg.Run{}, fmt.Errorf("store: scan task run: %w", err)
 	}
+	run.TaskID = taskNullStringValue(taskID)
 	return (&fields).record(run)
 }
 
 type taskRunScanFields struct {
-	status               string
-	runKind              string
-	loopRunID            sql.NullString
-	previousRunID        sql.NullString
-	failureKind          string
-	claimedByKind        sql.NullString
-	claimedByRef         sql.NullString
-	sessionID            sql.NullString
-	originKind           string
-	idempotencyKey       sql.NullString
-	networkChannel       sql.NullString
-	designationGroupID   string
-	claimToken           sql.NullString
-	claimTokenHash       sql.NullString
-	leaseUntilRaw        sql.NullString
-	heartbeatAtRaw       sql.NullString
-	coordChannelID       sql.NullString
-	queuedAtRaw          string
-	claimedAtRaw         sql.NullString
-	startedAtRaw         sql.NullString
-	endedAtRaw           sql.NullString
-	tokensUsed           int64
-	runErr               sql.NullString
-	metadataJSON         sql.NullString
-	resultJSON           sql.NullString
-	reviewRequired       bool
-	reviewRequestRound   int
-	reviewPolicySnapshot string
-	reviewRequestID      sql.NullString
-	parentRunID          sql.NullString
-	reviewID             sql.NullString
-	reviewRound          int
-	continuationReason   string
-	missingWorkJSON      string
-	nextRoundGuidance    string
+	status                 string
+	runKind                string
+	loopRunID              sql.NullString
+	previousRunID          sql.NullString
+	failureKind            string
+	claimedByKind          sql.NullString
+	claimedByRef           sql.NullString
+	sessionID              sql.NullString
+	originKind             string
+	idempotencyKey         sql.NullString
+	networkSpecJSON        string
+	networkMode            string
+	networkChannel         sql.NullString
+	networkSource          string
+	designationGroupID     string
+	claimToken             sql.NullString
+	claimTokenHash         sql.NullString
+	leaseUntilRaw          sql.NullString
+	heartbeatAtRaw         sql.NullString
+	queuedAtRaw            string
+	claimedAtRaw           sql.NullString
+	startedAtRaw           sql.NullString
+	endedAtRaw             sql.NullString
+	tokensUsed             int64
+	runErr                 sql.NullString
+	metadataJSON           sql.NullString
+	resultJSON             sql.NullString
+	reviewRequired         bool
+	reviewRequestRound     int
+	reviewPolicySnapshot   string
+	reviewRequestID        sql.NullString
+	parentRunID            sql.NullString
+	reviewID               sql.NullString
+	reviewRound            int
+	continuationReason     string
+	missingWorkJSON        string
+	nextRoundGuidance      string
+	networkWakeID          sql.NullString
+	networkTargetSessionID sql.NullString
+	networkOwnerKey        sql.NullString
 }
 
 func (fields *taskRunScanFields) record(run taskpkg.Run) (taskpkg.Run, error) {
@@ -115,8 +127,22 @@ func (fields *taskRunScanFields) record(run taskpkg.Run) (taskpkg.Run, error) {
 		fields.designationGroupID,
 		fields.claimToken,
 		fields.claimTokenHash,
-		fields.coordChannelID,
 		fields.runErr,
+	)
+	networkSpec, err := decodeParticipationSnapshot(
+		fields.networkSpecJSON,
+		fields.networkMode,
+		fields.networkChannel,
+		fields.networkSource,
+	)
+	if err != nil {
+		return taskpkg.Run{}, err
+	}
+	run.SetNetworkState(
+		networkSpec,
+		taskNullStringValue(fields.networkWakeID),
+		taskNullStringValue(fields.networkTargetSessionID),
+		taskNullStringValue(fields.networkOwnerKey),
 	)
 	if err := assignTaskRunTimestamps(
 		&run,
@@ -151,7 +177,6 @@ func assignScannedTaskRecord(
 	scope string,
 	workspaceID sql.NullString,
 	parentTaskID sql.NullString,
-	networkChannel sql.NullString,
 	description sql.NullString,
 	priority string,
 	maxAttempts int,
@@ -167,7 +192,6 @@ func assignScannedTaskRecord(
 	record.Scope = taskpkg.Scope(strings.TrimSpace(scope))
 	record.WorkspaceID = taskNullStringValue(workspaceID)
 	record.ParentTaskID = taskNullStringValue(parentTaskID)
-	record.NetworkChannel = taskNullStringValue(networkChannel)
 	record.Description = taskNullStringValue(description)
 	record.Priority = taskpkg.Priority(strings.TrimSpace(priority))
 	record.MaxAttempts = maxAttempts
@@ -227,7 +251,6 @@ func assignScannedTaskRunRecord(
 	designationGroupID string,
 	_ sql.NullString,
 	claimTokenHash sql.NullString,
-	coordChannelID sql.NullString,
 	runErr sql.NullString,
 ) {
 	run.RunKind = taskpkg.ParseRunKind(runKind)
@@ -247,7 +270,6 @@ func assignScannedTaskRunRecord(
 	run.NetworkChannel = taskNullStringValue(networkChannel)
 	run.DesignationGroupID = strings.TrimSpace(designationGroupID)
 	run.ClaimTokenHash = taskNullStringValue(claimTokenHash)
-	run.CoordinationChannelID = taskNullStringValue(coordChannelID)
 	run.Error = taskNullStringValue(runErr)
 }
 

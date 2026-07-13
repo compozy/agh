@@ -24,8 +24,8 @@ type networkThreadCursor struct {
 
 type networkDirectRoomCursor struct {
 	DirectID        string `json:"direct_id"`
-	PeerA           string `json:"peer_a"`
-	PeerB           string `json:"peer_b"`
+	SessionA        string `json:"session_a"`
+	SessionB        string `json:"session_b"`
 	OpenedAt        string `json:"opened_at,omitempty"`
 	AnchorMessageID string `json:"anchor_message_id,omitempty"`
 	EmptyAnchor     bool   `json:"empty_anchor,omitempty"`
@@ -91,15 +91,15 @@ func networkThreadListFilterClauses(
 		where = append(where, "(title LIKE ? ESCAPE '\\' OR last_message_preview LIKE ? ESCAPE '\\')")
 		args = append(args, pattern, pattern)
 	}
-	if peerID := strings.TrimSpace(query.PeerID); peerID != "" {
+	if sessionID := strings.TrimSpace(query.SessionID); sessionID != "" {
 		where = append(where, `EXISTS (
 			SELECT 1 FROM network_thread_participants AS participant
 			WHERE participant.workspace_id = network_threads.workspace_id
 				AND participant.channel = network_threads.channel
 				AND participant.thread_id = network_threads.thread_id
-				AND participant.peer_id = ?
+				AND participant.session_id = ?
 		)`)
-		args = append(args, peerID)
+		args = append(args, sessionID)
 	}
 	if query.HasWork != nil {
 		operator := "= 0"
@@ -121,13 +121,13 @@ func networkDirectRoomListFilterClauses(
 		pattern := "%" + escapeNetworkLikePattern(search) + "%"
 		where = append(
 			where,
-			"(peer_a LIKE ? ESCAPE '\\' OR peer_b LIKE ? ESCAPE '\\' OR last_message_preview LIKE ? ESCAPE '\\')",
+			"(session_a LIKE ? ESCAPE '\\' OR session_b LIKE ? ESCAPE '\\' OR last_message_preview LIKE ? ESCAPE '\\')",
 		)
 		args = append(args, pattern, pattern, pattern)
 	}
-	if peerID := strings.TrimSpace(query.PeerID); peerID != "" {
-		where = append(where, "(peer_a = ? OR peer_b = ?)")
-		args = append(args, peerID, peerID)
+	if sessionID := strings.TrimSpace(query.SessionID); sessionID != "" {
+		where = append(where, "(session_a = ? OR session_b = ?)")
+		args = append(args, sessionID, sessionID)
 	}
 	if query.HasWork != nil {
 		operator := "= 0"
@@ -167,11 +167,11 @@ func networkDirectRoomCursorClause(cursor networkDirectRoomCursor, sort string) 
 			cursor.DirectID,
 		}
 	case store.NetworkConversationSortAlphabetical:
-		return `(peer_a COLLATE NOCASE > ? COLLATE NOCASE
-			OR (peer_a COLLATE NOCASE = ? COLLATE NOCASE AND (
-				peer_b COLLATE NOCASE > ? COLLATE NOCASE
-				OR (peer_b COLLATE NOCASE = ? COLLATE NOCASE AND direct_id > ?)
-			)))`, []any{cursor.PeerA, cursor.PeerA, cursor.PeerB, cursor.PeerB, cursor.DirectID}
+		return `(session_a COLLATE NOCASE > ? COLLATE NOCASE
+			OR (session_a COLLATE NOCASE = ? COLLATE NOCASE AND (
+				session_b COLLATE NOCASE > ? COLLATE NOCASE
+				OR (session_b COLLATE NOCASE = ? COLLATE NOCASE AND direct_id > ?)
+			)))`, []any{cursor.SessionA, cursor.SessionA, cursor.SessionB, cursor.SessionB, cursor.DirectID}
 	default:
 		value := cursor.Sequence
 		return "(last_activity_sequence < ? OR (last_activity_sequence = ? AND direct_id > ?))", []any{
@@ -198,7 +198,7 @@ func networkDirectRoomOrderBy(sort string) string {
 	case store.NetworkConversationSortCreated:
 		return " ORDER BY opened_at ASC, direct_id ASC"
 	case store.NetworkConversationSortAlphabetical:
-		return " ORDER BY peer_a COLLATE NOCASE ASC, peer_b COLLATE NOCASE ASC, direct_id ASC"
+		return " ORDER BY session_a COLLATE NOCASE ASC, session_b COLLATE NOCASE ASC, direct_id ASC"
 	default:
 		return " ORDER BY last_activity_sequence DESC, direct_id ASC"
 	}
@@ -211,7 +211,7 @@ func escapeNetworkLikePattern(value string) string {
 func networkConversationCursorFingerprint(
 	ref store.NetworkChannelRef,
 	search string,
-	peerID string,
+	sessionID string,
 	sortOrder string,
 	hasWork *bool,
 	limit int,
@@ -220,7 +220,7 @@ func networkConversationCursorFingerprint(
 		WorkspaceID string `json:"workspace_id"`
 		Channel     string `json:"channel"`
 		Search      string `json:"query"`
-		PeerID      string `json:"peer_id"`
+		SessionID   string `json:"session_id"`
 		Sort        string `json:"sort"`
 		HasWork     *bool  `json:"has_work"`
 		Limit       int    `json:"limit"`
@@ -228,7 +228,7 @@ func networkConversationCursorFingerprint(
 		WorkspaceID: ref.WorkspaceID,
 		Channel:     ref.Channel,
 		Search:      search,
-		PeerID:      peerID,
+		SessionID:   sessionID,
 		Sort:        sortOrder,
 		HasWork:     hasWork,
 		Limit:       limit,
@@ -245,7 +245,7 @@ func decodeNetworkThreadCursor(
 	fingerprint, err := networkConversationCursorFingerprint(
 		ref,
 		query.Search,
-		query.PeerID,
+		query.SessionID,
 		query.Sort,
 		query.HasWork,
 		query.Limit,
@@ -301,7 +301,7 @@ func decodeNetworkDirectRoomCursor(
 	fingerprint, err := networkConversationCursorFingerprint(
 		ref,
 		query.Search,
-		query.PeerID,
+		query.SessionID,
 		query.Sort,
 		query.HasWork,
 		query.Limit,
@@ -373,7 +373,7 @@ func encodeNetworkThreadCursor(
 	fingerprint, err := networkConversationCursorFingerprint(
 		ref,
 		query.Search,
-		query.PeerID,
+		query.SessionID,
 		query.Sort,
 		query.HasWork,
 		query.Limit,
@@ -421,7 +421,7 @@ func encodeNetworkDirectRoomCursor(
 	fingerprint, err := networkConversationCursorFingerprint(
 		ref,
 		query.Search,
-		query.PeerID,
+		query.SessionID,
 		query.Sort,
 		query.HasWork,
 		query.Limit,
@@ -429,7 +429,7 @@ func encodeNetworkDirectRoomCursor(
 	if err != nil {
 		return "", fmt.Errorf("store: fingerprint network direct cursor: %w", err)
 	}
-	cursor := networkDirectRoomCursor{DirectID: direct.DirectID, PeerA: direct.PeerA, PeerB: direct.PeerB}
+	cursor := networkDirectRoomCursor{DirectID: direct.DirectID, SessionA: direct.SessionA, SessionB: direct.SessionB}
 	switch store.NormalizeNetworkConversationSort(query.Sort) {
 	case store.NetworkConversationSortCreated:
 		cursor.OpenedAt = store.FormatTimestamp(direct.OpenedAt)

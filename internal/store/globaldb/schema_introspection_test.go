@@ -125,6 +125,90 @@ func tableHasForeignKey(
 	return false, nil
 }
 
+func tableHasCompositeForeignKey(
+	ctx context.Context,
+	exec schemaQueryExecutor,
+	table string,
+	referencedTable string,
+	fromColumns []string,
+	toColumns []string,
+) (found bool, err error) {
+	if len(fromColumns) == 0 || len(fromColumns) != len(toColumns) {
+		return false, fmt.Errorf("foreign key columns must be non-empty and have equal lengths")
+	}
+	name, err := store.NormalizeSQLiteIdentifier(table)
+	if err != nil {
+		return false, err
+	}
+	rows, err := exec.QueryContext(ctx, fmt.Sprintf("PRAGMA foreign_key_list(%s)", name))
+	if err != nil {
+		return false, fmt.Errorf("query foreign keys for table %q: %w", table, err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			closeErr = fmt.Errorf("close table %q foreign-key rows: %w", table, closeErr)
+			err = errors.Join(err, closeErr)
+		}
+	}()
+
+	type foreignKeyColumn struct {
+		from string
+		to   string
+	}
+	target := strings.TrimSpace(referencedTable)
+	foreignKeys := make(map[int][]foreignKeyColumn)
+	for rows.Next() {
+		var (
+			id       int
+			sequence int
+			refTable string
+			from     string
+			to       string
+			onUpdate string
+			onDelete string
+			match    string
+		)
+		if scanErr := rows.Scan(&id, &sequence, &refTable, &from, &to, &onUpdate, &onDelete, &match); scanErr != nil {
+			return false, fmt.Errorf("scan foreign keys for table %q: %w", table, scanErr)
+		}
+		if !strings.EqualFold(strings.TrimSpace(refTable), target) {
+			continue
+		}
+		columns := foreignKeys[id]
+		if sequence != len(columns) {
+			return false, fmt.Errorf(
+				"foreign key %d for table %q has sequence %d after %d columns",
+				id,
+				table,
+				sequence,
+				len(columns),
+			)
+		}
+		foreignKeys[id] = append(columns, foreignKeyColumn{from: from, to: to})
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return false, fmt.Errorf("iterate foreign keys for table %q: %w", table, rowsErr)
+	}
+
+	for _, columns := range foreignKeys {
+		if len(columns) != len(fromColumns) {
+			continue
+		}
+		matches := true
+		for index, column := range columns {
+			if !strings.EqualFold(strings.TrimSpace(column.from), strings.TrimSpace(fromColumns[index])) ||
+				!strings.EqualFold(strings.TrimSpace(column.to), strings.TrimSpace(toColumns[index])) {
+				matches = false
+				break
+			}
+		}
+		if matches {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func assertTableHasNoForeignKeys(t *testing.T, db *sql.DB, table string) {
 	t.Helper()
 	name, err := store.NormalizeSQLiteIdentifier(table)

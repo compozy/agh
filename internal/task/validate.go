@@ -514,8 +514,29 @@ func validateRunIdentity(r Run) error {
 	if strings.TrimSpace(r.ID) == "" {
 		return fmt.Errorf("%w: task_run.id is required", ErrValidation)
 	}
-	if strings.TrimSpace(r.TaskID) == "" {
-		return fmt.Errorf("%w: task_run.task_id is required", ErrValidation)
+	wakeID, targetSessionID, ownerKey := r.NetworkWakeCorrelation()
+	kind := normalizeRunKindOrDefault(r.RunKind)
+	if kind == RunKindNetworkWake {
+		if strings.TrimSpace(r.TaskID) != "" {
+			return fmt.Errorf("%w: task_run.task_id must be empty for network_wake runs", ErrValidation)
+		}
+		if strings.TrimSpace(wakeID) == "" ||
+			strings.TrimSpace(targetSessionID) == "" ||
+			strings.TrimSpace(ownerKey) == "" {
+			return fmt.Errorf(
+				"%w: network_wake runs require network_wake_id, network_target_session_id, and network_owner_key",
+				ErrValidation,
+			)
+		}
+	} else {
+		if strings.TrimSpace(r.TaskID) == "" {
+			return fmt.Errorf("%w: task_run.task_id is required", ErrValidation)
+		}
+		if strings.TrimSpace(wakeID) != "" ||
+			strings.TrimSpace(targetSessionID) != "" ||
+			strings.TrimSpace(ownerKey) != "" {
+			return fmt.Errorf("%w: task-anchored runs cannot carry network wake correlation", ErrValidation)
+		}
 	}
 	if r.Attempt <= 0 {
 		return fmt.Errorf("%w: task_run.attempt must be positive: %d", ErrValidation, r.Attempt)
@@ -942,34 +963,6 @@ func (r EnqueueRun) Validate(path string) error {
 			ErrValidation,
 			nestedPath(path, "loop_run_id"),
 		)
-	}
-	if err := ValidateMetadataSize(r.Metadata, nestedPath(path, "metadata")); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Validate reports whether the store-level queue reservation input is internally consistent.
-func (r QueueRunReservation) Validate(path string) error {
-	if strings.TrimSpace(r.TaskID) == "" {
-		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "task_id"))
-	}
-	if strings.TrimSpace(r.RunID) == "" {
-		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "run_id"))
-	}
-	runKind := normalizeRunKindOrDefault(r.RunKind)
-	if err := runKind.Validate(nestedPath(path, "run_kind")); err != nil {
-		return err
-	}
-	if runKind == RunKindCoordinator && strings.TrimSpace(r.LoopRunID) == "" {
-		return fmt.Errorf(
-			"%w: %s is required for coordinator runs",
-			ErrValidation,
-			nestedPath(path, "loop_run_id"),
-		)
-	}
-	if err := r.Origin.Validate(nestedPath(path, "origin")); err != nil {
-		return err
 	}
 	if err := ValidateMetadataSize(r.Metadata, nestedPath(path, "metadata")); err != nil {
 		return err

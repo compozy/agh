@@ -67,7 +67,7 @@ func TestCoordinatorRunnerShouldMaterializeReadyLayerPlan(t *testing.T) {
 		)
 		runner, err := NewCoordinatorRunner(
 			&coordinatorRunnerTaskRunReader{run: taskRun},
-			coordinatorRunnerLoopStore{run: loopRun, snapshot: snapshot},
+			&coordinatorRunnerLoopStore{run: loopRun, snapshot: snapshot},
 			coordinatorRunnerOutputs{},
 			slog.New(slog.NewTextHandler(io.Discard, nil)),
 		)
@@ -1983,7 +1983,7 @@ func newCoordinatorRunnerForTestWithDefinition(
 	options = append(options, opts...)
 	runner, err := NewCoordinatorRunner(
 		&coordinatorRunnerTaskRunReader{runs: runs},
-		coordinatorRunnerLoopStore{run: loopRun, snapshot: snapshot},
+		&coordinatorRunnerLoopStore{run: loopRun, snapshot: snapshot},
 		outputs,
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 		options...,
@@ -2024,9 +2024,9 @@ func setCoordinatorRunnerRunsForTest(
 ) {
 	t.Helper()
 
-	store, ok := runner.store.(coordinatorRunnerLoopStore)
+	store, ok := runner.store.(*coordinatorRunnerLoopStore)
 	if !ok {
-		t.Fatalf("coordinator store type = %T, want coordinatorRunnerLoopStore", runner.store)
+		t.Fatalf("coordinator store type = %T, want *coordinatorRunnerLoopStore", runner.store)
 	}
 	if _, exists := runs[store.run.ID]; exists {
 		runs[store.run.ID] = store.run
@@ -2125,7 +2125,7 @@ func newCoordinatorRunnerForStopWhenTest(
 	loopRun, snapshot := pinCoordinatorResolvedForTest(t, loopRun, resolved, effective)
 	runner, err := NewCoordinatorRunner(
 		&coordinatorRunnerTaskRunReader{runs: map[string]task.Run{coordinatorRun.ID: coordinatorRun}},
-		coordinatorRunnerLoopStore{run: loopRun, snapshot: snapshot},
+		&coordinatorRunnerLoopStore{run: loopRun, snapshot: snapshot},
 		coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
 			{
 				Generation: 1,
@@ -2357,7 +2357,7 @@ type coordinatorRunnerLoopStore struct {
 	snapshot *DefinitionSnapshot
 }
 
-func (s coordinatorRunnerLoopStore) CreateLoopRunForStart(
+func (s *coordinatorRunnerLoopStore) CreateLoopRunForStart(
 	context.Context,
 	Run,
 	dsl.ConcurrencyPolicy,
@@ -2365,11 +2365,11 @@ func (s coordinatorRunnerLoopStore) CreateLoopRunForStart(
 	panic("CreateLoopRunForStart should not be called")
 }
 
-func (s coordinatorRunnerLoopStore) GetLoopRun(context.Context, WorkspaceID, RunID) (Run, error) {
+func (s *coordinatorRunnerLoopStore) GetLoopRun(context.Context, WorkspaceID, RunID) (Run, error) {
 	panic("GetLoopRun should not be called")
 }
 
-func (s coordinatorRunnerLoopStore) GetLoopRunByID(_ context.Context, runID RunID) (Run, error) {
+func (s *coordinatorRunnerLoopStore) GetLoopRunByID(_ context.Context, runID RunID) (Run, error) {
 	if s.runs != nil {
 		run, ok := s.runs[runID]
 		if !ok {
@@ -2380,7 +2380,7 @@ func (s coordinatorRunnerLoopStore) GetLoopRunByID(_ context.Context, runID RunI
 	return s.run, nil
 }
 
-func (s coordinatorRunnerLoopStore) GetLoopDefinitionSnapshot(
+func (s *coordinatorRunnerLoopStore) GetLoopDefinitionSnapshot(
 	_ context.Context,
 	workspaceID WorkspaceID,
 	digest string,
@@ -2391,7 +2391,7 @@ func (s coordinatorRunnerLoopStore) GetLoopDefinitionSnapshot(
 	panic("GetLoopDefinitionSnapshot should not be called")
 }
 
-func (s coordinatorRunnerLoopStore) FindActiveLoopRun(
+func (s *coordinatorRunnerLoopStore) FindActiveLoopRun(
 	context.Context,
 	WorkspaceID,
 	string,
@@ -2399,7 +2399,7 @@ func (s coordinatorRunnerLoopStore) FindActiveLoopRun(
 	panic("FindActiveLoopRun should not be called")
 }
 
-func (s coordinatorRunnerLoopStore) CompareAndSwapLoopRunStatus(
+func (s *coordinatorRunnerLoopStore) CompareAndSwapLoopRunStatus(
 	context.Context,
 	RunID,
 	Status,
@@ -2410,14 +2410,14 @@ func (s coordinatorRunnerLoopStore) CompareAndSwapLoopRunStatus(
 	panic("CompareAndSwapLoopRunStatus should not be called")
 }
 
-func (s coordinatorRunnerLoopStore) RecordLoopGateDecisions(
+func (s *coordinatorRunnerLoopStore) RecordLoopGateDecisions(
 	context.Context,
 	[]GateDecisionRecord,
 ) error {
 	panic("RecordLoopGateDecisions should not be called")
 }
 
-func (s coordinatorRunnerLoopStore) ListLoopGateDecisions(
+func (s *coordinatorRunnerLoopStore) ListLoopGateDecisions(
 	context.Context,
 	WorkspaceID,
 	RunID,
@@ -2427,7 +2427,7 @@ func (s coordinatorRunnerLoopStore) ListLoopGateDecisions(
 	return map[string]gate.HumanDecision{}, nil
 }
 
-func (s coordinatorRunnerLoopStore) SetLoopRunPauseRequested(
+func (s *coordinatorRunnerLoopStore) SetLoopRunPauseRequested(
 	context.Context,
 	WorkspaceID,
 	RunID,
@@ -2437,7 +2437,7 @@ func (s coordinatorRunnerLoopStore) SetLoopRunPauseRequested(
 	panic("SetLoopRunPauseRequested should not be called")
 }
 
-func (s coordinatorRunnerLoopStore) UpsertLoopConfig(
+func (s *coordinatorRunnerLoopStore) UpsertLoopConfig(
 	context.Context,
 	WorkspaceID,
 	string,
@@ -2446,7 +2446,7 @@ func (s coordinatorRunnerLoopStore) UpsertLoopConfig(
 	panic("UpsertLoopConfig should not be called")
 }
 
-func (s coordinatorRunnerLoopStore) GetLoopConfig(
+func (s *coordinatorRunnerLoopStore) GetLoopConfig(
 	context.Context,
 	WorkspaceID,
 	string,

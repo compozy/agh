@@ -58,9 +58,13 @@ func updateTaskRunRecordWithSnapshotCAS(
 	previous taskpkg.Run,
 	next taskpkg.Run,
 ) error {
+	params, err := forceTaskRunSnapshotParams(previous, next)
+	if err != nil {
+		return err
+	}
 	rowsAffected, err := sqlcgen.New(exec).ForceUpdateTaskRunSnapshot(
 		ctx,
-		forceTaskRunSnapshotParams(previous, next),
+		params,
 	)
 	if err != nil {
 		return fmt.Errorf("store: force update task run %q: %w", next.ID, err)
@@ -110,7 +114,7 @@ func taskRunsByIDForTaskWithExecutor(
 	exec taskSQLExecutor,
 	taskID string,
 ) (runs map[string]taskpkg.Run, err error) {
-	runIDs, err := sqlcgen.New(exec).ListTaskRunIDsForTask(ctx, taskID)
+	runIDs, err := sqlcgen.New(exec).ListTaskRunIDsForTask(ctx, nullableTaskString(taskID))
 	if err != nil {
 		return nil, fmt.Errorf("store: list retry lineage runs for task %q: %w", taskID, err)
 	}

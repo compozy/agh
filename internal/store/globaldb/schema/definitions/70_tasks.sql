@@ -92,7 +92,6 @@ CREATE TABLE "tasks" (
 		scope           TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
 		workspace_id    TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
 		parent_task_id  TEXT REFERENCES tasks(id),
-		network_channel TEXT,
 		title           TEXT NOT NULL,
 		description     TEXT,
 		priority        TEXT NOT NULL DEFAULT 'medium' CHECK (
@@ -198,8 +197,6 @@ CREATE INDEX idx_task_triage_actor ON task_triage_state(actor_kind, actor_id, up
 CREATE INDEX idx_task_triage_task ON task_triage_state(task_id, updated_at DESC);
 
 CREATE INDEX idx_tasks_approval_state ON tasks(approval_state);
-
-CREATE INDEX idx_tasks_channel ON tasks(network_channel);
 
 CREATE INDEX idx_tasks_created_by ON tasks(created_by_kind, created_by_ref);
 

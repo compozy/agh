@@ -3367,16 +3367,15 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 	}
 
 	listResult, err := env.call(t, "ext-reader", "tasks", map[string]any{
-		"scope":           taskpkg.ScopeWorkspace,
-		"workspace":       env.workspaceID,
-		"priority":        taskpkg.PriorityHigh,
-		"approval_state":  taskpkg.ApprovalStatePending,
-		"owner_kind":      taskpkg.OwnerKindExtension,
-		"owner_ref":       "ops",
-		"parent_task_id":  parent.ID,
-		"network_channel": "tasks_ops",
-		"query":           "Filtered",
-		"limit":           10,
+		"scope":          taskpkg.ScopeWorkspace,
+		"workspace":      env.workspaceID,
+		"priority":       taskpkg.PriorityHigh,
+		"approval_state": taskpkg.ApprovalStatePending,
+		"owner_kind":     taskpkg.OwnerKindExtension,
+		"owner_ref":      "ops",
+		"parent_task_id": parent.ID,
+		"query":          "Filtered",
+		"limit":          10,
 	})
 	if err != nil {
 		t.Fatalf("Handle(tasks) error = %v", err)
@@ -3432,14 +3431,13 @@ func TestHostAPIHandlerTasksListAndGetReturnFilteredDetail(t *testing.T) {
 	}
 
 	withDraftsResult, err := env.call(t, "ext-reader", "tasks", map[string]any{
-		"scope":           taskpkg.ScopeWorkspace,
-		"workspace":       env.workspaceID,
-		"owner_kind":      taskpkg.OwnerKindExtension,
-		"owner_ref":       "ops",
-		"parent_task_id":  parent.ID,
-		"network_channel": "tasks_ops",
-		"include_drafts":  true,
-		"limit":           10,
+		"scope":          taskpkg.ScopeWorkspace,
+		"workspace":      env.workspaceID,
+		"owner_kind":     taskpkg.OwnerKindExtension,
+		"owner_ref":      "ops",
+		"parent_task_id": parent.ID,
+		"include_drafts": true,
+		"limit":          10,
 	})
 	if err != nil {
 		t.Fatalf("Handle(tasks include_drafts) error = %v", err)

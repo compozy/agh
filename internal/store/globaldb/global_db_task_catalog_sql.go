@@ -13,7 +13,7 @@ base_runs AS MATERIALIZED (
 	SELECT
 		tr.id, tr.task_id, tr.status, tr.attempt, tr.previous_run_id, tr.failure_kind,
 		tr.claimed_by_kind, tr.claimed_by_ref, tr.session_id, tr.lease_until,
-		tr.heartbeat_at, tr.coordination_channel_id, tr.queued_at, tr.claimed_at, tr.started_at,
+		tr.heartbeat_at, tr.network_channel, tr.queued_at, tr.claimed_at, tr.started_at,
 		tr.ended_at, tr.error
 	FROM base_tasks bt
 	CROSS JOIN task_runs AS tr INDEXED BY idx_task_runs_task
@@ -149,7 +149,7 @@ active_run_candidates AS (
 	SELECT
 		id, task_id, status, attempt, previous_run_id, failure_kind, claimed_by_kind,
 		claimed_by_ref, session_id, lease_until, heartbeat_at,
-		coordination_channel_id, queued_at, claimed_at, started_at,
+		network_channel, queued_at, claimed_at, started_at,
 		ended_at, error,
 		ROW_NUMBER() OVER (
 			PARTITION BY task_id
@@ -225,6 +225,7 @@ catalog_derived AS (
 			ELSE 'ready'
 		END AS canonical_status,
 		ar.id AS active_run_id,
+		ar.network_channel AS network_channel,
 		ar.status AS active_run_status,
 		ar.attempt AS active_run_attempt,
 		ar.previous_run_id AS active_run_previous_run_id,
@@ -234,7 +235,7 @@ catalog_derived AS (
 		ar.session_id AS active_run_session_id,
 		ar.lease_until AS active_run_lease_until,
 		ar.heartbeat_at AS active_run_heartbeat_at,
-		ar.coordination_channel_id AS active_run_coordination_channel_id,
+		ar.network_channel AS active_run_coordination_channel_id,
 		ar.queued_at AS active_run_queued_at,
 		ar.claimed_at AS active_run_claimed_at,
 		ar.started_at AS active_run_started_at,
@@ -282,7 +283,7 @@ const taskCatalogSelectColumns = `id, identifier, scope, workspace_id, parent_ta
 	active_run_ended_at, active_run_error`
 
 const taskCatalogBaseColumns = `id, identifier, scope, workspace_id, parent_task_id,
-	network_channel, title, priority, max_attempts, auto_enqueue_on_ready, status,
+	title, priority, max_attempts, auto_enqueue_on_ready, status,
 	approval_policy, approval_state, owner_kind, owner_ref, current_run_id,
 	created_by_kind, created_by_ref, origin_kind, origin_ref, created_at, updated_at,
 	closed_at, paused, needs_attention_reason, needs_attention_at,
@@ -295,7 +296,6 @@ func taskCatalogBaseFilter(query taskpkg.CatalogQuery) ([]string, []any) {
 		store.StringClause("owner_kind", string(query.OwnerKind)),
 		store.StringClause("owner_ref", query.OwnerRef),
 		store.StringClause("parent_task_id", query.ParentTaskID),
-		store.StringClause("network_channel", query.NetworkChannel),
 	)
 	switch query.Scope {
 	case taskpkg.CatalogScopeGlobal:
@@ -323,7 +323,10 @@ func taskCatalogBaseFilter(query taskpkg.CatalogQuery) ([]string, []any) {
 }
 
 func taskCatalogFilter(query taskpkg.CatalogQuery) ([]string, []any) {
-	return store.BuildClauses(store.StringClause("status", string(query.Status)))
+	return store.BuildClauses(
+		store.StringClause("status", string(query.Status)),
+		store.StringClause("network_channel", query.NetworkChannel),
+	)
 }
 
 func taskCatalogPageFilter(

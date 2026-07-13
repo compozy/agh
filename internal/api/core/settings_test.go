@@ -1181,13 +1181,11 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 			AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeGlobal},
 			Network: &settingspkg.NetworkSection{
 				Config: aghconfig.NetworkConfig{
-					Enabled:        true,
-					DefaultChannel: "builders",
-					Port:           4222,
-					MaxPayload:     1024,
-					GreetInterval:  5,
-					MaxReplayAge:   10,
-					MaxQueueDepth:  32,
+					Enabled:       true,
+					GreetInterval: 5,
+					MaxReplayAge:  10,
+					MaxQueueDepth: 32,
+					Live:          aghconfig.DefaultNetworkConfig().Live,
 				},
 				Runtime: settingspkg.NetworkRuntimeStatus{
 					Available:       true,
@@ -1709,7 +1707,7 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			},
 			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
 				t.Helper()
-				if req.Network == nil || req.Network.DefaultChannel != "builders" {
+				if req.Network == nil || req.Network.MaxQueueDepth != 32 {
 					t.Fatalf("req.Network = %#v, want populated network config", req.Network)
 				}
 			},

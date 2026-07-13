@@ -11,7 +11,7 @@ import (
 func normalizeNetworkSubscriptionEntry(entry store.NetworkSubscriptionEntry) store.NetworkSubscriptionEntry {
 	normalized := store.NetworkSubscriptionEntry{
 		WorkspaceID: strings.TrimSpace(entry.WorkspaceID), Channel: strings.TrimSpace(entry.Channel),
-		ThreadID: strings.TrimSpace(entry.ThreadID), PeerID: strings.TrimSpace(entry.PeerID),
+		ThreadID: strings.TrimSpace(entry.ThreadID), SessionID: strings.TrimSpace(entry.SessionID),
 		Mode: strings.TrimSpace(entry.Mode), CreatedAt: entry.CreatedAt, UpdatedAt: entry.UpdatedAt,
 	}
 	normalized.KeywordFilters = normalizeStringSlice(entry.KeywordFilters)
@@ -32,7 +32,7 @@ func scanNetworkSubscription(scanner rowScanner) (store.NetworkSubscriptionEntry
 	var entry store.NetworkSubscriptionEntry
 	var filtersRaw, createdAtRaw, updatedAtRaw string
 	if err := scanner.Scan(
-		&entry.WorkspaceID, &entry.Channel, &entry.ThreadID, &entry.PeerID, &entry.Mode,
+		&entry.WorkspaceID, &entry.Channel, &entry.ThreadID, &entry.SessionID, &entry.Mode,
 		&filtersRaw, &createdAtRaw, &updatedAtRaw,
 	); err != nil {
 		return store.NetworkSubscriptionEntry{}, fmt.Errorf("store: scan network subscription: %w", err)

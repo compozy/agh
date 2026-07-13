@@ -32,7 +32,10 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			'coder',
 			'claude',
 			'ws-1',
-			'builders',
+			'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
+			'local',
+			NULL,
+			'built_in_local',
 			'user',
 			NULL,
 			NULL,
@@ -100,7 +103,7 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 		if got, want := info.Provider, "claude"; got != want {
 			t.Fatalf("info.Provider = %q, want %q", got, want)
 		}
-		if got, want := info.Channel, "builders"; got != want {
+		if got, want := info.Channel, ""; got != want {
 			t.Fatalf("info.Channel = %q, want %q", got, want)
 		}
 		if info.ACPSessionID == nil || *info.ACPSessionID != "acp-123" {
@@ -163,7 +166,10 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 			'coder',
 			'',
 			'ws-1',
-			'',
+			'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
+			'local',
+			NULL,
+			'built_in_local',
 			'user',
 			NULL,
 			NULL,
@@ -250,7 +256,10 @@ func TestScanSessionInfoRejectsInvalidSandboxLastSyncAt(t *testing.T) {
 			'coder',
 			'claude',
 			'ws-1',
-			'builders',
+			'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
+			'local',
+			NULL,
+			'built_in_local',
 			'user',
 			NULL,
 			NULL,
@@ -317,7 +326,10 @@ func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
 			'coder',
 			'claude',
 			'ws-1',
-			'builders',
+			'{"version":"network-participation/v1","mode":"local","source":"built_in_local"}',
+			'local',
+			NULL,
+			'built_in_local',
 			'user',
 			NULL,
 			NULL,
@@ -530,10 +542,8 @@ func TestGlobalDBDeleteSession(t *testing.T) {
 		prefixGlobalDB.initializeRepositories()
 		targetID := "sess-v2-upgrade-target"
 		survivorID := "sess-v2-upgrade-survivor"
-		registerSessionForGlobalTests(t, prefixGlobalDB, targetID)
-		registerSessionForGlobalTests(t, prefixGlobalDB, survivorID)
-		writeSessionDeleteDependents(t, prefixGlobalDB, targetID)
-		writeSessionDeleteDependents(t, prefixGlobalDB, survivorID)
+		seedSessionDeletePrefixRows(t, prefixGlobalDB, targetID)
+		seedSessionDeletePrefixRows(t, prefixGlobalDB, survivorID)
 		if err := prefixDB.Close(); err != nil {
 			t.Fatalf("prefixDB.Close() error = %v", err)
 		}
@@ -555,8 +565,8 @@ func TestGlobalDBDeleteSession(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(upgraded global DB) error = %v", err)
 		}
-		if status.Version != 7 || status.AppliedCount != 7 {
-			t.Fatalf("Status(upgraded global DB) = %#v, want version/applied count 7", status)
+		if status.Version != 8 || status.AppliedCount != 8 {
+			t.Fatalf("Status(upgraded global DB) = %#v, want version/applied count 8", status)
 		}
 
 		if err := globalDB.DeleteSession(ctx, targetID); err != nil {
@@ -764,6 +774,60 @@ func writeSessionDeleteDependents(t *testing.T, globalDB *GlobalDB, sessionID st
 		Timestamp:  time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC),
 	}); err != nil {
 		t.Fatalf("WritePermissionLog() error = %v", err)
+	}
+}
+
+func seedSessionDeletePrefixRows(t *testing.T, globalDB *GlobalDB, sessionID string) {
+	t.Helper()
+
+	ctx := testutil.Context(t)
+	now := store.FormatTimestamp(time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC))
+	workspaceID := sessionID + "-workspace"
+	if _, err := globalDB.db.ExecContext(
+		ctx,
+		`INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?)`,
+		workspaceID,
+		filepath.Join(t.TempDir(), sessionID),
+		workspaceID,
+		now,
+		now,
+	); err != nil {
+		t.Fatalf("seed v2 workspace %q: %v", workspaceID, err)
+	}
+	if _, err := globalDB.db.ExecContext(
+		ctx,
+		`INSERT INTO sessions (
+			id, agent_name, provider, workspace_id, state, created_at, updated_at
+		 ) VALUES (?, 'coder', 'claude', ?, 'active', ?, ?)`,
+		sessionID,
+		workspaceID,
+		now,
+		now,
+	); err != nil {
+		t.Fatalf("seed v2 session %q: %v", sessionID, err)
+	}
+	if _, err := globalDB.db.ExecContext(
+		ctx,
+		`INSERT INTO token_stats (
+			id, session_id, agent_name, input_tokens, turn_count, updated_at
+		 ) VALUES (?, ?, 'coder', 7, 1, ?)`,
+		"token-"+sessionID,
+		sessionID,
+		now,
+	); err != nil {
+		t.Fatalf("seed v2 token stats for %q: %v", sessionID, err)
+	}
+	if _, err := globalDB.db.ExecContext(
+		ctx,
+		`INSERT INTO permission_log (
+			id, session_id, agent_name, action, resource, decision, policy_used, timestamp
+		 ) VALUES (?, ?, 'coder', 'fs/read', 'README.md', 'allow', 'approve-reads', ?)`,
+		"perm-"+sessionID,
+		sessionID,
+		now,
+	); err != nil {
+		t.Fatalf("seed v2 permission log for %q: %v", sessionID, err)
 	}
 }
 

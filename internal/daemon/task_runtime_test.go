@@ -19,6 +19,7 @@ import (
 	loopdsl "github.com/compozy/agh/internal/loop/dsl"
 	watchpkg "github.com/compozy/agh/internal/loop/watch"
 	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/procutil"
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/session"
@@ -2085,11 +2086,8 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 	if got, want := requeuedRun.Status, taskpkg.TaskRunStatusQueued; got != want {
 		t.Fatalf("requeued run status = %q, want %q", got, want)
 	}
-	if got, want := requeuedRun.NetworkChannel, "builders"; got != want {
-		t.Fatalf("requeued run network channel = %q, want %q", got, want)
-	}
-	if got, want := requeuedRun.CoordinationChannelID, "builders"; got != want {
-		t.Fatalf("requeued run coordination channel = %q, want %q", got, want)
+	if got, want := requeuedRun.NetworkSpec, participation.LocalSpec(); got != want {
+		t.Fatalf("requeued run NetworkSpec = %#v, want %#v", got, want)
 	}
 
 	markedRun, err := runtime.store.GetTaskRun(context.Background(), markSubmission.Run.ID)
@@ -2099,11 +2097,8 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 	if got, want := markedRun.Status, taskpkg.TaskRunStatusRunning; got != want {
 		t.Fatalf("marked run status = %q, want %q", got, want)
 	}
-	if got, want := markedRun.NetworkChannel, "builders"; got != want {
-		t.Fatalf("marked run network channel = %q, want %q", got, want)
-	}
-	if got, want := markedRun.CoordinationChannelID, "builders"; got != want {
-		t.Fatalf("marked run coordination channel = %q, want %q", got, want)
+	if got, want := markedRun.NetworkSpec, participation.LocalSpec(); got != want {
+		t.Fatalf("marked run NetworkSpec = %#v, want %#v", got, want)
 	}
 
 	failedRun, err := runtime.store.GetTaskRun(context.Background(), failSubmission.Run.ID)
@@ -2113,11 +2108,8 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 	if got, want := failedRun.Status, taskpkg.TaskRunStatusFailed; got != want {
 		t.Fatalf("failed run status = %q, want %q", got, want)
 	}
-	if got, want := failedRun.NetworkChannel, "builders"; got != want {
-		t.Fatalf("failed run network channel = %q, want %q", got, want)
-	}
-	if got, want := failedRun.CoordinationChannelID, "builders"; got != want {
-		t.Fatalf("failed run coordination channel = %q, want %q", got, want)
+	if got, want := failedRun.NetworkSpec, participation.LocalSpec(); got != want {
+		t.Fatalf("failed run NetworkSpec = %#v, want %#v", got, want)
 	}
 }
 

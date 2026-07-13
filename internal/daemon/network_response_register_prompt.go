@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 
-	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/session"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -16,17 +15,6 @@ var (
 )
 
 type networkResponseRegisterPromptSectionProvider struct{}
-
-const (
-	networkResponseRegisterDefaultLine = "Network response register: reply briefly only when addressed, " +
-		"activated, or adding value; promote actionable work to tasks."
-	networkResponseRegisterDirectLine = "Network response register: direct replies are brief and actionable; " +
-		"promote executable work to tasks."
-	networkResponseRegisterThreadLine = "Network response register: in threads, reply briefly only when addressed, " +
-		"activated, or adding value; promote executable work to tasks."
-	networkResponseRegisterChannelLine = "Network response register: channel replies stay brief; respond only " +
-		"when addressed, activated, or adding value."
-)
 
 func (networkResponseRegisterPromptSectionProvider) PromptSection(
 	context.Context,
@@ -57,38 +45,4 @@ func renderNetworkResponseRegisterStartupSection(startup session.StartupPromptCo
 		builder.WriteString("`.")
 	}
 	return builder.String()
-}
-
-func newNetworkResponseRegisterAugmenter() session.PromptInputAugmenter {
-	return func(_ context.Context, sess *session.Session, message string) (string, error) {
-		if sess == nil || sess.CurrentTurnSource() != session.TurnSourceNetwork {
-			return message, nil
-		}
-		line := networkResponseRegisterTurnLine(sess.CurrentPromptMeta().Network)
-		if strings.TrimSpace(line) == "" {
-			return message, nil
-		}
-		return line + "\n\n" + message, nil
-	}
-}
-
-func networkResponseRegisterTurnLine(meta *acp.PromptNetworkMeta) string {
-	if meta == nil {
-		return networkResponseRegisterDefaultLine
-	}
-	normalized := meta.Normalize()
-	switch strings.TrimSpace(normalized.Surface) {
-	case nativeToolsDirectKey:
-		return networkResponseRegisterDirectLine
-	case "thread":
-		return networkResponseRegisterThreadLine
-	default:
-		if strings.TrimSpace(normalized.ThreadID) != "" {
-			return networkResponseRegisterThreadLine
-		}
-		if strings.TrimSpace(normalized.DirectID) != "" {
-			return networkResponseRegisterDirectLine
-		}
-		return networkResponseRegisterChannelLine
-	}
 }
