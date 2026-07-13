@@ -1,349 +1,238 @@
 ---
 title: Bridge Setup
-description: CLI-first setup and verification for all eight bundled bridge providers.
+description: Choose a bundled provider, follow its operator guide, and prove the inbound and outbound path before production use.
 ---
 
-Set up bridges through AGH's public commands. The daemon creates the instance, stores each secret
-through its write-only vault boundary, and asks the provider for typed identity and configuration
-checks. Some providers deliberately report identity verification as `skipped`; enabled runtime
-health remains authoritative for their live authentication result. The same control operations stay
-available over HTTP and UDS for automation.
+Bridge setup has two boundaries: the external platform and the AGH runtime. A complete setup proves
+both. The platform must authenticate and deliver an event to the provider extension; AGH must route
+that event into the intended workspace and deliver the agent response back to the same platform
+target.
 
-The safe order is:
+This page is the common setup path. Use the provider guide for console-specific steps, credentials,
+configuration, limits, and troubleshooting.
 
-1. Install and enable the provider extension.
-2. Create the bridge disabled and bind its secrets.
-3. Configure the provider webhook.
-4. Run `agh bridge verify <id>` before enabling the bridge.
-5. Enable the bridge and verify again to test public reachability.
-6. Use `agh bridge send-test` for a real provider delivery.
+## What you will complete
+
+Every provider guide ends at the same observable result:
+
+1. The provider extension is installed and visible in the bridge catalog.
+2. A workspace-scoped bridge exists in `disabled` state.
+3. Every required credential crosses the write-only secret-binding boundary.
+4. The provider console sends events to the exact public callback configured on the bridge.
+5. Disabled verification proves local configuration and provider identity where the adapter supports it.
+6. Enabled verification proves public callback reachability.
+7. A real inbound event creates a route in the expected workspace.
+8. `agh bridge send-test` produces a real remote message at the intended target.
+
+If any checkpoint is missing, the setup is not complete. A green public reachability check does not
+prove provider authentication, and a successful identity check does not prove that the provider
+console is delivering events.
+
+## Choose a provider
+
+| Provider        | Setup surface                        | Inbound model                                       | Dedicated guide                                             |
+| --------------- | ------------------------------------ | --------------------------------------------------- | ----------------------------------------------------------- |
+| Slack           | Generated app manifest + generic CLI | Signed Events API, command, and interaction HTTP    | [Set up Slack](/runtime/core/bridges/setup-slack)           |
+| Telegram        | Guided CLI                           | Bot API webhook with secret-token authentication    | [Set up Telegram](/runtime/core/bridges/setup-telegram)     |
+| Discord         | Guided CLI                           | Ed25519-signed interactions and webhook events      | [Set up Discord](/runtime/core/bridges/setup-discord)       |
+| WhatsApp        | Guided CLI                           | Meta Cloud API verification challenge + signed POST | [Set up WhatsApp](/runtime/core/bridges/setup-whatsapp)     |
+| Microsoft Teams | Generic CLI                          | Bot Framework activities with bearer JWTs           | [Set up Microsoft Teams](/runtime/core/bridges/setup-teams) |
+| Google Chat     | Generic CLI                          | Direct HTTP, Pub/Sub push, or hybrid Google JWTs    | [Set up Google Chat](/runtime/core/bridges/setup-gchat)     |
+| GitHub          | Generic CLI                          | Signed repository or GitHub App webhooks            | [Set up GitHub](/runtime/core/bridges/setup-github)         |
+| Linear          | Generic CLI                          | Signed comment or Agent Session webhooks            | [Set up Linear](/runtime/core/bridges/setup-linear)         |
+
+Only WhatsApp, Telegram, and Discord have `agh bridge setup <provider>` commands. Slack needs a
+persisted disabled instance before AGH can generate its app manifest. Teams, Google Chat, GitHub,
+and Linear use `agh bridge create` followed by explicit secret bindings.
 
 <OperatorNote>
-  `provider_config.webhook.public_url` is the complete HTTPS callback URL the platform calls.
-  `provider_config.webhook.path` is the provider's local listener path. AGH does not infer the
-  public URL from proxy headers, the daemon address, or `listen_addr`.
+  GitHub and Linear are issue-side bridges, not chat rooms. Their success criterion is a routed
+  issue/review comment or Agent Session activity, not a generic channel message.
 </OperatorNote>
 
 ## Prerequisites
 
 - The AGH daemon is running.
-- The target workspace has a default agent for bridge-initiated sessions.
+- The destination workspace exists and has a default agent.
 - The provider extension is installed and enabled.
-- The platform can reach the configured public webhook URL.
-- You have the provider credentials required by the selected setup flow.
+- You can administer the external app, bot, webhook, or repository integration.
+- A stable public HTTPS URL can reach the provider's local listener.
+- You have a secret manager or shell environment ready for provider credentials.
 
-Confirm the installed extension, then inspect the provider catalog without exposing secrets:
+Inspect the extension and provider catalogs before creating anything:
 
 ```bash
+agh workspace list -o json
 agh extension list -o json
+agh bridge list --scope workspace --workspace-id ws_8f33a913d23c4fd1 -o json
 ```
 
-Provider records and bridge instances are also available through `/api/bridges/providers` and
-`/api/bridges` over HTTP or UDS.
+Confirm the workspace record has a non-empty `default_agent`. If it does not, assign one before
+creating the bridge:
 
-## Choose a provider
+```bash
+agh workspace edit <workspace-name-or-id> --default-agent <agent-name>
+```
 
-| Provider        | AGH setup path                                                   | Authentication model                          |
-| --------------- | ---------------------------------------------------------------- | --------------------------------------------- |
-| Slack           | Generated manifest plus the [Slack steps below](#slack)          | Bot token and request-signing secret          |
-| Telegram        | Guided [Telegram setup](#telegram)                               | Bot token and optional webhook secret         |
-| Discord         | Guided [Discord setup](#discord)                                 | Bot token and Ed25519 public key              |
-| WhatsApp        | [WhatsApp Cloud API setup](/runtime/core/bridges/setup-whatsapp) | Access token, app secret, and verify token    |
-| Microsoft Teams | [Generic CLI setup](/runtime/core/bridges/setup-teams)           | Bot Framework application credentials         |
-| Google Chat     | [Mode-aware CLI setup](/runtime/core/bridges/setup-gchat)        | Service account and ingress verification      |
-| GitHub          | [PAT or GitHub App setup](/runtime/core/bridges/setup-github)    | Webhook secret and mode-dependent credentials |
-| Linear          | [API key or OAuth setup](/runtime/core/bridges/setup-linear)     | Webhook secret and mode-dependent credentials |
+The provider catalog is also available at `GET /api/bridges/providers` over HTTP and UDS. Do not
+continue with a provider that is absent or disabled; creating an instance cannot install its owner.
 
-Only WhatsApp, Telegram, and Discord have guided `agh bridge setup` commands. Other providers use
-the generic `agh bridge create` and `agh bridge secret-bindings put` commands. Slack adds
-`agh bridge manifest slack` after creating its disabled instance.
+## Understand the network boundary
+
+The platform and provider use one public URL, while the extension listens on a local address and
+path:
+
+```text
+external platform
+  → https://bridge.example.com/<provider>/<instance>
+  → reverse proxy or tunnel
+  → http://127.0.0.1:<provider-port>/<provider>/<instance>
+```
+
+`provider_config.webhook.public_url` is the complete external callback. It is the value copied into
+the provider console and the destination probed by `agh bridge verify` after enablement.
+
+`provider_config.webhook.listen_addr` and `provider_config.webhook.path` are the local listener
+coordinates. AGH does not infer the public URL from proxy headers, the daemon HTTP address, or the
+listener address.
+
+One provider subprocess can own multiple bridge instances. Those instances share the provider's
+listener address and need distinct paths unless the provider explicitly documents safe shared-path
+selection.
 
 <OperatorNote>
-  Guided setup stores the public URL and local path, but it does not prompt for the provider
-  listener address. Set `AGH_BRIDGE_WHATSAPP_LISTEN_ADDR`, `AGH_BRIDGE_TELEGRAM_LISTEN_ADDR`, or
-  `AGH_BRIDGE_DISCORD_LISTEN_ADDR` in the daemon service environment before starting the provider.
-  Strict JSON setup can instead pass `provider_config.webhook.listen_addr`.
+  Credential-bearing upstream destinations are not mutable bridge configuration. Official API,
+  token, OpenID, and service endpoints come from provider defaults. Trusted sovereign or test
+  overrides belong in the provider process environment.
 </OperatorNote>
 
-## Network trust boundary
+Public callback verification accepts public HTTPS destinations only. It rejects userinfo, fragments,
+loopback, private, link-local, metadata, multicast, translated, and other special-use addresses. The
+probe does not use an HTTP proxy or follow redirects.
 
-Bridge instances cannot choose the upstream host that receives a bound credential. AGH rejects
-`api_base_url`, `oauth_token_url`, `service_url`, `openid_metadata_url`, and `token_url` anywhere in
-`provider_config`. This keeps write-only secret bindings from becoming readable through an
-attacker-controlled endpoint.
+## Follow the safe lifecycle
 
-The built-in adapters use their official endpoints by default. For a sovereign deployment, trusted
-proxy, or local integration lab, the operator can set process-level overrides before starting the
-daemon. The adapter subprocess inherits these values:
+### 1. Create disabled
 
-| Provider    | Operator-owned endpoint variables                                                                    |
-| ----------- | ---------------------------------------------------------------------------------------------------- |
-| Slack       | `AGH_BRIDGE_SLACK_API_BASE_URL`                                                                      |
-| Telegram    | `AGH_BRIDGE_TELEGRAM_API_BASE_URL`                                                                   |
-| Discord     | `AGH_BRIDGE_DISCORD_API_BASE_URL`                                                                    |
-| WhatsApp    | `AGH_BRIDGE_WHATSAPP_API_BASE_URL`                                                                   |
-| Google Chat | `AGH_BRIDGE_GCHAT_API_BASE_URL`, `AGH_BRIDGE_GCHAT_TOKEN_URL`                                        |
-| Teams       | `AGH_BRIDGE_TEAMS_SERVICE_URL`, `AGH_BRIDGE_TEAMS_OPENID_METADATA_URL`, `AGH_BRIDGE_TEAMS_TOKEN_URL` |
-| GitHub      | `AGH_BRIDGE_GITHUB_API_BASE_URL`                                                                     |
-| Linear      | `AGH_BRIDGE_LINEAR_API_BASE_URL`, `AGH_BRIDGE_LINEAR_TOKEN_URL`                                      |
-
-`webhook.public_url` remains instance-owned because it is the callback destination given to the
-platform. It must be a public HTTPS URL. Verification refuses loopback, private, link-local,
-metadata, multicast, translated, or tunneled addresses before dialing; it does not use an HTTP
-proxy or follow redirects. A missing route fails verification, while timeout and upstream 5xx
-responses produce a warning.
-
-## Slack
-
-Slack setup has two paths. The generated app manifest is recommended because it keeps event
-subscriptions, bot scopes, slash-command routing, and interactivity on one reviewed artifact.
-
-### Option A — import the generated manifest
-
-Create a disabled Slack bridge. The public URL must already be the URL Slack can reach:
+Guided setup creates a disabled instance automatically. Generic providers use this shape:
 
 ```bash
 agh bridge create \
   --scope workspace \
   --workspace-id ws_8f33a913d23c4fd1 \
-  --platform slack \
-  --extension slack \
-  --display-name "Slack support" \
+  --platform <provider> \
+  --extension <provider> \
+  --display-name "<operator-facing name>" \
   --enabled=false \
-  --include-thread \
-  --include-group \
-  --provider-config '{
-    "webhook": {
-      "public_url": "https://bridge.example.com/slack/support",
-      "listen_addr": "127.0.0.1:18081",
-      "path": "/slack/support"
-    }
-  }' \
+  --provider-config '<provider JSON>' \
   -o json
 ```
 
-Copy the returned bridge ID, then write the manifest:
+Copy the returned bridge ID. Do not enable yet.
 
 ```bash
 BRIDGE_ID=brg_123
-
-agh bridge manifest slack \
-  --instance "$BRIDGE_ID" \
-  --write \
-  --out ./slack-manifest.json
 ```
 
-The command prints the exact next step: `paste into api.slack.com → From an app manifest`. In the
-[Slack app dashboard](https://api.slack.com/apps), choose **Create New App**, select **From an app
-manifest**, and paste or upload the generated JSON. Install the app to the workspace.
+### 2. Bind secrets
 
-Bind the Bot User OAuth token and signing secret. Secret values are write-only and are never returned
-by list or get operations:
+Each guide names the exact slots and where their values originate. A binding write accepts plaintext
+once and returns only redacted metadata later:
 
 ```bash
-agh bridge secret-bindings put "$BRIDGE_ID" bot_token \
-  --secret-ref "vault:bridges/$BRIDGE_ID/bot_token" \
-  --kind token \
-  --secret-value "$SLACK_BOT_TOKEN"
+agh bridge secret-bindings put "$BRIDGE_ID" <slot> \
+  --secret-ref "vault:bridges/$BRIDGE_ID/<slot>" \
+  --kind <token-or-secret-kind> \
+  --secret-value "$PROVIDER_SECRET"
 
-agh bridge secret-bindings put "$BRIDGE_ID" signing_secret \
-  --secret-ref "vault:bridges/$BRIDGE_ID/signing_secret" \
-  --kind secret \
-  --secret-value "$SLACK_SIGNING_SECRET"
+agh bridge secret-bindings list "$BRIDGE_ID" -o json
 ```
 
-The generated manifest subscribes to these bot events:
+The reference is scoped to the edited bridge. Never reuse another bridge's
+`vault:bridges/<bridge>/<slot>` reference.
 
-- `app_mention`
-- `message.channels`
-- `message.groups`
-- `message.im`
-- `message.mpim`
-- `reaction_added`
-- `reaction_removed`
+### 3. Configure the provider console
 
-It requests these bot scopes from the same runtime-owned source used by `agh bridge verify`:
+Copy the exact `webhook.public_url`, event selection, scopes, and app identity from the provider
+guide. Preserve the path through the reverse proxy. Do not copy a local `127.0.0.1` URL into an
+external console.
 
-- `app_mentions:read`
-- `assistant:write`
-- `channels:history`
-- `chat:write`
-- `commands`
-- `groups:history`
-- `im:history`
-- `mpim:history`
-- `reactions:read`
-- `reactions:write`
-
-`chat:write` covers new messages and edits. `reactions:write` enables the configured progress reaction
-affordance. Socket Mode stays disabled because AGH receives Slack webhooks.
-
-### Option B — configure Slack manually
-
-Use the event and scope lists above as the contract. In Slack's app dashboard:
-
-1. Add a bot user and the listed bot scopes.
-2. Set the Events API Request URL to `provider_config.webhook.public_url` and subscribe to every
-   listed event.
-3. Enable interactivity and set its Request URL to the same public URL.
-4. Create `/agh` with that same Request URL.
-5. Keep Socket Mode disabled, install or reinstall the app, and bind the new Bot User OAuth token.
-
-Reinstall after changing scopes. Verification reports each missing scope separately and identifies a
-user token when a Bot User OAuth token was expected.
-
-## WhatsApp
-
-The WhatsApp wizard creates a disabled WhatsApp Cloud API bridge, validates the Meta Phone Number ID,
-and binds all three write-only secrets. Continue with the dedicated
-[WhatsApp setup guide](/runtime/core/bridges/setup-whatsapp) for interactive and strict JSON flows,
-Meta callback verification, and real-delivery checks.
-
-## Telegram
-
-The Telegram wizard validates the BotFather token and operator-provided webhook secret, binds both,
-and asks the provider to call `setWebhook` while the bridge remains disabled:
-
-```bash
-agh bridge setup telegram
-```
-
-Headless setup uses the same operation and returns a structured registration result:
-
-```bash
-agh bridge setup telegram --json <<'JSON'
-{
-  "scope": "workspace",
-  "workspace_id": "ws_8f33a913d23c4fd1",
-  "webhook_public_url": "https://bridge.example.com/telegram/support",
-  "webhook_path": "/telegram/support",
-  "bot_token": "123456:abcdefghijklmnopqrstuvwxyzABCDE"
-}
-JSON
-```
-
-To inspect a safe `setWebhook` template without calling Telegram, use `--print-only`. Supply
-`webhook_secret` in the JSON input, or add `--reveal-generated-secrets` if AGH should generate it.
-Setup rejects an undisclosed generated value before writing anything because the template needs that
-secret. The template itself contains environment-variable placeholders, not a token-bearing URL or
-secret value:
-
-```bash
-agh bridge setup telegram --json --print-only < telegram-setup.json
-```
-
-Add the bot to the required chats. For group messages beyond commands, replies, and mentions, update
-the bot privacy setting in BotFather.
-
-## Discord
-
-The Discord wizard creates the disabled bridge, binds the bot token and Ed25519 public key, and
-returns an invite URL containing the `bot` and `applications.commands` scopes plus the configured
-permission bits:
-
-```bash
-agh bridge setup discord
-```
-
-The headless equivalent is:
-
-```bash
-agh bridge setup discord --json <<'JSON'
-{
-  "scope": "workspace",
-  "workspace_id": "ws_8f33a913d23c4fd1",
-  "webhook_public_url": "https://bridge.example.com/discord/support",
-  "webhook_path": "/discord/support",
-  "application_id": "111122223333444455",
-  "bot_token": "discord-bot-token",
-  "public_key": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-  "invite_scopes": ["bot", "applications.commands"],
-  "invite_permissions": 68672
-}
-JSON
-```
-
-Open the returned invite URL, add the bot to the server, and set Discord's Interactions Endpoint URL
-to `webhook_public_url`. The provider verifies Discord's Ed25519-signed PING and returns PONG.
-
-## Verify, enable, and send
-
-Verification runs inside the owning provider adapter and does not change the bridge lifecycle state.
-It returns provider-owned identity and configuration records. GitHub and Linear currently report
-identity as `skipped`, while providers such as Slack, Telegram, Discord, WhatsApp, Teams, and Google
-Chat perform a live identity or credential check. Webhook reachability is also `skipped` until the
-instance is enabled; skipped checks remain explicit records rather than disappearing.
+### 4. Verify while disabled
 
 ```bash
 agh bridge verify "$BRIDGE_ID" --json
 ```
 
-Each result has exactly `check`, `status`, and `remediation`. Status is `pass`, `warn`, `fail`, or
-`skipped`. The command preserves the JSON records on stdout and exits non-zero when any check fails.
+Verification returns provider-owned records with `check`, `status`, and `remediation`. Status is
+`pass`, `warn`, `fail`, or `skipped`. The command still emits its JSON records and exits non-zero when
+any check fails.
 
-Aggregate the same provider-owned checks across configured instances:
+While disabled, webhook reachability is intentionally `skipped`. GitHub and Linear also report
+`provider.identity` as `skipped` in the short-lived control runtime; their enabled provider health is
+the live authentication source.
 
-```bash
-agh doctor --only bridge --json
-```
-
-After verification succeeds, enable the bridge:
+### 5. Enable and verify reachability
 
 ```bash
 agh bridge enable "$BRIDGE_ID"
+agh bridge verify "$BRIDGE_ID" --json
+agh bridge get "$BRIDGE_ID" -o json
 ```
 
-`send-test` performs a real provider delivery. Supply the target dimensions required by that bridge:
+The bridge should settle at `ready`. A `degraded`, `auth_required`, or `error` state is evidence to
+repair, not a reason to continue to the happy-path test.
+
+### 6. Prove inbound routing
+
+Trigger one real supported event from the provider. Then inspect the created route:
+
+```bash
+agh bridge routes "$BRIDGE_ID" -o json
+```
+
+Confirm the route belongs to the intended workspace and carries the expected peer, group, and thread
+dimensions. A route in the wrong workspace or at the wrong thread granularity is a setup failure even
+if the agent produced an answer.
+
+### 7. Prove outbound delivery
+
+Use identifiers from the real inbound route:
 
 ```bash
 agh bridge send-test "$BRIDGE_ID" \
   --message "AGH bridge connection check" \
-  --group-id C0123456789 \
-  --mode direct-send \
+  --group-id "<group-from-route>" \
+  --thread-id "<thread-from-route>" \
+  --mode reply \
   --json
 ```
 
-`test-delivery` is deliberately different: it resolves and validates a target without calling the
-provider or sending a platform message.
+`send-test` calls the provider and returns a delivery ID, resolved target, and remote message ID when
+the platform supplies one. `agh bridge test-delivery` only validates target resolution and sends
+nothing.
 
-```bash
-agh bridge test-delivery "$BRIDGE_ID" \
-  --message "routing check" \
-  --group-id C0123456789 \
-  --mode direct-send \
-  --json
-```
+## Automation surfaces
 
-## HTTP and UDS automation fallback
+The CLI is the primary operator path because it validates inputs and renders the next action. HTTP
+and UDS expose the same control handlers for agents and automation:
 
-Prefer the CLI because it validates inputs and renders the next action. HTTP-only agents and the Web
-setup flow use the same handlers. These control operations are also available over HTTP and UDS:
-
-| Operation             | Route                                                     | Typed result                                        |
-| --------------------- | --------------------------------------------------------- | --------------------------------------------------- |
-| Slack manifest        | `GET /api/bridges/providers/slack/manifest?instance=<id>` | `{ manifest }`                                      |
-| Verify                | `POST /api/bridges/:id/verify`                            | `{ bridge_instance_id, checks[] }`                  |
-| Telegram registration | `POST /api/bridges/:id/webhook/register`                  | `{ bridge_instance_id, status, remediation }`       |
-| Real test delivery    | `POST /api/bridges/:id/send-test`                         | delivery ID, remote message ID, and resolved target |
+| Operation             | Route                                                     |
+| --------------------- | --------------------------------------------------------- |
+| Provider catalog      | `GET /api/bridges/providers`                              |
+| Bridge lifecycle      | `/api/bridges` and `/api/bridges/:id`                     |
+| Secret bindings       | `/api/bridges/:id/secret-bindings`                        |
+| Slack manifest        | `GET /api/bridges/providers/slack/manifest?instance=<id>` |
+| Verify                | `POST /api/bridges/:id/verify`                            |
+| Telegram registration | `POST /api/bridges/:id/webhook/register`                  |
+| Real test delivery    | `POST /api/bridges/:id/send-test`                         |
 
 The send-test request is `{ message, target }`; `target` accepts `peer_id`, `thread_id`, `group_id`,
-and `mode`. These are the stable shapes consumed by the web setup orchestration.
+and `mode`. Use the generated [API reference](/runtime/api-reference/bridges) and
+[CLI reference](/runtime/cli-reference/bridge) for exact request and flag contracts.
 
-Use curl only when the CLI is unavailable. For example, the fallback verify call is:
+## After the first message
 
-```bash
-curl --fail-with-body \
-  --request POST \
-  "http://localhost:2123/api/bridges/$BRIDGE_ID/verify"
-```
-
-## Routing after setup
-
-Use `include_peer`, `include_thread`, and `include_group` to decide which platform identities define
-one AGH route. Inspect the routes after a real inbound message:
-
-```bash
-agh bridge routes "$BRIDGE_ID"
-```
-
-See [Bridge routing](/runtime/core/bridges/routing/) for provider examples and target resolution.
+Setup is only the first lifecycle. Use [Operate and repair bridges](/runtime/core/bridges/operations)
+for secret rotation, endpoint changes, safe restarts, health triage, routing checks, progress tuning,
+and rollback. Read [Message routing](/runtime/core/bridges/routing) before changing route dimensions,
+and [Tool progress](/runtime/core/bridges/progress) before enabling provider-visible progress.

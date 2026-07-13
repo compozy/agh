@@ -27,6 +27,21 @@ issue or review thread.
 Use an explicit `provider_config.mode` of `pat` or `app`. The runtime can infer an unambiguous binding
 set, but an explicit mode makes audits and remediation clearer.
 
+## Fastest supported path
+
+Use `pat` for the first repository proof:
+
+1. Create a fine-grained PAT limited to one repository.
+2. Create one repository webhook with a unique signing secret.
+3. Create the AGH bridge disabled with explicit `mode: "pat"` and `repository.full_name`.
+4. Bind `webhook_secret` and `token`.
+5. Verify configuration, enable, and inspect runtime health.
+6. Create one issue comment and confirm the AGH route.
+7. Reply through `send-test` and confirm the remote GitHub comment ID.
+
+Move to GitHub App mode when installation-owned identity and organization-managed permissions are
+requirements, not as an unproven first step.
+
 ## Before you start
 
 - Admin access to the target repository, or permission to register/install a GitHub App.
@@ -175,6 +190,13 @@ agh bridge secret-bindings put "$BRIDGE_ID" private_key \
 
 The App ID must be numeric. The private key must be an RSA key encoded as PKCS#1 or PKCS#8 PEM.
 
+<OperatorNote>
+  PATs and PEM private keys are passed to the current generic CLI through `--secret-value`, which is
+  a process argument. Expand short-lived environment variables only on a trusted host. File/stdin
+  input is not currently exposed; see [Bridge
+  operations](/runtime/core/bridges/operations#rotate-a-credential).
+</OperatorNote>
+
 ## Step 5: Configure the webhook for PAT mode
 
 Skip this section when the GitHub App webhook already points to AGH.
@@ -237,7 +259,7 @@ Confirm the response appears on the intended issue or review thread and that the
 
 ## Configuration reference
 
-| Field                                  | Required                        | Purpose                                                                                         |
+| Field                                  | Requirement / fallback          | Purpose                                                                                         |
 | -------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `mode`                                 | yes in docs                     | `pat` or `app`; explicit is preferred even when bindings allow inference.                       |
 | `repository.full_name`                 | yes, or owner + name            | Exact `owner/repository` owned by the instance.                                                 |
@@ -280,9 +302,37 @@ credentials to another host.
 - Store the App private key and PAT only through AGH secret bindings.
 - Subscribe only to the two event families the provider consumes.
 
+## Rotate GitHub credentials
+
+### PAT mode
+
+Create a replacement fine-grained token with the same repository and permission boundary. Disable
+the bridge, replace `token`, enable, inspect runtime health, and prove both issue and review delivery
+before revoking the old token.
+
+### GitHub App mode
+
+Generate a new private key on the same GitHub App, replace `private_key`, and verify that the App ID
+and installation still align. Delete the old GitHub App key only after a real installed-repository
+delivery succeeds.
+
+Rotating `webhook_secret` requires changing GitHub and the AGH binding in the same disabled window.
+
+## Completion checklist
+
+- The bridge owns exactly the intended `owner/repository`.
+- The webhook subscribes only to supported issue-comment and review-comment families.
+- PAT or GitHub App permissions allow the exact comment operations in use.
+- Runtime health performs the live authentication proof omitted by the short-lived control check.
+- A real created comment establishes the expected route.
+- `send-test` returns the remote issue or review comment ID.
+- App mode has an installation ID before outbound delivery is considered complete.
+- The bridge returns to `ready` after one restart.
+
 ## Related docs
 
 - [Bridge setup](/runtime/core/bridges/setup)
+- [Operate and repair bridges](/runtime/core/bridges/operations)
 - [Message routing](/runtime/core/bridges/routing)
 - [Bridge delivery and progress](/runtime/core/bridges/progress)
 - [Bridge CLI reference](/runtime/cli-reference/bridge)

@@ -5,11 +5,15 @@
         "routing",
         "progress",
         "setup",
-        "setup-teams",
+        "setup-slack",
+        "setup-telegram",
+        "setup-discord",
         "setup-whatsapp",
+        "setup-teams",
         "setup-gchat",
         "setup-github",
         "setup-linear",
+        "operations",
         "adding-a-bridge"
     ]
 }

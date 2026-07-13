@@ -55,6 +55,17 @@ has access to the app and WhatsApp Business Account. Follow Meta's current
 [Cloud API getting-started guide](https://developers.facebook.com/docs/whatsapp/cloud-api/get-started)
 for business verification, permissions, and token lifecycle.
 
+### Choose a testing or production access token
+
+The token shown in API Setup is useful for a first test but may be temporary. For a long-lived bridge,
+use a dedicated System User, assign the app and WhatsApp Business Account assets it needs, and
+generate a token that can read the configured Phone Number ID and send WhatsApp messages. Record who
+owns that System User and how its token will be rotated.
+
+Do not move a temporary token into production and rely on restart behavior to hide its expiry. The
+disabled `provider.identity` check reads the configured Phone Number ID with the bound token; run it
+again after every token change.
+
 ## Step 2: Expose the provider listener
 
 Meta sends a GET challenge and signed POST events to the same public URL:
@@ -135,6 +146,13 @@ BRIDGE_ID=brg_123
 AGH does not register these settings remotely. A successful challenge proves only the GET handshake;
 signed POST traffic still depends on the app secret and `messages` subscription.
 
+### Add a development recipient
+
+While the Meta app is in development mode, add the phone numbers used for outbound testing to the
+allowed recipient list under WhatsApp API Setup. Complete Meta's verification step for each test
+number before running `send-test`. This provider-side list is separate from AGH `dm_policy`: Meta
+controls who the app can message, while AGH controls whose inbound messages reach the workspace agent.
+
 ## Step 5: Restrict access before enablement
 
 The provider's default DM policy is `open`. Before exposing a broadly reachable business number,
@@ -187,7 +205,7 @@ agh bridge send-test "$BRIDGE_ID" \
 
 ## Configuration reference
 
-| Field                                   | Default                           | Purpose                                                                         |
+| Field                                   | Default / fallback                | Purpose                                                                         |
 | --------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------- |
 | `api_version`                           | `v21.0`                           | Graph API version used by the in-tree provider.                                 |
 | `phone_number_id`                       | none                              | Required Meta Phone Number ID used for inbound ownership and outbound requests. |
@@ -233,9 +251,46 @@ is operator-owned process configuration, never mutable `provider_config`.
 - Configure DM policy before enablement; a public business number with `open` policy can route any
   accepted sender into the workspace agent.
 
+## Rotate the access token
+
+1. Create the replacement token and confirm it can access the configured Phone Number ID.
+2. Disable the bridge.
+3. Replace the `access_token` binding.
+4. Enable the bridge and run `verify`.
+5. Receive one real inbound message and run `send-test` to an allowed target.
+6. Revoke the old token only after both directions pass.
+
+```bash
+agh bridge disable "$BRIDGE_ID"
+
+agh bridge secret-bindings put "$BRIDGE_ID" access_token \
+  --secret-ref "vault:bridges/$BRIDGE_ID/access_token" \
+  --kind token \
+  --secret-value "$NEW_WHATSAPP_ACCESS_TOKEN"
+
+agh bridge enable "$BRIDGE_ID"
+agh bridge verify "$BRIDGE_ID" --json
+```
+
+The guided wizard uses hidden input for initial setup. The generic binding command receives
+`--secret-value` as a process argument; see the client-side exposure note in
+[Bridge operations](/runtime/core/bridges/operations#rotate-a-credential).
+
+## Completion checklist
+
+- The Phone Number ID is the Meta resource ID, not the visible phone number.
+- The selected access token passes `provider.identity`.
+- Meta accepts the verification challenge and subscribes the `messages` field.
+- Signed POSTs validate with the bound app secret.
+- A permitted sender creates a route in the intended AGH workspace.
+- A real outbound test reaches a Meta-approved recipient and returns a `wamid`.
+- The free-form messaging window and lack of template sending are understood.
+- The bridge returns to `ready` after one restart.
+
 ## Related docs
 
 - [Bridge setup](/runtime/core/bridges/setup)
+- [Operate and repair bridges](/runtime/core/bridges/operations)
 - [Message routing](/runtime/core/bridges/routing)
 - [Tool progress](/runtime/core/bridges/progress)
 - [Bridge CLI reference](/runtime/cli-reference/bridge)

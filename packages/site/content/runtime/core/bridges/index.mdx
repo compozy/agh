@@ -53,6 +53,13 @@ letting each platform adapter speak the platform API directly.
     meta="How-to"
   />
   <RouteRow
+    href="/runtime/core/bridges/operations"
+    label="Operations"
+    title="Operate and Repair Bridges"
+    description="Inspect health, rotate credentials, move endpoints, restart providers, and prove recovery."
+    meta="Runbook"
+  />
+  <RouteRow
     href="/runtime/core/bridges/adding-a-bridge"
     label="Authoring"
     title="Add a Bridge Provider"
@@ -60,6 +67,23 @@ letting each platform adapter speak the platform API directly.
     meta="Developer guide"
   />
 </RouteList>
+
+## Choose a provider
+
+| Provider        | Best fit                                                | Inbound boundary                                  | Outbound behavior                              | Progress default |
+| --------------- | ------------------------------------------------------- | ------------------------------------------------- | ---------------------------------------------- | ---------------- |
+| Slack           | Workspace chat with channels and reply threads          | Signed Events API, commands, and interactions     | Create, edit, delete; Slack mrkdwn             | `new`            |
+| Telegram        | Direct chat, groups, and forum topics                   | Bot API webhook secret token                      | Create, edit, delete; MarkdownV2 fallback      | `new`            |
+| Discord         | Server channels, threads, interactions, and components  | Ed25519-signed HTTP webhooks                      | Create, edit, delete; 2,000-code-point chunks  | `new`            |
+| WhatsApp        | Business-number direct messaging through Cloud API      | Meta verification challenge and signed POST       | Create only; 4,096-code-point chunks           | `off`            |
+| Microsoft Teams | Bot Framework personal, group, and channel conversation | Bot Framework bearer JWT and activity service URL | Create, edit, delete; 28,000-code-point chunks | `off`            |
+| Google Chat     | Workspace spaces through direct or Pub/Sub ingress      | Google direct JWT or Pub/Sub OIDC JWT             | Create, edit, delete; 32,000 UTF-8 bytes       | `off`            |
+| GitHub          | Repository issue and pull-request comment threads       | Repository/App webhook HMAC                       | Issue/review comment create, edit, delete      | `off`            |
+| Linear          | Issue comments or Linear Agent Sessions                 | Linear webhook HMAC                               | Comments editable; Agent Activities append     | `off`            |
+
+Start with [Bridge setup](/runtime/core/bridges/setup), which links to one dedicated guide per
+provider. A provider is complete only after configuration, runtime, public transport, inbound route,
+and real outbound-delivery proofs all pass.
 
 ## Runtime model
 
@@ -144,6 +168,7 @@ Bridge instances are persisted runtime records. They are created through the bri
   },
   "provider_config": {
     "webhook": {
+      "public_url": "https://bridge.example.com/slack/support",
       "listen_addr": "127.0.0.1:18081",
       "path": "/slack/support"
     },

@@ -35,10 +35,17 @@ func TestE2ENightly() error {
 }
 
 func ensureWebAssets() error {
-	if err := CodegenCheck(); err != nil {
-		return err
+	return ensureWebAssetsWith(CodegenCheck, WebBuild)
+}
+
+func ensureWebAssetsWith(codegenCheck, webBuild func() error) error {
+	if err := codegenCheck(); err != nil {
+		return fmt.Errorf("check generated web contracts: %w", err)
 	}
-	return WebBuild()
+	if err := webBuild(); err != nil {
+		return fmt.Errorf("build current web assets: %w", err)
+	}
+	return nil
 }
 
 func runE2ELane(lane e2elane.Lane) (runErr error) {

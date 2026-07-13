@@ -30,8 +30,18 @@ func TestBridgeProviderDocsConformance(t *testing.T) {
 	providers := bridgeDocProviders(t, filepath.Join(repoRoot, "extensions", "bridges"))
 	indexPath := filepath.Join(repoRoot, "packages", "site", "content", "runtime", "core", "bridges", "index.mdx")
 	setupPath := filepath.Join(repoRoot, "packages", "site", "content", "runtime", "core", "bridges", "setup.mdx")
+	slackSetupPath := filepath.Join(
+		repoRoot,
+		"packages",
+		"site",
+		"content",
+		"runtime",
+		"core",
+		"bridges",
+		"setup-slack.mdx",
+	)
 	index := readBridgeDoc(t, indexPath)
-	setup := readBridgeDoc(t, setupPath)
+	slackSetup := readBridgeDoc(t, slackSetupPath)
 
 	t.Run("Should cover every discovered provider in the slots table", func(t *testing.T) {
 		t.Parallel()
@@ -61,27 +71,23 @@ func TestBridgeProviderDocsConformance(t *testing.T) {
 
 	t.Run("Should keep the documented Slack scopes equal to the runtime contract", func(t *testing.T) {
 		t.Parallel()
-		got := parseBacktickBulletListAfter(setup, "It requests these bot scopes")
+		got := parseBacktickBulletListAfter(slackSetup, "It requests these bot scopes")
 		want := bridgepkg.SlackBotScopes()
 		if !sameSortedStrings(got, want) {
 			t.Fatalf("documented Slack scopes = %v, want runtime scopes %v", got, want)
 		}
 	})
 
-	t.Run("Should provide a setup section for every discovered provider", func(t *testing.T) {
+	t.Run("Should provide a dedicated setup guide for every discovered provider", func(t *testing.T) {
 		t.Parallel()
-		headings := secondLevelHeadings(setup)
 		docsDir := filepath.Dir(setupPath)
 		for _, provider := range providers {
-			if headings[provider.Manifest.Bridge.DisplayName] {
-				continue
-			}
 			providerPage := filepath.Join(docsDir, "setup-"+provider.Name+".mdx")
 			if _, err := os.Stat(providerPage); err == nil {
 				continue
 			}
 			t.Errorf(
-				"provider %q is missing a setup heading or provider page under packages/site/content/runtime/core/bridges",
+				"provider %q is missing its dedicated setup guide under packages/site/content/runtime/core/bridges",
 				provider.Name,
 			)
 		}
@@ -210,18 +216,6 @@ func parseBacktickBulletListAfter(document string, marker string) []string {
 	}
 	sort.Strings(values)
 	return values
-}
-
-func secondLevelHeadings(document string) map[string]bool {
-	headings := make(map[string]bool)
-	scanner := bufio.NewScanner(strings.NewReader(document))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if strings.HasPrefix(line, "## ") && !strings.HasPrefix(line, "### ") {
-			headings[strings.TrimSpace(strings.TrimPrefix(line, "## "))] = true
-		}
-	}
-	return headings
 }
 
 func sameSortedStrings(left []string, right []string) bool {

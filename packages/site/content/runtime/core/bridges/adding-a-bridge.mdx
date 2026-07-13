@@ -7,9 +7,42 @@ This guide is for contributors adding a provider under `extensions/bridges/<prov
 repository. It follows one provider from manifest to conformance, including the touch points that are
 easy to miss when copying only an API client.
 
-External extensions implement the same subprocess protocol through an appropriate SDK. They cannot
-import Go packages under `internal/` from another module, so the Go templates below are specifically
-for providers built inside the AGH repository.
+This walkthrough is specifically for trusted, in-tree Go providers. A local external extension can
+implement the subprocess protocol, but the public Go/TypeScript SDKs and marketplace policy do not
+yet provide a first-class bridge-authoring path equivalent to `internal/bridgesdk`. Do not copy these
+`internal/` imports into another module.
+
+## Prerequisites
+
+- Run every command from the AGH repository root.
+- Have Go and the current `agh` binary available.
+- Start the daemon before the install/create/verify checkpoints.
+- Create or choose a workspace with a default agent for inbound testing.
+- Use a fake provider HTTP server or a dedicated provider test account; committed tests must not need
+  live credentials.
+- Decide the public callback strategy and one unused local listener address.
+
+The tutorial uses `acme-chat` as a placeholder. Replace it consistently; mixed directory, extension,
+platform, and runtime names fail discovery or ownership checks.
+
+## Choose an implementation to study
+
+The shared SDK removes lifecycle boilerplate, but provider behavior is easiest to learn from a
+working owner:
+
+| Need                                                   | Start with                              |
+| ------------------------------------------------------ | --------------------------------------- |
+| CI-safe fake ingress, delivery ACKs, and crash markers | `sdk/examples/telegram-reference`       |
+| Signed webhook, editable delivery, and progress        | `extensions/bridges/slack`              |
+| Remote webhook registration and control runtime        | `extensions/bridges/telegram`           |
+| Ed25519 interactions and webhook events                | `extensions/bridges/discord`            |
+| Conditional direct/Pub/Sub ingress                     | `extensions/bridges/gchat`              |
+| Bot Framework JWT and tenant-aware delivery            | `extensions/bridges/teams`              |
+| Append-only/no-op progress issue provider              | `extensions/bridges/github` or `linear` |
+
+The Telegram reference proves the protocol and integration harness. The bundled providers show the
+modern `ProviderLifecycle` + `ManagedConfigReconciler` + `ProviderHTTPServer` composition used in
+production.
 
 ## Architecture
 
@@ -47,6 +80,17 @@ Write down these decisions first:
 Required slots must be required in every mode. A mode-specific credential stays optional in the
 manifest and becomes a conditional requirement in runtime validation and setup documentation.
 
+## Current contract boundaries
+
+- Inbound messages can carry attachment metadata and typed message, command, action, reaction, and
+  edit families.
+- Bridge delivery v1 is text-oriented. Generic outbound media upload and provider-native interactive
+  controls are not part of the shared delivery contract.
+- Unsupported text operations return permanent errors. They never report a successful no-op.
+- Progress can be rendered by capable chat providers or acknowledged without side effects.
+- Target `capabilities` are provider metadata; do not invent strings as behavior switches without a
+  shared consumer and contract change.
+
 ## Know what the SDK owns
 
 | Shared owner                                 | What it handles                                                                                                        | What your provider still decides                                          |
@@ -72,6 +116,7 @@ Split by responsibility before files grow:
 ```text
 extensions/bridges/acme-chat/
 ├── extension.toml
+├── bin/                    # local build output; ignored by Git
 ├── main.go                 # thin bridgesdk command entry
 ├── provider.go             # composition root only
 ├── provider_config.go      # decode, resolve, validate, reconcile hooks
@@ -89,6 +134,13 @@ extensions/bridges/acme-chat/
 
 Not every provider needs every file, but production source must stay below 500 lines and one file
 must not become a registry, transport, formatter, and lifecycle owner at once.
+
+Create the ignored output directory before the first build. `go build -o` does not create parent
+directories:
+
+```bash
+mkdir -p ./extensions/bridges/acme-chat/bin
+```
 
 ## Step 1: Copy the manifest template
 
@@ -196,11 +248,18 @@ func serve(stdin io.Reader, stdout io.Writer, _ io.Writer) error {
             return bridgepkg.DeliveryAck{}, errors.New("acme-chat: delivery not implemented")
         },
         Check: func(
-            context.Context,
-            *bridgesdk.Session,
-            bridgepkg.BridgeCheckRequest,
+            _ context.Context,
+            _ *bridgesdk.Session,
+            _ bridgepkg.BridgeCheckRequest,
         ) (bridgepkg.BridgeCheckResponse, error) {
-            return bridgepkg.BridgeCheckResponse{}, nil
+            return bridgepkg.BridgeCheckResponse{
+                Checks: []bridgepkg.BridgeCheckRecord{
+                    bridgepkg.SkippedCheck(
+                        "provider.identity",
+                        "Implement the Acme Chat identity probe before enabling this provider.",
+                    ),
+                },
+            }, nil
         },
         HealthCheck: func(context.Context, *bridgesdk.Session) error {
             return lifecycle.Health()
@@ -217,31 +276,57 @@ func serve(stdin io.Reader, stdout io.Writer, _ io.Writer) error {
 Build from the repository root:
 
 ```bash
-go build -o ./extensions/bridges/acme-chat/bin/acme-chat ./extensions/bridges/acme-chat
+mkdir -p ./extensions/bridges/acme-chat/bin
+go build \
+  -o ./extensions/bridges/acme-chat/bin/acme-chat \
+  ./extensions/bridges/acme-chat
 ```
 
-At this checkpoint, build and initialize may work, but provider behavior is intentionally incomplete.
+At this checkpoint, build and initialize can work. Delivery still returns a truthful error, and
+identity verification returns a valid `skipped` record with remediation. An empty `checks` array is
+not a valid control response.
 
 ## Step 3: Resolve and reconcile managed instances
 
 Define a provider config DTO that contains only instance-owned settings. Resolve secrets by exact
-manifest slot name through `Session.Cache()`. Then use one `ManagedConfigReconciler` for the full
-snapshot:
+manifest slot name through `Session.Cache()`.
 
-```go
-reconciler := bridgesdk.ManagedConfigReconciler[resolvedInstanceConfig]{
-    Routes:   provider.routes,
-    Resolve:  provider.resolveInstanceConfig,
-    Prepare:  provider.prepareConfigs,
-    Finalize: provider.probeConfigs,
-    Identity: func(config resolvedInstanceConfig) string {
-        return config.instanceID
-    },
-    OnPublish: provider.lifecycle.MarkRoutesReady,
-}
+Wire the provider in this order:
 
-configs, err := reconciler.Reconcile(ctx, session, managed)
+```text
+newProvider
+  ├─ create RouteTable[resolvedInstanceConfig]
+  ├─ create DeliveryStateStore[deliveryState]
+  ├─ create ProviderLifecycle
+  │    ├─ Reconcile → provider.reconcileInstanceConfigs
+  │    ├─ OnStop → stop timers, batchers, pollers, and per-instance state
+  │    └─ ShutdownResources → ProviderHTTPServer.Shutdown
+  ├─ create ProviderHTTPServer
+  │    ├─ Handler → authenticated provider webhook handler
+  │    └─ Go → lifecycle.Go
+  ├─ create Runtime
+  │    ├─ Initialize → lifecycle.Initialize
+  │    ├─ Deliver / Progress / Check → provider handlers
+  │    ├─ HealthCheck → provider health
+  │    └─ Shutdown → lifecycle.Shutdown
+  └─ serve with lifecycle.Serve
 ```
+
+Use `extensions/bridges/slack/provider.go` as the concrete composition owner and
+`sdk/examples/telegram-reference` as the protocol-level fake. Do not paste an isolated reconciler
+literal with undefined provider methods into a new package.
+
+Inside `reconcileInstanceConfigs`, use one `ManagedConfigReconciler` for the full snapshot. Its
+callbacks have distinct jobs:
+
+| Callback    | Provider responsibility                                                                          |
+| ----------- | ------------------------------------------------------------------------------------------------ |
+| `Resolve`   | Decode instance config, read exact secret slots, normalize IDs/paths, build initial local state. |
+| `Prepare`   | Detect ownership/path/listener conflicts and start deterministic resources.                      |
+| `Finalize`  | Run bounded live probes and assign truthful initial status/degradation.                          |
+| `Merge`     | Preserve or replace per-instance resources without leaking old timers/batchers.                  |
+| `OnRemoved` | Detach and close resources owned by an instance no longer in the managed snapshot.               |
+| `OnPublish` | Close resources only after the new route snapshot is visible.                                    |
 
 Use `Prepare` for deterministic local work: ownership conflicts, listener selection, path conflicts,
 and resource startup. The first publish admits routes. Use `Finalize` for bounded live identity probes
@@ -264,7 +349,41 @@ A webhook handler must apply this order:
 8. Map stable provider IDs into `peer_id`, `group_id`, and `thread_id`.
 9. Apply DM/ACL policy and deduplication.
 10. Validate the `InboundMessageEnvelope`.
-11. Call `session.HostAPI().IngestBridgeMessage`.
+11. Ingest through `provider.lifecycle.Host()` so lifecycle-aware retry and shutdown admission remain active.
+
+A message mapper must preserve the managed instance's scope and workspace rather than deriving
+ownership from the provider payload:
+
+```go
+envelope := bridgepkg.InboundMessageEnvelope{
+    BridgeInstanceID:  managed.Instance.ID,
+    Scope:             managed.Instance.Scope,
+    WorkspaceID:       managed.Instance.WorkspaceID,
+    PeerID:            event.UserID,
+    GroupID:           event.ChannelID,
+    ThreadID:          event.ThreadID,
+    PlatformMessageID: event.MessageID,
+    ReceivedAt:        event.Timestamp.UTC(),
+    Sender: bridgepkg.MessageSender{
+        ID:          event.UserID,
+        Username:    event.Username,
+        DisplayName: event.DisplayName,
+    },
+    EventFamily:    bridgepkg.InboundEventFamilyMessage,
+    Content:        bridgepkg.MessageContent{Text: event.Text},
+    IdempotencyKey: "acme-chat:" + event.EventID,
+}
+if err := envelope.Validate(); err != nil {
+    return fmt.Errorf("acme-chat: validate inbound message: %w", err)
+}
+if _, err := provider.lifecycle.Host().IngestBridgeMessage(ctx, session, envelope); err != nil {
+    return fmt.Errorf("acme-chat: ingest message: %w", err)
+}
+```
+
+`event` is the provider payload after authentication and normalization. Use the matching typed
+payload for command, action, reaction, and edit families; never encode those operations as decorated
+message text.
 
 Record reply text from an embedded provider snapshot or a bounded local cache only. A cache miss must
 not fetch arbitrary provider history during prompt construction.
@@ -274,6 +393,18 @@ For a polling provider, the same authentication/mapping rules apply, but the pol
 can prove restart semantics.
 
 ## Step 5: Implement delivery and acknowledgements
+
+The daemon sends one closed event family:
+
+| Event      | Provider action                                                                                       |
+| ---------- | ----------------------------------------------------------------------------------------------------- |
+| `start`    | Create or prepare the first mutable remote message when the provider uses streaming previews.         |
+| `delta`    | Update the current full-text preview; the payload is not merely the newest token fragment.            |
+| `final`    | Materialize the complete terminal text and acknowledge the final remote anchor.                       |
+| `error`    | Render the terminal failure behavior supported by the platform.                                       |
+| `resume`   | Reconcile from the supplied `DeliverySnapshot` after provider recovery.                               |
+| `delete`   | Delete only when a real provider API and target reference exist.                                      |
+| `progress` | Render presentation-only tool state or acknowledge with empty remote IDs and no provider side effect. |
 
 Handle each platform capability explicitly:
 
@@ -290,6 +421,46 @@ Build acknowledgements through `session.AckDelivery` so delivery ID, sequence, r
 ID, and event family are validated together. A provider that cannot perform an operation returns a
 permanent unsupported error; it never reports a successful no-op for text delivery.
 
+A successful create/final branch ends with the provider's real response ID:
+
+```go
+remoteID, err := client.PostMessage(ctx, target, request.Event.Content.Text)
+if err != nil {
+    return bridgepkg.DeliveryAck{}, fmt.Errorf("acme-chat: post message: %w", err)
+}
+ack, err := session.AckDelivery(request, remoteID, "")
+if err != nil {
+    return bridgepkg.DeliveryAck{}, fmt.Errorf("acme-chat: acknowledge delivery: %w", err)
+}
+return ack, nil
+```
+
+`client.PostMessage` is your provider API boundary. For an edit, preserve the explicit request
+reference over stale local state and put the replaced anchor in `replaceRemoteMessageID` when the
+platform returns a new message. For progress with no side effect, use
+`session.AckDelivery(request, "", "")`.
+
+Map provider failures to bridgesdk auth, rate-limit, timeout, transient, or permanent errors. Report
+classified failures through the lifecycle-aware session path so runtime state and retry decisions
+stay consistent.
+
+### Expose discoverable targets
+
+The SDK can publish a fallback snapshot from operator-declared delivery defaults. Implement provider
+enumeration only when the platform has a bounded, truthful target API.
+
+Each target needs a provider-derived immutable route, operator-facing display name, target type,
+optional qualifier, and last-seen timestamp. Do not use a display name as the canonical route. Test
+the result through:
+
+```bash
+agh bridge targets "$BRIDGE_ID" --query launch -o json
+agh bridge resolve "$BRIDGE_ID" "launch room" -o json
+```
+
+Ambiguous names must remain ambiguous. Never select the first match silently just to make
+`send-test` convenient.
+
 ## Step 6: Add checks and optional webhook registration
 
 `Check` runs in a short-lived control runtime. It has no Host API grants and must not start the service
@@ -299,6 +470,30 @@ listener. Return stable records such as:
 - `provider.identity` for a bounded credential probe, or explicit `skipped` when the provider cannot
   truthfully probe in isolation;
 - webhook configuration and reachability through shared bridgesdk helpers.
+
+The control runtime contains exactly the requested managed instance in `Session.Cache()`. Service
+`Initialize`, listeners, state reporting, and background goroutines do not run. A control handler that
+calls `Session.HostAPI()` is incorrect.
+
+Build at least one valid record and append shared webhook checks:
+
+```go
+managed, ok := session.Cache().Get(request.BridgeInstanceID)
+if !ok {
+    return bridgepkg.BridgeCheckResponse{}, fmt.Errorf(
+        "acme-chat: bridge instance %q is not in the control session",
+        request.BridgeInstanceID,
+    )
+}
+checks := []bridgepkg.BridgeCheckRecord{
+    bridgepkg.SkippedCheck(
+        "provider.identity",
+        "Implement the Acme Chat identity probe before enabling this provider.",
+    ),
+}
+checks = append(checks, bridgesdk.WebhookCheckRecords(ctx, managed.Instance, nil)...)
+return bridgepkg.BridgeCheckResponse{Checks: checks}, nil
+```
 
 Implement `RegisterWebhook` only when the provider has a real remote registration API. Return status
 and remediation when registration is manual; do not simulate success.
@@ -317,7 +512,94 @@ When the platform can render progress:
 4. close/detach dispatchers on terminal content, mode-off changes, removal, and shutdown;
 5. keep affordance failures observable without dropping the main progress line.
 
-## Step 8: Put tests in the owning suites
+## Step 8: Run the provider locally
+
+Build and install the extension only after delivery and checks are honest:
+
+```bash
+mkdir -p ./extensions/bridges/acme-chat/bin
+go build \
+  -o ./extensions/bridges/acme-chat/bin/acme-chat \
+  ./extensions/bridges/acme-chat
+
+agh extension install ./extensions/bridges/acme-chat
+agh extension status acme-chat -o json
+```
+
+Create a disabled workspace bridge:
+
+```bash
+WORKSPACE_ID=ws_8f33a913d23c4fd1
+
+agh bridge create \
+  --scope workspace \
+  --workspace-id "$WORKSPACE_ID" \
+  --platform acme-chat \
+  --extension acme-chat \
+  --display-name "Acme Chat development" \
+  --enabled=false \
+  --include-peer \
+  --include-thread \
+  --include-group \
+  --provider-config '{
+    "webhook": {
+      "public_url": "https://bridge.example.com/acme/dev",
+      "listen_addr": "127.0.0.1:18090",
+      "path": "/acme/dev"
+    }
+  }' \
+  -o json
+```
+
+Copy the returned ID, then bind the two manifest slots:
+
+```bash
+BRIDGE_ID=brg_123
+
+agh bridge secret-bindings put "$BRIDGE_ID" bot_token \
+  --secret-ref "vault:bridges/$BRIDGE_ID/bot_token" \
+  --kind token \
+  --secret-value "$ACME_CHAT_BOT_TOKEN"
+
+agh bridge secret-bindings put "$BRIDGE_ID" webhook_secret \
+  --secret-ref "vault:bridges/$BRIDGE_ID/webhook_secret" \
+  --kind secret \
+  --secret-value "$ACME_CHAT_WEBHOOK_SECRET"
+
+agh bridge secret-bindings list "$BRIDGE_ID" -o json
+```
+
+The list output must contain redacted binding metadata, not plaintext. The generic CLI currently
+passes `--secret-value` as a process argument; use short-lived environment variables on a trusted
+host and record this limitation in the provider's setup guide.
+
+Verify before enablement:
+
+```bash
+agh bridge verify "$BRIDGE_ID" --json
+```
+
+At the initial scaffold checkpoint, `provider.identity` is explicitly `skipped`. Replace it with a
+bounded provider identity probe before calling the provider complete.
+
+Enable the bridge, send one signed event through your fake platform, and inspect the public state:
+
+```bash
+agh bridge enable "$BRIDGE_ID"
+agh bridge get "$BRIDGE_ID" -o json
+agh bridge routes "$BRIDGE_ID" -o json
+agh bridge targets "$BRIDGE_ID" -o json
+
+agh bridge send-test "$BRIDGE_ID" \
+  --peer-id "$ACME_CHAT_PEER_ID" \
+  --message "AGH bridge provider smoke test" \
+  --json
+```
+
+The final checkpoint is observable: the provider reaches `ready`, the fake inbound event creates a
+route in `$WORKSPACE_ID`, and `send-test` returns a delivery ID plus the provider's remote ID.
+
+## Step 9: Put tests in the owning suites
 
 Before adding a test, name its invariant, owning layer, and canonical suite. Cover:
 
@@ -343,7 +625,7 @@ go test -race ./internal/extension \
   -run '^TestBridgeProviderDocsConformance$'
 ```
 
-## Step 9: Co-ship every public surface
+## Step 10: Co-ship every public surface
 
 - Add the exact display name and slot row to the [bridge overview](/runtime/core/bridges).
 - Add `setup-acme-chat.mdx` and navigation with provider-console steps, CLI setup, expected checks,
@@ -355,20 +637,58 @@ go test -race ./internal/extension \
 - If shared contracts change, co-ship OpenAPI, generated SDK/Web types, CLI/API references, mocks,
   native descriptors, and the canonical AGH skill.
 
+The provider catalog and secret slots are manifest-driven. The current Web setup experience still
+has provider-specific presentation metadata for bundled providers; an unknown provider falls back to
+a generic profile. Audit `web/src/systems/bridges/lib/bridge-setup.ts` and either add truthful setup
+metadata or document the generic boundary. The manifest alone does not produce a full guided Web
+setup today.
+
+Record the AGH Impact Audit in the implementation task:
+
+- native tools and descriptors;
+- extensibility, hooks, public SDKs, bundles, and marketplace policy;
+- workspace ID propagation across CLI/HTTP/UDS/core/store/Web/events;
+- official `skills/agh/` behavior;
+- Web routes/components and documentation;
+- provider configuration lifecycle and trusted process environment.
+
 A provider-only implementation must not invent a central registry, `config.toml` key, or UI-only
 management path.
 
 ## Definition of done
 
-- Manifest identity, required slots, and schema pass discovery.
-- Every provider process builds and completes initialize, health, and cooperative shutdown.
-- Invalid auth/config produces actionable state without leaking secret values.
-- Inbound events cannot cross workspace/instance ownership.
-- Delivery semantics match the provider, including unsupported operations and message limits.
-- All resources close on success, failure, cancellation, and shutdown.
-- Setup docs let an operator locate each credential and configure the provider console without reading
-  Go code.
-- CLI/HTTP/UDS and official-skill paths make the provider manageable by agents.
+| Requirement                                                 | Evidence                                                       |
+| ----------------------------------------------------------- | -------------------------------------------------------------- |
+| Manifest identity, schema, slots, and discovery             | Auto-discovered provider conformance                           |
+| Build, initialize, health, method negotiation, and shutdown | Auto-discovered runtime conformance                            |
+| Config, conditional slots, auth, mapping, DM policy, dedup  | Canonical provider suite under `extensions/bridges/<provider>` |
+| Create/edit/delete/resume/chunk/ACK behavior                | Provider delivery suite with a fake platform server            |
+| Checks and optional webhook registration                    | Control suite using the isolated control runtime               |
+| Cleanup on failure, cancellation, removal, and shutdown     | Race-enabled lifecycle/failure-path cases                      |
+| Workspace and instance isolation                            | Exact cross-workspace/instance integration case                |
+| Setup names, exact slots, and public navigation             | Bridge docs conformance plus focused site MDX/typecheck        |
+| Agent-manageable operation                                  | CLI/HTTP/UDS examples and official AGH skill audit             |
+| First real behavior                                         | Signed fake inbound event + route + fake-provider `send-test`  |
+
+Invalid auth/config must produce actionable state without leaking values. Unsupported provider
+operations must fail truthfully. Setup docs must let an operator locate each credential and complete
+provider-console configuration without reading Go code.
+
+## Author troubleshooting
+
+| Symptom                                      | Likely cause and next check                                                                                                       |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Provider is absent from the catalog          | Validate `extension.toml`, identity consistency, install/enable state, and `bridge.adapter` capability.                           |
+| First `go build -o` fails with no directory  | Create `extensions/bridges/<provider>/bin` first; the directory is ignored and absent in a fresh checkout.                        |
+| Initialize rejects methods or grants         | Compare manifest actions, runtime registration, extension name/version, and handshake purpose with a bundled provider.            |
+| `agh bridge verify` says response is invalid | Return at least one unique valid check. Empty checks, bad statuses, or skipped/fail records without remediation are invalid.      |
+| Verify opens a listener or Host API is nil   | Control handlers must use `Session.Cache()` only; service initialization and Host API grants are intentionally absent.            |
+| Instance remains `auth_required`             | Required or conditional slot names do not match the manifest/runtime mode, or the provider probe rejected the credential.         |
+| Webhook returns unauthorized                 | Preserve raw body bytes; select one owned instance first; then verify its exact signature/token/JWT and replay boundary.          |
+| Ingest works globally but not in a workspace | Copy `scope` and `workspace_id` from the managed instance and validate the envelope before ingest.                                |
+| `send-test` cannot find a destination        | Implement/fix target snapshots or use the managed-instance fallback; inspect `targets`, `resolve`, and a route from real inbound. |
+| Shutdown hangs                               | A listener, goroutine, timer, batcher, poller, or dispatcher was created outside lifecycle ownership or not closed on failure.    |
+| Web setup shows generic/unknown guidance     | The provider is discovered, but bundled Web presentation metadata was not audited/co-shipped.                                     |
 
 ## Grep before review
 
@@ -394,3 +714,14 @@ rg -n 'TODO|FIXME|not implemented|chat\.postMessage|chat\.update|chat\.delete' \
 
 Inspect every match. Endpoint names must be trusted process seams or rejection tests; copied provider
 terminology and unfinished delivery code block review.
+
+## Related docs and code
+
+- [Bridge overview](/runtime/core/bridges)
+- [Bridge setup](/runtime/core/bridges/setup)
+- [Bridge operations](/runtime/core/bridges/operations)
+- [Message routing](/runtime/core/bridges/routing)
+- [Extension development](/runtime/core/extensions/develop)
+- [Bridge CLI reference](/runtime/cli-reference/bridge)
+- `sdk/examples/telegram-reference`
+- `internal/bridges/ADDING_A_BRIDGE.md`

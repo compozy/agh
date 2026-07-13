@@ -32,6 +32,12 @@ const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_READY_TIMEOUT_MS = 30_000;
 const DEFAULT_READY_POLL_MS = 200;
 const DAEMON_BINARY_ENV_VAR = "AGH_TEST_DAEMON_BIN";
+const RUNTIME_CONTROL_ENV_VARS = [
+  "AGH_E2E_BASE_URL",
+  "AGH_TEST_ACPMOCK_DRIVER_BIN",
+  DAEMON_BINARY_ENV_VAR,
+  "AGH_WEB_DIST_DIR",
+] as const;
 
 let daemonBinaryPromise: Promise<string> | undefined;
 
@@ -117,7 +123,7 @@ export async function createBrowserRuntime(
   options: BrowserRuntimeOptions
 ): Promise<BrowserRuntime> {
   const artifactCollector = await ArtifactCollector.create(options.artifactRootDir);
-  const env = options.env ?? process.env;
+  const env = resolveBrowserRuntimeEnv(options.env);
   const mode = resolveRuntimeMode(env);
 
   if (mode.kind === "attach") {
@@ -192,6 +198,23 @@ export async function createBrowserRuntime(
   } catch (error) {
     return await cleanupFailedRuntimeLaunch(error, runtime, skillMarketplace);
   }
+}
+
+export function resolveBrowserRuntimeEnv(
+  overrides: NodeJS.ProcessEnv | undefined,
+  ambient: NodeJS.ProcessEnv = process.env
+): NodeJS.ProcessEnv {
+  if (overrides === undefined) {
+    return ambient;
+  }
+
+  const resolved = { ...overrides };
+  for (const name of RUNTIME_CONTROL_ENV_VARS) {
+    if (resolved[name] === undefined && ambient[name] !== undefined) {
+      resolved[name] = ambient[name];
+    }
+  }
+  return resolved;
 }
 
 class ActiveBrowserRuntime implements BrowserRuntime {

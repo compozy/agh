@@ -56,6 +56,32 @@ func TestShouldEnsureWebBundle(t *testing.T) {
 	}
 }
 
+func TestEnsureWebAssetsAlwaysBuildsCurrentSources(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should check codegen and rebuild even when a prior bundle exists", func(t *testing.T) {
+		t.Parallel()
+
+		calls := make([]string, 0, 2)
+		err := ensureWebAssetsWith(
+			func() error {
+				calls = append(calls, "codegen-check")
+				return nil
+			},
+			func() error {
+				calls = append(calls, "web-build")
+				return nil
+			},
+		)
+		if err != nil {
+			t.Fatalf("ensureWebAssetsWith() error = %v", err)
+		}
+		if got, want := strings.Join(calls, ","), "codegen-check,web-build"; got != want {
+			t.Fatalf("ensureWebAssetsWith() calls = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestFilesImporting(t *testing.T) {
 	t.Parallel()
 

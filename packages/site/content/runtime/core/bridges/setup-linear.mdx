@@ -27,6 +27,21 @@ explicitly.
 The runtime accepts either auth mode with either provider mode. In practice, Linear Agent Sessions
 are configured on an OAuth application because its app identity is what users mention or assign.
 
+## Fastest supported path
+
+Use `comments + api_key` for the first proof:
+
+1. Create a dedicated Linear API key and copy the organization ID returned for that identity.
+2. Create one Comment webhook with a unique signing secret.
+3. Create the AGH bridge disabled with explicit `mode: "comments"` and `auth_mode: "api_key"`.
+4. Bind `webhook_secret` and `api_key`.
+5. Verify configuration, enable, and inspect runtime health.
+6. Create one real issue comment and confirm the AGH route.
+7. Reply through `send-test` and confirm the remote Linear comment ID.
+
+Use `agent_sessions + oauth` when the app must be mentionable/assignable and produce append-only Agent
+Activities.
+
 ## Before you start
 
 - Linear workspace admin access, or help from an admin who can create webhooks/apps.
@@ -174,6 +189,13 @@ agh bridge secret-bindings put "$BRIDGE_ID" client_secret \
   --secret-value "$LINEAR_CLIENT_SECRET"
 ```
 
+<OperatorNote>
+  API keys and OAuth client secrets are passed to the current generic CLI through `--secret-value`,
+  which is a process argument. Expand short-lived environment variables only on a trusted host.
+  File/stdin input is not currently exposed; see [Bridge
+  operations](/runtime/core/bridges/operations#rotate-a-credential).
+</OperatorNote>
+
 ## Step 5A: Create a comments webhook
 
 For `comments` mode:
@@ -248,7 +270,7 @@ Agent Activity and subsequent updates append rather than editing the earlier act
 
 ## Configuration reference
 
-| Field                 | Required                        | Purpose                                                                 |
+| Field                 | Requirement / fallback          | Purpose                                                                 |
 | --------------------- | ------------------------------- | ----------------------------------------------------------------------- |
 | `organization_id`     | yes                             | Linear organization that owns webhook routing and authenticated viewer. |
 | `mode`                | yes                             | `comments` or `agent_sessions`.                                         |
@@ -290,9 +312,31 @@ The GraphQL and OAuth token destinations are official defaults or operator-owned
 - Keep the public handler fast and preserve the raw request body for HMAC verification.
 - Store `api_key`, `client_secret`, and `webhook_secret` only through AGH secret bindings.
 
+## Rotate Linear credentials
+
+For API-key mode, create the replacement key for the same integration identity and team-access
+boundary. For OAuth, create/rotate the client secret on the same app. Disable the bridge, replace the
+binding, enable it, and wait for the GraphQL viewer check to return `ready` before revoking the old
+credential.
+
+Rotate `webhook_secret` in the Linear webhook/app and AGH during the same disabled window. Prove a
+new signed event after rotation; a successful GraphQL identity call does not validate webhook HMAC.
+
+## Completion checklist
+
+- `organization_id` matches the authenticated viewer.
+- Provider mode and auth mode are explicit and have the required bindings.
+- The webhook emits the event family selected by the provider mode.
+- Runtime health performs the live identity proof omitted by the short-lived control check.
+- Comment mode creates editable comments; Agent Session mode creates append-only activities.
+- A real event establishes the expected issue/session route.
+- `send-test` returns the remote Linear artifact ID.
+- The bridge returns to `ready` after one restart.
+
 ## Related docs
 
 - [Bridge setup](/runtime/core/bridges/setup)
+- [Operate and repair bridges](/runtime/core/bridges/operations)
 - [Message routing](/runtime/core/bridges/routing)
 - [Bridge delivery and progress](/runtime/core/bridges/progress)
 - [Bridge CLI reference](/runtime/cli-reference/bridge)

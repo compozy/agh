@@ -1,0 +1,348 @@
+---
+title: Slack Setup
+description: Create a signed Events API integration from the AGH-generated app manifest, verify every bot scope, and prove threaded delivery.
+---
+
+This guide connects one Slack app to an AGH workspace. The generated manifest is the recommended
+path: it derives request URLs, bot events, OAuth scopes, interactivity, and the `/agh` command from
+the same runtime contract that verifies the installed app.
+
+## How the Slack bridge behaves
+
+| Surface           | AGH behavior                                                                                                                                      |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inbound transport | Receives Events API JSON plus Slack command and interaction form posts over public HTTPS. Socket Mode is not used.                                |
+| Authentication    | Verifies `X-Slack-Signature` over the exact request body and rejects request timestamps outside a five-minute window.                             |
+| Routed events     | Handles messages, app mentions, reactions, `/agh` commands, and interactive actions after DM policy and deduplication.                            |
+| Outbound delivery | Creates, updates, and deletes Slack messages. Replies preserve the resolved channel and `thread_ts`.                                              |
+| Long responses    | Formats Slack mrkdwn, then splits terminal text at 40,000 Unicode code points with ordered, numbered, fence-balanced continuations.               |
+| Tool progress     | Defaults to `new + accumulate` with Slack thread status, edits, and reactions enabled. The final answer is a separate message in the same thread. |
+
+One provider subprocess can own multiple Slack bridge instances. They share a listener address and
+must use distinct webhook paths.
+
+## Before you start
+
+Collect or decide these values:
+
+| Value                    | Required | Where it comes from                                                                                |
+| ------------------------ | -------- | -------------------------------------------------------------------------------------------------- |
+| AGH workspace ID         | yes      | `agh workspace list -o json`; this workspace's default agent receives new routed messages.         |
+| Public callback URL      | yes      | Stable HTTPS URL that forwards to the Slack provider listener and path.                            |
+| Local listener address   | yes      | `provider_config.webhook.listen_addr` or `AGH_BRIDGE_SLACK_LISTEN_ADDR` in the daemon environment. |
+| Bot User OAuth token     | yes      | Slack app **OAuth & Permissions** after installation; use the bot token, not a user token.         |
+| App signing secret       | yes      | Slack app **Basic Information → App Credentials**.                                                 |
+| Slack app administration | yes      | Permission to create and install an app in the target Slack workspace.                             |
+
+The provider needs no Slack app-level token. Keep Socket Mode disabled.
+
+## Step 1: Map the public and local endpoints
+
+Choose a stable callback before generating the manifest:
+
+```text
+Slack → https://bridge.example.com/slack/support
+      → reverse proxy or tunnel
+      → http://127.0.0.1:18081/slack/support
+```
+
+The proxy must preserve the raw request body, content type, method, path, and Slack signature
+headers. Body transformation breaks signature verification.
+
+## Step 2: Create the bridge disabled
+
+```bash
+agh bridge create \
+  --scope workspace \
+  --workspace-id ws_8f33a913d23c4fd1 \
+  --platform slack \
+  --extension slack \
+  --display-name "Slack support" \
+  --enabled=false \
+  --include-thread \
+  --include-group \
+  --provider-config '{
+    "webhook": {
+      "public_url": "https://bridge.example.com/slack/support",
+      "listen_addr": "127.0.0.1:18081",
+      "path": "/slack/support"
+    }
+  }' \
+  -o json
+```
+
+Copy the returned ID:
+
+```bash
+BRIDGE_ID=brg_123
+```
+
+The example isolates channels and threads without creating one session per sender. Read
+[Message routing](/runtime/core/bridges/routing) before adding `--include-peer`; route dimensions are
+session-ownership decisions, not provider permissions.
+
+## Step 3: Generate the Slack app manifest
+
+```bash
+agh bridge manifest slack \
+  --instance "$BRIDGE_ID" \
+  --write \
+  --out ./slack-manifest.json
+```
+
+Without `--write`, the command prints the manifest to stdout. With `--write` and no `--out`, it writes
+to `$AGH_HOME/slack-manifest.json`.
+
+The manifest contains the persisted bridge instance's public callback. If you change the URL later,
+update the bridge first and generate a new manifest; do not hand-patch an old copy and leave AGH with
+different configuration.
+
+## Step 4: Create the Slack app from the manifest
+
+1. Open the [Slack app dashboard](https://api.slack.com/apps).
+2. Select **Create New App → From an app manifest**.
+3. Choose the target Slack workspace.
+4. Paste or upload `slack-manifest.json`.
+5. Review the request URLs, bot events, OAuth scopes, interactivity, and slash command.
+6. Create the app.
+
+The manifest subscribes to these bot events:
+
+- `app_mention`
+- `message.channels`
+- `message.groups`
+- `message.im`
+- `message.mpim`
+- `reaction_added`
+- `reaction_removed`
+
+It requests these bot scopes:
+
+- `app_mentions:read`
+- `assistant:write`
+- `channels:history`
+- `chat:write`
+- `commands`
+- `groups:history`
+- `im:history`
+- `mpim:history`
+- `reactions:read`
+- `reactions:write`
+
+The generated manifest also enables interactivity and configures `/agh` against the same public
+callback. Keep Socket Mode disabled because the in-tree provider is an HTTP webhook receiver.
+
+<OperatorNote>
+  Slack can accept the app configuration before the AGH listener is running, but its URL challenge
+  and event deliveries will fail until the bridge is enabled and the public route reaches the local
+  provider path.
+</OperatorNote>
+
+## Step 5: Install the app and copy its credentials
+
+1. Open **OAuth & Permissions** and select **Install to Workspace**.
+2. Approve the requested bot scopes.
+3. Copy the **Bot User OAuth Token**. It should be the bot credential Slack issued for this install.
+4. Open **Basic Information → App Credentials** and copy the **Signing Secret**.
+
+Reinstall the app after any scope change. Updating scopes in the dashboard does not retroactively
+grant them to an existing installation.
+
+## Step 6: Bind the credentials
+
+```bash
+agh bridge secret-bindings put "$BRIDGE_ID" bot_token \
+  --secret-ref "vault:bridges/$BRIDGE_ID/bot_token" \
+  --kind token \
+  --secret-value "$SLACK_BOT_TOKEN"
+
+agh bridge secret-bindings put "$BRIDGE_ID" signing_secret \
+  --secret-ref "vault:bridges/$BRIDGE_ID/signing_secret" \
+  --kind secret \
+  --secret-value "$SLACK_SIGNING_SECRET"
+
+agh bridge secret-bindings list "$BRIDGE_ID" -o json
+```
+
+Bridge reads return only the secret references and redacted metadata.
+
+## Step 7: Verify the disabled bridge
+
+```bash
+agh bridge verify "$BRIDGE_ID" --json
+```
+
+Expected evidence:
+
+- `provider.identity` passes when Slack `auth.test` recognizes a bot token;
+- one `scope.<name>` record passes for every scope listed above;
+- `webhook.signing_secret` passes when the binding exists;
+- webhook reachability is `skipped` while the bridge is disabled.
+
+A user token fails with remediation to bind the Bot User OAuth token. A missing scope is named
+individually so the app can be updated and reinstalled without guessing.
+
+## Step 8: Enable and prove the full path
+
+```bash
+agh bridge enable "$BRIDGE_ID"
+agh bridge verify "$BRIDGE_ID" --json
+agh bridge get "$BRIDGE_ID" -o json
+```
+
+The enabled verification probes the public callback. Then exercise the provider:
+
+1. For a channel, invite the app to that channel.
+2. Send a message or mention that matches the bridge's routing policy.
+3. For a DM, send the app a direct message from an identity allowed by `dm_policy`.
+4. Confirm the response appears in the same Slack channel or thread.
+
+Inspect the route AGH created:
+
+```bash
+agh bridge routes "$BRIDGE_ID" -o json
+```
+
+Use the route target for a real outbound check:
+
+```bash
+agh bridge send-test "$BRIDGE_ID" \
+  --message "AGH Slack connection check" \
+  --group-id "C0123456789" \
+  --thread-id "1713200000.000100" \
+  --mode reply \
+  --json
+```
+
+The command must return a delivery ID and a Slack remote message ID. `test-delivery` is not a
+substitute; it resolves the target without calling Slack.
+
+## Configure direct-message access
+
+The bridge's `dm_policy` controls direct messages:
+
+- `open` accepts authenticated Slack users.
+- `allowlist` admits values from `provider_config.dm.allow_user_ids` or `allow_usernames`.
+- `pairing` admits values from `paired_user_ids` or `paired_usernames`.
+
+Prefer stable Slack user IDs over display names. Configure the policy before broad app distribution.
+Channel and thread routing remain governed by the bridge routing policy.
+
+## Delivery and progress behavior
+
+Slack text is converted to mrkdwn before the provider measures the 40,000-code-point limit. Long
+terminal answers become ordered continuations in the original thread. Streaming previews stay in
+one mutable message until terminal delivery establishes the final continuation set.
+
+Slack defaults to:
+
+```json
+{
+  "progress": {
+    "tool_progress": "new",
+    "grouping": "accumulate",
+    "typing": true,
+    "reactions": true
+  }
+}
+```
+
+Progress uses a dedicated message and never becomes the final-text delivery anchor. Disable it for a
+quiet channel:
+
+```bash
+agh bridge update "$BRIDGE_ID" \
+  --delivery-progress off \
+  --delivery-progress-typing=false \
+  --delivery-progress-reactions=false
+```
+
+See [Tool progress](/runtime/core/bridges/progress) for mode and grouping semantics.
+
+## Configuration reference
+
+| Field                                     | Default                        | Purpose                                                          |
+| ----------------------------------------- | ------------------------------ | ---------------------------------------------------------------- |
+| `webhook.public_url`                      | none                           | Complete public callback used by Slack and enabled verification. |
+| `webhook.listen_addr`                     | `AGH_BRIDGE_SLACK_LISTEN_ADDR` | Local listener shared by owned Slack instances.                  |
+| `webhook.path`                            | `/slack/<bridge-id>`           | Local callback path; each instance needs a unique path.          |
+| `batching.delay_ms`                       | `0`                            | Enables inbound batching when positive.                          |
+| `batching.split_delay_ms`                 | `delay_ms`                     | Delay used after the configured split threshold.                 |
+| `batching.split_threshold`                | `0`                            | Provider batching split threshold.                               |
+| `dm.allow_user_ids` / `paired_user_ids`   | empty                          | Stable Slack identities used by `allowlist` or `pairing`.        |
+| `dm.allow_usernames` / `paired_usernames` | empty                          | Normalized name fallbacks; IDs are safer when names can change.  |
+
+The Slack API destination is an operator-owned process setting. Instance configuration cannot
+redirect bound credentials to another host.
+
+## Common operations
+
+### Rotate the bot token or signing secret
+
+Disable the bridge, update the Slack app first when needed, replace the binding, then enable and
+verify again:
+
+```bash
+agh bridge disable "$BRIDGE_ID"
+# Reinstall the Slack app or rotate the signing secret in Slack.
+agh bridge secret-bindings put "$BRIDGE_ID" <slot> \
+  --secret-ref "vault:bridges/$BRIDGE_ID/<slot>" \
+  --kind secret \
+  --secret-value "$NEW_VALUE"
+agh bridge enable "$BRIDGE_ID"
+agh bridge verify "$BRIDGE_ID" --json
+```
+
+Use `--kind token` for `bot_token`.
+
+### Change the callback URL
+
+1. Disable the bridge.
+2. Read the complete current `provider_config`.
+3. Update the full object with the new public URL, local address, and path.
+4. Generate and apply a new Slack manifest or update every Slack request URL manually.
+5. Enable and verify again.
+
+`agh bridge update --provider-config` replaces the provider configuration object; preserve fields you
+are not changing.
+
+## Troubleshooting
+
+| Symptom                                               | What to check                                                                                                                         |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Slack rejects the Request URL                         | Enable the bridge, confirm the public path reaches the provider, and preserve Slack's URL challenge body.                             |
+| `provider.identity` says the token is a user token    | Copy the **Bot User OAuth Token** from the installed app and replace the `bot_token` binding.                                         |
+| A `scope.*` check fails                               | Add that bot scope, reinstall the app to the workspace, copy the new bot token if Slack rotated it, and verify again.                 |
+| Signed events return unauthorized                     | Confirm the signing secret comes from the same Slack app and the proxy preserves body bytes and signature headers.                    |
+| Events work but `/agh` or actions fail                | Confirm slash-command and interactivity Request URLs match `webhook.public_url` and form bodies are forwarded without transformation. |
+| Channel messages are silent                           | Invite the app, subscribe to the matching message event, and confirm the app installation has the corresponding history scope.        |
+| Replies appear in the wrong thread                    | Inspect `agh bridge routes`; verify `include_thread` and reuse the route's Slack `thread_ts` for reply-mode delivery.                 |
+| Reactions or progress status fail while text works    | Check `reactions:write` and `assistant:write`; keep text delivery enabled while repairing optional affordances.                       |
+| A second Slack instance degrades                      | Give each instance a distinct webhook path while keeping the shared provider listener address consistent.                             |
+| Verify reports public reachability warning or failure | Check DNS, TLS, reverse-proxy path, redirects, and upstream status. The verifier does not follow redirects or use an HTTP proxy.      |
+
+## Security notes
+
+- Keep the signing secret distinct per Slack app and rotate it after exposure.
+- Restrict app installation and scopes to the workspace where the bridge operates.
+- Use DM allowlists or pairing before distributing the app broadly.
+- Do not log request bodies, tokens, or signing material while debugging.
+- Keep the listener behind a path-specific reverse proxy; do not expose unrelated local services.
+
+## Completion checklist
+
+- The app was created from the current bridge manifest or an exact manual equivalent.
+- Every `scope.*` check passes after installation.
+- Slack request signatures validate on the public route.
+- An inbound DM/channel event creates a route in the intended workspace.
+- A reply stays in the intended thread.
+- `send-test` returns a remote Slack message ID.
+- The bridge returns to `ready` after one restart.
+
+## Related docs
+
+- [Bridge setup](/runtime/core/bridges/setup)
+- [Operate and repair bridges](/runtime/core/bridges/operations)
+- [Message routing](/runtime/core/bridges/routing)
+- [Tool progress](/runtime/core/bridges/progress)
+- [Bridge CLI reference](/runtime/cli-reference/bridge)

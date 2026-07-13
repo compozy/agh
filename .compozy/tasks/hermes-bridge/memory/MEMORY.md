@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Phase B, Tasks 01–08 are checkpointed at `66880e5`, `b103482`, `2be5ddf`, `d362403`, `c8ebbcaf`, `2b00ab3`, `7494982`, and `5d716befa`. Task 09 planning is complete and awaiting its safe checkpoint; Task 10 is next.
+- Phase B, Tasks 01–10 are complete. The original pre-rebase checkpoints are historical; the current branch is being replayed onto `main`.
 - Per-task evidence is focused and proportional. Global tests and the single `make verify` are deferred until all ten tasks, QA, and review remediation are complete per user direction.
 
 ## Shared Decisions
@@ -18,6 +18,7 @@
 - A generated secret needed by a later manual step must be supplied or explicitly disclosed once before persistence. Hidden generation is allowed only when the daemon consumes the value directly.
 - Inbound edits are a typed `edit` family; reply context is bounded and cache-only. Durable Path A recovery stores checkpoint metadata and metrics, never streamed/progress text, and universally fails open with a new visible terminal error before new registrations are admitted.
 - Provider runtime scaffolding is composition-based: shared lifecycle/Host/reconcile/routes/delivery/HTTP/markers/command owners with provider-specific prepare/finalize hooks. Every provider publishes routes before final probes through the same `ManagedConfigReconciler`.
+- Bridge documentation now follows an operator-first Diataxis split: one common setup/orientation hub, eight dedicated provider how-tos, one day-two operations/recovery runbook, one public in-tree author tutorial, and one concise in-repo implementation checklist.
 
 ## Shared Learnings
 
@@ -35,6 +36,7 @@
 - Modular HTTP route files must declare their route group locally so the repository's manual-doc route inventory can prove the registered path.
 - Static contract tests caught two genuine Task 04 co-ship gaps: the TypeScript runtime fixture needed the required purpose, and modular bridge subroutes needed inventory-visible group ownership.
 - A shutdown admission must reject new service calls immediately. Otherwise health probes can remain green while shutdown waits for in-flight initialization, creating a deterministic coordination deadlock in subprocess conformance.
+- Nominal provider coverage is not documentation parity. The vendored Hermes guides are more usable when they supply a single entry point, provider-specific journeys, observable success criteria, and recovery operations. AGH keeps its stronger typed verification/runtime truth while adopting that information architecture.
 
 ## Open Risks
 
@@ -43,15 +45,19 @@
 - Task 09 consciously merged all 27 provisional QA seeds into the seven content-addressed Hermes scenarios and reset the affected `NB-024..NB-039` scenarios; duplicate tracker rows are no longer an open risk.
 - No live Slack/Telegram/etc. accounts are available; later QA must continue using isolated fake-provider and public-surface scenarios.
 - The checkpoint-only ledger intentionally does not replay multichunk text after restart. Universal visible fail-open avoids prefix duplication and stale-anchor dependence; future exact multichunk resume would require a separate explicit ordered-handle/content contract.
+- Generic `agh bridge secret-bindings put --secret-value` currently exposes the value as a client process argument; it has no stdin/file source. The revised docs disclose this boundary and prefer guided hidden input where available. A safer generic input mechanism is a separate runtime/CLI change, not fabricated in documentation.
+- Task 10 found `BUG-20260713-telegram-route-shapes`: Telegram guided setup persists a conjunctive group+thread policy, while the provider/public guide requires alternative peer, group, and group+topic route shapes. Do not replace it with another fixed policy; the routing model needs a structural alternative-shape contract.
 
 ## Handoffs
 
 - Task 02 provides the shared chunker, six provider delivery loops, and Slack/Telegram formatting seams.
 - Task 03 provides visible progress rendering across all six chat providers, issue-provider no-op ACKs, shared scheduled lifecycle discipline, exact fake-platform contracts, and the low-tier daemon contract E2E.
 - Task 04 provides Slack manifest generation, guided/headless setup, typed provider verification, doctor aggregation, Telegram registration, real send-test, hardened control isolation, public API parity, and generated contracts.
-- Task 05 provides the disabled-first Web setup orchestrator, daemon-owned Slack manifest handoff, state-derived setup checklist, typed verify/register/send-test flows, progress editors, and route-local evidence isolation. `NB-039` and `NB-052` are `untested` inputs to the QA tail.
-- Task 06 provides typed Slack/Telegram edits, bounded Slack/Telegram/GChat reply context, a workspace-isolated checkpoint/metric ledger, boot admission fencing, and universal visible fail-open recovery. `NB-053` and `NB-054` are `untested` inputs to the QA tail.
+- Task 05 provides the disabled-first Web setup orchestrator, daemon-owned Slack manifest handoff, state-derived setup checklist, typed verify/register/send-test flows, progress editors, and route-local evidence isolation. `NB-039` and `NB-web-bridge-setup` passed the Task 10 cycle.
+- Task 06 provides typed Slack/Telegram edits, bounded Slack/Telegram/GChat reply context, a workspace-isolated checkpoint/metric ledger, boot admission fencing, and universal visible fail-open recovery. `NB-bridge-edit-reply` and `NB-bridge-restart-recovery` passed the Task 10 cycle.
 - Task 07 provides shared provider lifecycle/Host/reconcile/routes/delivery/HTTP/marker/command owners, eight migrated providers, auto-discovered manifest/schema/binary/runtime conformance, and docs↔code invariants. Task 08 turned its former setup/slots red lane green. NB-029 and NB-031 are reset to `untested` for the discovered lifecycle fixes.
-- Task 08 provides exact 8/8 manifest-slot/setup parity, deep operator journeys for Teams/WhatsApp/GChat/GitHub/Linear, CLI-first shared setup, truthful Discord docs, bridge-author guides, and official-skill management guidance. The docs conformance suite, site typecheck/247 tests, and 1,578-page build are green; `NB-051` already owns the untested QA journey.
+- Task 08 now provides exact 8/8 dedicated provider guides, an operator-first shared setup hub, a bridge operations/recovery runbook, a provider comparison, GitHub/Linear colocated READMEs, and executable author guidance from scaffold through route/send-test. The author tutorial's missing `bin/` build prerequisite and invalid empty check example were corrected. Focused evidence is green: docs conformance 4/4 under `-race`, site MDX generation/typecheck through Turbo, Oxfmt on 18 files, test-shape checker, and `git diff --check`; no global suite or `make verify` ran.
 - Task 09 provides bridge personas, seven content-addressed journeys, nine immutable content-addressed charters, living-scenario mapping/reset for 17 changed/canonical behaviors, explicit reconciliation of all 27 provisional seeds, TTFM/risk/taxonomy ownership, four per-file automation candidates, and the executable Task 10 contract in `docs/qa/reports/2026-07-12-hermes-bridge-plan.md`.
-- Task 10 owns the fresh isolated QA execution, evidence-backed tracker verdicts, required runtime/Web E2E lanes, browser walk, bug registry, and clean teardown.
+- Task 10 executed the fresh isolated QA cycle, wrote evidence-backed living-scenario verdicts and a dated report, and completed clean teardown. Seven charters passed; the two Telegram setup charters are blocked by `BUG-20260713-telegram-route-shapes`.
+- Task 10 preconditions found `BUG-20260712-goal-judge-fixture-model`, `BUG-20260712-reasoning-evidence-attribution`, re-found canonical `BUG-0037`, and found `BUG-20260712-bridge-e2e-retired-route`. Goal fixture negotiation and the current Web asset/route owners are fixed; ACP diagnostics attribution remains structurally open.
+- Task 10 independently reproduced open `BUG-0028`, completed guided provider/CLI/HTTP/UDS, Slack progress/edit, and browser-first Slack setup journeys, and recorded provider-fake qualifications. The dated report owns all run observations; charters remain immutable.

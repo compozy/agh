@@ -1,0 +1,326 @@
+---
+title: Discord Setup
+description: Configure an Ed25519-signed Discord endpoint, install the bot with the generated invite URL, and prove channel and thread delivery.
+---
+
+This guide connects a Discord application to one AGH workspace. The in-tree provider is an HTTP
+integration: it handles Discord interactions and Application Webhook Events, then uses Discord REST
+for outbound messages. It does not open a Discord Gateway connection.
+
+## How the Discord bridge behaves
+
+| Surface           | AGH behavior                                                                                                                                     |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Inbound transport | Receives Ed25519-signed interaction payloads and Application Webhook Events over public HTTPS.                                                   |
+| Routed events     | Maps `MESSAGE_CREATE`, reaction add/remove, application commands, and message components into typed bridge events.                               |
+| Event boundary    | Does not ingest ordinary `MESSAGE_UPDATE`; that event requires a Discord Gateway lifecycle outside this provider.                                |
+| Routing           | Preserves guild channels, threads, direct-message peers, and parent-channel identity.                                                            |
+| Outbound delivery | Creates, edits, and deletes Discord messages through REST.                                                                                       |
+| Long responses    | Splits terminal text at 2,000 Unicode code points with ordered, numbered continuations.                                                          |
+| Tool progress     | Defaults to `new + accumulate` with one edited progress message, typing, and phase reactions. Final text uses a separate acknowledgement anchor. |
+
+This differs from Discord bot guides built around Gateway intents. AGH does not need a long-lived
+Gateway socket or privileged message-content intent for its HTTP webhook path.
+
+## Before you start
+
+| Value                  | Required | Where it comes from                                                                       |
+| ---------------------- | -------- | ----------------------------------------------------------------------------------------- |
+| Application ID         | yes      | Discord Developer Portal **General Information**.                                         |
+| Ed25519 public key     | yes      | Discord Developer Portal **General Information**; exactly 64 hexadecimal characters.      |
+| Bot token              | yes      | Discord Developer Portal **Bot** page.                                                    |
+| Public callback URL    | yes      | Stable public HTTPS route to the Discord provider listener.                               |
+| Local listener address | yes      | `provider_config.webhook.listen_addr` or `AGH_BRIDGE_DISCORD_LISTEN_ADDR`.                |
+| AGH workspace ID       | yes      | Workspace whose default agent receives accepted Discord events.                           |
+| Server permissions     | servers  | Permission to install an app in the test server and configure its webhook/event settings. |
+
+Keep the public key and bot token distinct. The public key verifies inbound requests; the bot token
+authorizes outbound REST calls.
+
+## Step 1: Create the Discord application and bot
+
+1. Open the [Discord Developer Portal](https://discord.com/developers/applications).
+2. Select **New Application** and choose a recognizable name.
+3. On **General Information**, copy the **Application ID** and **Public Key**.
+4. Open **Bot**, create the bot user if needed, and reset/copy the bot token.
+5. Store the token in a secret manager. Discord shows it only at controlled reset points.
+
+Do not enable privileged Gateway intents for this bridge unless another component of the same app
+uses a Gateway connection. They are not part of AGH's inbound contract.
+
+## Step 2: Map the public and local endpoints
+
+```text
+Discord → https://bridge.example.com/discord/support
+        → reverse proxy or tunnel
+        → http://127.0.0.1:18083/discord/support
+```
+
+The proxy must preserve the raw body and these headers:
+
+- `X-Signature-Timestamp`
+- `X-Signature-Ed25519`
+
+Discord signs the timestamp plus exact body bytes. Decompression, re-encoding, or JSON normalization
+before the provider verifies the request breaks authentication.
+
+## Step 3: Run guided setup
+
+Interactive setup creates the bridge disabled, validates the application identity values, binds the
+bot token/public key, and returns an install URL:
+
+```bash
+agh bridge setup discord
+```
+
+The default invite requests:
+
+- scopes: `bot` and `applications.commands`;
+- permission bits: `68672`, covering view channel, send messages, add reactions, and read message
+  history.
+
+The wizard does not register application commands or choose server/channel access for you. It
+produces the OAuth install boundary; the Discord application remains operator-owned.
+
+### Headless setup
+
+```bash
+agh bridge setup discord --json <<'JSON'
+{
+  "scope": "workspace",
+  "workspace_id": "ws_8f33a913d23c4fd1",
+  "webhook_public_url": "https://bridge.example.com/discord/support",
+  "webhook_path": "/discord/support",
+  "application_id": "111122223333444455",
+  "bot_token": "replace-with-the-discord-bot-token",
+  "public_key": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "invite_scopes": ["bot", "applications.commands"],
+  "invite_permissions": 68672
+}
+JSON
+```
+
+Unknown fields and trailing JSON values fail before writes. The result contains masked bindings,
+the invite URL, the verification command, and the next lifecycle action.
+
+Copy the returned bridge ID:
+
+```bash
+BRIDGE_ID=brg_123
+```
+
+## Step 4: Configure the Discord endpoints
+
+In the Developer Portal for the same application:
+
+1. Set **Interactions Endpoint URL** to the exact `webhook_public_url` returned by setup.
+2. Save the endpoint. Discord sends a signed PING; AGH validates Ed25519 and returns PONG.
+3. Configure Application Webhook Events you intend to route, using the same endpoint.
+4. Select message-create and reaction add/remove event families only when your app needs them.
+
+The provider can parse application commands and message components delivered to the interaction
+endpoint, but command definitions and component-producing messages are separate Discord application
+configuration. AGH does not fabricate a command catalog during setup.
+
+<OperatorNote>
+  A successful Discord endpoint validation proves signature/PING handling. It does not prove that
+  the bot is installed in the target server, subscribed to an event family, permitted in a channel,
+  or accepted by AGH's DM policy.
+</OperatorNote>
+
+## Step 5: Install the bot
+
+1. Open the `invite_url` returned by setup.
+2. Select the test server.
+3. Review the requested permissions.
+4. Authorize the application.
+5. Restrict the bot to the intended channels or roles in Discord server settings when needed.
+
+If you change invite scopes or permission bits, rerun setup for the existing bridge or build a new
+OAuth URL from the same application ID. Do not install a second application with a different public
+key and reuse the first bridge's secrets.
+
+## Step 6: Verify the disabled bridge
+
+```bash
+agh bridge verify "$BRIDGE_ID" --json
+```
+
+Expected evidence:
+
+- `provider.identity` passes when the bot token resolves to the configured application/bot ID;
+- `webhook.public_key` passes when the Ed25519 public-key binding exists;
+- webhook reachability is `skipped` while disabled.
+
+An application-ID mismatch means the bot token and portal application do not belong together. Fix
+the values rather than removing the configured ID.
+
+## Step 7: Enable and prove inbound routing
+
+```bash
+agh bridge enable "$BRIDGE_ID"
+agh bridge verify "$BRIDGE_ID" --json
+agh bridge get "$BRIDGE_ID" -o json
+```
+
+Then trigger a supported event:
+
+- send a message where the configured Application Webhook Events subscription applies;
+- invoke a registered application command;
+- activate a message component the application owns; or
+- add/remove a reaction on a routed message.
+
+Inspect the resulting route:
+
+```bash
+agh bridge routes "$BRIDGE_ID" -o json
+```
+
+For a server thread, the route keeps the parent channel as `group_id` and the thread channel as
+`thread_id`. For a DM, use the provider user identity as `peer_id`.
+
+## Step 8: Prove outbound delivery
+
+Use real route IDs, not channel names:
+
+```bash
+agh bridge send-test "$BRIDGE_ID" \
+  --message "AGH Discord connection check" \
+  --group-id "123456789012345678" \
+  --thread-id "234567890123456789" \
+  --mode reply \
+  --json
+```
+
+Confirm the message appears in the intended channel/thread and the result contains the Discord
+remote message ID.
+
+## Configure direct-message access
+
+The bridge's `dm_policy` chooses `open`, `allowlist`, or `pairing`. Provider config accepts stable
+Discord user IDs and normalized username fallbacks:
+
+```json
+{
+  "dm": {
+    "allow_user_ids": ["123456789012345678"],
+    "allow_usernames": ["alice"],
+    "paired_user_ids": [],
+    "paired_usernames": []
+  }
+}
+```
+
+Prefer numeric IDs. A display name, nickname, and username are not interchangeable identities.
+
+## Delivery and progress behavior
+
+Discord measures 2,000 Unicode code points after delivery text is prepared. Terminal answers that
+exceed the limit become numbered continuations; all parts stay within the wire cap and remain in the
+same destination.
+
+Discord defaults to:
+
+```json
+{
+  "progress": {
+    "tool_progress": "new",
+    "grouping": "accumulate",
+    "typing": true,
+    "reactions": true
+  }
+}
+```
+
+The provider has a start-typing endpoint but no explicit clear request. It stops issuing typing
+requests when content arrives. Progress reactions apply to the progress message, not the final answer.
+
+Disable optional affordances without disabling text delivery:
+
+```bash
+agh bridge update "$BRIDGE_ID" \
+  --delivery-progress off \
+  --delivery-progress-typing=false \
+  --delivery-progress-reactions=false
+```
+
+## Configuration reference
+
+| Field                                     | Default                          | Purpose                                                                  |
+| ----------------------------------------- | -------------------------------- | ------------------------------------------------------------------------ |
+| `application_id`                          | none                             | Expected identity for the authenticated bot token and invite generation. |
+| `webhook.public_url`                      | none                             | Complete public Discord endpoint and enabled reachability target.        |
+| `webhook.listen_addr`                     | `AGH_BRIDGE_DISCORD_LISTEN_ADDR` | Local listener shared by Discord instances.                              |
+| `webhook.path`                            | `/discord/<bridge-id>`           | Local callback path; each instance needs a unique path.                  |
+| `invite.scopes`                           | guided setup values              | OAuth scopes used to construct the operator handoff URL.                 |
+| `invite.permissions`                      | `68672` in guided setup          | Decimal Discord permission bitset placed in the invite URL.              |
+| `batching.delay_ms`                       | `0`                              | Enables inbound batching when positive.                                  |
+| `batching.split_delay_ms`                 | `delay_ms`                       | Delay after the configured split threshold.                              |
+| `batching.split_threshold`                | `0`                              | Provider batching split threshold.                                       |
+| `dm.allow_user_ids` / `paired_user_ids`   | empty                            | Discord IDs admitted by `allowlist` or `pairing`.                        |
+| `dm.allow_usernames` / `paired_usernames` | empty                            | Normalized username fallbacks; IDs are safer.                            |
+
+`bot_token` and `public_key` are required write-only bindings. The Discord REST destination is an
+operator-owned process setting and cannot be redirected by bridge instance configuration.
+
+## Common operations
+
+### Rotate the bot token
+
+```bash
+agh bridge disable "$BRIDGE_ID"
+agh bridge setup discord --instance "$BRIDGE_ID"
+agh bridge enable "$BRIDGE_ID"
+agh bridge verify "$BRIDGE_ID" --json
+```
+
+Use the same application ID and public key unless the Discord application itself changed. A bot-token
+reset invalidates the old token immediately.
+
+### Change the endpoint or public key
+
+Disable the bridge first. Update the complete provider configuration or rerun guided setup, update
+the Discord portal endpoint, then wait for the signed PING validation before reenabling. Replacing the
+public key means the portal application identity changed; review the bot token and application ID as
+one credential set.
+
+## Troubleshooting
+
+| Symptom                                              | What to check                                                                                                                            |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Discord rejects the endpoint URL                     | Enable the listener, preserve raw body/signature headers, verify TLS/path forwarding, and bind the public key from the same application. |
+| `provider.identity` reports an application mismatch  | The bot token belongs to a different application, or `application_id` is wrong. Correct the credential set together.                     |
+| Bot is installed but messages create no AGH route    | Configure the supported Application Webhook Events subscription; Gateway events are not consumed by this provider.                       |
+| Commands reach Discord but not AGH                   | Confirm the command is registered to this application and its interaction endpoint is the AGH public URL.                                |
+| Ordinary message edits create no new turn            | This is expected: `MESSAGE_UPDATE` is outside the HTTP-only provider contract.                                                           |
+| Discord returns missing-access or missing-permission | Check bot installation, channel overrides, requested permission bits, and the target channel/thread IDs.                                 |
+| Replies appear outside the thread                    | Inspect the parent channel and thread IDs in `agh bridge routes`; keep `include_thread` enabled.                                         |
+| Long messages fail near 2,000 characters             | Check the actual prepared payload and provider response; AGH already reserves continuation markers within each 2,000-code-point chunk.   |
+| Reactions/typing fail while text still works         | Treat them as optional affordances; disable them while repairing permissions or unsupported target behavior.                             |
+| A second Discord instance degrades                   | Use one shared listener address and a distinct path per bridge instance.                                                                 |
+
+## Security notes
+
+- Treat the bot token as a password and rotate it immediately after exposure.
+- Preserve raw request bytes until Ed25519 verification succeeds.
+- Limit installation and channel permissions to the server areas the agent should reach.
+- Configure DM policy before allowing broad bot discovery.
+- Do not add a generic unauthenticated webhook in front of the signed provider endpoint.
+
+## Completion checklist
+
+- Discord accepts the signed PING at the exact public URL.
+- The bot token identity matches the configured application ID.
+- A supported webhook event or interaction creates an AGH route.
+- Server thread routes preserve parent and thread IDs.
+- `send-test` returns a Discord remote message ID.
+- Long output produces ordered messages within Discord's limit.
+- The bridge returns to `ready` after one restart.
+
+## Related docs
+
+- [Bridge setup](/runtime/core/bridges/setup)
+- [Operate and repair bridges](/runtime/core/bridges/operations)
+- [Message routing](/runtime/core/bridges/routing)
+- [Tool progress](/runtime/core/bridges/progress)
+- [Bridge CLI reference](/runtime/cli-reference/bridge)
