@@ -21,15 +21,12 @@ type deliveryState struct {
 }
 
 func (p *discordProvider) deliveryState(instanceID string, deliveryID string) deliveryState {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.deliveries[deliveryStateKey(instanceID, deliveryID)]
+	state, _ := p.deliveries.Load(deliveryStateKey(instanceID, deliveryID))
+	return state
 }
 
 func (p *discordProvider) storeDeliveryState(instanceID string, deliveryID string, state deliveryState) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.deliveries[deliveryStateKey(instanceID, deliveryID)] = state
+	p.deliveries.Store(deliveryStateKey(instanceID, deliveryID), state)
 }
 
 func executeDiscordDelivery(

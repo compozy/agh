@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -44,17 +43,16 @@ func TestTeamsProgressRendering(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newTeamsProvider() error = %v", err)
 		}
-		t.Cleanup(provider.stop)
+		t.Cleanup(provider.lifecycle.Stop)
 		managed := testTeamsManagedInstance(t, time.Unix(8_000, 0).UTC(), "brg-progress-off", map[string]any{
 			"service_url": "https://service.test",
 		})
-		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+		setTeamsProviderRoute(provider, managed.Instance.ID, resolvedInstanceConfig{
 			managed:    &managed,
 			instanceID: managed.Instance.ID,
 			appID:      "app-id",
 			serviceURL: "https://service.test",
-		}
-		provider.reportedStatus[managed.Instance.ID] = bridgepkg.BridgeStatusReady
+		})
 		apiCalls := 0
 		provider.apiFactory = func(resolvedInstanceConfig) teamsAPI {
 			apiCalls++
@@ -102,9 +100,7 @@ func TestTeamsProgressRendering(t *testing.T) {
 		); err != nil {
 			t.Fatalf("handleBridgesProgress(default-off lifecycle final) error = %v", err)
 		}
-		provider.mu.RLock()
-		_, deliveryExists := provider.deliveries[deliveryStateKey(managed.Instance.ID, request.Event.DeliveryID)]
-		provider.mu.RUnlock()
+		_, deliveryExists := provider.deliveries.Load(deliveryStateKey(managed.Instance.ID, request.Event.DeliveryID))
 		if deliveryExists {
 			t.Fatal("default-off lifecycle-only delivery state still exists, want terminal removal")
 		}
@@ -117,19 +113,19 @@ func TestTeamsProgressRendering(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newTeamsProvider() error = %v", err)
 		}
-		t.Cleanup(provider.stop)
+		t.Cleanup(provider.lifecycle.Stop)
 		managed := testTeamsManagedInstance(t, time.Unix(8_025, 0).UTC(), "brg-progress-failure", map[string]any{
 			"service_url": "https://service.test",
 		})
 		managed.Instance.DeliveryDefaults = json.RawMessage(
 			`{"progress":{"tool_progress":"all","grouping":"separate","typing":false,"reactions":false}}`,
 		)
-		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+		setTeamsProviderRoute(provider, managed.Instance.ID, resolvedInstanceConfig{
 			managed:    &managed,
 			instanceID: managed.Instance.ID,
 			appID:      "app-id",
 			serviceURL: "https://service.test",
-		}
+		})
 		api := &fakeTeamsAPI{sendErr: errors.New("activity unavailable")}
 		provider.apiFactory = func(resolvedInstanceConfig) teamsAPI { return api }
 
@@ -163,19 +159,19 @@ func TestTeamsProgressRendering(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newTeamsProvider() error = %v", err)
 		}
-		t.Cleanup(provider.stop)
+		t.Cleanup(provider.lifecycle.Stop)
 		managed := testTeamsManagedInstance(t, time.Unix(8_050, 0).UTC(), "brg-progress-disabled", map[string]any{
 			"service_url": "https://service.test",
 		})
 		managed.Instance.DeliveryDefaults = json.RawMessage(
 			`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":false,"reactions":false}}`,
 		)
-		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+		setTeamsProviderRoute(provider, managed.Instance.ID, resolvedInstanceConfig{
 			managed:    &managed,
 			instanceID: managed.Instance.ID,
 			appID:      "app-id",
 			serviceURL: "https://service.test",
-		}
+		})
 		api := &fakeTeamsAPI{nextActivityID: 10}
 		provider.apiFactory = func(resolvedInstanceConfig) teamsAPI { return api }
 
@@ -238,20 +234,19 @@ func TestTeamsProgressRendering(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newTeamsProvider() error = %v", err)
 		}
-		t.Cleanup(provider.stop)
+		t.Cleanup(provider.lifecycle.Stop)
 		managed := testTeamsManagedInstance(t, time.Unix(8_100, 0).UTC(), "brg-progress-on", map[string]any{
 			"service_url": "https://service.test",
 		})
 		managed.Instance.DeliveryDefaults = json.RawMessage(
 			`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":true,"reactions":true}}`,
 		)
-		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+		setTeamsProviderRoute(provider, managed.Instance.ID, resolvedInstanceConfig{
 			managed:    &managed,
 			instanceID: managed.Instance.ID,
 			appID:      "app-id",
 			serviceURL: "https://service.test",
-		}
-		provider.reportedStatus[managed.Instance.ID] = bridgepkg.BridgeStatusReady
+		})
 		api := &fakeTeamsAPI{nextActivityID: 20}
 		provider.apiFactory = func(resolvedInstanceConfig) teamsAPI { return api }
 
@@ -334,20 +329,20 @@ func TestTeamsProgressRendering(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newTeamsProvider() error = %v", err)
 		}
-		t.Cleanup(provider.stop)
+		t.Cleanup(provider.lifecycle.Stop)
 		managed := testTeamsManagedInstance(t, time.Unix(8_200, 0).UTC(), "brg-progress-dm", map[string]any{
 			"service_url": "https://service.test",
 		})
 		managed.Instance.DeliveryDefaults = json.RawMessage(
 			`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":true,"reactions":false}}`,
 		)
-		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+		setTeamsProviderRoute(provider, managed.Instance.ID, resolvedInstanceConfig{
 			managed:     &managed,
 			instanceID:  managed.Instance.ID,
 			appID:       "app-id",
 			appTenantID: "tenant-id",
 			serviceURL:  "https://service.test",
-		}
+		})
 		api := &fakeTeamsAPI{createConversationID: "conversation-dm", nextActivityID: 30}
 		provider.apiFactory = func(resolvedInstanceConfig) teamsAPI { return api }
 
@@ -403,9 +398,7 @@ func TestTeamsProgressRendering(t *testing.T) {
 		); err != nil {
 			t.Fatalf("handleBridgesProgress(lifecycle final) error = %v", err)
 		}
-		provider.mu.RLock()
-		_, deliveryExists := provider.deliveries[deliveryStateKey(managed.Instance.ID, request.Event.DeliveryID)]
-		provider.mu.RUnlock()
+		_, deliveryExists := provider.deliveries.Load(deliveryStateKey(managed.Instance.ID, request.Event.DeliveryID))
 		if deliveryExists {
 			t.Fatal("lifecycle-only delivery state still exists, want terminal removal")
 		}
@@ -424,9 +417,7 @@ func TestTeamsProgressRendering(t *testing.T) {
 		); err != nil {
 			t.Fatalf("handleBridgesProgress(stale lifecycle final) error = %v", err)
 		}
-		provider.mu.RLock()
-		_, staleExists := provider.deliveries[deliveryStateKey(managed.Instance.ID, staleDeliveryID)]
-		provider.mu.RUnlock()
+		_, staleExists := provider.deliveries.Load(deliveryStateKey(managed.Instance.ID, staleDeliveryID))
 		if staleExists {
 			t.Fatal("dispatcher-free lifecycle-only state still exists, want terminal removal")
 		}
@@ -1124,10 +1115,10 @@ func TestResolveInstanceConfigAndDetermineInitialState(t *testing.T) {
 	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, managed), nil); err != nil {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
-	states := waitForJSONLinesFile[stateMarker](
+	states := waitForJSONLinesFile[bridgesdk.StateMarker](
 		t,
-		env.statePath,
-		func(items []stateMarker) bool {
+		env.StatePath,
+		func(items []bridgesdk.StateMarker) bool {
 			return len(items) >= 1 && items[len(items)-1].Status.Normalize() == bridgepkg.BridgeStatusReady
 		},
 	)
@@ -1135,9 +1126,7 @@ func TestResolveInstanceConfigAndDetermineInitialState(t *testing.T) {
 		t.Fatalf("states[last].Status = %q, want %q", got, want)
 	}
 	waitForCondition(t, func() bool {
-		runtime.mu.RLock()
-		defer runtime.mu.RUnlock()
-		return runtime.server != nil && strings.TrimSpace(runtime.serverAddr) != ""
+		return strings.TrimSpace(runtime.http.Address()) != ""
 	})
 
 	session := runtime.currentSession()
@@ -1293,26 +1282,24 @@ func TestRuntimeInitializeStartsServerAndWritesMarkers(t *testing.T) {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
 
-	handshake := waitForJSONFile[initializeMarker](t, env.handshakePath)
+	handshake := waitForJSONFile[bridgesdk.InitializeMarker](t, env.HandshakePath)
 	if got, want := handshake.Request.Runtime.Bridge.Provider, "teams"; got != want {
 		t.Fatalf("handshake provider = %q, want %q", got, want)
 	}
-	ownership := waitForJSONFile[ownershipMarker](t, env.ownershipPath)
+	ownership := waitForJSONFile[bridgesdk.OwnershipMarker](t, env.OwnershipPath)
 	if got, want := len(ownership.Fetched), 2; got != want {
 		t.Fatalf("len(ownership.Fetched) = %d, want %d", got, want)
 	}
-	states := waitForJSONLinesFile[stateMarker](
+	states := waitForJSONLinesFile[bridgesdk.StateMarker](
 		t,
-		env.statePath,
-		func(items []stateMarker) bool { return len(items) >= 2 },
+		env.StatePath,
+		func(items []bridgesdk.StateMarker) bool { return len(items) >= 2 },
 	)
 	if got, want := states[0].Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
 		t.Fatalf("states[0].Status = %q, want %q", got, want)
 	}
 	waitForCondition(t, func() bool {
-		runtime.mu.RLock()
-		defer runtime.mu.RUnlock()
-		return strings.TrimSpace(runtime.serverAddr) != ""
+		return strings.TrimSpace(runtime.http.Address()) != ""
 	})
 }
 
@@ -1365,14 +1352,10 @@ func TestWebhookAuthorizationRejectsInvalidTokenAndIngestsActivities(t *testing.
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
 	waitForCondition(t, func() bool {
-		runtime.mu.RLock()
-		defer runtime.mu.RUnlock()
-		return strings.TrimSpace(runtime.serverAddr) != ""
+		return strings.TrimSpace(runtime.http.Address()) != ""
 	})
 
-	runtime.mu.RLock()
-	serverAddr := runtime.serverAddr
-	runtime.mu.RUnlock()
+	serverAddr := runtime.http.Address()
 	webhookURL := "http://" + serverAddr + "/teams/brg-1"
 
 	invalidReq, err := http.NewRequestWithContext(
@@ -1405,10 +1388,10 @@ func TestWebhookAuthorizationRejectsInvalidTokenAndIngestsActivities(t *testing.
 	postTeamsWebhook(t, mock, webhookURL, "app-id", teamsInvokeWebhook(mock.ServiceURL()))
 	postTeamsWebhook(t, mock, webhookURL, "app-id", teamsReactionWebhook(mock.ServiceURL()))
 
-	ingests := waitForJSONLinesFile[ingestMarker](
+	ingests := waitForJSONLinesFile[bridgesdk.IngestMarker](
 		t,
-		env.ingestPath,
-		func(items []ingestMarker) bool {
+		env.IngestPath,
+		func(items []bridgesdk.IngestMarker) bool {
 			return len(items) >= 4
 		},
 	)
@@ -1602,10 +1585,10 @@ func TestRuntimeDeliveriesCallTeamsAPI(t *testing.T) {
 		t.Fatalf("hostPeer.Call(final delivery) error = %v", err)
 	}
 
-	records := waitForJSONLinesFile[deliveryMarker](
+	records := waitForJSONLinesFile[bridgesdk.DeliveryMarker](
 		t,
-		env.deliveryPath,
-		func(items []deliveryMarker) bool { return len(items) >= 2 },
+		env.DeliveryPath,
+		func(items []bridgesdk.DeliveryMarker) bool { return len(items) >= 2 },
 	)
 	if records[0].Ack == nil || records[1].Ack == nil {
 		t.Fatalf("delivery markers = %#v, want recorded acks", records)
@@ -1694,6 +1677,16 @@ func TestProviderHelperStateAndShutdown(t *testing.T) {
 		t.Fatalf("healthCheck() after clear error = %v, want nil", err)
 	}
 
+	runtime.recordTeamsProgressCleanupError(nil)
+	if err := runtime.healthCheck(); err != nil {
+		t.Fatalf("healthCheck() after nil progress cleanup error = %v, want nil", err)
+	}
+	runtime.recordTeamsProgressCleanupError(errors.New("cleanup failed"))
+	if err := runtime.healthCheck(); err == nil || !strings.Contains(err.Error(), "cleanup failed") {
+		t.Fatalf("healthCheck() progress cleanup error = %v, want cleanup failed", err)
+	}
+	runtime.clearLastError()
+
 	runtime.storeUserContext("brg-1", teamsActivity{
 		From:       teamsChannelAccount{ID: "29:user-1"},
 		ServiceURL: "https://service.test",
@@ -1708,32 +1701,13 @@ func TestProviderHelperStateAndShutdown(t *testing.T) {
 		t.Fatal("userContext(missing) = true, want false")
 	}
 
-	degradation := &bridgepkg.BridgeDegradation{
-		Reason:  bridgepkg.BridgeDegradationReasonAuthFailed,
-		Message: "bad auth",
-	}
-	cloned := cloneDegradation(degradation)
-	if cloned == nil || cloned == degradation || cloned.Message != degradation.Message {
-		t.Fatalf("cloneDegradation() = %#v, want independent clone of %#v", cloned, degradation)
-	}
-	if cloneDegradation(nil) != nil {
-		t.Fatal("cloneDegradation(nil) != nil")
-	}
-
-	if !isNotInitializedRPCError(subprocess.NewRPCError(rpcCodeNotInitialized, "not ready", nil)) {
-		t.Fatal("isNotInitializedRPCError() = false, want true")
-	}
-	if isNotInitializedRPCError(errors.New("boom")) {
-		t.Fatal("isNotInitializedRPCError(non-rpc) = true, want false")
-	}
-
 	done := make(chan struct{})
-	runtime.wg.Go(func() {
-		<-runtime.stopCh
+	runtime.lifecycle.Go(func() {
+		<-runtime.lifecycle.StopChannel()
 		close(done)
 	})
 
-	if err := runtime.handleShutdown(
+	if err := runtime.lifecycle.Shutdown(
 		context.Background(),
 		nil,
 		subprocess.ShutdownRequest{DeadlineMS: 250},
@@ -1747,61 +1721,9 @@ func TestProviderHelperStateAndShutdown(t *testing.T) {
 	}
 
 	waitForCondition(t, func() bool {
-		data, err := os.ReadFile(env.shutdownPath)
+		data, err := os.ReadFile(env.ShutdownPath)
 		return err == nil && strings.Contains(string(data), "pid=")
 	})
-}
-
-func TestRetryHostCallCoverage(t *testing.T) {
-	runtime, err := newTeamsProvider(io.Discard)
-	if err != nil {
-		t.Fatalf("newTeamsProvider() error = %v", err)
-	}
-
-	attempts := 0
-	err = runtime.retryHostCall(context.Background(), func(context.Context) error {
-		attempts++
-		if attempts < 3 {
-			return subprocess.NewRPCError(rpcCodeNotInitialized, "not ready", nil)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("retryHostCall(success after retries) error = %v", err)
-	}
-	if got, want := attempts, 3; got != want {
-		t.Fatalf("attempts = %d, want %d", got, want)
-	}
-
-	canceled, cancel := context.WithCancel(context.Background())
-	cancel()
-	err = runtime.retryHostCall(canceled, func(context.Context) error {
-		return subprocess.NewRPCError(rpcCodeNotInitialized, "not ready", nil)
-	})
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("retryHostCall(canceled) error = %v, want context.Canceled", err)
-	}
-
-	stopped, err := newTeamsProvider(io.Discard)
-	if err != nil {
-		t.Fatalf("newTeamsProvider(stopped) error = %v", err)
-	}
-	stopped.stop()
-	expected := subprocess.NewRPCError(rpcCodeNotInitialized, "not ready", nil)
-	err = stopped.retryHostCall(context.Background(), func(context.Context) error {
-		return expected
-	})
-	if !errors.Is(err, expected) {
-		t.Fatalf("retryHostCall(stopped) error = %v, want %v", err, expected)
-	}
-
-	permanent := errors.New("permanent")
-	err = runtime.retryHostCall(context.Background(), func(context.Context) error {
-		return permanent
-	})
-	if !errors.Is(err, permanent) {
-		t.Fatalf("retryHostCall(permanent) error = %v, want %v", err, permanent)
-	}
 }
 
 func TestDispatchInboundBatchAndEnvelopeCoverage(t *testing.T) {
@@ -1946,9 +1868,7 @@ func TestBotClientCoverageAndWebhookGuards(t *testing.T) {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
 	waitForCondition(t, func() bool {
-		runtime.mu.RLock()
-		defer runtime.mu.RUnlock()
-		return strings.TrimSpace(runtime.serverAddr) != ""
+		return strings.TrimSpace(runtime.http.Address()) != ""
 	})
 
 	webhookURL := fmt.Sprintf("http://%s/teams/%s", listenAddr, managed.Instance.ID)
@@ -2036,7 +1956,7 @@ func TestBotClientCoverageAndWebhookGuards(t *testing.T) {
 	}
 
 	waitForCondition(t, func() bool {
-		data, err := os.ReadFile(env.startsPath)
+		data, err := os.ReadFile(env.StartsPath)
 		return err == nil && strings.Contains(string(data), "listen=")
 	})
 }
@@ -2060,10 +1980,10 @@ func TestHandleBridgesDeliverCoverageAndRunCommand(t *testing.T) {
 	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, managed), nil); err != nil {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
-	states := waitForJSONLinesFile[stateMarker](
+	states := waitForJSONLinesFile[bridgesdk.StateMarker](
 		t,
-		env.statePath,
-		func(items []stateMarker) bool {
+		env.StatePath,
+		func(items []bridgesdk.StateMarker) bool {
 			return len(items) >= 1 && items[len(items)-1].Status.Normalize() == bridgepkg.BridgeStatusReady
 		},
 	)
@@ -2317,65 +2237,6 @@ func TestReconcileInstanceConfigCoverage(t *testing.T) {
 			"resolveInstanceConfig(bad json) error = %v, want decode provider_config error",
 			resolved.configError,
 		)
-	}
-}
-
-func TestMarkerHelperCoverage(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	linesPath := filepath.Join(dir, "markers", "lines.log")
-	jsonPath := filepath.Join(dir, "markers", "state.jsonl")
-	filePath := filepath.Join(dir, "markers", "data.json")
-	crashPath := filepath.Join(dir, "markers", "crash-once")
-
-	if err := appendMarkerLine("", "ignored"); err != nil {
-		t.Fatalf("appendMarkerLine(empty) error = %v", err)
-	}
-	if err := appendMarkerLine(linesPath, " first "); err != nil {
-		t.Fatalf("appendMarkerLine(first) error = %v", err)
-	}
-	if err := appendMarkerLine(linesPath, "second"); err != nil {
-		t.Fatalf("appendMarkerLine(second) error = %v", err)
-	}
-	data, err := os.ReadFile(linesPath)
-	if err != nil {
-		t.Fatalf("os.ReadFile(linesPath) error = %v", err)
-	}
-	if got, want := strings.TrimSpace(string(data)), "first\nsecond"; got != want {
-		t.Fatalf("marker lines = %q, want %q", got, want)
-	}
-
-	if err := appendJSONLine(jsonPath, map[string]any{"ok": true}); err != nil {
-		t.Fatalf("appendJSONLine() error = %v", err)
-	}
-	if err := writeJSONFile(filePath, map[string]any{"ok": true}); err != nil {
-		t.Fatalf("writeJSONFile() error = %v", err)
-	}
-	if _, err := os.Stat(filePath); err != nil {
-		t.Fatalf("os.Stat(filePath) error = %v", err)
-	}
-
-	var stderr bytes.Buffer
-	reportSideEffectError(&stderr, "write marker", errors.New("boom"))
-	if got := stderr.String(); !strings.Contains(got, "write marker") ||
-		!strings.Contains(got, "boom") {
-		t.Fatalf("reportSideEffectError() wrote %q, want action and error text", got)
-	}
-	reportSideEffectError(&stderr, "noop", nil)
-	reportSideEffectError(nil, "noop", errors.New("ignored"))
-
-	if shouldCrashOnce("") {
-		t.Fatal("shouldCrashOnce(empty) = true, want false")
-	}
-	if !shouldCrashOnce(crashPath) {
-		t.Fatal("shouldCrashOnce(missing) = false, want true")
-	}
-	if err := os.WriteFile(crashPath, []byte("done"), 0o600); err != nil {
-		t.Fatalf("os.WriteFile(crashPath) error = %v", err)
-	}
-	if shouldCrashOnce(crashPath) {
-		t.Fatal("shouldCrashOnce(existing) = true, want false")
 	}
 }
 
@@ -2898,18 +2759,12 @@ func newRuntimePeerPair(t *testing.T) (*teamsProvider, *bridgesdk.Peer, func()) 
 	cleanup := func() {
 		once.Do(func() {
 			cancel()
-			runtime.stop()
-			runtime.mu.RLock()
-			server := runtime.server
-			runtime.mu.RUnlock()
-			if server != nil {
-				shutdownCtx, shutdownCancel := context.WithTimeout(
-					context.Background(),
-					2*time.Second,
-				)
-				_ = server.Shutdown(shutdownCtx)
-				shutdownCancel()
+			runtime.lifecycle.Stop()
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
+			if err := runtime.http.Shutdown(shutdownCtx); err != nil {
+				t.Fatalf("provider HTTP shutdown error = %v", err)
 			}
+			shutdownCancel()
 			_ = hostConn.Close()
 			_ = runtimeConn.Close()
 			for range 2 {
@@ -2922,7 +2777,9 @@ func newRuntimePeerPair(t *testing.T) (*teamsProvider, *bridgesdk.Peer, func()) 
 				}
 				t.Fatalf("runtime peer serve error = %v", err)
 			}
-			runtime.wg.Wait()
+			if err := runtime.lifecycle.Wait(context.Background()); err != nil {
+				t.Fatalf("provider lifecycle wait error = %v", err)
+			}
 		})
 	}
 	return runtime, hostPeer, cleanup
@@ -2991,6 +2848,14 @@ func mustHandleLifecycle(
 			return nil, errors.New("unexpected state instance")
 		},
 	)
+}
+
+func setTeamsProviderRoute(
+	provider *teamsProvider,
+	instanceID string,
+	config resolvedInstanceConfig,
+) {
+	provider.routes.Replace(map[string]resolvedInstanceConfig{instanceID: config}, nil)
 }
 
 func testTeamsManagedInstance(
@@ -3117,29 +2982,135 @@ func testInitializeRequest(
 	}
 }
 
-func setProviderTestEnv(t *testing.T) markerEnv {
+func TestTeamsResolvedConfigHealthAndListenerHelpers(t *testing.T) {
+	t.Run("Should classify each invalid provider endpoint field", func(t *testing.T) {
+		t.Parallel()
+
+		valid := resolvedInstanceConfig{
+			webhookPath:       "/teams",
+			serviceURL:        teamsDefaultServiceURL,
+			openIDMetadataURL: teamsDefaultOpenIDMetadata,
+			tokenURL:          "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+		}
+		cases := []struct {
+			name string
+			edit func(*resolvedInstanceConfig)
+			want string
+		}{
+			{
+				name: "webhook path",
+				edit: func(cfg *resolvedInstanceConfig) { cfg.webhookPath = "" },
+				want: "webhook path",
+			},
+			{name: "service URL", edit: func(cfg *resolvedInstanceConfig) { cfg.serviceURL = "" }, want: "service url"},
+			{
+				name: "invalid service URL",
+				edit: func(cfg *resolvedInstanceConfig) { cfg.serviceURL = "ftp://invalid" },
+				want: "service url",
+			},
+			{
+				name: "metadata URL",
+				edit: func(cfg *resolvedInstanceConfig) { cfg.openIDMetadataURL = "" },
+				want: "openid metadata",
+			},
+			{
+				name: "invalid metadata URL",
+				edit: func(cfg *resolvedInstanceConfig) { cfg.openIDMetadataURL = "ftp://invalid" },
+				want: "openid metadata",
+			},
+			{
+				name: "token URL",
+				edit: func(cfg *resolvedInstanceConfig) { cfg.tokenURL = "" },
+				want: "token url",
+			},
+			{
+				name: "invalid token URL",
+				edit: func(cfg *resolvedInstanceConfig) { cfg.tokenURL = "ftp://invalid" },
+				want: "token url",
+			},
+			{
+				name: "tenant ID",
+				edit: func(cfg *resolvedInstanceConfig) { cfg.appTenantID = "malformed" },
+				want: "app_tenant_id",
+			},
+		}
+		for _, test := range cases {
+			t.Run("Should reject "+test.name, func(t *testing.T) {
+				t.Parallel()
+				cfg := valid
+				test.edit(&cfg)
+				validateTeamsResolvedConfig(&cfg)
+				if cfg.configError == nil || !strings.Contains(cfg.configError.Error(), test.want) {
+					t.Fatalf("config error = %v, want %q", cfg.configError, test.want)
+				}
+			})
+		}
+	})
+
+	t.Run("Should expose degradation health text and release a listener", func(t *testing.T) {
+		t.Parallel()
+
+		validateTeamsResolvedConfig(nil)
+		if got := bridgeHealthMessage(nil); got != "" {
+			t.Fatalf("bridgeHealthMessage(nil) = %q", got)
+		}
+		if got, want := bridgeHealthMessage(&bridgepkg.BridgeDegradation{
+			Message: "  explicit health message  ",
+		}), "explicit health message"; got != want {
+			t.Fatalf("bridgeHealthMessage(message) = %q, want %q", got, want)
+		}
+		if got, want := bridgeHealthMessage(&bridgepkg.BridgeDegradation{
+			Reason: bridgepkg.BridgeDegradationReasonAuthFailed,
+		}), string(bridgepkg.BridgeDegradationReasonAuthFailed); got != want {
+			t.Fatalf("bridgeHealthMessage(reason) = %q, want %q", got, want)
+		}
+		listener, err := listenTeamsWebhook("127.0.0.1:0")
+		if err != nil {
+			t.Fatalf("listenTeamsWebhook() error = %v", err)
+		}
+		if err := listener.Close(); err != nil {
+			t.Fatalf("listener.Close() error = %v", err)
+		}
+		fallbackListener, err := listenTeamsWebhook("")
+		if err != nil {
+			t.Fatalf("listenTeamsWebhook(empty) error = %v", err)
+		}
+		if err := fallbackListener.Close(); err != nil {
+			t.Fatalf("fallback listener.Close() error = %v", err)
+		}
+		if _, err := refreshTeamsJWKS(context.Background(), "ftp://invalid"); err == nil {
+			t.Fatal("refreshTeamsJWKS(invalid URL) error = nil")
+		}
+		if got, want := defaultTeamsTokenURL(""),
+			"https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token"; got != want {
+			t.Fatalf("defaultTeamsTokenURL(empty) = %q, want %q", got, want)
+		}
+	})
+}
+
+func setProviderTestEnv(t *testing.T) bridgesdk.AdapterMarkerPaths {
 	t.Helper()
 	enableTeamsLoopbackCredentialedURLsForTesting(t)
 
 	root := filepath.Join(t.TempDir(), "markers")
-	env := markerEnv{
-		handshakePath: filepath.Join(root, "handshake.json"),
-		ownershipPath: filepath.Join(root, "ownership.json"),
-		statePath:     filepath.Join(root, "state.jsonl"),
-		deliveryPath:  filepath.Join(root, "delivery.jsonl"),
-		ingestPath:    filepath.Join(root, "ingest.jsonl"),
-		startsPath:    filepath.Join(root, "starts.log"),
-		shutdownPath:  filepath.Join(root, "shutdown.log"),
-		crashOncePath: filepath.Join(root, "crash-once.json"),
+	env := bridgesdk.AdapterMarkerPaths{
+		HandshakePath: filepath.Join(root, "handshake.json"),
+		OwnershipPath: filepath.Join(root, "ownership.json"),
+		StatePath:     filepath.Join(root, "state.jsonl"),
+		DeliveryPath:  filepath.Join(root, "delivery.jsonl"),
+		IngestPath:    filepath.Join(root, "ingest.jsonl"),
+		StartsPath:    filepath.Join(root, "starts.log"),
+		ShutdownPath:  filepath.Join(root, "shutdown.log"),
+		CrashOncePath: filepath.Join(root, "crash-once.json"),
 	}
-	t.Setenv(adapterHandshakeEnv, env.handshakePath)
-	t.Setenv(adapterOwnershipEnv, env.ownershipPath)
-	t.Setenv(adapterStateEnv, env.statePath)
-	t.Setenv(adapterDeliveryEnv, env.deliveryPath)
-	t.Setenv(adapterIngestEnv, env.ingestPath)
-	t.Setenv(adapterStartsEnv, env.startsPath)
-	t.Setenv(adapterShutdownEnv, env.shutdownPath)
-	t.Setenv(adapterCrashOnceEnv, "")
+	t.Setenv(bridgesdk.AdapterHandshakePathEnv, env.HandshakePath)
+	t.Setenv(bridgesdk.AdapterOwnershipPathEnv, env.OwnershipPath)
+	t.Setenv(bridgesdk.AdapterStatePathEnv, env.StatePath)
+	t.Setenv(bridgesdk.AdapterDeliveryPathEnv, env.DeliveryPath)
+	t.Setenv(bridgesdk.AdapterIngestPathEnv, env.IngestPath)
+	t.Setenv(bridgesdk.AdapterStartsPathEnv, env.StartsPath)
+	t.Setenv(bridgesdk.AdapterShutdownPathEnv, env.ShutdownPath)
+	t.Setenv(bridgesdk.AdapterCrashOncePathEnv, "")
 	return env
 }
 

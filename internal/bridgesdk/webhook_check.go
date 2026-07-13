@@ -11,7 +11,10 @@ import (
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 )
 
-const webhookReachabilityTimeout = 5 * time.Second
+const (
+	webhookReachabilityCheck   = "webhook.reachability"
+	webhookReachabilityTimeout = 5 * time.Second
+)
 
 type webhookHTTPDoer interface {
 	Do(*http.Request) (*http.Response, error)
@@ -45,7 +48,7 @@ func WebhookCheckRecords(
 	records := []bridgepkg.BridgeCheckRecord{bridgepkg.PassCheck("webhook.configuration")}
 	if !instance.Enabled {
 		return append(records, bridgepkg.SkippedCheck(
-			"webhook.reachability",
+			webhookReachabilityCheck,
 			"Enable the bridge, then run bridge verification again to test webhook reachability.",
 		))
 	}
@@ -98,14 +101,14 @@ func webhookReachabilityErrorCheck(err error) bridgepkg.BridgeCheckRecord {
 	var netErr net.Error
 	if errors.Is(err, context.DeadlineExceeded) || errors.As(err, &netErr) && netErr.Timeout() {
 		return bridgepkg.BridgeCheckRecord{
-			Check:       "webhook.reachability",
+			Check:       webhookReachabilityCheck,
 			Status:      bridgepkg.BridgeCheckStatusWarn,
 			Remediation: "The public webhook route timed out. Check connectivity, then run bridge verification again.",
 		}
 	}
 	if errors.Is(err, context.Canceled) {
 		return bridgepkg.BridgeCheckRecord{
-			Check:       "webhook.reachability",
+			Check:       webhookReachabilityCheck,
 			Status:      bridgepkg.BridgeCheckStatusWarn,
 			Remediation: "Webhook reachability was canceled. Run bridge verification again.",
 		}
@@ -127,18 +130,18 @@ func webhookReachabilityStatusCheck(statusCode int) bridgepkg.BridgeCheckRecord 
 		)
 	case statusCode >= http.StatusInternalServerError:
 		return bridgepkg.BridgeCheckRecord{
-			Check:       "webhook.reachability",
+			Check:       webhookReachabilityCheck,
 			Status:      bridgepkg.BridgeCheckStatusWarn,
 			Remediation: "The public webhook route returned a server error. Check bridge health, then run verification again.",
 		}
 	default:
-		return bridgepkg.PassCheck("webhook.reachability")
+		return bridgepkg.PassCheck(webhookReachabilityCheck)
 	}
 }
 
 func failedWebhookReachabilityCheck(remediation string) bridgepkg.BridgeCheckRecord {
 	return bridgepkg.BridgeCheckRecord{
-		Check:       "webhook.reachability",
+		Check:       webhookReachabilityCheck,
 		Status:      bridgepkg.BridgeCheckStatusFail,
 		Remediation: remediation,
 	}

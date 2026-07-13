@@ -73,7 +73,6 @@ func newGitHubRuntimePeerPair(t *testing.T) (*githubProvider, *bridgesdk.Peer, f
 	if err != nil {
 		t.Fatalf("newGitHubProvider() error = %v", err)
 	}
-	provider.env = markerEnv{}
 	hostPeer := bridgesdk.NewPeer(hostConn, hostConn)
 	ctx, cancel := context.WithCancel(context.Background())
 	errCh := make(chan error, 2)
@@ -82,7 +81,7 @@ func newGitHubRuntimePeerPair(t *testing.T) (*githubProvider, *bridgesdk.Peer, f
 
 	cleanup := func() {
 		cancel()
-		provider.stop()
+		provider.lifecycle.Stop()
 		if err := hostConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			t.Errorf("hostConn.Close() error = %v", err)
 		}
@@ -99,7 +98,11 @@ func newGitHubRuntimePeerPair(t *testing.T) (*githubProvider, *bridgesdk.Peer, f
 			}
 			t.Errorf("runtime peer serve error = %v", err)
 		}
-		provider.wg.Wait()
+		waitCtx, waitCancel := context.WithTimeout(context.Background(), time.Second)
+		defer waitCancel()
+		if err := provider.lifecycle.Wait(waitCtx); err != nil {
+			t.Errorf("provider lifecycle wait error = %v", err)
+		}
 	}
 	return provider, hostPeer, cleanup
 }

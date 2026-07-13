@@ -19,7 +19,35 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	"github.com/compozy/agh/internal/subprocess"
 )
+
+type teamsStatusSession struct{}
+
+func (teamsStatusSession) SyncInstances(context.Context) ([]subprocess.InitializeBridgeManagedInstance, error) {
+	return nil, nil
+}
+
+func (teamsStatusSession) CachedInstances() []subprocess.InitializeBridgeManagedInstance { return nil }
+
+func (teamsStatusSession) GetBridgeInstance(context.Context, string) (*bridgepkg.BridgeInstance, error) {
+	return nil, nil
+}
+
+func (teamsStatusSession) ReportBridgeInstanceState(
+	_ context.Context,
+	params extensioncontract.BridgesInstancesReportStateParams,
+) (*bridgepkg.BridgeInstance, error) {
+	return &bridgepkg.BridgeInstance{ID: params.BridgeInstanceID, Status: params.Status}, nil
+}
+
+func (teamsStatusSession) IngestBridgeMessage(
+	context.Context,
+	bridgepkg.InboundMessageEnvelope,
+) (*extensioncontract.BridgesMessagesIngestResult, error) {
+	return nil, nil
+}
 
 func TestTeamsContractHealthAggregation(t *testing.T) {
 	t.Run("Should remain unhealthy while any reported instance is auth required", func(t *testing.T) {
@@ -27,10 +55,20 @@ func TestTeamsContractHealthAggregation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newTeamsProvider() error = %v", err)
 		}
-		runtime.mu.Lock()
-		runtime.reportedStatus["brg-ready"] = bridgepkg.BridgeStatusReady
-		runtime.reportedStatus["brg-auth"] = bridgepkg.BridgeStatusAuthRequired
-		runtime.mu.Unlock()
+		for instanceID, status := range map[string]bridgepkg.BridgeStatus{
+			"brg-ready": bridgepkg.BridgeStatusReady,
+			"brg-auth":  bridgepkg.BridgeStatusAuthRequired,
+		} {
+			if err := runtime.lifecycle.Host().ReportState(
+				t.Context(),
+				teamsStatusSession{},
+				instanceID,
+				status,
+				nil,
+			); err != nil {
+				t.Fatalf("ReportState(%s) error = %v", instanceID, err)
+			}
+		}
 
 		err = runtime.healthCheck()
 		if err == nil || !strings.Contains(err.Error(), "brg-auth") {

@@ -131,14 +131,12 @@ func TestRuntimeServeInitializeDeliverHealthShutdownAndSync(t *testing.T) {
 		t.Fatalf("IngestBridgeMessage().SessionID = %q, want %q", got, want)
 	}
 
-	var health struct {
-		OK bool `json:"ok"`
-	}
+	var health subprocess.HealthCheckResponse
 	if err := hostPeer.Call(ctx, "health_check", nil, &health); err != nil {
 		t.Fatalf("hostPeer.Call(health_check) error = %v", err)
 	}
-	if !health.OK {
-		t.Fatal("health.OK = false, want true")
+	if !health.Healthy {
+		t.Fatal("health.Healthy = false, want true")
 	}
 
 	var ack bridgepkg.DeliveryAck

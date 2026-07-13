@@ -10,11 +10,13 @@ import (
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 )
 
+const providerIdentityCheck = "provider.identity"
+
 // ProviderIdentityCheckRecord maps a provider identity outcome to one safe,
 // actionable check without copying provider error text into the public record.
 func ProviderIdentityCheckRecord(err error, secretBindings ...string) bridgepkg.BridgeCheckRecord {
 	if err == nil {
-		return bridgepkg.PassCheck("provider.identity")
+		return bridgepkg.PassCheck(providerIdentityCheck)
 	}
 	if errors.Is(err, context.Canceled) {
 		return providerIdentityWarning(
@@ -52,7 +54,7 @@ func ProviderIdentityCheckRecord(err error, secretBindings ...string) bridgepkg.
 
 func providerIdentityWarning(remediation string) bridgepkg.BridgeCheckRecord {
 	return bridgepkg.BridgeCheckRecord{
-		Check:       "provider.identity",
+		Check:       providerIdentityCheck,
 		Status:      bridgepkg.BridgeCheckStatusWarn,
 		Remediation: remediation,
 	}
@@ -60,7 +62,7 @@ func providerIdentityWarning(remediation string) bridgepkg.BridgeCheckRecord {
 
 func providerIdentityFailure(remediation string) bridgepkg.BridgeCheckRecord {
 	return bridgepkg.BridgeCheckRecord{
-		Check:       "provider.identity",
+		Check:       providerIdentityCheck,
 		Status:      bridgepkg.BridgeCheckStatusFail,
 		Remediation: remediation,
 	}

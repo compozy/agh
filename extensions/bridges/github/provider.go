@@ -21,7 +21,6 @@ import (
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	"github.com/compozy/agh/internal/bridgesdk"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -48,8 +47,6 @@ const (
 
 	githubRemoteCommentKindIssue  = "issue"
 	githubRemoteCommentKindReview = "review"
-
-	rpcCodeNotInitialized = -32003
 )
 
 var (
@@ -59,31 +56,23 @@ var (
 )
 
 type githubProvider struct {
-	sdk     *bridgesdk.Runtime
-	stderr  io.Writer
-	env     markerEnv
-	now     func() time.Time
-	session *bridgesdk.Session
+	sdk        *bridgesdk.Runtime
+	lifecycle  *bridgesdk.ProviderLifecycle
+	markers    *bridgesdk.AdapterMarkers
+	http       *bridgesdk.ProviderHTTPServer
+	stderr     io.Writer
+	now        func() time.Time
+	routes     *bridgesdk.RouteTable[resolvedInstanceConfig]
+	deliveries *bridgesdk.DeliveryStateStore[deliveryState]
 
 	mu                sync.RWMutex
 	lastError         string
-	server            *http.Server
-	serverAddr        string
 	listenAddr        string
-	routes            map[string]resolvedInstanceConfig
-	deliveries        map[string]deliveryState
-	reportedStatus    map[string]bridgepkg.BridgeStatus
 	installationCache map[string]int64
 	apiClients        map[string]githubAPI
 	apiFactory        func(resolvedInstanceConfig) githubAPI
 	rateLimiter       *bridgesdk.FixedWindowRateLimiter
 	inFlightLimiter   *bridgesdk.InFlightLimiter
-	initReady         chan struct{}
-	initReadyOnce     sync.Once
-
-	stopCh   chan struct{}
-	stopOnce sync.Once
-	wg       sync.WaitGroup
 }
 
 type deliveryState struct {
@@ -209,24 +198,24 @@ type githubRemoteCommentRef struct {
 	CommentID int64
 }
 
+//nolint:funlen // Construction keeps the provider's declarative runtime wiring visible in one place.
 func newGitHubProvider(stderr io.Writer) (*githubProvider, error) {
 	if stderr == nil {
 		stderr = io.Discard
 	}
 
 	provider := &githubProvider{
-		stderr:            stderr,
-		env:               markerEnvFromProcess(),
-		now:               func() time.Time { return time.Now().UTC() },
-		routes:            make(map[string]resolvedInstanceConfig),
-		deliveries:        make(map[string]deliveryState),
-		reportedStatus:    make(map[string]bridgepkg.BridgeStatus),
+		stderr:  stderr,
+		markers: bridgesdk.NewAdapterMarkers(providerGithubKey, stderr),
+		now:     func() time.Time { return time.Now().UTC() },
+		routes: bridgesdk.NewRouteTable(func(config resolvedInstanceConfig) []string {
+			return []string{config.webhookPath}
+		}),
+		deliveries:        bridgesdk.NewDeliveryStateStore[deliveryState](),
 		installationCache: make(map[string]int64),
 		apiClients:        make(map[string]githubAPI),
 		rateLimiter:       bridgesdk.NewFixedWindowRateLimiter(300, time.Minute),
 		inFlightLimiter:   bridgesdk.NewInFlightLimiter(48),
-		initReady:         make(chan struct{}),
-		stopCh:            make(chan struct{}),
 	}
 	provider.apiFactory = func(cfg resolvedInstanceConfig) githubAPI {
 		provider.mu.Lock()
@@ -245,17 +234,63 @@ func newGitHubProvider(stderr io.Writer) (*githubProvider, error) {
 		return client
 	}
 
+	lifecycle, err := bridgesdk.NewProviderLifecycle(bridgesdk.ProviderLifecycleConfig{
+		ProviderName: providerGithubKey,
+		Markers:      provider.markers,
+		Reconcile: func(
+			ctx context.Context,
+			managed []subprocess.InitializeBridgeManagedInstance,
+		) ([]bridgesdk.ProviderInitialState, error) {
+			configs := provider.reconcileInstanceConfigs(ctx, provider.lifecycle.Session(), managed)
+			states := make([]bridgesdk.ProviderInitialState, 0, len(configs))
+			for idx := range configs {
+				states = append(states, bridgesdk.ProviderInitialState{
+					BridgeInstanceID: configs[idx].instanceID,
+					Status:           configs[idx].initialStatus,
+					Degradation:      configs[idx].initialDegradation,
+				})
+			}
+			return states, nil
+		},
+		FinalizeInitialize: func(err error) {
+			if err != nil {
+				provider.setLastError(err)
+			}
+		},
+		ShutdownResources: func(ctx context.Context) error {
+			if provider.http == nil {
+				return nil
+			}
+			return provider.http.Shutdown(ctx)
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	provider.lifecycle = lifecycle
+	providerHTTP, err := bridgesdk.NewProviderHTTPServer(bridgesdk.ProviderHTTPConfig{
+		ReadHeaderTimeout: githubWebhookReadHeaderTimeout,
+		IdleTimeout:       githubWebhookIdleTimeout,
+		Handler:           http.HandlerFunc(provider.serveWebhookHTTP),
+		Go:                lifecycle.Go,
+		OnError:           provider.setLastError,
+	})
+	if err != nil {
+		return nil, err
+	}
+	provider.http = providerHTTP
+
 	sdkRuntime, err := bridgesdk.NewRuntime(bridgesdk.RuntimeConfig{
 		ExtensionInfo: subprocess.InitializeExtensionInfo{
 			Name:    providerGithubKey,
 			Version: "0.1.0",
 			SDKName: "bridgesdk",
 		},
-		Initialize:  provider.handleInitialize,
+		Initialize:  lifecycle.Initialize,
 		Deliver:     provider.handleBridgesDeliver,
 		Check:       provider.handleBridgeCheck,
 		HealthCheck: func(context.Context, *bridgesdk.Session) error { return provider.healthCheck() },
-		Shutdown:    provider.handleShutdown,
+		Shutdown:    lifecycle.Shutdown,
 		Now:         func() time.Time { return provider.now() },
 	})
 	if err != nil {
@@ -266,89 +301,7 @@ func newGitHubProvider(stderr io.Writer) (*githubProvider, error) {
 }
 
 func (p *githubProvider) serve(stdin io.Reader, stdout io.Writer) error {
-	p.reportSideEffectError(
-		"write start marker",
-		appendMarkerLine(p.env.startsPath, fmt.Sprintf("pid=%d", os.Getpid())),
-	)
-	return p.sdk.Serve(context.Background(), stdin, stdout)
-}
-
-func (p *githubProvider) handleInitialize(_ context.Context, session *bridgesdk.Session) error {
-	p.mu.Lock()
-	p.session = session
-	p.mu.Unlock()
-
-	marker := initializeMarker{
-		Request:  session.InitializeRequest(),
-		Response: session.InitializeResponse(),
-	}
-	p.reportSideEffectError("write initialize marker", writeJSONFile(p.env.handshakePath, marker))
-	p.clearLastError()
-
-	p.wg.Go(func() {
-		p.afterInitialize(session)
-	})
-
-	return nil
-}
-
-func (p *githubProvider) afterInitialize(session *bridgesdk.Session) {
-	defer p.markInitializationReady()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	listed, err := p.syncOwnedInstances(ctx, session)
-	ownershipErr := err
-	fetched := make([]bridgepkg.BridgeInstance, 0, len(listed))
-	if ownershipErr == nil {
-		for _, managed := range listed {
-			instance, getErr := p.getOwnedInstance(ctx, session, managed.Instance.ID)
-			if getErr != nil {
-				ownershipErr = getErr
-				break
-			}
-			fetched = append(fetched, *instance)
-		}
-	}
-	if len(listed) == 0 {
-		listed = session.Cache().List()
-	}
-
-	ownership := ownershipMarker{
-		Listed:  managedInstancesToInstances(listed),
-		Fetched: fetched,
-	}
-	if ownershipErr != nil {
-		ownership.Error = ownershipErr.Error()
-	}
-	p.reportSideEffectError("write ownership marker", writeJSONFile(p.env.ownershipPath, ownership))
-
-	configs := p.reconcileInstanceConfigs(ctx, session, listed)
-	for idx := range configs {
-		cfg := configs[idx]
-		status := cfg.initialStatus
-		degradation := cfg.initialDegradation
-		if status == "" {
-			status = bridgepkg.BridgeStatusReady
-		}
-		if err := p.reportState(
-			ctx,
-			session,
-			cfg.instanceID,
-			status,
-			degradation,
-		); err != nil &&
-			ownershipErr == nil {
-			ownershipErr = err
-		}
-	}
-
-	if ownershipErr != nil {
-		p.setLastError(ownershipErr)
-	} else {
-		p.clearLastError()
-	}
+	return p.lifecycle.Serve(context.Background(), p.sdk, stdin, stdout)
 }
 
 func (p *githubProvider) handleBridgesDeliver(
@@ -356,7 +309,7 @@ func (p *githubProvider) handleBridgesDeliver(
 	session *bridgesdk.Session,
 	request bridgepkg.DeliveryRequest,
 ) (bridgepkg.DeliveryAck, error) {
-	marker := deliveryMarker{
+	marker := bridgesdk.DeliveryMarker{
 		PID:     os.Getpid(),
 		Request: request,
 	}
@@ -364,25 +317,25 @@ func (p *githubProvider) handleBridgesDeliver(
 	cfg, err := p.waitForInstanceConfig(ctx, strings.TrimSpace(request.Event.BridgeInstanceID))
 	if err != nil {
 		marker.Error = err.Error()
-		p.reportSideEffectError("write failed delivery marker", appendJSONLine(p.env.deliveryPath, marker))
+		p.markers.RecordDelivery(marker)
 		p.setLastError(err)
 		return bridgepkg.DeliveryAck{}, err
 	}
-	if shouldCrashOnce(p.env.crashOncePath) {
-		p.reportSideEffectError("write pre-crash delivery marker", appendJSONLine(p.env.deliveryPath, marker))
-		p.reportSideEffectError("write crash marker", writeJSONFile(p.env.crashOncePath, map[string]any{
+	if p.markers.ShouldCrashOnce() {
+		p.markers.RecordDelivery(marker)
+		p.markers.RecordCrash(map[string]any{
 			"crashed":            true,
 			"pid":                os.Getpid(),
 			"delivery_id":        strings.TrimSpace(request.Event.DeliveryID),
 			"bridge_instance_id": cfg.instanceID,
-		}))
+		})
 		os.Exit(23)
 	}
 
 	installationID, err := p.resolveDeliveryInstallationID(&cfg, request)
 	if err != nil {
 		marker.Error = err.Error()
-		p.reportSideEffectError("write failed delivery marker", appendJSONLine(p.env.deliveryPath, marker))
+		p.markers.RecordDelivery(marker)
 		p.setLastError(err)
 		return bridgepkg.DeliveryAck{}, err
 	}
@@ -398,7 +351,7 @@ func (p *githubProvider) handleBridgesDeliver(
 	)
 	if err != nil {
 		marker.Error = err.Error()
-		p.reportSideEffectError("write failed delivery marker", appendJSONLine(p.env.deliveryPath, marker))
+		p.markers.RecordDelivery(marker)
 		classified := bridgesdk.ClassifyError(err)
 		_, _, reportErr := session.ReportClassifiedError(ctx, cfg.instanceID, classified)
 		if reportErr != nil {
@@ -410,208 +363,14 @@ func (p *githubProvider) handleBridgesDeliver(
 	}
 
 	p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, request.Event, state)
-	p.reportReadyIfNeeded(ctx, session, cfg.instanceID)
-
-	marker.Ack = &ack
-	p.reportSideEffectError("write delivery marker", appendJSONLine(p.env.deliveryPath, marker))
-	p.clearLastError()
-	return ack, nil
-}
-
-func (p *githubProvider) handleShutdown(
-	_ context.Context,
-	_ *bridgesdk.Session,
-	request subprocess.ShutdownRequest,
-) error {
-	p.stop()
-
-	shutdownCtx := context.Background()
-	if request.DeadlineMS > 0 {
-		var cancel context.CancelFunc
-		shutdownCtx, cancel = context.WithTimeout(
-			context.Background(),
-			time.Duration(request.DeadlineMS)*time.Millisecond,
-		)
-		defer cancel()
-	}
-
-	p.mu.Lock()
-	server := p.server
-	p.mu.Unlock()
-	if server != nil {
-		if err := server.Shutdown(shutdownCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			p.reportSideEffectError("shutdown github webhook server", err)
-			p.setLastError(err)
-		}
-	}
-
-	done := make(chan struct{})
-	go func() {
-		p.wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-shutdownCtx.Done():
-	}
-
-	p.reportSideEffectError(
-		"write shutdown marker",
-		appendMarkerLine(p.env.shutdownPath, fmt.Sprintf("pid=%d", os.Getpid())),
-	)
-	return nil
-}
-
-func (p *githubProvider) stop() {
-	p.stopOnce.Do(func() {
-		close(p.stopCh)
-	})
-}
-
-func (p *githubProvider) syncOwnedInstances(
-	ctx context.Context,
-	session *bridgesdk.Session,
-) ([]subprocess.InitializeBridgeManagedInstance, error) {
-	var result []subprocess.InitializeBridgeManagedInstance
-	err := p.retryHostCall(ctx, func(callCtx context.Context) error {
-		items, callErr := session.SyncInstances(callCtx)
-		if callErr == nil {
-			result = items
-		}
-		return callErr
-	})
-	return result, err
-}
-
-func (p *githubProvider) getOwnedInstance(
-	ctx context.Context,
-	session *bridgesdk.Session,
-	bridgeInstanceID string,
-) (*bridgepkg.BridgeInstance, error) {
-	var result *bridgepkg.BridgeInstance
-	err := p.retryHostCall(ctx, func(callCtx context.Context) error {
-		instance, callErr := session.HostAPI().GetBridgeInstance(callCtx, bridgeInstanceID)
-		if callErr == nil {
-			result = instance
-		}
-		return callErr
-	})
-	return result, err
-}
-
-func (p *githubProvider) reportState(
-	ctx context.Context,
-	session *bridgesdk.Session,
-	bridgeInstanceID string,
-	status bridgepkg.BridgeStatus,
-	degradation *bridgepkg.BridgeDegradation,
-) error {
-	var result *bridgepkg.BridgeInstance
-	err := p.retryHostCall(ctx, func(callCtx context.Context) error {
-		instance, callErr := session.HostAPI().
-			ReportBridgeInstanceState(callCtx, extensioncontract.BridgesInstancesReportStateParams{
-				BridgeInstanceID: strings.TrimSpace(bridgeInstanceID),
-				Status:           status,
-				Degradation:      cloneDegradation(degradation),
-			})
-		if callErr == nil {
-			result = instance
-		}
-		return callErr
-	})
-	if err != nil {
-		p.reportSideEffectError("write failed state marker", appendJSONLine(p.env.statePath, stateMarker{
-			BridgeInstanceID: strings.TrimSpace(bridgeInstanceID),
-			Status:           status,
-			Error:            err.Error(),
-		}))
-		return err
-	}
-
-	p.mu.Lock()
-	p.reportedStatus[strings.TrimSpace(bridgeInstanceID)] = result.Status.Normalize()
-	p.mu.Unlock()
-	p.reportSideEffectError("write state marker", appendJSONLine(p.env.statePath, stateMarker{
-		BridgeInstanceID: result.ID,
-		Status:           result.Status,
-		Instance:         *result,
-	}))
-	return nil
-}
-
-func (p *githubProvider) reportReadyIfNeeded(ctx context.Context, session *bridgesdk.Session, bridgeInstanceID string) {
-	p.mu.RLock()
-	status := p.reportedStatus[strings.TrimSpace(bridgeInstanceID)]
-	p.mu.RUnlock()
-	if status == bridgepkg.BridgeStatusReady {
-		return
-	}
-	if err := p.reportState(ctx, session, bridgeInstanceID, bridgepkg.BridgeStatusReady, nil); err != nil {
+	if err := p.lifecycle.Host().ReportReadyIfNeeded(ctx, session, cfg.instanceID); err != nil {
 		p.setLastError(err)
 	}
-}
 
-func (p *githubProvider) ingestBridgeMessage(
-	ctx context.Context,
-	session *bridgesdk.Session,
-	envelope bridgepkg.InboundMessageEnvelope,
-) (*extensioncontract.BridgesMessagesIngestResult, error) {
-	var result *extensioncontract.BridgesMessagesIngestResult
-	err := p.retryHostCall(ctx, func(callCtx context.Context) error {
-		ingestResult, callErr := session.HostAPI().IngestBridgeMessage(callCtx, envelope)
-		if callErr == nil {
-			result = ingestResult
-		}
-		return callErr
-	})
-	return result, err
-}
-
-func (p *githubProvider) retryHostCall(ctx context.Context, fn func(context.Context) error) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	delay := 10 * time.Millisecond
-	var lastErr error
-	for range 6 {
-		err := fn(ctx)
-		if err == nil {
-			return nil
-		}
-		if !isNotInitializedRPCError(err) {
-			return err
-		}
-		lastErr = err
-
-		timer := time.NewTimer(delay)
-		select {
-		case <-ctx.Done():
-			if !timer.Stop() {
-				<-timer.C
-			}
-			return ctx.Err()
-		case <-p.stopCh:
-			if !timer.Stop() {
-				<-timer.C
-			}
-			return err
-		case <-timer.C:
-		}
-
-		if delay < 100*time.Millisecond {
-			delay *= 2
-			if delay > 100*time.Millisecond {
-				delay = 100 * time.Millisecond
-			}
-		}
-	}
-
-	if lastErr != nil {
-		return lastErr
-	}
-	return nil
+	marker.Ack = &ack
+	p.markers.RecordDelivery(marker)
+	p.clearLastError()
+	return ack, nil
 }
 
 func (p *githubProvider) reconcileInstanceConfigs(
@@ -619,42 +378,47 @@ func (p *githubProvider) reconcileInstanceConfigs(
 	session *bridgesdk.Session,
 	managed []subprocess.InitializeBridgeManagedInstance,
 ) []resolvedInstanceConfig {
-	if len(managed) == 0 {
-		p.mu.Lock()
-		p.routes = make(map[string]resolvedInstanceConfig)
-		p.installationCache = make(map[string]int64)
-		p.apiClients = make(map[string]githubAPI)
-		p.mu.Unlock()
+	reconciler := bridgesdk.ManagedConfigReconciler[resolvedInstanceConfig]{
+		Routes:    p.routes,
+		Resolve:   p.resolveInstanceConfig,
+		Prepare:   p.prepareGitHubConfigs,
+		Finalize:  p.finalizeGitHubConfigs,
+		Identity:  func(config resolvedInstanceConfig) string { return config.instanceID },
+		OnPublish: p.lifecycle.MarkRoutesReady,
+	}
+	configs, err := reconciler.Reconcile(ctx, session, managed)
+	if err != nil {
+		p.setLastError(err)
 		return nil
 	}
-
-	configs, requestedListen := p.collectGitHubConfigs(session, managed)
-	p.applyGitHubListenErrors(configs, requestedListen)
-	nextRoutes := buildGitHubRouteMap(configs)
-	p.storeGitHubRoutes(nextRoutes, requestedListen)
-	p.markInitializationReady()
-	p.populateGitHubInitialState(ctx, configs, nextRoutes)
-	p.storeGitHubFinalRoutes(nextRoutes)
-
 	return configs
 }
 
-func (p *githubProvider) collectGitHubConfigs(
-	session *bridgesdk.Session,
-	managed []subprocess.InitializeBridgeManagedInstance,
-) ([]resolvedInstanceConfig, string) {
-	configs := make([]resolvedInstanceConfig, 0, len(managed))
-	requestedListen := strings.TrimSpace(os.Getenv(githubListenAddrEnv))
-	seenRepos := make(map[string]string, len(managed))
-
-	for _, item := range managed {
-		cfg := p.resolveInstanceConfig(session, item)
-		requestedListen = applyGitHubListenConstraint(&cfg, requestedListen)
-		applyGitHubRepoConflict(&cfg, seenRepos)
-		configs = append(configs, cfg)
+func (p *githubProvider) prepareGitHubConfigs(
+	_ context.Context,
+	_ *bridgesdk.Session,
+	configs []resolvedInstanceConfig,
+) ([]resolvedInstanceConfig, error) {
+	if len(configs) == 0 {
+		p.mu.Lock()
+		p.installationCache = make(map[string]int64)
+		p.apiClients = make(map[string]githubAPI)
+		p.mu.Unlock()
+		return configs, nil
 	}
+	requestedListen := strings.TrimSpace(os.Getenv(githubListenAddrEnv))
+	seenRepos := make(map[string]string, len(configs))
 
-	return configs, requestedListen
+	for idx := range configs {
+		requestedListen = applyGitHubListenConstraint(&configs[idx], requestedListen)
+		applyGitHubRepoConflict(&configs[idx], seenRepos)
+	}
+	p.applyGitHubListenErrors(configs, requestedListen)
+	p.mu.Lock()
+	p.listenAddr = requestedListen
+	p.apiClients = make(map[string]githubAPI, len(configs))
+	p.mu.Unlock()
+	return configs, nil
 }
 
 func applyGitHubListenConstraint(cfg *resolvedInstanceConfig, requestedListen string) string {
@@ -708,28 +472,11 @@ func (p *githubProvider) applyGitHubListenErrors(configs []resolvedInstanceConfi
 	}
 }
 
-func buildGitHubRouteMap(configs []resolvedInstanceConfig) map[string]resolvedInstanceConfig {
-	nextRoutes := make(map[string]resolvedInstanceConfig, len(configs))
-	for idx := range configs {
-		cfg := configs[idx]
-		nextRoutes[cfg.instanceID] = cfg
-	}
-	return nextRoutes
-}
-
-func (p *githubProvider) storeGitHubRoutes(nextRoutes map[string]resolvedInstanceConfig, requestedListen string) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.routes = nextRoutes
-	p.listenAddr = requestedListen
-	p.apiClients = make(map[string]githubAPI, len(nextRoutes))
-}
-
-func (p *githubProvider) populateGitHubInitialState(
+func (p *githubProvider) finalizeGitHubConfigs(
 	ctx context.Context,
+	_ *bridgesdk.Session,
 	configs []resolvedInstanceConfig,
-	nextRoutes map[string]resolvedInstanceConfig,
-) {
+) ([]resolvedInstanceConfig, error) {
 	for idx := range configs {
 		updated, status, degradation, err := p.determineInitialState(ctx, &configs[idx])
 		if err != nil {
@@ -737,14 +484,9 @@ func (p *githubProvider) populateGitHubInitialState(
 		}
 		updated.initialStatus = status
 		updated.initialDegradation = degradation
-		nextRoutes[updated.instanceID] = *updated
+		configs[idx] = *updated
 	}
-}
-
-func (p *githubProvider) storeGitHubFinalRoutes(nextRoutes map[string]resolvedInstanceConfig) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.routes = nextRoutes
+	return configs, nil
 }
 
 func (p *githubProvider) resolveInstanceConfig(
@@ -893,45 +635,10 @@ func (p *githubProvider) determineInitialState(
 }
 
 func (p *githubProvider) startServer(listenAddr string) error {
-	p.mu.RLock()
-	server := p.server
-	currentListen := p.listenAddr
-	p.mu.RUnlock()
-	if server != nil {
-		if currentListen != "" && currentListen != strings.TrimSpace(listenAddr) {
-			return fmt.Errorf("github: runtime already listening on %q, cannot switch to %q", currentListen, listenAddr)
-		}
-		return nil
+	if err := p.http.Start(listenAddr); err != nil {
+		return fmt.Errorf("github: %w", err)
 	}
-
-	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", strings.TrimSpace(listenAddr))
-	if err != nil {
-		return fmt.Errorf("github: listen %q: %w", listenAddr, err)
-	}
-
-	httpServer := &http.Server{
-		Handler:           http.HandlerFunc(p.serveWebhookHTTP),
-		ReadHeaderTimeout: githubWebhookReadHeaderTimeout,
-		IdleTimeout:       githubWebhookIdleTimeout,
-	}
-
-	actualAddr := ln.Addr().String()
-	p.mu.Lock()
-	p.server = httpServer
-	p.serverAddr = actualAddr
-	p.listenAddr = strings.TrimSpace(listenAddr)
-	p.mu.Unlock()
-
-	p.reportSideEffectError(
-		"write start marker",
-		appendMarkerLine(p.env.startsPath, fmt.Sprintf("listen=%s", actualAddr)),
-	)
-
-	p.wg.Go(func() {
-		if serveErr := httpServer.Serve(ln); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
-			p.setLastError(serveErr)
-		}
-	})
+	p.markers.RecordListen(p.http.Address())
 	return nil
 }
 
@@ -1090,26 +797,18 @@ func (p *githubProvider) dispatchInboundEnvelope(
 	if err != nil {
 		return err
 	}
-	result, err := p.ingestBridgeMessage(ctx, session, envelope)
+	_, err = p.lifecycle.Host().IngestBridgeMessage(ctx, session, envelope)
 	if err != nil {
-		p.reportSideEffectError("write failed ingest marker", appendJSONLine(p.env.ingestPath, ingestMarker{
-			Envelope: envelope,
-			Error:    err.Error(),
-		}))
 		return err
 	}
-	p.reportSideEffectError("write ingest marker", appendJSONLine(p.env.ingestPath, ingestMarker{
-		Envelope: envelope,
-		Result:   *result,
-	}))
-	p.reportReadyIfNeeded(ctx, session, cfg.instanceID)
+	if err := p.lifecycle.Host().ReportReadyIfNeeded(ctx, session, cfg.instanceID); err != nil {
+		p.setLastError(err)
+	}
 	return nil
 }
 
 func (p *githubProvider) configForInstance(instanceID string) (resolvedInstanceConfig, error) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	cfg, ok := p.routes[strings.TrimSpace(instanceID)]
+	cfg, ok := p.routes.Get(instanceID)
 	if !ok {
 		return resolvedInstanceConfig{}, fmt.Errorf("github: unmanaged bridge instance %q", instanceID)
 	}
@@ -1120,71 +819,30 @@ func (p *githubProvider) waitForInstanceConfig(ctx context.Context, instanceID s
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	initReady := p.initializationReady()
-	for {
-		cfg, err := p.configForInstance(instanceID)
-		if err == nil {
-			return cfg, nil
-		}
-		if initReady != nil {
-			select {
-			case <-initReady:
-				initReady = nil
-				continue
-			default:
-			}
-		}
-		if initReady == nil {
-			return resolvedInstanceConfig{}, err
-		}
-
-		timer := time.NewTimer(10 * time.Millisecond)
-		select {
-		case <-p.stopCh:
-			if !timer.Stop() {
-				<-timer.C
-			}
-			return resolvedInstanceConfig{}, err
-		case <-ctx.Done():
-			if !timer.Stop() {
-				<-timer.C
-			}
-			return resolvedInstanceConfig{}, ctx.Err()
-		case <-initReady:
-			if !timer.Stop() {
-				<-timer.C
-			}
-			initReady = nil
-		case <-timer.C:
-		}
+	if cfg, err := p.configForInstance(instanceID); err == nil {
+		return cfg, nil
+	}
+	select {
+	case <-p.lifecycle.StopChannel():
+		return resolvedInstanceConfig{}, bridgesdk.ErrProviderStopped
+	case <-ctx.Done():
+		return resolvedInstanceConfig{}, ctx.Err()
+	case <-p.lifecycle.RoutesReady():
+		return p.configForInstance(instanceID)
 	}
 }
 
 func (p *githubProvider) configsForPath(path string) []resolvedInstanceConfig {
-	normalizedPath := normalizeWebhookPath(path)
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	configs := make([]resolvedInstanceConfig, 0, len(p.routes))
-	for instanceID := range p.routes {
-		cfg := p.routes[instanceID]
-		if cfg.webhookPath == normalizedPath {
-			configs = append(configs, cfg)
-		}
-	}
-	return configs
+	return p.routes.ByPath(normalizeWebhookPath(path))
 }
 
 func (p *githubProvider) currentSession() *bridgesdk.Session {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.session
+	return p.lifecycle.Session()
 }
 
 func (p *githubProvider) deliveryState(instanceID string, deliveryID string) deliveryState {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.deliveries[deliveryStateKey(instanceID, deliveryID)]
+	state, _ := p.deliveries.Load(deliveryStateKey(instanceID, deliveryID))
+	return state
 }
 
 func (p *githubProvider) storeDeliveryState(
@@ -1194,30 +852,11 @@ func (p *githubProvider) storeDeliveryState(
 	state deliveryState,
 ) {
 	key := deliveryStateKey(instanceID, deliveryID)
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	if isTerminalGitHubDeliveryEvent(event) {
-		delete(p.deliveries, key)
+		p.deliveries.Delete(key)
 		return
 	}
-	p.deliveries[key] = state
-}
-
-func (p *githubProvider) initializationReady() <-chan struct{} {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.initReady
-}
-
-func (p *githubProvider) markInitializationReady() {
-	p.initReadyOnce.Do(func() {
-		p.mu.Lock()
-		ch := p.initReady
-		p.mu.Unlock()
-		if ch != nil {
-			close(ch)
-		}
-	})
+	p.deliveries.Store(key, state)
 }
 
 func (p *githubProvider) storeInstallationID(repoFullName string, installationID int64) {
@@ -1279,10 +918,6 @@ func (p *githubProvider) clearLastError() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.lastError = ""
-}
-
-func (p *githubProvider) reportSideEffectError(action string, err error) {
-	reportSideEffectError(p.stderr, action, err)
 }
 
 func executeGitHubDelivery(
@@ -1935,14 +1570,6 @@ func normalizeUsername(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
-func managedInstancesToInstances(items []subprocess.InitializeBridgeManagedInstance) []bridgepkg.BridgeInstance {
-	result := make([]bridgepkg.BridgeInstance, 0, len(items))
-	for _, item := range items {
-		result = append(result, item.Instance)
-	}
-	return result
-}
-
 func writeWebhookText(w http.ResponseWriter, body string) error {
 	w.WriteHeader(http.StatusOK)
 	_, err := io.WriteString(w, body)
@@ -1955,22 +1582,6 @@ func parseRetryAfter(value string) time.Duration {
 		return 0
 	}
 	return time.Duration(seconds) * time.Second
-}
-
-func isNotInitializedRPCError(err error) bool {
-	rpcErr := &subprocess.RPCError{}
-	if !errors.As(err, &rpcErr) {
-		return false
-	}
-	return rpcErr.Code == rpcCodeNotInitialized
-}
-
-func cloneDegradation(degradation *bridgepkg.BridgeDegradation) *bridgepkg.BridgeDegradation {
-	if degradation == nil {
-		return nil
-	}
-	cloned := *degradation
-	return &cloned
 }
 
 func firstNonEmpty(values ...string) string {

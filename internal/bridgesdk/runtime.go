@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	runtimeErrorKey = "error"
+	runtimeErrorKey       = "error"
+	runtimeShutdownMethod = "shutdown"
 )
 
 // InitializeHandler runs after the provider runtime receives the negotiated
@@ -156,7 +157,7 @@ func (r *Runtime) Serve(ctx context.Context, stdin io.Reader, stdout io.Writer) 
 	if err := peer.Handle("health_check", r.handleHealthCheck); err != nil {
 		return err
 	}
-	if err := peer.Handle("shutdown", r.handleShutdown); err != nil {
+	if err := peer.Handle(runtimeShutdownMethod, r.handleShutdown); err != nil {
 		return err
 	}
 
@@ -399,9 +400,7 @@ func (r *Runtime) handleHealthCheck(ctx context.Context, _ json.RawMessage) (any
 			return nil, err
 		}
 	}
-	return struct {
-		OK bool `json:"ok"`
-	}{OK: true}, nil
+	return subprocess.HealthCheckResponse{Healthy: true}, nil
 }
 
 func (r *Runtime) handleShutdown(ctx context.Context, raw json.RawMessage) (any, error) {

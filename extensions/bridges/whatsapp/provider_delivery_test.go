@@ -234,19 +234,16 @@ func initializeWhatsAppRuntimeForDeliveryTest(
 	); err != nil {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
-	waitForCondition(t, func() bool {
-		runtime.mu.RLock()
-		defer runtime.mu.RUnlock()
-		if len(runtime.reportedStatus) < len(managed) {
-			return false
+	select {
+	case <-runtime.lifecycle.Initialized():
+	case <-t.Context().Done():
+		t.Fatal("provider initialization did not finish")
+	}
+	for _, item := range managed {
+		if _, ok := runtime.routes.Get(item.Instance.ID); !ok {
+			t.Fatalf("route %q missing after initialization", item.Instance.ID)
 		}
-		for _, item := range managed {
-			if _, ok := runtime.routes[item.Instance.ID]; !ok {
-				return false
-			}
-		}
-		return true
-	})
+	}
 }
 
 func recordWhatsAppIngests(

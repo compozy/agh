@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -21,7 +20,6 @@ import (
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	"github.com/compozy/agh/internal/bridgesdk"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -43,9 +41,10 @@ const (
 	whatsappWebhookReadHeaderTimeout = 10 * time.Second
 	whatsappWebhookIdleTimeout       = 30 * time.Second
 
-	whatsappSignatureHeader = "X-Hub-Signature-256"
-
-	rpcCodeNotInitialized = -32003
+	whatsappSignatureHeader         = "X-Hub-Signature-256"
+	whatsappAppSecretSlot           = "app_secret"
+	whatsappRecipientTypeIndividual = "individual"
+	whatsappVerifyTokenSlot         = "verify_token"
 )
 
 var (
@@ -58,27 +57,22 @@ var (
 )
 
 type whatsappProvider struct {
-	sdk     *bridgesdk.Runtime
-	stderr  io.Writer
-	env     markerEnv
-	now     func() time.Time
-	session *bridgesdk.Session
+	sdk        *bridgesdk.Runtime
+	lifecycle  *bridgesdk.ProviderLifecycle
+	markers    *bridgesdk.AdapterMarkers
+	http       *bridgesdk.ProviderHTTPServer
+	stderr     io.Writer
+	now        func() time.Time
+	routes     *bridgesdk.RouteTable[resolvedInstanceConfig]
+	deliveries *bridgesdk.DeliveryStateStore[deliveryState]
 
-	mu             sync.RWMutex
-	lastError      string
-	lastErrorSeq   uint64
-	instanceErrors map[string]string
-	server         *http.Server
-	serverAddr     string
-	listenAddr     string
-	routes         map[string]resolvedInstanceConfig
-	deliveries     map[string]deliveryState
-	reportedStatus map[string]bridgepkg.BridgeStatus
-	apiFactory     func(resolvedInstanceConfig) whatsappAPI
-
-	stopCh   chan struct{}
-	stopOnce sync.Once
-	wg       sync.WaitGroup
+	mu                 sync.RWMutex
+	lastError          string
+	lastErrorSeq       uint64
+	initializeErrorSeq uint64
+	instanceErrors     map[string]string
+	listenAddr         string
+	apiFactory         func(resolvedInstanceConfig) whatsappAPI
 }
 
 type whatsappProviderConfig struct {
@@ -253,20 +247,21 @@ type whatsappGraphClient struct {
 	httpClient  *http.Client
 }
 
+//nolint:funlen // Construction keeps the provider's declarative runtime wiring visible in one place.
 func newWhatsAppProvider(stderr io.Writer) (*whatsappProvider, error) {
 	if stderr == nil {
 		stderr = io.Discard
 	}
 
 	provider := &whatsappProvider{
-		stderr:         stderr,
-		env:            markerEnvFromProcess(),
-		now:            func() time.Time { return time.Now().UTC() },
-		routes:         make(map[string]resolvedInstanceConfig),
-		deliveries:     make(map[string]deliveryState),
-		reportedStatus: make(map[string]bridgepkg.BridgeStatus),
+		stderr:  stderr,
+		markers: bridgesdk.NewAdapterMarkers(providerWhatsappKey, stderr),
+		now:     func() time.Time { return time.Now().UTC() },
+		routes: bridgesdk.NewRouteTable(func(config resolvedInstanceConfig) []string {
+			return []string{config.webhookPath}
+		}),
+		deliveries:     bridgesdk.NewDeliveryStateStore[deliveryState](),
 		instanceErrors: make(map[string]string),
-		stopCh:         make(chan struct{}),
 	}
 	provider.apiFactory = func(cfg resolvedInstanceConfig) whatsappAPI {
 		return &whatsappGraphClient{
@@ -278,6 +273,58 @@ func newWhatsAppProvider(stderr io.Writer) (*whatsappProvider, error) {
 			},
 		}
 	}
+	lifecycle, err := bridgesdk.NewProviderLifecycle(bridgesdk.ProviderLifecycleConfig{
+		ProviderName: providerWhatsappKey,
+		Markers:      provider.markers,
+		Reconcile: func(
+			ctx context.Context,
+			managed []subprocess.InitializeBridgeManagedInstance,
+		) ([]bridgesdk.ProviderInitialState, error) {
+			configs := provider.reconcileInstanceConfigs(ctx, provider.lifecycle.Session(), managed)
+			states := make([]bridgesdk.ProviderInitialState, 0, len(configs))
+			for idx := range configs {
+				states = append(states, bridgesdk.ProviderInitialState{
+					BridgeInstanceID: configs[idx].instanceID,
+					Status:           configs[idx].initialStatus,
+					Degradation:      configs[idx].initialDegradation,
+				})
+			}
+			return states, nil
+		},
+		FinalizeInitialize: func(err error) {
+			if err != nil {
+				provider.setLastError(err)
+				return
+			}
+			provider.mu.RLock()
+			sequence := provider.initializeErrorSeq
+			provider.mu.RUnlock()
+			provider.clearGlobalErrorIfUnchanged(sequence)
+		},
+		OnStop: provider.stopResources,
+		ShutdownResources: func(ctx context.Context) error {
+			if provider.http == nil {
+				return nil
+			}
+			return provider.http.Shutdown(ctx)
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	provider.lifecycle = lifecycle
+	providerHTTP, err := bridgesdk.NewProviderHTTPServer(bridgesdk.ProviderHTTPConfig{
+		ReadHeaderTimeout: whatsappWebhookReadHeaderTimeout,
+		IdleTimeout:       whatsappWebhookIdleTimeout,
+		Handler:           http.HandlerFunc(provider.serveWebhookHTTP),
+		Go:                lifecycle.Go,
+		OnError:           provider.setLastError,
+	})
+	if err != nil {
+		return nil, err
+	}
+	provider.http = providerHTTP
+
 	sdkRuntime, err := bridgesdk.NewRuntime(bridgesdk.RuntimeConfig{
 		ExtensionInfo: subprocess.InitializeExtensionInfo{
 			Name:    providerWhatsappKey,
@@ -289,7 +336,7 @@ func newWhatsAppProvider(stderr io.Writer) (*whatsappProvider, error) {
 		Progress:    provider.handleBridgesProgress,
 		Check:       provider.handleBridgeCheck,
 		HealthCheck: func(context.Context, *bridgesdk.Session) error { return provider.healthCheck() },
-		Shutdown:    provider.handleShutdown,
+		Shutdown:    lifecycle.Shutdown,
 		Now:         func() time.Time { return provider.now() },
 	})
 	if err != nil {
@@ -300,304 +347,32 @@ func newWhatsAppProvider(stderr io.Writer) (*whatsappProvider, error) {
 }
 
 func (p *whatsappProvider) serve(stdin io.Reader, stdout io.Writer) error {
-	p.reportSideEffectError(
-		"write start marker",
-		appendMarkerLine(p.env.startsPath, fmt.Sprintf("pid=%d", os.Getpid())),
-	)
-	return p.sdk.Serve(context.Background(), stdin, stdout)
+	return p.lifecycle.Serve(context.Background(), p.sdk, stdin, stdout)
 }
 
 func (p *whatsappProvider) handleInitialize(_ context.Context, session *bridgesdk.Session) error {
 	p.mu.Lock()
-	p.session = session
+	p.initializeErrorSeq = p.lastErrorSeq
 	p.mu.Unlock()
-
-	marker := initializeMarker{
-		Request:  session.InitializeRequest(),
-		Response: session.InitializeResponse(),
-	}
-	p.reportSideEffectError("write initialize marker", writeJSONFile(p.env.handshakePath, marker))
-	p.clearLastError()
-	globalErrorSeq := p.currentGlobalErrorSeq()
-
-	p.wg.Go(func() {
-		p.afterInitialize(session, globalErrorSeq)
-	})
-
-	return nil
+	return p.lifecycle.Initialize(context.Background(), session)
 }
 
-func (p *whatsappProvider) afterInitialize(session *bridgesdk.Session, globalErrorSeq uint64) {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	listed, err := p.syncOwnedInstances(ctx, session)
-	ownershipErr := err
-	fetched := make([]bridgepkg.BridgeInstance, 0, len(listed))
-	if ownershipErr == nil {
-		for _, managed := range listed {
-			instance, getErr := p.getOwnedInstance(ctx, session, managed.Instance.ID)
-			if getErr != nil {
-				ownershipErr = getErr
-				break
-			}
-			fetched = append(fetched, *instance)
+func (p *whatsappProvider) stopResources() {
+	p.closeAllWhatsAppProgressDispatchers()
+	batchers := make(map[*bridgesdk.InboundBatcher]struct{})
+	for id, cfg := range p.routes.Snapshot() {
+		if cfg.batcher == nil {
+			continue
 		}
+		batchers[cfg.batcher] = struct{}{}
+		p.routes.Update(id, func(current resolvedInstanceConfig) resolvedInstanceConfig {
+			current.batcher = nil
+			return current
+		})
 	}
-	if len(listed) == 0 {
-		listed = session.Cache().List()
+	for batcher := range batchers {
+		batcher.Close()
 	}
-
-	ownership := ownershipMarker{
-		Listed:  managedInstancesToInstances(listed),
-		Fetched: fetched,
-	}
-	if ownershipErr != nil {
-		ownership.Error = ownershipErr.Error()
-	}
-	p.reportSideEffectError("write ownership marker", writeJSONFile(p.env.ownershipPath, ownership))
-
-	configs := p.reconcileInstanceConfigs(ctx, session, listed)
-	for _, cfg := range configs {
-		status := cfg.initialStatus
-		degradation := cfg.initialDegradation
-		if status == "" {
-			status = bridgepkg.BridgeStatusReady
-		}
-		if err := p.reportState(
-			ctx,
-			session,
-			cfg.instanceID,
-			status,
-			degradation,
-		); err != nil &&
-			ownershipErr == nil {
-			ownershipErr = err
-		}
-	}
-
-	if ownershipErr != nil {
-		p.setLastError(ownershipErr)
-	} else {
-		p.clearGlobalErrorIfUnchanged(globalErrorSeq)
-	}
-}
-
-func (p *whatsappProvider) handleShutdown(
-	_ context.Context,
-	_ *bridgesdk.Session,
-	request subprocess.ShutdownRequest,
-) error {
-	p.stop()
-
-	shutdownCtx := context.Background()
-	if request.DeadlineMS > 0 {
-		var cancel context.CancelFunc
-		shutdownCtx, cancel = context.WithTimeout(
-			context.Background(),
-			time.Duration(request.DeadlineMS)*time.Millisecond,
-		)
-		defer cancel()
-	}
-
-	p.mu.Lock()
-	server := p.server
-	p.mu.Unlock()
-	var shutdownErr error
-	if server != nil {
-		if err := server.Shutdown(shutdownCtx); err != nil &&
-			!errors.Is(err, http.ErrServerClosed) {
-			shutdownErr = fmt.Errorf("whatsapp: shutdown webhook server: %w", err)
-			p.setLastError(shutdownErr)
-		}
-	}
-
-	done := make(chan struct{})
-	go func() {
-		p.wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-shutdownCtx.Done():
-	}
-
-	p.reportSideEffectError(
-		"write shutdown marker",
-		appendMarkerLine(p.env.shutdownPath, fmt.Sprintf("pid=%d", os.Getpid())),
-	)
-	return shutdownErr
-}
-
-func (p *whatsappProvider) stop() {
-	p.stopOnce.Do(func() {
-		close(p.stopCh)
-		p.mu.Lock()
-		for id, cfg := range p.routes {
-			if cfg.batcher != nil {
-				cfg.batcher.Close()
-				cfg.batcher = nil
-				p.routes[id] = cfg
-			}
-		}
-		p.mu.Unlock()
-		p.closeAllWhatsAppProgressDispatchers()
-	})
-}
-
-func (p *whatsappProvider) syncOwnedInstances(
-	ctx context.Context,
-	session *bridgesdk.Session,
-) ([]subprocess.InitializeBridgeManagedInstance, error) {
-	var result []subprocess.InitializeBridgeManagedInstance
-	err := p.retryHostCall(ctx, func(callCtx context.Context) error {
-		items, callErr := session.SyncInstances(callCtx)
-		if callErr == nil {
-			result = items
-		}
-		return callErr
-	})
-	return result, err
-}
-
-func (p *whatsappProvider) getOwnedInstance(
-	ctx context.Context,
-	session *bridgesdk.Session,
-	bridgeInstanceID string,
-) (*bridgepkg.BridgeInstance, error) {
-	var result *bridgepkg.BridgeInstance
-	err := p.retryHostCall(ctx, func(callCtx context.Context) error {
-		instance, callErr := session.HostAPI().GetBridgeInstance(callCtx, bridgeInstanceID)
-		if callErr == nil {
-			result = instance
-		}
-		return callErr
-	})
-	return result, err
-}
-
-func (p *whatsappProvider) reportState(
-	ctx context.Context,
-	session *bridgesdk.Session,
-	bridgeInstanceID string,
-	status bridgepkg.BridgeStatus,
-	degradation *bridgepkg.BridgeDegradation,
-) error {
-	var result *bridgepkg.BridgeInstance
-	err := p.retryHostCall(ctx, func(callCtx context.Context) error {
-		instance, callErr := session.HostAPI().
-			ReportBridgeInstanceState(callCtx, extensioncontract.BridgesInstancesReportStateParams{
-				BridgeInstanceID: strings.TrimSpace(bridgeInstanceID),
-				Status:           status,
-				Degradation:      cloneDegradation(degradation),
-			})
-		if callErr == nil {
-			result = instance
-		}
-		return callErr
-	})
-	if err != nil {
-		p.reportSideEffectError(
-			"write failed state marker",
-			appendJSONLine(p.env.statePath, stateMarker{
-				BridgeInstanceID: strings.TrimSpace(bridgeInstanceID),
-				Status:           status,
-				Error:            err.Error(),
-			}),
-		)
-		return err
-	}
-
-	p.mu.Lock()
-	p.reportedStatus[strings.TrimSpace(bridgeInstanceID)] = result.Status.Normalize()
-	p.mu.Unlock()
-	p.reportSideEffectError("write state marker", appendJSONLine(p.env.statePath, stateMarker{
-		BridgeInstanceID: result.ID,
-		Status:           result.Status,
-		Instance:         *result,
-	}))
-	return nil
-}
-
-func (p *whatsappProvider) reportReadyIfNeeded(
-	ctx context.Context,
-	session *bridgesdk.Session,
-	bridgeInstanceID string,
-) error {
-	bridgeInstanceID = strings.TrimSpace(bridgeInstanceID)
-	p.mu.RLock()
-	status := p.reportedStatus[bridgeInstanceID]
-	p.mu.RUnlock()
-	if status == bridgepkg.BridgeStatusReady {
-		return nil
-	}
-	return p.reportState(ctx, session, bridgeInstanceID, bridgepkg.BridgeStatusReady, nil)
-}
-
-func (p *whatsappProvider) ingestBridgeMessage(
-	ctx context.Context,
-	session *bridgesdk.Session,
-	envelope bridgepkg.InboundMessageEnvelope,
-) (*extensioncontract.BridgesMessagesIngestResult, error) {
-	var result *extensioncontract.BridgesMessagesIngestResult
-	err := p.retryHostCall(ctx, func(callCtx context.Context) error {
-		ingestResult, callErr := session.HostAPI().IngestBridgeMessage(callCtx, envelope)
-		if callErr == nil {
-			result = ingestResult
-		}
-		return callErr
-	})
-	return result, err
-}
-
-func (p *whatsappProvider) retryHostCall(
-	ctx context.Context,
-	fn func(context.Context) error,
-) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	delay := 10 * time.Millisecond
-	var lastErr error
-	for range 6 {
-		err := fn(ctx)
-		if err == nil {
-			return nil
-		}
-		if !isNotInitializedRPCError(err) {
-			return err
-		}
-		lastErr = err
-
-		timer := time.NewTimer(delay)
-		select {
-		case <-ctx.Done():
-			if !timer.Stop() {
-				<-timer.C
-			}
-			return ctx.Err()
-		case <-p.stopCh:
-			if !timer.Stop() {
-				<-timer.C
-			}
-			return err
-		case <-timer.C:
-		}
-
-		if delay < 100*time.Millisecond {
-			delay *= 2
-			if delay > 100*time.Millisecond {
-				delay = 100 * time.Millisecond
-			}
-		}
-	}
-
-	if lastErr != nil {
-		return lastErr
-	}
-	return nil
 }
 
 func (p *whatsappProvider) reconcileInstanceConfigs(
@@ -605,17 +380,30 @@ func (p *whatsappProvider) reconcileInstanceConfigs(
 	session *bridgesdk.Session,
 	managed []subprocess.InitializeBridgeManagedInstance,
 ) []resolvedInstanceConfig {
-	if len(managed) == 0 {
-		p.mu.Lock()
-		p.routes = make(map[string]resolvedInstanceConfig)
-		p.mu.Unlock()
+	reconciler := bridgesdk.ManagedConfigReconciler[resolvedInstanceConfig]{
+		Routes:   p.routes,
+		Resolve:  p.resolveInstanceConfig,
+		Prepare:  p.prepareWhatsAppManagedConfigs,
+		Finalize: p.populateWhatsAppInitialStates,
+		Identity: func(config resolvedInstanceConfig) string { return config.instanceID },
+		Merge: func(prior resolvedInstanceConfig, next resolvedInstanceConfig) resolvedInstanceConfig {
+			if prior.batcher != nil && prior.batcher != next.batcher {
+				prior.batcher.Close()
+			}
+			return next
+		},
+		OnRemoved: func(config resolvedInstanceConfig) error {
+			if config.batcher != nil {
+				config.batcher.Close()
+			}
+			return nil
+		},
+	}
+	configs, err := reconciler.Reconcile(ctx, session, managed)
+	if err != nil {
+		p.setLastError(err)
 		return nil
 	}
-
-	configs, requestedListen := p.resolveWhatsAppManagedConfigs(session, managed)
-	applyWhatsAppListenErrors(configs, requestedListen, p.startServer)
-	p.swapWhatsAppRoutes(configs, requestedListen)
-	p.populateWhatsAppInitialStates(ctx, configs)
 	return configs
 }
 
@@ -697,51 +485,10 @@ func (p *whatsappProvider) determineInitialState(
 }
 
 func (p *whatsappProvider) startServer(listenAddr string) error {
-	p.mu.RLock()
-	server := p.server
-	currentListen := p.listenAddr
-	p.mu.RUnlock()
-	if server != nil {
-		if currentListen != "" && currentListen != strings.TrimSpace(listenAddr) {
-			return fmt.Errorf(
-				"whatsapp: runtime already listening on %q, cannot switch to %q",
-				currentListen,
-				listenAddr,
-			)
-		}
-		return nil
+	if err := p.http.Start(listenAddr); err != nil {
+		return fmt.Errorf("whatsapp: %w", err)
 	}
-
-	ln, err := listenWhatsAppWebhook(strings.TrimSpace(listenAddr))
-	if err != nil {
-		return fmt.Errorf("whatsapp: listen %q: %w", listenAddr, err)
-	}
-
-	httpServer := &http.Server{
-		Handler:           http.HandlerFunc(p.serveWebhookHTTP),
-		ReadHeaderTimeout: whatsappWebhookReadHeaderTimeout,
-		IdleTimeout:       whatsappWebhookIdleTimeout,
-	}
-
-	actualAddr := ln.Addr().String()
-	p.mu.Lock()
-	p.server = httpServer
-	p.serverAddr = actualAddr
-	p.listenAddr = strings.TrimSpace(listenAddr)
-	p.mu.Unlock()
-
-	p.reportSideEffectError(
-		"write start marker",
-		appendMarkerLine(p.env.startsPath, fmt.Sprintf("listen=%s", actualAddr)),
-	)
-
-	p.wg.Go(func() {
-		if serveErr := httpServer.Serve(ln); serveErr != nil &&
-			!errors.Is(serveErr, http.ErrServerClosed) {
-			p.setLastError(serveErr)
-		}
-	})
-
+	p.markers.RecordListen(p.http.Address())
 	return nil
 }
 
@@ -928,23 +675,12 @@ func (p *whatsappProvider) dispatchInboundEnvelope(
 		return err
 	}
 
-	result, err := p.ingestBridgeMessage(ctx, session, envelope)
+	_, err = p.lifecycle.Host().IngestBridgeMessage(ctx, session, envelope)
 	if err != nil {
 		p.setInstanceError(cfg.instanceID, err)
-		p.reportSideEffectError(
-			"write failed ingest marker",
-			appendJSONLine(p.env.ingestPath, ingestMarker{
-				Envelope: envelope,
-				Error:    err.Error(),
-			}),
-		)
 		return err
 	}
-	p.reportSideEffectError("write ingest marker", appendJSONLine(p.env.ingestPath, ingestMarker{
-		Envelope: envelope,
-		Result:   *result,
-	}))
-	if err := p.reportReadyIfNeeded(ctx, session, cfg.instanceID); err != nil {
+	if err := p.lifecycle.Host().ReportReadyIfNeeded(ctx, session, cfg.instanceID); err != nil {
 		p.setInstanceError(cfg.instanceID, err)
 	} else {
 		p.clearInstanceError(cfg.instanceID)
@@ -971,10 +707,8 @@ func canMergeWhatsAppInboundBatch(items []bridgepkg.InboundMessageEnvelope) bool
 }
 
 func (p *whatsappProvider) configForInstance(instanceID string) (resolvedInstanceConfig, error) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
 	trimmedInstanceID := strings.TrimSpace(instanceID)
-	cfg, ok := p.routes[trimmedInstanceID]
+	cfg, ok := p.routes.Get(trimmedInstanceID)
 	if !ok {
 		return resolvedInstanceConfig{}, fmt.Errorf(
 			"%w: %q",
@@ -1001,54 +735,31 @@ func (p *whatsappProvider) waitForInstanceConfig(
 		return p.configForInstance(instanceID)
 	}
 
-	deadline := time.Now().Add(timeout)
-	for {
-		cfg, err := p.configForInstance(instanceID)
-		if err == nil {
-			return cfg, nil
-		}
-		if !errors.Is(err, errWhatsAppInstanceConfigUnavailable) {
-			return cfg, err
-		}
-		if time.Now().After(deadline) {
-			return resolvedInstanceConfig{}, err
-		}
-
-		timer := time.NewTimer(10 * time.Millisecond)
-		select {
-		case <-p.stopCh:
-			if !timer.Stop() {
-				<-timer.C
-			}
-			return resolvedInstanceConfig{}, err
-		case <-timer.C:
-		}
+	cfg, ok, err := p.routes.Wait(context.Background(), instanceID, timeout, p.lifecycle.StopChannel())
+	if err != nil {
+		return resolvedInstanceConfig{}, err
 	}
+	if !ok || cfg.configError != nil {
+		return p.configForInstance(instanceID)
+	}
+	return cfg, nil
 }
 
 func (p *whatsappProvider) configForPath(path string) (resolvedInstanceConfig, bool) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
 	normalizedPath := normalizeWebhookPath(path)
-	matched := false
-	selected := resolvedInstanceConfig{}
-	for _, cfg := range p.routes {
-		if cfg.webhookPath != normalizedPath {
-			continue
-		}
-		if cfg.configError != nil || matched {
-			return resolvedInstanceConfig{}, false
-		}
-		selected = cfg
-		matched = true
+	configs := p.routes.ByPath(normalizedPath)
+	if len(configs) != 1 {
+		return resolvedInstanceConfig{}, false
 	}
-	return selected, matched
+	cfg := configs[0]
+	if cfg.configError != nil {
+		return resolvedInstanceConfig{}, false
+	}
+	return cfg, true
 }
 
 func (p *whatsappProvider) currentSession() *bridgesdk.Session {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.session
+	return p.lifecycle.Session()
 }
 
 func (p *whatsappProvider) setLastError(err error) {
@@ -1088,12 +799,6 @@ func (p *whatsappProvider) clearGlobalError() {
 	p.lastErrorSeq++
 }
 
-func (p *whatsappProvider) currentGlobalErrorSeq() uint64 {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.lastErrorSeq
-}
-
 func (p *whatsappProvider) clearGlobalErrorIfUnchanged(seq uint64) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -1113,10 +818,6 @@ func (p *whatsappProvider) clearInstanceError(instanceID string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	delete(p.instanceErrors, instanceID)
-}
-
-func (p *whatsappProvider) reportSideEffectError(action string, err error) {
-	reportSideEffectError(p.stderr, action, err)
 }
 
 func allowWhatsAppDirectMessage(cfg resolvedInstanceConfig, sender bridgepkg.MessageSender) bool {
@@ -1442,26 +1143,26 @@ func parseWhatsAppVerifyChallenge(value string) (whatsappVerifyChallenge, error)
 	return whatsappVerifyChallenge(trimmed), nil
 }
 
-func listenWhatsAppWebhook(listenAddr string) (net.Listener, error) {
-	var listenConfig net.ListenConfig
-	return listenConfig.Listen(context.Background(), "tcp", strings.TrimSpace(listenAddr))
-}
-
-func (p *whatsappProvider) resolveWhatsAppManagedConfigs(
-	session *bridgesdk.Session,
-	managed []subprocess.InitializeBridgeManagedInstance,
-) ([]resolvedInstanceConfig, string) {
-	configs := make([]resolvedInstanceConfig, 0, len(managed))
-	requestedListen := strings.TrimSpace(os.Getenv(whatsappListenAddrEnv))
-	usedPaths := make(map[string]string, len(managed))
-
-	for _, item := range managed {
-		cfg := p.resolveInstanceConfig(session, item)
-		requestedListen = updateWhatsAppRequestedListen(&cfg, requestedListen)
-		markDuplicateWhatsAppWebhookPath(&cfg, usedPaths)
-		configs = append(configs, cfg)
+func (p *whatsappProvider) prepareWhatsAppManagedConfigs(
+	_ context.Context,
+	_ *bridgesdk.Session,
+	configs []resolvedInstanceConfig,
+) ([]resolvedInstanceConfig, error) {
+	if len(configs) == 0 {
+		return configs, nil
 	}
-	return configs, requestedListen
+	requestedListen := strings.TrimSpace(os.Getenv(whatsappListenAddrEnv))
+	usedPaths := make(map[string]string, len(configs))
+
+	for idx := range configs {
+		requestedListen = updateWhatsAppRequestedListen(&configs[idx], requestedListen)
+		markDuplicateWhatsAppWebhookPath(&configs[idx], usedPaths)
+	}
+	applyWhatsAppListenErrors(configs, requestedListen, p.startServer)
+	p.mu.Lock()
+	p.listenAddr = requestedListen
+	p.mu.Unlock()
+	return configs, nil
 }
 
 func updateWhatsAppRequestedListen(cfg *resolvedInstanceConfig, requestedListen string) string {
@@ -1522,37 +1223,11 @@ func applyWhatsAppListenErrors(
 	}
 }
 
-func (p *whatsappProvider) swapWhatsAppRoutes(
-	configs []resolvedInstanceConfig,
-	requestedListen string,
-) {
-	nextRoutes := make(map[string]resolvedInstanceConfig, len(configs))
-
-	p.mu.Lock()
-	existing := p.routes
-	for _, cfg := range configs {
-		if prior, ok := existing[cfg.instanceID]; ok && prior.batcher != nil && cfg.batcher == nil {
-			prior.batcher.Close()
-		}
-		nextRoutes[cfg.instanceID] = cfg
-	}
-	for instanceID, prior := range existing {
-		if _, ok := nextRoutes[instanceID]; ok {
-			continue
-		}
-		if prior.batcher != nil {
-			prior.batcher.Close()
-		}
-	}
-	p.routes = nextRoutes
-	p.listenAddr = requestedListen
-	p.mu.Unlock()
-}
-
 func (p *whatsappProvider) populateWhatsAppInitialStates(
 	ctx context.Context,
+	_ *bridgesdk.Session,
 	configs []resolvedInstanceConfig,
-) {
+) ([]resolvedInstanceConfig, error) {
 	for idx := range configs {
 		status, degradation, err := p.determineInitialState(ctx, configs[idx])
 		if err != nil {
@@ -1563,6 +1238,7 @@ func (p *whatsappProvider) populateWhatsAppInitialStates(
 		configs[idx].initialStatus = status
 		configs[idx].initialDegradation = degradation
 	}
+	return configs, nil
 }
 
 func decodeWhatsAppProviderConfig(
@@ -1584,8 +1260,8 @@ func buildWhatsAppResolvedInstance(
 	cfg whatsappProviderConfig,
 ) resolvedInstanceConfig {
 	accessToken, _ := session.Cache().BoundSecretValue(managed.Instance.ID, "access_token")
-	appSecret, _ := session.Cache().BoundSecretValue(managed.Instance.ID, "app_secret")
-	verifyToken, _ := session.Cache().BoundSecretValue(managed.Instance.ID, "verify_token")
+	appSecret, _ := session.Cache().BoundSecretValue(managed.Instance.ID, whatsappAppSecretSlot)
+	verifyToken, _ := session.Cache().BoundSecretValue(managed.Instance.ID, whatsappVerifyTokenSlot)
 
 	resolved := resolvedInstanceConfig{
 		managed:    &managed,
@@ -1900,16 +1576,6 @@ func normalizeUsername(value string) string {
 	return strings.ToLower(strings.TrimSpace(strings.TrimPrefix(value, "@")))
 }
 
-func managedInstancesToInstances(
-	items []subprocess.InitializeBridgeManagedInstance,
-) []bridgepkg.BridgeInstance {
-	instances := make([]bridgepkg.BridgeInstance, 0, len(items))
-	for _, item := range items {
-		instances = append(instances, item.Instance)
-	}
-	return instances
-}
-
 func normalizeDeliveryEventType(value bridgepkg.DeliveryEventType) bridgepkg.DeliveryEventType {
 	return bridgepkg.DeliveryEventType(strings.ToLower(strings.TrimSpace(string(value))))
 }
@@ -1920,26 +1586,6 @@ func parseRetryAfter(value string) time.Duration {
 		return 0
 	}
 	return time.Duration(seconds) * time.Second
-}
-
-func isNotInitializedRPCError(err error) bool {
-	if err == nil {
-		return false
-	}
-	var rpcErr *subprocess.RPCError
-	if !errors.As(err, &rpcErr) {
-		return false
-	}
-	return rpcErr.Code == rpcCodeNotInitialized ||
-		strings.EqualFold(strings.TrimSpace(rpcErr.Message), "Not initialized")
-}
-
-func cloneDegradation(degradation *bridgepkg.BridgeDegradation) *bridgepkg.BridgeDegradation {
-	if degradation == nil {
-		return nil
-	}
-	cloned := *degradation
-	return &cloned
 }
 
 func firstNonEmpty(values ...string) string {

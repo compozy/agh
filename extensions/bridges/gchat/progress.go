@@ -88,7 +88,7 @@ func (p *gchatProvider) newGChatProgressDispatcher(
 		accumulator,
 		bridgesdk.WithProgressAsyncErrorHandler(func(err error) {
 			wrapped := fmt.Errorf("gchat: flush scheduled progress: %w", err)
-			p.reportSideEffectError("flush scheduled Google Chat progress", wrapped)
+			p.markers.ReportError("flush scheduled Google Chat progress", wrapped)
 			p.setLastError(wrapped)
 		}),
 	)
@@ -138,22 +138,20 @@ func (p *gchatProvider) recordGChatProgressCleanupError(err error) {
 		return
 	}
 	wrapped := fmt.Errorf("gchat: close progress after content: %w", err)
-	p.reportSideEffectError("close Google Chat progress after content", wrapped)
+	p.markers.ReportError("close Google Chat progress after content", wrapped)
 	p.setLastError(wrapped)
 }
 
 func (p *gchatProvider) closeAllGChatProgressDispatchers() {
-	p.mu.Lock()
-	dispatchers := make([]*bridgesdk.ProgressDispatcher, 0, len(p.deliveries))
-	for key, state := range p.deliveries {
+	dispatchers := make([]*bridgesdk.ProgressDispatcher, 0)
+	p.deliveries.TransformAll(func(_ string, state deliveryState) deliveryState {
 		if state.Progress == nil {
-			continue
+			return state
 		}
 		dispatchers = append(dispatchers, state.Progress)
 		state.Progress = nil
-		p.deliveries[key] = state
-	}
-	p.mu.Unlock()
+		return state
+	})
 
 	for _, dispatcher := range dispatchers {
 		dispatcher.Close()
@@ -166,16 +164,16 @@ func (p *gchatProvider) detachGChatProgressDispatcher(
 	deleteDelivery bool,
 ) {
 	key := deliveryStateKey(instanceID, deliveryID)
-	p.mu.Lock()
-	state := p.deliveries[key]
+	state, _ := p.deliveries.Load(key)
 	dispatcher := state.Progress
 	if deleteDelivery {
-		delete(p.deliveries, key)
+		p.deliveries.Delete(key)
 	} else if dispatcher != nil {
-		state.Progress = nil
-		p.deliveries[key] = state
+		p.deliveries.Update(key, func(current deliveryState) deliveryState {
+			current.Progress = nil
+			return current
+		})
 	}
-	p.mu.Unlock()
 	if dispatcher != nil {
 		dispatcher.Close()
 	}

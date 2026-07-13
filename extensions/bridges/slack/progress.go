@@ -13,7 +13,10 @@ import (
 	"github.com/compozy/agh/internal/bridgesdk"
 )
 
-const slackProgressThinkingStatus = "is thinking..."
+const (
+	slackProgressFallbackReaction = "eyes"
+	slackProgressThinkingStatus   = "is thinking..."
+)
 
 type slackSetThreadStatusRequest struct {
 	ChannelID string `json:"channel_id"`
@@ -166,7 +169,7 @@ func slackReactionName(reaction string) string {
 	case "\u274c":
 		return "x"
 	default:
-		return "eyes"
+		return slackProgressFallbackReaction
 	}
 }
 
@@ -231,7 +234,9 @@ func (p *slackProvider) handleBridgesProgress(
 		return bridgepkg.DeliveryAck{}, err
 	}
 	p.clearLastError()
-	p.reportReadyIfNeeded(ctx, session, cfg.instanceID)
+	if err := p.lifecycle.Host().ReportReadyIfNeeded(ctx, session, cfg.instanceID); err != nil {
+		p.setLastError(err)
+	}
 	return session.AckDelivery(request, "", "")
 }
 
@@ -286,7 +291,7 @@ func (p *slackProvider) recordProgressCleanupError(action string, err error) {
 	if err == nil {
 		return
 	}
-	p.reportSideEffectError(action, err)
+	p.markers.ReportError(action, err)
 	p.setLastError(err)
 }
 

@@ -180,6 +180,17 @@ func TestRuntimeRefacs(t *testing.T) {
 			if got, want := shutdownCalls, 1; got != want {
 				t.Fatalf("shutdownCalls during concurrent shutdown = %d, want %d", got, want)
 			}
+			_, err = runtime.handleHealthCheck(t.Context(), nil)
+			if !errors.As(err, &rpcErr) {
+				t.Fatalf("handleHealthCheck() during shutdown error = %v, want *subprocess.RPCError", err)
+			}
+			if rpcErr.Code != bridgeSDKRPCCodeShutdownRunning {
+				t.Fatalf(
+					"handleHealthCheck() during shutdown code = %d, want %d",
+					rpcErr.Code,
+					bridgeSDKRPCCodeShutdownRunning,
+				)
+			}
 
 			releaseOnce.Do(func() {
 				close(release)

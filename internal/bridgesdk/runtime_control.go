@@ -92,6 +92,23 @@ func (r *Runtime) requireServiceSession(operation string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
+	r.mu.RLock()
+	shutdownState := r.shutdownState
+	r.mu.RUnlock()
+	switch shutdownState {
+	case runtimeShutdownRunning:
+		return nil, subprocess.NewRPCError(
+			bridgeSDKRPCCodeShutdownRunning,
+			"Shutdown running",
+			map[string]string{runtimeErrorKey: strings.TrimSpace(operation) + " is unavailable during shutdown"},
+		)
+	case runtimeShutdownSucceeded:
+		return nil, subprocess.NewRPCError(
+			bridgeSDKRPCCodeShutdownRunning,
+			"Shutdown complete",
+			map[string]string{runtimeErrorKey: strings.TrimSpace(operation) + " is unavailable after shutdown"},
+		)
+	}
 	if sessionIsControl(session) {
 		return nil, subprocess.NewRPCError(bridgeSDKRPCCodeInvalidParams, "Invalid params", map[string]string{
 			runtimeErrorKey: strings.TrimSpace(operation) + " is not available in control mode",
@@ -122,7 +139,7 @@ func (r *Runtime) validateControlHandler(runtime *subprocess.InitializeBridgeRun
 
 func (r *Runtime) initializeResponse(request subprocess.InitializeRequest) subprocess.InitializeResponse {
 	if request.Runtime.Bridge != nil && request.Runtime.Bridge.Purpose == subprocess.BridgeRuntimePurposeControl {
-		implemented := []string{request.Runtime.Bridge.AllowedMethods[0], "shutdown"}
+		implemented := []string{request.Runtime.Bridge.AllowedMethods[0], runtimeShutdownMethod}
 		slices.Sort(implemented)
 		return subprocess.InitializeResponse{
 			ProtocolVersion:    request.ProtocolVersion,
@@ -135,7 +152,7 @@ func (r *Runtime) initializeResponse(request subprocess.InitializeRequest) subpr
 		string(extensionprotocol.ExtensionServiceMethodBridgesDeliver),
 		string(extensionprotocol.ExtensionServiceMethodBridgeTargets),
 		"health_check",
-		"shutdown",
+		runtimeShutdownMethod,
 	}
 	slices.Sort(implemented)
 	return subprocess.InitializeResponse{

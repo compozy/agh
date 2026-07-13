@@ -43,7 +43,7 @@ func (p *whatsappProvider) handleBridgesDeliver(
 	session *bridgesdk.Session,
 	request bridgepkg.DeliveryRequest,
 ) (bridgepkg.DeliveryAck, error) {
-	marker := deliveryMarker{
+	marker := bridgesdk.DeliveryMarker{
 		PID:     os.Getpid(),
 		Request: request,
 	}
@@ -54,28 +54,19 @@ func (p *whatsappProvider) handleBridgesDeliver(
 	)
 	if err != nil {
 		marker.Error = err.Error()
-		p.reportSideEffectError(
-			"write failed delivery marker",
-			appendJSONLine(p.env.deliveryPath, marker),
-		)
+		p.markers.RecordDelivery(marker)
 		p.setInstanceError(request.Event.BridgeInstanceID, err)
 		return bridgepkg.DeliveryAck{}, err
 	}
 
-	if shouldCrashOnce(p.env.crashOncePath) {
-		p.reportSideEffectError(
-			"write pre-crash delivery marker",
-			appendJSONLine(p.env.deliveryPath, marker),
-		)
-		p.reportSideEffectError(
-			"write crash marker",
-			writeJSONFile(p.env.crashOncePath, map[string]any{
-				"crashed":            true,
-				"pid":                os.Getpid(),
-				"delivery_id":        strings.TrimSpace(request.Event.DeliveryID),
-				"bridge_instance_id": cfg.instanceID,
-			}),
-		)
+	if p.markers.ShouldCrashOnce() {
+		p.markers.RecordDelivery(marker)
+		p.markers.RecordCrash(map[string]any{
+			"crashed":            true,
+			"pid":                os.Getpid(),
+			"delivery_id":        strings.TrimSpace(request.Event.DeliveryID),
+			"bridge_instance_id": cfg.instanceID,
+		})
 		os.Exit(23)
 	}
 
@@ -105,7 +96,7 @@ func (p *whatsappProvider) completeWhatsAppDelivery(
 	session *bridgesdk.Session,
 	cfg resolvedInstanceConfig,
 	request bridgepkg.DeliveryRequest,
-	marker deliveryMarker,
+	marker bridgesdk.DeliveryMarker,
 	ack bridgepkg.DeliveryAck,
 	state deliveryState,
 ) (bridgepkg.DeliveryAck, error) {
@@ -121,7 +112,7 @@ func (p *whatsappProvider) completeWhatsAppDelivery(
 	if dispatcher != nil && state.Progress == nil {
 		dispatcher.Close()
 	}
-	readyErr := p.reportReadyIfNeeded(ctx, session, cfg.instanceID)
+	readyErr := p.lifecycle.Host().ReportReadyIfNeeded(ctx, session, cfg.instanceID)
 	switch {
 	case readyErr != nil:
 		p.setInstanceError(cfg.instanceID, readyErr)
@@ -132,7 +123,7 @@ func (p *whatsappProvider) completeWhatsAppDelivery(
 	}
 
 	marker.Ack = &ack
-	p.reportSideEffectError("write delivery marker", appendJSONLine(p.env.deliveryPath, marker))
+	p.markers.RecordDelivery(marker)
 	return ack, nil
 }
 
@@ -140,14 +131,11 @@ func (p *whatsappProvider) failWhatsAppDelivery(
 	ctx context.Context,
 	session *bridgesdk.Session,
 	cfg resolvedInstanceConfig,
-	marker deliveryMarker,
+	marker bridgesdk.DeliveryMarker,
 	err error,
 ) (bridgepkg.DeliveryAck, error) {
 	marker.Error = err.Error()
-	p.reportSideEffectError(
-		"write failed delivery marker",
-		appendJSONLine(p.env.deliveryPath, marker),
-	)
+	p.markers.RecordDelivery(marker)
 	classified := bridgesdk.ClassifyError(err)
 	_, _, reportErr := session.ReportClassifiedError(ctx, cfg.instanceID, classified)
 	if reportErr != nil {
@@ -173,9 +161,8 @@ func isTerminalWhatsAppDeliveryEvent(event bridgepkg.DeliveryEvent) bool {
 }
 
 func (p *whatsappProvider) deliveryState(instanceID string, deliveryID string) deliveryState {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.deliveries[deliveryStateKey(instanceID, deliveryID)]
+	state, _ := p.deliveries.Load(deliveryStateKey(instanceID, deliveryID))
+	return state
 }
 
 func (p *whatsappProvider) storeDeliveryState(
@@ -183,9 +170,7 @@ func (p *whatsappProvider) storeDeliveryState(
 	deliveryID string,
 	state deliveryState,
 ) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.deliveries[deliveryStateKey(instanceID, deliveryID)] = state
+	p.deliveries.Store(deliveryStateKey(instanceID, deliveryID), state)
 }
 
 func executeWhatsAppDelivery(
@@ -318,7 +303,7 @@ func sendWhatsAppDeliveryChunks(
 	for index, chunk := range chunks {
 		req := whatsappSendMessageRequest{
 			MessagingProduct: providerWhatsappKey,
-			RecipientType:    "individual",
+			RecipientType:    whatsappRecipientTypeIndividual,
 			To:               targetUserID,
 			Type:             providerTextKey,
 		}

@@ -42,13 +42,12 @@ func TestGChatProgressRendering(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newGChatProvider() error = %v", err)
 		}
-		t.Cleanup(provider.stop)
+		t.Cleanup(provider.lifecycle.Stop)
 		managed := testBridgeRuntime(t, time.Unix(8_300, 0).UTC(), "brg-progress-off")
-		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+		setGChatProviderRoute(provider, managed.Instance.ID, &resolvedInstanceConfig{
 			managed:    managed,
 			instanceID: managed.Instance.ID,
-		}
-		provider.reportedStatus[managed.Instance.ID] = bridgepkg.BridgeStatusReady
+		})
 		apiCalls := 0
 		provider.apiFactory = func(*resolvedInstanceConfig) gchatAPI {
 			apiCalls++
@@ -99,9 +98,7 @@ func TestGChatProgressRendering(t *testing.T) {
 		); err != nil {
 			t.Fatalf("handleBridgesProgress(default-off lifecycle final) error = %v", err)
 		}
-		provider.mu.RLock()
-		_, deliveryExists := provider.deliveries[deliveryStateKey(managed.Instance.ID, request.Event.DeliveryID)]
-		provider.mu.RUnlock()
+		_, deliveryExists := provider.deliveries.Load(deliveryStateKey(managed.Instance.ID, request.Event.DeliveryID))
 		if deliveryExists {
 			t.Fatal("default-off lifecycle-only delivery state still exists, want terminal removal")
 		}
@@ -114,15 +111,15 @@ func TestGChatProgressRendering(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newGChatProvider() error = %v", err)
 		}
-		t.Cleanup(provider.stop)
+		t.Cleanup(provider.lifecycle.Stop)
 		managed := testBridgeRuntime(t, time.Unix(8_325, 0).UTC(), "brg-progress-failure")
 		managed.Instance.DeliveryDefaults = json.RawMessage(
 			`{"progress":{"tool_progress":"all","grouping":"separate","typing":false,"reactions":false}}`,
 		)
-		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+		setGChatProviderRoute(provider, managed.Instance.ID, &resolvedInstanceConfig{
 			managed:    managed,
 			instanceID: managed.Instance.ID,
-		}
+		})
 		provider.apiFactory = func(*resolvedInstanceConfig) gchatAPI {
 			return authFailingGChatAPI{}
 		}
@@ -157,15 +154,15 @@ func TestGChatProgressRendering(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newGChatProvider() error = %v", err)
 		}
-		t.Cleanup(provider.stop)
+		t.Cleanup(provider.lifecycle.Stop)
 		managed := testBridgeRuntime(t, time.Unix(8_350, 0).UTC(), "brg-progress-disabled")
 		managed.Instance.DeliveryDefaults = json.RawMessage(
 			`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":false,"reactions":false}}`,
 		)
-		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+		setGChatProviderRoute(provider, managed.Instance.ID, &resolvedInstanceConfig{
 			managed:    managed,
 			instanceID: managed.Instance.ID,
-		}
+		})
 		api := &fakeGChatAPI{}
 		provider.apiFactory = func(*resolvedInstanceConfig) gchatAPI { return api }
 
@@ -198,14 +195,13 @@ func TestGChatProgressRendering(t *testing.T) {
 			t.Fatal("progress dispatcher before disabling = nil, want active dispatcher")
 		}
 
-		provider.mu.Lock()
-		cfg := provider.routes[managed.Instance.ID]
-		cfg.managed.Instance.DeliveryDefaults = json.RawMessage(
-			`{"progress":{"tool_progress":"off","grouping":"accumulate","typing":false,"reactions":false}}`,
-		)
-		cfg.configError = errors.New("gchat: provider config became invalid")
-		provider.routes[managed.Instance.ID] = cfg
-		provider.mu.Unlock()
+		provider.routes.Update(managed.Instance.ID, func(cfg resolvedInstanceConfig) resolvedInstanceConfig {
+			cfg.managed.Instance.DeliveryDefaults = json.RawMessage(
+				`{"progress":{"tool_progress":"off","grouping":"accumulate","typing":false,"reactions":false}}`,
+			)
+			cfg.configError = errors.New("gchat: provider config became invalid")
+			return cfg
+		})
 		disabled := second
 		disabled.Event.Seq = 3
 		disabled.Event.Progress.ToolCallID = "call-3"
@@ -236,16 +232,15 @@ func TestGChatProgressRendering(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newGChatProvider() error = %v", err)
 		}
-		t.Cleanup(provider.stop)
+		t.Cleanup(provider.lifecycle.Stop)
 		managed := testBridgeRuntime(t, time.Unix(8_400, 0).UTC(), "brg-progress-on")
 		managed.Instance.DeliveryDefaults = json.RawMessage(
 			`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":false,"reactions":false}}`,
 		)
-		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+		setGChatProviderRoute(provider, managed.Instance.ID, &resolvedInstanceConfig{
 			managed:    managed,
 			instanceID: managed.Instance.ID,
-		}
-		provider.reportedStatus[managed.Instance.ID] = bridgepkg.BridgeStatusReady
+		})
 		api := &fakeGChatAPI{}
 		provider.apiFactory = func(*resolvedInstanceConfig) gchatAPI { return api }
 
@@ -288,9 +283,7 @@ func TestGChatProgressRendering(t *testing.T) {
 		); err != nil {
 			t.Fatalf("handleBridgesDeliver(final) error = %v", err)
 		}
-		provider.mu.RLock()
-		_, deliveryExists := provider.deliveries[deliveryStateKey(managed.Instance.ID, first.Event.DeliveryID)]
-		provider.mu.RUnlock()
+		_, deliveryExists := provider.deliveries.Load(deliveryStateKey(managed.Instance.ID, first.Event.DeliveryID))
 		if deliveryExists {
 			t.Fatal("terminal delivery state still exists, want terminal removal")
 		}
@@ -332,15 +325,15 @@ func TestGChatProgressRendering(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newGChatProvider() error = %v", err)
 		}
-		t.Cleanup(provider.stop)
+		t.Cleanup(provider.lifecycle.Stop)
 		managed := testBridgeRuntime(t, time.Unix(8_450, 0).UTC(), "brg-progress-lifecycle")
 		managed.Instance.DeliveryDefaults = json.RawMessage(
 			`{"progress":{"tool_progress":"all","grouping":"separate","typing":true,"reactions":true}}`,
 		)
-		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+		setGChatProviderRoute(provider, managed.Instance.ID, &resolvedInstanceConfig{
 			managed:    managed,
 			instanceID: managed.Instance.ID,
-		}
+		})
 		api := &fakeGChatAPI{}
 		provider.apiFactory = func(*resolvedInstanceConfig) gchatAPI { return api }
 
@@ -385,19 +378,15 @@ func TestGChatProgressRendering(t *testing.T) {
 		if len(updates) != 0 {
 			t.Fatalf("Google Chat progress patch calls = %d, want zero", len(updates))
 		}
-		provider.mu.RLock()
-		_, deliveryExists := provider.deliveries[deliveryStateKey(managed.Instance.ID, request.Event.DeliveryID)]
-		provider.mu.RUnlock()
+		_, deliveryExists := provider.deliveries.Load(deliveryStateKey(managed.Instance.ID, request.Event.DeliveryID))
 		if deliveryExists {
 			t.Fatal("lifecycle-only delivery state still exists, want terminal removal")
 		}
 
 		staleDeliveryID := "delivery-progress-lifecycle-stale"
-		provider.mu.Lock()
-		provider.deliveries[deliveryStateKey(managed.Instance.ID, staleDeliveryID)] = deliveryState{
+		provider.deliveries.Store(deliveryStateKey(managed.Instance.ID, staleDeliveryID), deliveryState{
 			RemoteMessageID: "spaces/AAA/messages/stale",
-		}
-		provider.mu.Unlock()
+		})
 		staleFinal := final
 		staleFinal.Event.DeliveryID = staleDeliveryID
 		staleFinal.Event.Seq = 3
@@ -408,9 +397,7 @@ func TestGChatProgressRendering(t *testing.T) {
 		); err != nil {
 			t.Fatalf("handleBridgesProgress(stale lifecycle final) error = %v", err)
 		}
-		provider.mu.RLock()
-		_, staleExists := provider.deliveries[deliveryStateKey(managed.Instance.ID, staleDeliveryID)]
-		provider.mu.RUnlock()
+		_, staleExists := provider.deliveries.Load(deliveryStateKey(managed.Instance.ID, staleDeliveryID))
 		if staleExists {
 			t.Fatal("dispatcher-free lifecycle-only state still exists, want terminal removal")
 		}
@@ -1250,9 +1237,7 @@ func TestHandleBridgesDeliverKeepsLastErrorWhenReadyReportFails(t *testing.T) {
 		t.Fatal("runtime.currentSession() = nil, want non-nil")
 	}
 
-	runtime.mu.Lock()
-	delete(runtime.reportedStatus, managed.Instance.ID)
-	runtime.mu.Unlock()
+	runtime.lifecycle.Host().ForgetStatus(managed.Instance.ID)
 
 	ack, err := runtime.handleBridgesDeliver(
 		context.Background(),
@@ -1366,19 +1351,15 @@ func TestRuntimeInitializeWebhookAndDeliveryFlow(t *testing.T) {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
 
-	handshake := waitForJSONFile[initializeMarker](t, env.handshakePath)
+	handshake := waitForJSONFile[bridgesdk.InitializeMarker](t, env.HandshakePath)
 	if got, want := handshake.Request.Runtime.Bridge.Provider, "gchat"; got != want {
 		t.Fatalf("handshake provider = %q, want %q", got, want)
 	}
 	waitForCondition(t, func() bool {
-		runtime.mu.RLock()
-		defer runtime.mu.RUnlock()
-		return strings.TrimSpace(runtime.serverAddr) != ""
+		return strings.TrimSpace(runtime.http.Address()) != ""
 	})
 
-	runtime.mu.RLock()
-	serverAddr := runtime.serverAddr
-	runtime.mu.RUnlock()
+	serverAddr := runtime.http.Address()
 	webhookURL := "http://" + serverAddr + "/gchat/brg-gchat"
 
 	directReq, err := http.NewRequestWithContext(
@@ -1429,9 +1410,11 @@ func TestRuntimeInitializeWebhookAndDeliveryFlow(t *testing.T) {
 		t.Fatalf("pubsub webhook status = %d, want %d", got, want)
 	}
 
-	ingests := waitForJSONLinesFile[ingestMarker](t, env.ingestPath, func(items []ingestMarker) bool {
-		return len(items) >= 2
-	})
+	ingests := waitForJSONLinesFile[bridgesdk.IngestMarker](
+		t,
+		env.IngestPath,
+		func(items []bridgesdk.IngestMarker) bool { return len(items) >= 2 },
+	)
 	if got, want := ingests[0].Envelope.EventFamily, bridgepkg.InboundEventFamilyMessage; got != want {
 		t.Fatalf("ingests[0].Envelope.EventFamily = %q, want %q", got, want)
 	}
@@ -1456,10 +1439,10 @@ func TestRuntimeInitializeWebhookAndDeliveryFlow(t *testing.T) {
 	); err != nil {
 		t.Fatalf("hostPeer.Call(final delivery) error = %v", err)
 	}
-	records := waitForJSONLinesFile[deliveryMarker](
+	records := waitForJSONLinesFile[bridgesdk.DeliveryMarker](
 		t,
-		env.deliveryPath,
-		func(items []deliveryMarker) bool { return len(items) >= 2 },
+		env.DeliveryPath,
+		func(items []bridgesdk.DeliveryMarker) bool { return len(items) >= 2 },
 	)
 	if records[0].Ack == nil || records[1].Ack == nil {
 		t.Fatalf("delivery markers = %#v, want recorded acks", records)
@@ -1602,29 +1585,32 @@ func TestRuntimePubSubMessageAndDirectDeliveryPaths(t *testing.T) {
 		t.Fatalf("deleteAck.RemoteMessageID = %q, want %q", got, want)
 	}
 
-	deliveries := waitForJSONLinesFile[deliveryMarker](t, env.deliveryPath, func(items []deliveryMarker) bool {
-		return len(items) >= 3
-	})
+	deliveries := waitForJSONLinesFile[bridgesdk.DeliveryMarker](
+		t,
+		env.DeliveryPath,
+		func(items []bridgesdk.DeliveryMarker) bool { return len(items) >= 3 },
+	)
 	if deliveries[0].Error == "" || deliveries[1].Ack == nil || deliveries[2].Ack == nil {
 		t.Fatalf("delivery markers = %#v, want error, start ack, delete ack", deliveries)
 	}
 
-	ingests := waitForJSONLinesFile[ingestMarker](t, env.ingestPath, func(items []ingestMarker) bool {
-		return len(items) >= 1
-	})
+	ingests := waitForJSONLinesFile[bridgesdk.IngestMarker](
+		t,
+		env.IngestPath,
+		func(items []bridgesdk.IngestMarker) bool { return len(items) >= 1 },
+	)
 	if got, want := ingests[len(ingests)-1].Envelope.EventFamily, bridgepkg.InboundEventFamilyMessage; got != want {
 		t.Fatalf("last ingest event family = %q, want %q", got, want)
 	}
 }
 
-func TestGChatLifecycleAndRetryHelpers(t *testing.T) {
+func TestGChatHealthAndRouteWaitHelpers(t *testing.T) {
 	t.Parallel()
 
 	provider, err := newGChatProvider(io.Discard)
 	if err != nil {
 		t.Fatalf("newGChatProvider() error = %v", err)
 	}
-
 	provider.setLastError(errors.New("boom"))
 	if err := provider.healthCheck(); err == nil || !strings.Contains(err.Error(), "boom") {
 		t.Fatalf("healthCheck() error = %v, want boom", err)
@@ -1634,21 +1620,6 @@ func TestGChatLifecycleAndRetryHelpers(t *testing.T) {
 		t.Fatalf("healthCheck() after clear error = %v", err)
 	}
 
-	attempts := 0
-	err = provider.retryHostCall(context.Background(), func(context.Context) error {
-		attempts++
-		if attempts < 3 {
-			return &subprocess.RPCError{Code: rpcCodeNotInitialized, Message: "Not initialized"}
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("retryHostCall() error = %v", err)
-	}
-	if got, want := attempts, 3; got != want {
-		t.Fatalf("retryHostCall attempts = %d, want %d", got, want)
-	}
-
 	waitDone := make(chan resolvedInstanceConfig, 1)
 	go func() {
 		cfg, waitErr := provider.waitForInstanceConfig("brg-gchat", 200*time.Millisecond)
@@ -1656,35 +1627,14 @@ func TestGChatLifecycleAndRetryHelpers(t *testing.T) {
 			waitDone <- cfg
 		}
 	}()
-	time.Sleep(20 * time.Millisecond)
-	provider.mu.Lock()
-	provider.routes["brg-gchat"] = resolvedInstanceConfig{instanceID: "brg-gchat"}
-	provider.mu.Unlock()
-
+	setGChatProviderRoute(provider, "brg-gchat", &resolvedInstanceConfig{instanceID: "brg-gchat"})
 	select {
 	case cfg := <-waitDone:
 		if got, want := cfg.instanceID, "brg-gchat"; got != want {
 			t.Fatalf("waitForInstanceConfig instanceID = %q, want %q", got, want)
 		}
-	case <-time.After(time.Second):
-		t.Fatal("waitForInstanceConfig() timed out")
-	}
-
-	shutdownPath := filepath.Join(t.TempDir(), "shutdown.log")
-	provider.env.shutdownPath = shutdownPath
-	if err := provider.handleShutdown(
-		context.Background(),
-		nil,
-		subprocess.ShutdownRequest{DeadlineMS: 50},
-	); err != nil {
-		t.Fatalf("handleShutdown() error = %v", err)
-	}
-	payload, err := os.ReadFile(shutdownPath)
-	if err != nil {
-		t.Fatalf("os.ReadFile(shutdownPath) error = %v", err)
-	}
-	if !strings.Contains(string(payload), "pid=") {
-		t.Fatalf("shutdown marker = %q, want pid entry", string(payload))
+	case <-t.Context().Done():
+		t.Fatal("waitForInstanceConfig() did not wake")
 	}
 }
 
@@ -1796,23 +1746,8 @@ func TestResolveInstanceConfigAndInitialState(t *testing.T) {
 		t.Fatalf("cfg.pubsubCertsURL = %q, want %q", got, want)
 	}
 	waitForCondition(t, func() bool {
-		runtime.mu.RLock()
-		defer runtime.mu.RUnlock()
-		return runtime.server != nil
+		return runtime.http.Address() != ""
 	})
-	runtime.mu.RLock()
-	httpServer := runtime.server
-	runtime.mu.RUnlock()
-	if httpServer == nil {
-		t.Fatal("runtime.server = nil, want initialized webhook server")
-		return
-	}
-	if got, want := httpServer.ReadHeaderTimeout, gchatWebhookReadHeaderTimeout; got != want {
-		t.Fatalf("ReadHeaderTimeout = %s, want %s", got, want)
-	}
-	if got, want := httpServer.IdleTimeout, gchatWebhookIdleTimeout; got != want {
-		t.Fatalf("IdleTimeout = %s, want %s", got, want)
-	}
 	if got, want := cfg.webhookPath, "/custom/gchat"; got != want {
 		t.Fatalf("cfg.webhookPath = %q, want %q", got, want)
 	}
@@ -2100,12 +2035,6 @@ func testGChatTransportAndClassificationHelpers(t *testing.T) {
 	}
 	if !issuerMatches("https://accounts.google.com", "accounts.google.com", "https://accounts.google.com") {
 		t.Fatal("issuerMatches() = false, want true")
-	}
-	if got := cloneDegradation(
-		&bridgepkg.BridgeDegradation{Reason: bridgepkg.BridgeDegradationReasonRateLimited, Message: "slow"},
-	); got == nil ||
-		got.Reason != bridgepkg.BridgeDegradationReasonRateLimited {
-		t.Fatalf("cloneDegradation() = %#v, want cloned value", got)
 	}
 }
 
@@ -2595,17 +2524,6 @@ func TestRunRejectsUnsupportedCommands(t *testing.T) {
 func TestGChatSmallHelperBranches(t *testing.T) {
 	t.Parallel()
 
-	crashPath := filepath.Join(t.TempDir(), "crash-once.json")
-	if !shouldCrashOnce(crashPath) {
-		t.Fatal("shouldCrashOnce(first) = false, want true")
-	}
-	if err := os.WriteFile(crashPath, []byte(`{"crashed":true}`), 0o600); err != nil {
-		t.Fatalf("os.WriteFile(crashPath) error = %v", err)
-	}
-	if shouldCrashOnce(crashPath) {
-		t.Fatal("shouldCrashOnce(second) = true, want false")
-	}
-
 	if _, err := parseRSAPrivateKey("not-a-key"); err == nil {
 		t.Fatal("parseRSAPrivateKey(invalid) error = nil, want non-nil")
 	}
@@ -2630,13 +2548,12 @@ func TestGChatSmallHelperBranches(t *testing.T) {
 }
 
 func TestHandleBridgesDeliverRejectsUnknownInstance(t *testing.T) {
-	t.Parallel()
-
+	deliveryPath := filepath.Join(t.TempDir(), "delivery.jsonl")
+	t.Setenv(bridgesdk.AdapterDeliveryPathEnv, deliveryPath)
 	provider, err := newGChatProvider(io.Discard)
 	if err != nil {
 		t.Fatalf("newGChatProvider() error = %v", err)
 	}
-	provider.env.deliveryPath = filepath.Join(t.TempDir(), "delivery.jsonl")
 
 	_, err = provider.handleBridgesDeliver(
 		context.Background(),
@@ -2646,7 +2563,7 @@ func TestHandleBridgesDeliverRejectsUnknownInstance(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "unmanaged instance") {
 		t.Fatalf("handleBridgesDeliver() error = %v, want unmanaged instance error", err)
 	}
-	payload, readErr := os.ReadFile(provider.env.deliveryPath)
+	payload, readErr := os.ReadFile(deliveryPath)
 	if readErr != nil {
 		t.Fatalf("os.ReadFile(delivery marker) error = %v", readErr)
 	}
@@ -2656,19 +2573,18 @@ func TestHandleBridgesDeliverRejectsUnknownInstance(t *testing.T) {
 }
 
 func TestHandleBridgesDeliverRejectsConfigError(t *testing.T) {
-	t.Parallel()
-
+	deliveryPath := filepath.Join(t.TempDir(), "delivery.jsonl")
+	t.Setenv(bridgesdk.AdapterDeliveryPathEnv, deliveryPath)
 	provider, err := newGChatProvider(io.Discard)
 	if err != nil {
 		t.Fatalf("newGChatProvider() error = %v", err)
 	}
-	provider.env.deliveryPath = filepath.Join(t.TempDir(), "delivery.jsonl")
-	provider.routes["brg-gchat"] = resolvedInstanceConfig{
+	setGChatProviderRoute(provider, "brg-gchat", &resolvedInstanceConfig{
 		instanceID: "brg-gchat",
 		configError: errors.New(
 			"gchat: provider_config.verification.direct_certs_url host \"example.test\" is not allowed",
 		),
-	}
+	})
 
 	_, err = provider.handleBridgesDeliver(
 		context.Background(),
@@ -2678,7 +2594,7 @@ func TestHandleBridgesDeliverRejectsConfigError(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "is not allowed") {
 		t.Fatalf("handleBridgesDeliver() error = %v, want configError", err)
 	}
-	payload, readErr := os.ReadFile(provider.env.deliveryPath)
+	payload, readErr := os.ReadFile(deliveryPath)
 	if readErr != nil {
 		t.Fatalf("os.ReadFile(delivery marker) error = %v", readErr)
 	}
@@ -2746,7 +2662,7 @@ func TestReconcileInstanceConfigsDetectsSharedWebhookPaths(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newGChatProvider() error = %v", err)
 	}
-	defer provider.stop()
+	defer provider.lifecycle.Stop()
 	provider.apiFactory = func(*resolvedInstanceConfig) gchatAPI { return &fakeGChatAPI{} }
 
 	first := testBridgeRuntime(t, now, "brg-one")
@@ -2772,10 +2688,10 @@ func TestReconcileInstanceConfigsDetectsSharedWebhookPaths(t *testing.T) {
 		},
 	})
 
-	configs, _ := provider.collectGChatConfigs(
-		session,
-		[]subprocess.InitializeBridgeManagedInstance{first, second},
-	)
+	configs, _ := prepareGChatConfigConstraints([]resolvedInstanceConfig{
+		provider.resolveInstanceConfig(session, first),
+		provider.resolveInstanceConfig(session, second),
+	})
 	if got, want := len(configs), 2; got != want {
 		t.Fatalf("len(configs) = %d, want %d", got, want)
 	}
@@ -2785,9 +2701,10 @@ func TestReconcileInstanceConfigsDetectsSharedWebhookPaths(t *testing.T) {
 	if configs[1].configError == nil || !strings.Contains(configs[1].configError.Error(), "shared") {
 		t.Fatalf("configs[1].configError = %v, want shared webhook path error", configs[1].configError)
 	}
-	provider.mu.Lock()
-	provider.routes = buildGChatRouteMap(configs)
-	provider.mu.Unlock()
+	provider.routes.Replace(map[string]resolvedInstanceConfig{
+		configs[0].instanceID: configs[0],
+		configs[1].instanceID: configs[1],
+	}, nil)
 	if _, ok := provider.configForPath("/shared"); ok {
 		t.Fatal("configForPath(/shared) = ok, want conflicted path rejected")
 	}
@@ -2832,10 +2749,10 @@ func TestReconcileInstanceConfigsDetectsSharedWebhookPaths(t *testing.T) {
 			"pubsub_service_account_email": "push@example.iam.gserviceaccount.com",
 		},
 	})
-	configs, requestedListen := provider.collectGChatConfigs(
-		session,
-		[]subprocess.InitializeBridgeManagedInstance{firstWithListen, third},
-	)
+	configs, requestedListen := prepareGChatConfigConstraints([]resolvedInstanceConfig{
+		provider.resolveInstanceConfig(session, firstWithListen),
+		provider.resolveInstanceConfig(session, third),
+	})
 	if got, want := requestedListen, "127.0.0.1:21231"; got != want {
 		t.Fatalf("requestedListen = %q, want %q", got, want)
 	}
@@ -3194,15 +3111,12 @@ func newRuntimePeerPair(t *testing.T) (*gchatProvider, *bridgesdk.Peer, func()) 
 	cleanup := func() {
 		once.Do(func() {
 			cancel()
-			runtime.stop()
-			runtime.mu.RLock()
-			server := runtime.server
-			runtime.mu.RUnlock()
-			if server != nil {
-				shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
-				_ = server.Shutdown(shutdownCtx)
-				shutdownCancel()
+			runtime.lifecycle.Stop()
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
+			if err := runtime.http.Shutdown(shutdownCtx); err != nil {
+				t.Fatalf("provider HTTP shutdown error = %v", err)
 			}
+			shutdownCancel()
 			_ = hostConn.Close()
 			_ = runtimeConn.Close()
 			for range 2 {
@@ -3215,7 +3129,9 @@ func newRuntimePeerPair(t *testing.T) (*gchatProvider, *bridgesdk.Peer, func()) 
 				}
 				t.Fatalf("runtime peer serve error = %v", err)
 			}
-			runtime.wg.Wait()
+			if err := runtime.lifecycle.Wait(context.Background()); err != nil {
+				t.Fatalf("provider lifecycle wait error = %v", err)
+			}
 		})
 	}
 
@@ -3227,6 +3143,14 @@ func mustHandle(t *testing.T, peer *bridgesdk.Peer, method string, handler bridg
 	if err := peer.Handle(method, handler); err != nil {
 		t.Fatalf("peer.Handle(%q) error = %v", method, err)
 	}
+}
+
+func setGChatProviderRoute(
+	provider *gchatProvider,
+	instanceID string,
+	config *resolvedInstanceConfig,
+) {
+	provider.routes.Replace(map[string]resolvedInstanceConfig{instanceID: *config}, nil)
 }
 
 func testBridgeRuntime(t *testing.T, now time.Time, instanceID string) subprocess.InitializeBridgeManagedInstance {
@@ -3495,29 +3419,29 @@ func mustJSON(t *testing.T, value any) []byte {
 	return raw
 }
 
-func setProviderTestEnv(t *testing.T) markerEnv {
+func setProviderTestEnv(t *testing.T) bridgesdk.AdapterMarkerPaths {
 	t.Helper()
 
 	root := filepath.Join(t.TempDir(), "markers")
-	env := markerEnv{
-		handshakePath: filepath.Join(root, "handshake.json"),
-		ownershipPath: filepath.Join(root, "ownership.json"),
-		statePath:     filepath.Join(root, "state.jsonl"),
-		deliveryPath:  filepath.Join(root, "delivery.jsonl"),
-		ingestPath:    filepath.Join(root, "ingest.jsonl"),
-		startsPath:    filepath.Join(root, "starts.log"),
-		shutdownPath:  filepath.Join(root, "shutdown.log"),
-		crashOncePath: filepath.Join(root, "crash-once.json"),
+	env := bridgesdk.AdapterMarkerPaths{
+		HandshakePath: filepath.Join(root, "handshake.json"),
+		OwnershipPath: filepath.Join(root, "ownership.json"),
+		StatePath:     filepath.Join(root, "state.jsonl"),
+		DeliveryPath:  filepath.Join(root, "delivery.jsonl"),
+		IngestPath:    filepath.Join(root, "ingest.jsonl"),
+		StartsPath:    filepath.Join(root, "starts.log"),
+		ShutdownPath:  filepath.Join(root, "shutdown.log"),
+		CrashOncePath: filepath.Join(root, "crash-once.json"),
 	}
 
-	t.Setenv(adapterHandshakeEnv, env.handshakePath)
-	t.Setenv(adapterOwnershipEnv, env.ownershipPath)
-	t.Setenv(adapterStateEnv, env.statePath)
-	t.Setenv(adapterDeliveryEnv, env.deliveryPath)
-	t.Setenv(adapterIngestEnv, env.ingestPath)
-	t.Setenv(adapterStartsEnv, env.startsPath)
-	t.Setenv(adapterShutdownEnv, env.shutdownPath)
-	t.Setenv(adapterCrashOnceEnv, "")
+	t.Setenv(bridgesdk.AdapterHandshakePathEnv, env.HandshakePath)
+	t.Setenv(bridgesdk.AdapterOwnershipPathEnv, env.OwnershipPath)
+	t.Setenv(bridgesdk.AdapterStatePathEnv, env.StatePath)
+	t.Setenv(bridgesdk.AdapterDeliveryPathEnv, env.DeliveryPath)
+	t.Setenv(bridgesdk.AdapterIngestPathEnv, env.IngestPath)
+	t.Setenv(bridgesdk.AdapterStartsPathEnv, env.StartsPath)
+	t.Setenv(bridgesdk.AdapterShutdownPathEnv, env.ShutdownPath)
+	t.Setenv(bridgesdk.AdapterCrashOncePathEnv, "")
 
 	return env
 }

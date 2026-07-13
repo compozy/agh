@@ -31,7 +31,7 @@ func (p *gchatProvider) handleBridgesDeliver(
 	session *bridgesdk.Session,
 	request bridgepkg.DeliveryRequest,
 ) (bridgepkg.DeliveryAck, error) {
-	marker := deliveryMarker{
+	marker := bridgesdk.DeliveryMarker{
 		PID:     os.Getpid(),
 		Request: request,
 	}
@@ -39,26 +39,26 @@ func (p *gchatProvider) handleBridgesDeliver(
 	cfg, err := p.waitForInstanceConfig(strings.TrimSpace(request.Event.BridgeInstanceID), 500*time.Millisecond)
 	if err != nil {
 		marker.Error = err.Error()
-		p.reportSideEffectError("write failed delivery marker", appendJSONLine(p.env.deliveryPath, marker))
+		p.markers.RecordDelivery(marker)
 		p.setLastError(err)
 		return bridgepkg.DeliveryAck{}, err
 	}
 	if cfg.configError != nil {
 		err = cfg.configError
 		marker.Error = err.Error()
-		p.reportSideEffectError("write failed delivery marker", appendJSONLine(p.env.deliveryPath, marker))
+		p.markers.RecordDelivery(marker)
 		p.setLastError(err)
 		return bridgepkg.DeliveryAck{}, err
 	}
 
-	if shouldCrashOnce(p.env.crashOncePath) {
-		p.reportSideEffectError("write pre-crash delivery marker", appendJSONLine(p.env.deliveryPath, marker))
-		p.reportSideEffectError("write crash marker", writeJSONFile(p.env.crashOncePath, map[string]any{
+	if p.markers.ShouldCrashOnce() {
+		p.markers.RecordDelivery(marker)
+		p.markers.RecordCrash(map[string]any{
 			"crashed":            true,
 			"pid":                os.Getpid(),
 			"delivery_id":        strings.TrimSpace(request.Event.DeliveryID),
 			"bridge_instance_id": cfg.instanceID,
-		}))
+		})
 		os.Exit(23)
 	}
 
@@ -91,7 +91,7 @@ func (p *gchatProvider) handleBridgesDeliver(
 	if dispatcher != nil && state.Progress == nil {
 		dispatcher.Close()
 	}
-	readyErr := p.reportReadyIfNeeded(ctx, session, cfg.instanceID)
+	readyErr := p.lifecycle.Host().ReportReadyIfNeeded(ctx, session, cfg.instanceID)
 	switch {
 	case readyErr != nil:
 		p.setLastError(readyErr)
@@ -102,7 +102,7 @@ func (p *gchatProvider) handleBridgesDeliver(
 	}
 
 	marker.Ack = &ack
-	p.reportSideEffectError("write delivery marker", appendJSONLine(p.env.deliveryPath, marker))
+	p.markers.RecordDelivery(marker)
 	return ack, nil
 }
 
@@ -110,11 +110,11 @@ func (p *gchatProvider) failGChatDelivery(
 	ctx context.Context,
 	session *bridgesdk.Session,
 	cfg *resolvedInstanceConfig,
-	marker deliveryMarker,
+	marker bridgesdk.DeliveryMarker,
 	err error,
 ) (bridgepkg.DeliveryAck, error) {
 	marker.Error = err.Error()
-	p.reportSideEffectError("write failed delivery marker", appendJSONLine(p.env.deliveryPath, marker))
+	p.markers.RecordDelivery(marker)
 	classified := bridgesdk.ClassifyError(err)
 	_, _, reportErr := session.ReportClassifiedError(ctx, cfg.instanceID, classified)
 	if reportErr != nil {
@@ -126,9 +126,8 @@ func (p *gchatProvider) failGChatDelivery(
 }
 
 func (p *gchatProvider) deliveryState(instanceID string, deliveryID string) deliveryState {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.deliveries[deliveryStateKey(instanceID, deliveryID)]
+	state, _ := p.deliveries.Load(deliveryStateKey(instanceID, deliveryID))
+	return state
 }
 
 func (p *gchatProvider) storeDeliveryState(
@@ -137,14 +136,12 @@ func (p *gchatProvider) storeDeliveryState(
 	event bridgepkg.DeliveryEvent,
 	state deliveryState,
 ) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	key := deliveryStateKey(instanceID, deliveryID)
 	if isTerminalGChatDeliveryEvent(event) {
-		delete(p.deliveries, key)
+		p.deliveries.Delete(key)
 		return
 	}
-	p.deliveries[key] = state
+	p.deliveries.Store(key, state)
 }
 
 func isTerminalGChatDeliveryEvent(event bridgepkg.DeliveryEvent) bool {

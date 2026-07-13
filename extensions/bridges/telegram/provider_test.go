@@ -147,7 +147,6 @@ func TestMapTelegramEditsAndReplyContext(t *testing.T) {
 			},
 		}
 		for _, testCase := range testCases {
-			testCase := testCase
 			t.Run(testCase.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -514,7 +513,6 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 			},
 		}
 		for _, testCase := range cases {
-			testCase := testCase
 			t.Run(testCase.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -585,7 +583,6 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 			},
 		}
 		for _, testCase := range cases {
-			testCase := testCase
 			t.Run(testCase.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -783,13 +780,11 @@ func TestTelegramProgressDelivery(t *testing.T) {
 			t.Fatalf("handleBridgesProgress(started) error = %v", err)
 		}
 		callsBeforeOff := len(api.methods)
-		provider.mu.Lock()
-		cfg := provider.routes["brg-progress"]
+		cfg, _ := provider.routes.Get("brg-progress")
 		cfg.managed.Instance.DeliveryDefaults = json.RawMessage(
 			`{"progress":{"tool_progress":"off","grouping":"accumulate","typing":false,"reactions":false}}`,
 		)
-		provider.routes["brg-progress"] = cfg
-		provider.mu.Unlock()
+		provider.routes.Update("brg-progress", func(resolvedInstanceConfig) resolvedInstanceConfig { return cfg })
 
 		off := testProgressRequest(
 			"brg-progress",
@@ -815,11 +810,11 @@ func TestTelegramProgressDelivery(t *testing.T) {
 		now := time.Date(2026, 7, 12, 10, 10, 0, 0, time.UTC)
 		api := &fakeTelegramAPI{nextMessageID: 910}
 		provider := newTelegramProgressTestProvider(t, func() time.Time { return now }, api)
-		cfg := provider.routes["brg-progress"]
+		cfg, _ := provider.routes.Get("brg-progress")
 		cfg.managed.Instance.DeliveryDefaults = json.RawMessage(
 			`{"progress":{"tool_progress":"off","grouping":"accumulate","typing":false,"reactions":false}}`,
 		)
-		provider.routes["brg-progress"] = cfg
+		provider.routes.Update("brg-progress", func(resolvedInstanceConfig) resolvedInstanceConfig { return cfg })
 		factoryCalls := 0
 		provider.apiFactory = func(*resolvedInstanceConfig) telegramAPI {
 			factoryCalls++
@@ -1262,26 +1257,24 @@ func TestRuntimeInitializeStartsWebhookServerAndWritesMarkers(t *testing.T) {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
 
-	handshake := waitForJSONFile[initializeMarker](t, env.handshakePath)
+	handshake := waitForJSONFile[bridgesdk.InitializeMarker](t, env.HandshakePath)
 	if got, want := handshake.Request.Runtime.Bridge.Provider, "telegram"; got != want {
 		t.Fatalf("handshake provider = %q, want %q", got, want)
 	}
-	ownership := waitForJSONFile[ownershipMarker](t, env.ownershipPath)
+	ownership := waitForJSONFile[bridgesdk.OwnershipMarker](t, env.OwnershipPath)
 	if got, want := len(ownership.Fetched), 2; got != want {
 		t.Fatalf("len(ownership.Fetched) = %d, want %d", got, want)
 	}
-	states := waitForJSONLinesFile[stateMarker](
+	states := waitForJSONLinesFile[bridgesdk.StateMarker](
 		t,
-		env.statePath,
-		func(items []stateMarker) bool { return len(items) >= 2 },
+		env.StatePath,
+		func(items []bridgesdk.StateMarker) bool { return len(items) >= 2 },
 	)
 	if got, want := states[0].Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
 		t.Fatalf("states[0].Status = %q, want %q", got, want)
 	}
 	waitForCondition(t, func() bool {
-		runtime.mu.RLock()
-		defer runtime.mu.RUnlock()
-		return strings.TrimSpace(runtime.serverAddr) != ""
+		return strings.TrimSpace(runtime.http.Address()) != ""
 	})
 }
 
@@ -1366,14 +1359,10 @@ func TestWebhookIngressRejectsInvalidSecretAndIngestsMessage(t *testing.T) {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
 	waitForCondition(t, func() bool {
-		runtime.mu.RLock()
-		defer runtime.mu.RUnlock()
-		return strings.TrimSpace(runtime.serverAddr) != ""
+		return strings.TrimSpace(runtime.http.Address()) != ""
 	})
 
-	runtime.mu.RLock()
-	serverAddr := runtime.serverAddr
-	runtime.mu.RUnlock()
+	serverAddr := runtime.http.Address()
 	webhookURL := "http://" + serverAddr + "/telegram/brg-1"
 
 	invalidReq, err := http.NewRequestWithContext(
@@ -1424,10 +1413,10 @@ func TestWebhookIngressRejectsInvalidSecretAndIngestsMessage(t *testing.T) {
 		t.Fatalf("valid webhook status = %d, want %d", got, want)
 	}
 
-	ingests := waitForJSONLinesFile[ingestMarker](
+	ingests := waitForJSONLinesFile[bridgesdk.IngestMarker](
 		t,
-		env.ingestPath,
-		func(items []ingestMarker) bool {
+		env.IngestPath,
+		func(items []bridgesdk.IngestMarker) bool {
 			return len(items) == 1 && strings.TrimSpace(items[0].Result.SessionID) != ""
 		},
 	)
@@ -1492,10 +1481,10 @@ func TestRuntimeDeliveriesCallTelegramBotAPI(t *testing.T) {
 	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, managed), nil); err != nil {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
-	states := waitForJSONLinesFile[stateMarker](
+	states := waitForJSONLinesFile[bridgesdk.StateMarker](
 		t,
-		env.statePath,
-		func(items []stateMarker) bool { return len(items) >= 1 },
+		env.StatePath,
+		func(items []bridgesdk.StateMarker) bool { return len(items) >= 1 },
 	)
 	if got, want := states[len(states)-1].Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
 		t.Fatalf("states[last].Status = %q, want %q", got, want)
@@ -1529,10 +1518,10 @@ func TestRuntimeDeliveriesCallTelegramBotAPI(t *testing.T) {
 		t.Fatalf("hostPeer.Call(final delivery) error = %v", err)
 	}
 
-	records := waitForJSONLinesFile[deliveryMarker](
+	records := waitForJSONLinesFile[bridgesdk.DeliveryMarker](
 		t,
-		env.deliveryPath,
-		func(items []deliveryMarker) bool { return len(items) >= 2 },
+		env.DeliveryPath,
+		func(items []bridgesdk.DeliveryMarker) bool { return len(items) >= 2 },
 	)
 	if records[0].Ack == nil || records[1].Ack == nil {
 		t.Fatalf("delivery markers = %#v, want recorded acks", records)
@@ -1641,14 +1630,14 @@ func TestHandleShutdownWritesMarker(t *testing.T) {
 	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, managed), nil); err != nil {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
-	if err := runtime.handleShutdown(
+	if err := runtime.lifecycle.Shutdown(
 		context.Background(),
 		nil,
 		subprocess.ShutdownRequest{DeadlineMS: 50},
 	); err != nil {
 		t.Fatalf("handleShutdown() error = %v", err)
 	}
-	lines := waitForNonEmptyLines(t, env.shutdownPath)
+	lines := waitForNonEmptyLines(t, env.ShutdownPath)
 	if len(lines) == 0 || !strings.Contains(lines[0], "pid=") {
 		t.Fatalf("shutdown marker lines = %#v, want pid entry", lines)
 	}
@@ -1881,71 +1870,6 @@ func TestDetermineInitialStateRetryAndHealthHelpers(t *testing.T) {
 	runtime.clearLastError()
 	if err := runtime.healthCheck(); err != nil {
 		t.Fatalf("healthCheck() error = %v, want nil", err)
-	}
-
-	providerForRetry := &telegramProvider{stopCh: make(chan struct{})}
-	attempts := 0
-	err = providerForRetry.retryHostCall(context.Background(), func(context.Context) error {
-		attempts++
-		if attempts < 3 {
-			return subprocess.NewRPCError(rpcCodeNotInitialized, "Not initialized", nil)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("retryHostCall() error = %v", err)
-	}
-	if got, want := attempts, 3; got != want {
-		t.Fatalf("attempts = %d, want %d", got, want)
-	}
-
-	providerStopped := &telegramProvider{stopCh: make(chan struct{})}
-	close(providerStopped.stopCh)
-	stopErr := subprocess.NewRPCError(rpcCodeNotInitialized, "Not initialized", nil)
-	if err := providerStopped.retryHostCall(
-		context.Background(),
-		func(context.Context) error { return stopErr },
-	); !errors.Is(
-		err,
-		stopErr,
-	) {
-		t.Fatalf("retryHostCall(stopped) error = %v, want %v", err, stopErr)
-	}
-
-	providerWait := &telegramProvider{
-		stopCh: make(chan struct{}),
-		routes: make(map[string]resolvedInstanceConfig),
-	}
-	go func() {
-		time.Sleep(20 * time.Millisecond)
-		providerWait.mu.Lock()
-		providerWait.routes["brg-1"] = resolvedInstanceConfig{instanceID: "brg-1"}
-		providerWait.mu.Unlock()
-	}()
-	cfg, err := providerWait.waitForInstanceConfig("brg-1", 200*time.Millisecond)
-	if err != nil {
-		t.Fatalf("waitForInstanceConfig() error = %v", err)
-	}
-	if got, want := cfg.instanceID, "brg-1"; got != want {
-		t.Fatalf("cfg.instanceID = %q, want %q", got, want)
-	}
-
-	if !isNotInitializedRPCError(
-		subprocess.NewRPCError(rpcCodeNotInitialized, "Not initialized", nil),
-	) {
-		t.Fatal("isNotInitializedRPCError() = false, want true")
-	}
-	if isNotInitializedRPCError(errors.New("boom")) {
-		t.Fatal("isNotInitializedRPCError(non-rpc) = true, want false")
-	}
-
-	degradation = &bridgepkg.BridgeDegradation{
-		Reason:  bridgepkg.BridgeDegradationReasonAuthFailed,
-		Message: "bad token",
-	}
-	cloned := cloneDegradation(degradation)
-	if cloned == degradation || cloned.Message != degradation.Message {
-		t.Fatalf("cloneDegradation() = %#v, want distinct equal copy", cloned)
 	}
 	if got, want := maxInt(0, 2, 1), 2; got != want {
 		t.Fatalf("maxInt() = %d, want %d", got, want)
@@ -2226,12 +2150,12 @@ func TestWebhookShortCircuitsAndBatchDispatch(t *testing.T) {
 	waitForCondition(t, func() bool {
 		return runtimeWithSession.currentSession() != nil
 	})
-	runtimeWithSession.mu.Lock()
-	runtimeWithSession.routes["brg-1"] = resolvedInstanceConfig{
-		instanceID: "brg-1",
-		dedup:      bridgesdk.NewDedupCache(time.Minute, 10),
-	}
-	runtimeWithSession.mu.Unlock()
+	runtimeWithSession.routes.Replace(map[string]resolvedInstanceConfig{
+		"brg-1": {
+			instanceID: "brg-1",
+			dedup:      bridgesdk.NewDedupCache(time.Minute, 10),
+		},
+	}, nil)
 
 	batch := bridgesdk.InboundBatch{
 		Items: []bridgepkg.InboundMessageEnvelope{
@@ -2272,10 +2196,10 @@ func TestWebhookShortCircuitsAndBatchDispatch(t *testing.T) {
 	if got, want := ingested[0].Content.Text, "hello\nworld"; got != want {
 		t.Fatalf("ingested[0].Content.Text = %q, want %q", got, want)
 	}
-	ingests := waitForJSONLinesFile[ingestMarker](
+	ingests := waitForJSONLinesFile[bridgesdk.IngestMarker](
 		t,
-		env.ingestPath,
-		func(items []ingestMarker) bool { return len(items) >= 1 },
+		env.IngestPath,
+		func(items []bridgesdk.IngestMarker) bool { return len(items) >= 1 },
 	)
 	if got, want := ingests[len(ingests)-1].Envelope.Content.Text, "hello\nworld"; got != want {
 		t.Fatalf("ingest marker text = %q, want %q", got, want)
@@ -2535,23 +2459,12 @@ func newRuntimePeerPair(t *testing.T) (*telegramProvider, *bridgesdk.Peer, func(
 	cleanup := func() {
 		once.Do(func() {
 			cancel()
-			runtime.stop()
-			runtime.mu.RLock()
-			server := runtime.server
-			listener := runtime.listener
-			runtime.mu.RUnlock()
-			if listener != nil {
-				_ = listener.Close()
+			runtime.lifecycle.Stop()
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
+			if err := runtime.http.Shutdown(shutdownCtx); err != nil {
+				t.Fatalf("provider HTTP shutdown error = %v", err)
 			}
-			if server != nil {
-				shutdownCtx, shutdownCancel := context.WithTimeout(
-					context.Background(),
-					2*time.Second,
-				)
-				_ = server.Shutdown(shutdownCtx)
-				_ = server.Close()
-				shutdownCancel()
-			}
+			shutdownCancel()
 			_ = hostConn.Close()
 			_ = runtimeConn.Close()
 			for range 2 {
@@ -2564,7 +2477,9 @@ func newRuntimePeerPair(t *testing.T) (*telegramProvider, *bridgesdk.Peer, func(
 				}
 				t.Fatalf("runtime peer serve error = %v", err)
 			}
-			runtime.wg.Wait()
+			if err := runtime.lifecycle.Wait(context.Background()); err != nil {
+				t.Fatalf("provider lifecycle wait error = %v", err)
+			}
 		})
 	}
 
@@ -2731,18 +2646,14 @@ func newTelegramProgressTestProvider(
 	}
 	managed := testBridgeRuntime(now(), "brg-progress")
 	provider.now = now
-	provider.routes = map[string]resolvedInstanceConfig{
+	provider.routes.Replace(map[string]resolvedInstanceConfig{
 		"brg-progress": {
 			managed:    &managed,
 			instanceID: "brg-progress",
 		},
-	}
-	provider.deliveries = make(map[string]deliveryState)
-	provider.reportedStatus = map[string]bridgepkg.BridgeStatus{
-		"brg-progress": bridgepkg.BridgeStatusReady,
-	}
+	}, nil)
 	provider.apiFactory = func(*resolvedInstanceConfig) telegramAPI { return api }
-	t.Cleanup(provider.stop)
+	t.Cleanup(provider.lifecycle.Stop)
 	return provider
 }
 
@@ -2763,29 +2674,63 @@ func telegramWebhookPayload() string {
 	return `{"update_id":1001,"message":{"message_id":9,"date":1775866800,"chat":{"id":12345,"type":"private"},"from":{"id":7,"username":"alice","first_name":"Alice"},"text":"hello"}}`
 }
 
-func setProviderTestEnv(t *testing.T) markerEnv {
+func TestTelegramResolvedConfigAndListenErrors(t *testing.T) {
+	t.Run("Should classify invalid webhook configuration before startup", func(t *testing.T) {
+		t.Parallel()
+
+		missingPath := resolvedInstanceConfig{}
+		validateTelegramResolvedConfig(&missingPath)
+		if missingPath.configError == nil || !strings.Contains(missingPath.configError.Error(), "webhook path") {
+			t.Fatalf("missing path config error = %v", missingPath.configError)
+		}
+
+		missingSecret := resolvedInstanceConfig{webhookPath: "/telegram", listenAddr: "127.0.0.1:1"}
+		validateTelegramResolvedConfig(&missingSecret)
+		if missingSecret.configError == nil || !strings.Contains(missingSecret.configError.Error(), "webhook secret") {
+			t.Fatalf("missing secret config error = %v", missingSecret.configError)
+		}
+	})
+
+	t.Run("Should project missing-listener and startup failures onto valid configs", func(t *testing.T) {
+		t.Parallel()
+
+		configs := []resolvedInstanceConfig{{instanceID: "brg-1"}}
+		applyTelegramListenErrors(configs, "", func(string) error { return nil })
+		if configs[0].configError == nil || !strings.Contains(configs[0].configError.Error(), "listen address") {
+			t.Fatalf("missing listener config error = %v", configs[0].configError)
+		}
+
+		configs = []resolvedInstanceConfig{{instanceID: "brg-1"}}
+		applyTelegramListenErrors(configs, "127.0.0.1:1", func(string) error { return errors.New("listen failed") })
+		if configs[0].configError == nil || !strings.Contains(configs[0].configError.Error(), "listen failed") {
+			t.Fatalf("startup config error = %v", configs[0].configError)
+		}
+	})
+}
+
+func setProviderTestEnv(t *testing.T) bridgesdk.AdapterMarkerPaths {
 	t.Helper()
 
 	root := filepath.Join(t.TempDir(), "markers")
-	env := markerEnv{
-		handshakePath: filepath.Join(root, "handshake.json"),
-		ownershipPath: filepath.Join(root, "ownership.json"),
-		statePath:     filepath.Join(root, "state.jsonl"),
-		deliveryPath:  filepath.Join(root, "delivery.jsonl"),
-		ingestPath:    filepath.Join(root, "ingest.jsonl"),
-		startsPath:    filepath.Join(root, "starts.log"),
-		shutdownPath:  filepath.Join(root, "shutdown.log"),
-		crashOncePath: filepath.Join(root, "crash-once.json"),
+	env := bridgesdk.AdapterMarkerPaths{
+		HandshakePath: filepath.Join(root, "handshake.json"),
+		OwnershipPath: filepath.Join(root, "ownership.json"),
+		StatePath:     filepath.Join(root, "state.jsonl"),
+		DeliveryPath:  filepath.Join(root, "delivery.jsonl"),
+		IngestPath:    filepath.Join(root, "ingest.jsonl"),
+		StartsPath:    filepath.Join(root, "starts.log"),
+		ShutdownPath:  filepath.Join(root, "shutdown.log"),
+		CrashOncePath: filepath.Join(root, "crash-once.json"),
 	}
 
-	t.Setenv(adapterHandshakeEnv, env.handshakePath)
-	t.Setenv(adapterOwnershipEnv, env.ownershipPath)
-	t.Setenv(adapterStateEnv, env.statePath)
-	t.Setenv(adapterDeliveryEnv, env.deliveryPath)
-	t.Setenv(adapterIngestEnv, env.ingestPath)
-	t.Setenv(adapterStartsEnv, env.startsPath)
-	t.Setenv(adapterShutdownEnv, env.shutdownPath)
-	t.Setenv(adapterCrashOnceEnv, "")
+	t.Setenv(bridgesdk.AdapterHandshakePathEnv, env.HandshakePath)
+	t.Setenv(bridgesdk.AdapterOwnershipPathEnv, env.OwnershipPath)
+	t.Setenv(bridgesdk.AdapterStatePathEnv, env.StatePath)
+	t.Setenv(bridgesdk.AdapterDeliveryPathEnv, env.DeliveryPath)
+	t.Setenv(bridgesdk.AdapterIngestPathEnv, env.IngestPath)
+	t.Setenv(bridgesdk.AdapterStartsPathEnv, env.StartsPath)
+	t.Setenv(bridgesdk.AdapterShutdownPathEnv, env.ShutdownPath)
+	t.Setenv(bridgesdk.AdapterCrashOncePathEnv, "")
 
 	return env
 }

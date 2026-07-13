@@ -29,13 +29,12 @@ func TestDiscordProgressFullTurnDelivery(t *testing.T) {
 			bridgesdk.WithProgressSchedule(timer.Schedule),
 		}
 		provider.apiFactory = func(resolvedInstanceConfig) discordAPI { return api }
-		provider.mu.Lock()
-		provider.routes["brg-discord"] = resolvedInstanceConfig{
-			instanceID: "brg-discord",
-			managed:    testDiscordManagedInstance("brg-discord"),
-		}
-		provider.reportedStatus["brg-discord"] = bridgepkg.BridgeStatusReady
-		provider.mu.Unlock()
+		provider.routes.Replace(map[string]resolvedInstanceConfig{
+			"brg-discord": {
+				instanceID: "brg-discord",
+				managed:    testDiscordManagedInstance("brg-discord"),
+			},
+		}, nil)
 		session := &bridgesdk.Session{}
 
 		start := testDiscordTextRequest(
@@ -143,13 +142,12 @@ func TestDiscordProgressFullTurnDelivery(t *testing.T) {
 			t.Fatalf("newDiscordProvider() error = %v", err)
 		}
 		provider.apiFactory = func(resolvedInstanceConfig) discordAPI { return api }
-		provider.mu.Lock()
-		provider.routes["brg-discord"] = resolvedInstanceConfig{
-			instanceID: "brg-discord",
-			managed:    testDiscordManagedInstance("brg-discord"),
-		}
-		provider.reportedStatus["brg-discord"] = bridgepkg.BridgeStatusReady
-		provider.mu.Unlock()
+		provider.routes.Replace(map[string]resolvedInstanceConfig{
+			"brg-discord": {
+				instanceID: "brg-discord",
+				managed:    testDiscordManagedInstance("brg-discord"),
+			},
+		}, nil)
 		session := &bridgesdk.Session{}
 
 		progress := testDiscordProgressRequest(
@@ -200,12 +198,12 @@ func TestDiscordProgressUsesRuneMessageLength(t *testing.T) {
 			t.Fatalf("newDiscordProvider() error = %v", err)
 		}
 		provider.apiFactory = func(resolvedInstanceConfig) discordAPI { return api }
-		provider.mu.Lock()
-		provider.routes["brg-discord"] = resolvedInstanceConfig{
-			instanceID: "brg-discord",
-			managed:    testDiscordManagedInstance("brg-discord"),
-		}
-		provider.mu.Unlock()
+		provider.routes.Replace(map[string]resolvedInstanceConfig{
+			"brg-discord": {
+				instanceID: "brg-discord",
+				managed:    testDiscordManagedInstance("brg-discord"),
+			},
+		}, nil)
 		label := strings.Repeat("界", 1900)
 		request := testDiscordProgressRequest(
 			"delivery-runes",
@@ -258,12 +256,12 @@ func TestDiscordProgressDispatcherLifecycle(t *testing.T) {
 			apiFactoryCalls++
 			return api
 		}
-		provider.mu.Lock()
-		provider.routes["brg-discord"] = resolvedInstanceConfig{
-			instanceID: "brg-discord",
-			managed:    testDiscordManagedInstance("brg-discord"),
-		}
-		provider.mu.Unlock()
+		provider.routes.Replace(map[string]resolvedInstanceConfig{
+			"brg-discord": {
+				instanceID: "brg-discord",
+				managed:    testDiscordManagedInstance("brg-discord"),
+			},
+		}, nil)
 		session := &bridgesdk.Session{}
 		request := testDiscordProgressRequest("delivery-provider-retry", 1, bridgepkg.ToolProgress{
 			ToolCallID: "tool-call-retry",
@@ -322,12 +320,12 @@ func TestDiscordProgressDispatcherLifecycle(t *testing.T) {
 			bridgesdk.WithProgressSchedule(timer.Schedule),
 		}
 		provider.apiFactory = func(resolvedInstanceConfig) discordAPI { return api }
-		provider.mu.Lock()
-		provider.routes["brg-discord"] = resolvedInstanceConfig{
-			instanceID: "brg-discord",
-			managed:    testDiscordManagedInstance("brg-discord"),
-		}
-		provider.mu.Unlock()
+		provider.routes.Replace(map[string]resolvedInstanceConfig{
+			"brg-discord": {
+				instanceID: "brg-discord",
+				managed:    testDiscordManagedInstance("brg-discord"),
+			},
+		}, nil)
 		session := &bridgesdk.Session{}
 
 		if _, err := provider.handleBridgesProgress(
@@ -402,12 +400,12 @@ func TestDiscordProgressDispatcherLifecycle(t *testing.T) {
 			bridgesdk.WithProgressSchedule(timer.Schedule),
 		}
 		provider.apiFactory = func(resolvedInstanceConfig) discordAPI { return api }
-		provider.mu.Lock()
-		provider.routes["brg-discord"] = resolvedInstanceConfig{
-			instanceID: "brg-discord",
-			managed:    testDiscordManagedInstance("brg-discord"),
-		}
-		provider.mu.Unlock()
+		provider.routes.Replace(map[string]resolvedInstanceConfig{
+			"brg-discord": {
+				instanceID: "brg-discord",
+				managed:    testDiscordManagedInstance("brg-discord"),
+			},
+		}, nil)
 		session := &bridgesdk.Session{}
 
 		if _, err := provider.handleBridgesProgress(
@@ -481,12 +479,12 @@ func TestDiscordProgressDispatcherLifecycle(t *testing.T) {
 			bridgesdk.WithProgressSchedule(timer.Schedule),
 		}
 		provider.apiFactory = func(resolvedInstanceConfig) discordAPI { return api }
-		provider.mu.Lock()
-		provider.routes["brg-discord"] = resolvedInstanceConfig{
-			instanceID: "brg-discord",
-			managed:    testDiscordManagedInstance("brg-discord"),
-		}
-		provider.mu.Unlock()
+		provider.routes.Replace(map[string]resolvedInstanceConfig{
+			"brg-discord": {
+				instanceID: "brg-discord",
+				managed:    testDiscordManagedInstance("brg-discord"),
+			},
+		}, nil)
 		session := &bridgesdk.Session{}
 
 		if _, err := provider.handleBridgesProgress(
@@ -531,7 +529,7 @@ func TestDiscordProgressDispatcherLifecycle(t *testing.T) {
 		provider.mu.Lock()
 		stopDone := make(chan struct{})
 		go func() {
-			provider.stop()
+			provider.lifecycle.Stop()
 			close(stopDone)
 		}()
 		close(updateRelease)

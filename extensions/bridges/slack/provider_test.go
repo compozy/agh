@@ -640,7 +640,6 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 			},
 		}
 		for _, testCase := range cases {
-			testCase := testCase
 			t.Run(testCase.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -868,13 +867,11 @@ func TestSlackProgressDelivery(t *testing.T) {
 			t.Fatalf("handleBridgesProgress(started) error = %v", err)
 		}
 		callsBeforeOff := len(api.methods)
-		provider.mu.Lock()
-		cfg := provider.routes["brg-progress"]
+		cfg, _ := provider.routes.Get("brg-progress")
 		cfg.managed.Instance.DeliveryDefaults = json.RawMessage(
 			`{"progress":{"tool_progress":"off","grouping":"accumulate","typing":false,"reactions":false}}`,
 		)
-		provider.routes["brg-progress"] = cfg
-		provider.mu.Unlock()
+		provider.routes.Update("brg-progress", func(resolvedInstanceConfig) resolvedInstanceConfig { return cfg })
 
 		off := testProgressRequest(
 			"brg-progress",
@@ -900,11 +897,11 @@ func TestSlackProgressDelivery(t *testing.T) {
 		now := time.Date(2026, 7, 12, 10, 10, 0, 0, time.UTC)
 		api := &fakeSlackAPI{nextTS: "unused"}
 		provider := newSlackProgressTestProvider(t, func() time.Time { return now }, api)
-		cfg := provider.routes["brg-progress"]
+		cfg, _ := provider.routes.Get("brg-progress")
 		cfg.managed.Instance.DeliveryDefaults = json.RawMessage(
 			`{"progress":{"tool_progress":"off","grouping":"accumulate","typing":false,"reactions":false}}`,
 		)
-		provider.routes["brg-progress"] = cfg
+		provider.routes.Update("brg-progress", func(resolvedInstanceConfig) resolvedInstanceConfig { return cfg })
 		factoryCalls := 0
 		provider.apiFactory = func(*resolvedInstanceConfig) slackAPI {
 			factoryCalls++
@@ -1121,26 +1118,24 @@ func TestRuntimeInitializeStartsWebhookServerAndWritesMarkers(t *testing.T) {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
 
-	handshake := waitForJSONFile[initializeMarker](t, env.handshakePath)
+	handshake := waitForJSONFile[bridgesdk.InitializeMarker](t, env.HandshakePath)
 	if got, want := handshake.Request.Runtime.Bridge.Provider, "slack"; got != want {
 		t.Fatalf("handshake provider = %q, want %q", got, want)
 	}
-	ownership := waitForJSONFile[ownershipMarker](t, env.ownershipPath)
+	ownership := waitForJSONFile[bridgesdk.OwnershipMarker](t, env.OwnershipPath)
 	if got, want := len(ownership.Fetched), 2; got != want {
 		t.Fatalf("len(ownership.Fetched) = %d, want %d", got, want)
 	}
-	states := waitForJSONLinesFile[stateMarker](
+	states := waitForJSONLinesFile[bridgesdk.StateMarker](
 		t,
-		env.statePath,
-		func(items []stateMarker) bool { return len(items) >= 2 },
+		env.StatePath,
+		func(items []bridgesdk.StateMarker) bool { return len(items) >= 2 },
 	)
 	if got, want := states[0].Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
 		t.Fatalf("states[0].Status = %q, want %q", got, want)
 	}
 	waitForCondition(t, func() bool {
-		runtime.mu.RLock()
-		defer runtime.mu.RUnlock()
-		return strings.TrimSpace(runtime.serverAddr) != ""
+		return strings.TrimSpace(runtime.http.Address()) != ""
 	})
 }
 
@@ -1192,14 +1187,14 @@ func TestHandleShutdownWritesMarker(t *testing.T) {
 	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, managed), nil); err != nil {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
-	if err := runtime.handleShutdown(
+	if err := runtime.lifecycle.Shutdown(
 		context.Background(),
 		nil,
 		subprocess.ShutdownRequest{DeadlineMS: 50},
 	); err != nil {
 		t.Fatalf("handleShutdown() error = %v", err)
 	}
-	lines := waitForNonEmptyLines(t, env.shutdownPath)
+	lines := waitForNonEmptyLines(t, env.ShutdownPath)
 	if len(lines) == 0 || !strings.Contains(lines[0], "pid=") {
 		t.Fatalf("shutdown marker lines = %#v, want pid entry", lines)
 	}
@@ -1296,10 +1291,10 @@ func TestHandleJSONWebhookChallengeAndReaction(t *testing.T) {
 	if got, want := reactionRecorder.Code, http.StatusOK; got != want {
 		t.Fatalf("reaction status = %d, want %d", got, want)
 	}
-	ingests := waitForJSONLinesFile[ingestMarker](
+	ingests := waitForJSONLinesFile[bridgesdk.IngestMarker](
 		t,
-		env.ingestPath,
-		func(items []ingestMarker) bool { return len(items) >= 1 },
+		env.IngestPath,
+		func(items []bridgesdk.IngestMarker) bool { return len(items) >= 1 },
 	)
 	if got, want := ingests[len(ingests)-1].Envelope.EventFamily, bridgepkg.InboundEventFamilyReaction; got != want {
 		t.Fatalf("reaction ingest family = %q, want %q", got, want)
@@ -1388,14 +1383,10 @@ func TestWebhookIngressRejectsInvalidSignatureAndIngestsMessage(t *testing.T) {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
 	waitForCondition(t, func() bool {
-		runtime.mu.RLock()
-		defer runtime.mu.RUnlock()
-		return strings.TrimSpace(runtime.serverAddr) != ""
+		return strings.TrimSpace(runtime.http.Address()) != ""
 	})
 
-	runtime.mu.RLock()
-	serverAddr := runtime.serverAddr
-	runtime.mu.RUnlock()
+	serverAddr := runtime.http.Address()
 	webhookURL := "http://" + serverAddr + "/slack/brg-1"
 	body := []byte(slackMessageWebhookPayload())
 	timestamp := strconv.FormatInt(now.Unix(), 10)
@@ -1446,9 +1437,13 @@ func TestWebhookIngressRejectsInvalidSignatureAndIngestsMessage(t *testing.T) {
 		t.Fatalf("valid webhook status = %d, want %d", got, want)
 	}
 
-	ingests := waitForJSONLinesFile[ingestMarker](t, env.ingestPath, func(items []ingestMarker) bool {
-		return len(items) == 1 && strings.TrimSpace(items[0].Result.SessionID) != ""
-	})
+	ingests := waitForJSONLinesFile[bridgesdk.IngestMarker](
+		t,
+		env.IngestPath,
+		func(items []bridgesdk.IngestMarker) bool {
+			return len(items) == 1 && strings.TrimSpace(items[0].Result.SessionID) != ""
+		},
+	)
 	if got, want := ingests[0].Envelope.GroupID, "C123"; got != want {
 		t.Fatalf("ingest envelope group id = %q, want %q", got, want)
 	}
@@ -1535,13 +1530,9 @@ func TestWebhookIngressHandlesSlashCommandAndBlockActions(t *testing.T) {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
 	waitForCondition(t, func() bool {
-		runtime.mu.RLock()
-		defer runtime.mu.RUnlock()
-		return strings.TrimSpace(runtime.serverAddr) != ""
+		return strings.TrimSpace(runtime.http.Address()) != ""
 	})
-	runtime.mu.RLock()
-	serverAddr := runtime.serverAddr
-	runtime.mu.RUnlock()
+	serverAddr := runtime.http.Address()
 	webhookURL := "http://" + serverAddr + "/slack/brg-1"
 
 	commandBody := []byte(
@@ -1552,10 +1543,10 @@ func TestWebhookIngressHandlesSlashCommandAndBlockActions(t *testing.T) {
 	actionBody := []byte("payload=" + url.QueryEscape(slackBlockActionsPayloadJSON()))
 	postSignedSlackForm(t, webhookURL, "top-secret", now, actionBody)
 
-	ingests := waitForJSONLinesFile[ingestMarker](
+	ingests := waitForJSONLinesFile[bridgesdk.IngestMarker](
 		t,
-		env.ingestPath,
-		func(items []ingestMarker) bool { return len(items) >= 2 },
+		env.IngestPath,
+		func(items []bridgesdk.IngestMarker) bool { return len(items) >= 2 },
 	)
 	if got, want := ingests[0].Envelope.EventFamily, bridgepkg.InboundEventFamilyCommand; got != want {
 		t.Fatalf("ingests[0].Envelope.EventFamily = %q, want %q", got, want)
@@ -1729,9 +1720,11 @@ func TestWebhookRetriesAfterTransientIngestFailure(t *testing.T) {
 				t.Fatalf("cfg.dedup.Seen(%q) = false, want true", tt.wantKey)
 			}
 
-			ingests := waitForJSONLinesFile[ingestMarker](t, env.ingestPath, func(items []ingestMarker) bool {
-				return len(items) >= 2
-			})
+			ingests := waitForJSONLinesFile[bridgesdk.IngestMarker](
+				t,
+				env.IngestPath,
+				func(items []bridgesdk.IngestMarker) bool { return len(items) >= 2 },
+			)
 			if got, want := ingests[0].Envelope.IdempotencyKey, tt.wantKey; got != want {
 				t.Fatalf("ingests[0].Envelope.IdempotencyKey = %q, want %q", got, want)
 			}
@@ -1802,10 +1795,10 @@ func TestRuntimeDeliveriesCallSlackAPI(t *testing.T) {
 	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, managed), nil); err != nil {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
-	states := waitForJSONLinesFile[stateMarker](
+	states := waitForJSONLinesFile[bridgesdk.StateMarker](
 		t,
-		env.statePath,
-		func(items []stateMarker) bool { return len(items) >= 1 },
+		env.StatePath,
+		func(items []bridgesdk.StateMarker) bool { return len(items) >= 1 },
 	)
 	if got, want := states[len(states)-1].Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
 		t.Fatalf("states[last].Status = %q, want %q", got, want)
@@ -1833,10 +1826,10 @@ func TestRuntimeDeliveriesCallSlackAPI(t *testing.T) {
 		t.Fatalf("hostPeer.Call(final delivery) error = %v", err)
 	}
 
-	records := waitForJSONLinesFile[deliveryMarker](
+	records := waitForJSONLinesFile[bridgesdk.DeliveryMarker](
 		t,
-		env.deliveryPath,
-		func(items []deliveryMarker) bool { return len(items) >= 2 },
+		env.DeliveryPath,
+		func(items []bridgesdk.DeliveryMarker) bool { return len(items) >= 2 },
 	)
 	if records[0].Ack == nil || records[1].Ack == nil {
 		t.Fatalf("delivery markers = %#v, want recorded acks", records)
@@ -1986,10 +1979,10 @@ func TestHandleBridgesDeliverErrorPaths(t *testing.T) {
 	); err == nil {
 		t.Fatal("handleBridgesDeliver(auth failure) error = nil, want non-nil")
 	}
-	lines := waitForJSONLinesFile[deliveryMarker](
+	lines := waitForJSONLinesFile[bridgesdk.DeliveryMarker](
 		t,
-		env.deliveryPath,
-		func(items []deliveryMarker) bool { return len(items) >= 2 },
+		env.DeliveryPath,
+		func(items []bridgesdk.DeliveryMarker) bool { return len(items) >= 2 },
 	)
 	if lines[0].Error == "" || lines[1].Error == "" {
 		t.Fatalf("delivery errors = %#v, want recorded marker failures", lines)
@@ -2119,10 +2112,10 @@ func TestDispatchInboundBatchMergesContent(t *testing.T) {
 		t.Fatalf("merged idempotency key = %q, want %q", got, want)
 	}
 	if got, want := len(
-		waitForJSONLinesFile[ingestMarker](
+		waitForJSONLinesFile[bridgesdk.IngestMarker](
 			t,
-			env.ingestPath,
-			func(items []ingestMarker) bool { return len(items) == 1 },
+			env.IngestPath,
+			func(items []bridgesdk.IngestMarker) bool { return len(items) == 1 },
 		),
 	), 1; got != want {
 		t.Fatalf("ingest markers = %d, want %d", got, want)
@@ -2155,13 +2148,13 @@ func TestStopClosesBatchersWithoutProviderLockDeadlock(t *testing.T) {
 		t.Fatalf("NewInboundBatcher() error = %v", err)
 	}
 
-	runtime.routes = map[string]resolvedInstanceConfig{
+	runtime.routes.Replace(map[string]resolvedInstanceConfig{
 		"brg-1": {
 			instanceID:  "brg-1",
 			webhookPath: "/slack/brg-1",
 			batcher:     batcher,
 		},
-	}
+	}, nil)
 
 	if err := batcher.Enqueue(bridgepkg.InboundMessageEnvelope{
 		BridgeInstanceID:  "brg-1",
@@ -2187,7 +2180,7 @@ func TestStopClosesBatchersWithoutProviderLockDeadlock(t *testing.T) {
 
 	stopDone := make(chan struct{})
 	go func() {
-		runtime.stop()
+		runtime.lifecycle.Stop()
 		close(stopDone)
 	}()
 
@@ -2340,7 +2333,10 @@ func TestSlackWebhookPathConflictsDegradeAllRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newSlackProvider() error = %v", err)
 	}
-	runtime.routes = buildSlackRouteMap(configs)
+	runtime.routes.Replace(map[string]resolvedInstanceConfig{
+		"brg-1": configs[0],
+		"brg-2": configs[1],
+	}, nil)
 
 	if _, ok := runtime.configForPath("/slack"); ok {
 		t.Fatal("configForPath(/slack) returned conflicted config, want deterministic rejection")
@@ -2418,54 +2414,6 @@ func TestDetermineInitialStateRetryAndHealthHelpers(t *testing.T) {
 	runtime.clearLastError()
 	if err := runtime.healthCheck(); err != nil {
 		t.Fatalf("healthCheck(clear) error = %v", err)
-	}
-}
-
-func TestRetryHostCallRetriesNotInitialized(t *testing.T) {
-	t.Parallel()
-
-	runtime, err := newSlackProvider(io.Discard)
-	if err != nil {
-		t.Fatalf("newSlackProvider() error = %v", err)
-	}
-	attempts := 0
-	err = runtime.retryHostCall(context.Background(), func(context.Context) error {
-		attempts++
-		if attempts < 3 {
-			return subprocess.NewRPCError(rpcCodeNotInitialized, "not ready", nil)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("retryHostCall() error = %v", err)
-	}
-	if got, want := attempts, 3; got != want {
-		t.Fatalf("attempts = %d, want %d", got, want)
-	}
-}
-
-func TestRetryHostCallHonorsContextAndStop(t *testing.T) {
-	t.Parallel()
-
-	runtime, err := newSlackProvider(io.Discard)
-	if err != nil {
-		t.Fatalf("newSlackProvider() error = %v", err)
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if err := runtime.retryHostCall(ctx, func(context.Context) error {
-		return subprocess.NewRPCError(rpcCodeNotInitialized, "not ready", nil)
-	}); !errors.Is(err, context.Canceled) {
-		t.Fatalf("retryHostCall(context canceled) error = %v, want %v", err, context.Canceled)
-	}
-
-	runtime.stop()
-	stopErr := subprocess.NewRPCError(rpcCodeNotInitialized, "still stopping", nil)
-	if err := runtime.retryHostCall(context.Background(), func(context.Context) error {
-		return stopErr
-	}); !errors.Is(err, stopErr) {
-		t.Fatalf("retryHostCall(stop) error = %v, want %v", err, stopErr)
 	}
 }
 
@@ -2947,22 +2895,12 @@ func newRuntimePeerPair(t *testing.T) (*slackProvider, *bridgesdk.Peer, func()) 
 	cleanup := func() {
 		once.Do(func() {
 			cancel()
-			runtime.stop()
-			runtime.mu.RLock()
-			server := runtime.server
-			listener := runtime.serverListener
-			runtime.mu.RUnlock()
-			if listener != nil {
-				_ = listener.Close()
+			runtime.lifecycle.Stop()
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
+			if err := runtime.http.Shutdown(shutdownCtx); err != nil {
+				t.Fatalf("provider HTTP shutdown error = %v", err)
 			}
-			if server != nil {
-				shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
-				if err := server.Shutdown(shutdownCtx); err != nil {
-					_ = server.Close()
-				}
-				_ = server.Close()
-				shutdownCancel()
-			}
+			shutdownCancel()
 			_ = hostConn.Close()
 			_ = runtimeConn.Close()
 			for range 2 {
@@ -2975,7 +2913,9 @@ func newRuntimePeerPair(t *testing.T) (*slackProvider, *bridgesdk.Peer, func()) 
 				}
 				t.Fatalf("runtime peer serve error = %v", err)
 			}
-			runtime.wg.Wait()
+			if err := runtime.lifecycle.Wait(context.Background()); err != nil {
+				t.Fatalf("provider lifecycle wait error = %v", err)
+			}
 		})
 	}
 
@@ -3137,18 +3077,14 @@ func newSlackProgressTestProvider(
 	}
 	managed := testBridgeRuntime(now(), "brg-progress")
 	provider.now = now
-	provider.routes = map[string]resolvedInstanceConfig{
+	provider.routes.Replace(map[string]resolvedInstanceConfig{
 		"brg-progress": {
 			managed:    &managed,
 			instanceID: "brg-progress",
 		},
-	}
-	provider.deliveries = make(map[string]deliveryState)
-	provider.reportedStatus = map[string]bridgepkg.BridgeStatus{
-		"brg-progress": bridgepkg.BridgeStatusReady,
-	}
+	}, nil)
 	provider.apiFactory = func(*resolvedInstanceConfig) slackAPI { return api }
-	t.Cleanup(provider.stop)
+	t.Cleanup(provider.lifecycle.Stop)
 	return provider
 }
 
@@ -3173,29 +3109,29 @@ func slackBlockActionsPayloadJSON() string {
 	return `{"type":"block_actions","trigger_id":"trigger-1","response_url":"https://hooks.slack.test/action","channel":{"id":"C123"},"container":{"type":"message","channel_id":"C123","message_ts":"1775866802.100000","thread_ts":"1775866802.000000"},"message":{"ts":"1775866802.100000","thread_ts":"1775866802.000000"},"user":{"id":"U123","username":"alice"},"actions":[{"type":"button","action_id":"approve","value":"yes","action_ts":"1775866802.200000"}]}`
 }
 
-func setProviderTestEnv(t *testing.T) markerEnv {
+func setProviderTestEnv(t *testing.T) bridgesdk.AdapterMarkerPaths {
 	t.Helper()
 
 	root := filepath.Join(t.TempDir(), "markers")
-	env := markerEnv{
-		handshakePath: filepath.Join(root, "handshake.json"),
-		ownershipPath: filepath.Join(root, "ownership.json"),
-		statePath:     filepath.Join(root, "state.jsonl"),
-		deliveryPath:  filepath.Join(root, "delivery.jsonl"),
-		ingestPath:    filepath.Join(root, "ingest.jsonl"),
-		startsPath:    filepath.Join(root, "starts.log"),
-		shutdownPath:  filepath.Join(root, "shutdown.log"),
-		crashOncePath: filepath.Join(root, "crash-once.json"),
+	env := bridgesdk.AdapterMarkerPaths{
+		HandshakePath: filepath.Join(root, "handshake.json"),
+		OwnershipPath: filepath.Join(root, "ownership.json"),
+		StatePath:     filepath.Join(root, "state.jsonl"),
+		DeliveryPath:  filepath.Join(root, "delivery.jsonl"),
+		IngestPath:    filepath.Join(root, "ingest.jsonl"),
+		StartsPath:    filepath.Join(root, "starts.log"),
+		ShutdownPath:  filepath.Join(root, "shutdown.log"),
+		CrashOncePath: filepath.Join(root, "crash-once.json"),
 	}
 
-	t.Setenv(adapterHandshakeEnv, env.handshakePath)
-	t.Setenv(adapterOwnershipEnv, env.ownershipPath)
-	t.Setenv(adapterStateEnv, env.statePath)
-	t.Setenv(adapterDeliveryEnv, env.deliveryPath)
-	t.Setenv(adapterIngestEnv, env.ingestPath)
-	t.Setenv(adapterStartsEnv, env.startsPath)
-	t.Setenv(adapterShutdownEnv, env.shutdownPath)
-	t.Setenv(adapterCrashOnceEnv, "")
+	t.Setenv(bridgesdk.AdapterHandshakePathEnv, env.HandshakePath)
+	t.Setenv(bridgesdk.AdapterOwnershipPathEnv, env.OwnershipPath)
+	t.Setenv(bridgesdk.AdapterStatePathEnv, env.StatePath)
+	t.Setenv(bridgesdk.AdapterDeliveryPathEnv, env.DeliveryPath)
+	t.Setenv(bridgesdk.AdapterIngestPathEnv, env.IngestPath)
+	t.Setenv(bridgesdk.AdapterStartsPathEnv, env.StartsPath)
+	t.Setenv(bridgesdk.AdapterShutdownPathEnv, env.ShutdownPath)
+	t.Setenv(bridgesdk.AdapterCrashOncePathEnv, "")
 
 	return env
 }

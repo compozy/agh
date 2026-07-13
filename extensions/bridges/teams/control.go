@@ -91,7 +91,7 @@ func teamsIdentityChecks(err error) []bridgepkg.BridgeCheckRecord {
 func (p *teamsProvider) healthCheck() error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	for instanceID, status := range p.reportedStatus {
+	for instanceID, status := range p.lifecycle.Host().Statuses() {
 		normalized := status.Normalize()
 		if normalized == "" || normalized == bridgepkg.BridgeStatusReady {
 			continue

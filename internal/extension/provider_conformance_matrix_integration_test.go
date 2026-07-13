@@ -5,6 +5,8 @@ package extensionpkg_test
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -50,6 +52,59 @@ func TestRepresentativeProviderConformanceMatrix(t *testing.T) {
 	); err != nil {
 		t.Fatalf("ValidateConformanceMatrix() error = %v", err)
 	}
+}
+
+func TestAutoDiscoveredProviderRuntimeConformance(t *testing.T) {
+	t.Run("Should discover and round-trip every in-tree bridge provider", func(t *testing.T) {
+		// Provider builds stay sequential because they share the Go build cache and this is an integration lane.
+		repoRoot := telegramReferenceRepoRoot(t)
+		providers, err := discoverBridgeProviders(filepath.Join(repoRoot, "extensions", "bridges"))
+		if err != nil {
+			t.Fatalf("discoverBridgeProviders() error = %v", err)
+		}
+		if got, want := len(providers), 8; got != want {
+			t.Fatalf("len(discovered providers) = %d, want %d", got, want)
+		}
+		for _, provider := range providers {
+			provider := provider
+			t.Run("Should conform "+provider.Name, func(t *testing.T) {
+				contract, err := validateDiscoveredProviderManifest(provider)
+				if err != nil {
+					t.Fatalf("validateDiscoveredProviderManifest(%q) error = %v", provider.Name, err)
+				}
+				if err := runDiscoveredProviderRuntime(t, repoRoot, provider, contract); err != nil {
+					t.Fatalf("runDiscoveredProviderRuntime(%q) error = %v", provider.Name, err)
+				}
+			})
+		}
+	})
+
+	t.Run("Should discover a synthetic provider and reject required slot drift", func(t *testing.T) {
+		repoRoot := telegramReferenceRepoRoot(t)
+		providersRoot := createSyntheticProviderRoot(t, repoRoot)
+		providers, err := discoverBridgeProviders(providersRoot)
+		if err != nil {
+			t.Fatalf("discoverBridgeProviders(synthetic) error = %v", err)
+		}
+		if got, want := len(providers), 1; got != want {
+			t.Fatalf("len(synthetic providers) = %d, want %d", got, want)
+		}
+		provider := providers[0]
+		contract, err := validateDiscoveredProviderManifest(provider)
+		if err != nil {
+			t.Fatalf("validateDiscoveredProviderManifest(synthetic) error = %v", err)
+		}
+		if err := runDiscoveredProviderRuntime(t, repoRoot, provider, contract); err != nil {
+			t.Fatalf("runDiscoveredProviderRuntime(synthetic) error = %v", err)
+		}
+
+		drifted := cloneProviderManifest(provider.Manifest)
+		drifted.Bridge.SecretSlots = nil
+		if err := validateProviderSchemaContract(drifted, contract); err == nil ||
+			!strings.Contains(err.Error(), "token") {
+			t.Fatalf("validateProviderSchemaContract(slot drift) error = %v, want missing token", err)
+		}
+	})
 }
 
 func runGitHubMultiInstanceMatrixCase(t *testing.T, repoRoot string) extensiontest.ProviderConformanceSummary {

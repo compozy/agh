@@ -106,7 +106,7 @@ func TestWebhookIngressTimeout(t *testing.T) {
 		waitForLinearCondition(t, func() bool {
 			runtime.mu.RLock()
 			defer runtime.mu.RUnlock()
-			return strings.TrimSpace(runtime.serverAddr) != ""
+			return strings.TrimSpace(runtime.http.Address()) != ""
 		})
 
 		webhookURL := "http://" + linearRuntimeServerAddr(runtime) + "/linear"

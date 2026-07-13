@@ -643,12 +643,10 @@ func TestDiscordProgressDeliveryRendersAndEditsOneBubble(t *testing.T) {
 			bridgesdk.WithProgressSchedule(timer.Schedule),
 		}
 		provider.apiFactory = func(resolvedInstanceConfig) discordAPI { return api }
-		provider.mu.Lock()
-		provider.routes["brg-discord"] = resolvedInstanceConfig{
+		setDiscordProviderRoute(provider, "brg-discord", &resolvedInstanceConfig{
 			instanceID: "brg-discord",
 			managed:    testDiscordManagedInstance("brg-discord"),
-		}
-		provider.mu.Unlock()
+		})
 		session := &bridgesdk.Session{}
 
 		started := testDiscordProgressRequest(
@@ -747,9 +745,7 @@ func TestDiscordProgressDeliveryRendersAndEditsOneBubble(t *testing.T) {
 		if got := provider.deliveryState("brg-discord", "delivery-progress").Progress; got != nil {
 			t.Fatal("delivery progress dispatcher retained after lifecycle final")
 		}
-		provider.mu.RLock()
-		_, retained := provider.deliveries[deliveryStateKey("brg-discord", "delivery-progress")]
-		provider.mu.RUnlock()
+		_, retained := provider.deliveries.Load(deliveryStateKey("brg-discord", "delivery-progress"))
 		if retained {
 			t.Fatal("lifecycle-only final retained an orphaned delivery state")
 		}
@@ -768,12 +764,10 @@ func TestDiscordProgressDeliveryHonorsModeOffBeforeCreatingAPI(t *testing.T) {
 		managed.Instance.DeliveryDefaults = json.RawMessage(
 			`{"progress":{"tool_progress":"off","grouping":"accumulate","typing":false,"reactions":false}}`,
 		)
-		provider.mu.Lock()
-		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+		setDiscordProviderRoute(provider, managed.Instance.ID, &resolvedInstanceConfig{
 			instanceID: managed.Instance.ID,
 			managed:    managed,
-		}
-		provider.mu.Unlock()
+		})
 		apiFactoryCalls := 0
 		provider.apiFactory = func(resolvedInstanceConfig) discordAPI {
 			apiFactoryCalls++
@@ -822,12 +816,10 @@ func TestDiscordProgressDeliveryHonorsModeOffBeforeCreatingAPI(t *testing.T) {
 			bridgesdk.WithProgressSchedule(timer.Schedule),
 		}
 		managed := testDiscordManagedInstance("brg-discord-flip")
-		provider.mu.Lock()
-		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+		setDiscordProviderRoute(provider, managed.Instance.ID, &resolvedInstanceConfig{
 			instanceID: managed.Instance.ID,
 			managed:    managed,
-		}
-		provider.mu.Unlock()
+		})
 		apiFactoryCalls := 0
 		api := &discordAPIFake{postedMessageID: "progress-flip"}
 		provider.apiFactory = func(resolvedInstanceConfig) discordAPI {
@@ -863,11 +855,10 @@ func TestDiscordProgressDeliveryHonorsModeOffBeforeCreatingAPI(t *testing.T) {
 		managed.Instance.DeliveryDefaults = json.RawMessage(
 			`{"progress":{"tool_progress":"off","grouping":"accumulate","typing":false,"reactions":false}}`,
 		)
-		provider.mu.Lock()
-		cfg := provider.routes[managed.Instance.ID]
-		cfg.managed = managed
-		provider.routes[managed.Instance.ID] = cfg
-		provider.mu.Unlock()
+		provider.routes.Update(managed.Instance.ID, func(cfg resolvedInstanceConfig) resolvedInstanceConfig {
+			cfg.managed = managed
+			return cfg
+		})
 		final := testDiscordLifecycleFinalRequest("delivery-flip", 3)
 		final.Event.BridgeInstanceID = managed.Instance.ID
 		final.Event.RoutingKey.BridgeInstanceID = managed.Instance.ID
@@ -881,9 +872,7 @@ func TestDiscordProgressDeliveryHonorsModeOffBeforeCreatingAPI(t *testing.T) {
 		if got := len(api.updateAttempts); got != 0 {
 			t.Fatalf("Discord update attempts after mode flip = %d, want 0", got)
 		}
-		provider.mu.RLock()
-		_, retained := provider.deliveries[deliveryStateKey(managed.Instance.ID, request.Event.DeliveryID)]
-		provider.mu.RUnlock()
+		_, retained := provider.deliveries.Load(deliveryStateKey(managed.Instance.ID, request.Event.DeliveryID))
 		if retained {
 			t.Fatal("mode-flipped lifecycle final retained delivery state")
 		}
@@ -948,15 +937,12 @@ func TestHandleInteractionWebhookAcknowledgesImmediately(t *testing.T) {
 		t.Fatalf("newDiscordProvider() error = %v", err)
 	}
 	provider.now = func() time.Time { return now }
-	provider.mu.Lock()
-	provider.session = nil
-	provider.routes["brg-discord"] = resolvedInstanceConfig{
+	setDiscordProviderRoute(provider, "brg-discord", &resolvedInstanceConfig{
 		instanceID: "brg-discord",
 		managed:    testDiscordManagedInstance("brg-discord"),
 		dedup:      bridgesdk.NewDedupCache(time.Minute, 16),
 		dmPolicy:   bridgepkg.BridgeDMPolicyOpen,
-	}
-	provider.mu.Unlock()
+	})
 
 	recorder := httptest.NewRecorder()
 	cfg := &resolvedInstanceConfig{
@@ -1114,8 +1100,7 @@ func TestServeWebhookHTTPHandlesSignedMessageWebhookWithBatching(t *testing.T) {
 		t.Fatalf("newDiscordProvider() error = %v", err)
 	}
 	provider.now = func() time.Time { return now }
-	provider.mu.Lock()
-	provider.routes["brg-discord"] = resolvedInstanceConfig{
+	setDiscordProviderRoute(provider, "brg-discord", &resolvedInstanceConfig{
 		instanceID:      "brg-discord",
 		managed:         testDiscordManagedInstance("brg-discord"),
 		webhookPath:     "/discord/brg-discord",
@@ -1125,8 +1110,7 @@ func TestServeWebhookHTTPHandlesSignedMessageWebhookWithBatching(t *testing.T) {
 		inFlightLimiter: bridgesdk.NewInFlightLimiter(4),
 		batcher:         batcher,
 		dmPolicy:        bridgepkg.BridgeDMPolicyOpen,
-	}
-	provider.mu.Unlock()
+	})
 
 	payload := map[string]any{
 		"type": 1,
@@ -1216,8 +1200,7 @@ func TestServeWebhookHTTPRejectsInvalidSignatureBeforeDispatch(t *testing.T) {
 			t.Fatalf("newDiscordProvider() error = %v", err)
 		}
 		provider.now = func() time.Time { return now }
-		provider.mu.Lock()
-		provider.routes["brg-discord"] = resolvedInstanceConfig{
+		setDiscordProviderRoute(provider, "brg-discord", &resolvedInstanceConfig{
 			instanceID:      "brg-discord",
 			managed:         testDiscordManagedInstance("brg-discord"),
 			webhookPath:     "/discord/brg-discord",
@@ -1227,8 +1210,7 @@ func TestServeWebhookHTTPRejectsInvalidSignatureBeforeDispatch(t *testing.T) {
 			inFlightLimiter: bridgesdk.NewInFlightLimiter(4),
 			batcher:         batcher,
 			dmPolicy:        bridgepkg.BridgeDMPolicyOpen,
-		}
-		provider.mu.Unlock()
+		})
 
 		payload := map[string]any{
 			"type": 1,
@@ -1353,40 +1335,6 @@ func TestDetermineInitialStateAndLifecycleHelpers(t *testing.T) {
 	}
 }
 
-func TestHandleInitializeAfterInitializeRetryAndShutdownHelpers(t *testing.T) {
-	t.Parallel()
-
-	provider, err := newDiscordProvider(io.Discard)
-	if err != nil {
-		t.Fatalf("newDiscordProvider() error = %v", err)
-	}
-
-	if err := provider.handleInitialize(context.Background(), &bridgesdk.Session{}); err != nil {
-		t.Fatalf("handleInitialize() error = %v", err)
-	}
-
-	attempts := 0
-	err = provider.retryHostCall(context.Background(), func(context.Context) error {
-		attempts++
-		if attempts == 1 {
-			return rpcCodeErr{}
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("retryHostCall() error = %v", err)
-	}
-
-	if err := provider.handleShutdown(
-		context.Background(),
-		nil,
-		subprocess.ShutdownRequest{DeadlineMS: 10},
-	); err != nil {
-		t.Fatalf("handleShutdown() error = %v", err)
-	}
-	provider.stop()
-}
-
 func TestHandleEventAndInteractionWebhookBranches(t *testing.T) {
 	t.Parallel()
 
@@ -1399,8 +1347,10 @@ func TestHandleEventAndInteractionWebhookBranches(t *testing.T) {
 		t.Fatalf("newDiscordProvider() error = %v", err)
 	}
 	defer func() {
-		provider.stop()
-		provider.wg.Wait()
+		provider.lifecycle.Stop()
+		if err := provider.lifecycle.Wait(context.Background()); err != nil {
+			t.Fatalf("provider lifecycle wait error = %v", err)
+		}
 	}()
 	provider.apiFactory = func(resolvedInstanceConfig) discordAPI {
 		return &discordAPIFake{postedMessageID: "msg-1"}
@@ -1414,8 +1364,7 @@ func TestHandleEventAndInteractionWebhookBranches(t *testing.T) {
 		dedup:      bridgesdk.NewDedupCache(time.Minute, 16),
 		dmPolicy:   bridgepkg.BridgeDMPolicyOpen,
 	}
-	provider.mu.Lock()
-	provider.session = injectedDiscordSession(t,
+	session := injectedDiscordSession(t,
 		bridgesdk.NewHostAPIClientFromCall(func(_ context.Context, method string, params any, result any) error {
 			if method == "bridges/messages/ingest" {
 				mu.Lock()
@@ -1434,8 +1383,15 @@ func TestHandleEventAndInteractionWebhookBranches(t *testing.T) {
 		}),
 		bridgesdk.NewInstanceCache(&subprocess.InitializeBridgeRuntime{}),
 	)
-	provider.routes["brg-discord"] = cfg
-	provider.mu.Unlock()
+	if err := provider.handleInitialize(context.Background(), session); err != nil {
+		t.Fatalf("handleInitialize() error = %v", err)
+	}
+	select {
+	case <-provider.lifecycle.Initialized():
+	case <-t.Context().Done():
+		t.Fatal("provider initialization did not finish")
+	}
+	setDiscordProviderRoute(provider, "brg-discord", &cfg)
 
 	recorder := httptest.NewRecorder()
 	if err := provider.handleEventWebhook(
@@ -1574,11 +1530,6 @@ func TestAllowDiscordDirectMessagePoliciesAndUtilityHelpers(t *testing.T) {
 	if got := parseRetryAfter("2"); got != 2*time.Second {
 		t.Fatalf("parseRetryAfter() = %s, want 2s", got)
 	}
-	if got := cloneDegradation(
-		&bridgepkg.BridgeDegradation{Reason: bridgepkg.BridgeDegradationReasonAuthFailed},
-	); got == nil {
-		t.Fatal("cloneDegradation() = nil, want non-nil")
-	}
 }
 
 func TestHandleBridgesDeliverFailureAndMainHelpers(t *testing.T) {
@@ -1593,13 +1544,11 @@ func TestHandleBridgesDeliverFailureAndMainHelpers(t *testing.T) {
 			postErr: &bridgesdk.HTTPError{StatusCode: http.StatusTooManyRequests, Message: "slow down"},
 		}
 	}
-	provider.mu.Lock()
-	provider.routes["brg-discord"] = resolvedInstanceConfig{
+	setDiscordProviderRoute(provider, "brg-discord", &resolvedInstanceConfig{
 		instanceID: "brg-discord",
 		managed:    testDiscordManagedInstance("brg-discord"),
 		dedup:      bridgesdk.NewDedupCache(time.Minute, 16),
-	}
-	provider.mu.Unlock()
+	})
 
 	session := injectedDiscordSession(t,
 		bridgesdk.NewHostAPIClientFromCall(func(_ context.Context, method string, params any, result any) error {
@@ -1656,7 +1605,13 @@ func TestHandleBridgesDeliverFailureAndMainHelpers(t *testing.T) {
 }
 
 func TestAfterInitializeSuccessAndParsingBranches(t *testing.T) {
-	t.Parallel()
+	tmpDir := t.TempDir()
+	ownershipPath := filepath.Join(tmpDir, "ownership.json")
+	statePath := filepath.Join(tmpDir, "state.jsonl")
+	t.Setenv(bridgesdk.AdapterHandshakePathEnv, filepath.Join(tmpDir, "handshake.json"))
+	t.Setenv(bridgesdk.AdapterOwnershipPathEnv, ownershipPath)
+	t.Setenv(bridgesdk.AdapterStatePathEnv, statePath)
+	t.Setenv(bridgesdk.AdapterStartsPathEnv, filepath.Join(tmpDir, "starts.log"))
 
 	pub, _, err := ed25519.GenerateKey(nil)
 	if err != nil {
@@ -1715,27 +1670,27 @@ func TestAfterInitializeSuccessAndParsingBranches(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newDiscordProvider() error = %v", err)
 	}
-	tmpDir := t.TempDir()
-	provider.env = markerEnv{
-		handshakePath: filepath.Join(tmpDir, "handshake.json"),
-		ownershipPath: filepath.Join(tmpDir, "ownership.json"),
-		statePath:     filepath.Join(tmpDir, "state.jsonl"),
-		startsPath:    filepath.Join(tmpDir, "starts.log"),
-	}
 	provider.apiFactory = func(resolvedInstanceConfig) discordAPI {
 		return &discordAPIFake{postedMessageID: "msg-1"}
 	}
-	provider.afterInitialize(session)
+	if err := provider.handleInitialize(context.Background(), session); err != nil {
+		t.Fatalf("handleInitialize() error = %v", err)
+	}
+	select {
+	case <-provider.lifecycle.Initialized():
+	case <-t.Context().Done():
+		t.Fatal("provider initialization did not finish")
+	}
 	defer func() {
-		if provider.server != nil {
-			_ = provider.server.Close()
+		if err := provider.http.Shutdown(context.Background()); err != nil {
+			t.Fatalf("provider HTTP shutdown error = %v", err)
 		}
 	}()
 
-	if _, err := os.Stat(provider.env.ownershipPath); err != nil {
+	if _, err := os.Stat(ownershipPath); err != nil {
 		t.Fatalf("ownership marker missing: %v", err)
 	}
-	if _, err := os.Stat(provider.env.statePath); err != nil {
+	if _, err := os.Stat(statePath); err != nil {
 		t.Fatalf("state marker missing: %v", err)
 	}
 
@@ -1813,19 +1768,6 @@ func TestAdditionalDiscordProviderBranches(t *testing.T) {
 	if _, err := provider.waitForInstanceConfig("missing", 20*time.Millisecond); err == nil {
 		t.Fatal("waitForInstanceConfig(missing) error = nil, want non-nil")
 	}
-	if isNotInitializedRPCError(errors.New("not initialized")) {
-		t.Fatal("isNotInitializedRPCError(string only) = true, want false")
-	}
-	if !isNotInitializedRPCError(rpcCodeErr{}) {
-		t.Fatal("isNotInitializedRPCError(rpc code) = false, want true")
-	}
-	if isNotInitializedRPCError(&subprocess.RPCError{
-		Code:    -32001,
-		Message: "Not initialized",
-	}) {
-		t.Fatal("isNotInitializedRPCError(rpc message only) = true, want false")
-	}
-
 	if got := parseDiscordReceivedAt(
 		time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC).Format(time.RFC3339),
 		time.Time{},
@@ -1958,8 +1900,7 @@ func TestHandleDiscordEventWebhookUsesRequestContext(t *testing.T) {
 			managed,
 		},
 	}
-	provider.mu.Lock()
-	provider.session = injectedDiscordSession(t,
+	session := injectedDiscordSession(t,
 		bridgesdk.NewHostAPIClientFromCall(func(ctx context.Context, method string, _ any, _ any) error {
 			if method != "bridges/messages/ingest" {
 				return fmt.Errorf("unexpected host api method %q", method)
@@ -1971,7 +1912,15 @@ func TestHandleDiscordEventWebhookUsesRequestContext(t *testing.T) {
 		}),
 		bridgesdk.NewInstanceCache(runtime),
 	)
-	provider.mu.Unlock()
+	if err := provider.handleInitialize(context.Background(), session); err != nil {
+		t.Fatalf("handleInitialize() error = %v", err)
+	}
+	t.Cleanup(func() {
+		provider.lifecycle.Stop()
+		if err := provider.lifecycle.Wait(context.Background()); err != nil {
+			t.Fatalf("provider lifecycle wait error = %v", err)
+		}
+	})
 
 	cfg := resolvedInstanceConfig{
 		instanceID: "brg-discord",
@@ -2015,10 +1964,9 @@ func TestHandleDiscordEventWebhookUsesRequestContext(t *testing.T) {
 	}
 }
 
-func TestReconcileConfigMarkerAndFileHelpers(t *testing.T) {
+func TestReconcileConfigHelpers(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
 	provider, err := newDiscordProvider(io.Discard)
 	if err != nil {
 		t.Fatalf("newDiscordProvider() error = %v", err)
@@ -2055,43 +2003,14 @@ func TestReconcileConfigMarkerAndFileHelpers(t *testing.T) {
 	if got, want := configs[0].apiBaseURL, discordDefaultAPIBaseURL; got != want {
 		t.Fatalf("apiBaseURL = %q, want %q", got, want)
 	}
-	if provider.server == nil {
-		t.Fatal("provider.server = nil, want configured webhook server")
-	}
-	if got, want := provider.server.ReadHeaderTimeout, discordWebhookReadHeaderTimeout; got != want {
-		t.Fatalf("ReadHeaderTimeout = %s, want %s", got, want)
-	}
-	if got, want := provider.server.IdleTimeout, discordWebhookIdleTimeout; got != want {
-		t.Fatalf("IdleTimeout = %s, want %s", got, want)
+	if provider.http.Address() == "" {
+		t.Fatal("provider HTTP address is empty after reconciliation")
 	}
 	if _, err := provider.waitForInstanceConfig("brg-discord", time.Second); err != nil {
 		t.Fatalf("waitForInstanceConfig() error = %v", err)
 	}
 	if _, ok := provider.configForPath("/discord/brg-discord"); !ok {
 		t.Fatal("configForPath() ok = false, want true")
-	}
-
-	linePath := filepath.Join(tmpDir, "markers", "line.log")
-	if err := appendMarkerLine(linePath, "hello"); err != nil {
-		t.Fatalf("appendMarkerLine() error = %v", err)
-	}
-	jsonLinePath := filepath.Join(tmpDir, "markers", "items.jsonl")
-	if err := appendJSONLine(jsonLinePath, map[string]string{"hello": "world"}); err != nil {
-		t.Fatalf("appendJSONLine() error = %v", err)
-	}
-	jsonFilePath := filepath.Join(tmpDir, "markers", "state.json")
-	if err := writeJSONFile(jsonFilePath, map[string]string{"hello": "world"}); err != nil {
-		t.Fatalf("writeJSONFile() error = %v", err)
-	}
-	crashPath := filepath.Join(tmpDir, "markers", "crash.json")
-	if !shouldCrashOnce(crashPath) {
-		t.Fatal("shouldCrashOnce(missing) = false, want true")
-	}
-	if err := os.WriteFile(crashPath, []byte(`{}`), 0o600); err != nil {
-		t.Fatalf("WriteFile() error = %v", err)
-	}
-	if shouldCrashOnce(crashPath) {
-		t.Fatal("shouldCrashOnce(existing) = true, want false")
 	}
 }
 
@@ -2180,18 +2099,6 @@ func TestProviderHostAPIFlowWithInjectedSession(t *testing.T) {
 		return &discordAPIFake{postedMessageID: "msg-1"}
 	}
 
-	if listed, err := provider.syncOwnedInstances(context.Background(), session); err != nil || len(listed) != 1 {
-		t.Fatalf("syncOwnedInstances() = (%d, %v), want (1, nil)", len(listed), err)
-	}
-	if fetched, err := provider.getOwnedInstance(
-		context.Background(),
-		session,
-		instance.ID,
-	); err != nil || fetched == nil ||
-		fetched.ID != instance.ID {
-		t.Fatalf("getOwnedInstance() = (%#v, %v), want instance and nil", fetched, err)
-	}
-
 	resolved := provider.resolveInstanceConfig(session, managed)
 	if got, want := resolved.botToken, "discord-bot-token"; got != want {
 		t.Fatalf("botToken = %q, want %q", got, want)
@@ -2209,18 +2116,18 @@ func TestProviderHostAPIFlowWithInjectedSession(t *testing.T) {
 		[]subprocess.InitializeBridgeManagedInstance{managed},
 	)
 	defer func() {
-		if provider.server != nil {
-			_ = provider.server.Close()
+		if err := provider.http.Shutdown(context.Background()); err != nil {
+			t.Fatalf("provider HTTP shutdown error = %v", err)
 		}
-		provider.stop()
+		provider.lifecycle.Stop()
 	}()
 	if len(configs) != 1 {
 		t.Fatalf("len(configs) = %d, want 1", len(configs))
 	}
 
-	provider.mu.Lock()
-	provider.session = session
-	provider.mu.Unlock()
+	if err := provider.handleInitialize(context.Background(), session); err != nil {
+		t.Fatalf("handleInitialize() error = %v", err)
+	}
 
 	message := bridgepkg.InboundMessageEnvelope{
 		BridgeInstanceID:  instance.ID,
@@ -2471,6 +2378,14 @@ func testDiscordLifecycleFinalRequest(deliveryID string, seq int64) bridgepkg.De
 	return request
 }
 
+func setDiscordProviderRoute(
+	provider *discordProvider,
+	instanceID string,
+	config *resolvedInstanceConfig,
+) {
+	provider.routes.Replace(map[string]resolvedInstanceConfig{instanceID: *config}, nil)
+}
+
 func testDiscordManagedInstance(id string) subprocess.InitializeBridgeManagedInstance {
 	return subprocess.InitializeBridgeManagedInstance{
 		Instance: bridgepkg.BridgeInstance{
@@ -2494,12 +2409,6 @@ func bridgepkgToWebhookRequest(t *testing.T, payload any, receivedAt time.Time) 
 		ReceivedAt: receivedAt,
 	}
 }
-
-type rpcCodeErr struct{}
-
-func (rpcCodeErr) Error() string { return "not initialized" }
-
-func (rpcCodeErr) Code() int { return rpcCodeNotInitialized }
 
 type discordAPIGetBotUserErrorFake struct {
 	err error

@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Phase B, Tasks 01–05 are checkpointed at `66880e5`, `b103482`, `2be5ddf`, `d362403`, and `c8ebbcaf`. Task 06 implementation, focused verification, contract audit, deslop audit, docs, and QA impact tracking are complete; its atomic checkpoint is the next loop action.
+- Phase B, Tasks 01–06 are checkpointed at `66880e5`, `b103482`, `2be5ddf`, `d362403`, `c8ebbcaf`, and `2b00ab3`. Task 07 implementation, focused verification, contract audit, deslop audit, and QA impact tracking are complete; its atomic checkpoint is the next loop action.
 - Per-task evidence is focused and proportional. Global tests and the single `make verify` are deferred until all ten tasks, QA, and review remediation are complete per user direction.
 
 ## Shared Decisions
@@ -17,6 +17,7 @@
 - Bound credentials may target only operator-owned provider endpoints. Mutable provider config cannot set API/OAuth/service destinations; webhook reachability is public-HTTPS-only, DNS/IP-pinned, redirect-free, and proxy-free.
 - A generated secret needed by a later manual step must be supplied or explicitly disclosed once before persistence. Hidden generation is allowed only when the daemon consumes the value directly.
 - Inbound edits are a typed `edit` family; reply context is bounded and cache-only. Durable Path A recovery stores checkpoint metadata and metrics, never streamed/progress text, and universally fails open with a new visible terminal error before new registrations are admitted.
+- Provider runtime scaffolding is composition-based: shared lifecycle/Host/reconcile/routes/delivery/HTTP/markers/command owners with provider-specific prepare/finalize hooks. Every provider publishes routes before final probes through the same `ManagedConfigReconciler`.
 
 ## Shared Learnings
 
@@ -33,6 +34,7 @@
 - Runtime E2E low-tier coverage belongs to the `^TestDaemonE2E` contract-mock lane; provider-specific API bodies remain in provider fake-server suites. One Teams-declared temporary reference adapter can prove both ordered progress and per-instance opt-in without a second daemon harness.
 - Modular HTTP route files must declare their route group locally so the repository's manual-doc route inventory can prove the registered path.
 - Static contract tests caught two genuine Task 04 co-ship gaps: the TypeScript runtime fixture needed the required purpose, and modular bridge subroutes needed inventory-visible group ownership.
+- A shutdown admission must reject new service calls immediately. Otherwise health probes can remain green while shutdown waits for in-flight initialization, creating a deterministic coordination deadlock in subprocess conformance.
 
 ## Open Risks
 
@@ -49,4 +51,5 @@
 - Task 04 provides Slack manifest generation, guided/headless setup, typed provider verification, doctor aggregation, Telegram registration, real send-test, hardened control isolation, public API parity, and generated contracts.
 - Task 05 provides the disabled-first Web setup orchestrator, daemon-owned Slack manifest handoff, state-derived setup checklist, typed verify/register/send-test flows, progress editors, and route-local evidence isolation. `NB-039` and `NB-052` are `untested` inputs to the QA tail.
 - Task 06 provides typed Slack/Telegram edits, bounded Slack/Telegram/GChat reply context, a workspace-isolated checkpoint/metric ledger, boot admission fencing, and universal visible fail-open recovery. `NB-053` and `NB-054` are `untested` inputs to the QA tail.
+- Task 07 provides shared provider lifecycle/Host/reconcile/routes/delivery/HTTP/marker/command owners, eight migrated providers, auto-discovered manifest/schema/binary/runtime conformance, and docs↔code invariants. Task 08 owns the currently red setup/slots parity. NB-029 and NB-031 are reset to `untested` for the discovered lifecycle fixes.
 - Task 09/10 own living QA planning/execution and tracker retests.

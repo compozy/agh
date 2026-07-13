@@ -125,10 +125,7 @@ func newGChatContractProvider(t *testing.T) *gchatProvider {
 }
 
 func installGChatContractRoute(provider *gchatProvider, cfg *resolvedInstanceConfig) {
-	provider.mu.Lock()
-	defer provider.mu.Unlock()
-	provider.routes[cfg.instanceID] = *cfg
-	provider.reportedStatus[cfg.instanceID] = bridgepkg.BridgeStatusReady
+	provider.routes.Replace(map[string]resolvedInstanceConfig{cfg.instanceID: *cfg}, nil)
 }
 
 type gchatContractAPIServer struct {

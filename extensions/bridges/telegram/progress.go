@@ -39,9 +39,8 @@ type telegramProgressSink struct {
 var _ bridgesdk.ProgressSink = (*telegramProgressSink)(nil)
 
 func (p *telegramProvider) deliveryState(instanceID string, deliveryID string) deliveryState {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.deliveries[deliveryStateKey(instanceID, deliveryID)]
+	state, _ := p.deliveries.Load(deliveryStateKey(instanceID, deliveryID))
+	return state
 }
 
 func (p *telegramProvider) storeDeliveryState(
@@ -51,13 +50,11 @@ func (p *telegramProvider) storeDeliveryState(
 	state deliveryState,
 ) *bridgesdk.ProgressDispatcher {
 	key := deliveryStateKey(instanceID, deliveryID)
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	if isTerminalTelegramDeliveryEvent(event) {
-		delete(p.deliveries, key)
+		p.deliveries.Delete(key)
 		return state.Progress
 	}
-	p.deliveries[key] = state
+	p.deliveries.Store(key, state)
 	return nil
 }
 
@@ -67,34 +64,32 @@ func (p *telegramProvider) detachProgressDispatcher(
 	removeState bool,
 ) *bridgesdk.ProgressDispatcher {
 	key := deliveryStateKey(instanceID, deliveryID)
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	state, ok := p.deliveries[key]
+	state, ok := p.deliveries.Load(key)
 	if !ok {
 		return nil
 	}
 	dispatcher := state.Progress
 	if removeState {
-		delete(p.deliveries, key)
+		p.deliveries.Delete(key)
 	} else {
-		state.Progress = nil
-		p.deliveries[key] = state
+		p.deliveries.Update(key, func(current deliveryState) deliveryState {
+			current.Progress = nil
+			return current
+		})
 	}
 	return dispatcher
 }
 
 func (p *telegramProvider) takeAllProgressDispatchers() []*bridgesdk.ProgressDispatcher {
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	dispatchers := make([]*bridgesdk.ProgressDispatcher, 0)
-	for key, state := range p.deliveries {
+	p.deliveries.TransformAll(func(_ string, state deliveryState) deliveryState {
 		if state.Progress == nil {
-			continue
+			return state
 		}
 		dispatchers = append(dispatchers, state.Progress)
 		state.Progress = nil
-		p.deliveries[key] = state
-	}
+		return state
+	})
 	return dispatchers
 }
 
@@ -276,7 +271,7 @@ func (p *telegramProvider) handleBridgesProgress(
 		p.reportProgressError(ctx, session, cfg.instanceID, err)
 		return bridgepkg.DeliveryAck{}, err
 	}
-	if err := p.reportReadyIfNeeded(ctx, session, cfg.instanceID); err != nil {
+	if err := p.lifecycle.Host().ReportReadyIfNeeded(ctx, session, cfg.instanceID); err != nil {
 		p.setLastError(err)
 	} else {
 		p.clearLastError()
@@ -335,7 +330,7 @@ func (p *telegramProvider) recordProgressCleanupError(action string, err error) 
 	if err == nil {
 		return
 	}
-	p.reportSideEffectError(action, err)
+	p.markers.ReportError(action, err)
 	p.setLastError(err)
 }
 

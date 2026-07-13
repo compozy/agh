@@ -19,7 +19,7 @@ func TestReconcileDiscordInstanceConfigsZeroManaged(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newDiscordProvider() error = %v", err)
 		}
-		t.Cleanup(provider.stop)
+		t.Cleanup(provider.lifecycle.Stop)
 
 		batcher, err := bridgesdk.NewInboundBatcher(bridgesdk.InboundBatcherConfig{
 			Context: context.Background(),
@@ -36,22 +36,20 @@ func TestReconcileDiscordInstanceConfigsZeroManaged(t *testing.T) {
 		}
 		t.Cleanup(batcher.Close)
 
-		provider.mu.Lock()
-		provider.routes["brg-discord"] = resolvedInstanceConfig{
-			instanceID: "brg-discord",
-			managed:    testDiscordManagedInstance("brg-discord"),
-			batcher:    batcher,
-		}
-		provider.mu.Unlock()
+		provider.routes.Replace(map[string]resolvedInstanceConfig{
+			"brg-discord": {
+				instanceID: "brg-discord",
+				managed:    testDiscordManagedInstance("brg-discord"),
+				batcher:    batcher,
+			},
+		}, nil)
 
 		configs := provider.reconcileInstanceConfigs(context.Background(), nil, nil)
 		if configs != nil {
 			t.Fatalf("reconcileInstanceConfigs() = %#v, want nil", configs)
 		}
 
-		provider.mu.RLock()
-		routeCount := len(provider.routes)
-		provider.mu.RUnlock()
+		routeCount := len(provider.routes.Snapshot())
 		if routeCount != 0 {
 			t.Fatalf("len(provider.routes) = %d, want 0", routeCount)
 		}

@@ -18,24 +18,18 @@ func TestGitHubWebhookRateLimitKey(t *testing.T) {
 		t.Parallel()
 
 		const webhookSecret = "super-secret"
-		provider := &githubProvider{
-			stderr:            io.Discard,
-			now:               func() time.Time { return time.Date(2026, 5, 16, 21, 45, 0, 0, time.UTC) },
-			routes:            make(map[string]resolvedInstanceConfig),
-			deliveries:        make(map[string]deliveryState),
-			reportedStatus:    make(map[string]bridgepkg.BridgeStatus),
-			installationCache: make(map[string]int64),
-			apiClients:        make(map[string]githubAPI),
-			rateLimiter:       bridgesdk.NewFixedWindowRateLimiter(1, time.Minute),
-			inFlightLimiter:   bridgesdk.NewInFlightLimiter(4),
-			stopCh:            make(chan struct{}),
-			initReady:         make(chan struct{}),
+		provider, err := newGitHubProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newGitHubProvider() error = %v", err)
 		}
-		provider.routes["brg-github"] = resolvedInstanceConfig{
+		provider.now = func() time.Time { return time.Date(2026, 5, 16, 21, 45, 0, 0, time.UTC) }
+		provider.rateLimiter = bridgesdk.NewFixedWindowRateLimiter(1, time.Minute)
+		provider.inFlightLimiter = bridgesdk.NewInFlightLimiter(4)
+		provider.routes.Replace(map[string]resolvedInstanceConfig{"brg-github": {
 			instanceID:    "brg-github",
 			webhookPath:   "/github",
 			webhookSecret: webhookSecret,
-		}
+		}}, nil)
 
 		first := serveGitHubPingWebhook(t, provider, webhookSecret, "203.0.113.9:10001")
 		if got, want := first.Code, http.StatusOK; got != want {

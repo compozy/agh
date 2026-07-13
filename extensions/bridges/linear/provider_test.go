@@ -229,22 +229,6 @@ func TestDetermineLinearInitialStateValidatesConfiguredAuthModes(t *testing.T) {
 	}
 }
 
-func TestIsNotInitializedRPCError(t *testing.T) {
-	t.Parallel()
-
-	if !isNotInitializedRPCError(subprocess.NewRPCError(rpcCodeNotInitialized, "Not initialized", nil)) {
-		t.Fatal("isNotInitializedRPCError() = false, want true for not initialized rpc error")
-	}
-
-	if !isNotInitializedRPCError(subprocess.NewRPCError(rpcCodeNotInitialized, "not ready", nil)) {
-		t.Fatal("isNotInitializedRPCError() = false, want true for matching rpc code")
-	}
-
-	if isNotInitializedRPCError(errors.New("boom")) {
-		t.Fatal("isNotInitializedRPCError(non-rpc) = true, want false")
-	}
-}
-
 func TestMapLinearWebhookPayloadsPreserveRoutingIdentity(t *testing.T) {
 	t.Parallel()
 

@@ -16,16 +16,17 @@ func TestTelegramProviderContracts(t *testing.T) {
 	t.Run("Should exclude invalid webhook path configs from routing", func(t *testing.T) {
 		t.Parallel()
 
-		provider := &telegramProvider{
-			routes: make(map[string]resolvedInstanceConfig),
+		provider, err := newTelegramProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newTelegramProvider() error = %v", err)
 		}
-		provider.swapTelegramRoutes([]resolvedInstanceConfig{
-			{
+		provider.routes.Replace(map[string]resolvedInstanceConfig{
+			"brg-1": {
 				instanceID:  "brg-1",
 				webhookPath: "/telegram/shared",
 				configError: errors.New("duplicate webhook path"),
 			},
-		}, "127.0.0.1:21230")
+		}, nil)
 
 		if cfg, ok := provider.configForPath("/telegram/shared"); ok {
 			t.Fatalf("configForPath() = (%#v, true), want invalid config excluded", cfg)
@@ -35,17 +36,13 @@ func TestTelegramProviderContracts(t *testing.T) {
 	t.Run("Should evict terminal delivery state after final acknowledgement", func(t *testing.T) {
 		t.Parallel()
 
-		provider := &telegramProvider{
-			stderr: io.Discard,
-			routes: map[string]resolvedInstanceConfig{
-				"brg-1": {instanceID: "brg-1"},
-			},
-			deliveries: make(map[string]deliveryState),
-			reportedStatus: map[string]bridgepkg.BridgeStatus{
-				"brg-1": bridgepkg.BridgeStatusReady,
-			},
-			stopCh: make(chan struct{}),
+		provider, err := newTelegramProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newTelegramProvider() error = %v", err)
 		}
+		provider.routes.Replace(map[string]resolvedInstanceConfig{
+			"brg-1": {instanceID: "brg-1"},
+		}, nil)
 		provider.apiFactory = func(*resolvedInstanceConfig) telegramAPI {
 			return &fakeTelegramAPI{nextMessageID: 900}
 		}

@@ -37,14 +37,13 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newWhatsAppProvider() error = %v", err)
 		}
-		t.Cleanup(provider.stop)
+		t.Cleanup(provider.lifecycle.Stop)
 		managed := testBridgeRuntime(time.Unix(8_500, 0).UTC(), "brg-progress-off")
-		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+		setWhatsAppProviderRoute(provider, managed.Instance.ID, resolvedInstanceConfig{
 			managed:       &managed,
 			instanceID:    managed.Instance.ID,
 			phoneNumberID: "123456789",
-		}
-		provider.reportedStatus[managed.Instance.ID] = bridgepkg.BridgeStatusReady
+		})
 		apiCalls := 0
 		provider.apiFactory = func(resolvedInstanceConfig) whatsappAPI {
 			apiCalls++
@@ -92,9 +91,7 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 		); err != nil {
 			t.Fatalf("handleBridgesProgress(default-off lifecycle final) error = %v", err)
 		}
-		provider.mu.RLock()
-		_, deliveryExists := provider.deliveries[deliveryStateKey(managed.Instance.ID, request.Event.DeliveryID)]
-		provider.mu.RUnlock()
+		_, deliveryExists := provider.deliveries.Load(deliveryStateKey(managed.Instance.ID, request.Event.DeliveryID))
 		if deliveryExists {
 			t.Fatal("default-off lifecycle-only delivery state still exists, want terminal removal")
 		}
@@ -107,16 +104,16 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newWhatsAppProvider() error = %v", err)
 		}
-		t.Cleanup(provider.stop)
+		t.Cleanup(provider.lifecycle.Stop)
 		managed := testBridgeRuntime(time.Unix(8_525, 0).UTC(), "brg-progress-disabled")
 		managed.Instance.DeliveryDefaults = json.RawMessage(
 			`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":false,"reactions":false}}`,
 		)
-		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+		setWhatsAppProviderRoute(provider, managed.Instance.ID, resolvedInstanceConfig{
 			managed:       &managed,
 			instanceID:    managed.Instance.ID,
 			phoneNumberID: "123456789",
-		}
+		})
 		api := &fakeWhatsAppAPI{nextMessageID: 25}
 		provider.apiFactory = func(resolvedInstanceConfig) whatsappAPI { return api }
 
@@ -152,14 +149,13 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 			t.Fatalf("WhatsApp progress posts before disabling = %d, want %d pending update", got, want)
 		}
 
-		provider.mu.Lock()
-		cfg := provider.routes[managed.Instance.ID]
-		cfg.managed.Instance.DeliveryDefaults = json.RawMessage(
-			`{"progress":{"tool_progress":"off","grouping":"accumulate","typing":false,"reactions":false}}`,
-		)
-		cfg.configError = errors.New("whatsapp: provider config became invalid")
-		provider.routes[managed.Instance.ID] = cfg
-		provider.mu.Unlock()
+		provider.routes.Update(managed.Instance.ID, func(cfg resolvedInstanceConfig) resolvedInstanceConfig {
+			cfg.managed.Instance.DeliveryDefaults = json.RawMessage(
+				`{"progress":{"tool_progress":"off","grouping":"accumulate","typing":false,"reactions":false}}`,
+			)
+			cfg.configError = errors.New("whatsapp: provider config became invalid")
+			return cfg
+		})
 		disabled := second
 		disabled.Event.Seq = 3
 		disabled.Event.Progress.ToolCallID = "call-3"
@@ -187,16 +183,16 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newWhatsAppProvider() error = %v", err)
 		}
-		t.Cleanup(provider.stop)
+		t.Cleanup(provider.lifecycle.Stop)
 		managed := testBridgeRuntime(time.Unix(8_550, 0).UTC(), "brg-progress-failure")
 		managed.Instance.DeliveryDefaults = json.RawMessage(
 			`{"progress":{"tool_progress":"all","grouping":"separate","typing":false,"reactions":false}}`,
 		)
-		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+		setWhatsAppProviderRoute(provider, managed.Instance.ID, resolvedInstanceConfig{
 			managed:       &managed,
 			instanceID:    managed.Instance.ID,
 			phoneNumberID: "123456789",
-		}
+		})
 		provider.apiFactory = func(resolvedInstanceConfig) whatsappAPI {
 			return fakeWhatsAppAPIError{err: errors.New("messages unavailable")}
 		}
@@ -231,17 +227,16 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newWhatsAppProvider() error = %v", err)
 		}
-		t.Cleanup(provider.stop)
+		t.Cleanup(provider.lifecycle.Stop)
 		managed := testBridgeRuntime(time.Unix(8_600, 0).UTC(), "brg-progress-separate")
 		managed.Instance.DeliveryDefaults = json.RawMessage(
 			`{"progress":{"tool_progress":"new","grouping":"separate","typing":true,"reactions":true}}`,
 		)
-		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+		setWhatsAppProviderRoute(provider, managed.Instance.ID, resolvedInstanceConfig{
 			managed:       &managed,
 			instanceID:    managed.Instance.ID,
 			phoneNumberID: "123456789",
-		}
-		provider.reportedStatus[managed.Instance.ID] = bridgepkg.BridgeStatusReady
+		})
 		api := &fakeWhatsAppAPI{nextMessageID: 50}
 		provider.apiFactory = func(resolvedInstanceConfig) whatsappAPI { return api }
 
@@ -281,9 +276,7 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 		); err != nil {
 			t.Fatalf("handleBridgesProgress(lifecycle final) error = %v", err)
 		}
-		provider.mu.RLock()
-		_, deliveryExists := provider.deliveries[deliveryStateKey(managed.Instance.ID, first.Event.DeliveryID)]
-		provider.mu.RUnlock()
+		_, deliveryExists := provider.deliveries.Load(deliveryStateKey(managed.Instance.ID, first.Event.DeliveryID))
 		if deliveryExists {
 			t.Fatal("lifecycle-only delivery state still exists, want terminal removal")
 		}
@@ -302,9 +295,7 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 		); err != nil {
 			t.Fatalf("handleBridgesProgress(stale lifecycle final) error = %v", err)
 		}
-		provider.mu.RLock()
-		_, staleExists := provider.deliveries[deliveryStateKey(managed.Instance.ID, staleDeliveryID)]
-		provider.mu.RUnlock()
+		_, staleExists := provider.deliveries.Load(deliveryStateKey(managed.Instance.ID, staleDeliveryID))
 		if staleExists {
 			t.Fatal("dispatcher-free lifecycle-only state still exists, want terminal removal")
 		}
@@ -341,16 +332,16 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newWhatsAppProvider() error = %v", err)
 		}
-		t.Cleanup(provider.stop)
+		t.Cleanup(provider.lifecycle.Stop)
 		managed := testBridgeRuntime(time.Unix(8_700, 0).UTC(), "brg-progress-accumulate")
 		managed.Instance.DeliveryDefaults = json.RawMessage(
 			`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":false,"reactions":false}}`,
 		)
-		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+		setWhatsAppProviderRoute(provider, managed.Instance.ID, resolvedInstanceConfig{
 			managed:       &managed,
 			instanceID:    managed.Instance.ID,
 			phoneNumberID: "123456789",
-		}
+		})
 		api := &fakeWhatsAppAPI{nextMessageID: 60}
 		provider.apiFactory = func(resolvedInstanceConfig) whatsappAPI { return api }
 
@@ -407,17 +398,16 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newWhatsAppProvider() error = %v", err)
 		}
-		t.Cleanup(provider.stop)
+		t.Cleanup(provider.lifecycle.Stop)
 		managed := testBridgeRuntime(time.Unix(8_750, 0).UTC(), "brg-progress-final")
 		managed.Instance.DeliveryDefaults = json.RawMessage(
 			`{"progress":{"tool_progress":"new","grouping":"separate","typing":false,"reactions":false}}`,
 		)
-		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+		setWhatsAppProviderRoute(provider, managed.Instance.ID, resolvedInstanceConfig{
 			managed:       &managed,
 			instanceID:    managed.Instance.ID,
 			phoneNumberID: "123456789",
-		}
-		provider.reportedStatus[managed.Instance.ID] = bridgepkg.BridgeStatusReady
+		})
 		api := &fakeWhatsAppAPI{nextMessageID: 65}
 		provider.apiFactory = func(resolvedInstanceConfig) whatsappAPI { return api }
 
@@ -474,16 +464,16 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newWhatsAppProvider() error = %v", err)
 		}
-		t.Cleanup(provider.stop)
+		t.Cleanup(provider.lifecycle.Stop)
 		managed := testBridgeRuntime(time.Unix(8_800, 0).UTC(), "brg-progress-unicode")
 		managed.Instance.DeliveryDefaults = json.RawMessage(
 			`{"progress":{"tool_progress":"all","grouping":"separate","typing":false,"reactions":false}}`,
 		)
-		provider.routes[managed.Instance.ID] = resolvedInstanceConfig{
+		setWhatsAppProviderRoute(provider, managed.Instance.ID, resolvedInstanceConfig{
 			managed:       &managed,
 			instanceID:    managed.Instance.ID,
 			phoneNumberID: "123456789",
-		}
+		})
 		api := &fakeWhatsAppAPI{nextMessageID: 70}
 		provider.apiFactory = func(resolvedInstanceConfig) whatsappAPI { return api }
 
@@ -1176,13 +1166,11 @@ func TestResolveInstanceConfigAndDetermineInitialState(t *testing.T) {
 	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, managed), nil); err != nil {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
-	waitForCondition(t, func() bool {
-		runtime.mu.RLock()
-		defer runtime.mu.RUnlock()
-		return runtime.server != nil &&
-			strings.TrimSpace(runtime.serverAddr) != "" &&
-			runtime.reportedStatus["brg-1"] != ""
-	})
+	select {
+	case <-runtime.lifecycle.Initialized():
+	case <-t.Context().Done():
+		t.Fatal("provider initialization did not finish")
+	}
 
 	session := runtime.currentSession()
 	if session == nil {
@@ -1346,26 +1334,24 @@ func TestRuntimeInitializeStartsServerAndWritesMarkers(t *testing.T) {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
 
-	handshake := waitForJSONFile[initializeMarker](t, env.handshakePath)
+	handshake := waitForJSONFile[bridgesdk.InitializeMarker](t, env.HandshakePath)
 	if got, want := handshake.Request.Runtime.Bridge.Provider, "whatsapp"; got != want {
 		t.Fatalf("handshake provider = %q, want %q", got, want)
 	}
-	ownership := waitForJSONFile[ownershipMarker](t, env.ownershipPath)
+	ownership := waitForJSONFile[bridgesdk.OwnershipMarker](t, env.OwnershipPath)
 	if got, want := len(ownership.Fetched), 2; got != want {
 		t.Fatalf("len(ownership.Fetched) = %d, want %d", got, want)
 	}
-	states := waitForJSONLinesFile[stateMarker](
+	states := waitForJSONLinesFile[bridgesdk.StateMarker](
 		t,
-		env.statePath,
-		func(items []stateMarker) bool { return len(items) >= 2 },
+		env.StatePath,
+		func(items []bridgesdk.StateMarker) bool { return len(items) >= 2 },
 	)
 	if got, want := states[0].Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
 		t.Fatalf("states[0].Status = %q, want %q", got, want)
 	}
 	waitForCondition(t, func() bool {
-		runtime.mu.RLock()
-		defer runtime.mu.RUnlock()
-		return strings.TrimSpace(runtime.serverAddr) != ""
+		return strings.TrimSpace(runtime.http.Address()) != ""
 	})
 }
 
@@ -1414,14 +1400,10 @@ func TestWebhookIngressRejectsInvalidSignatureAndIngestsMessage(t *testing.T) {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
 	waitForCondition(t, func() bool {
-		runtime.mu.RLock()
-		defer runtime.mu.RUnlock()
-		return strings.TrimSpace(runtime.serverAddr) != ""
+		return strings.TrimSpace(runtime.http.Address()) != ""
 	})
 
-	runtime.mu.RLock()
-	serverAddr := runtime.serverAddr
-	runtime.mu.RUnlock()
+	serverAddr := runtime.http.Address()
 	webhookURL := "http://" + serverAddr + "/whatsapp/brg-1"
 	body := whatsappWebhookPayloadForPhone("123456789", "Need a summary")
 
@@ -1473,10 +1455,10 @@ func TestWebhookIngressRejectsInvalidSignatureAndIngestsMessage(t *testing.T) {
 		t.Fatalf("valid webhook status = %d, want %d", got, want)
 	}
 
-	ingests := waitForJSONLinesFile[ingestMarker](
+	ingests := waitForJSONLinesFile[bridgesdk.IngestMarker](
 		t,
-		env.ingestPath,
-		func(items []ingestMarker) bool {
+		env.IngestPath,
+		func(items []bridgesdk.IngestMarker) bool {
 			return len(items) == 1 && strings.TrimSpace(items[0].Result.SessionID) != ""
 		},
 	)
@@ -1536,10 +1518,10 @@ func TestRuntimeDeliveriesCallWhatsAppGraphAPI(t *testing.T) {
 	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, managed), nil); err != nil {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
-	states := waitForJSONLinesFile[stateMarker](
+	states := waitForJSONLinesFile[bridgesdk.StateMarker](
 		t,
-		env.statePath,
-		func(items []stateMarker) bool { return len(items) >= 1 },
+		env.StatePath,
+		func(items []bridgesdk.StateMarker) bool { return len(items) >= 1 },
 	)
 	if got, want := states[len(states)-1].Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
 		t.Fatalf("states[last].Status = %q, want %q", got, want)
@@ -1564,10 +1546,10 @@ func TestRuntimeDeliveriesCallWhatsAppGraphAPI(t *testing.T) {
 		t.Fatalf("hostPeer.Call(final delivery) error = %v", err)
 	}
 
-	records := waitForJSONLinesFile[deliveryMarker](
+	records := waitForJSONLinesFile[bridgesdk.DeliveryMarker](
 		t,
-		env.deliveryPath,
-		func(items []deliveryMarker) bool { return len(items) >= 2 },
+		env.DeliveryPath,
+		func(items []bridgesdk.DeliveryMarker) bool { return len(items) >= 2 },
 	)
 	if records[0].Ack == nil || records[1].Ack == nil {
 		t.Fatalf("delivery markers = %#v, want recorded acks", records)
@@ -1602,10 +1584,10 @@ func TestRuntimeDeliveriesCallWhatsAppGraphAPI(t *testing.T) {
 	); err == nil {
 		t.Fatal("hostPeer.Call(failed delivery) error = nil, want non-nil")
 	}
-	records = waitForJSONLinesFile[deliveryMarker](
+	records = waitForJSONLinesFile[bridgesdk.DeliveryMarker](
 		t,
-		env.deliveryPath,
-		func(items []deliveryMarker) bool { return len(items) >= 3 },
+		env.DeliveryPath,
+		func(items []bridgesdk.DeliveryMarker) bool { return len(items) >= 3 },
 	)
 	if records[2].Ack != nil || !strings.Contains(records[2].Error, sendErr.Error()) {
 		t.Fatalf("failed delivery marker = %#v, want error without ack", records[2])
@@ -1719,14 +1701,14 @@ func TestDispatchInboundBatchAndShutdown(t *testing.T) {
 		t.Fatalf("merged.IdempotencyKey = %q, want %q", got, want)
 	}
 
-	if err := runtime.handleShutdown(
+	if err := runtime.lifecycle.Shutdown(
 		context.Background(),
 		nil,
 		subprocess.ShutdownRequest{DeadlineMS: 50},
 	); err != nil {
 		t.Fatalf("handleShutdown() error = %v", err)
 	}
-	lines := waitForNonEmptyLines(t, env.shutdownPath)
+	lines := waitForNonEmptyLines(t, env.ShutdownPath)
 	if len(lines) == 0 || !strings.Contains(lines[0], "pid=") {
 		t.Fatalf("shutdown marker lines = %#v, want pid entry", lines)
 	}
@@ -1821,12 +1803,10 @@ func TestRejectMisconfiguredRoutes(t *testing.T) {
 			return &fakeWhatsAppAPI{}
 		}
 
-		provider.mu.Lock()
-		provider.routes["brg-1"] = resolvedInstanceConfig{
+		setWhatsAppProviderRoute(provider, "brg-1", resolvedInstanceConfig{
 			instanceID:  "brg-1",
 			configError: badConfig,
-		}
-		provider.mu.Unlock()
+		})
 
 		ack, err := provider.handleBridgesDeliver(
 			context.Background(),
@@ -1865,19 +1845,19 @@ func TestRejectMisconfiguredRoutes(t *testing.T) {
 			t.Fatalf("newWhatsAppProvider() error = %v", err)
 		}
 
-		provider.mu.Lock()
-		provider.routes["brg-1"] = resolvedInstanceConfig{
-			instanceID:  "brg-1",
-			webhookPath: "/whatsapp/shared",
-			verifyToken: "verify-1",
-		}
-		provider.routes["brg-2"] = resolvedInstanceConfig{
-			instanceID:  "brg-2",
-			webhookPath: "/whatsapp/shared",
-			verifyToken: "verify-2",
-			configError: errors.New("whatsapp: webhook path \"/whatsapp/shared\" is shared"),
-		}
-		provider.mu.Unlock()
+		provider.routes.Replace(map[string]resolvedInstanceConfig{
+			"brg-1": {
+				instanceID:  "brg-1",
+				webhookPath: "/whatsapp/shared",
+				verifyToken: "verify-1",
+			},
+			"brg-2": {
+				instanceID:  "brg-2",
+				webhookPath: "/whatsapp/shared",
+				verifyToken: "verify-2",
+				configError: errors.New("whatsapp: webhook path \"/whatsapp/shared\" is shared"),
+			},
+		}, nil)
 
 		req := httptest.NewRequestWithContext(
 			context.Background(),
@@ -1893,90 +1873,20 @@ func TestRejectMisconfiguredRoutes(t *testing.T) {
 	})
 }
 
-func TestRetryWaitAndHealthHelpers(t *testing.T) {
+func TestHealthHelpers(t *testing.T) {
 	t.Parallel()
 
-	runtime, err := newWhatsAppProvider(io.Discard)
+	provider, err := newWhatsAppProvider(io.Discard)
 	if err != nil {
 		t.Fatalf("newWhatsAppProvider() error = %v", err)
 	}
-
-	attempts := 0
-	err = runtime.retryHostCall(context.Background(), func(context.Context) error {
-		attempts++
-		if attempts < 3 {
-			return subprocess.NewRPCError(rpcCodeNotInitialized, "Not initialized", nil)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("retryHostCall() error = %v", err)
-	}
-	if got, want := attempts, 3; got != want {
-		t.Fatalf("attempts = %d, want %d", got, want)
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if err := runtime.retryHostCall(ctx, func(context.Context) error {
-		return subprocess.NewRPCError(rpcCodeNotInitialized, "Not initialized", nil)
-	}); !errors.Is(err, context.Canceled) {
-		t.Fatalf("retryHostCall(context canceled) error = %v, want %v", err, context.Canceled)
-	}
-
-	stopped, err := newWhatsAppProvider(io.Discard)
-	if err != nil {
-		t.Fatalf("newWhatsAppProvider(stopped) error = %v", err)
-	}
-	stopped.stop()
-	stopErr := subprocess.NewRPCError(rpcCodeNotInitialized, "Not initialized", nil)
-	if err := stopped.retryHostCall(
-		context.Background(),
-		func(context.Context) error { return stopErr },
-	); !errors.Is(
-		err,
-		stopErr,
-	) {
-		t.Fatalf("retryHostCall(stopped) error = %v, want %v", err, stopErr)
-	}
-
-	waitProvider, err := newWhatsAppProvider(io.Discard)
-	if err != nil {
-		t.Fatalf("newWhatsAppProvider(wait) error = %v", err)
-	}
-	go func() {
-		time.Sleep(20 * time.Millisecond)
-		waitProvider.mu.Lock()
-		waitProvider.routes["brg-1"] = resolvedInstanceConfig{
-			instanceID:  "brg-1",
-			webhookPath: "/whatsapp/brg-1",
-		}
-		waitProvider.mu.Unlock()
-	}()
-	cfg, err := waitProvider.waitForInstanceConfig("brg-1", 200*time.Millisecond)
-	if err != nil {
-		t.Fatalf("waitForInstanceConfig() error = %v", err)
-	}
-	if got, want := cfg.instanceID, "brg-1"; got != want {
-		t.Fatalf("cfg.instanceID = %q, want %q", got, want)
-	}
-
-	waitProvider.setLastError(errors.New("boom"))
-	if err := waitProvider.healthCheck(); err == nil || !strings.Contains(err.Error(), "boom") {
+	provider.setLastError(errors.New("boom"))
+	if err := provider.healthCheck(); err == nil || !strings.Contains(err.Error(), "boom") {
 		t.Fatalf("healthCheck() error = %v, want boom", err)
 	}
-	waitProvider.clearLastError()
-	if err := waitProvider.healthCheck(); err != nil {
+	provider.clearLastError()
+	if err := provider.healthCheck(); err != nil {
 		t.Fatalf("healthCheck(clear) error = %v", err)
-	}
-
-	if !isNotInitializedRPCError(
-		subprocess.NewRPCError(rpcCodeNotInitialized, "Not initialized", nil),
-	) {
-		t.Fatal("isNotInitializedRPCError() = false, want true")
-	}
-	if isNotInitializedRPCError(errors.New("boom")) {
-		t.Fatal("isNotInitializedRPCError(non-rpc) = true, want false")
 	}
 }
 
@@ -2192,50 +2102,6 @@ func TestWhatsAppGraphClientMethods(t *testing.T) {
 	}
 }
 
-func TestMarkerHelpers(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	linePath := filepath.Join(root, "markers", "lines.log")
-	jsonPath := filepath.Join(root, "markers", "value.json")
-	crashPath := filepath.Join(root, "markers", "crash-once.json")
-
-	if err := appendMarkerLine(linePath, "  first line  "); err != nil {
-		t.Fatalf("appendMarkerLine() error = %v", err)
-	}
-	lines := waitForNonEmptyLines(t, linePath)
-	if got, want := lines[0], "first line"; got != want {
-		t.Fatalf("lines[0] = %q, want %q", got, want)
-	}
-
-	if err := writeJSONFile(jsonPath, map[string]any{"ok": true}); err != nil {
-		t.Fatalf("writeJSONFile() error = %v", err)
-	}
-	payload, err := os.ReadFile(jsonPath)
-	if err != nil {
-		t.Fatalf("os.ReadFile(jsonPath) error = %v", err)
-	}
-	if !strings.Contains(string(payload), `"ok":true`) {
-		t.Fatalf("json payload = %q, want ok=true", string(payload))
-	}
-
-	if got := shouldCrashOnce(crashPath); !got {
-		t.Fatal("shouldCrashOnce(missing) = false, want true")
-	}
-	if err := writeJSONFile(crashPath, map[string]any{"crashed": true}); err != nil {
-		t.Fatalf("writeJSONFile(crashPath) error = %v", err)
-	}
-	if got := shouldCrashOnce(crashPath); got {
-		t.Fatal("shouldCrashOnce(existing) = true, want false")
-	}
-
-	var stderr strings.Builder
-	reportSideEffectError(&stderr, " test action ", errors.New("boom"))
-	if got := stderr.String(); !strings.Contains(got, "whatsapp: test action: boom") {
-		t.Fatalf("reportSideEffectError() wrote %q, want action and error", got)
-	}
-}
-
 func TestRunHelpers(t *testing.T) {
 	t.Parallel()
 
@@ -2394,18 +2260,12 @@ func newRuntimePeerPair(t *testing.T) (*whatsappProvider, *bridgesdk.Peer, func(
 	cleanup := func() {
 		once.Do(func() {
 			cancel()
-			runtime.stop()
-			runtime.mu.RLock()
-			server := runtime.server
-			runtime.mu.RUnlock()
-			if server != nil {
-				shutdownCtx, shutdownCancel := context.WithTimeout(
-					context.Background(),
-					2*time.Second,
-				)
-				_ = server.Shutdown(shutdownCtx)
-				shutdownCancel()
+			runtime.lifecycle.Stop()
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
+			if err := runtime.http.Shutdown(shutdownCtx); err != nil {
+				t.Fatalf("provider HTTP shutdown error = %v", err)
 			}
+			shutdownCancel()
 			_ = hostConn.Close()
 			_ = runtimeConn.Close()
 			for range 2 {
@@ -2418,7 +2278,9 @@ func newRuntimePeerPair(t *testing.T) (*whatsappProvider, *bridgesdk.Peer, func(
 				}
 				t.Fatalf("runtime peer serve error = %v", err)
 			}
-			runtime.wg.Wait()
+			if err := runtime.lifecycle.Wait(context.Background()); err != nil {
+				t.Fatalf("provider lifecycle wait error = %v", err)
+			}
 		})
 	}
 
@@ -2488,6 +2350,14 @@ func mustHandleLifecycle(
 			return nil, errors.New("unexpected state instance")
 		},
 	)
+}
+
+func setWhatsAppProviderRoute(
+	provider *whatsappProvider,
+	instanceID string,
+	config resolvedInstanceConfig,
+) {
+	provider.routes.Replace(map[string]resolvedInstanceConfig{instanceID: config}, nil)
 }
 
 func testBridgeRuntime(
@@ -2656,29 +2526,65 @@ func strconvTime(ts time.Time) string {
 	return strconv.FormatInt(ts.Unix(), 10)
 }
 
-func setProviderTestEnv(t *testing.T) markerEnv {
+func TestWhatsAppResolvedConfigListenErrorsAndServe(t *testing.T) {
+	t.Run("Should classify invalid webhook configuration and listener failures", func(t *testing.T) {
+		t.Parallel()
+
+		missingPath := resolvedInstanceConfig{}
+		validateWhatsAppResolvedConfig(&missingPath)
+		if missingPath.configError == nil || !strings.Contains(missingPath.configError.Error(), "webhook path") {
+			t.Fatalf("missing path config error = %v", missingPath.configError)
+		}
+		missingPhone := resolvedInstanceConfig{webhookPath: "/whatsapp"}
+		validateWhatsAppResolvedConfig(&missingPhone)
+		if missingPhone.configError == nil || !strings.Contains(missingPhone.configError.Error(), "phone_number_id") {
+			t.Fatalf("missing phone config error = %v", missingPhone.configError)
+		}
+
+		configs := []resolvedInstanceConfig{{instanceID: "brg-1"}}
+		applyWhatsAppListenErrors(configs, "", func(string) error { return nil })
+		if configs[0].configError == nil || !strings.Contains(configs[0].configError.Error(), "listen address") {
+			t.Fatalf("missing listener config error = %v", configs[0].configError)
+		}
+		configs = []resolvedInstanceConfig{{instanceID: "brg-1"}}
+		applyWhatsAppListenErrors(configs, "127.0.0.1:1", func(string) error { return errors.New("listen failed") })
+		if configs[0].configError == nil || !strings.Contains(configs[0].configError.Error(), "listen failed") {
+			t.Fatalf("startup config error = %v", configs[0].configError)
+		}
+	})
+
+	t.Run("Should serve an empty command stream through the shared runner", func(t *testing.T) {
+		t.Parallel()
+
+		if err := runServe(strings.NewReader(""), io.Discard, io.Discard); err != nil {
+			t.Fatalf("runServe(empty input) error = %v", err)
+		}
+	})
+}
+
+func setProviderTestEnv(t *testing.T) bridgesdk.AdapterMarkerPaths {
 	t.Helper()
 
 	root := filepath.Join(t.TempDir(), "markers")
-	env := markerEnv{
-		handshakePath: filepath.Join(root, "handshake.json"),
-		ownershipPath: filepath.Join(root, "ownership.json"),
-		statePath:     filepath.Join(root, "state.jsonl"),
-		deliveryPath:  filepath.Join(root, "delivery.jsonl"),
-		ingestPath:    filepath.Join(root, "ingest.jsonl"),
-		startsPath:    filepath.Join(root, "starts.log"),
-		shutdownPath:  filepath.Join(root, "shutdown.log"),
-		crashOncePath: filepath.Join(root, "crash-once.json"),
+	env := bridgesdk.AdapterMarkerPaths{
+		HandshakePath: filepath.Join(root, "handshake.json"),
+		OwnershipPath: filepath.Join(root, "ownership.json"),
+		StatePath:     filepath.Join(root, "state.jsonl"),
+		DeliveryPath:  filepath.Join(root, "delivery.jsonl"),
+		IngestPath:    filepath.Join(root, "ingest.jsonl"),
+		StartsPath:    filepath.Join(root, "starts.log"),
+		ShutdownPath:  filepath.Join(root, "shutdown.log"),
+		CrashOncePath: filepath.Join(root, "crash-once.json"),
 	}
 
-	t.Setenv(adapterHandshakeEnv, env.handshakePath)
-	t.Setenv(adapterOwnershipEnv, env.ownershipPath)
-	t.Setenv(adapterStateEnv, env.statePath)
-	t.Setenv(adapterDeliveryEnv, env.deliveryPath)
-	t.Setenv(adapterIngestEnv, env.ingestPath)
-	t.Setenv(adapterStartsEnv, env.startsPath)
-	t.Setenv(adapterShutdownEnv, env.shutdownPath)
-	t.Setenv(adapterCrashOnceEnv, "")
+	t.Setenv(bridgesdk.AdapterHandshakePathEnv, env.HandshakePath)
+	t.Setenv(bridgesdk.AdapterOwnershipPathEnv, env.OwnershipPath)
+	t.Setenv(bridgesdk.AdapterStatePathEnv, env.StatePath)
+	t.Setenv(bridgesdk.AdapterDeliveryPathEnv, env.DeliveryPath)
+	t.Setenv(bridgesdk.AdapterIngestPathEnv, env.IngestPath)
+	t.Setenv(bridgesdk.AdapterStartsPathEnv, env.StartsPath)
+	t.Setenv(bridgesdk.AdapterShutdownPathEnv, env.ShutdownPath)
+	t.Setenv(bridgesdk.AdapterCrashOncePathEnv, "")
 
 	return env
 }

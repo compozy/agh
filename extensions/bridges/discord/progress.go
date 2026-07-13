@@ -248,10 +248,8 @@ func (p *discordProvider) detachDiscordProgressDispatcher(
 	deliveryID string,
 	expected *bridgesdk.ProgressDispatcher,
 ) *bridgesdk.ProgressDispatcher {
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	key := deliveryStateKey(instanceID, deliveryID)
-	state, ok := p.deliveries[key]
+	state, ok := p.deliveries.Load(key)
 	if !ok {
 		return nil
 	}
@@ -259,8 +257,10 @@ func (p *discordProvider) detachDiscordProgressDispatcher(
 		return nil
 	}
 	dispatcher := state.Progress
-	state.Progress = nil
-	p.deliveries[key] = state
+	p.deliveries.Update(key, func(current deliveryState) deliveryState {
+		current.Progress = nil
+		return current
+	})
 	return dispatcher
 }
 
@@ -269,28 +269,24 @@ func (p *discordProvider) removeDiscordProgressDelivery(
 	deliveryID string,
 	expected *bridgesdk.ProgressDispatcher,
 ) *bridgesdk.ProgressDispatcher {
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	key := deliveryStateKey(instanceID, deliveryID)
-	state, ok := p.deliveries[key]
+	state, ok := p.deliveries.Load(key)
 	if !ok || state.Progress != expected {
 		return nil
 	}
-	delete(p.deliveries, key)
+	p.deliveries.Delete(key)
 	return state.Progress
 }
 
 func (p *discordProvider) takeDiscordProgressDispatchers() []*bridgesdk.ProgressDispatcher {
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	unique := make(map[*bridgesdk.ProgressDispatcher]struct{})
-	for key, state := range p.deliveries {
+	p.deliveries.TransformAll(func(_ string, state deliveryState) deliveryState {
 		if state.Progress != nil {
 			unique[state.Progress] = struct{}{}
 			state.Progress = nil
-			p.deliveries[key] = state
 		}
-	}
+		return state
+	})
 	dispatchers := make([]*bridgesdk.ProgressDispatcher, 0, len(unique))
 	for dispatcher := range unique {
 		dispatchers = append(dispatchers, dispatcher)
@@ -323,6 +319,6 @@ func (p *discordProvider) reportDiscordProgressError(action string, err error) {
 	if err == nil {
 		return
 	}
-	p.reportSideEffectError(action, err)
+	p.markers.ReportError(action, err)
 	p.setLastError(err)
 }

@@ -103,8 +103,8 @@ func whatsappRequiredSecretChecks(config resolvedInstanceConfig) []bridgepkg.Bri
 		name  string
 		value string
 	}{
-		{check: "webhook.app_secret", name: "app_secret", value: config.appSecret},
-		{check: "webhook.verify_token", name: "verify_token", value: config.verifyToken},
+		{check: "webhook.app_secret", name: whatsappAppSecretSlot, value: config.appSecret},
+		{check: "webhook.verify_token", name: whatsappVerifyTokenSlot, value: config.verifyToken},
 	} {
 		if strings.TrimSpace(secret.value) == "" {
 			checks = append(checks, bridgepkg.FailedSecretCheck(secret.check, secret.name))
