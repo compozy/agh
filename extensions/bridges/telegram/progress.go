@@ -221,7 +221,7 @@ func (c *telegramBotClient) SendChatAction(
 	request telegramSendChatActionRequest,
 ) error {
 	var result bool
-	return c.call(ctx, "sendChatAction", request, &result)
+	return c.callMutation(ctx, "sendChatAction", request, &result)
 }
 
 func (c *telegramBotClient) SetMessageReaction(
@@ -229,7 +229,7 @@ func (c *telegramBotClient) SetMessageReaction(
 	request telegramSetMessageReactionRequest,
 ) error {
 	var result bool
-	return c.call(ctx, "setMessageReaction", request, &result)
+	return c.callMutation(ctx, "setMessageReaction", request, &result)
 }
 
 func (p *telegramProvider) handleBridgesProgress(
@@ -358,7 +358,10 @@ func (p *telegramProvider) executeTextDeliveryWithProgress(
 	state := p.deliveryState(cfg.instanceID, request.Event.DeliveryID)
 	if state.Progress != nil {
 		if err := state.Progress.Flush(ctx); err != nil {
-			return bridgepkg.DeliveryAck{}, state, err
+			p.recordProgressCleanupError("flush progress before text delivery", err)
+			if !bridgesdk.ShouldContinueTextDeliveryAfterProgress(err) {
+				return bridgepkg.DeliveryAck{}, state, err
+			}
 		}
 	}
 	return executeDelivery(ctx, p.apiFactory(cfg), request, state)

@@ -1,12 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -86,22 +84,6 @@ type linearGraphQLResponse[T any] struct {
 	Errors []linearGraphQLError `json:"errors,omitempty"`
 }
 
-func linearCredentialedHTTPClient(base *http.Client) *http.Client {
-	if base == nil {
-		return &http.Client{
-			CheckRedirect: func(*http.Request, []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		}
-	}
-
-	client := *base
-	client.CheckRedirect = func(*http.Request, []*http.Request) error {
-		return http.ErrUseLastResponse
-	}
-	return &client
-}
-
 func (c *linearClient) ValidateAuth(ctx context.Context) (*linearViewer, error) {
 	type viewerResponse struct {
 		Viewer struct {
@@ -124,7 +106,7 @@ query LinearProviderViewer {
     }
   }
 }`,
-	})
+	}, bridgesdk.HTTPResponseNoCommit)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +131,7 @@ func (c *linearClient) CreateComment(
 ) (*linearComment, error) {
 	type createCommentResponse struct {
 		CommentCreate struct {
-			Success bool          `json:"success"`
+			Success *bool         `json:"success"`
 			Comment linearComment `json:"comment"`
 		} `json:"commentCreate"`
 	}
@@ -180,12 +162,18 @@ mutation LinearProviderCreateComment($issueId: String!, $body: String!, $parentI
   }
 }`,
 		Variables: variables,
-	})
+	}, bridgesdk.HTTPResponseCommitOnSuccessStatus)
 	if err != nil {
 		return nil, err
 	}
-	if !response.CommentCreate.Success || strings.TrimSpace(response.CommentCreate.Comment.ID) == "" {
+	if response.CommentCreate.Success == nil {
+		return nil, bridgesdk.MarkCommittedMutation(errors.New("linear: comment creation response omitted success"))
+	}
+	if !*response.CommentCreate.Success {
 		return nil, &bridgesdk.PermanentError{Err: errors.New("linear: comment creation failed")}
+	}
+	if strings.TrimSpace(response.CommentCreate.Comment.ID) == "" {
+		return nil, bridgesdk.MarkCommittedMutation(errors.New("linear: comment creation response omitted id"))
 	}
 	comment := response.CommentCreate.Comment
 	return &comment, nil
@@ -194,7 +182,7 @@ mutation LinearProviderCreateComment($issueId: String!, $body: String!, $parentI
 func (c *linearClient) UpdateComment(ctx context.Context, commentID string, body string) (*linearComment, error) {
 	type updateCommentResponse struct {
 		CommentUpdate struct {
-			Success bool          `json:"success"`
+			Success *bool         `json:"success"`
 			Comment linearComment `json:"comment"`
 		} `json:"commentUpdate"`
 	}
@@ -221,12 +209,18 @@ mutation LinearProviderUpdateComment($id: String!, $body: String!) {
 			"id":       strings.TrimSpace(commentID),
 			apiBodyKey: body,
 		},
-	})
+	}, bridgesdk.HTTPResponseCommitOnSuccessStatus)
 	if err != nil {
 		return nil, err
 	}
-	if !response.CommentUpdate.Success || strings.TrimSpace(response.CommentUpdate.Comment.ID) == "" {
+	if response.CommentUpdate.Success == nil {
+		return nil, bridgesdk.MarkCommittedMutation(errors.New("linear: comment update response omitted success"))
+	}
+	if !*response.CommentUpdate.Success {
 		return nil, &bridgesdk.PermanentError{Err: errors.New("linear: comment update failed")}
+	}
+	if strings.TrimSpace(response.CommentUpdate.Comment.ID) == "" {
+		return nil, bridgesdk.MarkCommittedMutation(errors.New("linear: comment update response omitted id"))
 	}
 	comment := response.CommentUpdate.Comment
 	return &comment, nil
@@ -235,7 +229,7 @@ mutation LinearProviderUpdateComment($id: String!, $body: String!) {
 func (c *linearClient) DeleteComment(ctx context.Context, commentID string) error {
 	type deleteCommentResponse struct {
 		CommentDelete struct {
-			Success bool `json:"success"`
+			Success *bool `json:"success"`
 		} `json:"commentDelete"`
 	}
 
@@ -249,11 +243,14 @@ mutation LinearProviderDeleteComment($id: String!) {
 		Variables: map[string]any{
 			"id": strings.TrimSpace(commentID),
 		},
-	})
+	}, bridgesdk.HTTPResponseCommitOnSuccessStatus)
 	if err != nil {
 		return err
 	}
-	if !response.CommentDelete.Success {
+	if response.CommentDelete.Success == nil {
+		return bridgesdk.MarkCommittedMutation(errors.New("linear: comment delete response omitted success"))
+	}
+	if !*response.CommentDelete.Success {
 		return &bridgesdk.PermanentError{Err: errors.New("linear: comment delete failed")}
 	}
 	return nil
@@ -266,7 +263,7 @@ func (c *linearClient) CreateAgentActivity(
 ) (*linearAgentActivity, error) {
 	type createActivityResponse struct {
 		AgentActivityCreate struct {
-			Success       bool                `json:"success"`
+			Success       *bool               `json:"success"`
 			AgentActivity linearAgentActivity `json:"agentActivity"`
 		} `json:"agentActivityCreate"`
 	}
@@ -294,66 +291,25 @@ mutation LinearProviderCreateAgentActivity($agentSessionId: String!, $body: Stri
 			"agentSessionId": strings.TrimSpace(agentSessionID),
 			apiBodyKey:       body,
 		},
-	})
+	}, bridgesdk.HTTPResponseCommitOnSuccessStatus)
 	if err != nil {
 		return nil, err
 	}
-	if !response.AgentActivityCreate.Success || strings.TrimSpace(response.AgentActivityCreate.AgentActivity.ID) == "" {
+	if response.AgentActivityCreate.Success == nil {
+		return nil, bridgesdk.MarkCommittedMutation(
+			errors.New("linear: agent activity creation response omitted success"),
+		)
+	}
+	if !*response.AgentActivityCreate.Success {
 		return nil, &bridgesdk.PermanentError{Err: errors.New("linear: agent activity creation failed")}
+	}
+	if strings.TrimSpace(response.AgentActivityCreate.AgentActivity.ID) == "" {
+		return nil, bridgesdk.MarkCommittedMutation(
+			errors.New("linear: agent activity creation response omitted id"),
+		)
 	}
 	activity := response.AgentActivityCreate.AgentActivity
 	return &activity, nil
-}
-
-func doLinearGraphQL[T any](ctx context.Context, c *linearClient, request linearGraphQLRequest) (result T, err error) {
-	payload, err := json.Marshal(request)
-	if err != nil {
-		return result, fmt.Errorf("linear: marshal graphql request: %w", err)
-	}
-
-	if !validLinearCredentialedURL(c.cfg.apiBaseURL) {
-		return result, &bridgesdk.PermanentError{Err: errors.New("linear: api base url is invalid")}
-	}
-	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, c.cfg.graphqlURL(), bytes.NewReader(payload))
-	if err != nil {
-		return result, fmt.Errorf("linear: build graphql request: %w", err)
-	}
-	token, err := c.authTokenForRequest(ctx)
-	if err != nil {
-		return result, err
-	}
-	httpRequest.Header.Set("Content-Type", "application/json")
-	httpRequest.Header.Set("Authorization", "Bearer "+token)
-
-	httpResponse, err := linearCredentialedHTTPClient(c.httpClient).Do(httpRequest)
-	if err != nil {
-		return result, classifyLinearTransportError(err)
-	}
-	body, err := readLinearHTTPResponseBody(httpResponse, "graphql")
-	if err != nil {
-		return result, err
-	}
-	if httpResponse.StatusCode >= 400 {
-		return result, classifyLinearHTTPError(httpResponse.StatusCode, body)
-	}
-
-	envelope := linearGraphQLResponse[T]{}
-	if err := json.Unmarshal(body, &envelope); err != nil {
-		return result, fmt.Errorf("linear: decode graphql response: %w", err)
-	}
-	if len(envelope.Errors) > 0 {
-		messages := make([]string, 0, len(envelope.Errors))
-		for _, item := range envelope.Errors {
-			if text := strings.TrimSpace(item.Message); text != "" {
-				messages = append(messages, text)
-			}
-		}
-		return result, &bridgesdk.PermanentError{
-			Err: fmt.Errorf("linear: graphql error: %s", strings.Join(messages, "; ")),
-		}
-	}
-
-	return envelope.Data, nil
 }
 
 func (c *linearClient) authToken(ctx context.Context) string {
@@ -371,7 +327,7 @@ func (c *linearClient) authTokenForRequest(ctx context.Context) (string, error) 
 	return c.ensureOAuthToken(ctx)
 }
 
-func (c *linearClient) ensureOAuthToken(ctx context.Context) (string, error) {
+func (c *linearClient) ensureOAuthToken(ctx context.Context) (result string, err error) {
 	cache := c.cfg.oauthTokenCache
 	if cache == nil {
 		return "", &bridgesdk.PermanentError{Err: errors.New("linear: oauth token cache is required")}
@@ -408,19 +364,28 @@ func (c *linearClient) ensureOAuthToken(ctx context.Context) (string, error) {
 	}
 	httpRequest.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	httpResponse, err := linearCredentialedHTTPClient(c.httpClient).Do(httpRequest)
+	httpResponse, err := bridgesdk.CredentialedHTTPClient(c.httpClient).Do(httpRequest)
 	if err != nil {
 		clearLinearOAuthTokenCache(cache)
 		return "", classifyLinearTransportError(err)
 	}
-	body, err := readLinearHTTPResponseBody(httpResponse, "oauth token")
-	if err != nil {
+	defer func() {
+		err = bridgesdk.FinalizeHTTPResponseBody(
+			httpResponse.Body,
+			err,
+			bridgesdk.HTTPResponseCommitUnconfirmed,
+			nil,
+		)
+	}()
+
+	body, readErr := readLinearHTTPResponseBody(httpResponse, "oauth token")
+	if httpResponse.StatusCode < http.StatusOK || httpResponse.StatusCode >= http.StatusMultipleChoices {
 		clearLinearOAuthTokenCache(cache)
-		return "", err
+		return "", errors.Join(classifyLinearHTTPError(httpResponse.StatusCode, body), readErr)
 	}
-	if httpResponse.StatusCode >= 400 {
+	if readErr != nil {
 		clearLinearOAuthTokenCache(cache)
-		return "", classifyLinearHTTPError(httpResponse.StatusCode, body)
+		return "", readErr
 	}
 
 	response := linearOAuthTokenResponse{}
@@ -453,21 +418,11 @@ func readLinearHTTPResponseBody(response *http.Response, operation string) ([]by
 	if response == nil || response.Body == nil {
 		return nil, fmt.Errorf("linear: %s response body is required", operation)
 	}
-	body, readErr := io.ReadAll(response.Body)
-	closeErr := response.Body.Close()
-	switch {
-	case readErr != nil && closeErr != nil:
-		return nil, errors.Join(
-			fmt.Errorf("linear: read %s response: %w", operation, readErr),
-			fmt.Errorf("linear: close %s response body: %w", operation, closeErr),
-		)
-	case readErr != nil:
-		return nil, fmt.Errorf("linear: read %s response: %w", operation, readErr)
-	case closeErr != nil:
-		return nil, fmt.Errorf("linear: close %s response body: %w", operation, closeErr)
-	default:
-		return body, nil
+	body, readErr := bridgesdk.ReadHTTPResponseBody(response.Body)
+	if readErr != nil {
+		return []byte(body), fmt.Errorf("linear: read %s response: %w", operation, readErr)
 	}
+	return []byte(body), nil
 }
 
 func defaultLinearOAuthScopes(mode string) []string {

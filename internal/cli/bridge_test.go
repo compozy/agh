@@ -825,7 +825,11 @@ func TestBridgeSecretBindingPutReadsWriteOnlyValuesOutsideArgv(t *testing.T) {
 		t.Parallel()
 
 		secretPath := filepath.Join(t.TempDir(), "private-key.pem")
-		if err := os.WriteFile(secretPath, []byte("  -----BEGIN KEY-----\nmaterial\n-----END KEY-----\n"), 0o600); err != nil {
+		if err := os.WriteFile(
+			secretPath,
+			[]byte("  -----BEGIN KEY-----\nmaterial\n-----END KEY-----\n"),
+			0o600,
+		); err != nil {
 			t.Fatalf("WriteFile(secret) error = %v", err)
 		}
 		var captured BridgeSecretBindingRequest
@@ -1120,6 +1124,38 @@ func TestBridgeBundleAndHelpers(t *testing.T) {
 		"bridge{id,display_name,platform,extension_name,scope,workspace_id,enabled,status,routing,include_peer,include_thread,include_group,notification_suppress,delivery_defaults,created_at,updated_at}:",
 	) {
 		t.Fatalf("bridgeBundle().toon() = %q, want bridge TOON object", toon)
+	}
+
+	committedResult := BridgeSendTestRecord{
+		Status:           "committed_result_unavailable",
+		BridgeInstanceID: "brg-committed",
+		DeliveryID:       "del-committed",
+		DeliveryTarget: bridgepkg.DeliveryTarget{
+			BridgeInstanceID: "brg-committed",
+			PeerID:           "peer-committed",
+			Mode:             bridgepkg.DeliveryModeDirectSend,
+		},
+		Error: &bridgepkg.DeliveryErrorDetail{
+			Message: "provider accepted the mutation but omitted the remote message id",
+		},
+	}
+	committedBundle := bridgeSendTestBundle(committedResult)
+	committedHuman, err := committedBundle.human()
+	if err != nil {
+		t.Fatalf("bridgeSendTestBundle(committed).human() error = %v", err)
+	}
+	if !strings.Contains(committedHuman, "committed_result_unavailable") ||
+		!strings.Contains(committedHuman, committedResult.Error.Message) ||
+		strings.Contains(committedHuman, "Remote Message") {
+		t.Fatalf("bridgeSendTestBundle(committed).human() = %q", committedHuman)
+	}
+	committedToon, err := committedBundle.toon()
+	if err != nil {
+		t.Fatalf("bridgeSendTestBundle(committed).toon() error = %v", err)
+	}
+	if !strings.Contains(committedToon, "error_message") ||
+		!strings.Contains(committedToon, committedResult.Error.Message) {
+		t.Fatalf("bridgeSendTestBundle(committed).toon() = %q", committedToon)
 	}
 
 	if got := bridgeRoutingPolicyLabel(bridgepkg.RoutingPolicy{}); got != "" {

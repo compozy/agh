@@ -724,7 +724,7 @@ func newConfigEditCommand(deps commandDeps) *cobra.Command {
 			if err := ensureWriteTargetParent(target); err != nil {
 				return err
 			}
-			if err := ensureEditableConfigFile(target.Path()); err != nil {
+			if err := ensureEditableConfigFile(target); err != nil {
 				return err
 			}
 			if err := runConfigEditor(cmd, deps, target.Path()); err != nil {
@@ -1428,14 +1428,6 @@ func parseStringSliceValue(raw string) ([]string, error) {
 		}
 	}
 	return values, nil
-}
-
-func ensureEditableConfigFile(path string) error {
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
-	if err != nil {
-		return fmt.Errorf("cli: create editable config file %q: %w", path, err)
-	}
-	return file.Close()
 }
 
 func runConfigEditor(cmd *cobra.Command, deps commandDeps, path string) error {

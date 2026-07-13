@@ -1,4 +1,5 @@
 import {
+  ActionResultBanner,
   Button,
   Dialog,
   DialogContent,
@@ -55,13 +56,13 @@ function resultTone(status: string): PillTone {
   switch (status) {
     case "resolved":
     case "ready":
-    case "sent":
     case "delivered":
       return "success";
     case "error":
     case "failed":
       return "danger";
     case "pending":
+    case "committed_result_unavailable":
       return "warning";
     default:
       return "neutral";
@@ -150,6 +151,14 @@ function DryRunResult({ result }: { result: TestBridgeDeliveryResponse }) {
 }
 
 function SendTestResult({ result }: { result: SendBridgeTestResponse }) {
+  const committedResultUnavailable = result.status === "committed_result_unavailable";
+  const committedResultMessage =
+    result.error?.message ??
+    "The provider accepted the mutation but did not return a verifiable result.";
+  const committedResultSentence = /[.!?]$/.test(committedResultMessage)
+    ? committedResultMessage
+    : `${committedResultMessage}.`;
+
   return (
     <Section
       data-testid="bridge-send-test-result"
@@ -173,6 +182,14 @@ function SendTestResult({ result }: { result: SendBridgeTestResponse }) {
           </MetadataList.Row>
         ) : null}
       </MetadataList>
+      {committedResultUnavailable ? (
+        <ActionResultBanner
+          className="mt-4"
+          description={`${committedResultSentence} Inspect the provider before sending this test again.`}
+          title="Delivery result is indeterminate"
+          tone="warning"
+        />
+      ) : null}
     </Section>
   );
 }

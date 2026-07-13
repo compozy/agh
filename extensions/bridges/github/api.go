@@ -83,7 +83,7 @@ func (c *githubClient) ValidateAuth(ctx context.Context, installationID int64) (
 		return nil, err
 	}
 	viewer := githubViewer{}
-	if err := c.doJSON(req, &viewer); err != nil {
+	if err := c.doJSON(req, &viewer, bridgesdk.HTTPResponseNoCommit); err != nil {
 		return nil, err
 	}
 	return &viewer, nil
@@ -108,11 +108,11 @@ func (c *githubClient) CreateIssueComment(
 		return nil, err
 	}
 	comment := githubIssueComment{}
-	if err := c.doJSON(req, &comment); err != nil {
+	if err := c.doJSON(req, &comment, bridgesdk.HTTPResponseCommitOnSuccessStatus); err != nil {
 		return nil, err
 	}
 	if comment.ID <= 0 {
-		return nil, &bridgesdk.TransientError{Err: errors.New("github: create issue comment response omitted id")}
+		return nil, bridgesdk.MarkCommittedMutation(errors.New("github: create issue comment response omitted id"))
 	}
 	return &comment, nil
 }
@@ -143,13 +143,13 @@ func (c *githubClient) CreateReviewCommentReply(
 		return nil, err
 	}
 	comment := githubReviewComment{}
-	if err := c.doJSON(req, &comment); err != nil {
+	if err := c.doJSON(req, &comment, bridgesdk.HTTPResponseCommitOnSuccessStatus); err != nil {
 		return nil, err
 	}
 	if comment.ID <= 0 {
-		return nil, &bridgesdk.TransientError{
-			Err: errors.New("github: create review comment reply response omitted id"),
-		}
+		return nil, bridgesdk.MarkCommittedMutation(
+			errors.New("github: create review comment reply response omitted id"),
+		)
 	}
 	return &comment, nil
 }
@@ -173,7 +173,7 @@ func (c *githubClient) UpdateIssueComment(
 		return nil, err
 	}
 	comment := githubIssueComment{}
-	if err := c.doJSON(req, &comment); err != nil {
+	if err := c.doJSON(req, &comment, bridgesdk.HTTPResponseCommitOnSuccessStatus); err != nil {
 		return nil, err
 	}
 	if comment.ID <= 0 {
@@ -201,7 +201,7 @@ func (c *githubClient) UpdateReviewComment(
 		return nil, err
 	}
 	comment := githubReviewComment{}
-	if err := c.doJSON(req, &comment); err != nil {
+	if err := c.doJSON(req, &comment, bridgesdk.HTTPResponseCommitOnSuccessStatus); err != nil {
 		return nil, err
 	}
 	if comment.ID <= 0 {
@@ -221,7 +221,7 @@ func (c *githubClient) DeleteIssueComment(ctx context.Context, commentID int64, 
 	if err != nil {
 		return err
 	}
-	return c.doJSON(req, nil)
+	return c.doJSON(req, nil, bridgesdk.HTTPResponseCommitOnSuccessStatus)
 }
 
 func (c *githubClient) DeleteReviewComment(ctx context.Context, commentID int64, installationID int64) error {
@@ -235,7 +235,7 @@ func (c *githubClient) DeleteReviewComment(ctx context.Context, commentID int64,
 	if err != nil {
 		return err
 	}
-	return c.doJSON(req, nil)
+	return c.doJSON(req, nil, bridgesdk.HTTPResponseCommitOnSuccessStatus)
 }
 
 func (c *githubClient) newRequest(
@@ -342,7 +342,7 @@ func (c *githubClient) installationAccessToken(ctx context.Context, installation
 	req.Header.Set("User-Agent", "agh-bridge-github/0.1.0")
 
 	response := githubAccessTokenResponse{}
-	if err := c.doJSON(req, &response); err != nil {
+	if err := c.doJSON(req, &response, bridgesdk.HTTPResponseNoCommit); err != nil {
 		return "", err
 	}
 	if strings.TrimSpace(response.Token) == "" {
@@ -358,31 +358,6 @@ func (c *githubClient) installationAccessToken(ctx context.Context, installation
 	c.installationToken = strings.TrimSpace(response.Token)
 	c.tokenExpiresAt = expiresAt
 	return c.installationToken, nil
-}
-
-func (c *githubClient) doJSON(req *http.Request, dest any) error {
-	if err := validateGitHubRequestURL(req); err != nil {
-		return &bridgesdk.PermanentError{Err: err}
-	}
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return &bridgesdk.TransientError{Err: err}
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	raw := readResponseBody(resp.Body)
-	if resp.StatusCode >= 400 {
-		return classifyGitHubHTTPError(resp.StatusCode, resp.Header.Get("Retry-After"), raw)
-	}
-	if dest == nil || strings.TrimSpace(raw) == "" {
-		return nil
-	}
-	if err := json.Unmarshal([]byte(raw), dest); err != nil {
-		return &bridgesdk.TransientError{Err: fmt.Errorf("github: decode response: %w", err)}
-	}
-	return nil
 }
 
 func signGitHubAppJWT(appID string, privateKeyPEM string, now time.Time) (string, error) {
@@ -503,15 +478,4 @@ func extractGitHubErrorMessage(raw string) string {
 		return ""
 	}
 	return firstNonEmpty(payload.Message, payload.Error)
-}
-
-func readResponseBody(reader io.Reader) string {
-	if reader == nil {
-		return ""
-	}
-	body, err := io.ReadAll(reader)
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(body))
 }

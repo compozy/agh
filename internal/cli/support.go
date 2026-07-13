@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -144,7 +145,14 @@ func confirmSupportBundleCreation(cmd *cobra.Command, yes bool) (bool, error) {
 
 func supportBundleInputIsTerminal(input io.Reader) bool {
 	file, ok := input.(*os.File)
-	return ok && term.IsTerminal(int(file.Fd()))
+	if !ok {
+		return false
+	}
+	fd := file.Fd()
+	if fd > uintptr(math.MaxInt) {
+		return false
+	}
+	return term.IsTerminal(int(fd))
 }
 
 func resolveInheritedOutputFormat(cmd *cobra.Command) (OutputFormat, error) {

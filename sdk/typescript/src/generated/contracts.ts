@@ -1386,15 +1386,19 @@ export interface CoordinatorStoppedPayload {
   error?: string;
 }
 
-export interface DeliveryAck {
-  delivery_id?: string;
-  seq?: number;
-  remote_message_id?: string;
-  replace_remote_message_id?: string;
-}
+export type DeliveryAckOutcome = "success" | "committed_result_unavailable";
 
 export interface DeliveryErrorDetail {
   message: string;
+}
+
+export interface DeliveryAck {
+  delivery_id: string;
+  seq: number;
+  remote_message_id?: string;
+  replace_remote_message_id?: string;
+  outcome?: DeliveryAckOutcome;
+  error?: DeliveryErrorDetail;
 }
 
 export type DeliveryMode = string;

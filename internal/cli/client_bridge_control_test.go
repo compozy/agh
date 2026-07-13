@@ -94,4 +94,35 @@ func TestUnixSocketClientBridgeControl(t *testing.T) {
 			t.Fatalf("VerifyBridge(blank) error = %v", err)
 		}
 	})
+
+	t.Run("Should reject an unknown send-test status", func(t *testing.T) {
+		t.Parallel()
+
+		client := &unixSocketClient{
+			socketPath: "/tmp/agh.sock",
+			httpClient: &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+				return newHTTPResponse(http.StatusOK, `{
+  "status": "maybe_delivered",
+  "bridge_instance_id": "brg-1",
+  "delivery_id": "del-1",
+  "delivery_target": {
+    "bridge_instance_id": "brg-1",
+    "peer_id": "peer-1",
+    "mode": "direct-send"
+  }
+}`), nil
+			})},
+		}
+
+		_, err := client.SendBridgeTest(context.Background(), "brg-1", BridgeSendTestRequest{
+			Message: "hello",
+			Target: BridgeDeliveryTargetInput{
+				PeerID: "peer-1",
+				Mode:   bridgepkg.DeliveryModeDirectSend,
+			},
+		})
+		if err == nil || !strings.Contains(err.Error(), "invalid bridge send-test status") {
+			t.Fatalf("SendBridgeTest(unknown status) error = %v", err)
+		}
+	})
 }

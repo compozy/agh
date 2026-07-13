@@ -17,6 +17,7 @@ type deliveryState struct {
 	ReplaceRemoteMessageID string
 	LastContent            string
 	Chunks                 bridgesdk.DeliveryChunkCursor
+	ResolvedTarget         teamsResolvedTarget
 	Progress               *bridgesdk.ProgressDispatcher
 }
 

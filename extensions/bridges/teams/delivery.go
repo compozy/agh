@@ -4,115 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
-	"time"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
 )
 
 const teamsMaxMessageLen = 28_000
-
-func (p *teamsProvider) handleBridgesDeliver(
-	ctx context.Context,
-	session *bridgesdk.Session,
-	request bridgepkg.DeliveryRequest,
-) (bridgepkg.DeliveryAck, error) {
-	marker := bridgesdk.DeliveryMarker{PID: os.Getpid(), Request: request}
-	cfg, err := p.waitForInstanceConfig(
-		strings.TrimSpace(request.Event.BridgeInstanceID),
-		500*time.Millisecond,
-	)
-	if err != nil {
-		return p.failTeamsDelivery(ctx, session, resolvedInstanceConfig{}, marker, err)
-	}
-
-	if p.markers.ShouldCrashOnce() {
-		p.markers.RecordDelivery(marker)
-		p.markers.RecordCrash(map[string]any{
-			"crashed":            true,
-			"pid":                os.Getpid(),
-			"delivery_id":        strings.TrimSpace(request.Event.DeliveryID),
-			"bridge_instance_id": cfg.instanceID,
-		})
-		os.Exit(23)
-	}
-
-	state := p.deliveryState(cfg.instanceID, request.Event.DeliveryID)
-	if state.Progress != nil {
-		if err := state.Progress.Flush(ctx); err != nil {
-			return p.failTeamsDelivery(ctx, session, cfg, marker, err)
-		}
-	}
-
-	ack, state, err := executeTeamsDelivery(
-		ctx,
-		p.apiFactory(cfg),
-		cfg,
-		request,
-		state,
-		func(deliveryID string) (deliveryState, bool) {
-			referencedState := p.deliveryState(cfg.instanceID, deliveryID)
-			return referencedState, strings.TrimSpace(referencedState.RemoteMessageID) != ""
-		},
-		p.userContext,
-	)
-	if err != nil {
-		p.storeDeliveryRetryState(cfg.instanceID, request.Event.DeliveryID, state)
-		return p.failTeamsDelivery(ctx, session, cfg, marker, err)
-	}
-
-	dispatcher := state.Progress
-	var cleanupErr error
-	if dispatcher != nil {
-		cleanupErr = dispatcher.OnContent(ctx)
-		if isTerminalTeamsDeliveryEvent(request.Event) {
-			state.Progress = nil
-		}
-	}
-	p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, state)
-	if dispatcher != nil && state.Progress == nil {
-		dispatcher.Close()
-	}
-
-	readyErr := p.lifecycle.Host().ReportReadyIfNeeded(ctx, session, cfg.instanceID)
-	switch {
-	case readyErr != nil:
-		p.setLastError(readyErr)
-	case cleanupErr != nil:
-		p.recordTeamsProgressCleanupError(cleanupErr)
-	default:
-		p.clearLastError()
-	}
-
-	marker.Ack = &ack
-	p.markers.RecordDelivery(marker)
-	return ack, nil
-}
-
-func (p *teamsProvider) failTeamsDelivery(
-	ctx context.Context,
-	session *bridgesdk.Session,
-	cfg resolvedInstanceConfig,
-	marker bridgesdk.DeliveryMarker,
-	err error,
-) (bridgepkg.DeliveryAck, error) {
-	marker.Error = err.Error()
-	p.markers.RecordDelivery(marker)
-	if strings.TrimSpace(cfg.instanceID) == "" {
-		p.setLastError(err)
-		return bridgepkg.DeliveryAck{}, err
-	}
-	classified := bridgesdk.ClassifyError(err)
-	_, _, reportErr := session.ReportClassifiedError(ctx, cfg.instanceID, classified)
-	if reportErr != nil {
-		p.setLastError(reportErr)
-	} else {
-		p.setLastError(err)
-	}
-	return bridgepkg.DeliveryAck{}, err
-}
 
 func isTerminalTeamsDeliveryEvent(event bridgepkg.DeliveryEvent) bool {
 	if event.Operation.Normalize() == bridgepkg.DeliveryOperationDelete {
@@ -216,13 +114,18 @@ func executeTeamsPostDelivery(
 	state deliveryState,
 	userContextLookup func(string, string) (teamsUserContext, bool),
 ) (bridgepkg.DeliveryAck, deliveryState, error) {
-	target, err := resolveTeamsDeliveryTarget(cfg, event, userContextLookup)
-	if err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-	target, err = ensureTeamsConversation(ctx, api, cfg, target)
-	if err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
+	target := state.ResolvedTarget
+	if strings.TrimSpace(target.ConversationID) == "" {
+		var err error
+		target, err = resolveTeamsDeliveryTarget(cfg, event, userContextLookup)
+		if err != nil {
+			return bridgepkg.DeliveryAck{}, state, err
+		}
+		target, err = ensureTeamsConversation(ctx, api, cfg, target)
+		if err != nil {
+			return bridgepkg.DeliveryAck{}, state, err
+		}
+		state.ResolvedTarget = target
 	}
 
 	baseConversationID, replyToID := splitTeamsConversationTarget(
@@ -260,7 +163,7 @@ func executeTeamsPostDelivery(
 			return bridgepkg.DeliveryAck{}, state, fmt.Errorf("teams: send activity chunk %d: %w", index+1, sendErr)
 		}
 		if sent == nil || strings.TrimSpace(sent.ID) == "" {
-			return bridgepkg.DeliveryAck{}, state, &bridgesdk.TransientError{
+			return bridgepkg.DeliveryAck{}, state, &bridgesdk.CommittedMutationError{
 				Err: errors.New("teams: send activity response omitted id"),
 			}
 		}
@@ -279,109 +182,6 @@ func executeTeamsPostDelivery(
 	state.LastSeq = event.Seq
 	state.ReplaceRemoteMessageID = replaceRemoteID
 	state.RemoteMessageID = remoteID
-	state.LastContent = chunks[len(chunks)-1]
-	return ack, state, ack.ValidateFor(event)
-}
-
-func executeTeamsEditDelivery(
-	ctx context.Context,
-	api teamsAPI,
-	cfg resolvedInstanceConfig,
-	event bridgepkg.DeliveryEvent,
-	snapshot *bridgepkg.DeliverySnapshot,
-	state deliveryState,
-	referenceStateLookup teamsDeliveryStateLookup,
-	userContextLookup func(string, string) (teamsUserContext, bool),
-) (bridgepkg.DeliveryAck, deliveryState, error) {
-	remoteID := resolveTeamsReferencedRemoteMessageID(event.Reference, snapshot, state, referenceStateLookup)
-	if remoteID == "" {
-		return bridgepkg.DeliveryAck{}, state, errors.New(
-			"teams: edit delivery requires a remote message id",
-		)
-	}
-	ref, err := decodeRemoteMessageID(remoteID)
-	if err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-
-	chunks := teamsDeliveryChunks(event)
-	continuationReplyToID := ""
-	if len(chunks) > 1 {
-		target, targetErr := resolveTeamsDeliveryTarget(cfg, event, userContextLookup)
-		if targetErr != nil {
-			return bridgepkg.DeliveryAck{}, state, fmt.Errorf("teams: resolve continuation target: %w", targetErr)
-		}
-		if target.ConversationID == ref.ConversationID && target.ServiceURL == ref.ServiceURL {
-			continuationReplyToID = target.ReplyToID
-		}
-	}
-	replaceRemoteID := firstNonEmpty(state.RemoteMessageID, remoteID)
-	state.Chunks = bridgesdk.BeginDeliveryChunks(
-		state.Chunks,
-		event.Seq,
-		bridgesdk.DeliveryChunkModeUpdate,
-		len(chunks),
-		event.Content.Text,
-		remoteID,
-		replaceRemoteID,
-	)
-	for index := state.Chunks.NextChunk(); index < len(chunks); index++ {
-		chunk := chunks[index]
-		if index == 0 {
-			if remoteID != state.RemoteMessageID || chunk != state.LastContent {
-				if err := updateTeamsDeliveryActivity(
-					ctx,
-					api,
-					ref.ServiceURL,
-					ref.ConversationID,
-					ref.ActivityID,
-					teamsOutboundActivity{
-						Type:       providerMessageKey,
-						Text:       chunk,
-						TextFormat: teamsTextFormatMarkdown,
-					},
-				); err != nil {
-					return bridgepkg.DeliveryAck{}, state, fmt.Errorf("teams: update activity: %w", err)
-				}
-			}
-			state.Chunks = state.Chunks.Advance(remoteID)
-			continue
-		}
-
-		sent, sendErr := sendTeamsDeliveryActivity(
-			ctx,
-			api,
-			ref.ServiceURL,
-			ref.ConversationID,
-			continuationReplyToID,
-			teamsOutboundActivity{
-				Type:       providerMessageKey,
-				Text:       chunk,
-				TextFormat: teamsTextFormatMarkdown,
-			},
-		)
-		if sendErr != nil {
-			return bridgepkg.DeliveryAck{}, state, fmt.Errorf("teams: send continuation %d: %w", index, sendErr)
-		}
-		if sent == nil || strings.TrimSpace(sent.ID) == "" {
-			return bridgepkg.DeliveryAck{}, state, &bridgesdk.TransientError{
-				Err: errors.New("teams: send activity response omitted id"),
-			}
-		}
-		state.Chunks = state.Chunks.Advance(encodeRemoteMessageID(teamsRemoteMessageRef{
-			ConversationID: ref.ConversationID,
-			ServiceURL:     ref.ServiceURL,
-			ActivityID:     strings.TrimSpace(sent.ID),
-		}))
-	}
-
-	lastRemoteID := state.Chunks.LastRemoteMessageID()
-	replaceRemoteID = state.Chunks.ReplaceRemoteMessageID()
-	state.Chunks = bridgesdk.DeliveryChunkCursor{}
-	ack := newTeamsDeliveryAck(event, lastRemoteID, replaceRemoteID)
-	state.LastSeq = event.Seq
-	state.RemoteMessageID = lastRemoteID
-	state.ReplaceRemoteMessageID = replaceRemoteID
 	state.LastContent = chunks[len(chunks)-1]
 	return ack, state, ack.ValidateFor(event)
 }

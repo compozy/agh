@@ -63,25 +63,101 @@ func TestWebhookPublicURLContract(t *testing.T) {
 			wantErrSub string
 		}{
 			{name: "Should reject empty provider config", config: ``, wantErrSub: "public_url is required"},
-			{name: "Should reject malformed provider config", config: `{"webhook":`, wantErrSub: "decode provider config"},
-			{name: "Should reject a missing public URL", config: `{"webhook":{"path":"/hooks"}}`, wantErrSub: "public_url is required"},
-			{name: "Should reject a malformed public URL", config: `{"webhook":{"public_url":"https://%zz"}}`, wantErrSub: "parse webhook public_url"},
-			{name: "Should reject insecure HTTP", config: `{"webhook":{"public_url":"http://bridge.example.com/hooks"}}`, wantErrSub: "must use HTTPS"},
-			{name: "Should reject a URL without a host", config: `{"webhook":{"public_url":"https:///hooks"}}`, wantErrSub: "must include a host"},
-			{name: "Should reject URL credentials", config: `{"webhook":{"public_url":"https://user@bridge.example.com/hooks"}}`, wantErrSub: "userinfo or fragment"},
-			{name: "Should reject URL fragments", config: `{"webhook":{"public_url":"https://bridge.example.com/hooks#token"}}`, wantErrSub: "userinfo or fragment"},
-			{name: "Should reject localhost", config: `{"webhook":{"public_url":"https://localhost/hooks"}}`, wantErrSub: "publicly routable"},
-			{name: "Should reject localhost subdomains", config: `{"webhook":{"public_url":"https://bridge.localhost/hooks"}}`, wantErrSub: "publicly routable"},
-			{name: "Should reject loopback IPv4", config: `{"webhook":{"public_url":"https://127.0.0.1/hooks"}}`, wantErrSub: "publicly routable"},
-			{name: "Should reject private IPv4", config: `{"webhook":{"public_url":"https://10.20.30.40/hooks"}}`, wantErrSub: "publicly routable"},
-			{name: "Should reject link-local metadata IPv4", config: `{"webhook":{"public_url":"https://169.254.169.254/latest/meta-data"}}`, wantErrSub: "publicly routable"},
-			{name: "Should reject multicast IPv4", config: `{"webhook":{"public_url":"https://224.0.0.1/hooks"}}`, wantErrSub: "publicly routable"},
-			{name: "Should reject NAT64", config: `{"webhook":{"public_url":"https://[64:ff9b::a00:1]/hooks"}}`, wantErrSub: "publicly routable"},
-			{name: "Should reject local-use NAT64", config: `{"webhook":{"public_url":"https://[64:ff9b:1::a00:1]/hooks"}}`, wantErrSub: "publicly routable"},
-			{name: "Should reject 6to4", config: `{"webhook":{"public_url":"https://[2002:a00:1::]/hooks"}}`, wantErrSub: "publicly routable"},
-			{name: "Should reject Teredo", config: `{"webhook":{"public_url":"https://[2001::1]/hooks"}}`, wantErrSub: "publicly routable"},
-			{name: "Should reject benchmark IPv4", config: `{"webhook":{"public_url":"https://198.18.0.1/hooks"}}`, wantErrSub: "publicly routable"},
-			{name: "Should reject documentation IPv4", config: `{"webhook":{"public_url":"https://192.0.2.1/hooks"}}`, wantErrSub: "publicly routable"},
+			{
+				name:       "Should reject malformed provider config",
+				config:     `{"webhook":`,
+				wantErrSub: "decode provider config",
+			},
+			{
+				name:       "Should reject a missing public URL",
+				config:     `{"webhook":{"path":"/hooks"}}`,
+				wantErrSub: "public_url is required",
+			},
+			{
+				name:       "Should reject a malformed public URL",
+				config:     `{"webhook":{"public_url":"https://%zz"}}`,
+				wantErrSub: "parse webhook public_url",
+			},
+			{
+				name:       "Should reject insecure HTTP",
+				config:     `{"webhook":{"public_url":"http://bridge.example.com/hooks"}}`,
+				wantErrSub: "must use HTTPS",
+			},
+			{
+				name:       "Should reject a URL without a host",
+				config:     `{"webhook":{"public_url":"https:///hooks"}}`,
+				wantErrSub: "must include a host",
+			},
+			{
+				name:       "Should reject URL credentials",
+				config:     `{"webhook":{"public_url":"https://user@bridge.example.com/hooks"}}`,
+				wantErrSub: "userinfo or fragment",
+			},
+			{
+				name:       "Should reject URL fragments",
+				config:     `{"webhook":{"public_url":"https://bridge.example.com/hooks#token"}}`,
+				wantErrSub: "userinfo or fragment",
+			},
+			{
+				name:       "Should reject localhost",
+				config:     `{"webhook":{"public_url":"https://localhost/hooks"}}`,
+				wantErrSub: "publicly routable",
+			},
+			{
+				name:       "Should reject localhost subdomains",
+				config:     `{"webhook":{"public_url":"https://bridge.localhost/hooks"}}`,
+				wantErrSub: "publicly routable",
+			},
+			{
+				name:       "Should reject loopback IPv4",
+				config:     `{"webhook":{"public_url":"https://127.0.0.1/hooks"}}`,
+				wantErrSub: "publicly routable",
+			},
+			{
+				name:       "Should reject private IPv4",
+				config:     `{"webhook":{"public_url":"https://10.20.30.40/hooks"}}`,
+				wantErrSub: "publicly routable",
+			},
+			{
+				name:       "Should reject link-local metadata IPv4",
+				config:     `{"webhook":{"public_url":"https://169.254.169.254/latest/meta-data"}}`,
+				wantErrSub: "publicly routable",
+			},
+			{
+				name:       "Should reject multicast IPv4",
+				config:     `{"webhook":{"public_url":"https://224.0.0.1/hooks"}}`,
+				wantErrSub: "publicly routable",
+			},
+			{
+				name:       "Should reject NAT64",
+				config:     `{"webhook":{"public_url":"https://[64:ff9b::a00:1]/hooks"}}`,
+				wantErrSub: "publicly routable",
+			},
+			{
+				name:       "Should reject local-use NAT64",
+				config:     `{"webhook":{"public_url":"https://[64:ff9b:1::a00:1]/hooks"}}`,
+				wantErrSub: "publicly routable",
+			},
+			{
+				name:       "Should reject 6to4",
+				config:     `{"webhook":{"public_url":"https://[2002:a00:1::]/hooks"}}`,
+				wantErrSub: "publicly routable",
+			},
+			{
+				name:       "Should reject Teredo",
+				config:     `{"webhook":{"public_url":"https://[2001::1]/hooks"}}`,
+				wantErrSub: "publicly routable",
+			},
+			{
+				name:       "Should reject benchmark IPv4",
+				config:     `{"webhook":{"public_url":"https://198.18.0.1/hooks"}}`,
+				wantErrSub: "publicly routable",
+			},
+			{
+				name:       "Should reject documentation IPv4",
+				config:     `{"webhook":{"public_url":"https://192.0.2.1/hooks"}}`,
+				wantErrSub: "publicly routable",
+			},
 		}
 		for _, test := range tests {
 			test := test

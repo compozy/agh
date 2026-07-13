@@ -238,6 +238,89 @@ func TestManagerIntegrationBridgeAdapterNegotiatesDeliveryRuntime(t *testing.T) 
 	}
 }
 
+func TestManagerIntegrationInvalidDeliveryResultsAreIndeterminate(t *testing.T) {
+	withDaemonVersion(t, "0.5.0")
+
+	scenarios := []string{
+		"delivery_ack_missing_seq",
+		"delivery_ack_null_seq",
+		"delivery_ack_string_seq",
+		"delivery_ack_non_object",
+	}
+	for _, scenario := range scenarios {
+		t.Run("Should terminalize "+scenario, func(t *testing.T) {
+			extensionName := "ext-" + strings.ReplaceAll(scenario, "_", "-")
+			markerPath := filepath.Join(t.TempDir(), "deliveries.jsonl")
+			env := newRegistryTestEnv(t)
+			fixture := createManagerTestExtension(t, managerTestManifest(extensionName, managerManifestOptions{
+				command:      helperCommand(t),
+				args:         helperArgs(),
+				withEnv:      helperEnv(scenario, markerPath),
+				capabilities: []string{extensionprotocol.CapabilityProvideBridgeAdapter},
+				actions: []string{
+					string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
+					string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
+					string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
+				},
+				security: []string{"bridge.read", "bridge.write"},
+			}), nil)
+			installManagerFixture(t, env.registry, fixture, SourceUser, true)
+
+			manager := NewManager(
+				env.registry,
+				WithBridgeRuntimeResolver(&stubBridgeRuntimeResolver{
+					runtimes: map[string]*subprocess.InitializeBridgeRuntime{
+						extensionName: testScopedBridgeRuntime(extensionName, "brg-ack", nil),
+					},
+				}),
+				WithHealthCheckTimeout(20*time.Millisecond),
+				WithSubprocessSignalGrace(15*time.Millisecond),
+			)
+			if err := manager.Start(testutil.Context(t)); err != nil {
+				t.Fatalf("Start() error = %v", err)
+			}
+			t.Cleanup(func() {
+				if err := manager.Stop(testutil.Context(t)); err != nil {
+					t.Fatalf("Stop() cleanup error = %v", err)
+				}
+			})
+
+			req := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+				DeliveryID:       "del-zero",
+				BridgeInstanceID: "brg-ack",
+				RoutingKey: bridgepkg.RoutingKey{
+					Scope:            bridgepkg.ScopeWorkspace,
+					WorkspaceID:      "ws-ack",
+					BridgeInstanceID: "brg-ack",
+					PeerID:           "peer-ack",
+				},
+				DeliveryTarget: bridgepkg.DeliveryTarget{
+					BridgeInstanceID: "brg-ack",
+					PeerID:           "peer-ack",
+					Mode:             bridgepkg.DeliveryModeReply,
+				},
+				Seq:       0,
+				EventType: bridgepkg.DeliveryEventTypeStart,
+				Content:   bridgepkg.MessageContent{Text: "hello"},
+			}}
+			ack, err := manager.DeliverBridge(testutil.Context(t), extensionName, req)
+			if err != nil {
+				t.Fatalf("DeliverBridge() error = %v, want semantic acknowledgement", err)
+			}
+			if err := ack.ValidateFor(req.Event); err != nil {
+				t.Fatalf("semantic acknowledgement validation error = %v", err)
+			}
+			if ack.Outcome != bridgepkg.DeliveryAckOutcomeCommittedResultUnavailable ||
+				ack.Error == nil || ack.Error.Message != bridgepkg.DeliveryResultUnavailableMessage {
+				t.Fatalf("DeliverBridge() ack = %#v, want fixed indeterminate outcome", ack)
+			}
+			if markers := readDeliveryMarkers(t, markerPath); len(markers) != 1 {
+				t.Fatalf("delivery calls = %d, want exactly one", len(markers))
+			}
+		})
+	}
+}
+
 func TestManagerIntegrationWorkspaceExtensionCannotReceiveGlobalResourceScope(t *testing.T) {
 	withDaemonVersion(t, "0.5.0")
 

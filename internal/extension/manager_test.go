@@ -1950,6 +1950,16 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 			DeliveryID: strings.TrimSpace(params.Event.DeliveryID),
 			Seq:        params.Event.Seq,
 		}
+		switch h.scenario {
+		case "delivery_ack_missing_seq":
+			return h.sendResult(req.ID, map[string]any{"delivery_id": ack.DeliveryID})
+		case "delivery_ack_null_seq":
+			return h.sendResult(req.ID, map[string]any{"delivery_id": ack.DeliveryID, "seq": nil})
+		case "delivery_ack_string_seq":
+			return h.sendResult(req.ID, map[string]any{"delivery_id": ack.DeliveryID, "seq": "0"})
+		case "delivery_ack_non_object":
+			return h.sendResult(req.ID, []string{"not", "an", "ack"})
+		}
 		if ack.Seq > 0 {
 			ack.RemoteMessageID = fmt.Sprintf("remote-%d", ack.Seq)
 		}

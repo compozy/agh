@@ -111,13 +111,25 @@ func bridgeSendTestBundle(result BridgeSendTestRecord) outputBundle {
 	return outputBundle{
 		jsonValue: result,
 		human: func() (string, error) {
+			deliveryValues := []keyValue{
+				{Label: automationStatusValue, Value: stringOrDash(string(result.Status))},
+				{Label: bridgeBridgeValue, Value: stringOrDash(result.BridgeInstanceID)},
+				{Label: "Delivery", Value: stringOrDash(result.DeliveryID)},
+			}
+			if strings.TrimSpace(result.RemoteMessageID) != "" {
+				deliveryValues = append(deliveryValues, keyValue{
+					Label: "Remote Message",
+					Value: result.RemoteMessageID,
+				})
+			}
+			if result.Error != nil && strings.TrimSpace(result.Error.Message) != "" {
+				deliveryValues = append(deliveryValues, keyValue{
+					Label: "Error",
+					Value: result.Error.Message,
+				})
+			}
 			return renderHumanBlocks(
-				renderHumanSection("Send Test", []keyValue{
-					{Label: automationStatusValue, Value: stringOrDash(result.Status)},
-					{Label: bridgeBridgeValue, Value: stringOrDash(result.BridgeInstanceID)},
-					{Label: "Delivery", Value: stringOrDash(result.DeliveryID)},
-					{Label: "Remote Message", Value: stringOrDash(result.RemoteMessageID)},
-				}),
+				renderHumanSection("Send Test", deliveryValues),
 				renderHumanSection("Delivery Target", []keyValue{
 					{Label: taskPeerValue, Value: stringOrDash(result.DeliveryTarget.PeerID)},
 					{Label: taskThreadValue, Value: stringOrDash(result.DeliveryTarget.ThreadID)},
@@ -127,25 +139,33 @@ func bridgeSendTestBundle(result BridgeSendTestRecord) outputBundle {
 			), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("bridge_send_test", []string{
+			fields := []string{
 				bridgeStatusKey,
 				taskBridgeInstanceIDKey,
 				"delivery_id",
-				"remote_message_id",
 				bridgePeerIDKey,
 				bridgeThreadIDKey,
 				bridgeGroupIDKey,
 				bridgeModeKey,
-			}, []string{
-				result.Status,
+			}
+			values := []string{
+				string(result.Status),
 				result.BridgeInstanceID,
 				result.DeliveryID,
-				result.RemoteMessageID,
 				result.DeliveryTarget.PeerID,
 				result.DeliveryTarget.ThreadID,
 				result.DeliveryTarget.GroupID,
 				string(result.DeliveryTarget.Mode),
-			}), nil
+			}
+			if strings.TrimSpace(result.RemoteMessageID) != "" {
+				fields = append(fields, "remote_message_id")
+				values = append(values, result.RemoteMessageID)
+			}
+			if result.Error != nil && strings.TrimSpace(result.Error.Message) != "" {
+				fields = append(fields, "error_message")
+				values = append(values, result.Error.Message)
+			}
+			return renderToonObject("bridge_send_test", fields, values), nil
 		},
 	}
 }

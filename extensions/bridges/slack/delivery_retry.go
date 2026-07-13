@@ -11,9 +11,17 @@ func postSlackDeliveryMessage(
 	api slackAPI,
 	request slackPostMessageRequest,
 ) (*slackPostedMessage, error) {
-	return bridgesdk.RetryDo(ctx, bridgesdk.DefaultRetryConfig(), func(callCtx context.Context) (*slackPostedMessage, error) {
-		return api.PostMessage(callCtx, request)
-	})
+	return bridgesdk.RetryDo(
+		ctx,
+		bridgesdk.DefaultRetryConfig(),
+		func(callCtx context.Context) (*slackPostedMessage, error) {
+			message, err := api.PostMessage(callCtx, request)
+			if err != nil {
+				return nil, err
+			}
+			return validateSlackPostedMutation(message)
+		},
+	)
 }
 
 func updateSlackDeliveryMessage(
@@ -43,7 +51,11 @@ func findSlackDeliveryMessage(
 	reconciler slackDeliveryReconciler,
 	request slackFindDeliveryMessageRequest,
 ) (*slackPostedMessage, error) {
-	return bridgesdk.RetryDo(ctx, bridgesdk.DefaultRetryConfig(), func(callCtx context.Context) (*slackPostedMessage, error) {
-		return reconciler.FindDeliveryMessage(callCtx, request)
-	})
+	return bridgesdk.RetryDo(
+		ctx,
+		bridgesdk.DefaultRetryConfig(),
+		func(callCtx context.Context) (*slackPostedMessage, error) {
+			return reconciler.FindDeliveryMessage(callCtx, request)
+		},
+	)
 }

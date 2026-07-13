@@ -367,10 +367,9 @@ func (p *discordProvider) handleBridgesDeliver(
 	progress := state.Progress
 	if progress != nil {
 		if err := progress.Flush(ctx); err != nil {
-			marker.Error = err.Error()
-			p.markers.RecordDelivery(marker)
-			p.reportDiscordDeliveryError(ctx, session, cfg.instanceID, err)
-			return bridgepkg.DeliveryAck{}, err
+			if !p.shouldContinueAfterProgressFailure(ctx, session, cfg.instanceID, &marker, err) {
+				return bridgepkg.DeliveryAck{}, err
+			}
 		}
 	}
 

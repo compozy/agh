@@ -99,6 +99,34 @@ func (b *Broker) handleSendSuccess(
 	return nil
 }
 
+func (b *Broker) persistDeliveryIntent(
+	deliveryID string,
+	eventType DeliveryEventType,
+	eventSeq int64,
+) error {
+	if b.ledgerStore == nil || !shouldPersistDeliveryAck(eventType) {
+		return nil
+	}
+
+	b.mu.Lock()
+	delivery := b.deliveries[deliveryID]
+	if delivery == nil {
+		b.mu.Unlock()
+		return nil
+	}
+	checkpoint := DeliveryLedgerCheckpoint{
+		DeliveryID:      delivery.deliveryID,
+		State:           DeliveryLedgerStateActive,
+		LastSentSeq:     max(delivery.lastSentSeq, eventSeq),
+		LastAckedSeq:    delivery.lastAckedSeq,
+		RemoteMessageID: delivery.remoteMessageID,
+		UpdatedAt:       b.now(),
+	}
+	b.mu.Unlock()
+
+	return b.persistDeliveryCheckpoint(b.lifecycleCtx, checkpoint)
+}
+
 func (b *Broker) ackCheckpointLocked(
 	delivery *activeDelivery,
 	eventType DeliveryEventType,
@@ -128,6 +156,7 @@ func (b *Broker) ackCheckpointLocked(
 	}
 	updatedAt := b.now()
 	metrics := b.deliveryMetricRecordLocked(delivery, updatedAt)
+	metrics.LastSuccessAt = updatedAt.UTC()
 	return DeliveryLedgerCheckpoint{
 		DeliveryID:      delivery.deliveryID,
 		State:           state,
@@ -267,7 +296,6 @@ func (b *Broker) deliveryMetricRecordLocked(
 			BridgeInstanceID:        delivery.bridgeInstanceID,
 			DeliveryDroppedTotal:    droppedTotal,
 			DeliveryDroppedByReason: droppedReasons,
-			LastSuccessAt:           deliveredAt.UTC(),
 		},
 		Scope:       delivery.routingKey.Scope,
 		WorkspaceID: delivery.routingKey.WorkspaceID,
@@ -277,6 +305,7 @@ func (b *Broker) deliveryMetricRecordLocked(
 		record.DeliveryFailuresTotal = metrics.deliveryFailuresTotal
 		record.LastError = metrics.lastError
 		record.LastErrorAt = metrics.lastErrorAt
+		record.LastSuccessAt = metrics.lastSuccessAt
 	}
 	return record
 }

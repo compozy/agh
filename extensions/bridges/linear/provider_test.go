@@ -555,6 +555,62 @@ func TestExecuteLinearDeliveryCommentAndAgentSessionModes(t *testing.T) {
 	}
 }
 
+func TestLinearProviderHandleBridgesDeliverCommittedOutcome(t *testing.T) {
+	t.Run("Should evict delivery state after a committed provider mutation", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newLinearProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newLinearProvider() error = %v", err)
+		}
+		t.Cleanup(func() {
+			provider.lifecycle.Stop()
+			if err := provider.http.Shutdown(context.Background()); err != nil {
+				t.Errorf("provider HTTP shutdown error = %v", err)
+			}
+		})
+		provider.routes.Replace(map[string]resolvedInstanceConfig{
+			"brg-linear": {
+				instanceID: "brg-linear",
+				mode:       linearModeComments,
+			},
+		}, nil)
+		committedAPI := &recordingLinearAPI{
+			updateErr: &bridgesdk.CommittedMutationError{Err: errors.New("linear result unavailable")},
+		}
+		provider.apiFactory = func(resolvedInstanceConfig) linearAPI { return committedAPI }
+
+		request := linearTestDeliveryRequest(
+			"brg-linear",
+			"delivery-committed",
+			2,
+			bridgepkg.DeliveryEventTypeFinal,
+			linearThreadRef{IssueID: "issue-123", RootCommentID: "root-comment"},
+			"hello world",
+			linearModeComments,
+		)
+		request.Event.Final = true
+		key := deliveryStateKey("brg-linear", request.Event.DeliveryID)
+		provider.deliveries.Store(key, deliveryState{
+			LastSeq:         1,
+			LastContent:     "hello",
+			RemoteMessageID: "comment-created-1",
+		})
+
+		_, err = provider.handleBridgesDeliver(context.Background(), nil, request)
+		var committedErr *bridgesdk.CommittedMutationError
+		if !errors.As(err, &committedErr) {
+			t.Fatalf("handleBridgesDeliver() error = %T, want CommittedMutationError", err)
+		}
+		if got, want := len(committedAPI.updatedComments), 1; got != want {
+			t.Fatalf("provider mutations = %d, want %d", got, want)
+		}
+		if state, ok := provider.deliveries.Load(key); ok {
+			t.Fatalf("deliveries[%q] = %#v, want evicted", key, state)
+		}
+	})
+}
+
 func TestLinearClientAPIKeyAndOAuthRequests(t *testing.T) {
 	t.Parallel()
 
@@ -571,16 +627,31 @@ func TestLinearClientAPIKeyAndOAuthRequests(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/oauth/token":
-			bodyBytes, _ := io.ReadAll(r.Body)
-			_ = r.Body.Close()
-			values, _ := url.ParseQuery(string(bodyBytes))
+			bodyBytes, readErr := io.ReadAll(r.Body)
+			closeErr := r.Body.Close()
+			if closeErr != nil {
+				t.Errorf("close Linear OAuth request body: %v", closeErr)
+			}
+			if readErr != nil {
+				t.Errorf("read Linear OAuth request body: %v", readErr)
+				http.Error(w, "read request body", http.StatusBadRequest)
+				return
+			}
+			values, parseErr := url.ParseQuery(string(bodyBytes))
+			if parseErr != nil {
+				t.Errorf("parse Linear OAuth request body: %v", parseErr)
+				http.Error(w, "parse request body", http.StatusBadRequest)
+				return
+			}
 			mu.Lock()
 			tokenBodies = append(tokenBodies, values)
 			mu.Unlock()
-			_ = json.NewEncoder(w).Encode(map[string]any{
+			if err := json.NewEncoder(w).Encode(map[string]any{
 				"access_token": "oauth-access-token",
 				"expires_in":   3600,
-			})
+			}); err != nil {
+				t.Errorf("encode Linear OAuth response: %v", err)
+			}
 			return
 		case "/graphql":
 			payload := linearGraphQLRequest{}
@@ -588,7 +659,9 @@ func TestLinearClientAPIKeyAndOAuthRequests(t *testing.T) {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			_ = r.Body.Close()
+			if err := r.Body.Close(); err != nil {
+				t.Errorf("close Linear GraphQL request body: %v", err)
+			}
 
 			mu.Lock()
 			graphQLCalls = append(graphQLCalls, graphQLCall{
@@ -606,7 +679,7 @@ func TestLinearClientAPIKeyAndOAuthRequests(t *testing.T) {
 					orgID = "org-agent"
 					viewerID = "bot-agent"
 				}
-				_ = json.NewEncoder(w).Encode(map[string]any{
+				if err := json.NewEncoder(w).Encode(map[string]any{
 					"data": map[string]any{
 						"viewer": map[string]any{
 							"id":          viewerID,
@@ -616,9 +689,11 @@ func TestLinearClientAPIKeyAndOAuthRequests(t *testing.T) {
 							},
 						},
 					},
-				})
+				}); err != nil {
+					t.Errorf("encode Linear viewer response: %v", err)
+				}
 			case strings.Contains(payload.Query, "LinearProviderCreateComment"):
-				_ = json.NewEncoder(w).Encode(map[string]any{
+				if err := json.NewEncoder(w).Encode(map[string]any{
 					"data": map[string]any{
 						"commentCreate": map[string]any{
 							"success": true,
@@ -635,9 +710,11 @@ func TestLinearClientAPIKeyAndOAuthRequests(t *testing.T) {
 							},
 						},
 					},
-				})
+				}); err != nil {
+					t.Errorf("encode Linear create comment response: %v", err)
+				}
 			case strings.Contains(payload.Query, "LinearProviderUpdateComment"):
-				_ = json.NewEncoder(w).Encode(map[string]any{
+				if err := json.NewEncoder(w).Encode(map[string]any{
 					"data": map[string]any{
 						"commentUpdate": map[string]any{
 							"success": true,
@@ -653,15 +730,19 @@ func TestLinearClientAPIKeyAndOAuthRequests(t *testing.T) {
 							},
 						},
 					},
-				})
+				}); err != nil {
+					t.Errorf("encode Linear update comment response: %v", err)
+				}
 			case strings.Contains(payload.Query, "LinearProviderDeleteComment"):
-				_ = json.NewEncoder(w).Encode(map[string]any{
+				if err := json.NewEncoder(w).Encode(map[string]any{
 					"data": map[string]any{
 						"commentDelete": map[string]any{"success": true},
 					},
-				})
+				}); err != nil {
+					t.Errorf("encode Linear delete comment response: %v", err)
+				}
 			case strings.Contains(payload.Query, "LinearProviderCreateAgentActivity"):
-				_ = json.NewEncoder(w).Encode(map[string]any{
+				if err := json.NewEncoder(w).Encode(map[string]any{
 					"data": map[string]any{
 						"agentActivityCreate": map[string]any{
 							"success": true,
@@ -673,7 +754,9 @@ func TestLinearClientAPIKeyAndOAuthRequests(t *testing.T) {
 							},
 						},
 					},
-				})
+				}); err != nil {
+					t.Errorf("encode Linear agent activity response: %v", err)
+				}
 			default:
 				http.Error(w, "unexpected query", http.StatusBadRequest)
 			}
@@ -803,6 +886,164 @@ func TestLinearClientClassifiesHTTPFailures(t *testing.T) {
 			t.Fatalf("CreateComment() error = %#v, want rate limit error", err)
 		}
 	}
+
+	t.Run("Should preserve auth classification when the GraphQL error body read and close fail", func(t *testing.T) {
+		t.Parallel()
+
+		readErr := errors.New("Linear GraphQL error body read failed")
+		closeErr := errors.New("Linear GraphQL error body close failed")
+		body := &linearErrorResponseBody{
+			content:  []byte("Linear access denied"),
+			readErr:  readErr,
+			closeErr: closeErr,
+		}
+		client := &linearClient{
+			cfg: resolvedInstanceConfig{
+				authMode:   linearAuthModeAPIKey,
+				apiKey:     "linear-api-key",
+				apiBaseURL: "http://127.0.0.1",
+			},
+			httpClient: &http.Client{Transport: linearErrorResponseTransport{
+				statusCode: http.StatusForbidden,
+				body:       body,
+			}},
+			now: func() time.Time { return time.Now().UTC() },
+		}
+
+		_, err := client.CreateComment(t.Context(), "issue-1", "hello", "")
+		if !errors.Is(err, readErr) {
+			t.Fatalf("CreateComment() error = %v, want response body read failure", err)
+		}
+		if !errors.Is(err, closeErr) {
+			t.Fatalf("CreateComment() error = %v, want response body close failure", err)
+		}
+		var authErr *bridgesdk.AuthError
+		if !errors.As(err, &authErr) {
+			t.Fatalf("CreateComment() error = %T %v, want AuthError", err, err)
+		}
+		if got, want := bridgesdk.ClassifyError(err).Class, bridgesdk.ErrorClassAuth; got != want {
+			t.Fatalf("CreateComment() error class = %q, want %q", got, want)
+		}
+		if !strings.Contains(authErr.Error(), "Linear access denied") {
+			t.Fatalf("CreateComment() auth error = %q, want partial provider body", authErr.Error())
+		}
+		if bridgesdk.IsCommittedMutation(err) {
+			t.Fatalf("CreateComment() error = %v, want pre-commit rejection", err)
+		}
+		if !body.closed {
+			t.Fatal("response body closed = false after error classification")
+		}
+	})
+
+	t.Run("Should preserve transient OAuth classification when response close fails", func(t *testing.T) {
+		t.Parallel()
+
+		closeErr := errors.New("Linear OAuth response body close failed")
+		body := &linearErrorResponseBody{
+			content:  []byte("Linear OAuth unavailable"),
+			closeErr: closeErr,
+		}
+		client := &linearClient{
+			cfg: resolvedInstanceConfig{
+				authMode:        linearAuthModeOAuth,
+				oauthTokenURL:   "http://127.0.0.1/oauth/token",
+				clientID:        "client-id",
+				clientSecret:    "client-secret",
+				oauthTokenCache: &linearOAuthTokenCache{},
+			},
+			httpClient: &http.Client{Transport: linearErrorResponseTransport{
+				statusCode: http.StatusServiceUnavailable,
+				body:       body,
+			}},
+			now: func() time.Time { return time.Now().UTC() },
+		}
+
+		_, err := client.ensureOAuthToken(t.Context())
+		if !errors.Is(err, closeErr) {
+			t.Fatalf("ensureOAuthToken() error = %v, want response body close failure", err)
+		}
+		var transientErr *bridgesdk.TransientError
+		if !errors.As(err, &transientErr) {
+			t.Fatalf("ensureOAuthToken() error = %T %v, want TransientError", err, err)
+		}
+		if got, want := bridgesdk.ClassifyError(err).Class, bridgesdk.ErrorClassTransient; got != want {
+			t.Fatalf("ensureOAuthToken() error class = %q, want %q", got, want)
+		}
+		if !strings.Contains(transientErr.Error(), "Linear OAuth unavailable") {
+			t.Fatalf("ensureOAuthToken() transient error = %q, want provider body", transientErr.Error())
+		}
+		if !body.closed {
+			t.Fatal("response body closed = false after error classification")
+		}
+	})
+
+	for _, testCase := range []struct {
+		name          string
+		body          string
+		wantCommitted bool
+	}{
+		{
+			name:          "Should not retry a committed create with truncated GraphQL JSON",
+			body:          `{"data":{"commentCreate":`,
+			wantCommitted: true,
+		},
+		{
+			name:          "Should not retry a committed create without a comment id",
+			body:          `{"data":{"commentCreate":{"success":true,"comment":{}}}}`,
+			wantCommitted: true,
+		},
+		{
+			name:          "Should preserve an explicit GraphQL mutation rejection as pre-commit",
+			body:          `{"data":{"commentCreate":{"success":false}}}`,
+			wantCommitted: false,
+		},
+		{
+			name: "Should not retry a mutation when partial GraphQL data also carries errors",
+			body: `{"data":{"commentCreate":{"success":true,"comment":{"id":"comment-1"}}},` +
+				`"errors":[{"message":"nested resolver failed"}]}`,
+			wantCommitted: true,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			attempts := 0
+			var attemptsMu sync.Mutex
+			committedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				attemptsMu.Lock()
+				attempts++
+				attemptsMu.Unlock()
+				w.WriteHeader(http.StatusOK)
+				if _, err := io.WriteString(w, testCase.body); err != nil {
+					t.Errorf("write GraphQL response: %v", err)
+				}
+			}))
+			defer committedServer.Close()
+
+			committedClient := &linearClient{
+				cfg: resolvedInstanceConfig{
+					authMode:   linearAuthModeAPIKey,
+					apiKey:     "linear-api-key",
+					apiBaseURL: committedServer.URL,
+				},
+				httpClient: committedServer.Client(),
+				now:        func() time.Time { return time.Now().UTC() },
+			}
+
+			_, err := committedClient.CreateComment(context.Background(), "issue-1", "hello", "")
+			if err == nil {
+				t.Fatal("CreateComment(result unavailable) error = nil, want non-nil")
+			}
+			var committedErr *bridgesdk.CommittedMutationError
+			if got := errors.As(err, &committedErr); got != testCase.wantCommitted {
+				t.Fatalf("CreateComment() committed error = %v, want %v; error = %T", got, testCase.wantCommitted, err)
+			}
+			attemptsMu.Lock()
+			gotAttempts := attempts
+			attemptsMu.Unlock()
+			if got, want := gotAttempts, 1; got != want {
+				t.Fatalf("mutation attempts = %d, want %d", got, want)
+			}
+		})
+	}
 }
 
 func TestLinearClientRejectsCredentialedRedirects(t *testing.T) {
@@ -900,11 +1141,73 @@ func TestLinearClientRejectsCredentialedRedirects(t *testing.T) {
 			t.Fatalf("redirect target hits = %d, want 0", got)
 		}
 	})
+
+	t.Run("Should reject an OAuth redirect status even when it carries a valid token body", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusFound)
+			if _, err := io.WriteString(w, `{"access_token":"redirect-token","expires_in":3600}`); err != nil {
+				t.Errorf("write redirect OAuth response: %v", err)
+			}
+		}))
+		defer server.Close()
+
+		client := &linearClient{
+			cfg: resolvedInstanceConfig{
+				authMode:        linearAuthModeOAuth,
+				oauthTokenURL:   server.URL,
+				clientID:        "client-id",
+				clientSecret:    "client-secret",
+				oauthTokenCache: &linearOAuthTokenCache{},
+			},
+			httpClient: server.Client(),
+			now:        func() time.Time { return time.Now().UTC() },
+		}
+		if _, err := client.ensureOAuthToken(t.Context()); err == nil {
+			t.Fatal("ensureOAuthToken(302) error = nil, want non-2xx rejection")
+		}
+	})
 }
 
 type linearFakeAPI struct {
 	viewer *linearViewer
 	err    error
+}
+
+type linearErrorResponseTransport struct {
+	statusCode int
+	body       io.ReadCloser
+}
+
+func (t linearErrorResponseTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: t.statusCode,
+		Header:     make(http.Header),
+		Body:       t.body,
+		Request:    req,
+	}, nil
+}
+
+type linearErrorResponseBody struct {
+	content  []byte
+	readErr  error
+	closeErr error
+	reads    int
+	closed   bool
+}
+
+func (b *linearErrorResponseBody) Read(buffer []byte) (int, error) {
+	b.reads++
+	if b.reads > 1 {
+		return 0, io.EOF
+	}
+	return copy(buffer, b.content), b.readErr
+}
+
+func (b *linearErrorResponseBody) Close() error {
+	b.closed = true
+	return b.closeErr
 }
 
 func (f linearFakeAPI) ValidateAuth(context.Context) (*linearViewer, error) {
@@ -932,6 +1235,7 @@ func (f linearFakeAPI) CreateAgentActivity(context.Context, string, string) (*li
 
 type recordingLinearAPI struct {
 	viewer          *linearViewer
+	updateErr       error
 	createdComments []string
 	updatedComments []string
 	deletedComments []string
@@ -949,6 +1253,9 @@ func (a *recordingLinearAPI) CreateComment(_ context.Context, _ string, body str
 
 func (a *recordingLinearAPI) UpdateComment(_ context.Context, commentID string, body string) (*linearComment, error) {
 	a.updatedComments = append(a.updatedComments, commentID+":"+body)
+	if a.updateErr != nil {
+		return nil, a.updateErr
+	}
 	return &linearComment{ID: commentID, Body: body}, nil
 }
 

@@ -40,7 +40,21 @@ const sendResult: SendBridgeTestResponse = {
     peer_id: "launch-room",
   },
   remote_message_id: "telegram_2048",
-  status: "sent",
+  status: "delivered",
+};
+
+const committedResultUnavailable: SendBridgeTestResponse = {
+  bridge_instance_id: bridgeDetailFixture.bridge.id,
+  delivery_id: "delivery_story_ambiguous",
+  delivery_target: {
+    bridge_instance_id: bridgeDetailFixture.bridge.id,
+    mode: "direct-send",
+    peer_id: "launch-room",
+  },
+  error: {
+    message: "The provider accepted the mutation but did not return a remote message ID.",
+  },
+  status: "committed_result_unavailable",
 };
 
 function DryRunHarness({ includeResult = true }: { includeResult?: boolean }) {
@@ -60,7 +74,13 @@ function DryRunHarness({ includeResult = true }: { includeResult?: boolean }) {
   );
 }
 
-function SendTestHarness({ includeResult = true }: { includeResult?: boolean }) {
+function SendTestHarness({
+  includeResult = true,
+  result = sendResult,
+}: {
+  includeResult?: boolean;
+  result?: SendBridgeTestResponse;
+}) {
   const initialDraft = createBridgeTestDeliveryDraft(bridgeDetailFixture.bridge);
   const [draft, setDraft] = useState({ ...initialDraft, message: "Bridge setup is ready." });
   return (
@@ -73,7 +93,7 @@ function SendTestHarness({ includeResult = true }: { includeResult?: boolean }) 
       onOpenChange={() => undefined}
       onSubmit={() => undefined}
       open
-      result={includeResult ? sendResult : null}
+      result={includeResult ? result : null}
     />
   );
 }
@@ -82,6 +102,16 @@ export const DryRun: Story = { render: () => <DryRunHarness includeResult={false
 export const DryRunResolved: Story = { render: () => <DryRunHarness /> };
 export const SendTest: Story = { render: () => <SendTestHarness includeResult={false} /> };
 export const SendTestDelivered: Story = { render: () => <SendTestHarness /> };
+export const SendTestCommittedResultUnavailable: Story = {
+  render: () => <SendTestHarness result={committedResultUnavailable} />,
+  tags: ["play-fn"],
+  play: async () => {
+    const result = await within(document.body).findByTestId("bridge-send-test-result");
+    if (window.innerWidth <= 400) {
+      result.scrollIntoView({ block: "center" });
+    }
+  },
+};
 
 export const SendTestFlow: Story = {
   render: () => <SendTestHarness includeResult={false} />,

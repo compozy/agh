@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -156,6 +157,118 @@ func TestBridgeSendTestUsesRealDeliveryWhileDryRunDoesNot(t *testing.T) {
 			t.Fatalf("delivery calls after dry-run = %d, want still 1", deliveryCalls)
 		}
 	})
+
+	indeterminateTests := []struct {
+		name          string
+		ack           func(bridgepkg.DeliveryRequest) bridgepkg.DeliveryAck
+		wantError     string
+		forbiddenText string
+	}{
+		{
+			name: "Should report an indeterminate committed mutation without claiming delivery",
+			ack: func(request bridgepkg.DeliveryRequest) bridgepkg.DeliveryAck {
+				return bridgepkg.DeliveryAck{
+					DeliveryID: request.Event.DeliveryID,
+					Seq:        request.Event.Seq,
+					Outcome:    bridgepkg.DeliveryAckOutcomeCommittedResultUnavailable,
+					Error: &bridgepkg.DeliveryErrorDetail{
+						Message: "provider accepted the mutation but omitted api_key=sk-send-test-secret",
+					},
+				}
+			},
+			wantError:     "[REDACTED]",
+			forbiddenText: "sk-send-test-secret",
+		},
+		{
+			name: "Should treat a successful post without a remote identity as indeterminate",
+			ack: func(request bridgepkg.DeliveryRequest) bridgepkg.DeliveryAck {
+				return bridgepkg.DeliveryAck{
+					DeliveryID: request.Event.DeliveryID,
+					Seq:        request.Event.Seq,
+				}
+			},
+			wantError: bridgepkg.DeliveryResultUnavailableMessage,
+		},
+	}
+	for _, test := range indeterminateTests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := testutil.StubBridgeService{
+				GetInstanceFn: func(context.Context, string) (*bridgepkg.BridgeInstance, error) {
+					now := time.Date(2026, 7, 13, 18, 0, 0, 0, time.UTC)
+					return &bridgepkg.BridgeInstance{
+						ID:            "brg-committed",
+						Platform:      "slack",
+						ExtensionName: "slack",
+						DisplayName:   "Slack committed outcome",
+						Scope:         bridgepkg.ScopeGlobal,
+						Enabled:       true,
+						Status:        bridgepkg.BridgeStatusReady,
+						RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+						CreatedAt:     now,
+						UpdatedAt:     now,
+					}, nil
+				},
+				ResolveDeliveryTargetFn: func(
+					_ context.Context,
+					request bridgepkg.ResolveDeliveryTargetRequest,
+				) (*bridgepkg.DeliveryTarget, error) {
+					return &bridgepkg.DeliveryTarget{
+						BridgeInstanceID: request.BridgeInstanceID,
+						PeerID:           request.PeerID,
+						Mode:             request.Mode,
+					}, nil
+				},
+				DeliverBridgeFn: func(
+					_ context.Context,
+					_ string,
+					request bridgepkg.DeliveryRequest,
+				) (bridgepkg.DeliveryAck, error) {
+					return test.ack(request), nil
+				},
+			}
+			_, engine := newBridgeControlHandlerFixture(t, service)
+			body, err := json.Marshal(contract.BridgeSendTestRequest{
+				Message: "Connection check",
+				Target: contract.BridgeDeliveryTargetInput{
+					PeerID: "peer-committed",
+					Mode:   bridgepkg.DeliveryModeDirectSend,
+				},
+			})
+			if err != nil {
+				t.Fatalf("json.Marshal() error = %v", err)
+			}
+
+			response := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				"/bridges/brg-committed/send-test",
+				body,
+			)
+			if got, want := response.Code, http.StatusOK; got != want {
+				t.Fatalf("send-test status = %d, want %d; body=%s", got, want, response.Body.String())
+			}
+			var payload contract.BridgeSendTestResponse
+			testutil.DecodeJSONResponse(t, response, &payload)
+			if got, want := payload.Status, contract.BridgeSendTestStatusCommittedResultUnavailable; got != want {
+				t.Fatalf("send-test payload status = %q, want %q", got, want)
+			}
+			if payload.RemoteMessageID != "" {
+				t.Fatalf("send-test payload remote message id = %q, want empty", payload.RemoteMessageID)
+			}
+			if payload.Error == nil || !strings.Contains(payload.Error.Message, test.wantError) ||
+				(test.forbiddenText != "" && strings.Contains(payload.Error.Message, test.forbiddenText)) {
+				t.Fatalf(
+					"send-test payload error = %#v, want %q without %q",
+					payload.Error,
+					test.wantError,
+					test.forbiddenText,
+				)
+			}
+		})
+	}
 }
 
 func newBridgeControlHandlerFixture(

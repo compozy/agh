@@ -102,8 +102,14 @@ func TestBridgeTargetSnapshotContract(t *testing.T) {
 		}{
 			{name: "Should require a canonical route", mutate: func(v *BridgeTargetSnapshot) { v.CanonicalRoute = "" }},
 			{name: "Should require a display name", mutate: func(v *BridgeTargetSnapshot) { v.DisplayName = "" }},
-			{name: "Should require a supported target type", mutate: func(v *BridgeTargetSnapshot) { v.TargetType = "conversation" }},
-			{name: "Should require a searchable normalized name", mutate: func(v *BridgeTargetSnapshot) { v.DisplayName = " #@#@ " }},
+			{
+				name:   "Should require a supported target type",
+				mutate: func(v *BridgeTargetSnapshot) { v.TargetType = "conversation" },
+			},
+			{
+				name:   "Should require a searchable normalized name",
+				mutate: func(v *BridgeTargetSnapshot) { v.DisplayName = " #@#@ " },
+			},
 		}
 		for _, test := range tests {
 			test := test

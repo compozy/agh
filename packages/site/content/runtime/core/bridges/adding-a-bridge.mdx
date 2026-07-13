@@ -1,11 +1,11 @@
 ---
-title: Contribute an In-Tree Bridge Provider
-description: Design, implement, verify, and document a bridge.adapter extension inside the AGH repository.
+title: Build an In-Tree Bridge Provider
+description: Prove the reference adapter, then design, implement, verify, and document a trusted bridge.adapter extension inside the AGH repository.
 ---
 
 This guide is for contributors adding a provider under `extensions/bridges/<provider>` to the AGH
-repository. It follows one provider from manifest to conformance, including the touch points that are
-easy to miss when copying only an API client.
+repository. It starts with a working reference adapter, then follows one provider from contract
+decisions to manifest, ingress, delivery, conformance, and operator proof.
 
 This walkthrough is specifically for trusted, in-tree Go providers. A local external extension can
 implement the subprocess protocol manually, but external bridge authoring is not yet a first-class
@@ -23,8 +23,27 @@ copy these `internal/` imports into another module or present this tutorial as a
   live credentials.
 - Decide the public callback strategy and one unused local listener address.
 
-The tutorial uses `acme-chat` as a placeholder. Replace it consistently; mixed directory, extension,
-platform, and runtime names fail discovery or ownership checks.
+## Prove the working reference first
+
+Before creating a directory, run the real Telegram reference adapter and its subprocess boundary:
+
+```bash
+CGO_ENABLED=1 go test -race ./sdk/examples/telegram-reference -count=1
+CGO_ENABLED=1 go test -race -tags=integration ./internal/extension \
+  -run '^TestTelegramReferenceAdapter(IngressAndDeliveryConformance|RestartResumesActiveDelivery)$' \
+  -count=1
+```
+
+The first command proves authenticated fake ingress, delivery, progress, lifecycle, and provider
+state. The second launches the compiled subprocess and proves initialize, ingest, delivery
+acknowledgement, shutdown, and restart resume through the same JSON-RPC boundary used by in-tree
+providers. Keep these tests green while replacing provider-specific behavior.
+
+The implementation sections use `acme-chat` as a naming placeholder, not as an unpublished finished
+adapter. Replace it consistently; mixed directory, extension, platform, and runtime names fail
+discovery or ownership checks. Use `sdk/examples/telegram-reference` whenever a complete executable
+checkpoint is needed and the in-tree providers when the target platform needs richer lifecycle or
+delivery behavior.
 
 ## Choose an implementation to study
 
@@ -67,16 +86,18 @@ API, and the provider never owns AGH sessions or workspace routing.
 
 Write down these decisions first:
 
-| Decision            | Questions to answer                                                                                      |
-| ------------------- | -------------------------------------------------------------------------------------------------------- |
-| Provider identity   | What lowercase key will be used for directory, extension name, platform, runtime, and schema?            |
-| Inbound transport   | Webhook, polling, subscription, or hybrid? What owns each listener/task and its shutdown?                |
-| Authentication      | Which exact bytes are signed? Which header/token/JWT claims are required? What is the replay window?     |
-| Secret slots        | Which credentials are always required? Which are conditional on an auth or ingress mode?                 |
-| Route identity      | Which provider IDs become `peer_id`, `group_id`, and `thread_id`? How are replies and edits represented? |
-| Delivery capability | Can the platform create, edit, delete, reply, type, react, and resume? What is the message-length unit?  |
-| Verification        | Which identity/configuration checks can run while disabled? Can AGH register the webhook remotely?       |
-| Data scope          | Is each new datum global, workspace, session, or agent scoped? How is `workspace_id` preserved?          |
+| Decision            | Questions to answer                                                                                                   |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Provider identity   | What lowercase key will be used for directory, extension name, platform, runtime, and schema?                         |
+| Inbound transport   | Webhook, polling, subscription, or hybrid? What owns each listener/task and its shutdown?                             |
+| Callback contract   | What is the external acknowledgement deadline? When does the provider retry? When has AGH durably accepted the event? |
+| Authentication      | Which exact bytes are signed? Which header/token/JWT claims are required? What is the replay window?                  |
+| Secret slots        | Which credentials are always required? Which are conditional on an auth or ingress mode?                              |
+| Route identity      | Which provider IDs become `peer_id`, `group_id`, and `thread_id`? How are replies and edits represented?              |
+| Delivery capability | Can the platform create, edit, delete, reply, type, react, and resume? What is the message-length unit?               |
+| Mutation completion | Which observation proves a remote mutation committed, and which required result must be materialized locally?         |
+| Verification        | Which identity/configuration checks can run while disabled? Can AGH register the webhook remotely?                    |
+| Data scope          | Is each new datum global, workspace, session, or agent scoped? How is `workspace_id` preserved?                       |
 
 Required slots must be required in every mode. A mode-specific credential stays optional in the
 manifest and becomes a conditional requirement in runtime validation and setup documentation.
@@ -91,6 +112,10 @@ manifest and becomes a conditional requirement in runtime validation and setup d
 - Progress can be rendered by capable chat providers or acknowledged without side effects.
 - Target `capabilities` are provider metadata; do not invent strings as behavior switches without a
   shared consumer and contract change.
+
+The operator-facing matrix in [Supported bridge behavior](/runtime/core/bridges/behavior) is the
+public contract. Update it when a provider changes an accepted event family, route shape, outbound
+operation, attachment boundary, or progress affordance.
 
 ## Know what the SDK owns
 
@@ -348,9 +373,11 @@ A webhook handler must apply this order:
 6. Verify the signature/token/JWT for that selected instance.
 7. Parse only supported event types and actions.
 8. Map stable provider IDs into `peer_id`, `group_id`, and `thread_id`.
-9. Apply DM/ACL policy and deduplication.
+9. Apply the DM/ACL policy.
 10. Validate the `InboundMessageEnvelope`.
-11. Ingest through `provider.lifecycle.Host()` so lifecycle-aware retry and shutdown admission remain active.
+11. Check adapter-local deduplication with `Seen` without recording the key.
+12. Ingest through `provider.lifecycle.Host()` so lifecycle-aware retry and shutdown admission remain active.
+13. Record the adapter-local key with `Mark` only after the Host accepts the event.
 
 A message mapper must preserve the managed instance's scope and workspace rather than deriving
 ownership from the provider payload:
@@ -377,14 +404,24 @@ envelope := bridgepkg.InboundMessageEnvelope{
 if err := envelope.Validate(); err != nil {
     return fmt.Errorf("acme-chat: validate inbound message: %w", err)
 }
+if provider.dedup.Seen(envelope.IdempotencyKey) {
+    return nil
+}
 if _, err := provider.lifecycle.Host().IngestBridgeMessage(ctx, session, envelope); err != nil {
     return fmt.Errorf("acme-chat: ingest message: %w", err)
 }
+provider.dedup.Mark(envelope.IdempotencyKey)
 ```
 
 `event` is the provider payload after authentication and normalization. Use the matching typed
 payload for command, action, reaction, and edit families; never encode those operations as decorated
 message text.
+
+The shared adapter-local deduplication cache defaults to a five-minute TTL and lives only in the
+provider process. `Seen` is the read-only check; `Mark` both checks and records. For a synchronous
+callback, do not use `Mark` as the pre-ingest check: a Host failure has no single-key rollback, so an
+immediate provider retry would be suppressed even though no prompt was admitted. The daemon's
+separate 24-hour record is durable and is written only after successful prompt submission.
 
 Record reply text from an embedded provider snapshot or a bounded local cache only. A cache miss must
 not fetch arbitrary provider history during prompt construction.
@@ -392,6 +429,25 @@ not fetch arbitrary provider history during prompt construction.
 For a polling provider, the same authentication/mapping rules apply, but the poll loop must run under
 `ProviderLifecycle.Go`, observe the stop channel, and persist provider cursors only at a layer that
 can prove restart semantics.
+
+### Define the callback acknowledgement boundary
+
+Document the platform's exact acknowledgement deadline and retry behavior in the provider setup
+guide. The safe synchronous boundary is: authenticate and authorize, validate, check `Seen`, call
+`IngestBridgeMessage`, call `Mark`, then return platform success. A routed session that is already
+prompting can keep the Host call waiting for roughly five seconds before it returns an error.
+
+If the platform requires an earlier acknowledgement, treat that as a provider-specific exception and
+document the resulting retry and loss behavior. Discord interactions, for example, send a deferred
+acknowledgement before asynchronous Host ingestion. Positive inbound batching acknowledges after an
+in-memory enqueue and before the later Host call; a flush failure cannot be returned to the platform,
+and pending batches are lost if the adapter process restarts. Neither path has automatic readmission.
+
+The current Host path has no shared durable “ack now, enqueue later” contract. Do not describe an
+early acknowledgement as accepted prompt admission, and do not copy an existing early-`Mark` or
+batching sequence as the default for a new provider. Test the accepted path, the busy/error path, and
+every provider-specific early-ack path with a fake Host and a deadline representative of the
+platform.
 
 ## Step 5: Implement delivery and acknowledgements
 
@@ -418,9 +474,27 @@ Handle each platform capability explicitly:
 - keep progress message IDs separate from final-text delivery state;
 - classify auth, rate-limit, transient, and permanent errors with typed bridgesdk errors.
 
+Classify completion from the remote observation, not from the local error alone:
+
+| Observation                                                                           | Provider result                                                       | Safe to retry?                                    |
+| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------- |
+| Transport failed before any successful response                                       | Typed auth, rate-limit, transient, timeout, or permanent error        | According to the typed class                      |
+| Remote status rejected the mutation transiently                                       | Typed retryable HTTP/provider error                                   | Yes, according to provider policy                 |
+| Remote status rejected the mutation permanently                                       | `PermanentError`                                                      | No                                                |
+| Successful status and every required result was materialized                          | Normal delivery acknowledgement with the real remote ID when required | No retry needed                                   |
+| Successful status, but response read/decode/cleanup or required ID became unavailable | `MarkCommittedMutation` or `CommittedMutationError`                   | No; replay could duplicate the remote side effect |
+| Read-only identity or configuration probe failed                                      | Normal typed error; never mark a mutation committed                   | According to the read operation                   |
+
 Build acknowledgements through `session.AckDelivery` so delivery ID, sequence, remote ID, replacement
 ID, and event family are validated together. A provider that cannot perform an operation returns a
 permanent unsupported error; it never reports a successful no-op for text delivery.
+
+The JSON-RPC response must materialize an acknowledgement object with an explicit non-empty
+`delivery_id` and an explicit integer `seq`, both exactly matching the request. `seq: 0` is valid;
+omitting `seq`, returning it as `null`, or changing its type is not. A missing, malformed, or
+mismatched acknowledgement leaves the provider commit outcome unknown, so the manager returns
+`committed_result_unavailable` and the broker does not replay the mutation. `session.AckDelivery`
+constructs this wire identity correctly; do not hand-build a partial acknowledgement.
 
 A successful create/final branch ends with the provider's real response ID:
 
@@ -444,6 +518,41 @@ platform returns a new message. For progress with no side effect, use
 Map provider failures to bridgesdk auth, rate-limit, timeout, transient, or permanent errors. Report
 classified failures through the lifecycle-aware session path so runtime state and retry decisions
 stay consistent.
+
+Send every credential-bearing API, OAuth, and service request through a client created with
+`bridgesdk.CredentialedHTTPClient(baseClient)`. The helper clones the configured base client and
+refuses redirects, so a provider `3xx` returns to your adapter for normal non-success classification
+without forwarding credentials or replaying a mutation body to `Location`. Do not replace this with
+an auto-following redirect policy, even for a same-provider URL.
+
+For mutating HTTP calls, use `HTTPResponseCommitOnSuccessStatus` only after a `2xx` status has been
+observed. Decode exactly one JSON value with `DecodeSingleJSONValue` when the response carries a
+result. A transport helper can defer `FinalizeHTTPResponseBody`; once its commit evidence is set, a
+decode failure or missing required ID must leave the handler as a committed-mutation error:
+
+```go
+if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+    return classifyHTTPError(resp)
+}
+commitEvidence = bridgesdk.HTTPResponseCommitOnSuccessStatus.Evidence()
+
+var result createMessageResponse
+if err := bridgesdk.DecodeSingleJSONValue(resp.Body, &result); err != nil {
+    return fmt.Errorf("acme-chat: decode create response: %w", err)
+}
+if strings.TrimSpace(result.ID) == "" {
+    return errors.New("acme-chat: create response did not include a message id")
+}
+```
+
+In this pattern, the deferred finalizer wraps either returned error with
+`MarkCommittedMutation`. If the transport is structured differently, mark the post-`2xx` failure
+explicitly. Do not classify it as transient, fabricate an ID, or issue a second create.
+
+The bridgesdk runtime converts `CommittedMutationError` into the semantic
+`committed_result_unavailable` acknowledgement. The broker writes a terminal error checkpoint and
+does not redeliver the text mutation. For progress, AGH drops only the indeterminate progress bubble
+and allows later final text to continue.
 
 ### Expose discoverable targets
 
@@ -613,7 +722,7 @@ Before adding a test, name its invariant, owning layer, and canonical suite. Cov
 | Invariant                                                           | Owning suite                                                 |
 | ------------------------------------------------------------------- | ------------------------------------------------------------ |
 | Config, conditional slots, signature/JWT, mapping, DM policy, dedup | `provider_test.go`                                           |
-| Create/edit/delete/resume, message limit, retry class, ack          | `provider_delivery_test.go`                                  |
+| Create/edit/delete/resume, message limit, retry and commit class    | `provider_delivery_test.go`                                  |
 | Identity/configuration checks and optional registration             | `control_test.go`                                            |
 | Full subprocess initialize/ingest/deliver/shutdown                  | `internal/extension/<provider>_provider_integration_test.go` |
 | Manifest/schema/required-slot discovery and lifecycle               | auto-discovered provider conformance                         |
@@ -621,6 +730,15 @@ Before adding a test, name its invariant, owning layer, and canonical suite. Cov
 
 Use fake platform servers, not live provider accounts, for committed tests. Assert request method,
 path, headers, body, response status, and cleanup.
+
+Every mutating create path must include a successful-status response with malformed JSON or a
+missing required ID. The provider suite owns the proof that only one upstream mutation occurred and
+that the returned error is a `CommittedMutationError`. The shared bridgesdk and broker suites own the
+semantic ACK, terminal checkpoint, no-fabricated-ID, and no-redelivery invariants; do not duplicate
+those shared assertions in every provider.
+
+For webhook providers, also prove the external acknowledgement is returned only after Host ingest
+accepts the event, and that a Host rejection does not produce a false success.
 
 Run focused gates from the repository root:
 
@@ -635,6 +753,8 @@ go test -race ./internal/extension \
 ## Step 10: Co-ship every public surface
 
 - Add the exact display name and slot row to the [bridge overview](/runtime/core/bridges).
+- Update [supported behavior](/runtime/core/bridges/behavior) when the provider changes a public
+  event, route, delivery, attachment, access, or progress boundary.
 - Add `setup-acme-chat.mdx` and navigation with provider-console steps, CLI setup, expected checks,
   enable/send-test, configuration reference, limits, security, and troubleshooting.
 - Add a provider README with build/install, runtime config, transport, delivery behavior, and explicit

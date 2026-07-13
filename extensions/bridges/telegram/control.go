@@ -172,7 +172,7 @@ func (c *telegramBotClient) SetWebhook(
 	request telegramSetWebhookRequest,
 ) error {
 	var accepted bool
-	if err := c.call(ctx, "setWebhook", request, &accepted); err != nil {
+	if err := c.callMutation(ctx, "setWebhook", request, &accepted); err != nil {
 		return err
 	}
 	if !accepted {

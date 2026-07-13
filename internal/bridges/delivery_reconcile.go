@@ -10,38 +10,25 @@ import (
 	redactpkg "github.com/compozy/agh/internal/redact"
 )
 
-const sessionStoppedDeliveryMessage = "session stopped before delivery completed"
+const (
+	sessionStoppedDeliveryMessage       = "session stopped before delivery completed"
+	indeterminateDeliveryOutcomeMessage = "delivery outcome indeterminate after restart"
+)
 
-// ReconcileDelivery fails one persisted unfinished delivery open with a
-// universal terminal post so append-only adapters cannot acknowledge silently.
+// ReconcileDelivery closes one persisted unfinished delivery. An unmatched
+// send intent is terminalized locally; otherwise the provider receives one
+// write-ahead terminal error post.
 func (b *Broker) ReconcileDelivery(
 	ctx context.Context,
 	record DeliveryLedgerRecord,
 	extensionName string,
 ) error {
-	if b == nil {
-		return errors.New("bridges: delivery broker is required")
-	}
-	if ctx == nil {
-		return errors.New("bridges: delivery reconciliation context is required")
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if b.ledgerStore == nil {
-		return errors.New("bridges: delivery ledger store is required")
-	}
-	normalized, err := record.Canonicalize()
+	normalized, err := b.validateDeliveryReconciliation(ctx, record)
 	if err != nil {
 		return err
 	}
-	if normalized.State != DeliveryLedgerStateActive {
-		return fmt.Errorf(
-			"bridges: reconcile delivery %q state %q: %w",
-			normalized.DeliveryID,
-			normalized.State,
-			ErrDeliveryLedgerConflict,
-		)
+	if normalized.LastSentSeq > normalized.LastAckedSeq {
+		return b.terminalizeIndeterminateReconciliation(ctx, normalized)
 	}
 	extensionName = strings.TrimSpace(extensionName)
 	if extensionName == "" {
@@ -56,19 +43,103 @@ func (b *Broker) ReconcileDelivery(
 	if transport == nil {
 		return ErrDeliveryTransportUnavailable
 	}
+	intent := DeliveryLedgerCheckpoint{
+		DeliveryID:      normalized.DeliveryID,
+		State:           DeliveryLedgerStateActive,
+		LastSentSeq:     request.Event.Seq,
+		LastAckedSeq:    normalized.LastAckedSeq,
+		RemoteMessageID: normalized.RemoteMessageID,
+		UpdatedAt:       checkpoint.UpdatedAt,
+	}
+	if err := b.persistDeliveryCheckpoint(ctx, intent); err != nil {
+		return err
+	}
+	normalizedAck, err := b.requestReconciledDelivery(ctx, transport, extensionName, request)
+	if err != nil {
+		return err
+	}
+	return b.persistReconciledDelivery(ctx, normalized, request, normalizedAck, checkpoint, metrics)
+}
+
+func (b *Broker) validateDeliveryReconciliation(
+	ctx context.Context,
+	record DeliveryLedgerRecord,
+) (DeliveryLedgerRecord, error) {
+	if b == nil {
+		return DeliveryLedgerRecord{}, errors.New("bridges: delivery broker is required")
+	}
+	if ctx == nil {
+		return DeliveryLedgerRecord{}, errors.New("bridges: delivery reconciliation context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return DeliveryLedgerRecord{}, err
+	}
+	if b.ledgerStore == nil {
+		return DeliveryLedgerRecord{}, errors.New("bridges: delivery ledger store is required")
+	}
+	normalized, err := record.Canonicalize()
+	if err != nil {
+		return DeliveryLedgerRecord{}, err
+	}
+	if normalized.State != DeliveryLedgerStateActive {
+		return DeliveryLedgerRecord{}, fmt.Errorf(
+			"bridges: reconcile delivery %q state %q: %w",
+			normalized.DeliveryID,
+			normalized.State,
+			ErrDeliveryLedgerConflict,
+		)
+	}
+	return normalized, nil
+}
+
+func (b *Broker) requestReconciledDelivery(
+	ctx context.Context,
+	transport DeliveryTransport,
+	extensionName string,
+	request DeliveryRequest,
+) (DeliveryAck, error) {
 	callCtx, cancel := context.WithTimeout(ctx, b.requestTimeout)
 	ack, err := transport.DeliverBridge(callCtx, extensionName, request)
 	cancel()
 	if err != nil {
-		return fmt.Errorf("bridges: reconcile delivery %q: %w", normalized.DeliveryID, err)
+		return DeliveryAck{}, fmt.Errorf("bridges: reconcile delivery %q: %w", request.Event.DeliveryID, err)
 	}
 	if err := ack.ValidateFor(request.Event); err != nil {
-		return fmt.Errorf("bridges: validate reconciled delivery %q acknowledgement: %w", normalized.DeliveryID, err)
+		return DeliveryAck{}, fmt.Errorf(
+			"bridges: validate reconciled delivery %q acknowledgement: %w",
+			request.Event.DeliveryID,
+			err,
+		)
 	}
-	normalizedAck := ack.normalize()
-	if normalizedAck.RemoteMessageID != "" {
-		checkpoint.RemoteMessageID = normalizedAck.RemoteMessageID
+	return ack.normalize(), nil
+}
+
+func (b *Broker) persistReconciledDelivery(
+	ctx context.Context,
+	record DeliveryLedgerRecord,
+	request DeliveryRequest,
+	ack DeliveryAck,
+	checkpoint DeliveryLedgerCheckpoint,
+	metrics DeliveryMetricRecord,
+) error {
+	if ack.Outcome.Normalize() == DeliveryAckOutcomeCommittedResultUnavailable {
+		message := redactpkg.String(strings.TrimSpace(ack.Error.Message))
+		metrics = b.reconciliationMetricRecord(record, checkpoint.UpdatedAt, message)
+		checkpoint.LastSentSeq = request.Event.Seq
+		checkpoint.LastAckedSeq = record.LastAckedSeq
+		checkpoint.RemoteMessageID = record.RemoteMessageID
+		checkpoint.TerminalError = message
+	} else if ack.RemoteMessageID != "" {
+		checkpoint.RemoteMessageID = ack.RemoteMessageID
 	}
+	return b.persistReconciliationResult(ctx, checkpoint, metrics)
+}
+
+func (b *Broker) persistReconciliationResult(
+	ctx context.Context,
+	checkpoint DeliveryLedgerCheckpoint,
+	metrics DeliveryMetricRecord,
+) error {
 	checkpoint.Metrics = &metrics
 	if err := b.persistDeliveryCheckpoint(ctx, checkpoint); err != nil {
 		return err
@@ -78,6 +149,24 @@ func (b *Broker) ReconcileDelivery(
 	b.applyDeliveryMetricRecordLocked(metrics)
 	b.mu.Unlock()
 	return nil
+}
+
+func (b *Broker) terminalizeIndeterminateReconciliation(
+	ctx context.Context,
+	record DeliveryLedgerRecord,
+) error {
+	updatedAt := b.now()
+	metrics := b.reconciliationMetricRecord(record, updatedAt, indeterminateDeliveryOutcomeMessage)
+	checkpoint := DeliveryLedgerCheckpoint{
+		DeliveryID:      record.DeliveryID,
+		State:           DeliveryLedgerStateTerminalError,
+		LastSentSeq:     record.LastSentSeq,
+		LastAckedSeq:    record.LastAckedSeq,
+		RemoteMessageID: record.RemoteMessageID,
+		TerminalError:   indeterminateDeliveryOutcomeMessage,
+		UpdatedAt:       updatedAt,
+	}
+	return b.persistReconciliationResult(ctx, checkpoint, metrics)
 }
 
 func (b *Broker) failOpenReconciliation(
@@ -113,7 +202,7 @@ func (b *Broker) failOpenReconciliation(
 		return DeliveryRequest{}, DeliveryLedgerCheckpoint{}, DeliveryMetricRecord{}, err
 	}
 
-	metrics := b.reconciliationMetricRecord(record, updatedAt)
+	metrics := b.reconciliationMetricRecord(record, updatedAt, sessionStoppedDeliveryMessage)
 	checkpoint := DeliveryLedgerCheckpoint{
 		DeliveryID:      record.DeliveryID,
 		State:           DeliveryLedgerStateTerminalError,
@@ -129,6 +218,7 @@ func (b *Broker) failOpenReconciliation(
 func (b *Broker) reconciliationMetricRecord(
 	record DeliveryLedgerRecord,
 	updatedAt time.Time,
+	reason string,
 ) DeliveryMetricRecord {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -144,7 +234,7 @@ func (b *Broker) reconciliationMetricRecord(
 			DeliveryDroppedTotal:    droppedTotal,
 			DeliveryDroppedByReason: droppedReasons,
 			DeliveryFailuresTotal:   metrics.deliveryFailuresTotal + 1,
-			LastError:               sessionStoppedDeliveryMessage,
+			LastError:               reason,
 			LastErrorAt:             updatedAt,
 			LastSuccessAt:           metrics.lastSuccessAt,
 		},

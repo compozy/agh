@@ -253,7 +253,7 @@ func executeDiscordUpdate(
 
 func discordPostedRemoteID(channelID string, sent *discordPostedMessage) (string, error) {
 	if sent == nil || strings.TrimSpace(sent.ID) == "" {
-		return "", &bridgesdk.TransientError{
+		return "", &bridgesdk.CommittedMutationError{
 			Err: errors.New("discord: post message response omitted id"),
 		}
 	}

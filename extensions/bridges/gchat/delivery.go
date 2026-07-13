@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
-	"time"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
@@ -25,106 +23,6 @@ type deliveryState struct {
 	ReplaceRemoteMessageID string
 	Chunks                 bridgesdk.DeliveryChunkCursor
 	Progress               *bridgesdk.ProgressDispatcher
-}
-
-func (p *gchatProvider) handleBridgesDeliver(
-	ctx context.Context,
-	session *bridgesdk.Session,
-	request bridgepkg.DeliveryRequest,
-) (bridgepkg.DeliveryAck, error) {
-	marker := bridgesdk.DeliveryMarker{
-		PID:     os.Getpid(),
-		Request: request,
-	}
-
-	cfg, err := p.waitForInstanceConfig(strings.TrimSpace(request.Event.BridgeInstanceID), 500*time.Millisecond)
-	if err != nil {
-		marker.Error = err.Error()
-		p.markers.RecordDelivery(marker)
-		p.setLastError(err)
-		return bridgepkg.DeliveryAck{}, err
-	}
-	if cfg.configError != nil {
-		err = cfg.configError
-		marker.Error = err.Error()
-		p.markers.RecordDelivery(marker)
-		p.setLastError(err)
-		return bridgepkg.DeliveryAck{}, err
-	}
-
-	if p.markers.ShouldCrashOnce() {
-		p.markers.RecordDelivery(marker)
-		p.markers.RecordCrash(map[string]any{
-			"crashed":            true,
-			"pid":                os.Getpid(),
-			"delivery_id":        strings.TrimSpace(request.Event.DeliveryID),
-			"bridge_instance_id": cfg.instanceID,
-		})
-		os.Exit(23)
-	}
-
-	state := p.deliveryState(cfg.instanceID, request.Event.DeliveryID)
-	if state.Progress != nil {
-		if err := state.Progress.Flush(ctx); err != nil {
-			return p.failGChatDelivery(ctx, session, &cfg, marker, err)
-		}
-	}
-
-	ack, state, err := executeGChatDelivery(
-		ctx,
-		p.apiFactory(&cfg),
-		request,
-		state,
-	)
-	if err != nil {
-		p.storeDeliveryRetryState(cfg.instanceID, request.Event.DeliveryID, state)
-		return p.failGChatDelivery(ctx, session, &cfg, marker, err)
-	}
-
-	dispatcher := state.Progress
-	var cleanupErr error
-	if dispatcher != nil {
-		cleanupErr = dispatcher.OnContent(ctx)
-		if isTerminalGChatDeliveryEvent(request.Event) {
-			state.Progress = nil
-		}
-	}
-	p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, request.Event, state)
-	if dispatcher != nil && state.Progress == nil {
-		dispatcher.Close()
-	}
-	readyErr := p.lifecycle.Host().ReportReadyIfNeeded(ctx, session, cfg.instanceID)
-	switch {
-	case readyErr != nil:
-		p.setLastError(readyErr)
-	case cleanupErr != nil:
-		p.recordGChatProgressCleanupError(cleanupErr)
-	default:
-		p.clearLastError()
-	}
-
-	marker.Ack = &ack
-	p.markers.RecordDelivery(marker)
-	return ack, nil
-}
-
-func (p *gchatProvider) failGChatDelivery(
-	ctx context.Context,
-	session *bridgesdk.Session,
-	cfg *resolvedInstanceConfig,
-	marker bridgesdk.DeliveryMarker,
-	err error,
-) (bridgepkg.DeliveryAck, error) {
-	marker.Error = err.Error()
-	p.markers.RecordDelivery(marker)
-	classified := bridgesdk.ClassifyError(err)
-	_, _, reportErr := session.ReportClassifiedError(ctx, cfg.instanceID, classified)
-	if reportErr != nil {
-		p.setLastError(reportErr)
-	} else {
-		p.setLastError(err)
-	}
-	return bridgepkg.DeliveryAck{}, err
 }
 
 func (p *gchatProvider) deliveryState(instanceID string, deliveryID string) deliveryState {
@@ -374,7 +272,7 @@ func postGChatChunksWithCursor(
 			return cursor, fmt.Errorf("gchat: create message chunk %d: %w", index+1, err)
 		}
 		if message == nil || strings.TrimSpace(message.Name) == "" {
-			return cursor, &bridgesdk.TransientError{
+			return cursor, &bridgesdk.CommittedMutationError{
 				Err: errors.New("gchat: create message response omitted name"),
 			}
 		}

@@ -3,9 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -240,13 +237,6 @@ type whatsappAPI interface {
 	) (*whatsappSendMessageResponse, error)
 }
 
-type whatsappGraphClient struct {
-	baseURL     string
-	apiVersion  string
-	accessToken string
-	httpClient  *http.Client
-}
-
 //nolint:funlen // Construction keeps the provider's declarative runtime wiring visible in one place.
 func newWhatsAppProvider(stderr io.Writer) (*whatsappProvider, error) {
 	if stderr == nil {
@@ -268,6 +258,9 @@ func newWhatsAppProvider(stderr io.Writer) (*whatsappProvider, error) {
 			baseURL:     cfg.apiBaseURL,
 			apiVersion:  cfg.apiVersion,
 			accessToken: cfg.accessToken,
+			reportResponseCleanup: func(err error) {
+				provider.markers.ReportError("clean up WhatsApp Graph API response", err)
+			},
 			httpClient: &http.Client{
 				Timeout: 10 * time.Second,
 			},
@@ -1075,33 +1068,6 @@ func resolveDeliveryTarget(event bridgepkg.DeliveryEvent) (string, error) {
 	return userID, nil
 }
 
-func verifyWhatsAppSignature(
-	_ context.Context,
-	req *http.Request,
-	body []byte,
-	appSecret string,
-) error {
-	secret := strings.TrimSpace(appSecret)
-	if secret == "" {
-		return errors.New("whatsapp: app secret is required")
-	}
-	if req == nil {
-		return errors.New("whatsapp: webhook request is required")
-	}
-
-	signature := strings.TrimSpace(req.Header.Get(whatsappSignatureHeader))
-	if signature == "" {
-		return errors.New("whatsapp: missing webhook signature")
-	}
-	mac := hmac.New(sha256.New, []byte(secret))
-	_, _ = mac.Write(body)
-	expected := "sha256=" + hex.EncodeToString(mac.Sum(nil))
-	if !hmac.Equal([]byte(signature), []byte(expected)) {
-		return errors.New("whatsapp: invalid webhook signature")
-	}
-	return nil
-}
-
 func writeWhatsAppWebhookOK(w http.ResponseWriter) error {
 	if w == nil {
 		return nil
@@ -1340,101 +1306,6 @@ func configureWhatsAppBatcher(
 		return
 	}
 	resolved.batcher = batcher
-}
-
-func (c *whatsappGraphClient) GetPhoneNumber(
-	ctx context.Context,
-	phoneNumberID string,
-) (*whatsappPhoneNumber, error) {
-	var result whatsappPhoneNumber
-	if err := c.call(ctx, http.MethodGet, "/"+strings.TrimSpace(phoneNumberID), nil, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (c *whatsappGraphClient) SendTextMessage(
-	ctx context.Context,
-	phoneNumberID string,
-	payload whatsappSendMessageRequest,
-) (*whatsappSendMessageResponse, error) {
-	var result whatsappSendMessageResponse
-	if err := c.call(
-		ctx,
-		http.MethodPost,
-		"/"+strings.TrimSpace(phoneNumberID)+"/messages",
-		payload,
-		&result,
-	); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (c *whatsappGraphClient) call(
-	ctx context.Context,
-	method string,
-	path string,
-	payload any,
-	out any,
-) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if c == nil {
-		return errors.New("whatsapp: graph api client is required")
-	}
-	if c.httpClient == nil {
-		c.httpClient = &http.Client{Timeout: 10 * time.Second}
-	}
-
-	var body io.Reader
-	if payload != nil {
-		raw, err := json.Marshal(payload)
-		if err != nil {
-			return fmt.Errorf("whatsapp: marshal %s payload: %w", strings.TrimSpace(path), err)
-		}
-		body = bytes.NewReader(raw)
-	}
-
-	endpoint := strings.TrimRight(
-		strings.TrimSpace(c.baseURL),
-		"/",
-	) + "/" + strings.Trim(
-		strings.TrimSpace(c.apiVersion),
-		"/",
-	) + path
-	req, err := http.NewRequestWithContext(ctx, method, endpoint, body)
-	if err != nil {
-		return fmt.Errorf("whatsapp: build %s request: %w", strings.TrimSpace(path), err)
-	}
-	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(c.accessToken))
-	if payload != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	raw, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("whatsapp: read %s response: %w", strings.TrimSpace(path), err)
-	}
-	if resp.StatusCode >= http.StatusBadRequest {
-		return classifyWhatsAppHTTPError(resp.StatusCode, resp.Header.Get("Retry-After"), raw)
-	}
-	if out == nil || len(bytes.TrimSpace(raw)) == 0 {
-		return nil
-	}
-	if err := json.Unmarshal(raw, out); err != nil {
-		return fmt.Errorf("whatsapp: decode %s response: %w", strings.TrimSpace(path), err)
-	}
-	return nil
 }
 
 func classifyWhatsAppHTTPError(statusCode int, retryAfterHeader string, raw []byte) error {

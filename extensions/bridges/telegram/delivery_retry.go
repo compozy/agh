@@ -14,9 +14,13 @@ func sendTelegramOutbound(
 	request telegramSendMessageRequest,
 	outbound telegramOutboundText,
 ) (*telegramSentMessage, error) {
-	return bridgesdk.RetryDo(ctx, bridgesdk.DefaultRetryConfig(), func(callCtx context.Context) (*telegramSentMessage, error) {
-		return sendTelegramOutboundOnce(callCtx, api, request, outbound)
-	})
+	return bridgesdk.RetryDo(
+		ctx,
+		bridgesdk.DefaultRetryConfig(),
+		func(callCtx context.Context) (*telegramSentMessage, error) {
+			return sendTelegramOutboundOnce(callCtx, api, request, outbound)
+		},
+	)
 }
 
 func sendTelegramOutboundOnce(
@@ -32,7 +36,7 @@ func sendTelegramOutboundOnce(
 		return validatedTelegramSentMessage(sent)
 	}
 	var parseErr *telegramMarkdownParseError
-	if outbound.ParseMode == "" || !errors.As(err, &parseErr) {
+	if outbound.ParseMode == "" || bridgesdk.IsCommittedMutation(err) || !errors.As(err, &parseErr) {
 		return nil, fmt.Errorf("telegram: send outbound text: %w", err)
 	}
 	request.Text = outbound.PlainText
@@ -42,20 +46,6 @@ func sendTelegramOutboundOnce(
 		return nil, fmt.Errorf("telegram: send plain-text fallback: %w", err)
 	}
 	return validatedTelegramSentMessage(sent)
-}
-
-func validatedTelegramSentMessage(message *telegramSentMessage) (*telegramSentMessage, error) {
-	if message == nil {
-		return nil, &bridgesdk.TransientError{
-			Err: errors.New("telegram: send message returned no response"),
-		}
-	}
-	if message.MessageID <= 0 {
-		return nil, &bridgesdk.TransientError{
-			Err: fmt.Errorf("telegram: send message returned invalid message id %d", message.MessageID),
-		}
-	}
-	return message, nil
 }
 
 func editTelegramOutbound(
@@ -83,7 +73,7 @@ func editTelegramOutboundOnce(
 		return nil
 	}
 	var parseErr *telegramMarkdownParseError
-	if outbound.ParseMode == "" || !errors.As(err, &parseErr) {
+	if outbound.ParseMode == "" || bridgesdk.IsCommittedMutation(err) || !errors.As(err, &parseErr) {
 		return fmt.Errorf("telegram: edit outbound text: %w", err)
 	}
 	request.Text = outbound.PlainText

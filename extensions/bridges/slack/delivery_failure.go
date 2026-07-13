@@ -16,7 +16,12 @@ func (p *slackProvider) recordDeliveryFailure(
 	marker bridgesdk.DeliveryMarker,
 	err error,
 ) {
-	p.storeDeliveryRetryState(instanceID, request.Event.DeliveryID, state)
+	if bridgesdk.IsCommittedMutation(err) {
+		p.deliveries.Delete(deliveryStateKey(instanceID, request.Event.DeliveryID))
+		closeProgressDispatcher(state.Progress)
+	} else {
+		p.storeDeliveryRetryState(instanceID, request.Event.DeliveryID, state)
+	}
 	marker.Error = err.Error()
 	p.markers.RecordDelivery(marker)
 	classified := bridgesdk.ClassifyError(err)

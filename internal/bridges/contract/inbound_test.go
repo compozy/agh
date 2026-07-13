@@ -13,7 +13,10 @@ func TestInboundInteractionContracts(t *testing.T) {
 	t.Run("Should expose and validate every closed interaction enum", func(t *testing.T) {
 		t.Parallel()
 
-		if got, want := strings.Join(InboundEventFamilyValues(), ","), "message,command,action,reaction,edit"; got != want {
+		if got, want := strings.Join(
+			InboundEventFamilyValues(),
+			",",
+		), "message,command,action,reaction,edit"; got != want {
 			t.Fatalf("InboundEventFamilyValues() = %q, want %q", got, want)
 		}
 		families := []struct {
@@ -110,11 +113,35 @@ func TestInboundInteractionContracts(t *testing.T) {
 			name string
 			edit InboundEdit
 		}{
-			{name: "Should reject an edit without a message id", edit: InboundEdit{OriginalTimestamp: timestamp, Operation: InboundEditOperationDeleted}},
-			{name: "Should reject an edit without a timestamp", edit: InboundEdit{MessageID: "msg-1", Operation: InboundEditOperationDeleted}},
-			{name: "Should reject an edit without an operation", edit: InboundEdit{MessageID: "msg-1", OriginalTimestamp: timestamp}},
-			{name: "Should reject an updated edit without text", edit: InboundEdit{MessageID: "msg-1", OriginalTimestamp: timestamp, Operation: InboundEditOperationUpdated}},
-			{name: "Should reject a deleted edit with text", edit: InboundEdit{MessageID: "msg-1", NewText: "not allowed", OriginalTimestamp: timestamp, Operation: InboundEditOperationDeleted}},
+			{
+				name: "Should reject an edit without a message id",
+				edit: InboundEdit{OriginalTimestamp: timestamp, Operation: InboundEditOperationDeleted},
+			},
+			{
+				name: "Should reject an edit without a timestamp",
+				edit: InboundEdit{MessageID: "msg-1", Operation: InboundEditOperationDeleted},
+			},
+			{
+				name: "Should reject an edit without an operation",
+				edit: InboundEdit{MessageID: "msg-1", OriginalTimestamp: timestamp},
+			},
+			{
+				name: "Should reject an updated edit without text",
+				edit: InboundEdit{
+					MessageID:         "msg-1",
+					OriginalTimestamp: timestamp,
+					Operation:         InboundEditOperationUpdated,
+				},
+			},
+			{
+				name: "Should reject a deleted edit with text",
+				edit: InboundEdit{
+					MessageID:         "msg-1",
+					NewText:           "not allowed",
+					OriginalTimestamp: timestamp,
+					Operation:         InboundEditOperationDeleted,
+				},
+			},
 		}
 		for _, test := range invalid {
 			test := test
@@ -265,15 +292,39 @@ func TestInboundMessageEnvelopeContract(t *testing.T) {
 			name   string
 			mutate func(*InboundMessageEnvelope)
 		}{
-			{name: "Should reject a missing instance", mutate: func(v *InboundMessageEnvelope) { v.BridgeInstanceID = "" }},
+			{
+				name:   "Should reject a missing instance",
+				mutate: func(v *InboundMessageEnvelope) { v.BridgeInstanceID = "" },
+			},
 			{name: "Should reject an invalid scope", mutate: func(v *InboundMessageEnvelope) { v.WorkspaceID = "" }},
-			{name: "Should reject a missing received timestamp", mutate: func(v *InboundMessageEnvelope) { v.ReceivedAt = time.Time{} }},
-			{name: "Should reject an invalid family", mutate: func(v *InboundMessageEnvelope) { v.EventFamily = "unknown" }},
-			{name: "Should reject invalid metadata", mutate: func(v *InboundMessageEnvelope) { v.ProviderMetadata = json.RawMessage(`{`) }},
-			{name: "Should reject a missing idempotency key", mutate: func(v *InboundMessageEnvelope) { v.IdempotencyKey = "" }},
-			{name: "Should reject a missing message id", mutate: func(v *InboundMessageEnvelope) { v.PlatformMessageID = "" }},
-			{name: "Should reject a message with command payload", mutate: func(v *InboundMessageEnvelope) { v.Command = &InboundCommand{Command: "/x"} }},
-			{name: "Should reject a command without payload", mutate: func(v *InboundMessageEnvelope) { *v = typedInboundEnvelope(InboundEventFamilyCommand) }},
+			{
+				name:   "Should reject a missing received timestamp",
+				mutate: func(v *InboundMessageEnvelope) { v.ReceivedAt = time.Time{} },
+			},
+			{
+				name:   "Should reject an invalid family",
+				mutate: func(v *InboundMessageEnvelope) { v.EventFamily = "unknown" },
+			},
+			{
+				name:   "Should reject invalid metadata",
+				mutate: func(v *InboundMessageEnvelope) { v.ProviderMetadata = json.RawMessage(`{`) },
+			},
+			{
+				name:   "Should reject a missing idempotency key",
+				mutate: func(v *InboundMessageEnvelope) { v.IdempotencyKey = "" },
+			},
+			{
+				name:   "Should reject a missing message id",
+				mutate: func(v *InboundMessageEnvelope) { v.PlatformMessageID = "" },
+			},
+			{
+				name:   "Should reject a message with command payload",
+				mutate: func(v *InboundMessageEnvelope) { v.Command = &InboundCommand{Command: "/x"} },
+			},
+			{
+				name:   "Should reject a command without payload",
+				mutate: func(v *InboundMessageEnvelope) { *v = typedInboundEnvelope(InboundEventFamilyCommand) },
+			},
 			{name: "Should reject a command with message fields", mutate: func(v *InboundMessageEnvelope) {
 				*v = typedInboundEnvelope(InboundEventFamilyCommand)
 				v.Command = &InboundCommand{Command: "/x"}
@@ -284,8 +335,14 @@ func TestInboundMessageEnvelopeContract(t *testing.T) {
 				v.Action = &InboundAction{ActionID: "a"}
 				v.Reaction = &InboundReaction{MessageID: "m", Emoji: "e"}
 			}},
-			{name: "Should reject a reaction without payload", mutate: func(v *InboundMessageEnvelope) { *v = typedInboundEnvelope(InboundEventFamilyReaction) }},
-			{name: "Should reject an edit without payload", mutate: func(v *InboundMessageEnvelope) { *v = typedInboundEnvelope(InboundEventFamilyEdit) }},
+			{
+				name:   "Should reject a reaction without payload",
+				mutate: func(v *InboundMessageEnvelope) { *v = typedInboundEnvelope(InboundEventFamilyReaction) },
+			},
+			{
+				name:   "Should reject an edit without payload",
+				mutate: func(v *InboundMessageEnvelope) { *v = typedInboundEnvelope(InboundEventFamilyEdit) },
+			},
 			{name: "Should reject reply context on a command", mutate: func(v *InboundMessageEnvelope) {
 				*v = typedInboundEnvelope(InboundEventFamilyCommand)
 				v.Command = &InboundCommand{Command: "/x"}
@@ -313,8 +370,23 @@ func TestInboundMessageEnvelopeContract(t *testing.T) {
 			name string
 			ref  NetworkConversationRef
 		}{
-			{name: "Should accept a thread conversation", ref: NetworkConversationRef{Channel: "agh", Surface: NetworkConversationSurfaceThread, ThreadID: "thread_123", WorkID: "work_1"}},
-			{name: "Should accept a direct conversation", ref: NetworkConversationRef{Channel: "agh", Surface: NetworkConversationSurfaceDirect, DirectID: directID}},
+			{
+				name: "Should accept a thread conversation",
+				ref: NetworkConversationRef{
+					Channel:  "agh",
+					Surface:  NetworkConversationSurfaceThread,
+					ThreadID: "thread_123",
+					WorkID:   "work_1",
+				},
+			},
+			{
+				name: "Should accept a direct conversation",
+				ref: NetworkConversationRef{
+					Channel:  "agh",
+					Surface:  NetworkConversationSurfaceDirect,
+					DirectID: directID,
+				},
+			},
 		}
 		for _, test := range valid {
 			test := test
@@ -331,12 +403,57 @@ func TestInboundMessageEnvelopeContract(t *testing.T) {
 		}{
 			{name: "Should reject an empty conversation", ref: NetworkConversationRef{}},
 			{name: "Should reject an unknown surface", ref: NetworkConversationRef{Channel: "agh", Surface: "room"}},
-			{name: "Should reject a malformed thread id", ref: NetworkConversationRef{Channel: "agh", Surface: NetworkConversationSurfaceThread, ThreadID: "bad"}},
-			{name: "Should reject a direct id on a thread", ref: NetworkConversationRef{Channel: "agh", Surface: NetworkConversationSurfaceThread, ThreadID: "thread_1", DirectID: directID}},
-			{name: "Should reject a short direct id", ref: NetworkConversationRef{Channel: "agh", Surface: NetworkConversationSurfaceDirect, DirectID: "direct_short"}},
-			{name: "Should reject a thread id on a direct conversation", ref: NetworkConversationRef{Channel: "agh", Surface: NetworkConversationSurfaceDirect, DirectID: directID, ThreadID: "thread_1"}},
-			{name: "Should reject a malformed work id", ref: NetworkConversationRef{Channel: "agh", Surface: NetworkConversationSurfaceThread, ThreadID: "thread_1", WorkID: "bad/id"}},
-			{name: "Should reject control characters in a thread id", ref: NetworkConversationRef{Channel: "agh", Surface: NetworkConversationSurfaceThread, ThreadID: "thread_\x01"}},
+			{
+				name: "Should reject a malformed thread id",
+				ref: NetworkConversationRef{
+					Channel:  "agh",
+					Surface:  NetworkConversationSurfaceThread,
+					ThreadID: "bad",
+				},
+			},
+			{
+				name: "Should reject a direct id on a thread",
+				ref: NetworkConversationRef{
+					Channel:  "agh",
+					Surface:  NetworkConversationSurfaceThread,
+					ThreadID: "thread_1",
+					DirectID: directID,
+				},
+			},
+			{
+				name: "Should reject a short direct id",
+				ref: NetworkConversationRef{
+					Channel:  "agh",
+					Surface:  NetworkConversationSurfaceDirect,
+					DirectID: "direct_short",
+				},
+			},
+			{
+				name: "Should reject a thread id on a direct conversation",
+				ref: NetworkConversationRef{
+					Channel:  "agh",
+					Surface:  NetworkConversationSurfaceDirect,
+					DirectID: directID,
+					ThreadID: "thread_1",
+				},
+			},
+			{
+				name: "Should reject a malformed work id",
+				ref: NetworkConversationRef{
+					Channel:  "agh",
+					Surface:  NetworkConversationSurfaceThread,
+					ThreadID: "thread_1",
+					WorkID:   "bad/id",
+				},
+			},
+			{
+				name: "Should reject control characters in a thread id",
+				ref: NetworkConversationRef{
+					Channel:  "agh",
+					Surface:  NetworkConversationSurfaceThread,
+					ThreadID: "thread_\x01",
+				},
+			},
 		}
 		for _, test := range invalid {
 			test := test

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -58,17 +57,6 @@ func classifyTeamsHTTPError(statusCode int, retryAfterHeader string, raw string)
 			RetryAfter: parseRetryAfter(retryAfterHeader),
 		}
 	}
-}
-
-func readResponseBody(reader io.Reader) string {
-	if reader == nil {
-		return ""
-	}
-	body, err := io.ReadAll(reader)
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(body))
 }
 
 func stringHeader(header map[string]any, key string) string {

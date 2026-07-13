@@ -36,6 +36,29 @@ const (
 // while an RPC call was still waiting for its response.
 var ErrTransportClosedBeforeResponse = errors.New("subprocess: transport closed before response")
 
+// ResponseDecodeError reports that a JSON-RPC response arrived but its result
+// could not be materialized into the caller's negotiated response type.
+type ResponseDecodeError struct {
+	Method string
+	Err    error
+}
+
+// Error implements error.
+func (e *ResponseDecodeError) Error() string {
+	if e == nil {
+		return ""
+	}
+	return fmt.Sprintf("subprocess: decode %q response: %v", e.Method, e.Err)
+}
+
+// Unwrap exposes the underlying JSON decode failure.
+func (e *ResponseDecodeError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
 // HandlerFunc handles one inbound JSON-RPC request.
 type HandlerFunc func(context.Context, json.RawMessage) (any, error)
 
@@ -193,7 +216,7 @@ func (t *transport) call(ctx context.Context, method string, params, result any)
 			return nil
 		}
 		if err := json.Unmarshal(response.result, result); err != nil {
-			return fmt.Errorf("subprocess: decode %q response: %w", method, err)
+			return &ResponseDecodeError{Method: method, Err: err}
 		}
 		return nil
 	case <-ctx.Done():

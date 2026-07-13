@@ -1,10 +1,37 @@
 package contract
 
 import (
+	"fmt"
 	"strings"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 )
+
+// BridgeSendTestStatus identifies the only two truthful outcomes of a real provider canary.
+type BridgeSendTestStatus string
+
+const (
+	BridgeSendTestStatusDelivered                  BridgeSendTestStatus = "delivered"
+	BridgeSendTestStatusCommittedResultUnavailable BridgeSendTestStatus = "committed_result_unavailable"
+)
+
+// BridgeSendTestStatusValues returns the closed send-test status vocabulary.
+func BridgeSendTestStatusValues() []string {
+	return []string{
+		string(BridgeSendTestStatusDelivered),
+		string(BridgeSendTestStatusCommittedResultUnavailable),
+	}
+}
+
+// Validate reports whether the send-test status is part of the public contract.
+func (s BridgeSendTestStatus) Validate() error {
+	switch s {
+	case BridgeSendTestStatusDelivered, BridgeSendTestStatusCommittedResultUnavailable:
+		return nil
+	default:
+		return fmt.Errorf("api contract: invalid bridge send-test status %q", s)
+	}
+}
 
 // BridgeVerifyResponse returns the live, provider-owned checks for one bridge.
 type BridgeVerifyResponse struct {
@@ -41,9 +68,10 @@ func (r BridgeSendTestRequest) NormalizedMessage() string {
 
 // BridgeSendTestResponse reports the provider acknowledgment for a real send.
 type BridgeSendTestResponse struct {
-	Status           string                   `json:"status"`
-	BridgeInstanceID string                   `json:"bridge_instance_id"`
-	DeliveryID       string                   `json:"delivery_id"`
-	RemoteMessageID  string                   `json:"remote_message_id,omitempty"`
-	DeliveryTarget   bridgepkg.DeliveryTarget `json:"delivery_target"`
+	Status           BridgeSendTestStatus           `json:"status"`
+	BridgeInstanceID string                         `json:"bridge_instance_id"`
+	DeliveryID       string                         `json:"delivery_id"`
+	RemoteMessageID  string                         `json:"remote_message_id,omitempty"`
+	DeliveryTarget   bridgepkg.DeliveryTarget       `json:"delivery_target"`
+	Error            *bridgepkg.DeliveryErrorDetail `json:"error,omitempty"`
 }

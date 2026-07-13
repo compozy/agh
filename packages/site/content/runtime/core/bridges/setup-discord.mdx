@@ -196,7 +196,39 @@ Expected evidence:
 An application-ID mismatch means the bot token and portal application do not belong together. Fix
 the values rather than removing the configured ID.
 
-## Step 7: Enable and prove inbound routing
+## Step 7: Control direct-message access
+
+Direct DMs are evaluated by `dm_policy` before routing. An omitted or empty value normalizes to
+`open`, which admits every Discord DM sender whose request passes provider authentication. Any
+admitted direct DM still fails the wizard's group-only route because it emits `peer_id`, not
+`group_id`; a direct-DM instance must use `include_peer=true`.
+
+`agh bridge create` and `agh bridge update` do not currently expose `--dm-policy`. Use the Web editor
+or HTTP API procedure in [Control direct-message access](./access), then keep the bridge disabled
+until `agh bridge get "$BRIDGE_ID" -o json` reports the intended policy and lists.
+
+Provider config accepts stable Discord user IDs and normalized username fallbacks:
+
+```json
+{
+  "dm": {
+    "allow_user_ids": ["123456789012345678"],
+    "allow_usernames": ["alice"],
+    "paired_user_ids": [],
+    "paired_usernames": []
+  }
+}
+```
+
+`pairing` reads pre-populated `paired_user_ids` and `paired_usernames`, then falls back to the
+allowlist; it does not issue pairing codes or start an interactive approval flow. Prefer numeric IDs.
+A display name, nickname, and username are not interchangeable identities.
+
+The policy applies only to direct DMs. Group DMs emit `group_id`, are not evaluated by `dm_policy`,
+and follow the group route. Server access remains governed by application installation, channel or
+role permissions, event subscriptions, and bridge routing.
+
+## Step 8: Enable and prove inbound routing
 
 ```bash
 agh bridge enable "$BRIDGE_ID"
@@ -222,7 +254,7 @@ reply also targets that parent channel even when the inbound event came from a t
 thread-preserving instance contains both the parent `group_id` and thread-channel `thread_id`. A
 direct-DM instance uses the Discord DM channel ID as `peer_id`, not the user ID.
 
-## Step 8: Prove outbound delivery
+## Step 9: Prove outbound delivery
 
 For the wizard's group-only policy, use the parent channel ID returned by the route:
 
@@ -247,30 +279,6 @@ agh bridge send-test "$BRIDGE_ID" \
 
 Confirm the message appears in the policy-selected channel or thread and the result contains the
 Discord remote message ID.
-
-## Configure direct-message access
-
-Direct DMs are evaluated by `dm_policy` first. Any admitted direct DM still fails the wizard's
-default group-only route because it emits `peer_id`, not `group_id`; a direct-DM instance must use
-`include_peer=true`. Use a separate callback boundary if server traffic also needs independent
-sessions. Group DMs emit `group_id`, are not evaluated as direct DMs by this policy, and follow the
-default group route instead.
-
-The bridge's `dm_policy` chooses `open`, `allowlist`, or `pairing`. Provider config accepts stable
-Discord user IDs and normalized username fallbacks:
-
-```json
-{
-  "dm": {
-    "allow_user_ids": ["123456789012345678"],
-    "allow_usernames": ["alice"],
-    "paired_user_ids": [],
-    "paired_usernames": []
-  }
-}
-```
-
-Prefer numeric IDs. A display name, nickname, and username are not interchangeable identities.
 
 ## Delivery and progress behavior
 
@@ -371,6 +379,7 @@ one credential set.
 - The Discord extension is installed, enabled, and healthy in the provider catalog.
 - Discord accepts the signed PING at the exact public URL.
 - The bot token identity matches the configured application ID.
+- A direct-DM bridge reports the intended `dm_policy` and sender lists before enablement.
 - A supported webhook event or interaction creates an AGH route.
 - If thread-preserving routing was selected, server routes contain both parent and thread IDs.
 - `send-test` returns a Discord remote message ID.
@@ -380,6 +389,7 @@ one credential set.
 ## Related docs
 
 - [Bridge setup](/runtime/core/bridges/setup)
+- [Control direct-message access](./access)
 - [Operate and repair bridges](/runtime/core/bridges/operations)
 - [Message routing](/runtime/core/bridges/routing)
 - [Tool progress](/runtime/core/bridges/progress)

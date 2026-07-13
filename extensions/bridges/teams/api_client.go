@@ -32,8 +32,7 @@ func (c *teamsBotClient) CreateConversation(
 		"/v3/conversations",
 		req,
 		&out,
-		bridgesdk.HTTPResponseCommitOnMaterializedResult,
-		func() string { return out.ID },
+		bridgesdk.HTTPResponseCommitOnSuccessStatus,
 	); err != nil {
 		return nil, err
 	}
@@ -63,8 +62,7 @@ func (c *teamsBotClient) SendActivity(
 		path,
 		activity,
 		&out,
-		bridgesdk.HTTPResponseCommitOnMaterializedResult,
-		func() string { return out.ID },
+		bridgesdk.HTTPResponseCommitOnSuccessStatus,
 	); err != nil {
 		return nil, err
 	}
@@ -90,7 +88,6 @@ func (c *teamsBotClient) UpdateActivity(
 		activity,
 		nil,
 		bridgesdk.HTTPResponseCommitOnSuccessStatus,
-		nil,
 	)
 }
 
@@ -112,7 +109,6 @@ func (c *teamsBotClient) DeleteActivity(
 		nil,
 		nil,
 		bridgesdk.HTTPResponseCommitOnSuccessStatus,
-		nil,
 	)
 }
 
@@ -158,7 +154,7 @@ func (c *teamsBotClient) accessToken(ctx context.Context) (result string, err er
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := teamsCredentialedHTTPClient(c.httpClient).Do(req)
+	resp, err := bridgesdk.CredentialedHTTPClient(c.httpClient).Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -166,14 +162,14 @@ func (c *teamsBotClient) accessToken(ctx context.Context) (result string, err er
 		err = errors.Join(err, bridgesdk.DrainAndCloseHTTPResponseBody(resp.Body))
 	}()
 	if resp.StatusCode != http.StatusOK {
-		return "", classifyTeamsHTTPError(
-			resp.StatusCode,
-			resp.Header.Get("Retry-After"),
-			readResponseBody(resp.Body),
+		body, readErr := bridgesdk.ReadHTTPResponseBody(resp.Body)
+		return "", errors.Join(
+			classifyTeamsHTTPError(resp.StatusCode, resp.Header.Get("Retry-After"), body),
+			readErr,
 		)
 	}
 	var tokenResp teamsTokenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+	if err := bridgesdk.DecodeSingleJSONValue(resp.Body, &tokenResp); err != nil {
 		return "", err
 	}
 	if strings.TrimSpace(tokenResp.AccessToken) == "" {
@@ -201,7 +197,6 @@ func (c *teamsBotClient) callJSON(
 	payload any,
 	out any,
 	commitPolicy bridgesdk.HTTPResponseCommitPolicy,
-	materializedRemoteID func() string,
 ) (err error) {
 	token, err := c.accessToken(ctx)
 	if err != nil {
@@ -228,7 +223,7 @@ func (c *teamsBotClient) callJSON(
 	if payload != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	resp, err := c.httpClient.Do(req)
+	resp, err := bridgesdk.CredentialedHTTPClient(c.httpClient).Do(req)
 	if err != nil {
 		return err
 	}
@@ -243,21 +238,18 @@ func (c *teamsBotClient) callJSON(
 	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return classifyTeamsHTTPError(
-			resp.StatusCode,
-			resp.Header.Get("Retry-After"),
-			readResponseBody(resp.Body),
+		body, readErr := bridgesdk.ReadHTTPResponseBody(resp.Body)
+		return errors.Join(
+			classifyTeamsHTTPError(resp.StatusCode, resp.Header.Get("Retry-After"), body),
+			readErr,
 		)
 	}
-	commitEvidence = commitPolicy.Evidence(false)
+	commitEvidence = commitPolicy.Evidence()
 	if out == nil || resp.StatusCode == http.StatusNoContent {
 		return nil
 	}
-	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+	if err := bridgesdk.DecodeSingleJSONValue(resp.Body, out); err != nil {
 		return err
 	}
-	materializedResult := materializedRemoteID != nil &&
-		strings.TrimSpace(materializedRemoteID()) != ""
-	commitEvidence = commitPolicy.Evidence(materializedResult)
 	return nil
 }

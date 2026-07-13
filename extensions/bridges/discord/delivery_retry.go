@@ -11,9 +11,13 @@ func postDiscordDeliveryMessage(
 	api discordAPI,
 	request discordPostMessageRequest,
 ) (*discordPostedMessage, error) {
-	return bridgesdk.RetryDo(ctx, bridgesdk.DefaultRetryConfig(), func(callCtx context.Context) (*discordPostedMessage, error) {
-		return api.PostMessage(callCtx, request)
-	})
+	return bridgesdk.RetryDo(
+		ctx,
+		bridgesdk.DefaultRetryConfig(),
+		func(callCtx context.Context) (*discordPostedMessage, error) {
+			return api.PostMessage(callCtx, request)
+		},
+	)
 }
 
 func updateDiscordDeliveryMessage(

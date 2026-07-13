@@ -59,7 +59,10 @@ func (c *unixSocketClient) SendBridgeTest(
 	if strings.TrimSpace(response.BridgeInstanceID) != trimmedID {
 		return BridgeSendTestRecord{}, bridgeControlResponseIDError("send-test", response.BridgeInstanceID, trimmedID)
 	}
-	if strings.TrimSpace(response.Status) == "" || strings.TrimSpace(response.DeliveryID) == "" {
+	if err := response.Status.Validate(); err != nil {
+		return BridgeSendTestRecord{}, fmt.Errorf("cli: invalid bridge send-test status: %w", err)
+	}
+	if strings.TrimSpace(response.DeliveryID) == "" {
 		return BridgeSendTestRecord{}, errors.New("cli: invalid bridge send-test response")
 	}
 	if err := response.DeliveryTarget.Validate(); err != nil {

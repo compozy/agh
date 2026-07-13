@@ -293,7 +293,26 @@ Expected evidence:
 A user token fails with remediation to bind the Bot User OAuth token. A missing scope is named
 individually so the app can be updated and reinstalled without guessing.
 
-## Step 8: Enable and prove the full path
+## Step 8: Control direct-message access
+
+The group-only bridge rejects direct-message routes, so its `dm_policy` does not grant or restrict
+channel access. Before enabling a peer-only bridge, set an explicit policy. An omitted or empty value
+normalizes to `open` and admits every Slack DM sender whose request passes signature verification.
+
+`agh bridge create` and `agh bridge update` do not currently expose `--dm-policy`. Use the Web editor
+or HTTP API procedure in [Control direct-message access](./access), then keep the bridge disabled
+until `agh bridge get "$BRIDGE_ID" -o json` reports `enabled: false`, the intended `dm_policy`, and
+the intended `provider_config.dm` lists.
+
+- `allowlist` reads `allow_user_ids` and `allow_usernames`.
+- `pairing` reads pre-populated `paired_user_ids` and `paired_usernames`, then falls back to the
+  allowlist. It does not issue pairing codes or start an interactive approval flow.
+
+Prefer stable Slack user IDs over display names. `dm_policy` applies only to DMs. Slack app
+installation, channel membership, request signing, and the bridge route govern channel events and
+channel `/agh` invocations.
+
+## Step 9: Enable and prove the full path
 
 ```bash
 agh bridge enable "$BRIDGE_ID"
@@ -334,19 +353,6 @@ agh bridge send-test "$BRIDGE_ID" \
 
 The command must return a delivery ID and a Slack remote message ID. `test-delivery` is not a
 substitute; it resolves the target without calling Slack.
-
-## Configure direct-message access
-
-The group-only bridge does not accept direct-message routes. On a peer-only instance, `dm_policy`
-controls direct messages:
-
-- `open` accepts authenticated Slack users.
-- `allowlist` admits values from `provider_config.dm.allow_user_ids` or `allow_usernames`.
-- `pairing` admits values from `paired_user_ids` or `paired_usernames`.
-
-Prefer stable Slack user IDs over display names. Configure the policy before broad app distribution.
-The policy does not restrict channel events or channel `/agh` invocations. Those remain governed by
-Slack app installation, channel membership, request signing, and the bridge routing dimensions.
 
 ## Delivery and progress behavior
 
@@ -463,6 +469,7 @@ you are not changing.
 - Every `scope.*` check passes after installation.
 - Slack request signatures validate on the public route.
 - The bridge requires either `group_id` or `peer_id` for its selected conversation type, not both.
+- A peer-only bridge reports the intended `dm_policy` and sender lists before enablement.
 - An inbound event creates a route in the intended workspace with the workspace's default agent.
 - `/agh <text>` reaches that route as prompt arguments and later reuses the same session.
 - The `/agh` answer arrives through the bot API at conversation level, not through `response_url`.
@@ -472,6 +479,7 @@ you are not changing.
 ## Related docs
 
 - [Bridge setup](/runtime/core/bridges/setup)
+- [Control direct-message access](./access)
 - [Operate and repair bridges](/runtime/core/bridges/operations)
 - [Message routing](/runtime/core/bridges/routing)
 - [Tool progress](/runtime/core/bridges/progress)

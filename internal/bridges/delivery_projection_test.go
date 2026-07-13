@@ -1553,7 +1553,7 @@ func TestBrokerReconcileDeliveryFailsOpenThroughTerminalPost(t *testing.T) {
 			Scope:            ScopeWorkspace,
 			WorkspaceID:      "ws-1",
 			State:            DeliveryLedgerStateActive,
-			LastSentSeq:      7,
+			LastSentSeq:      6,
 			LastAckedSeq:     6,
 			RemoteMessageID:  "remote-restart",
 			CreatedAt:        now.Add(-time.Minute),
@@ -1613,7 +1613,7 @@ func TestBrokerReconcileDeliveryFailsOpenThroughTerminalPost(t *testing.T) {
 		if got, want := persisted.State, DeliveryLedgerStateTerminalError; got != want {
 			t.Fatalf("reconciled state = %q, want %q", got, want)
 		}
-		if got, want := persisted.LastAckedSeq, int64(8); got != want {
+		if got, want := persisted.LastAckedSeq, int64(7); got != want {
 			t.Fatalf("reconciled last acked seq = %d, want %d", got, want)
 		}
 		if got := persisted.TerminalError; !strings.Contains(got, sessionStoppedDeliveryMessage) {
@@ -1625,6 +1625,241 @@ func TestBrokerReconcileDeliveryFailsOpenThroughTerminalPost(t *testing.T) {
 		}
 		if !metrics.LastSuccessAt.IsZero() {
 			t.Fatalf("reconciled LastSuccessAt = %s, want unchanged zero value", metrics.LastSuccessAt)
+		}
+	})
+
+	t.Run("Should preserve an indeterminate semantic acknowledgement during reconciliation", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 13, 20, 0, 0, 0, time.UTC)
+		lastSuccessAt := now.Add(-3 * time.Minute)
+		store := newRecordingDeliveryLedgerStore()
+		record := DeliveryLedgerRecord{
+			DeliveryID:       "delivery-reconcile-committed-result",
+			SessionID:        "sess-reconcile-committed-result",
+			TurnID:           "turn-reconcile-committed-result",
+			RoutingKey:       testRoutingKey("brg-reconcile-committed-result", "peer-reconcile-committed-result"),
+			BridgeInstanceID: "brg-reconcile-committed-result",
+			Scope:            ScopeWorkspace,
+			WorkspaceID:      "ws-1",
+			State:            DeliveryLedgerStateActive,
+			LastSentSeq:      4,
+			LastAckedSeq:     4,
+			RemoteMessageID:  "remote-before-reconcile",
+			CreatedAt:        now.Add(-time.Minute),
+			UpdatedAt:        now.Add(-time.Minute),
+		}
+		ctx := testutil.Context(t)
+		if err := store.CreateBridgeDelivery(ctx, record); err != nil {
+			t.Fatalf("CreateBridgeDelivery() error = %v", err)
+		}
+		if err := store.PutBridgeDeliveryMetrics(ctx, DeliveryMetricRecord{
+			BridgeDeliveryMetrics: BridgeDeliveryMetrics{
+				BridgeInstanceID: record.BridgeInstanceID,
+				LastSuccessAt:    lastSuccessAt,
+			},
+			Scope:       record.Scope,
+			WorkspaceID: record.WorkspaceID,
+			UpdatedAt:   lastSuccessAt,
+		}); err != nil {
+			t.Fatalf("PutBridgeDeliveryMetrics() error = %v", err)
+		}
+
+		const secret = "sk-reconcile-secret"
+		transport := &fakeDeliveryTransport{
+			handler: func(_ context.Context, _ string, req DeliveryRequest) (DeliveryAck, error) {
+				return DeliveryAck{
+					DeliveryID: req.Event.DeliveryID,
+					Seq:        req.Event.Seq,
+					Outcome:    DeliveryAckOutcomeCommittedResultUnavailable,
+					Error: &DeliveryErrorDetail{
+						Message: "provider accepted api_key=" + secret + " but omitted its result",
+					},
+				}, nil
+			},
+		}
+		restarted := NewBroker(
+			transport,
+			WithDeliveryLedgerStore(store),
+			WithDeliveryBrokerRegistrationGate(),
+			WithDeliveryBrokerNow(func() time.Time { return now }),
+		)
+		t.Cleanup(restarted.Close)
+		if err := restarted.LoadDeliveryMetrics(ctx, DeliveryLedgerQuery{
+			Scope:       record.Scope,
+			WorkspaceID: record.WorkspaceID,
+		}); err != nil {
+			t.Fatalf("LoadDeliveryMetrics() error = %v", err)
+		}
+
+		if err := restarted.ReconcileDelivery(ctx, record, "ext-slack"); err != nil {
+			t.Fatalf("ReconcileDelivery() error = %v", err)
+		}
+		if got, want := len(transport.snapshotCalls()), 1; got != want {
+			t.Fatalf("reconcile transport calls = %d, want %d", got, want)
+		}
+		persisted, ok := store.record(record.DeliveryID)
+		if !ok {
+			t.Fatal("reconciled delivery record missing")
+		}
+		if got, want := persisted.State, DeliveryLedgerStateTerminalError; got != want {
+			t.Fatalf("reconciled state = %q, want %q", got, want)
+		}
+		if got, want := persisted.LastSentSeq, int64(5); got != want {
+			t.Fatalf("reconciled last sent seq = %d, want %d", got, want)
+		}
+		if got, want := persisted.LastAckedSeq, record.LastAckedSeq; got != want {
+			t.Fatalf("reconciled last acked seq = %d, want %d", got, want)
+		}
+		if got, want := persisted.RemoteMessageID, record.RemoteMessageID; got != want {
+			t.Fatalf("reconciled remote id = %q, want %q", got, want)
+		}
+		if strings.Contains(persisted.TerminalError, secret) ||
+			!strings.Contains(persisted.TerminalError, "[REDACTED]") {
+			t.Fatalf("reconciled terminal error = %q, want redacted provider detail", persisted.TerminalError)
+		}
+		metrics := restarted.DeliveryMetrics()[record.BridgeInstanceID]
+		if got, want := metrics.DeliveryFailuresTotal, 1; got != want {
+			t.Fatalf("reconciled failure metrics = %d, want %d", got, want)
+		}
+		if got, want := metrics.LastSuccessAt, lastSuccessAt; !got.Equal(want) {
+			t.Fatalf("reconciled LastSuccessAt = %s, want %s", got, want)
+		}
+		if strings.Contains(metrics.LastError, secret) || !strings.Contains(metrics.LastError, "[REDACTED]") {
+			t.Fatalf("reconciled LastError = %q, want redacted provider detail", metrics.LastError)
+		}
+	})
+
+	t.Run("Should write ahead then terminalize an interrupted reconcile locally on next restart", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 13, 19, 0, 0, 0, time.UTC)
+		lastSuccessAt := now.Add(-2 * time.Minute)
+		store := newRecordingDeliveryLedgerStore()
+		record := DeliveryLedgerRecord{
+			DeliveryID:       "delivery-indeterminate-restart",
+			SessionID:        "sess-indeterminate-restart",
+			TurnID:           "turn-indeterminate-restart",
+			RoutingKey:       testRoutingKey("brg-indeterminate-restart", "peer-indeterminate-restart"),
+			BridgeInstanceID: "brg-indeterminate-restart",
+			Scope:            ScopeWorkspace,
+			WorkspaceID:      "ws-1",
+			State:            DeliveryLedgerStateActive,
+			LastSentSeq:      6,
+			LastAckedSeq:     6,
+			CreatedAt:        now.Add(-time.Minute),
+			UpdatedAt:        now.Add(-time.Minute),
+		}
+		ctx := testutil.Context(t)
+		if err := store.CreateBridgeDelivery(ctx, record); err != nil {
+			t.Fatalf("CreateBridgeDelivery() error = %v", err)
+		}
+		if err := store.PutBridgeDeliveryMetrics(ctx, DeliveryMetricRecord{
+			BridgeDeliveryMetrics: BridgeDeliveryMetrics{
+				BridgeInstanceID: record.BridgeInstanceID,
+				LastSuccessAt:    lastSuccessAt,
+			},
+			Scope:       record.Scope,
+			WorkspaceID: record.WorkspaceID,
+			UpdatedAt:   lastSuccessAt,
+		}); err != nil {
+			t.Fatalf("PutBridgeDeliveryMetrics() error = %v", err)
+		}
+
+		reconcileCtx, cancelReconcile := context.WithCancel(ctx)
+		firstTransport := &fakeDeliveryTransport{
+			handler: func(_ context.Context, _ string, req DeliveryRequest) (DeliveryAck, error) {
+				intent, ok := store.record(record.DeliveryID)
+				if !ok || intent.State != DeliveryLedgerStateActive ||
+					intent.LastSentSeq != req.Event.Seq || intent.LastAckedSeq != record.LastAckedSeq {
+					t.Fatalf(
+						"reconcile durable intent = %#v, want active sent=%d acked=%d",
+						intent,
+						req.Event.Seq,
+						record.LastAckedSeq,
+					)
+				}
+				cancelReconcile()
+				return DeliveryAck{
+					DeliveryID:      req.Event.DeliveryID,
+					Seq:             req.Event.Seq,
+					RemoteMessageID: "remote-reconcile-committed",
+				}, nil
+			},
+		}
+		firstBroker := NewBroker(
+			firstTransport,
+			WithDeliveryLedgerStore(store),
+			WithDeliveryBrokerRegistrationGate(),
+			WithDeliveryBrokerNow(func() time.Time { return now }),
+		)
+		t.Cleanup(firstBroker.Close)
+		if err := firstBroker.LoadDeliveryMetrics(ctx, DeliveryLedgerQuery{
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "ws-1",
+		}); err != nil {
+			t.Fatalf("LoadDeliveryMetrics() error = %v", err)
+		}
+		if err := firstBroker.ReconcileDelivery(reconcileCtx, record, "ext-slack"); !errors.Is(err, context.Canceled) {
+			t.Fatalf("ReconcileDelivery(interrupted checkpoint) error = %v, want context cancellation", err)
+		}
+		if got, want := len(firstTransport.snapshotCalls()), 1; got != want {
+			t.Fatalf("first reconcile transport calls = %d, want %d", got, want)
+		}
+		inflight, ok := store.record(record.DeliveryID)
+		if !ok || inflight.State != DeliveryLedgerStateActive ||
+			inflight.LastSentSeq != 7 || inflight.LastAckedSeq != 6 {
+			t.Fatalf("interrupted durable delivery = %#v, want active sent=7 acked=6", inflight)
+		}
+
+		secondTransport := &fakeDeliveryTransport{
+			handler: func(_ context.Context, _ string, _ DeliveryRequest) (DeliveryAck, error) {
+				t.Fatal("second ReconcileDelivery() called provider for an inflight durable mutation")
+				return DeliveryAck{}, nil
+			},
+		}
+		restarted := NewBroker(
+			secondTransport,
+			WithDeliveryLedgerStore(store),
+			WithDeliveryBrokerRegistrationGate(),
+			WithDeliveryBrokerNow(func() time.Time { return now }),
+		)
+		t.Cleanup(restarted.Close)
+		if err := restarted.LoadDeliveryMetrics(ctx, DeliveryLedgerQuery{
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "ws-1",
+		}); err != nil {
+			t.Fatalf("LoadDeliveryMetrics(restarted) error = %v", err)
+		}
+
+		if err := restarted.ReconcileDelivery(ctx, inflight, "ext-slack"); err != nil {
+			t.Fatalf("ReconcileDelivery() error = %v", err)
+		}
+		if got := len(secondTransport.snapshotCalls()); got != 0 {
+			t.Fatalf("reconcile transport calls = %d, want zero", got)
+		}
+		persisted, ok := store.record(record.DeliveryID)
+		if !ok {
+			t.Fatal("terminalized delivery record missing")
+		}
+		if got, want := persisted.State, DeliveryLedgerStateTerminalError; got != want {
+			t.Fatalf("reconciled state = %q, want %q", got, want)
+		}
+		if got, want := persisted.LastSentSeq, int64(7); got != want {
+			t.Fatalf("reconciled last sent seq = %d, want %d", got, want)
+		}
+		if got, want := persisted.LastAckedSeq, record.LastAckedSeq; got != want {
+			t.Fatalf("reconciled last acked seq = %d, want %d", got, want)
+		}
+		if !strings.Contains(persisted.TerminalError, "indeterminate") {
+			t.Fatalf("reconciled terminal error = %q, want indeterminate outcome", persisted.TerminalError)
+		}
+		metrics := restarted.DeliveryMetrics()[record.BridgeInstanceID]
+		if got, want := metrics.DeliveryFailuresTotal, 1; got != want {
+			t.Fatalf("reconciled failure metrics = %d, want %d", got, want)
+		}
+		if got, want := metrics.LastSuccessAt, lastSuccessAt; !got.Equal(want) {
+			t.Fatalf("reconciled LastSuccessAt = %s, want %s", got, want)
 		}
 	})
 }

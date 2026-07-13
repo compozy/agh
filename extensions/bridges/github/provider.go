@@ -2,9 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -350,6 +347,9 @@ func (p *githubProvider) handleBridgesDeliver(
 		installationID,
 	)
 	if err != nil {
+		if bridgesdk.IsCommittedMutation(err) {
+			p.deliveries.Delete(deliveryStateKey(cfg.instanceID, request.Event.DeliveryID))
+		}
 		marker.Error = err.Error()
 		p.markers.RecordDelivery(marker)
 		classified := bridgesdk.ClassifyError(err)
@@ -1319,48 +1319,6 @@ func resolveGitHubDeliveryTarget(cfg *resolvedInstanceConfig, event bridgepkg.De
 		)
 	}
 	return target, nil
-}
-
-func verifyGitHubWebhookSignature(
-	_ context.Context,
-	req *http.Request,
-	body []byte,
-	candidates []resolvedInstanceConfig,
-) error {
-	if req == nil {
-		return errors.New("github: webhook request is required")
-	}
-	signature := strings.TrimSpace(req.Header.Get("X-Hub-Signature-256"))
-	if signature == "" {
-		return errors.New("github: missing webhook signature")
-	}
-	parts := strings.SplitN(signature, "=", 2)
-	if len(parts) != 2 || !strings.EqualFold(strings.TrimSpace(parts[0]), "sha256") {
-		return errors.New("github: invalid webhook signature format")
-	}
-	expected := strings.ToLower(strings.TrimSpace(parts[1]))
-	if expected == "" {
-		return errors.New("github: invalid webhook signature")
-	}
-
-	seen := make(map[string]struct{}, len(candidates))
-	for idx := range candidates {
-		cfg := candidates[idx]
-		secret := strings.TrimSpace(cfg.webhookSecret)
-		if secret == "" {
-			continue
-		}
-		if _, ok := seen[secret]; ok {
-			continue
-		}
-		seen[secret] = struct{}{}
-		mac := hmac.New(sha256.New, []byte(secret))
-		_, _ = mac.Write(body)
-		if hmac.Equal([]byte(expected), []byte(hex.EncodeToString(mac.Sum(nil)))) {
-			return nil
-		}
-	}
-	return errors.New("github: invalid webhook signature")
 }
 
 func isGitHubSelfMessage(cfg *resolvedInstanceConfig, sender githubUser) bool {

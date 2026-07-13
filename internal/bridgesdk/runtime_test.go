@@ -59,6 +59,82 @@ func TestSessionAckDeliveryBuildsValidatedAck(t *testing.T) {
 	}
 }
 
+func TestRuntimeAcknowledgesCommittedMutationWithoutReturningRetryableRPCError(t *testing.T) {
+	var typedNil *CommittedMutationError
+	testCases := []struct {
+		name        string
+		handlerErr  error
+		wantMessage string
+	}{
+		{
+			name: "Should acknowledge a committed mutation with provider detail",
+			handlerErr: &CommittedMutationError{
+				Err: errors.New("provider accepted the message but omitted its id"),
+			},
+			wantMessage: "omitted its id",
+		},
+		{
+			name:        "Should acknowledge an empty committed mutation marker",
+			handlerErr:  &CommittedMutationError{},
+			wantMessage: committedMutationFallbackMessage,
+		},
+		{
+			name:        "Should acknowledge a typed nil committed mutation marker",
+			handlerErr:  typedNil,
+			wantMessage: committedMutationFallbackMessage,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			request := testRuntimeFinalDeliveryRequest("answer")
+			runtime, err := NewRuntime(RuntimeConfig{
+				ExtensionInfo: subprocess.InitializeExtensionInfo{Name: "committed-result", Version: "1.0.0"},
+				Check:         testCheckHandler,
+				Deliver: func(
+					context.Context,
+					*Session,
+					bridgepkg.DeliveryRequest,
+				) (bridgepkg.DeliveryAck, error) {
+					return bridgepkg.DeliveryAck{}, testCase.handlerErr
+				},
+			})
+			if err != nil {
+				t.Fatalf("NewRuntime() error = %v", err)
+			}
+			runtime.session = &Session{}
+			raw, err := json.Marshal(request)
+			if err != nil {
+				t.Fatalf("json.Marshal(request) error = %v", err)
+			}
+
+			result, err := runtime.handleDeliver(context.Background(), raw)
+			if err != nil {
+				t.Fatalf("handleDeliver() error = %v, want semantic acknowledgement", err)
+			}
+			ack, ok := result.(bridgepkg.DeliveryAck)
+			if !ok {
+				t.Fatalf("handleDeliver() result type = %T, want DeliveryAck", result)
+			}
+			if got, want := ack.Outcome, bridgepkg.DeliveryAckOutcomeCommittedResultUnavailable; got != want {
+				t.Fatalf("ack.Outcome = %q, want %q", got, want)
+			}
+			if ack.Error == nil || !strings.Contains(ack.Error.Message, testCase.wantMessage) {
+				t.Fatalf("ack.Error = %#v, want detail containing %q", ack.Error, testCase.wantMessage)
+			}
+			if ack.RemoteMessageID != "" || ack.ReplaceRemoteMessageID != "" {
+				t.Fatalf(
+					"committed-result ack remote ids = (%q, %q), want empty",
+					ack.RemoteMessageID,
+					ack.ReplaceRemoteMessageID,
+				)
+			}
+		})
+	}
+}
+
 func TestRuntimeProgressDeliveryDefaultsToContractNoop(t *testing.T) {
 	t.Run("Should acknowledge progress without invoking the text handler", func(t *testing.T) {
 		t.Parallel()
@@ -234,40 +310,61 @@ func TestRuntimeProgressDeliveryUsesDedicatedHandler(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject a dedicated progress acknowledgement for another delivery", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should convert an invalid progress acknowledgement into a committed-result acknowledgement",
+		func(t *testing.T) {
+			t.Parallel()
 
-		runtime, err := NewRuntime(RuntimeConfig{
-			ExtensionInfo: subprocess.InitializeExtensionInfo{Name: "progress-invalid-ack", Version: "1.0.0"},
-			Check:         testCheckHandler,
-			Deliver: func(
-				context.Context,
-				*Session,
-				bridgepkg.DeliveryRequest,
-			) (bridgepkg.DeliveryAck, error) {
-				return bridgepkg.DeliveryAck{}, errors.New("text handler must not receive progress")
-			},
-			Progress: func(
-				_ context.Context,
-				_ *Session,
-				received bridgepkg.DeliveryRequest,
-			) (bridgepkg.DeliveryAck, error) {
-				return bridgepkg.DeliveryAck{DeliveryID: "another-delivery", Seq: received.Event.Seq}, nil
-			},
-		})
-		if err != nil {
-			t.Fatalf("NewRuntime() error = %v", err)
-		}
-		runtime.session = &Session{}
+			progressCalls := 0
+			runtime, err := NewRuntime(RuntimeConfig{
+				ExtensionInfo: subprocess.InitializeExtensionInfo{Name: "progress-invalid-ack", Version: "1.0.0"},
+				Check:         testCheckHandler,
+				Deliver: func(
+					context.Context,
+					*Session,
+					bridgepkg.DeliveryRequest,
+				) (bridgepkg.DeliveryAck, error) {
+					return bridgepkg.DeliveryAck{}, errors.New("text handler must not receive progress")
+				},
+				Progress: func(
+					_ context.Context,
+					_ *Session,
+					_ bridgepkg.DeliveryRequest,
+				) (bridgepkg.DeliveryAck, error) {
+					progressCalls++
+					return bridgepkg.DeliveryAck{}, nil
+				},
+			})
+			if err != nil {
+				t.Fatalf("NewRuntime() error = %v", err)
+			}
+			runtime.session = &Session{}
 
-		result, err := runtime.handleDeliver(context.Background(), raw)
-		if err == nil || !strings.Contains(err.Error(), "does not match event") {
-			t.Fatalf("handleDeliver(progress) error = %v, want delivery mismatch", err)
-		}
-		if result != nil {
-			t.Fatalf("handleDeliver(progress) result = %#v, want nil after invalid acknowledgement", result)
-		}
-	})
+			result, err := runtime.handleDeliver(context.Background(), raw)
+			if err != nil {
+				t.Fatalf("handleDeliver(progress) error = %v, want semantic acknowledgement", err)
+			}
+			ack, ok := result.(bridgepkg.DeliveryAck)
+			if !ok {
+				t.Fatalf("handleDeliver(progress) result type = %T, want DeliveryAck", result)
+			}
+			if got, want := ack.DeliveryID, request.Event.DeliveryID; got != want {
+				t.Fatalf("ack.DeliveryID = %q, want %q", got, want)
+			}
+			if got, want := ack.Seq, request.Event.Seq; got != want {
+				t.Fatalf("ack.Seq = %d, want %d", got, want)
+			}
+			if got, want := ack.Outcome, bridgepkg.DeliveryAckOutcomeCommittedResultUnavailable; got != want {
+				t.Fatalf("ack.Outcome = %q, want %q", got, want)
+			}
+			if ack.Error == nil || !strings.Contains(ack.Error.Message, "delivery id is required") {
+				t.Fatalf("ack.Error = %#v, want missing delivery id detail", ack.Error)
+			}
+			if got, want := progressCalls, 1; got != want {
+				t.Fatalf("progress handler calls = %d, want %d", got, want)
+			}
+		},
+	)
 }
 
 func TestRuntimeFinalDeliveryRouting(t *testing.T) {

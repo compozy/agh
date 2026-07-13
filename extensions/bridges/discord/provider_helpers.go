@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"net/http"
 	"strconv"
@@ -278,17 +277,6 @@ func referenceRemoteMessageID(reference *bridgepkg.DeliveryMessageReference) str
 		return ""
 	}
 	return strings.TrimSpace(reference.RemoteMessageID)
-}
-
-func readResponseBody(reader io.Reader) string {
-	if reader == nil {
-		return ""
-	}
-	body, err := io.ReadAll(reader)
-	if err != nil {
-		return ""
-	}
-	return string(body)
 }
 
 func parseRetryAfter(value string) time.Duration {

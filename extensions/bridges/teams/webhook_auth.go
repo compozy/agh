@@ -217,10 +217,10 @@ func fetchTeamsOpenIDMetadataUncached(
 		err = errors.Join(err, bridgesdk.DrainAndCloseHTTPResponseBody(resp.Body))
 	}()
 	if resp.StatusCode != http.StatusOK {
-		return nil, classifyTeamsHTTPError(
-			resp.StatusCode,
-			resp.Header.Get("Retry-After"),
-			readResponseBody(resp.Body),
+		body, readErr := bridgesdk.ReadHTTPResponseBody(resp.Body)
+		return nil, errors.Join(
+			classifyTeamsHTTPError(resp.StatusCode, resp.Header.Get("Retry-After"), body),
+			readErr,
 		)
 	}
 	var metadata teamsOpenIDMetadata
@@ -278,10 +278,10 @@ func fetchTeamsJWKSUncached(ctx context.Context, endpoint string) (keysResult *t
 		err = errors.Join(err, bridgesdk.DrainAndCloseHTTPResponseBody(resp.Body))
 	}()
 	if resp.StatusCode != http.StatusOK {
-		return nil, classifyTeamsHTTPError(
-			resp.StatusCode,
-			resp.Header.Get("Retry-After"),
-			readResponseBody(resp.Body),
+		body, readErr := bridgesdk.ReadHTTPResponseBody(resp.Body)
+		return nil, errors.Join(
+			classifyTeamsHTTPError(resp.StatusCode, resp.Header.Get("Retry-After"), body),
+			readErr,
 		)
 	}
 	var keys teamsJWKS
@@ -362,22 +362,6 @@ func cloneTeamsJWKS(keys *teamsJWKS) *teamsJWKS {
 		clone.Keys[idx].Endorsements = append([]string(nil), keys.Keys[idx].Endorsements...)
 	}
 	return &clone
-}
-
-func teamsCredentialedHTTPClient(base *http.Client) *http.Client {
-	if base == nil {
-		return &http.Client{
-			CheckRedirect: func(*http.Request, []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		}
-	}
-
-	client := *base
-	client.CheckRedirect = func(*http.Request, []*http.Request) error {
-		return http.ErrUseLastResponse
-	}
-	return &client
 }
 
 func (k teamsJWKS) keyByID(keyID string) (*teamsJWK, error) {

@@ -595,6 +595,62 @@ func TestManagerDeliverBridge(t *testing.T) {
 		}
 	})
 
+	t.Run("Should terminalize a received but invalid acknowledgement", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name    string
+			payload string
+		}{
+			{name: "Should reject an omitted sequence", payload: `{"delivery_id":"del-manager"}`},
+			{name: "Should reject a null sequence", payload: `{"delivery_id":"del-manager","seq":null}`},
+			{name: "Should reject a string sequence", payload: `{"delivery_id":"del-manager","seq":"1"}`},
+			{name: "Should reject a mismatched identity", payload: `{"delivery_id":"other","seq":1}`},
+			{name: "Should reject a non-object result", payload: `[]`},
+		}
+		for index, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				process := newFakeProcess(9100 + index)
+				process.callFn = func(_ context.Context, method string, _ any, result any) error {
+					if err := json.Unmarshal([]byte(test.payload), result); err != nil {
+						return &subprocess.ResponseDecodeError{Method: method, Err: err}
+					}
+					return nil
+				}
+				manager := &Manager{
+					extensions: map[string]*managedExtension{
+						"ext-telegram": {
+							active:  true,
+							process: process,
+							initialize: &subprocess.InitializeResponse{
+								ImplementedMethods: []string{
+									string(extensionprotocol.ExtensionServiceMethodBridgesDeliver),
+								},
+							},
+						},
+					},
+				}
+
+				ack, err := manager.DeliverBridge(testutil.Context(t), "ext-telegram", req)
+				if err != nil {
+					t.Fatalf("DeliverBridge() error = %v, want semantic acknowledgement", err)
+				}
+				if err := ack.ValidateFor(req.Event); err != nil {
+					t.Fatalf("semantic acknowledgement validation error = %v", err)
+				}
+				if ack.Outcome != bridgepkg.DeliveryAckOutcomeCommittedResultUnavailable ||
+					ack.Error == nil || ack.Error.Message != bridgepkg.DeliveryResultUnavailableMessage {
+					t.Fatalf("DeliverBridge() ack = %#v, want fixed indeterminate outcome", ack)
+				}
+				if ack.RemoteMessageID != "" || ack.ReplaceRemoteMessageID != "" {
+					t.Fatalf("DeliverBridge() ack = %#v, want no fabricated remote identities", ack)
+				}
+			})
+		}
+	})
+
 	t.Run("Should invalid request", func(t *testing.T) {
 		t.Parallel()
 

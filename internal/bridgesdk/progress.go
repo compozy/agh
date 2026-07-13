@@ -106,8 +106,9 @@ func (a *ProgressAccumulator) OnProgress(ctx context.Context, event bridgepkg.To
 	case line == a.lastLine && a.repeatCount > 0:
 		progressErr = a.applyRepeatLocked(ctx)
 	default:
-		progressErr = a.appendLineLocked(ctx, line)
-		if progressErr == nil {
+		var appended bool
+		appended, progressErr = a.appendLineLocked(ctx, line)
+		if appended {
 			a.lastLine = line
 			a.repeatCount = 1
 		}
@@ -275,6 +276,9 @@ func (a *ProgressAccumulator) applyReactionAffordanceLocked(
 		reaction = "❌"
 	}
 	if err := a.sink.React(ctx, a.config.Target, reaction); err != nil {
+		if IsCommittedMutation(err) {
+			a.lastReactionPhase = phase
+		}
 		return fmt.Errorf("bridgesdk: apply progress reaction: %w", err)
 	}
 	a.lastReactionPhase = phase
@@ -305,60 +309,6 @@ func (a *ProgressAccumulator) postSeparateLineLocked(ctx context.Context, line s
 	return nil
 }
 
-func (a *ProgressAccumulator) applyRepeatLocked(ctx context.Context) error {
-	oldSuffix := progressRepeatSuffix(a.repeatCount)
-	if !strings.HasSuffix(a.currentText, oldSuffix) {
-		return errors.New("bridgesdk: progress repeat state is inconsistent")
-	}
-	nextCount := a.repeatCount + 1
-	nextSuffix := progressRepeatSuffix(nextCount)
-	nextText := strings.TrimSuffix(a.currentText, oldSuffix) + nextSuffix
-	if err := a.replaceCurrentTextLocked(ctx, nextText, nextSuffix); err != nil {
-		return err
-	}
-	a.repeatCount = nextCount
-	return nil
-}
-
-func (a *ProgressAccumulator) appendLineLocked(ctx context.Context, line string) error {
-	if a.lastLine == "" {
-		return a.replaceCurrentTextLocked(ctx, line, "")
-	}
-
-	candidate := a.currentText + "\n" + line
-	if a.config.Len(candidate) <= a.messageLimitLocked() {
-		return a.replaceCurrentTextLocked(ctx, candidate, "")
-	}
-	if err := a.flushLocked(ctx, true); err != nil {
-		return err
-	}
-	a.freezeCurrentBubbleLocked()
-	return a.replaceCurrentTextLocked(ctx, line, "")
-}
-
-func (a *ProgressAccumulator) replaceCurrentTextLocked(
-	ctx context.Context,
-	text string,
-	protectedTail string,
-) error {
-	chunks, err := splitProgressText(text, a.messageLimitLocked(), a.config.Len, protectedTail)
-	if err != nil {
-		return err
-	}
-	for index, chunk := range chunks {
-		a.currentText = chunk
-		a.dirty = true
-		force := len(chunks) > 1
-		if err := a.flushLocked(ctx, force); err != nil {
-			return err
-		}
-		if index < len(chunks)-1 {
-			a.freezeCurrentBubbleLocked()
-		}
-	}
-	return nil
-}
-
 func (a *ProgressAccumulator) flushLocked(ctx context.Context, force bool) error {
 	if !a.dirty || a.currentText == "" {
 		return nil
@@ -369,11 +319,18 @@ func (a *ProgressAccumulator) flushLocked(ctx context.Context, force bool) error
 	if a.currentBubbleID == "" || !a.canEdit {
 		remoteID, err := a.sink.Post(ctx, a.config.Target, a.currentText)
 		if err != nil {
+			var committed *CommittedMutationError
+			if errors.As(err, &committed) {
+				a.resetBubbleLocked()
+			}
 			return fmt.Errorf("bridgesdk: post progress bubble: %w", err)
 		}
 		a.currentBubbleID = strings.TrimSpace(remoteID)
 		if a.currentBubbleID == "" {
-			return errors.New("bridgesdk: post progress bubble returned an empty remote id")
+			a.resetBubbleLocked()
+			return &CommittedMutationError{
+				Err: errors.New("bridgesdk: post progress bubble returned an empty remote id"),
+			}
 		}
 		a.canEdit = true
 		a.lastEditAt = a.now()
@@ -386,6 +343,11 @@ func (a *ProgressAccumulator) flushLocked(ctx context.Context, force bool) error
 		return nil
 	}
 	if err := a.sink.Edit(ctx, a.config.Target, a.currentBubbleID, a.currentText); err != nil {
+		var committed *CommittedMutationError
+		if errors.As(err, &committed) {
+			a.lastEditAt = now
+			a.dirty = false
+		}
 		return fmt.Errorf("bridgesdk: edit progress bubble: %w", err)
 	}
 	a.lastEditAt = now

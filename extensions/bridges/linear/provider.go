@@ -318,11 +318,7 @@ func (p *linearProvider) handleBridgesDeliver(
 		Request: request,
 	}
 
-	cfg, err := p.waitForInstanceConfig(
-		ctx,
-		strings.TrimSpace(request.Event.BridgeInstanceID),
-		500*time.Millisecond,
-	)
+	cfg, err := p.waitForInstanceConfig(ctx, strings.TrimSpace(request.Event.BridgeInstanceID), 500*time.Millisecond)
 	if err != nil {
 		marker.Error = err.Error()
 		p.markers.RecordDelivery(marker)
@@ -349,6 +345,9 @@ func (p *linearProvider) handleBridgesDeliver(
 		p.deliveryState(cfg.instanceID, request.Event.DeliveryID),
 	)
 	if err != nil {
+		if bridgesdk.IsCommittedMutation(err) {
+			p.deliveries.Delete(deliveryStateKey(cfg.instanceID, request.Event.DeliveryID))
+		}
 		marker.Error = err.Error()
 		p.markers.RecordDelivery(marker)
 		classified := bridgesdk.ClassifyError(err)

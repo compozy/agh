@@ -20523,8 +20523,12 @@ export interface operations {
               peer_id?: string;
               thread_id?: string;
             };
+            error?: {
+              message: string;
+            } | null;
             remote_message_id?: string;
-            status: string;
+            /** @enum {string} */
+            status: "delivered" | "committed_result_unavailable";
           };
         };
       };

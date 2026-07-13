@@ -43,12 +43,6 @@ func (r NetworkConversationRef) Validate() error {
 	return networkConversationRefToContract(r).Validate()
 }
 
-func (r NetworkConversationRef) normalize() NetworkConversationRef {
-	return networkConversationRefFromContract(
-		bridgecontract.NormalizeNetworkConversationRef(networkConversationRefToContract(r)),
-	)
-}
-
 // InboundMessageEnvelope is the normalized bridge ingest payload delivered by adapters.
 type InboundMessageEnvelope struct {
 	BridgeInstanceID  string                  `json:"bridge_instance_id"`
@@ -90,10 +84,4 @@ func (e InboundMessageEnvelope) NetworkConversationRef() (NetworkConversationRef
 		return NetworkConversationRef{}, false, nil
 	}
 	return networkConversationRefFromContract(reference), true, nil
-}
-
-func (e InboundMessageEnvelope) normalize() InboundMessageEnvelope {
-	return inboundEnvelopeFromContract(
-		bridgecontract.NormalizeInboundMessageEnvelope(inboundEnvelopeToContract(e)),
-	)
 }

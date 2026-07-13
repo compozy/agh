@@ -77,7 +77,6 @@ func (c *discordBotClient) SetTyping(ctx context.Context, req discordTypingReque
 		nil,
 		nil,
 		bridgesdk.HTTPResponseCommitOnSuccessStatus,
-		nil,
 	)
 }
 
@@ -91,6 +90,5 @@ func (c *discordBotClient) AddReaction(ctx context.Context, req discordReactionR
 		nil,
 		nil,
 		bridgesdk.HTTPResponseCommitOnSuccessStatus,
-		nil,
 	)
 }

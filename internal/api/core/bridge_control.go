@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/agh/internal/api/contract"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	redactpkg "github.com/compozy/agh/internal/redact"
 	storepkg "github.com/compozy/agh/internal/store"
 	"github.com/gin-gonic/gin"
 )
@@ -117,13 +118,36 @@ func (h *BaseHandlers) SendBridgeTest(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
+	status, detail := bridgeSendTestOutcome(ack)
 	c.JSON(http.StatusOK, contract.BridgeSendTestResponse{
-		Status:           "delivered",
+		Status:           status,
 		BridgeInstanceID: instance.ID,
 		DeliveryID:       deliveryID,
 		RemoteMessageID:  ack.RemoteMessageID,
 		DeliveryTarget:   *target,
+		Error:            publicDeliveryAckError(detail),
 	})
+}
+
+func bridgeSendTestOutcome(
+	ack bridgepkg.DeliveryAck,
+) (contract.BridgeSendTestStatus, *bridgepkg.DeliveryErrorDetail) {
+	if ack.Outcome.Normalize() == bridgepkg.DeliveryAckOutcomeCommittedResultUnavailable {
+		return contract.BridgeSendTestStatusCommittedResultUnavailable, ack.Error
+	}
+	if strings.TrimSpace(ack.RemoteMessageID) == "" {
+		return contract.BridgeSendTestStatusCommittedResultUnavailable, &bridgepkg.DeliveryErrorDetail{
+			Message: bridgepkg.DeliveryResultUnavailableMessage,
+		}
+	}
+	return contract.BridgeSendTestStatusDelivered, nil
+}
+
+func publicDeliveryAckError(detail *bridgepkg.DeliveryErrorDetail) *bridgepkg.DeliveryErrorDetail {
+	if detail == nil {
+		return nil
+	}
+	return &bridgepkg.DeliveryErrorDetail{Message: redactpkg.String(strings.TrimSpace(detail.Message))}
 }
 
 func (h *BaseHandlers) bridgeControlInstance(

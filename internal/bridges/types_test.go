@@ -3,6 +3,7 @@ package bridges
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -196,4 +197,59 @@ func TestBridgeRouteValidateHashMismatch(t *testing.T) {
 			t.Fatal("BridgeRoute.Validate(hash mismatch) error = nil, want non-nil")
 		}
 	})
+}
+
+func TestDeliveryAckWireSequencePresence(t *testing.T) {
+	t.Parallel()
+
+	event := DeliveryEvent{DeliveryID: "del-zero", Seq: 0}
+	tests := []struct {
+		name          string
+		payload       string
+		wantDecodeErr bool
+		wantValid     bool
+	}{
+		{
+			name:      "Should accept an explicit zero sequence",
+			payload:   `{"delivery_id":"del-zero","seq":0}`,
+			wantValid: true,
+		},
+		{
+			name:    "Should reject an omitted sequence",
+			payload: `{"delivery_id":"del-zero"}`,
+		},
+		{
+			name:    "Should reject a null sequence",
+			payload: `{"delivery_id":"del-zero","seq":null}`,
+		},
+		{
+			name:          "Should reject a string sequence during decoding",
+			payload:       `{"delivery_id":"del-zero","seq":"0"}`,
+			wantDecodeErr: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var ack DeliveryAck
+			err := json.Unmarshal([]byte(test.payload), &ack)
+			if test.wantDecodeErr {
+				if err == nil {
+					t.Fatal("json.Unmarshal(DeliveryAck) error = nil, want non-nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("json.Unmarshal(DeliveryAck) error = %v", err)
+			}
+			err = ack.ValidateFor(event)
+			if test.wantValid && err != nil {
+				t.Fatalf("DeliveryAck.ValidateFor() error = %v, want nil", err)
+			}
+			if !test.wantValid && (err == nil || !strings.Contains(err.Error(), "sequence is required")) {
+				t.Fatalf("DeliveryAck.ValidateFor() error = %v, want required sequence error", err)
+			}
+		})
+	}
 }

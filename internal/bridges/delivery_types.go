@@ -1,9 +1,11 @@
 package bridges
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -83,18 +85,88 @@ func (r DeliveryRequest) Validate() error {
 	return deliveryRequestToContract(r).Validate()
 }
 
-// DeliveryAck is the negotiated extension->daemon acknowledgement payload for
-// one `bridges/deliver` request.
+// DeliveryAckOutcome identifies the provider-side result of one delivery request.
+type DeliveryAckOutcome string
+
+const (
+	DeliveryAckOutcomeSuccess DeliveryAckOutcome = DeliveryAckOutcome(
+		bridgecontract.DeliveryAckOutcomeSuccess,
+	)
+	DeliveryAckOutcomeCommittedResultUnavailable DeliveryAckOutcome = DeliveryAckOutcome(
+		bridgecontract.DeliveryAckOutcomeCommittedResultUnavailable,
+	)
+)
+
+// DeliveryResultUnavailableMessage is the safe public explanation used when a
+// provider mutation may have committed but no trustworthy result was returned.
+const DeliveryResultUnavailableMessage = "provider mutation may have committed, but the bridge delivery " +
+	"result is unavailable"
+
+// Normalize returns the canonical acknowledgement outcome; empty means success.
+func (o DeliveryAckOutcome) Normalize() DeliveryAckOutcome {
+	return DeliveryAckOutcome(bridgecontract.DeliveryAckOutcome(o).Normalize())
+}
+
+// Validate reports whether the acknowledgement outcome is supported.
+func (o DeliveryAckOutcome) Validate() error {
+	return bridgecontract.DeliveryAckOutcome(o).Validate()
+}
+
+// DeliveryAck is the negotiated extension->daemon result for one `bridges/deliver` request.
 type DeliveryAck struct {
-	DeliveryID             string `json:"delivery_id,omitempty"`
-	Seq                    int64  `json:"seq,omitempty"`
-	RemoteMessageID        string `json:"remote_message_id,omitempty"`
-	ReplaceRemoteMessageID string `json:"replace_remote_message_id,omitempty"`
+	DeliveryID             string               `json:"delivery_id"`
+	Seq                    int64                `json:"seq"`
+	RemoteMessageID        string               `json:"remote_message_id,omitempty"`
+	ReplaceRemoteMessageID string               `json:"replace_remote_message_id,omitempty"`
+	Outcome                DeliveryAckOutcome   `json:"outcome,omitempty"`
+	Error                  *DeliveryErrorDetail `json:"error,omitempty"`
+	wireDecoded            bool
+	wireSeqPresent         bool
+}
+
+// UnmarshalJSON preserves whether the required sequence was explicitly sent.
+// Sequence zero is valid, so the Go zero value cannot distinguish it from an
+// absent or null JSON field without this wire-presence bit.
+func (a *DeliveryAck) UnmarshalJSON(data []byte) error {
+	type deliveryAckWire struct {
+		DeliveryID             string               `json:"delivery_id"`
+		Seq                    json.RawMessage      `json:"seq"`
+		RemoteMessageID        string               `json:"remote_message_id,omitempty"`
+		ReplaceRemoteMessageID string               `json:"replace_remote_message_id,omitempty"`
+		Outcome                DeliveryAckOutcome   `json:"outcome,omitempty"`
+		Error                  *DeliveryErrorDetail `json:"error,omitempty"`
+	}
+
+	var decoded deliveryAckWire
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return fmt.Errorf("bridges: decode delivery acknowledgement: %w", err)
+	}
+
+	*a = DeliveryAck{
+		DeliveryID:             decoded.DeliveryID,
+		RemoteMessageID:        decoded.RemoteMessageID,
+		ReplaceRemoteMessageID: decoded.ReplaceRemoteMessageID,
+		Outcome:                decoded.Outcome,
+		Error:                  decoded.Error,
+		wireDecoded:            true,
+	}
+	sequence := bytes.TrimSpace(decoded.Seq)
+	if len(sequence) == 0 || bytes.Equal(sequence, []byte("null")) {
+		return nil
+	}
+	if err := json.Unmarshal(sequence, &a.Seq); err != nil {
+		return fmt.Errorf("bridges: decode delivery acknowledgement sequence: %w", err)
+	}
+	a.wireSeqPresent = true
+	return nil
 }
 
 // ValidateFor reports whether the acknowledgement still belongs to the request
 // that triggered it.
 func (a DeliveryAck) ValidateFor(event DeliveryEvent) error {
+	if a.wireDecoded && !a.wireSeqPresent {
+		return errors.New("bridges: delivery ack sequence is required")
+	}
 	return deliveryAckToContract(a).ValidateFor(deliveryEventToContract(event))
 }
 

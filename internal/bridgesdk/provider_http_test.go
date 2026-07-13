@@ -130,7 +130,8 @@ func TestProviderHTTPServerOwnsListenerLifecycle(t *testing.T) {
 		if err := server.Start("127.0.0.1:0"); !errors.Is(err, ErrProviderStopped) {
 			t.Fatalf("Start() error = %v, want ErrProviderStopped", err)
 		}
-		listener, err := net.Listen("tcp", boundAddress)
+		var listenConfig net.ListenConfig
+		listener, err := listenConfig.Listen(t.Context(), "tcp", boundAddress)
 		if err != nil {
 			t.Fatalf("Listen(%q) after rejected startup error = %v", boundAddress, err)
 		}

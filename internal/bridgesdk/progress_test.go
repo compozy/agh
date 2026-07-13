@@ -330,6 +330,46 @@ func TestProgressAccumulatorEnforcesProviderMessageLimit(t *testing.T) {
 			t.Fatalf("latest edit remote ID = %q, want newest continuation %q", got, want)
 		}
 	})
+
+	t.Run("Should continue after an intermediate repeat chunk commits without a result", func(t *testing.T) {
+		t.Parallel()
+
+		clock := progressTestClock{current: time.Unix(4_750, 0)}
+		line := strings.Repeat("r", 30)
+		config := progressTestConfig()
+		config.MaxMessageLen = progressMessageHeadroom + len(line) + len(progressRepeatSuffix(99))
+		sink := &progressRecordingSink{}
+		accumulator := NewProgressAccumulator(config, sink, clock.Now)
+		event := progressTestEvent(1, line)
+		event.Emoji = ""
+		event.Preview = ""
+		ctx := testutil.Context(t)
+
+		for index := 1; index <= 99; index++ {
+			event.Index = index
+			if err := accumulator.OnProgress(ctx, event); err != nil {
+				t.Fatalf("OnProgress(repeat %d) error = %v", index, err)
+			}
+		}
+
+		sink.FailNextEdit(MarkCommittedMutation(errors.New("intermediate edit result unavailable")))
+		event.Index = 100
+		if err := accumulator.OnProgress(ctx, event); !IsCommittedMutation(err) {
+			t.Fatalf("OnProgress(repeat 100) error = %T %v, want committed mutation", err, err)
+		}
+
+		event.Index = 101
+		if err := accumulator.OnProgress(ctx, event); err != nil {
+			t.Fatalf("OnProgress(repeat 101) error = %v", err)
+		}
+		clock.Advance(defaultProgressEditInterval)
+		if err := accumulator.Flush(ctx); err != nil {
+			t.Fatalf("Flush(repeat 101) error = %v", err)
+		}
+
+		assertProgressCallsWithinLimit(t, sink, config)
+		assertProgressBubbleText(t, sink, line+progressRepeatSuffix(101))
+	})
 }
 
 func TestProgressAccumulatorGroupingAndThrottle(t *testing.T) {
@@ -1222,6 +1262,32 @@ func TestProgressAccumulatorPropagatesSinkFailures(t *testing.T) {
 		}
 	})
 
+	t.Run("Should not repeat a reaction whose remote mutation already committed", func(t *testing.T) {
+		t.Parallel()
+
+		sink := newProgressFailingSink()
+		sink.reactionError = MarkCommittedMutation(errors.New("reaction result unavailable"))
+		config := progressTestConfig()
+		config.Reactions = true
+		accumulator := NewProgressAccumulator(config, sink, nil)
+		ctx := testutil.Context(t)
+
+		err := accumulator.OnProgress(ctx, progressTestEvent(1, "Inspecting"))
+		if !IsCommittedMutation(err) {
+			t.Fatalf("OnProgress(first) error = %T %v, want committed mutation", err, err)
+		}
+		sink.reactionError = nil
+		if err := accumulator.OnProgress(ctx, progressTestEvent(2, "Reading")); err != nil {
+			t.Fatalf("OnProgress(same phase) error = %v", err)
+		}
+		if got, want := sink.reactionAttempts, 1; got != want {
+			t.Fatalf("reaction attempts = %d, want %d without replay", got, want)
+		}
+		if got := sink.recording.ReactionCalls(); len(got) != 0 {
+			t.Fatalf("recorded reaction retries = %v, want none", got)
+		}
+	})
+
 	t.Run("Should propagate an accumulated progress post failure", func(t *testing.T) {
 		t.Parallel()
 
@@ -1256,8 +1322,24 @@ func TestProgressAccumulatorPropagatesSinkFailures(t *testing.T) {
 		accumulator := NewProgressAccumulator(progressTestConfig(), sink, nil)
 
 		err := accumulator.OnProgress(testutil.Context(t), progressTestEvent(1, "Inspecting"))
-		if err == nil || !strings.Contains(err.Error(), "empty remote id") {
+		var committed *CommittedMutationError
+		if !errors.As(err, &committed) || !strings.Contains(err.Error(), "empty remote id") {
 			t.Fatalf("OnProgress() error = %v, want empty remote id rejection", err)
+		}
+		sink.emptyRemoteID = false
+		if err := accumulator.Flush(testutil.Context(t)); err != nil {
+			t.Fatalf("Flush() error = %v, want committed bubble state consumed", err)
+		}
+		if got := len(sink.PostCalls()); got != 0 {
+			t.Fatalf("progress posts after Flush = %d, want no replay of the indeterminate bubble", got)
+		}
+		repeated := progressTestEvent(1, "Inspecting")
+		repeated.Index = 2
+		if err := accumulator.OnProgress(testutil.Context(t), repeated); err != nil {
+			t.Fatalf("OnProgress(fresh bubble) error = %v", err)
+		}
+		if got, want := len(sink.PostCalls()), 1; got != want {
+			t.Fatalf("fresh progress posts = %d, want %d", got, want)
 		}
 	})
 
@@ -1279,6 +1361,103 @@ func TestProgressAccumulatorPropagatesSinkFailures(t *testing.T) {
 
 		err := accumulator.Flush(ctx)
 		assertProgressOperationError(t, err, wantErr, "edit progress bubble")
+	})
+
+	t.Run("Should consume a progress edit whose remote mutation already committed", func(t *testing.T) {
+		t.Parallel()
+
+		clock := progressTestClock{current: time.Unix(8_250, 0)}
+		sink := newProgressFailingSink()
+		accumulator := NewProgressAccumulator(progressTestConfig(), sink, clock.Now)
+		ctx := testutil.Context(t)
+		if err := accumulator.OnProgress(ctx, progressTestEvent(1, "Inspecting")); err != nil {
+			t.Fatalf("OnProgress(first) error = %v", err)
+		}
+		if err := accumulator.OnProgress(ctx, progressTestEvent(2, "Reading")); err != nil {
+			t.Fatalf("OnProgress(second) error = %v", err)
+		}
+		sink.editError = MarkCommittedMutation(errors.New("edit result unavailable"))
+
+		err := accumulator.Flush(ctx)
+		var committed *CommittedMutationError
+		if !errors.As(err, &committed) {
+			t.Fatalf("Flush() error = %T %v, want CommittedMutationError", err, err)
+		}
+
+		sink.editError = nil
+		if err := accumulator.Flush(ctx); err != nil {
+			t.Fatalf("Flush(retry) error = %v, want committed edit consumed", err)
+		}
+		if got := len(sink.recording.EditCalls()); got != 0 {
+			t.Fatalf("recorded edit retries = %d, want zero", got)
+		}
+		if err := accumulator.OnProgress(ctx, progressTestEvent(3, "Writing")); err != nil {
+			t.Fatalf("OnProgress(next update) error = %v", err)
+		}
+		if err := accumulator.Flush(ctx); err != nil {
+			t.Fatalf("Flush(next update) error = %v", err)
+		}
+		if got, want := len(sink.PostCalls()), 1; got != want {
+			t.Fatalf("progress posts = %d, want %d preserved bubble", got, want)
+		}
+		edits := sink.recording.EditCalls()
+		if got, want := len(edits), 1; got != want {
+			t.Fatalf("progress edits = %d, want %d next update", got, want)
+		}
+		if got, want := edits[0].remoteID, "progress-1"; got != want {
+			t.Fatalf("next progress edit remote id = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should advance logical append and repeat state after inline committed edits", func(t *testing.T) {
+		t.Parallel()
+
+		clock := progressTestClock{current: time.Unix(8_375, 0)}
+		sink := newProgressFailingSink()
+		accumulator := NewProgressAccumulator(progressTestConfig(), sink, clock.Now)
+		ctx := testutil.Context(t)
+		if err := accumulator.OnProgress(ctx, progressTestEvent(1, "Inspecting")); err != nil {
+			t.Fatalf("OnProgress(first) error = %v", err)
+		}
+
+		second := progressTestEvent(2, "Reading")
+		clock.Advance(defaultProgressEditInterval)
+		sink.editError = MarkCommittedMutation(errors.New("append result unavailable"))
+		if err := accumulator.OnProgress(ctx, second); !IsCommittedMutation(err) {
+			t.Fatalf("OnProgress(committed append) error = %T %v, want committed mutation", err, err)
+		}
+
+		sink.editError = nil
+		clock.Advance(defaultProgressEditInterval)
+		second.Index = 3
+		if err := accumulator.OnProgress(ctx, second); err != nil {
+			t.Fatalf("OnProgress(repeat after committed append) error = %v", err)
+		}
+
+		clock.Advance(defaultProgressEditInterval)
+		second.Index = 4
+		sink.editError = MarkCommittedMutation(errors.New("repeat result unavailable"))
+		if err := accumulator.OnProgress(ctx, second); !IsCommittedMutation(err) {
+			t.Fatalf("OnProgress(committed repeat) error = %T %v, want committed mutation", err, err)
+		}
+
+		sink.editError = nil
+		clock.Advance(defaultProgressEditInterval)
+		second.Index = 5
+		if err := accumulator.OnProgress(ctx, second); err != nil {
+			t.Fatalf("OnProgress(repeat after committed repeat) error = %v", err)
+		}
+
+		edits := sink.recording.EditCalls()
+		if got, want := len(edits), 2; got != want {
+			t.Fatalf("recorded progress edits = %d, want %d", got, want)
+		}
+		if got, want := edits[0].text, "🔧 Inspecting item-1\n🔧 Reading item-2 (×2)"; got != want {
+			t.Fatalf("edit after committed append = %q, want %q", got, want)
+		}
+		if got, want := edits[1].text, "🔧 Inspecting item-1\n🔧 Reading item-2 (×4)"; got != want {
+			t.Fatalf("edit after committed repeat = %q, want %q", got, want)
+		}
 	})
 
 	t.Run("Should propagate an edit failure when content closes the bubble", func(t *testing.T) {
@@ -1497,12 +1676,13 @@ type progressEditCall struct {
 }
 
 type progressRecordingSink struct {
-	mu        sync.Mutex
-	posts     []progressPostCall
-	edits     []progressEditCall
-	typing    []bool
-	reactions []string
-	sequence  []string
+	mu            sync.Mutex
+	posts         []progressPostCall
+	edits         []progressEditCall
+	typing        []bool
+	reactions     []string
+	sequence      []string
+	nextEditError error
 }
 
 type progressTestScheduler struct {
@@ -1570,13 +1750,14 @@ func (s *progressTestScheduler) Claim() func() {
 }
 
 type progressFailingSink struct {
-	recording       *progressRecordingSink
-	postError       error
-	editError       error
-	typingError     error
-	typingStopError error
-	reactionError   error
-	emptyRemoteID   bool
+	recording        *progressRecordingSink
+	postError        error
+	editError        error
+	typingError      error
+	typingStopError  error
+	reactionError    error
+	reactionAttempts int
+	emptyRemoteID    bool
 }
 
 type progressCancelAwareSink struct {
@@ -1660,6 +1841,7 @@ func (s *progressFailingSink) React(
 	target bridgepkg.DeliveryTarget,
 	reaction string,
 ) error {
+	s.reactionAttempts++
 	if s.reactionError != nil {
 		return s.reactionError
 	}
@@ -1697,7 +1879,15 @@ func (s *progressRecordingSink) Edit(
 	defer s.mu.Unlock()
 	s.edits = append(s.edits, progressEditCall{target: target, remoteID: remoteID, text: text})
 	s.sequence = append(s.sequence, "edit")
-	return nil
+	err := s.nextEditError
+	s.nextEditError = nil
+	return err
+}
+
+func (s *progressRecordingSink) FailNextEdit(err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.nextEditError = err
 }
 
 func (s *progressRecordingSink) Typing(

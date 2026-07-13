@@ -42,8 +42,7 @@ func (c *gchatBotClient) CreateMessage(ctx context.Context, req gchatCreateMessa
 		query,
 		body,
 		&out,
-		bridgesdk.HTTPResponseCommitOnMaterializedResult,
-		func() string { return out.Name },
+		bridgesdk.HTTPResponseCommitOnSuccessStatus,
 	); err != nil {
 		return nil, err
 	}
@@ -64,7 +63,6 @@ func (c *gchatBotClient) UpdateMessage(ctx context.Context, req gchatUpdateMessa
 		},
 		&out,
 		bridgesdk.HTTPResponseCommitOnSuccessStatus,
-		nil,
 	); err != nil {
 		return nil, err
 	}
@@ -80,7 +78,6 @@ func (c *gchatBotClient) DeleteMessage(ctx context.Context, messageName string) 
 		nil,
 		nil,
 		bridgesdk.HTTPResponseCommitOnSuccessStatus,
-		nil,
 	)
 }
 
@@ -94,7 +91,6 @@ func (c *gchatBotClient) GetMessage(ctx context.Context, messageName string) (*g
 		nil,
 		&out,
 		bridgesdk.HTTPResponseNoCommit,
-		nil,
 	); err != nil {
 		return nil, err
 	}
@@ -163,10 +159,14 @@ func (c *gchatBotClient) accessToken(ctx context.Context) (result string, err er
 		err = errors.Join(err, bridgesdk.DrainAndCloseHTTPResponseBody(resp.Body))
 	}()
 	if resp.StatusCode != http.StatusOK {
-		return "", classifyGChatHTTPError(resp.StatusCode, resp.Header.Get("Retry-After"), readResponseBody(resp.Body))
+		body, readErr := bridgesdk.ReadHTTPResponseBody(resp.Body)
+		return "", errors.Join(
+			classifyGChatHTTPError(resp.StatusCode, resp.Header.Get("Retry-After"), body),
+			readErr,
+		)
 	}
 	var tokenResp gchatTokenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+	if err := bridgesdk.DecodeSingleJSONValue(resp.Body, &tokenResp); err != nil {
 		return "", err
 	}
 	if strings.TrimSpace(tokenResp.AccessToken) == "" {
@@ -192,7 +192,6 @@ func (c *gchatBotClient) callJSON(
 	payload any,
 	out any,
 	commitPolicy bridgesdk.HTTPResponseCommitPolicy,
-	materializedRemoteID func() string,
 ) (err error) {
 	token, err := c.accessToken(ctx)
 	if err != nil {
@@ -240,18 +239,19 @@ func (c *gchatBotClient) callJSON(
 	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return classifyGChatHTTPError(resp.StatusCode, resp.Header.Get("Retry-After"), readResponseBody(resp.Body))
+		body, readErr := bridgesdk.ReadHTTPResponseBody(resp.Body)
+		return errors.Join(
+			classifyGChatHTTPError(resp.StatusCode, resp.Header.Get("Retry-After"), body),
+			readErr,
+		)
 	}
-	commitEvidence = commitPolicy.Evidence(false)
+	commitEvidence = commitPolicy.Evidence()
 	if out == nil || resp.StatusCode == http.StatusNoContent {
 		return nil
 	}
-	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+	if err := bridgesdk.DecodeSingleJSONValue(resp.Body, out); err != nil {
 		return err
 	}
-	materializedResult := materializedRemoteID != nil &&
-		strings.TrimSpace(materializedRemoteID()) != ""
-	commitEvidence = commitPolicy.Evidence(materializedResult)
 	return nil
 }
 
@@ -259,7 +259,11 @@ func (c *gchatBotClient) client() gchatHTTPDoer {
 	if c.httpClient == nil {
 		c.httpClient = &http.Client{Timeout: 10 * time.Second}
 	}
-	return c.httpClient
+	client, ok := c.httpClient.(*http.Client)
+	if !ok {
+		return c.httpClient
+	}
+	return bridgesdk.CredentialedHTTPClient(client)
 }
 
 func parseRSAPrivateKey(raw string) (*rsa.PrivateKey, error) {
@@ -308,17 +312,6 @@ func classifyGChatHTTPError(statusCode int, retryAfterHeader string, raw string)
 			RetryAfter: parseRetryAfter(retryAfterHeader),
 		}
 	}
-}
-
-func readResponseBody(reader io.Reader) string {
-	if reader == nil {
-		return ""
-	}
-	body, err := io.ReadAll(reader)
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(body))
 }
 
 func parseRetryAfter(header string) time.Duration {

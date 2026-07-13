@@ -138,7 +138,7 @@ func telegramRoutingPolicyForShape(value string) (bridgepkg.RoutingPolicy, error
 		return bridgepkg.RoutingPolicy{IncludeGroup: true, IncludeThread: true}, nil
 	default:
 		return bridgepkg.RoutingPolicy{}, errors.New(
-			"Telegram route shape must be private, group, or forum",
+			"telegram route shape must be private, group, or forum",
 		)
 	}
 }

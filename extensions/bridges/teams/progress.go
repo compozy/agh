@@ -210,7 +210,7 @@ func (s *teamsProgressSink) Post(
 		return "", fmt.Errorf("teams: send progress activity: %w", err)
 	}
 	if response == nil || strings.TrimSpace(response.ID) == "" {
-		return "", &bridgesdk.TransientError{
+		return "", &bridgesdk.CommittedMutationError{
 			Err: errors.New("teams: send progress activity response omitted id"),
 		}
 	}

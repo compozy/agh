@@ -106,9 +106,18 @@ func TestToolProgressContract(t *testing.T) {
 			{name: "Should reject a multiline preview", mutate: func(v *ToolProgress) { v.Preview = "first\rsecond" }},
 			{name: "Should reject a multiline emoji", mutate: func(v *ToolProgress) { v.Emoji = "🔧\nicon" }},
 			{name: "Should reject a multiline error", mutate: func(v *ToolProgress) { v.Error = "failed\nretry" }},
-			{name: "Should reject a secret-bearing preview", mutate: func(v *ToolProgress) { v.Preview = "api_key=sk-contract-secret" }},
-			{name: "Should reject a secret-bearing error", mutate: func(v *ToolProgress) { v.Error = "password=hunter2" }},
-			{name: "Should reject an oversized error", mutate: func(v *ToolProgress) { v.Error = strings.Repeat("é", maxToolProgressErrorRunes+1) }},
+			{
+				name:   "Should reject a secret-bearing preview",
+				mutate: func(v *ToolProgress) { v.Preview = "api_key=sk-contract-secret" },
+			},
+			{
+				name:   "Should reject a secret-bearing error",
+				mutate: func(v *ToolProgress) { v.Error = "password=hunter2" },
+			},
+			{
+				name:   "Should reject an oversized error",
+				mutate: func(v *ToolProgress) { v.Error = strings.Repeat("é", maxToolProgressErrorRunes+1) },
+			},
 		}
 		for _, test := range tests {
 			test := test
@@ -152,7 +161,10 @@ func TestProgressConfigContract(t *testing.T) {
 			ToolProgress: ProgressModeVerbose, Grouping: ProgressGroupingAccumulate,
 		})
 		if verbose.PreviewLimit != 0 || verbose.EditInterval != defaultProgressEditInterval {
-			t.Fatalf("NormalizeProgressConfig(verbose) = %#v, want unlimited preview and default edit interval", verbose)
+			t.Fatalf(
+				"NormalizeProgressConfig(verbose) = %#v, want unlimited preview and default edit interval",
+				verbose,
+			)
 		}
 	})
 
@@ -214,11 +226,31 @@ func TestProgressConfigContract(t *testing.T) {
 			config ProgressConfig
 		}{
 			{name: "Should require a progress mode", config: ProgressConfig{Grouping: ProgressGroupingAccumulate}},
-			{name: "Should reject an unsupported progress mode", config: ProgressConfig{ToolProgress: "sometimes", Grouping: ProgressGroupingAccumulate}},
+			{
+				name:   "Should reject an unsupported progress mode",
+				config: ProgressConfig{ToolProgress: "sometimes", Grouping: ProgressGroupingAccumulate},
+			},
 			{name: "Should require a progress grouping", config: ProgressConfig{ToolProgress: ProgressModeAll}},
-			{name: "Should reject an unsupported progress grouping", config: ProgressConfig{ToolProgress: ProgressModeAll, Grouping: "threaded"}},
-			{name: "Should reject a negative preview limit", config: ProgressConfig{ToolProgress: ProgressModeAll, Grouping: ProgressGroupingAccumulate, PreviewLimit: -1}},
-			{name: "Should reject a negative edit interval", config: ProgressConfig{ToolProgress: ProgressModeAll, Grouping: ProgressGroupingAccumulate, EditInterval: -time.Second}},
+			{
+				name:   "Should reject an unsupported progress grouping",
+				config: ProgressConfig{ToolProgress: ProgressModeAll, Grouping: "threaded"},
+			},
+			{
+				name: "Should reject a negative preview limit",
+				config: ProgressConfig{
+					ToolProgress: ProgressModeAll,
+					Grouping:     ProgressGroupingAccumulate,
+					PreviewLimit: -1,
+				},
+			},
+			{
+				name: "Should reject a negative edit interval",
+				config: ProgressConfig{
+					ToolProgress: ProgressModeAll,
+					Grouping:     ProgressGroupingAccumulate,
+					EditInterval: -time.Second,
+				},
+			},
 		}
 		for _, test := range tests {
 			test := test
@@ -259,7 +291,10 @@ func TestProgressConfigContract(t *testing.T) {
 				`{"progress":{"tool_progress":"verbose","grouping":"accumulate","typing":false,"reactions":false}}`,
 			)}, "unknown")
 			if verbose.PreviewLimit != 0 || verbose.EditInterval != defaultProgressEditInterval {
-				t.Fatalf("ResolveProgressConfig(verbose) = %#v, want unlimited preview and default edit interval", verbose)
+				t.Fatalf(
+					"ResolveProgressConfig(verbose) = %#v, want unlimited preview and default edit interval",
+					verbose,
+				)
 			}
 		})
 
@@ -360,11 +395,36 @@ func TestNormalizeDeliveryDefaultsJSONContract(t *testing.T) {
 			{name: "Should reject a non-object payload", raw: json.RawMessage(`[]`)},
 			{name: "Should reject a non-string provider field", raw: json.RawMessage(`{"parse_mode":1}`)},
 			{name: "Should reject an unsupported delivery mode", raw: json.RawMessage(`{"mode":"broadcast"}`)},
-			{name: "Should reject an unsupported progress mode", raw: json.RawMessage(`{"progress":{"tool_progress":"log","grouping":"accumulate","typing":false,"reactions":false}}`)},
-			{name: "Should reject an unsupported grouping", raw: json.RawMessage(`{"progress":{"tool_progress":"all","grouping":"bubble","typing":false,"reactions":false}}`)},
-			{name: "Should reject non-boolean typing", raw: json.RawMessage(`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":"yes","reactions":false}}`)},
-			{name: "Should reject non-boolean reactions", raw: json.RawMessage(`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":false,"reactions":1}}`)},
-			{name: "Should reject unknown progress fields", raw: json.RawMessage(`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":false,"reactions":false,"raw_args":true}}`)},
+			{
+				name: "Should reject an unsupported progress mode",
+				raw: json.RawMessage(
+					`{"progress":{"tool_progress":"log","grouping":"accumulate","typing":false,"reactions":false}}`,
+				),
+			},
+			{
+				name: "Should reject an unsupported grouping",
+				raw: json.RawMessage(
+					`{"progress":{"tool_progress":"all","grouping":"bubble","typing":false,"reactions":false}}`,
+				),
+			},
+			{
+				name: "Should reject non-boolean typing",
+				raw: json.RawMessage(
+					`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":"yes","reactions":false}}`,
+				),
+			},
+			{
+				name: "Should reject non-boolean reactions",
+				raw: json.RawMessage(
+					`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":false,"reactions":1}}`,
+				),
+			},
+			{
+				name: "Should reject unknown progress fields",
+				raw: json.RawMessage(
+					`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":false,"reactions":false,"raw_args":true}}`,
+				),
+			},
 		}
 		for _, test := range tests {
 			test := test

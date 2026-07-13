@@ -85,7 +85,10 @@ func TestDeliveryScalarContracts(t *testing.T) {
 				t.Fatal("DeliveryOperation(replace).Validate() error = nil")
 			}
 		})
-		if got, want := strings.Join(DeliveryEventTypeValues(), ","), "start,delta,final,error,resume,delete,progress"; got != want {
+		if got, want := strings.Join(
+			DeliveryEventTypeValues(),
+			",",
+		), "start,delta,final,error,resume,delete,progress"; got != want {
 			t.Fatalf("DeliveryEventTypeValues() = %q, want %q", got, want)
 		}
 	})
@@ -93,12 +96,21 @@ func TestDeliveryScalarContracts(t *testing.T) {
 	t.Run("Should validate delivery targets", func(t *testing.T) {
 		t.Parallel()
 
-		target := DeliveryTarget{BridgeInstanceID: " brg-1 ", PeerID: " peer-1 ", ThreadID: " thread-1 ", Mode: " REPLY "}
+		target := DeliveryTarget{
+			BridgeInstanceID: " brg-1 ",
+			PeerID:           " peer-1 ",
+			ThreadID:         " thread-1 ",
+			Mode:             " REPLY ",
+		}
 		if err := target.Validate(); err != nil {
 			t.Fatalf("DeliveryTarget.Validate() error = %v", err)
 		}
 		if target.IsZero() || !(DeliveryTarget{}).IsZero() {
-			t.Fatalf("DeliveryTarget.IsZero() values = %v/%v, want false/true", target.IsZero(), (DeliveryTarget{}).IsZero())
+			t.Fatalf(
+				"DeliveryTarget.IsZero() values = %v/%v, want false/true",
+				target.IsZero(),
+				(DeliveryTarget{}).IsZero(),
+			)
 		}
 		normalized := NormalizeDeliveryTarget(target)
 		if normalized.BridgeInstanceID != "brg-1" || normalized.PeerID != "peer-1" ||
@@ -109,10 +121,22 @@ func TestDeliveryScalarContracts(t *testing.T) {
 			name   string
 			target DeliveryTarget
 		}{
-			{name: "Should require a target bridge instance", target: DeliveryTarget{PeerID: "peer-1", Mode: DeliveryModeReply}},
-			{name: "Should require a target delivery mode", target: DeliveryTarget{BridgeInstanceID: "brg-1", PeerID: "peer-1"}},
-			{name: "Should reject a thread without an anchor", target: DeliveryTarget{BridgeInstanceID: "brg-1", ThreadID: "thread-1", Mode: DeliveryModeReply}},
-			{name: "Should require a direct-send destination", target: DeliveryTarget{BridgeInstanceID: "brg-1", Mode: DeliveryModeDirectSend}},
+			{
+				name:   "Should require a target bridge instance",
+				target: DeliveryTarget{PeerID: "peer-1", Mode: DeliveryModeReply},
+			},
+			{
+				name:   "Should require a target delivery mode",
+				target: DeliveryTarget{BridgeInstanceID: "brg-1", PeerID: "peer-1"},
+			},
+			{
+				name:   "Should reject a thread without an anchor",
+				target: DeliveryTarget{BridgeInstanceID: "brg-1", ThreadID: "thread-1", Mode: DeliveryModeReply},
+			},
+			{
+				name:   "Should require a direct-send destination",
+				target: DeliveryTarget{BridgeInstanceID: "brg-1", Mode: DeliveryModeDirectSend},
+			},
 		}
 		for _, test := range invalidTargets {
 			test := test
@@ -253,13 +277,95 @@ func TestDeliveryScalarContracts(t *testing.T) {
 			ack     DeliveryAck
 			wantErr bool
 		}{
-			{name: "Should accept an empty acknowledgement", ack: DeliveryAck{}},
+			{name: "Should reject an empty acknowledgement", ack: DeliveryAck{}, wantErr: true},
+			{
+				name:    "Should require a delivery id",
+				ack:     DeliveryAck{Seq: event.Seq},
+				wantErr: true,
+			},
 			{
 				name: "Should accept a matching acknowledgement",
 				ack:  DeliveryAck{DeliveryID: " del-1 ", Seq: 2, RemoteMessageID: " remote-1 "},
 			},
-			{name: "Should reject a mismatched delivery id", ack: DeliveryAck{DeliveryID: "other"}, wantErr: true},
-			{name: "Should reject a mismatched sequence", ack: DeliveryAck{Seq: 99}, wantErr: true},
+			{
+				name: "Should accept a committed result without an addressable remote identity",
+				ack: DeliveryAck{
+					DeliveryID: "del-1",
+					Seq:        2,
+					Outcome:    DeliveryAckOutcomeCommittedResultUnavailable,
+					Error:      &DeliveryErrorDetail{Message: " response omitted id "},
+				},
+			},
+			{
+				name:    "Should reject a mismatched delivery id",
+				ack:     DeliveryAck{DeliveryID: "other", Seq: event.Seq},
+				wantErr: true,
+			},
+			{
+				name:    "Should reject an omitted sequence for a nonzero event",
+				ack:     DeliveryAck{DeliveryID: event.DeliveryID},
+				wantErr: true,
+			},
+			{
+				name:    "Should reject a mismatched sequence",
+				ack:     DeliveryAck{DeliveryID: event.DeliveryID, Seq: 99},
+				wantErr: true,
+			},
+			{
+				name:    "Should reject an unsupported outcome",
+				ack:     DeliveryAck{DeliveryID: event.DeliveryID, Seq: event.Seq, Outcome: "unknown"},
+				wantErr: true,
+			},
+			{
+				name: "Should require an error for an unavailable committed result",
+				ack: DeliveryAck{
+					DeliveryID: event.DeliveryID,
+					Seq:        event.Seq,
+					Outcome:    DeliveryAckOutcomeCommittedResultUnavailable,
+				},
+				wantErr: true,
+			},
+			{
+				name: "Should reject an empty error for an unavailable committed result",
+				ack: DeliveryAck{
+					DeliveryID: event.DeliveryID,
+					Seq:        event.Seq,
+					Outcome:    DeliveryAckOutcomeCommittedResultUnavailable,
+					Error:      &DeliveryErrorDetail{},
+				},
+				wantErr: true,
+			},
+			{
+				name: "Should reject a remote id for an unavailable committed result",
+				ack: DeliveryAck{
+					DeliveryID:      event.DeliveryID,
+					Seq:             event.Seq,
+					Outcome:         DeliveryAckOutcomeCommittedResultUnavailable,
+					Error:           &DeliveryErrorDetail{Message: "response omitted id"},
+					RemoteMessageID: "fabricated",
+				},
+				wantErr: true,
+			},
+			{
+				name: "Should reject a replacement id for an unavailable committed result",
+				ack: DeliveryAck{
+					DeliveryID:             event.DeliveryID,
+					Seq:                    event.Seq,
+					Outcome:                DeliveryAckOutcomeCommittedResultUnavailable,
+					Error:                  &DeliveryErrorDetail{Message: "response omitted id"},
+					ReplaceRemoteMessageID: "fabricated",
+				},
+				wantErr: true,
+			},
+			{
+				name: "Should reject an error on a successful acknowledgement",
+				ack: DeliveryAck{
+					DeliveryID: event.DeliveryID,
+					Seq:        event.Seq,
+					Error:      &DeliveryErrorDetail{Message: "contradiction"},
+				},
+				wantErr: true,
+			},
 		}
 		for _, test := range tests {
 			test := test
@@ -275,13 +381,59 @@ func TestDeliveryScalarContracts(t *testing.T) {
 				}
 			})
 		}
+		t.Run("Should accept an exact zero sequence", func(t *testing.T) {
+			t.Parallel()
+
+			zeroSeqEvent := event
+			zeroSeqEvent.Seq = 0
+			ack := DeliveryAck{DeliveryID: zeroSeqEvent.DeliveryID, Seq: 0}
+			if err := ack.ValidateFor(zeroSeqEvent); err != nil {
+				t.Fatalf("DeliveryAck.ValidateFor() error = %v, want nil", err)
+			}
+		})
+		t.Run("Should reject a nonzero sequence for a zero-sequence event", func(t *testing.T) {
+			t.Parallel()
+
+			zeroSeqEvent := event
+			zeroSeqEvent.Seq = 0
+			ack := DeliveryAck{DeliveryID: zeroSeqEvent.DeliveryID, Seq: 1}
+			if err := ack.ValidateFor(zeroSeqEvent); err == nil {
+				t.Fatal("DeliveryAck.ValidateFor() error = nil, want sequence mismatch")
+			}
+		})
+		t.Run("Should serialize required identity for a zero-sequence acknowledgement", func(t *testing.T) {
+			t.Parallel()
+
+			encoded, err := json.Marshal(DeliveryAck{DeliveryID: "del-zero", Seq: 0})
+			if err != nil {
+				t.Fatalf("json.Marshal(DeliveryAck) error = %v", err)
+			}
+			if got, want := string(encoded), `{"delivery_id":"del-zero","seq":0}`; got != want {
+				t.Fatalf("json.Marshal(DeliveryAck) = %s, want %s", got, want)
+			}
+		})
 		normalized := NormalizeDeliveryAck(DeliveryAck{
 			DeliveryID: " del-1 ", Seq: 2, RemoteMessageID: " remote-1 ",
 			ReplaceRemoteMessageID: " remote-0 ",
 		})
 		if normalized.DeliveryID != "del-1" || normalized.Seq != 2 ||
-			normalized.RemoteMessageID != "remote-1" || normalized.ReplaceRemoteMessageID != "remote-0" {
+			normalized.RemoteMessageID != "remote-1" || normalized.ReplaceRemoteMessageID != "remote-0" ||
+			normalized.Outcome != DeliveryAckOutcomeSuccess {
 			t.Fatalf("NormalizeDeliveryAck() = %#v, want canonical acknowledgement", normalized)
+		}
+		committed := NormalizeDeliveryAck(DeliveryAck{
+			Outcome: " COMMITTED_RESULT_UNAVAILABLE ",
+			Error:   &DeliveryErrorDetail{Message: " response omitted id "},
+		})
+		if committed.Outcome != DeliveryAckOutcomeCommittedResultUnavailable || committed.Error == nil ||
+			committed.Error.Message != "response omitted id" {
+			t.Fatalf("NormalizeDeliveryAck(committed) = %#v, want canonical committed failure", committed)
+		}
+		if got, want := strings.Join(
+			DeliveryAckOutcomeValues(),
+			",",
+		), "success,committed_result_unavailable"; got != want {
+			t.Fatalf("DeliveryAckOutcomeValues() = %q, want %q", got, want)
 		}
 	})
 }
@@ -463,14 +615,29 @@ func TestDeliveryEventContract(t *testing.T) {
 			{name: "Should require a delivery id", mutate: func(v *DeliveryEvent) { v.DeliveryID = "" }},
 			{name: "Should require a bridge id", mutate: func(v *DeliveryEvent) { v.BridgeInstanceID = "" }},
 			{name: "Should reject invalid routing", mutate: func(v *DeliveryEvent) { v.RoutingKey = RoutingKey{} }},
-			{name: "Should reject a routing bridge mismatch", mutate: func(v *DeliveryEvent) { v.RoutingKey.BridgeInstanceID = "other" }},
-			{name: "Should reject an invalid target", mutate: func(v *DeliveryEvent) { v.DeliveryTarget = DeliveryTarget{BridgeInstanceID: v.BridgeInstanceID} }},
-			{name: "Should reject a target bridge mismatch", mutate: func(v *DeliveryEvent) { v.DeliveryTarget.BridgeInstanceID = "other" }},
+			{
+				name:   "Should reject a routing bridge mismatch",
+				mutate: func(v *DeliveryEvent) { v.RoutingKey.BridgeInstanceID = "other" },
+			},
+			{
+				name:   "Should reject an invalid target",
+				mutate: func(v *DeliveryEvent) { v.DeliveryTarget = DeliveryTarget{BridgeInstanceID: v.BridgeInstanceID} },
+			},
+			{
+				name:   "Should reject a target bridge mismatch",
+				mutate: func(v *DeliveryEvent) { v.DeliveryTarget.BridgeInstanceID = "other" },
+			},
 			{name: "Should reject a negative sequence", mutate: func(v *DeliveryEvent) { v.Seq = -1 }},
 			{name: "Should reject an invalid operation", mutate: func(v *DeliveryEvent) { v.Operation = "replace" }},
-			{name: "Should reject a final start event", mutate: func(v *DeliveryEvent) { v.EventType = DeliveryEventTypeStart; v.Final = true }},
+			{
+				name:   "Should reject a final start event",
+				mutate: func(v *DeliveryEvent) { v.EventType = DeliveryEventTypeStart; v.Final = true },
+			},
 			{name: "Should reject a final delta event", mutate: func(v *DeliveryEvent) { v.Final = true }},
-			{name: "Should require final state on final events", mutate: func(v *DeliveryEvent) { v.EventType = DeliveryEventTypeFinal }},
+			{
+				name:   "Should require final state on final events",
+				mutate: func(v *DeliveryEvent) { v.EventType = DeliveryEventTypeFinal },
+			},
 			{name: "Should require final state on error events", mutate: func(v *DeliveryEvent) {
 				v.EventType = DeliveryEventTypeError
 				v.Error = &DeliveryErrorDetail{Message: "x"}
@@ -489,11 +656,26 @@ func TestDeliveryEventContract(t *testing.T) {
 			}},
 			{name: "Should require an event type", mutate: func(v *DeliveryEvent) { v.EventType = "" }},
 			{name: "Should reject an unknown event type", mutate: func(v *DeliveryEvent) { v.EventType = "unknown" }},
-			{name: "Should reject invalid provider metadata", mutate: func(v *DeliveryEvent) { v.ProviderMetadata = json.RawMessage(`{`) }},
-			{name: "Should reject a post reference", mutate: func(v *DeliveryEvent) { v.Reference = &DeliveryMessageReference{DeliveryID: "del-0"} }},
-			{name: "Should require an edit reference", mutate: func(v *DeliveryEvent) { v.Operation = DeliveryOperationEdit }},
-			{name: "Should reject an empty edit reference", mutate: func(v *DeliveryEvent) { v.Operation = DeliveryOperationEdit; v.Reference = &DeliveryMessageReference{} }},
-			{name: "Should require delete operation on delete events", mutate: func(v *DeliveryEvent) { v.EventType = DeliveryEventTypeDelete; v.Final = true }},
+			{
+				name:   "Should reject invalid provider metadata",
+				mutate: func(v *DeliveryEvent) { v.ProviderMetadata = json.RawMessage(`{`) },
+			},
+			{
+				name:   "Should reject a post reference",
+				mutate: func(v *DeliveryEvent) { v.Reference = &DeliveryMessageReference{DeliveryID: "del-0"} },
+			},
+			{
+				name:   "Should require an edit reference",
+				mutate: func(v *DeliveryEvent) { v.Operation = DeliveryOperationEdit },
+			},
+			{
+				name:   "Should reject an empty edit reference",
+				mutate: func(v *DeliveryEvent) { v.Operation = DeliveryOperationEdit; v.Reference = &DeliveryMessageReference{} },
+			},
+			{
+				name:   "Should require delete operation on delete events",
+				mutate: func(v *DeliveryEvent) { v.EventType = DeliveryEventTypeDelete; v.Final = true },
+			},
 			{name: "Should reject delete operation on delta events", mutate: func(v *DeliveryEvent) {
 				v.Operation = DeliveryOperationDelete
 				v.Reference = &DeliveryMessageReference{DeliveryID: "del-0"}
@@ -505,7 +687,10 @@ func TestDeliveryEventContract(t *testing.T) {
 				v.Reference = &DeliveryMessageReference{DeliveryID: "del-0"}
 				v.Progress = validToolProgress()
 			}},
-			{name: "Should require an error payload", mutate: func(v *DeliveryEvent) { v.EventType = DeliveryEventTypeError; v.Final = true }},
+			{
+				name:   "Should require an error payload",
+				mutate: func(v *DeliveryEvent) { v.EventType = DeliveryEventTypeError; v.Final = true },
+			},
 			{name: "Should reject an invalid error payload", mutate: func(v *DeliveryEvent) {
 				v.EventType = DeliveryEventTypeError
 				v.Final = true
@@ -517,7 +702,10 @@ func TestDeliveryEventContract(t *testing.T) {
 				v.Error = &DeliveryErrorDetail{Message: "x"}
 				v.Resume = &DeliveryResumeState{LatestEventType: DeliveryEventTypeDelta}
 			}},
-			{name: "Should require a resume payload", mutate: func(v *DeliveryEvent) { v.EventType = DeliveryEventTypeResume }},
+			{
+				name:   "Should require a resume payload",
+				mutate: func(v *DeliveryEvent) { v.EventType = DeliveryEventTypeResume },
+			},
 			{name: "Should reject error data on resume events", mutate: func(v *DeliveryEvent) {
 				v.EventType = DeliveryEventTypeResume
 				v.Resume = &DeliveryResumeState{LatestEventType: DeliveryEventTypeDelta}
@@ -537,17 +725,32 @@ func TestDeliveryEventContract(t *testing.T) {
 				v.Content = MessageContent{}
 				v.Error = &DeliveryErrorDetail{Message: "x"}
 			}},
-			{name: "Should require a progress payload", mutate: func(v *DeliveryEvent) { v.EventType = DeliveryEventTypeProgress; v.Content = MessageContent{} }},
-			{name: "Should reject content on progress events", mutate: func(v *DeliveryEvent) { v.EventType = DeliveryEventTypeProgress; v.Progress = validToolProgress() }},
+			{
+				name:   "Should require a progress payload",
+				mutate: func(v *DeliveryEvent) { v.EventType = DeliveryEventTypeProgress; v.Content = MessageContent{} },
+			},
+			{
+				name:   "Should reject content on progress events",
+				mutate: func(v *DeliveryEvent) { v.EventType = DeliveryEventTypeProgress; v.Progress = validToolProgress() },
+			},
 			{name: "Should reject error data on progress events", mutate: func(v *DeliveryEvent) {
 				v.EventType = DeliveryEventTypeProgress
 				v.Content = MessageContent{}
 				v.Progress = validToolProgress()
 				v.Error = &DeliveryErrorDetail{Message: "x"}
 			}},
-			{name: "Should reject error data on delta events", mutate: func(v *DeliveryEvent) { v.Error = &DeliveryErrorDetail{Message: "x"} }},
-			{name: "Should reject resume data on delta events", mutate: func(v *DeliveryEvent) { v.Resume = &DeliveryResumeState{LatestEventType: DeliveryEventTypeDelta} }},
-			{name: "Should reject progress data on delta events", mutate: func(v *DeliveryEvent) { v.Progress = validToolProgress() }},
+			{
+				name:   "Should reject error data on delta events",
+				mutate: func(v *DeliveryEvent) { v.Error = &DeliveryErrorDetail{Message: "x"} },
+			},
+			{
+				name:   "Should reject resume data on delta events",
+				mutate: func(v *DeliveryEvent) { v.Resume = &DeliveryResumeState{LatestEventType: DeliveryEventTypeDelta} },
+			},
+			{
+				name:   "Should reject progress data on delta events",
+				mutate: func(v *DeliveryEvent) { v.Progress = validToolProgress() },
+			},
 		}
 
 		for _, test := range tests {
@@ -658,26 +861,68 @@ func TestDeliveryRequestAndSnapshotContract(t *testing.T) {
 			{name: "Should require a snapshot delivery id", mutate: func(v *DeliverySnapshot) { v.DeliveryID = "" }},
 			{name: "Should require a snapshot session id", mutate: func(v *DeliverySnapshot) { v.SessionID = "" }},
 			{name: "Should require a snapshot turn id", mutate: func(v *DeliverySnapshot) { v.TurnID = "" }},
-			{name: "Should require a snapshot bridge id", mutate: func(v *DeliverySnapshot) { v.BridgeInstanceID = "" }},
-			{name: "Should require a snapshot update timestamp", mutate: func(v *DeliverySnapshot) { v.UpdatedAt = time.Time{} }},
-			{name: "Should require valid snapshot routing", mutate: func(v *DeliverySnapshot) { v.RoutingKey = RoutingKey{} }},
-			{name: "Should reject a snapshot routing bridge mismatch", mutate: func(v *DeliverySnapshot) { v.RoutingKey.BridgeInstanceID = "other" }},
-			{name: "Should require a valid snapshot target", mutate: func(v *DeliverySnapshot) { v.DeliveryTarget = DeliveryTarget{} }},
-			{name: "Should reject a snapshot target bridge mismatch", mutate: func(v *DeliverySnapshot) { v.DeliveryTarget.BridgeInstanceID = "other" }},
+			{
+				name:   "Should require a snapshot bridge id",
+				mutate: func(v *DeliverySnapshot) { v.BridgeInstanceID = "" },
+			},
+			{
+				name:   "Should require a snapshot update timestamp",
+				mutate: func(v *DeliverySnapshot) { v.UpdatedAt = time.Time{} },
+			},
+			{
+				name:   "Should require valid snapshot routing",
+				mutate: func(v *DeliverySnapshot) { v.RoutingKey = RoutingKey{} },
+			},
+			{
+				name:   "Should reject a snapshot routing bridge mismatch",
+				mutate: func(v *DeliverySnapshot) { v.RoutingKey.BridgeInstanceID = "other" },
+			},
+			{
+				name:   "Should require a valid snapshot target",
+				mutate: func(v *DeliverySnapshot) { v.DeliveryTarget = DeliveryTarget{} },
+			},
+			{
+				name:   "Should reject a snapshot target bridge mismatch",
+				mutate: func(v *DeliverySnapshot) { v.DeliveryTarget.BridgeInstanceID = "other" },
+			},
 			{name: "Should reject a negative latest sequence", mutate: func(v *DeliverySnapshot) { v.LatestSeq = -1 }},
-			{name: "Should reject a negative last-sent sequence", mutate: func(v *DeliverySnapshot) { v.LastSentSeq = -1 }},
-			{name: "Should reject a negative last-acked sequence", mutate: func(v *DeliverySnapshot) { v.LastAckedSeq = -1 }},
-			{name: "Should reject last-acked beyond last-sent", mutate: func(v *DeliverySnapshot) { v.LastAckedSeq = 3 }},
+			{
+				name:   "Should reject a negative last-sent sequence",
+				mutate: func(v *DeliverySnapshot) { v.LastSentSeq = -1 },
+			},
+			{
+				name:   "Should reject a negative last-acked sequence",
+				mutate: func(v *DeliverySnapshot) { v.LastAckedSeq = -1 },
+			},
+			{
+				name:   "Should reject last-acked beyond last-sent",
+				mutate: func(v *DeliverySnapshot) { v.LastAckedSeq = 3 },
+			},
 			{name: "Should reject last-sent beyond latest", mutate: func(v *DeliverySnapshot) { v.LastSentSeq = 3 }},
-			{name: "Should reject an unsupported snapshot operation", mutate: func(v *DeliverySnapshot) { v.Operation = "replace" }},
-			{name: "Should reject a reference on a post snapshot", mutate: func(v *DeliverySnapshot) { v.Reference = &DeliveryMessageReference{DeliveryID: "old"} }},
-			{name: "Should require a reference on an edit snapshot", mutate: func(v *DeliverySnapshot) { v.Operation = DeliveryOperationEdit }},
+			{
+				name:   "Should reject an unsupported snapshot operation",
+				mutate: func(v *DeliverySnapshot) { v.Operation = "replace" },
+			},
+			{
+				name:   "Should reject a reference on a post snapshot",
+				mutate: func(v *DeliverySnapshot) { v.Reference = &DeliveryMessageReference{DeliveryID: "old"} },
+			},
+			{
+				name:   "Should require a reference on an edit snapshot",
+				mutate: func(v *DeliverySnapshot) { v.Operation = DeliveryOperationEdit },
+			},
 			{name: "Should reject an empty snapshot reference", mutate: func(v *DeliverySnapshot) {
 				v.Operation = DeliveryOperationEdit
 				v.Reference = &DeliveryMessageReference{}
 			}},
-			{name: "Should reject invalid snapshot provider metadata", mutate: func(v *DeliverySnapshot) { v.ProviderMetadata = json.RawMessage(`{`) }},
-			{name: "Should require final state for a final snapshot event", mutate: func(v *DeliverySnapshot) { v.LatestEventType = DeliveryEventTypeFinal }},
+			{
+				name:   "Should reject invalid snapshot provider metadata",
+				mutate: func(v *DeliverySnapshot) { v.ProviderMetadata = json.RawMessage(`{`) },
+			},
+			{
+				name:   "Should require final state for a final snapshot event",
+				mutate: func(v *DeliverySnapshot) { v.LatestEventType = DeliveryEventTypeFinal },
+			},
 		}
 		for _, test := range snapshotMutations {
 			test := test
@@ -759,22 +1004,44 @@ func TestDeliveryRequestAndSnapshotContract(t *testing.T) {
 
 func validDeliveryEvent(eventType DeliveryEventType) DeliveryEvent {
 	return DeliveryEvent{
-		DeliveryID: "del-1", BridgeInstanceID: "brg-1",
-		RoutingKey:     RoutingKey{Scope: ScopeWorkspace, WorkspaceID: "ws-1", BridgeInstanceID: "brg-1", PeerID: "peer-1"},
-		DeliveryTarget: DeliveryTarget{BridgeInstanceID: "brg-1", PeerID: "peer-1", Mode: DeliveryModeReply},
-		Seq:            2, EventType: eventType, Content: MessageContent{Text: "hello"},
+		DeliveryID:       "del-1",
+		BridgeInstanceID: "brg-1",
+		RoutingKey: RoutingKey{
+			Scope:            ScopeWorkspace,
+			WorkspaceID:      "ws-1",
+			BridgeInstanceID: "brg-1",
+			PeerID:           "peer-1",
+		},
+		DeliveryTarget:   DeliveryTarget{BridgeInstanceID: "brg-1", PeerID: "peer-1", Mode: DeliveryModeReply},
+		Seq:              2,
+		EventType:        eventType,
+		Content:          MessageContent{Text: "hello"},
 		ProviderMetadata: json.RawMessage(`{"provider":"slack"}`),
 	}
 }
 
 func validDeliverySnapshot() DeliverySnapshot {
 	return DeliverySnapshot{
-		DeliveryID: "del-1", SessionID: "sess-1", TurnID: "turn-1", BridgeInstanceID: "brg-1",
-		RoutingKey:     RoutingKey{Scope: ScopeWorkspace, WorkspaceID: "ws-1", BridgeInstanceID: "brg-1", PeerID: "peer-1"},
-		DeliveryTarget: DeliveryTarget{BridgeInstanceID: "brg-1", PeerID: "peer-1", Mode: DeliveryModeReply},
-		LatestSeq:      2, LatestEventType: DeliveryEventTypeDelta, CurrentContent: MessageContent{Text: "hello"},
-		Operation: DeliveryOperationPost, ProviderMetadata: json.RawMessage(`{"provider":"slack"}`),
-		LastSentSeq: 2, LastAckedSeq: 1, RemoteMessageID: "remote-1", UpdatedAt: time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC),
+		DeliveryID:       "del-1",
+		SessionID:        "sess-1",
+		TurnID:           "turn-1",
+		BridgeInstanceID: "brg-1",
+		RoutingKey: RoutingKey{
+			Scope:            ScopeWorkspace,
+			WorkspaceID:      "ws-1",
+			BridgeInstanceID: "brg-1",
+			PeerID:           "peer-1",
+		},
+		DeliveryTarget:   DeliveryTarget{BridgeInstanceID: "brg-1", PeerID: "peer-1", Mode: DeliveryModeReply},
+		LatestSeq:        2,
+		LatestEventType:  DeliveryEventTypeDelta,
+		CurrentContent:   MessageContent{Text: "hello"},
+		Operation:        DeliveryOperationPost,
+		ProviderMetadata: json.RawMessage(`{"provider":"slack"}`),
+		LastSentSeq:      2,
+		LastAckedSeq:     1,
+		RemoteMessageID:  "remote-1",
+		UpdatedAt:        time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC),
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -561,17 +562,17 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 			{
 				name:        "Should reject a nil send response",
 				content:     "hello",
-				sendResults: []*telegramSentMessage{nil, nil, nil},
+				sendResults: []*telegramSentMessage{nil},
 			},
 			{
 				name:        "Should reject a zero message id",
 				content:     "hello",
-				sendResults: []*telegramSentMessage{{MessageID: 0}, {MessageID: 0}, {MessageID: 0}},
+				sendResults: []*telegramSentMessage{{MessageID: 0}},
 			},
 			{
 				name:        "Should reject a negative message id",
 				content:     "hello",
-				sendResults: []*telegramSentMessage{{MessageID: -1}, {MessageID: -1}, {MessageID: -1}},
+				sendResults: []*telegramSentMessage{{MessageID: -1}},
 			},
 			{
 				name:                "Should reject a non-positive continuation message id",
@@ -579,8 +580,6 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 				wantCompletedChunks: 1,
 				sendResults: []*telegramSentMessage{
 					{MessageID: 901},
-					{MessageID: 0},
-					{MessageID: 0},
 					{MessageID: 0},
 				},
 			},
@@ -600,15 +599,18 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 				request.Event.Content.Text = testCase.content
 
 				_, gotState, err := executeDelivery(context.Background(), api, request, deliveryState{})
-				var transientErr *bridgesdk.TransientError
-				if !errors.As(err, &transientErr) {
-					t.Fatalf("executeDelivery() error = %T %v, want TransientError", err, err)
+				var committedErr *bridgesdk.CommittedMutationError
+				if !errors.As(err, &committedErr) {
+					t.Fatalf("executeDelivery() error = %T %v, want CommittedMutationError", err, err)
 				}
 				if gotState.LastSeq != 0 || gotState.RemoteMessageID != "" || gotState.ReplaceRemoteMessageID != "" {
 					t.Fatalf("executeDelivery() committed state = %#v, want no final acknowledgement", gotState)
 				}
 				if got, want := gotState.Chunks.NextChunk(), testCase.wantCompletedChunks; got != want {
 					t.Fatalf("completed chunk prefix = %d, want %d", got, want)
+				}
+				if got, want := len(api.sendRequests), testCase.wantCompletedChunks+1; got != want {
+					t.Fatalf("send attempts = %d, want %d", got, want)
 				}
 			})
 		}
@@ -717,6 +719,140 @@ func TestTelegramProgressDelivery(t *testing.T) {
 		}
 		if got, want := api.reactions[0].Reaction[0].Emoji, "\U0001f440"; got != want {
 			t.Fatalf("reaction emoji = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should deliver final text once after a committed progress edit result failure", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 13, 12, 5, 0, 0, time.UTC)
+		api := &fakeTelegramAPI{
+			nextMessageID: 915,
+			editErrors: []error{
+				bridgesdk.MarkCommittedMutation(errors.New("progress edit result unavailable")),
+			},
+		}
+		provider := newTelegramProgressTestProvider(t, func() time.Time { return now }, api)
+		cfg, ok := provider.routes.Get("brg-progress")
+		if !ok {
+			t.Fatal("progress route = missing")
+		}
+		target := testDeliveryRequest(
+			"brg-progress",
+			"delivery-progress-committed",
+			3,
+			bridgepkg.DeliveryEventTypeFinal,
+			true,
+		).Event.DeliveryTarget
+		accumulator := bridgesdk.NewProgressAccumulator(bridgesdk.ProgressConfig{
+			ProgressConfig: telegramResolvedProgressConfig(cfg),
+			Target:         target,
+			MaxMessageLen:  telegramMaxMessageLen,
+			Len: func(value string) int {
+				return bridgesdk.UTF16Len(formatOutbound(value).Text)
+			},
+		}, &telegramProgressSink{api: api}, func() time.Time { return now })
+		dispatcher := bridgesdk.NewProgressDispatcher(
+			accumulator,
+			bridgesdk.WithProgressSchedule(func(time.Duration, func()) bridgesdk.ProgressCancel {
+				return func() bool { return true }
+			}),
+		)
+		t.Cleanup(dispatcher.Close)
+		if err := dispatcher.OnProgress(context.Background(), bridgepkg.ToolProgress{
+			ToolCallID: "call-progress-started",
+			ToolID:     "agh__terminal",
+			Phase:      bridgepkg.ToolProgressPhaseStarted,
+			Label:      "Inspecting",
+			Emoji:      "\U0001f527",
+			Index:      1,
+		}); err != nil {
+			t.Fatalf("ProgressDispatcher.OnProgress(started) error = %v", err)
+		}
+		if err := dispatcher.OnProgress(context.Background(), bridgepkg.ToolProgress{
+			ToolCallID: "call-progress-completed",
+			ToolID:     "agh__terminal",
+			Phase:      bridgepkg.ToolProgressPhaseCompleted,
+			Label:      "Inspecting",
+			Emoji:      "\U0001f527",
+			Index:      2,
+		}); err != nil {
+			t.Fatalf("ProgressDispatcher.OnProgress(completed) error = %v", err)
+		}
+		provider.deliveries.Store(
+			deliveryStateKey("brg-progress", "delivery-progress-committed"),
+			deliveryState{Progress: dispatcher},
+		)
+
+		final := testDeliveryRequest(
+			"brg-progress",
+			"delivery-progress-committed",
+			3,
+			bridgepkg.DeliveryEventTypeFinal,
+			true,
+		)
+		final.Event.Content.Text = "final answer"
+		ack, err := provider.handleBridgesDeliver(context.Background(), &bridgesdk.Session{}, final)
+		if err != nil {
+			t.Fatalf("handleBridgesDeliver(final) error = %v", err)
+		}
+		if got, want := ack.DeliveryID, final.Event.DeliveryID; got != want {
+			t.Fatalf("ack delivery id = %q, want %q", got, want)
+		}
+		if got, want := len(api.editRequests), 1; got != want {
+			t.Fatalf("committed progress edit attempts = %d, want %d", got, want)
+		}
+		if got, want := countTelegramSendRequests(api.sendRequests, "final answer"), 1; got != want {
+			t.Fatalf("final text send attempts = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should discard and close progress state after a committed final text result failure", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 13, 12, 6, 0, 0, time.UTC)
+		api := &fakeTelegramAPI{nextMessageID: 916}
+		provider := newTelegramProgressTestProvider(t, func() time.Time { return now }, api)
+		started := testProgressRequest(
+			"brg-progress",
+			"delivery-text-committed",
+			1,
+			bridgepkg.ToolProgressPhaseStarted,
+			"Inspecting",
+		)
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, started); err != nil {
+			t.Fatalf("handleBridgesProgress(started) error = %v", err)
+		}
+		dispatcher := provider.deliveryState("brg-progress", "delivery-text-committed").Progress
+		if dispatcher == nil {
+			t.Fatal("progress dispatcher = nil, want active dispatcher")
+		}
+		api.sendErrorText = "final answer"
+		api.sendError = bridgesdk.MarkCommittedMutation(errors.New("final text result unavailable"))
+		final := testDeliveryRequest(
+			"brg-progress",
+			"delivery-text-committed",
+			2,
+			bridgepkg.DeliveryEventTypeFinal,
+			true,
+		)
+		final.Event.Content.Text = "final answer"
+
+		_, err := provider.handleBridgesDeliver(context.Background(), &bridgesdk.Session{}, final)
+		if !bridgesdk.IsCommittedMutation(err) {
+			t.Fatalf("handleBridgesDeliver(final) error = %T %v, want committed mutation", err, err)
+		}
+		if got, want := countTelegramSendRequests(api.sendRequests, "final answer"), 1; got != want {
+			t.Fatalf("final text send attempts = %d, want %d", got, want)
+		}
+		if _, retained := provider.deliveries.Load(
+			deliveryStateKey("brg-progress", "delivery-text-committed"),
+		); retained {
+			t.Fatal("committed final text failure retained delivery state")
+		}
+		if flushErr := dispatcher.Flush(context.Background()); flushErr == nil ||
+			!strings.Contains(flushErr.Error(), "closed") {
+			t.Fatalf("closed dispatcher Flush() error = %v, want closed error", flushErr)
 		}
 	})
 
@@ -1093,6 +1229,63 @@ func TestExecuteDeliveryFormatsAndChunksCumulativeText(t *testing.T) {
 		}
 	})
 
+	t.Run("Should not retry a committed MarkdownV2 send rejection as plain text", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeTelegramAPI{
+			sendErrors: []error{bridgesdk.MarkCommittedMutation(
+				&telegramMarkdownParseError{err: errors.New("can't parse entities")},
+			)},
+		}
+		request := testDeliveryRequest(
+			"brg-1",
+			"delivery-committed-send-parse",
+			1,
+			bridgepkg.DeliveryEventTypeFinal,
+			true,
+		)
+		request.Event.Content.Text = "**bold** result"
+
+		_, _, err := executeDelivery(context.Background(), api, request, deliveryState{})
+		if !bridgesdk.IsCommittedMutation(err) {
+			t.Fatalf("executeDelivery() error = %T %v, want committed mutation", err, err)
+		}
+		if got, want := len(api.sendRequests), 1; got != want {
+			t.Fatalf("SendMessage calls = %d, want %d without fallback", got, want)
+		}
+	})
+
+	t.Run("Should not retry a committed MarkdownV2 edit rejection as plain text", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeTelegramAPI{
+			editErrors: []error{bridgesdk.MarkCommittedMutation(
+				&telegramMarkdownParseError{err: errors.New("can't parse entities")},
+			)},
+		}
+		request := testDeliveryRequest(
+			"brg-1",
+			"delivery-committed-edit-parse",
+			2,
+			bridgepkg.DeliveryEventTypeFinal,
+			true,
+		)
+		request.Event.Content.Text = "**bold** updated"
+		state := deliveryState{
+			LastSeq:         1,
+			LastContent:     "old",
+			RemoteMessageID: encodeRemoteMessageID("peer-1", 41),
+		}
+
+		_, _, err := executeDelivery(context.Background(), api, request, state)
+		if !bridgesdk.IsCommittedMutation(err) {
+			t.Fatalf("executeDelivery() error = %T %v, want committed mutation", err, err)
+		}
+		if got, want := len(api.editRequests), 1; got != want {
+			t.Fatalf("EditMessageText calls = %d, want %d without fallback", got, want)
+		}
+	})
+
 	t.Run("Should preserve fenced code literals in a chunk plain-text fallback", func(t *testing.T) {
 		t.Parallel()
 
@@ -1135,16 +1328,8 @@ func TestExecuteDeliveryFormatsAndChunksCumulativeText(t *testing.T) {
 			sendErrors: []error{
 				&telegramMarkdownParseError{err: errors.New("can't parse entities")},
 				nil,
-				&telegramMarkdownParseError{err: errors.New("can't parse entities")},
-				nil,
-				&telegramMarkdownParseError{err: errors.New("can't parse entities")},
-				nil,
 			},
 			sendResults: []*telegramSentMessage{
-				nil,
-				{MessageID: 0},
-				nil,
-				{MessageID: 0},
 				nil,
 				{MessageID: 0},
 			},
@@ -1159,12 +1344,15 @@ func TestExecuteDeliveryFormatsAndChunksCumulativeText(t *testing.T) {
 		request.Event.Content.Text = "**bold** result"
 
 		_, gotState, err := executeDelivery(context.Background(), api, request, deliveryState{})
-		var transientErr *bridgesdk.TransientError
-		if !errors.As(err, &transientErr) {
-			t.Fatalf("executeDelivery() error = %T %v, want TransientError", err, err)
+		var committedErr *bridgesdk.CommittedMutationError
+		if !errors.As(err, &committedErr) {
+			t.Fatalf("executeDelivery() error = %T %v, want CommittedMutationError", err, err)
 		}
 		if gotState.LastSeq != 0 || gotState.RemoteMessageID != "" || gotState.Chunks.NextChunk() != 0 {
 			t.Fatalf("executeDelivery() state = %#v, want no committed chunk", gotState)
+		}
+		if got, want := len(api.sendRequests), 2; got != want {
+			t.Fatalf("SendMessage calls = %d, want rich rejection and one plain-text mutation", got)
 		}
 	})
 
@@ -1249,7 +1437,10 @@ func TestExecuteDeliveryFormatsAndChunksCumulativeText(t *testing.T) {
 		if err == nil {
 			t.Fatal("executeDelivery(partial) error = nil, want exhausted rate limit")
 		}
-		if got, want := countTelegramSendRequests(api.sendRequests, chunks[1].Text), bridgesdk.DefaultRetryConfig().Attempts; got != want {
+		if got, want := countTelegramSendRequests(
+			api.sendRequests,
+			chunks[1].Text,
+		), bridgesdk.DefaultRetryConfig().Attempts; got != want {
 			t.Fatalf("failed continuation attempts = %d, want %d", got, want)
 		}
 		if got, want := countTelegramSendRequests(api.successfulSendRequests, chunks[0].Text), 1; got != want {
@@ -1995,14 +2186,18 @@ func TestTelegramBotClientAndClassificationHelpers(t *testing.T) {
 		case "deleteMessage":
 			writeTelegramAPIResponse(t, w, true)
 		case "getMe":
-			_, _ = w.Write([]byte(`not-json`))
+			if _, err := w.Write([]byte(`not-json`)); err != nil {
+				t.Errorf("write malformed getMe response: %v", err)
+			}
 		default:
 			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]any{
+			if err := json.NewEncoder(w).Encode(map[string]any{
 				"ok":          false,
 				"error_code":  http.StatusInternalServerError,
 				"description": "broken",
-			})
+			}); err != nil {
+				t.Errorf("encode Telegram error response: %v", err)
+			}
 		}
 	}))
 	defer server.Close()
@@ -2018,9 +2213,191 @@ func TestTelegramBotClientAndClassificationHelpers(t *testing.T) {
 	); err != nil {
 		t.Fatalf("DeleteMessage() error = %v", err)
 	}
-	if _, err := client.GetMe(context.Background()); err == nil {
+	_, getMeErr := client.GetMe(context.Background())
+	if getMeErr == nil {
 		t.Fatal("GetMe(invalid json) error = nil, want non-nil")
 	}
+	var committedGetMeErr *bridgesdk.CommittedMutationError
+	if errors.As(getMeErr, &committedGetMeErr) {
+		t.Fatalf("GetMe(invalid json) error = %T %v, want non-committed error", getMeErr, getMeErr)
+	}
+
+	t.Run("Should not retry a send after a successful status with a truncated result", func(t *testing.T) {
+		t.Parallel()
+
+		var attempts atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			attempts.Add(1)
+			if _, err := w.Write([]byte(`{"ok":true,"result":{"message_id":`)); err != nil {
+				t.Errorf("write truncated Telegram response: %v", err)
+			}
+		}))
+		defer server.Close()
+
+		client := &telegramBotClient{
+			baseURL:    server.URL,
+			botToken:   "telegram-token",
+			httpClient: server.Client(),
+		}
+		_, err := sendTelegramOutbound(
+			t.Context(),
+			client,
+			telegramSendMessageRequest{ChatID: "42"},
+			telegramOutboundText{Text: "hello", PlainText: "hello"},
+		)
+		var committedErr *bridgesdk.CommittedMutationError
+		if !errors.As(err, &committedErr) {
+			t.Fatalf("sendTelegramOutbound() error = %T %v, want CommittedMutationError", err, err)
+		}
+		if got, want := attempts.Load(), int32(1); got != want {
+			t.Fatalf("send attempts = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should preserve rate-limit classification when the error body read and close fail", func(t *testing.T) {
+		t.Parallel()
+
+		readErr := errors.New("Telegram error body read failed")
+		closeErr := errors.New("Telegram error body close failed")
+		body := &telegramPartialErrorResponseBody{
+			content:  []byte(`{"ok":false,"error_code":429,"description":"slow down","parameters":{"retry_after":2}}`),
+			readErr:  readErr,
+			closeErr: closeErr,
+		}
+		client := &telegramBotClient{
+			baseURL:  "https://api.telegram.test",
+			botToken: "telegram-token",
+			httpClient: &http.Client{Transport: telegramErrorResponseTransport{
+				statusCode: http.StatusTooManyRequests,
+				headers:    http.Header{"Retry-After": []string{"2"}},
+				body:       body,
+			}},
+		}
+
+		var result telegramSentMessage
+		err := client.callTelegram(
+			t.Context(),
+			"sendMessage",
+			telegramSendMessageRequest{ChatID: "42", Text: "hello"},
+			&result,
+			bridgesdk.HTTPResponseCommitOnSuccessStatus,
+		)
+		if !errors.Is(err, readErr) {
+			t.Fatalf("callTelegram() error = %v, want response body read failure", err)
+		}
+		if !errors.Is(err, closeErr) {
+			t.Fatalf("callTelegram() error = %v, want response body close failure", err)
+		}
+		var rateLimitErr *bridgesdk.RateLimitError
+		if !errors.As(err, &rateLimitErr) || rateLimitErr.RetryAfter != 2*time.Second {
+			t.Fatalf("callTelegram() error = %v, want rate limit with two-second retry", err)
+		}
+		if got, want := bridgesdk.ClassifyError(err).Class, bridgesdk.ErrorClassRateLimit; got != want {
+			t.Fatalf("callTelegram() error class = %q, want %q", got, want)
+		}
+		if !strings.Contains(rateLimitErr.Error(), "slow down") {
+			t.Fatalf("callTelegram() rate-limit error = %q, want partial provider body", rateLimitErr.Error())
+		}
+		if bridgesdk.IsCommittedMutation(err) {
+			t.Fatalf("callTelegram() error = %v, want pre-commit rejection", err)
+		}
+		if !body.closed {
+			t.Fatal("response body closed = false after error classification")
+		}
+	})
+
+	for _, testCase := range []struct {
+		name       string
+		statusCode int
+	}{
+		{name: "Should refuse a credentialed 301 redirect", statusCode: http.StatusMovedPermanently},
+		{name: "Should refuse a credentialed 302 redirect", statusCode: http.StatusFound},
+		{name: "Should refuse a credentialed 303 redirect", statusCode: http.StatusSeeOther},
+		{name: "Should refuse a credentialed 307 redirect", statusCode: http.StatusTemporaryRedirect},
+		{name: "Should refuse a credentialed 308 redirect", statusCode: http.StatusPermanentRedirect},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			var targetHits atomic.Int32
+			target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				targetHits.Add(1)
+				if _, err := io.WriteString(w, `{"ok":true,"result":{"message_id":42}}`); err != nil {
+					t.Errorf("write redirect target Telegram response: %v", err)
+				}
+			}))
+			defer target.Close()
+
+			redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Location", target.URL)
+				w.WriteHeader(testCase.statusCode)
+				if _, err := fmt.Fprintf(
+					w,
+					`{"ok":false,"error_code":%d,"description":"redirect refused"}`,
+					testCase.statusCode,
+				); err != nil {
+					t.Errorf("write redirect Telegram response: %v", err)
+				}
+				if got, want := r.Method, http.MethodPost; got != want {
+					t.Errorf("redirect source method = %q, want %q", got, want)
+				}
+			}))
+			defer redirect.Close()
+
+			client := &telegramBotClient{
+				baseURL:    redirect.URL,
+				botToken:   "telegram-token",
+				httpClient: redirect.Client(),
+			}
+			var result telegramSentMessage
+			err := client.callTelegram(
+				t.Context(),
+				"sendMessage",
+				telegramSendMessageRequest{ChatID: "42", Text: "hello"},
+				&result,
+				bridgesdk.HTTPResponseCommitOnSuccessStatus,
+			)
+			var httpErr *bridgesdk.HTTPError
+			if !errors.As(err, &httpErr) || httpErr.StatusCode != testCase.statusCode {
+				t.Fatalf(
+					"callTelegram(%d) error = %T %v, want first-response HTTPError",
+					testCase.statusCode,
+					err,
+					err,
+				)
+			}
+			if bridgesdk.IsCommittedMutation(err) {
+				t.Fatalf("callTelegram(%d) error = %v, want pre-commit rejection", testCase.statusCode, err)
+			}
+			if got := targetHits.Load(); got != 0 {
+				t.Fatalf("redirect target hits = %d, want 0", got)
+			}
+		})
+	}
+
+	t.Run("Should not expose the bot token when request construction fails", func(t *testing.T) {
+		t.Parallel()
+
+		const secretToken = "123456:telegram-secret-token"
+		client := &telegramBotClient{
+			baseURL:  "://invalid-base-url",
+			botToken: secretToken,
+		}
+		var result telegramBotIdentity
+		err := client.callTelegram(
+			t.Context(),
+			"getMe",
+			map[string]any{},
+			&result,
+			bridgesdk.HTTPResponseNoCommit,
+		)
+		if err == nil {
+			t.Fatal("callTelegram(invalid endpoint) error = nil, want request construction failure")
+		}
+		if strings.Contains(err.Error(), secretToken) {
+			t.Fatalf("callTelegram(invalid endpoint) error exposed bot token: %v", err)
+		}
+	})
 
 	rateErr := classifyTelegramHTTPError(429, telegramAPIEnvelope[json.RawMessage]{
 		Description: "slow down",
@@ -2096,6 +2473,42 @@ func TestTelegramBotClientAndClassificationHelpers(t *testing.T) {
 	if got, want := firstNonEmpty("", " value ", "other"), "value"; got != want {
 		t.Fatalf("firstNonEmpty() = %q, want %q", got, want)
 	}
+}
+
+type telegramErrorResponseTransport struct {
+	statusCode int
+	headers    http.Header
+	body       io.ReadCloser
+}
+
+func (t telegramErrorResponseTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: t.statusCode,
+		Header:     t.headers,
+		Body:       t.body,
+		Request:    req,
+	}, nil
+}
+
+type telegramPartialErrorResponseBody struct {
+	content  []byte
+	readErr  error
+	closeErr error
+	reads    int
+	closed   bool
+}
+
+func (b *telegramPartialErrorResponseBody) Read(buffer []byte) (int, error) {
+	b.reads++
+	if b.reads > 1 {
+		return 0, io.EOF
+	}
+	return copy(buffer, b.content), b.readErr
+}
+
+func (b *telegramPartialErrorResponseBody) Close() error {
+	b.closed = true
+	return b.closeErr
 }
 
 func TestWebhookShortCircuitsAndBatchDispatch(t *testing.T) {
@@ -2542,7 +2955,9 @@ func newTelegramAPIServer(t *testing.T) *telegramAPIServer {
 		method := filepath.Base(r.URL.Path)
 		body := map[string]any{}
 		if r.Body != nil {
-			_ = json.NewDecoder(r.Body).Decode(&body)
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
+				t.Errorf("decode Telegram API request: %v", err)
+			}
 		}
 		srv.mu.Lock()
 		srv.calls = append(srv.calls, telegramAPICall{Method: method, Body: body})
@@ -2561,11 +2976,13 @@ func newTelegramAPIServer(t *testing.T) *telegramAPIServer {
 			writeTelegramAPIResponse(t, w, true)
 		default:
 			w.WriteHeader(http.StatusNotFound)
-			_ = json.NewEncoder(w).Encode(map[string]any{
+			if err := json.NewEncoder(w).Encode(map[string]any{
 				"ok":          false,
 				"error_code":  http.StatusNotFound,
 				"description": "unknown method",
-			})
+			}); err != nil {
+				t.Errorf("encode unknown Telegram method response: %v", err)
+			}
 		}
 	}))
 	srv.server = server
@@ -2621,8 +3038,12 @@ func newRuntimePeerPair(t *testing.T) (*telegramProvider, *bridgesdk.Peer, func(
 				t.Fatalf("provider HTTP shutdown error = %v", err)
 			}
 			shutdownCancel()
-			_ = hostConn.Close()
-			_ = runtimeConn.Close()
+			if err := hostConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+				t.Errorf("host connection close error = %v", err)
+			}
+			if err := runtimeConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+				t.Errorf("runtime connection close error = %v", err)
+			}
 			for range 2 {
 				err := <-errCh
 				if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, net.ErrClosed) {

@@ -169,12 +169,22 @@ controls who the app can message, while AGH controls whose inbound messages reac
 
 ## Step 5: Restrict access before enablement
 
-The provider's default DM policy is `open`. Before exposing a broadly reachable business number,
-edit the disabled bridge in the Web UI and select `allowlist` or `pairing`, then add WhatsApp user IDs
-under `provider_config.dm.allow_user_ids` or `paired_user_ids`.
+An omitted or empty `dm_policy` normalizes to `open`, which admits every WhatsApp sender whose signed
+webhook passes provider authentication. Before exposing the business number, set `allowlist` or
+`pairing` on the disabled bridge. `agh bridge create` and `agh bridge update` do not currently expose
+`--dm-policy`; use the Web editor or HTTP API procedure in [Control direct-message access](./access).
+
+`allowlist` reads `provider_config.dm.allow_user_ids` and `allow_usernames`. `pairing` reads
+pre-populated `paired_user_ids` and `paired_usernames`, then falls back to the allowlist. It does not
+issue a pairing code or start an interactive approval flow.
 
 WhatsApp user IDs are phone numbers with country code and no `+`, spaces, or punctuation, for example
-`15551234567`. A username/display-name rule is more fragile than an ID rule.
+`15551234567`. A username/display-name rule is more fragile than an ID rule. Keep the bridge disabled
+until `agh bridge get "$BRIDGE_ID" -o json` reports `enabled: false`, the intended policy, and the
+intended lists.
+
+`dm_policy` governs inbound direct messages only. Meta's development-recipient list and messaging
+window remain separate provider controls for outbound delivery.
 
 ## Step 6: Verify the disabled bridge
 
@@ -297,6 +307,7 @@ a permission-restricted file and rejects inline secret arguments; see
 - The selected access token passes `provider.identity`.
 - Meta accepts the verification challenge and subscribes the `messages` field.
 - Signed POSTs validate with the bound app secret.
+- The bridge reports the intended `dm_policy` and sender lists before enablement.
 - A permitted sender creates a route in the intended AGH workspace.
 - A real outbound test reaches a Meta-approved recipient and returns a `wamid`.
 - The free-form messaging window and lack of template sending are understood.
@@ -305,6 +316,7 @@ a permission-restricted file and rejects inline secret arguments; see
 ## Related docs
 
 - [Bridge setup](/runtime/core/bridges/setup)
+- [Control direct-message access](./access)
 - [Operate and repair bridges](/runtime/core/bridges/operations)
 - [Message routing](/runtime/core/bridges/routing)
 - [Tool progress](/runtime/core/bridges/progress)

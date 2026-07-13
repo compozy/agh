@@ -282,12 +282,49 @@ func (s DeliveryResumeState) normalize() DeliveryResumeState {
 	return DeliveryResumeState{LatestEventType: normalizeDeliveryEventType(s.LatestEventType)}
 }
 
-// DeliveryAck acknowledges one delivery request.
+// DeliveryAckOutcome identifies the provider-side result of one delivery request.
+type DeliveryAckOutcome string
+
+const (
+	DeliveryAckOutcomeSuccess                    DeliveryAckOutcome = "success"
+	DeliveryAckOutcomeCommittedResultUnavailable DeliveryAckOutcome = "committed_result_unavailable"
+)
+
+// DeliveryAckOutcomeValues returns the closed acknowledgement outcomes in stable order.
+func DeliveryAckOutcomeValues() []string {
+	return []string{
+		string(DeliveryAckOutcomeSuccess),
+		string(DeliveryAckOutcomeCommittedResultUnavailable),
+	}
+}
+
+// Normalize returns the canonical acknowledgement outcome; empty means success.
+func (o DeliveryAckOutcome) Normalize() DeliveryAckOutcome {
+	normalized := DeliveryAckOutcome(strings.ToLower(strings.TrimSpace(string(o))))
+	if normalized == "" {
+		return DeliveryAckOutcomeSuccess
+	}
+	return normalized
+}
+
+// Validate reports whether the acknowledgement outcome is supported.
+func (o DeliveryAckOutcome) Validate() error {
+	switch o.Normalize() {
+	case DeliveryAckOutcomeSuccess, DeliveryAckOutcomeCommittedResultUnavailable:
+		return nil
+	default:
+		return fmt.Errorf("bridges: unsupported delivery ack outcome %q", strings.TrimSpace(string(o)))
+	}
+}
+
+// DeliveryAck acknowledges one delivery request without conflating receipt with provider success.
 type DeliveryAck struct {
-	DeliveryID             string `json:"delivery_id,omitempty"`
-	Seq                    int64  `json:"seq,omitempty"`
-	RemoteMessageID        string `json:"remote_message_id,omitempty"`
-	ReplaceRemoteMessageID string `json:"replace_remote_message_id,omitempty"`
+	DeliveryID             string               `json:"delivery_id"`
+	Seq                    int64                `json:"seq"`
+	RemoteMessageID        string               `json:"remote_message_id,omitempty"`
+	ReplaceRemoteMessageID string               `json:"replace_remote_message_id,omitempty"`
+	Outcome                DeliveryAckOutcome   `json:"outcome,omitempty"`
+	Error                  *DeliveryErrorDetail `json:"error,omitempty"`
 }
 
 // NormalizeDeliveryAck returns a canonical acknowledgement.
@@ -298,22 +335,56 @@ func NormalizeDeliveryAck(ack DeliveryAck) DeliveryAck {
 // ValidateFor reports whether the acknowledgement belongs to an event.
 func (a DeliveryAck) ValidateFor(event DeliveryEvent) error {
 	normalized := a.normalize()
-	if normalized.DeliveryID != "" && normalized.DeliveryID != strings.TrimSpace(event.DeliveryID) {
+	if err := normalized.Outcome.Validate(); err != nil {
+		return err
+	}
+	if normalized.DeliveryID == "" {
+		return errors.New("bridges: delivery ack delivery id is required")
+	}
+	if normalized.DeliveryID != strings.TrimSpace(event.DeliveryID) {
 		return fmt.Errorf(
 			"bridges: delivery ack delivery id %q does not match event %q",
 			normalized.DeliveryID,
 			strings.TrimSpace(event.DeliveryID),
 		)
 	}
-	if normalized.Seq != 0 && normalized.Seq != event.Seq {
+	if normalized.Seq != event.Seq {
 		return fmt.Errorf("bridges: delivery ack sequence %d does not match event %d", normalized.Seq, event.Seq)
 	}
-	return nil
+	return normalized.validateOutcome()
 }
 
 func (a DeliveryAck) normalize() DeliveryAck {
 	a.DeliveryID = strings.TrimSpace(a.DeliveryID)
 	a.RemoteMessageID = strings.TrimSpace(a.RemoteMessageID)
 	a.ReplaceRemoteMessageID = strings.TrimSpace(a.ReplaceRemoteMessageID)
+	a.Outcome = a.Outcome.Normalize()
+	if a.Error != nil {
+		normalizedError := a.Error.normalize()
+		a.Error = &normalizedError
+	}
 	return a
+}
+
+func (a DeliveryAck) validateOutcome() error {
+	switch a.Outcome {
+	case DeliveryAckOutcomeSuccess:
+		if a.Error != nil {
+			return errors.New("bridges: successful delivery ack cannot carry an error")
+		}
+		return nil
+	case DeliveryAckOutcomeCommittedResultUnavailable:
+		if a.Error == nil {
+			return errors.New("bridges: committed-result-unavailable ack requires an error")
+		}
+		if err := a.Error.Validate(); err != nil {
+			return fmt.Errorf("bridges: validate committed-result-unavailable ack error: %w", err)
+		}
+		if a.RemoteMessageID != "" || a.ReplaceRemoteMessageID != "" {
+			return errors.New("bridges: committed-result-unavailable ack cannot carry remote message ids")
+		}
+		return nil
+	default:
+		return fmt.Errorf("bridges: unsupported delivery ack outcome %q", a.Outcome)
+	}
 }

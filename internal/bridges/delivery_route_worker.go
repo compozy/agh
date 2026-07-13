@@ -91,6 +91,10 @@ func (b *Broker) processQueueItem(route *routeWorker, item deliveryQueueItem) bo
 		b.handleSendFailure(route, deliveryID, ErrDeliveryTransportUnavailable)
 		return true
 	}
+	if err := b.persistDeliveryIntent(deliveryID, eventType, eventSeq); err != nil {
+		b.handleSendFailure(route, deliveryID, err)
+		return true
+	}
 
 	callCtx, cancel := context.WithTimeout(b.lifecycleCtx, b.requestTimeout)
 	ack, err := transport.DeliverBridge(callCtx, route.extensionName, req)
@@ -105,11 +109,19 @@ func (b *Broker) processQueueItem(route *routeWorker, item deliveryQueueItem) bo
 	}
 	if err := ack.ValidateFor(req.Event); err != nil {
 		if eventType == DeliveryEventTypeProgress {
-			b.handleProgressSendFailure(deliveryID, err)
+			b.handleProgressIndeterminate(deliveryID, err.Error())
 			return false
 		}
-		b.handleSendFailure(route, deliveryID, err)
-		return true
+		b.handleIndeterminateTextDelivery(route, deliveryID, eventSeq, err.Error())
+		return false
+	}
+	if ack.Outcome.Normalize() == DeliveryAckOutcomeCommittedResultUnavailable {
+		if eventType == DeliveryEventTypeProgress {
+			b.handleProgressCommittedResultUnavailable(deliveryID, ack)
+			return false
+		}
+		b.handleCommittedResultUnavailable(route, deliveryID, eventSeq, ack)
+		return false
 	}
 
 	if err := b.handleSendSuccess(route, deliveryID, eventType, eventSeq, ack); err != nil {

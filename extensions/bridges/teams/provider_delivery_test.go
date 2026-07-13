@@ -19,6 +19,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
+	"github.com/compozy/agh/internal/bridgesdk"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -354,6 +355,97 @@ func TestTeamsContractDeliveryReferences(t *testing.T) {
 		}
 		if ack != (bridgepkg.DeliveryAck{}) || state != initialState {
 			t.Fatalf("failed delete = ack:%#v state:%#v, want zero ack and unchanged state", ack, state)
+		}
+	})
+}
+
+func TestTeamsContractDeliveryRetry(t *testing.T) {
+	t.Run("Should reuse a created conversation after the first activity send fails pre-commit", func(t *testing.T) {
+		t.Parallel()
+
+		sendErr := errors.New("Teams activity send failed before commit")
+		api := &fakeTeamsAPI{
+			createConversationID: "conversation-created-once",
+			nextActivityID:       1_000,
+			sendErrors:           []error{sendErr},
+		}
+		cfg := resolvedInstanceConfig{
+			instanceID:  "brg-teams",
+			serviceURL:  "https://service.test",
+			appID:       "app-id",
+			appTenantID: "tenant-id",
+		}
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "delivery-retry-conversation",
+			BridgeInstanceID: cfg.instanceID,
+			RoutingKey: bridgepkg.RoutingKey{
+				Scope:            bridgepkg.ScopeWorkspace,
+				WorkspaceID:      "ws-teams",
+				BridgeInstanceID: cfg.instanceID,
+				PeerID:           "29:user-retry",
+			},
+			DeliveryTarget: bridgepkg.DeliveryTarget{
+				BridgeInstanceID: cfg.instanceID,
+				PeerID:           "29:user-retry",
+				Mode:             bridgepkg.DeliveryModeDirectSend,
+			},
+			Seq:       1,
+			EventType: bridgepkg.DeliveryEventTypeFinal,
+			Final:     true,
+			Content:   bridgepkg.MessageContent{Text: "hello"},
+		}}
+		lookup := func(string, string) (teamsUserContext, bool) {
+			return teamsUserContext{
+				ServiceURL: cfg.serviceURL,
+				TenantID:   cfg.appTenantID,
+			}, true
+		}
+
+		_, retryState, err := executeTeamsDelivery(
+			t.Context(),
+			api,
+			cfg,
+			request,
+			deliveryState{},
+			nil,
+			lookup,
+		)
+		if !errors.Is(err, sendErr) {
+			t.Fatalf("first executeTeamsDelivery() error = %v, want send failure", err)
+		}
+		if bridgesdk.IsCommittedMutation(err) {
+			t.Fatalf("first executeTeamsDelivery() error = %v, want pre-commit failure", err)
+		}
+
+		ack, _, err := executeTeamsDelivery(
+			t.Context(),
+			api,
+			cfg,
+			request,
+			retryState,
+			nil,
+			lookup,
+		)
+		if err != nil {
+			t.Fatalf("retry executeTeamsDelivery() error = %v", err)
+		}
+		if got, want := len(api.createCalls), 1; got != want {
+			t.Fatalf("conversation create calls = %d, want %d", got, want)
+		}
+		if got, want := len(api.sendAttempts), 2; got != want {
+			t.Fatalf("activity send attempts = %d, want %d", got, want)
+		}
+		for index, call := range api.sendAttempts {
+			if got, want := call.ConversationID, "conversation-created-once"; got != want {
+				t.Fatalf("activity send %d conversation = %q, want %q", index, got, want)
+			}
+		}
+		ref, err := decodeRemoteMessageID(ack.RemoteMessageID)
+		if err != nil {
+			t.Fatalf("decodeRemoteMessageID() error = %v", err)
+		}
+		if got, want := ref.ConversationID, "conversation-created-once"; got != want {
+			t.Fatalf("ack conversation = %q, want %q", got, want)
 		}
 	})
 }

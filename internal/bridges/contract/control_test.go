@@ -42,7 +42,10 @@ func TestBridgeControlWireValidation(t *testing.T) {
 	t.Run("Should validate closed methods and statuses", func(t *testing.T) {
 		t.Parallel()
 
-		if got, want := strings.Join(ControlMethodValues(), ","), "bridges/check,bridges/webhook/register"; got != want {
+		if got, want := strings.Join(
+			ControlMethodValues(),
+			",",
+		), "bridges/check,bridges/webhook/register"; got != want {
 			t.Fatalf("ControlMethodValues() = %q, want %q", got, want)
 		}
 		validMethods := []struct {
@@ -126,9 +129,26 @@ func TestBridgeControlWireValidation(t *testing.T) {
 			name   string
 			record BridgeCheckRecord
 		}{
-			{name: "Should accept a passing record", record: BridgeCheckRecord{Check: "provider.identity", Status: BridgeCheckStatusPass}},
-			{name: "Should accept an actionable warning", record: BridgeCheckRecord{Check: "provider.scope", Status: BridgeCheckStatusWarn, Remediation: "Grant the required scope."}},
-			{name: "Should accept an actionable skipped record", record: BridgeCheckRecord{Check: "webhook", Status: BridgeCheckStatusSkipped, Remediation: "Enable the bridge."}},
+			{
+				name:   "Should accept a passing record",
+				record: BridgeCheckRecord{Check: "provider.identity", Status: BridgeCheckStatusPass},
+			},
+			{
+				name: "Should accept an actionable warning",
+				record: BridgeCheckRecord{
+					Check:       "provider.scope",
+					Status:      BridgeCheckStatusWarn,
+					Remediation: "Grant the required scope.",
+				},
+			},
+			{
+				name: "Should accept an actionable skipped record",
+				record: BridgeCheckRecord{
+					Check:       "webhook",
+					Status:      BridgeCheckStatusSkipped,
+					Remediation: "Enable the bridge.",
+				},
+			},
 		}
 		for _, test := range valid {
 			test := test
@@ -144,10 +164,26 @@ func TestBridgeControlWireValidation(t *testing.T) {
 			record BridgeCheckRecord
 		}{
 			{name: "Should reject an empty record", record: BridgeCheckRecord{}},
-			{name: "Should reject an unknown record status", record: BridgeCheckRecord{Check: "provider.identity", Status: "unknown", Remediation: "Review config."}},
-			{name: "Should reject a failure without remediation", record: BridgeCheckRecord{Check: "provider.identity", Status: BridgeCheckStatusFail}},
-			{name: "Should reject a sensitive check name", record: BridgeCheckRecord{Check: "api_key=secret", Status: BridgeCheckStatusPass}},
-			{name: "Should reject a sensitive remediation", record: BridgeCheckRecord{Check: "provider.identity", Status: BridgeCheckStatusFail, Remediation: "Replace xoxb-secret-token."}},
+			{
+				name:   "Should reject an unknown record status",
+				record: BridgeCheckRecord{Check: "provider.identity", Status: "unknown", Remediation: "Review config."},
+			},
+			{
+				name:   "Should reject a failure without remediation",
+				record: BridgeCheckRecord{Check: "provider.identity", Status: BridgeCheckStatusFail},
+			},
+			{
+				name:   "Should reject a sensitive check name",
+				record: BridgeCheckRecord{Check: "api_key=secret", Status: BridgeCheckStatusPass},
+			},
+			{
+				name: "Should reject a sensitive remediation",
+				record: BridgeCheckRecord{
+					Check:       "provider.identity",
+					Status:      BridgeCheckStatusFail,
+					Remediation: "Replace xoxb-secret-token.",
+				},
+			},
 		}
 		for _, test := range invalid {
 			test := test

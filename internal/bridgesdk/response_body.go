@@ -1,10 +1,45 @@
 package bridgesdk
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 )
+
+// DecodeSingleJSONValue decodes exactly one JSON value and rejects trailing values or tokens.
+func DecodeSingleJSONValue(reader io.Reader, destination any) error {
+	if reader == nil {
+		return errors.New("bridgesdk: HTTP response body is required")
+	}
+	decoder := json.NewDecoder(reader)
+	if err := decoder.Decode(destination); err != nil {
+		return err
+	}
+
+	var trailing json.RawMessage
+	err := decoder.Decode(&trailing)
+	switch {
+	case errors.Is(err, io.EOF):
+		return nil
+	case err != nil:
+		return fmt.Errorf("bridgesdk: decode trailing HTTP response JSON: %w", err)
+	default:
+		return errors.New("bridgesdk: HTTP response contains multiple JSON values")
+	}
+}
+
+// ReadHTTPResponseBody returns bytes received before an HTTP response read fails.
+func ReadHTTPResponseBody(reader io.Reader) (string, error) {
+	if reader == nil {
+		return "", nil
+	}
+	body, err := io.ReadAll(reader)
+	if err != nil {
+		return string(body), fmt.Errorf("bridgesdk: read HTTP response body: %w", err)
+	}
+	return string(body), nil
+}
 
 // HTTPResponseCommitPolicy defines which observation proves an HTTP operation committed remotely.
 type HTTPResponseCommitPolicy uint8
@@ -14,8 +49,6 @@ const (
 	HTTPResponseNoCommit HTTPResponseCommitPolicy = iota
 	// HTTPResponseCommitOnSuccessStatus treats a successful status as remote commit evidence.
 	HTTPResponseCommitOnSuccessStatus
-	// HTTPResponseCommitOnMaterializedResult requires a decoded remote result before commit.
-	HTTPResponseCommitOnMaterializedResult
 )
 
 // HTTPResponseCommitEvidence records why retrying a successful HTTP operation is unsafe.
@@ -26,17 +59,13 @@ const (
 	HTTPResponseCommitUnconfirmed HTTPResponseCommitEvidence = iota
 	// HTTPResponseCommittedBySuccessStatus means a successful status confirms the mutation.
 	HTTPResponseCommittedBySuccessStatus
-	// HTTPResponseCommittedByMaterializedResult means decoding produced the required remote identity.
-	HTTPResponseCommittedByMaterializedResult
 )
 
-// Evidence derives observed commit evidence after a successful status and optional decoded result.
-func (p HTTPResponseCommitPolicy) Evidence(materializedResult bool) HTTPResponseCommitEvidence {
-	switch {
-	case p == HTTPResponseCommitOnSuccessStatus:
+// Evidence derives observed commit evidence after a successful status.
+func (p HTTPResponseCommitPolicy) Evidence() HTTPResponseCommitEvidence {
+	switch p {
+	case HTTPResponseCommitOnSuccessStatus:
 		return HTTPResponseCommittedBySuccessStatus
-	case p == HTTPResponseCommitOnMaterializedResult && materializedResult:
-		return HTTPResponseCommittedByMaterializedResult
 	default:
 		return HTTPResponseCommitUnconfirmed
 	}
@@ -69,17 +98,22 @@ func FinalizeHTTPResponseBody(
 	reportCleanup func(error),
 ) error {
 	cleanupErr := DrainAndCloseHTTPResponseBody(body)
+	if operationErr != nil && commitEvidence.confirmed() {
+		return MarkCommittedMutation(errors.Join(operationErr, cleanupErr))
+	}
 	if cleanupErr == nil {
 		return operationErr
 	}
-	if operationErr != nil || !commitEvidence.confirmed() || reportCleanup == nil {
+	if operationErr != nil || !commitEvidence.confirmed() {
 		return errors.Join(operationErr, cleanupErr)
+	}
+	if reportCleanup == nil {
+		return MarkCommittedMutation(cleanupErr)
 	}
 	reportCleanup(cleanupErr)
 	return nil
 }
 
 func (e HTTPResponseCommitEvidence) confirmed() bool {
-	return e == HTTPResponseCommittedBySuccessStatus ||
-		e == HTTPResponseCommittedByMaterializedResult
+	return e == HTTPResponseCommittedBySuccessStatus
 }

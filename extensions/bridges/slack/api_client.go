@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -14,7 +15,14 @@ import (
 func (c *slackBotClient) AuthTest(ctx context.Context) (*slackAuthIdentity, error) {
 	var result slackAuthIdentity
 	var headers http.Header
-	if err := c.callSlack(ctx, "auth.test", map[string]any{}, &result, &headers); err != nil {
+	if err := c.callSlack(
+		ctx,
+		"auth.test",
+		map[string]any{},
+		&result,
+		&headers,
+		bridgesdk.HTTPResponseNoCommit,
+	); err != nil {
 		return nil, err
 	}
 	result.GrantedScopes = splitSlackScopes(headers.Get("X-OAuth-Scopes"))
@@ -23,10 +31,10 @@ func (c *slackBotClient) AuthTest(ctx context.Context) (*slackAuthIdentity, erro
 
 func (c *slackBotClient) PostMessage(ctx context.Context, req slackPostMessageRequest) (*slackPostedMessage, error) {
 	var result slackPostedMessage
-	if err := c.call(ctx, "chat.postMessage", req, &result); err != nil {
+	if err := c.callMutation(ctx, "chat.postMessage", req, &result); err != nil {
 		return nil, err
 	}
-	return &result, nil
+	return validateSlackPostedMutation(&result)
 }
 
 func (c *slackBotClient) FindDeliveryMessage(
@@ -72,12 +80,24 @@ func (c *slackBotClient) FindDeliveryMessage(
 
 func (c *slackBotClient) UpdateMessage(ctx context.Context, req slackUpdateMessageRequest) error {
 	var result slackPostedMessage
-	return c.call(ctx, "chat.update", req, &result)
+	return c.callMutation(ctx, "chat.update", req, &result)
 }
 
 func (c *slackBotClient) DeleteMessage(ctx context.Context, req slackDeleteMessageRequest) error {
 	var result json.RawMessage
-	return c.call(ctx, "chat.delete", req, &result)
+	return c.callMutation(ctx, "chat.delete", req, &result)
+}
+
+func validateSlackPostedMutation(message *slackPostedMessage) (*slackPostedMessage, error) {
+	if message == nil {
+		return nil, bridgesdk.MarkCommittedMutation(errors.New("slack: post message returned no response"))
+	}
+	timestamp := strings.TrimSpace(message.TS)
+	if timestamp == "" {
+		return nil, bridgesdk.MarkCommittedMutation(errors.New("slack: post message returned an empty timestamp"))
+	}
+	message.TS = timestamp
+	return message, nil
 }
 
 func slackMetadataMatchesDelivery(
@@ -95,7 +115,11 @@ func slackMetadataMatchesDelivery(
 }
 
 func (c *slackBotClient) call(ctx context.Context, method string, payload any, result any) error {
-	return c.callSlack(ctx, method, payload, result, nil)
+	return c.callSlack(ctx, method, payload, result, nil, bridgesdk.HTTPResponseNoCommit)
+}
+
+func (c *slackBotClient) callMutation(ctx context.Context, method string, payload any, result any) error {
+	return c.callSlack(ctx, method, payload, result, nil, bridgesdk.HTTPResponseCommitOnSuccessStatus)
 }
 
 func classifySlackAPIError(status int, errorText string, retryAfter time.Duration) error {

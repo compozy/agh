@@ -25,7 +25,21 @@ const sendResult: SendBridgeTestResponse = {
     peer_id: "peer_abc",
   },
   remote_message_id: "remote_456",
-  status: "sent",
+  status: "delivered",
+};
+
+const committedResultUnavailable: SendBridgeTestResponse = {
+  bridge_instance_id: "brg_support",
+  delivery_id: "delivery_ambiguous",
+  delivery_target: {
+    bridge_instance_id: "brg_support",
+    mode: "direct-send",
+    peer_id: "peer_abc",
+  },
+  error: {
+    message: "The provider accepted the mutation but did not return a remote message ID.",
+  },
+  status: "committed_result_unavailable",
 };
 
 describe("BridgeTestDeliveryDialog", () => {
@@ -145,10 +159,34 @@ describe("BridgeTestDeliveryDialog", () => {
     );
 
     const result = screen.getByTestId("bridge-send-test-result");
-    expect(result).toHaveTextContent("sent");
+    expect(result).toHaveTextContent("delivered");
     expect(result).toHaveTextContent("delivery_123");
     expect(result).toHaveTextContent("peer:peer_abc");
     expect(result).toHaveTextContent("remote_456");
+  });
+
+  it("Should warn when a provider committed the mutation without returning its result", () => {
+    render(
+      <BridgeTestDeliveryDialog
+        bridgeName="Support"
+        draft={{ ...baseDraft, message: "Operator ping" }}
+        intent="send-test"
+        isPending={false}
+        onDraftChange={vi.fn()}
+        onOpenChange={vi.fn()}
+        onSubmit={vi.fn()}
+        open
+        result={committedResultUnavailable}
+      />
+    );
+
+    const result = screen.getByTestId("bridge-send-test-result");
+    expect(result).toHaveTextContent("committed_result_unavailable");
+    expect(result).toHaveTextContent(
+      "The provider accepted the mutation but did not return a remote message ID."
+    );
+    expect(result).not.toHaveTextContent("Remote message ID");
+    expect(screen.getByRole("status")).toHaveAttribute("data-tone", "warning");
   });
 
   it("Should block pending submits with intent-specific labels", () => {

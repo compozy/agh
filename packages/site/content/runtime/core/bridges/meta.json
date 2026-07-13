@@ -2,8 +2,6 @@
     "title": "Bridges",
     "icon": "Layers",
     "pages": [
-        "routing",
-        "progress",
         "setup",
         "setup-slack",
         "setup-telegram",
@@ -13,7 +11,12 @@
         "setup-gchat",
         "setup-github",
         "setup-linear",
+        "access",
         "operations",
+        "conversations",
+        "behavior",
+        "routing",
+        "progress",
         "adding-a-bridge"
     ]
 }

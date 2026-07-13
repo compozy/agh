@@ -239,6 +239,9 @@ func (s *whatsappProgressSink) Edit(
 		s.targetUserID,
 		appendText,
 	); err != nil {
+		if bridgesdk.IsCommittedMutation(err) {
+			s.lastText = text
+		}
 		return fmt.Errorf("whatsapp: append progress update: %w", err)
 	}
 	s.lastText = text

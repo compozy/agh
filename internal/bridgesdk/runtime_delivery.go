@@ -3,6 +3,7 @@ package bridgesdk
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/subprocess"
@@ -39,10 +40,14 @@ func (r *Runtime) handleDeliver(ctx context.Context, raw json.RawMessage) (any, 
 	}
 	ack, err := handler(ctx, session, request)
 	if err != nil {
+		var committed *CommittedMutationError
+		if errors.As(err, &committed) {
+			return session.AckCommittedResultUnavailable(request, err.Error())
+		}
 		return nil, err
 	}
 	if err := ack.ValidateFor(request.Event); err != nil {
-		return nil, err
+		return session.AckCommittedResultUnavailable(request, err.Error())
 	}
-	return ack, nil
+	return bridgepkg.NormalizeDeliveryAck(ack), nil
 }

@@ -15,11 +15,20 @@ can name the audience, push identity, topic, and duplicate-delivery controls you
 
 | Surface                    | AGH behavior                                                                                                                           |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Direct messages and spaces | Uses Google resource names such as `users/...`, `spaces/...`, and encoded thread targets.                                              |
+| Direct messages and spaces | Routes on `spaces/...` conversation resources and encoded thread targets. Sender `users/...` resources are separate access identities. |
 | Inbound events             | Maps messages, actions, and reactions. Direct and Pub/Sub envelopes have separate JWT verification.                                    |
 | Outbound messages          | Creates, updates, and deletes threaded Chat messages through the REST API. Long replies split at 32,000 UTF-8 bytes.                   |
 | Tool progress              | Off by default. When enabled, creates one plain-text status message and patches it in place; no CardV2, typing, or progress reactions. |
 | Authentication             | Uses a service-account JWT bearer exchange with the `chat.bot` scope for outbound calls.                                               |
+
+Keep access and delivery identities separate:
+
+| Purpose                 | AGH field or surface             | Google Chat value                                           |
+| ----------------------- | -------------------------------- | ----------------------------------------------------------- |
+| Sender and DM allowlist | `sender.id`, `dm.allow_user_ids` | User resource name such as `users/123`.                     |
+| Direct-message route    | `peer_id`                        | DM space resource name such as `spaces/AAAA`.               |
+| Shared-space route      | `group_id`                       | Shared space resource name such as `spaces/BBBB`.           |
+| Route-derived reply     | `thread_id`                      | Opaque encoded Chat target returned by `agh bridge routes`. |
 
 ## Choose the ingress architecture
 
@@ -39,9 +48,11 @@ Do not omit `mode` expecting automatic selection: an empty value becomes `direct
 3. Configure the Chat app for direct HTTP delivery to a stable public URL.
 4. Create the AGH bridge disabled with `mode: "direct"`.
 5. Bind the service-account JSON and project number.
-6. Verify identity/configuration, then enable and verify public reachability.
-7. Install the app for a test user/space and send one inbound message.
-8. Inspect the route and run a real `send-test` to its `spaces/...` target.
+6. Verify identity and configuration while the bridge remains disabled.
+7. Configure direct-message access if the selected route accepts DMs.
+8. Enable the bridge and verify public reachability.
+9. Install the app for a test user/space and send one inbound message.
+10. Inspect the route and run a real `send-test` to its `spaces/...` target.
 
 ## Before you start
 
@@ -134,8 +145,10 @@ one listener address and requires unique paths for its instances.
 ## Step 4: Create the bridge disabled
 
 Google Chat has no guided `agh bridge setup` command. Route flags are conjunctive: every selected
-dimension must exist on an inbound event. Google Chat emits `peer_id` plus an encoded `thread_id` for
-DMs, and `group_id` plus an optional `thread_id` for spaces. It never emits peer and group together.
+dimension must exist on an inbound event. Google Chat emits the DM's `space.name` as `peer_id` plus
+an encoded `thread_id`; it does not use the sender's `users/...` resource as the peer. Shared spaces
+emit `space.name` as `group_id` plus an optional `thread_id`. An event never emits peer and group
+together.
 
 Choose the policy that matches the events this callback accepts:
 
@@ -251,7 +264,27 @@ Expected evidence:
 Identity success does not prove that the Chat app is visible, installed in a space, or publishing to
 the configured topic.
 
-## Step 7: Enable, install, and test the app
+## Step 7: Control direct-message access
+
+The primary space route above rejects DMs because it requires `group_id`. Before enabling a separate
+DM-only bridge, set an explicit access policy. An omitted or empty `dm_policy` normalizes to `open`
+and admits every Google Chat DM sender whose event passes direct or Pub/Sub JWT verification.
+
+`agh bridge create` and `agh bridge update` do not currently expose `--dm-policy`. Use the Web editor
+or HTTP API procedure in [Control direct-message access](./access), then keep the bridge disabled
+until `agh bridge get "$BRIDGE_ID" -o json` reports the intended policy and
+`provider_config.dm` lists. Prefer stable Google user resource names such as `users/123` over email or
+display-name fallbacks.
+
+`allowlist` reads `allow_user_ids` and `allow_usernames`. `pairing` reads pre-populated
+`paired_user_ids` and `paired_usernames`, then falls back to the allowlist; it does not issue pairing
+codes or start an interactive approval flow.
+
+`dm_policy` applies only to direct-message spaces. It does not restrict shared spaces; Google Chat
+app visibility, space membership, event configuration, and the bridge's group/thread route govern
+those surfaces.
+
+## Step 8: Enable, install, and test the app
 
 ```bash
 agh bridge enable "$BRIDGE_ID"
@@ -276,13 +309,14 @@ Inspect the route created by the first inbound event:
 agh bridge routes "$BRIDGE_ID" -o json
 ```
 
-Then test a real outbound message with a `spaces/...` resource:
+Then test a real outbound message with the shared-space route:
 
 ```bash
 agh bridge send-test "$BRIDGE_ID" \
   --message "AGH Google Chat connection check" \
-  --group-id "spaces/AAAA" \
+  --group-id "<spaces/... group-id-from-route>" \
   --thread-id "<encoded-thread-id-from-route>" \
+  --mode reply \
   --json
 ```
 
@@ -291,7 +325,19 @@ If the deployment deliberately wants one session per space, omit `--include-thre
 thread target from `send-test`.
 
 For a DM-only deployment, create a separate instance and callback with both `--include-peer` and
-`--include-thread`, then repeat the same verification from a direct conversation. The space-wide
+`--include-thread`, establish a direct route, and prove its exact delivery target:
+
+```bash
+agh bridge send-test "$BRIDGE_ID" \
+  --message "AGH Google Chat direct-message check" \
+  --peer-id "<spaces/... peer-id-from-route>" \
+  --thread-id "<encoded-thread-id-from-route>" \
+  --mode reply \
+  --json
+```
+
+Use the `spaces/...` peer returned by the DM route. Never substitute the sender's `users/...`
+resource; that identity belongs to the DM access policy, not the delivery target. The space-wide
 instance above intentionally rejects DMs because its route requires `group_id`.
 
 ## Configuration reference
@@ -308,10 +354,18 @@ instance above intentionally rejects DMs because its route requires `group_id`.
 | `verification.pubsub_service_account_email`       | none                               | Required authenticated push identity for `pubsub` and `hybrid`.                              |
 | `verification.pubsub_issuer` / `pubsub_certs_url` | Google account issuer and certs    | Pub/Sub OIDC issuer and certificate source.                                                  |
 | `dm.*`                                            | empty                              | User IDs and names used by bridge DM allowlist/pairing policy.                               |
-| `batching.delay_ms`                               | `0`                                | Enables inbound batching when positive.                                                      |
+| `batching.delay_ms`                               | `0`                                | Zero dispatches immediately; a positive value enables inbound batching.                      |
+| `batching.split_delay_ms`                         | `batching.delay_ms`                | Uses the main delay when unset or nonpositive; otherwise sets the split-batch delay.         |
+| `batching.split_threshold`                        | `0`                                | Trimmed UTF-8 byte length of the latest item that selects the split delay; zero disables it. |
 
 Chat API and OAuth token destinations are official defaults or operator-owned process settings.
 `credentials_json.token_uri` does not redirect credential exchange.
+
+Positive batching changes the acknowledgement boundary: the adapter returns callback success after
+an in-memory enqueue, before the batch reaches the Host. A later flush failure cannot be reflected to
+Google Chat, and pending batches do not survive an adapter-process restart. Keep `delay_ms` at `0`
+when the callback must carry the Host admission result; AGH has no durable readmission queue behind
+this batching option.
 
 ## Troubleshooting
 
@@ -349,6 +403,7 @@ account used by the bridge and the service account used by authenticated push as
 - The selected ingress mode has every conditional verification field.
 - `provider.identity` can acquire a Chat API token from the bound service account.
 - The Chat app is visible to and installed by the intended test identity.
+- A DM-only bridge reports the intended `dm_policy` and sender lists before enablement.
 - Direct or Pub/Sub JWT validation accepts a real inbound event.
 - The route contains the expected `spaces/...` resource and, when thread-preserving routing was
   selected, the encoded thread identity.
@@ -359,6 +414,7 @@ account used by the bridge and the service account used by authenticated push as
 ## Related docs
 
 - [Bridge setup](/runtime/core/bridges/setup)
+- [Control direct-message access](./access)
 - [Operate and repair bridges](/runtime/core/bridges/operations)
 - [Message routing](/runtime/core/bridges/routing)
 - [Tool progress](/runtime/core/bridges/progress)

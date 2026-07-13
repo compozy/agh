@@ -23,7 +23,6 @@ func (c *discordBotClient) GetBotUser(ctx context.Context) (*discordBotIdentity,
 		nil,
 		&result,
 		bridgesdk.HTTPResponseNoCommit,
-		nil,
 	); err != nil {
 		return nil, err
 	}
@@ -41,8 +40,7 @@ func (c *discordBotClient) PostMessage(
 		"/channels/"+strings.TrimSpace(req.ChannelID)+"/messages",
 		req,
 		&result,
-		bridgesdk.HTTPResponseCommitOnMaterializedResult,
-		func() string { return result.ID },
+		bridgesdk.HTTPResponseCommitOnSuccessStatus,
 	); err != nil {
 		return nil, err
 	}
@@ -57,7 +55,6 @@ func (c *discordBotClient) UpdateMessage(ctx context.Context, req discordUpdateM
 		req,
 		nil,
 		bridgesdk.HTTPResponseCommitOnSuccessStatus,
-		nil,
 	)
 }
 
@@ -69,7 +66,6 @@ func (c *discordBotClient) DeleteMessage(ctx context.Context, req discordDeleteM
 		nil,
 		nil,
 		bridgesdk.HTTPResponseCommitOnSuccessStatus,
-		nil,
 	)
 }
 
@@ -94,13 +90,15 @@ func (c *discordBotClient) callJSON(
 	payload any,
 	out any,
 	commitPolicy bridgesdk.HTTPResponseCommitPolicy,
-	materializedRemoteID func() string,
 ) (err error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if c == nil {
 		return errors.New("discord: api client is required")
+	}
+	if c.httpClient == nil {
+		c.httpClient = &http.Client{Timeout: 10 * time.Second}
 	}
 
 	var body io.Reader
@@ -123,7 +121,7 @@ func (c *discordBotClient) callJSON(
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := bridgesdk.CredentialedHTTPClient(c.httpClient).Do(req)
 	if err != nil {
 		return err
 	}
@@ -138,23 +136,21 @@ func (c *discordBotClient) callJSON(
 	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		message := strings.TrimSpace(readResponseBody(resp.Body))
+		body, readErr := bridgesdk.ReadHTTPResponseBody(resp.Body)
+		message := strings.TrimSpace(body)
 		httpErr := &bridgesdk.HTTPError{
 			StatusCode: resp.StatusCode,
 			Message:    firstNonEmpty(message, fmt.Sprintf("discord: http %d", resp.StatusCode)),
 			RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After")),
 		}
-		return httpErr
+		return errors.Join(httpErr, readErr)
 	}
-	commitEvidence = commitPolicy.Evidence(false)
+	commitEvidence = commitPolicy.Evidence()
 	if out == nil || resp.StatusCode == http.StatusNoContent {
 		return nil
 	}
-	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+	if err := bridgesdk.DecodeSingleJSONValue(resp.Body, out); err != nil {
 		return fmt.Errorf("discord: decode response: %w", err)
 	}
-	materializedResult := materializedRemoteID != nil &&
-		strings.TrimSpace(materializedRemoteID()) != ""
-	commitEvidence = commitPolicy.Evidence(materializedResult)
 	return nil
 }

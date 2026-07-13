@@ -199,44 +199,30 @@ func StatusForBridgeError(err error) int {
 	switch {
 	case err == nil:
 		return http.StatusOK
-	case errors.Is(err, contract.ErrBridgeInstanceMismatch):
+	case errors.Is(err, contract.ErrBridgeInstanceMismatch),
+		errors.Is(err, bridgepkg.ErrInvalidBridgeSecretBinding),
+		errors.Is(err, bridgepkg.ErrInvalidBridgeTaskSubscription),
+		errors.Is(err, bridgepkg.ErrInvalidBridgeTarget):
 		return http.StatusBadRequest
-	case errors.Is(err, bridgepkg.ErrInvalidBridgeSecretBinding):
-		return http.StatusBadRequest
-	case errors.Is(err, bridgepkg.ErrInvalidBridgeTaskSubscription):
-		return http.StatusBadRequest
-	case errors.Is(err, bridgepkg.ErrInvalidBridgeTarget):
-		return http.StatusBadRequest
-	case errors.Is(err, bridgepkg.ErrBridgeInstanceNotFound):
+	case errors.Is(err, bridgepkg.ErrBridgeInstanceNotFound),
+		errors.Is(err, bridgepkg.ErrBridgeTargetUnknown),
+		errors.Is(err, bridgepkg.ErrBridgeSecretBindingNotFound),
+		errors.Is(err, bridgepkg.ErrBridgeTaskSubscriptionNotFound),
+		errors.Is(err, bridgepkg.ErrBridgeRouteNotFound),
+		errors.Is(err, bridgepkg.ErrDeliveryNotFound),
+		errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
 		return http.StatusNotFound
-	case errors.Is(err, bridgepkg.ErrBridgeTargetUnknown):
-		return http.StatusNotFound
-	case errors.Is(err, bridgepkg.ErrBridgeSecretBindingNotFound):
-		return http.StatusNotFound
-	case errors.Is(err, bridgepkg.ErrBridgeTaskSubscriptionNotFound):
-		return http.StatusNotFound
-	case errors.Is(err, bridgepkg.ErrBridgeRouteNotFound):
-		return http.StatusNotFound
-	case errors.Is(err, bridgepkg.ErrBridgeInstanceUnavailable):
+	case errors.Is(err, bridgepkg.ErrBridgeInstanceUnavailable),
+		errors.Is(err, bridgepkg.ErrInvalidBridgeStateTransition),
+		errors.Is(err, bridgepkg.ErrBridgeInstanceReadOnly):
 		return http.StatusConflict
 	case errors.Is(err, bridgepkg.ErrBridgeTargetAmbiguous):
 		return http.StatusUnprocessableEntity
-	case errors.Is(err, bridgepkg.ErrInvalidBridgeStateTransition):
-		return http.StatusConflict
-	case errors.Is(err, bridgepkg.ErrBridgeInstanceReadOnly):
-		return http.StatusConflict
-	case errors.Is(err, bridgepkg.ErrDeliveryNotFound):
-		return http.StatusNotFound
-	case errors.Is(err, bridgepkg.ErrDeliveryQueueSaturated):
+	case errors.Is(err, bridgepkg.ErrDeliveryQueueSaturated),
+		errors.Is(err, bridgepkg.ErrDeliveryTransportUnavailable),
+		errors.Is(err, bridgepkg.ErrBridgeControlTransportUnavailable),
+		errors.Is(err, bridgepkg.ErrBridgeTargetDirectoryUnavailable):
 		return http.StatusServiceUnavailable
-	case errors.Is(err, bridgepkg.ErrDeliveryTransportUnavailable):
-		return http.StatusServiceUnavailable
-	case errors.Is(err, bridgepkg.ErrBridgeControlTransportUnavailable):
-		return http.StatusServiceUnavailable
-	case errors.Is(err, bridgepkg.ErrBridgeTargetDirectoryUnavailable):
-		return http.StatusServiceUnavailable
-	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
-		return http.StatusNotFound
 	default:
 		return http.StatusInternalServerError
 	}

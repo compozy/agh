@@ -124,7 +124,7 @@ const (
 	BridgeDMPolicyOpen BridgeDMPolicy = BridgeDMPolicy(bridgecontract.BridgeDMPolicyOpen)
 	// BridgeDMPolicyAllowlist accepts direct messages only from approved senders.
 	BridgeDMPolicyAllowlist BridgeDMPolicy = BridgeDMPolicy(bridgecontract.BridgeDMPolicyAllowlist)
-	// BridgeDMPolicyPairing requires an explicit pairing flow before accepting direct messages.
+	// BridgeDMPolicyPairing accepts pre-populated paired identities, then falls back to the allowlist.
 	BridgeDMPolicyPairing BridgeDMPolicy = BridgeDMPolicy(bridgecontract.BridgeDMPolicyPairing)
 )
 

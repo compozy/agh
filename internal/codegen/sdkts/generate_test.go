@@ -57,6 +57,8 @@ func TestGenerateDeterministicAndStructured(t *testing.T) {
 			"export interface BridgesMessagesIngestResult {\n",
 			"export interface InboundMessageEnvelope {\n",
 			`export type DeliveryEventType = "start" | "delta" | "final" | "error" | "resume" | "delete" | "progress";`,
+			`export type DeliveryAckOutcome = "success" | "committed_result_unavailable";`,
+			"export interface DeliveryAck {\n  delivery_id: string;\n  seq: number;\n",
 			`export type InboundEventFamily = "message" | "command" | "action" | "reaction" | "edit";`,
 			`export type InboundEditOperation = "updated" | "deleted";`,
 			"export interface InboundEdit {\n",

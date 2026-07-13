@@ -268,17 +268,19 @@ Linear sends a `created` event. Then inspect the route:
 agh bridge routes "$BRIDGE_ID" -o json
 ```
 
-Use that thread in a real delivery:
+Use the route's issue group and encoded thread in a real delivery:
 
 ```bash
 agh bridge send-test "$BRIDGE_ID" \
   --message "AGH Linear connection check" \
+  --group-id "<group-id-from-route>" \
   --thread-id "<thread-id-from-route>" \
   --mode reply \
   --json
 ```
 
-In comments mode, the response appears as a Linear comment. In Agent Session mode, it appears as an
+The thread target is not valid by itself: Linear routes anchor it to the issue ID in `group_id`. In
+comments mode, the response appears as a Linear comment. In Agent Session mode, it appears as an
 Agent Activity and subsequent updates append rather than editing the earlier activity.
 
 ## Configuration reference

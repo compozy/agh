@@ -55,10 +55,11 @@ func (s *slackProgressSink) Post(
 	if err != nil {
 		return "", fmt.Errorf("slack: post progress bubble: %w", err)
 	}
-	timestamp, err := slackPostedTimestamp(sent)
+	sent, err = validateSlackPostedMutation(sent)
 	if err != nil {
 		return "", err
 	}
+	timestamp := sent.TS
 	s.bubbleTimestamp = timestamp
 	s.reactions = make(map[string]struct{})
 	return timestamp, nil
@@ -174,12 +175,12 @@ func slackReactionName(reaction string) string {
 
 func (c *slackBotClient) SetThreadStatus(ctx context.Context, request slackSetThreadStatusRequest) error {
 	var result json.RawMessage
-	return c.call(ctx, "assistant.threads.setStatus", request, &result)
+	return c.callMutation(ctx, "assistant.threads.setStatus", request, &result)
 }
 
 func (c *slackBotClient) AddReaction(ctx context.Context, request slackAddReactionRequest) error {
 	var result json.RawMessage
-	return c.call(ctx, "reactions.add", request, &result)
+	return c.callMutation(ctx, "reactions.add", request, &result)
 }
 
 func (p *slackProvider) handleBridgesProgress(
@@ -307,7 +308,10 @@ func (p *slackProvider) executeTextDeliveryWithProgress(
 	state := p.deliveryState(cfg.instanceID, request.Event.DeliveryID)
 	if state.Progress != nil {
 		if err := state.Progress.Flush(ctx); err != nil {
-			return bridgepkg.DeliveryAck{}, state, err
+			p.recordProgressCleanupError("flush progress before text delivery", err)
+			if !bridgesdk.ShouldContinueTextDeliveryAfterProgress(err) {
+				return bridgepkg.DeliveryAck{}, state, err
+			}
 		}
 	}
 	return executeDelivery(ctx, p.apiFactory(cfg), request, state)

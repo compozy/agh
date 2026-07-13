@@ -19,6 +19,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 	"unsafe"
@@ -595,8 +596,16 @@ func TestGitHubClientPATAndAppRequests(t *testing.T) {
 	requests := make([]recordedRequest, 0)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		bodyBytes, _ := io.ReadAll(r.Body)
-		_ = r.Body.Close()
+		bodyBytes, readErr := io.ReadAll(r.Body)
+		closeErr := r.Body.Close()
+		if closeErr != nil {
+			t.Errorf("close GitHub API request body: %v", closeErr)
+		}
+		if readErr != nil {
+			t.Errorf("read GitHub API request body: %v", readErr)
+			http.Error(w, "read request body", http.StatusBadRequest)
+			return
+		}
 		mu.Lock()
 		requests = append(requests, recordedRequest{
 			Method: r.Method,
@@ -608,13 +617,21 @@ func TestGitHubClientPATAndAppRequests(t *testing.T) {
 
 		switch r.URL.Path {
 		case "/user":
-			_, _ = io.WriteString(w, `{"id":1,"login":"bridge-bot"}`)
+			if _, err := io.WriteString(w, `{"id":1,"login":"bridge-bot"}`); err != nil {
+				t.Errorf("write GitHub viewer response: %v", err)
+			}
 		case "/app/installations/9001/access_tokens":
-			_, _ = io.WriteString(w, `{"token":"inst-token","expires_at":"2026-04-15T23:00:00Z"}`)
+			if _, err := io.WriteString(w, `{"token":"inst-token","expires_at":"2026-04-15T23:00:00Z"}`); err != nil {
+				t.Errorf("write GitHub installation token response: %v", err)
+			}
 		case "/repos/acme/app/issues/42/comments":
-			_, _ = io.WriteString(w, `{"id":501,"body":"hello"}`)
+			if _, err := io.WriteString(w, `{"id":501,"body":"hello"}`); err != nil {
+				t.Errorf("write GitHub issue comment response: %v", err)
+			}
 		case "/repos/acme/app/pulls/42/comments/200/replies":
-			_, _ = io.WriteString(w, `{"id":601,"body":"review"}`)
+			if _, err := io.WriteString(w, `{"id":601,"body":"review"}`); err != nil {
+				t.Errorf("write GitHub review reply response: %v", err)
+			}
 		default:
 			http.NotFound(w, r)
 		}
@@ -804,6 +821,162 @@ func TestGitHubClientClassifiesHTTPFailures(t *testing.T) {
 		if !errors.As(err, &permanentErr) {
 			t.Fatalf("CreateIssueComment() error = %#v, want permanent error", err)
 		}
+		var committedErr *bridgesdk.CommittedMutationError
+		if errors.As(err, &committedErr) {
+			t.Fatalf("CreateIssueComment() error = %#v, want pre-commit rejection", err)
+		}
+	}
+
+	for _, testCase := range []struct {
+		name       string
+		statusCode int
+	}{
+		{name: "Should refuse a credentialed 301 redirect", statusCode: http.StatusMovedPermanently},
+		{name: "Should refuse a credentialed 302 redirect", statusCode: http.StatusFound},
+		{name: "Should refuse a credentialed 303 redirect", statusCode: http.StatusSeeOther},
+		{name: "Should refuse a credentialed 307 redirect", statusCode: http.StatusTemporaryRedirect},
+		{name: "Should refuse a credentialed 308 redirect", statusCode: http.StatusPermanentRedirect},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			var targetHits atomic.Int32
+			target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				targetHits.Add(1)
+				if err := json.NewEncoder(w).Encode(githubIssueComment{ID: 901}); err != nil {
+					t.Errorf("encode redirect target GitHub response: %v", err)
+				}
+			}))
+			defer target.Close()
+
+			redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Location", target.URL)
+				w.WriteHeader(testCase.statusCode)
+				if _, err := io.WriteString(w, `{"message":"redirect refused"}`); err != nil {
+					t.Errorf("write redirect GitHub response: %v", err)
+				}
+				if got, want := r.Method, http.MethodPost; got != want {
+					t.Errorf("redirect source method = %q, want %q", got, want)
+				}
+			}))
+			defer redirect.Close()
+
+			client := &githubClient{
+				cfg: resolvedInstanceConfig{
+					mode:       githubModePAT,
+					apiBaseURL: redirect.URL,
+					repoOwner:  "acme",
+					repoName:   "app",
+					token:      "ghp-test",
+				},
+				httpClient: redirect.Client(),
+			}
+			_, err := client.CreateIssueComment(t.Context(), 42, "hello", 0)
+			var permanentErr *bridgesdk.PermanentError
+			if !errors.As(err, &permanentErr) {
+				t.Fatalf(
+					"CreateIssueComment(%d) error = %T %v, want first-response PermanentError",
+					testCase.statusCode,
+					err,
+					err,
+				)
+			}
+			if bridgesdk.IsCommittedMutation(err) {
+				t.Fatalf("CreateIssueComment(%d) error = %v, want pre-commit rejection", testCase.statusCode, err)
+			}
+			if got := targetHits.Load(); got != 0 {
+				t.Fatalf("redirect target hits = %d, want 0", got)
+			}
+		})
+	}
+
+	t.Run("Should preserve rate-limit classification when the error body read fails", func(t *testing.T) {
+		t.Parallel()
+
+		readErr := errors.New("GitHub error body read failed")
+		body := &githubPartialErrorResponseBody{
+			content: []byte(`{"message":"GitHub rate limit exceeded"}`),
+			readErr: readErr,
+		}
+		client := &githubClient{
+			cfg: resolvedInstanceConfig{
+				mode:       githubModePAT,
+				apiBaseURL: "https://api.github.test",
+				repoOwner:  "acme",
+				repoName:   "app",
+				token:      "ghp-test",
+			},
+			httpClient: githubHTTPDoerFunc(func(req *http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusTooManyRequests,
+					Header:     http.Header{"Retry-After": []string{"4"}},
+					Body:       body,
+					Request:    req,
+				}, nil
+			}),
+		}
+
+		_, err := client.CreateIssueComment(t.Context(), 42, "hello", 0)
+		if !errors.Is(err, readErr) {
+			t.Fatalf("CreateIssueComment() error = %v, want response body read failure", err)
+		}
+		var rateLimitErr *bridgesdk.RateLimitError
+		if !errors.As(err, &rateLimitErr) || rateLimitErr.RetryAfter != 4*time.Second {
+			t.Fatalf("CreateIssueComment() error = %v, want rate limit with four-second retry", err)
+		}
+		if got, want := bridgesdk.ClassifyError(err).Class, bridgesdk.ErrorClassRateLimit; got != want {
+			t.Fatalf("CreateIssueComment() error class = %q, want %q", got, want)
+		}
+		if !strings.Contains(rateLimitErr.Error(), "GitHub rate limit exceeded") {
+			t.Fatalf("CreateIssueComment() rate-limit error = %q, want partial provider body", rateLimitErr.Error())
+		}
+		if bridgesdk.IsCommittedMutation(err) {
+			t.Fatalf("CreateIssueComment() error = %v, want pre-commit rejection", err)
+		}
+		if !body.closed {
+			t.Fatal("response body closed = false after error classification")
+		}
+	})
+
+	for _, testCase := range []struct {
+		name string
+		body string
+	}{
+		{name: "Should not retry a committed create with truncated JSON", body: `{"id":`},
+		{name: "Should not retry a committed create without a comment id", body: `{}`},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			attempts := 0
+			committedClient := &githubClient{
+				cfg: resolvedInstanceConfig{
+					mode:       githubModePAT,
+					apiBaseURL: "https://api.github.test",
+					repoOwner:  "acme",
+					repoName:   "app",
+					token:      "ghp-test",
+				},
+				httpClient: githubHTTPDoerFunc(func(*http.Request) (*http.Response, error) {
+					attempts++
+					return &http.Response{
+						StatusCode: http.StatusCreated,
+						Header:     make(http.Header),
+						Body:       io.NopCloser(strings.NewReader(testCase.body)),
+					}, nil
+				}),
+			}
+
+			_, err := committedClient.CreateIssueComment(context.Background(), 42, "hello", 0)
+			if err == nil {
+				t.Fatal("CreateIssueComment(committed result unavailable) error = nil, want non-nil")
+			}
+			var committedErr *bridgesdk.CommittedMutationError
+			if !errors.As(err, &committedErr) {
+				t.Fatalf("CreateIssueComment() error = %T, want CommittedMutationError", err)
+			}
+			if got, want := attempts, 1; got != want {
+				t.Fatalf("mutation attempts = %d, want %d", got, want)
+			}
+		})
 	}
 }
 
@@ -1340,6 +1513,40 @@ func TestGitHubProviderHandleBridgesDeliverReportsReadyAndErrors(t *testing.T) {
 	if got, want := errorProvider.lastError, "bad auth"; !strings.Contains(got, want) {
 		t.Fatalf("lastError = %q, want substring %q", got, want)
 	}
+
+	t.Run("Should evict delivery state after a committed provider mutation", func(t *testing.T) {
+		t.Parallel()
+
+		committedAPI := &fakeGitHubAPI{
+			updateErr: &bridgesdk.CommittedMutationError{Err: errors.New("github result unavailable")},
+		}
+		committedProvider := newGitHubProviderForTest(t, nil)
+		committedProvider.routes.Replace(provider.routes.Snapshot(), nil)
+		committedProvider.apiFactory = func(resolvedInstanceConfig) githubAPI { return committedAPI }
+
+		committedRequest := req
+		committedRequest.Event.DeliveryID = "delivery-committed"
+		committedRequest.Event.Seq = 2
+		committedRequest.Event.EventType = bridgepkg.DeliveryEventTypeFinal
+		committedRequest.Event.Final = true
+		key := deliveryStateKey("brg-github", committedRequest.Event.DeliveryID)
+		committedProvider.deliveries.Store(key, deliveryState{
+			LastSeq:         1,
+			RemoteMessageID: "issue:700",
+		})
+
+		_, err := committedProvider.handleBridgesDeliver(context.Background(), nil, committedRequest)
+		var committedErr *bridgesdk.CommittedMutationError
+		if !errors.As(err, &committedErr) {
+			t.Fatalf("handleBridgesDeliver() error = %T, want CommittedMutationError", err)
+		}
+		if got, want := len(committedAPI.issueUpdates), 1; got != want {
+			t.Fatalf("provider mutations = %d, want %d", got, want)
+		}
+		if state, ok := committedProvider.deliveries.Load(key); ok {
+			t.Fatalf("deliveries[%q] = %#v, want evicted", key, state)
+		}
+	})
 }
 
 func TestGitHubUtilityHelpers(t *testing.T) {
@@ -1422,7 +1629,9 @@ func TestGitHubClientUpdateDeleteAndCredentialValidation(t *testing.T) {
 		switch r.URL.Path {
 		case "/repos/acme/app/issues/comments/700":
 			if r.Method == http.MethodPatch {
-				_, _ = io.WriteString(w, `{}`)
+				if _, err := io.WriteString(w, `{}`); err != nil {
+					t.Errorf("write GitHub issue update response: %v", err)
+				}
 				return
 			}
 			if r.Method == http.MethodDelete {
@@ -1430,11 +1639,15 @@ func TestGitHubClientUpdateDeleteAndCredentialValidation(t *testing.T) {
 				return
 			}
 		case "/app/installations/9001/access_tokens":
-			_, _ = io.WriteString(w, `{"token":"inst-token","expires_at":"2026-04-15T23:00:00Z"}`)
+			if _, err := io.WriteString(w, `{"token":"inst-token","expires_at":"2026-04-15T23:00:00Z"}`); err != nil {
+				t.Errorf("write refreshed GitHub installation token response: %v", err)
+			}
 			return
 		case "/repos/acme/app/pulls/comments/800":
 			if r.Method == http.MethodPatch {
-				_, _ = io.WriteString(w, `{}`)
+				if _, err := io.WriteString(w, `{}`); err != nil {
+					t.Errorf("write GitHub review update response: %v", err)
+				}
 				return
 			}
 			if r.Method == http.MethodDelete {
@@ -1899,8 +2112,10 @@ func TestGitHubAdditionalHelpersAndErrorClassification(t *testing.T) {
 	if got, want := extractGitHubErrorMessage(`{"error":"bad input"}`), "bad input"; got != want {
 		t.Fatalf("extractGitHubErrorMessage(error field) = %q, want %q", got, want)
 	}
-	if got := readResponseBody(errReader{}); got != "" {
-		t.Fatalf("readResponseBody(errReader) = %q, want empty", got)
+	if got, err := readGitHubResponseBody(errReader{}); err == nil {
+		t.Fatal("readGitHubResponseBody(errReader) error = nil, want non-nil")
+	} else if got != "" {
+		t.Fatalf("readGitHubResponseBody(errReader) = %q, want empty", got)
 	}
 
 	waitProvider := newGitHubProviderForTest(t, nil)
@@ -1981,7 +2196,9 @@ func TestGitHubListenErrorsProjectOnlyOntoValidConfigs(t *testing.T) {
 
 func signGitHubTestBody(secret string, body []byte) string {
 	mac := hmac.New(sha256.New, []byte(secret))
-	_, _ = mac.Write(body)
+	if _, err := mac.Write(body); err != nil {
+		panic("write GitHub signature body: " + err.Error())
+	}
 	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
 }
 
@@ -2101,6 +2318,7 @@ func equalInt64s(got []int64, want []int64) bool {
 type fakeGitHubAPI struct {
 	viewer                  *githubViewer
 	validateErr             error
+	updateErr               error
 	nextIssueCommentID      int64
 	nextReviewCommentID     int64
 	issueUpdates            []int64
@@ -2147,6 +2365,9 @@ func (f *fakeGitHubAPI) UpdateIssueComment(
 	_ int64,
 ) (*githubIssueComment, error) {
 	f.issueUpdates = append(f.issueUpdates, commentID)
+	if f.updateErr != nil {
+		return nil, f.updateErr
+	}
 	return &githubIssueComment{ID: commentID}, nil
 }
 
@@ -2178,6 +2399,26 @@ type errReader struct{}
 
 func (errReader) Read(_ []byte) (int, error) {
 	return 0, errors.New("boom")
+}
+
+type githubPartialErrorResponseBody struct {
+	content []byte
+	readErr error
+	reads   int
+	closed  bool
+}
+
+func (b *githubPartialErrorResponseBody) Read(buffer []byte) (int, error) {
+	b.reads++
+	if b.reads > 1 {
+		return 0, io.EOF
+	}
+	return copy(buffer, b.content), b.readErr
+}
+
+func (b *githubPartialErrorResponseBody) Close() error {
+	b.closed = true
+	return nil
 }
 
 func (f *fakeGitHubErrorAPI) ValidateAuth(context.Context, int64) (*githubViewer, error) {

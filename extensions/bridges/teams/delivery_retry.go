@@ -38,7 +38,7 @@ func ensureTeamsConversation(
 		return teamsResolvedTarget{}, fmt.Errorf("teams: create conversation: %w", err)
 	}
 	if created == nil || strings.TrimSpace(created.ID) == "" {
-		return teamsResolvedTarget{}, &bridgesdk.TransientError{
+		return teamsResolvedTarget{}, &bridgesdk.CommittedMutationError{
 			Err: errors.New("teams: create conversation response omitted id"),
 		}
 	}
@@ -54,9 +54,13 @@ func sendTeamsDeliveryActivity(
 	replyToID string,
 	activity teamsOutboundActivity,
 ) (*teamsResourceResponse, error) {
-	return bridgesdk.RetryDo(ctx, bridgesdk.DefaultRetryConfig(), func(callCtx context.Context) (*teamsResourceResponse, error) {
-		return api.SendActivity(callCtx, serviceURL, conversationID, replyToID, activity)
-	})
+	return bridgesdk.RetryDo(
+		ctx,
+		bridgesdk.DefaultRetryConfig(),
+		func(callCtx context.Context) (*teamsResourceResponse, error) {
+			return api.SendActivity(callCtx, serviceURL, conversationID, replyToID, activity)
+		},
+	)
 }
 
 func updateTeamsDeliveryActivity(

@@ -176,12 +176,6 @@ type telegramAPI interface {
 	SetMessageReaction(context.Context, telegramSetMessageReactionRequest) error
 }
 
-type telegramBotClient struct {
-	baseURL    string
-	botToken   string
-	httpClient *http.Client
-}
-
 //nolint:funlen // Construction keeps the provider's declarative runtime wiring visible in one place.
 func newTelegramProvider(stderr io.Writer) (*telegramProvider, error) {
 	if stderr == nil {
@@ -207,6 +201,9 @@ func newTelegramProvider(stderr io.Writer) (*telegramProvider, error) {
 			botToken: cfg.botToken,
 			httpClient: &http.Client{
 				Timeout: 10 * time.Second,
+			},
+			reportResponseCleanup: func(err error) {
+				provider.markers.ReportError("clean up Telegram API response", err)
 			},
 		}
 	}
@@ -318,7 +315,12 @@ func (p *telegramProvider) handleBridgesDeliver(
 
 	ack, state, err := p.executeTextDeliveryWithProgress(ctx, &cfg, request)
 	if err != nil {
-		p.storeDeliveryRetryState(cfg.instanceID, request.Event.DeliveryID, state)
+		if bridgesdk.IsCommittedMutation(err) {
+			p.deliveries.Delete(deliveryStateKey(cfg.instanceID, request.Event.DeliveryID))
+			closeProgressDispatcher(state.Progress)
+		} else {
+			p.storeDeliveryRetryState(cfg.instanceID, request.Event.DeliveryID, state)
+		}
 		marker.Error = err.Error()
 		p.markers.RecordDelivery(marker)
 		classified := bridgesdk.ClassifyError(err)
@@ -947,50 +949,6 @@ func resolveTelegramThreadID(threadID string, chatID string) (int64, error) {
 		return 0, fmt.Errorf("telegram: invalid thread id %q: %w", trimmedThreadID, err)
 	}
 	return value, nil
-}
-
-func (c *telegramBotClient) GetMe(ctx context.Context) (*telegramBotIdentity, error) {
-	var result telegramBotIdentity
-	if err := c.call(ctx, "getMe", map[string]any{}, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (c *telegramBotClient) SendMessage(
-	ctx context.Context,
-	req telegramSendMessageRequest,
-) (*telegramSentMessage, error) {
-	var result telegramSentMessage
-	if err := c.call(ctx, "sendMessage", req, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (c *telegramBotClient) EditMessageText(
-	ctx context.Context,
-	req telegramEditMessageTextRequest,
-) error {
-	var result json.RawMessage
-	return c.call(ctx, "editMessageText", req, &result)
-}
-
-func (c *telegramBotClient) DeleteMessage(
-	ctx context.Context,
-	req telegramDeleteMessageRequest,
-) error {
-	var result bool
-	return c.call(ctx, "deleteMessage", req, &result)
-}
-
-func (c *telegramBotClient) call(
-	ctx context.Context,
-	method string,
-	payload any,
-	result any,
-) error {
-	return c.callTelegram(ctx, method, payload, result)
 }
 
 func classifyTelegramHTTPError(

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -217,6 +218,12 @@ func (s *recordingDeliveryLedgerStore) checkpointAttemptCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.checkpointAttempts
+}
+
+func (s *recordingDeliveryLedgerStore) failNextCheckpoints(count int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.checkpointFailures = count
 }
 
 func (s *recordingDeliveryLedgerStore) checkpointCount() int {
@@ -845,7 +852,7 @@ func TestBrokerSnapshotCapturesActiveDeliveryAfterFailure(t *testing.T) {
 func TestBrokerDurableCheckpointsAvoidDeltaWriteAmplification(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should checkpoint start and terminal while skipping every delta", func(t *testing.T) {
+	t.Run("Should checkpoint durable intents and acknowledgements while skipping every delta", func(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, 7, 12, 15, 0, 0, 0, time.UTC)
@@ -912,7 +919,7 @@ func TestBrokerDurableCheckpointsAvoidDeltaWriteAmplification(t *testing.T) {
 		)); err != nil {
 			t.Fatalf("Deliver(start) error = %v", err)
 		}
-		waitForLedgerCheckpoints(t, store, 1)
+		waitForLedgerCheckpoints(t, store, 2)
 
 		for seq := int64(2); seq <= 101; seq++ {
 			if err := broker.Deliver(ctx, testDeliveryEvent(
@@ -940,7 +947,7 @@ func TestBrokerDurableCheckpointsAvoidDeltaWriteAmplification(t *testing.T) {
 		)); err != nil {
 			t.Fatalf("Deliver(final) error = %v", err)
 		}
-		waitForLedgerCheckpoints(t, store, 2)
+		waitForLedgerCheckpoints(t, store, 4)
 
 		createsAfter, checkpoints, metricsAfter := store.snapshot()
 		if got, want := len(createsAfter), 1; got != want {
@@ -949,16 +956,27 @@ func TestBrokerDurableCheckpointsAvoidDeltaWriteAmplification(t *testing.T) {
 		if _, ok := metricsAfter[registered.BridgeInstanceID]; !ok {
 			t.Fatalf("durable metrics after delivery = %#v, want bridge instance entry", metricsAfter)
 		}
-		if got, want := len(checkpoints), 2; got != want {
-			t.Fatalf("durable checkpoint count = %d, want %d (start + terminal only)", got, want)
+		if got, want := len(checkpoints), 4; got != want {
+			t.Fatalf("durable checkpoint count = %d, want %d (intent + ack for start and terminal)", got, want)
 		}
-		if got, want := checkpoints[0].LastAckedSeq, int64(1); got != want {
-			t.Fatalf("start checkpoint last acked seq = %d, want %d", got, want)
+		startIntent := checkpoints[0]
+		if startIntent.State != DeliveryLedgerStateActive || startIntent.LastSentSeq != 1 ||
+			startIntent.LastAckedSeq != 0 {
+			t.Fatalf("start intent checkpoint = %#v, want active sent=1 acked=0", startIntent)
 		}
-		if got, want := checkpoints[0].RemoteMessageID, "remote-anchor-1"; got != want {
+		startAck := checkpoints[1]
+		if got, want := startAck.LastAckedSeq, int64(1); got != want {
+			t.Fatalf("start ack checkpoint last acked seq = %d, want %d", got, want)
+		}
+		if got, want := startAck.RemoteMessageID, "remote-anchor-1"; got != want {
 			t.Fatalf("start checkpoint remote message id = %q, want %q", got, want)
 		}
-		terminal := checkpoints[1]
+		terminalIntent := checkpoints[2]
+		if terminalIntent.State != DeliveryLedgerStateActive || terminalIntent.LastSentSeq != 102 ||
+			terminalIntent.LastAckedSeq < 1 || terminalIntent.LastAckedSeq >= 102 {
+			t.Fatalf("terminal intent checkpoint = %#v, want active sent=102 with prior ack", terminalIntent)
+		}
+		terminal := checkpoints[3]
 		if got, want := terminal.State, DeliveryLedgerStateTerminalOK; got != want {
 			t.Fatalf("terminal checkpoint state = %q, want %q", got, want)
 		}
@@ -1027,7 +1045,7 @@ func TestBrokerDurableMetricsSurviveRehydration(t *testing.T) {
 		)); err != nil {
 			t.Fatalf("Deliver(start) error = %v", err)
 		}
-		waitForLedgerCheckpoints(t, store, 1)
+		waitForLedgerCheckpoints(t, store, 2)
 		errorEvent := testDeliveryEvent(
 			registered.DeliveryID,
 			registered.BridgeInstanceID,
@@ -1042,7 +1060,7 @@ func TestBrokerDurableMetricsSurviveRehydration(t *testing.T) {
 		if err := broker.Deliver(ctx, errorEvent); err != nil {
 			t.Fatalf("Deliver(error) error = %v", err)
 		}
-		waitForLedgerCheckpoints(t, store, 2)
+		waitForLedgerCheckpoints(t, store, 4)
 
 		restarted := NewBroker(nil, WithDeliveryLedgerStore(store))
 		t.Cleanup(restarted.Close)
@@ -1114,7 +1132,7 @@ func TestBrokerDurableMetricsSurviveRehydration(t *testing.T) {
 		)); err != nil {
 			t.Fatalf("Deliver(start) error = %v", err)
 		}
-		waitForLedgerCheckpoints(t, store, 1)
+		waitForLedgerCheckpoints(t, store, 2)
 		if err := broker.Deliver(ctx, testProgressDeliveryEvent(
 			registered.DeliveryID,
 			registered.BridgeInstanceID,
@@ -1154,9 +1172,19 @@ func TestBrokerDurableCheckpointRetryDoesNotRedeliverRemoteEvent(t *testing.T) {
 		t.Parallel()
 
 		store := newRecordingDeliveryLedgerStore()
-		store.checkpointFailures = 2
+		var scheduleAckFailures sync.Once
 		transport := &fakeDeliveryTransport{
 			handler: func(_ context.Context, _ string, req DeliveryRequest) (DeliveryAck, error) {
+				persisted, ok := store.record(req.Event.DeliveryID)
+				if !ok || persisted.State != DeliveryLedgerStateActive ||
+					persisted.LastSentSeq != req.Event.Seq || persisted.LastAckedSeq != 0 {
+					t.Fatalf(
+						"provider mutation durable intent = %#v, want active sent=%d acked=0",
+						persisted,
+						req.Event.Seq,
+					)
+				}
+				scheduleAckFailures.Do(func() { store.failNextCheckpoints(2) })
 				return DeliveryAck{
 					DeliveryID:      req.Event.DeliveryID,
 					Seq:             req.Event.Seq,
@@ -1193,9 +1221,9 @@ func TestBrokerDurableCheckpointRetryDoesNotRedeliverRemoteEvent(t *testing.T) {
 		)); err != nil {
 			t.Fatalf("Deliver(start) error = %v", err)
 		}
-		waitForLedgerCheckpoints(t, store, 1)
+		waitForLedgerCheckpoints(t, store, 2)
 
-		if got, want := store.checkpointAttemptCount(), 3; got != want {
+		if got, want := store.checkpointAttemptCount(), 4; got != want {
 			t.Fatalf("checkpoint attempts = %d, want %d", got, want)
 		}
 		if got, want := len(transport.snapshotCalls()), 1; got != want {
@@ -1426,26 +1454,29 @@ func TestBrokerProgressDeliveryFailuresRemainBestEffort(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
-		progressReply func(DeliveryRequest) (DeliveryAck, error)
-		wantLastError string
-		wantAcks      int
+		name           string
+		progressReply  func(DeliveryRequest) (DeliveryAck, error)
+		wantLastError  string
+		wantDropReason string
+		wantAcks       int
 	}{
 		{
 			name: "Should redact a progress transport failure and continue content delivery without retry",
 			progressReply: func(DeliveryRequest) (DeliveryAck, error) {
 				return DeliveryAck{}, errors.New("adapter unavailable api_key=sk-progress-secret")
 			},
-			wantLastError: "adapter unavailable api_key=[REDACTED]",
-			wantAcks:      2,
+			wantLastError:  "adapter unavailable api_key=[REDACTED]",
+			wantDropReason: "progress_delivery_failed",
+			wantAcks:       2,
 		},
 		{
 			name: "Should record an invalid progress acknowledgement and continue content delivery without retry",
 			progressReply: func(req DeliveryRequest) (DeliveryAck, error) {
 				return DeliveryAck{DeliveryID: "wrong-delivery", Seq: req.Event.Seq}, nil
 			},
-			wantLastError: "does not match event",
-			wantAcks:      3,
+			wantLastError:  "does not match event",
+			wantDropReason: progressDeliveryIndeterminateReason,
+			wantAcks:       3,
 		},
 	}
 
@@ -1533,8 +1564,13 @@ func TestBrokerProgressDeliveryFailuresRemainBestEffort(t *testing.T) {
 			if got, want := metrics.DeliveryDroppedTotal, 1; got != want {
 				t.Fatalf("DeliveryDroppedTotal = %d, want %d", got, want)
 			}
-			if got, want := metrics.DeliveryDroppedByReason["progress_delivery_failed"], 1; got != want {
-				t.Fatalf("progress_delivery_failed drops = %d, want %d", got, want)
+			if got, want := metrics.DeliveryDroppedByReason[test.wantDropReason], 1; got != want {
+				t.Fatalf("%s drops = %d, want %d", test.wantDropReason, got, want)
+			}
+			if test.wantDropReason == progressDeliveryIndeterminateReason {
+				if got := metrics.DeliveryDroppedByReason["progress_delivery_failed"]; got != 0 {
+					t.Fatalf("progress_delivery_failed drops = %d, want zero for invalid received ack", got)
+				}
 			}
 			if got := metrics.LastError; !strings.Contains(got, test.wantLastError) {
 				t.Fatalf("LastError = %q, want containing %q", got, test.wantLastError)
@@ -1547,6 +1583,345 @@ func TestBrokerProgressDeliveryFailuresRemainBestEffort(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBrokerHandlesCommittedResultUnavailableWithoutRedelivery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should terminalize an unaddressable committed text result without resuming it", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)
+		const retryDelay = 5 * time.Millisecond
+		store := newRecordingDeliveryLedgerStore()
+		var scheduleTerminalFailures sync.Once
+		transport := &fakeDeliveryTransport{
+			handler: func(_ context.Context, _ string, req DeliveryRequest) (DeliveryAck, error) {
+				persisted, ok := store.record(req.Event.DeliveryID)
+				if !ok {
+					t.Fatal("provider mutation started before its durable delivery intent existed")
+				}
+				if persisted.State != DeliveryLedgerStateActive || persisted.LastSentSeq != req.Event.Seq ||
+					persisted.LastAckedSeq != 0 {
+					t.Fatalf(
+						"provider mutation durable intent = state:%q sent:%d acked:%d, want active/%d/0",
+						persisted.State,
+						persisted.LastSentSeq,
+						persisted.LastAckedSeq,
+						req.Event.Seq,
+					)
+				}
+				scheduleTerminalFailures.Do(func() { store.failNextCheckpoints(2) })
+				return DeliveryAck{
+					DeliveryID: req.Event.DeliveryID,
+					Seq:        req.Event.Seq,
+					Outcome:    DeliveryAckOutcomeCommittedResultUnavailable,
+					Error: &DeliveryErrorDetail{
+						Message: "provider committed but response omitted id api_key=sk-committed-secret",
+					},
+				}, nil
+			},
+		}
+		broker := NewBroker(
+			transport,
+			WithDeliveryLedgerStore(store),
+			WithDeliveryBrokerNow(func() time.Time { return now }),
+			WithDeliveryBrokerRetryDelay(retryDelay),
+		)
+		t.Cleanup(broker.Close)
+
+		registered := mustRegisterTestDelivery(t, broker, PromptDeliveryRegistration{
+			SessionID:     "sess-committed-unavailable",
+			TurnID:        "turn-committed-unavailable",
+			ExtensionName: "ext-discord",
+			DeliveryID:    "delivery-committed-unavailable",
+			RoutingKey:    testRoutingKey("brg-committed-unavailable", "peer-committed-unavailable"),
+			DeliveryTarget: DeliveryTarget{
+				BridgeInstanceID: "brg-committed-unavailable",
+				PeerID:           "peer-committed-unavailable",
+				Mode:             DeliveryModeReply,
+			},
+		})
+		if err := broker.Deliver(testutil.Context(t), testDeliveryEvent(
+			registered.DeliveryID,
+			registered.BridgeInstanceID,
+			registered.RoutingKey,
+			registered.DeliveryTarget,
+			1,
+			DeliveryEventTypeStart,
+			"answer",
+			false,
+		)); err != nil {
+			t.Fatalf("Deliver(start) error = %v", err)
+		}
+
+		waitForLedgerCheckpoints(t, store, 1)
+		waitForBridgeRouteCount(t, broker, registered.BridgeInstanceID, 0)
+		assertNoAdditionalTransportCalls(t, transport, 1, 5*retryDelay)
+
+		calls := transport.snapshotCalls()
+		assertDeliveryOrder(
+			t,
+			calls,
+			registered.DeliveryID,
+			[]DeliveryEventType{DeliveryEventTypeStart},
+			[]int64{1},
+		)
+		persisted, ok := store.record(registered.DeliveryID)
+		if !ok {
+			t.Fatal("terminal delivery record missing")
+		}
+		if got, want := persisted.State, DeliveryLedgerStateTerminalError; got != want {
+			t.Fatalf("persisted state = %q, want %q", got, want)
+		}
+		if got, want := persisted.LastSentSeq, int64(1); got != want {
+			t.Fatalf("persisted last sent seq = %d, want %d", got, want)
+		}
+		if got := persisted.LastAckedSeq; got != 0 {
+			t.Fatalf("persisted last acked seq = %d, want unchanged zero", got)
+		}
+		if got := persisted.RemoteMessageID; got != "" {
+			t.Fatalf("persisted remote message id = %q, want empty", got)
+		}
+		if got := persisted.TerminalError; strings.Contains(got, "sk-committed-secret") ||
+			!strings.Contains(got, "[REDACTED]") {
+			t.Fatalf("persisted terminal error = %q, want redacted committed-result failure", got)
+		}
+		if got, want := store.checkpointAttemptCount(), 4; got != want {
+			t.Fatalf("checkpoint attempts = %d, want %d without repeating provider delivery", got, want)
+		}
+		_, checkpoints, persistedMetrics := store.snapshot()
+		if got, want := len(checkpoints), 2; got != want {
+			t.Fatalf("persisted checkpoints = %d, want %d intent plus terminal checkpoint", got, want)
+		}
+		if intent := checkpoints[0]; intent.State != DeliveryLedgerStateActive ||
+			intent.LastSentSeq != 1 || intent.LastAckedSeq != 0 {
+			t.Fatalf("persisted intent checkpoint = %#v, want active sent=1 acked=0", intent)
+		}
+		persistedMetric, ok := persistedMetrics[registered.BridgeInstanceID]
+		if !ok {
+			t.Fatal("persisted terminal delivery metrics missing")
+		}
+		if got, want := persistedMetric.DeliveryFailuresTotal, 1; got != want {
+			t.Fatalf("persisted DeliveryFailuresTotal = %d, want %d", got, want)
+		}
+		if !persistedMetric.LastSuccessAt.IsZero() {
+			t.Fatalf("persisted LastSuccessAt = %s, want unchanged zero", persistedMetric.LastSuccessAt)
+		}
+		if _, err := broker.Snapshot(testutil.Context(t), registered.DeliveryID); !errors.Is(
+			err,
+			ErrDeliveryNotFound,
+		) {
+			t.Fatalf("Snapshot(terminalized) error = %v, want ErrDeliveryNotFound", err)
+		}
+		active, err := store.ListBridgeDeliveries(testutil.Context(t), DeliveryLedgerQuery{
+			Scope:       ScopeWorkspace,
+			WorkspaceID: "ws-1",
+			State:       DeliveryLedgerStateActive,
+		})
+		if err != nil {
+			t.Fatalf("ListBridgeDeliveries(active) error = %v", err)
+		}
+		if len(active) != 0 {
+			t.Fatalf("active delivery records = %#v, want none after terminalization", active)
+		}
+
+		metrics := broker.DeliveryMetrics()[registered.BridgeInstanceID]
+		if got, want := metrics.DeliveryFailuresTotal, 1; got != want {
+			t.Fatalf("DeliveryFailuresTotal = %d, want %d", got, want)
+		}
+		if got := metrics.LastError; strings.Contains(got, "sk-committed-secret") ||
+			!strings.Contains(got, "[REDACTED]") {
+			t.Fatalf("LastError = %q, want redacted committed-result failure", got)
+		}
+		if got, want := metrics.LastErrorAt, now; !got.Equal(want) {
+			t.Fatalf("LastErrorAt = %s, want %s", got, want)
+		}
+		if !metrics.LastSuccessAt.IsZero() {
+			t.Fatalf("LastSuccessAt = %s, want unchanged zero", metrics.LastSuccessAt)
+		}
+		if got := metrics.DeliveryBacklog; got != 0 {
+			t.Fatalf("DeliveryBacklog = %d, want zero after terminalization", got)
+		}
+	})
+
+	t.Run("Should terminalize an invalid text acknowledgement without redelivery", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 13, 21, 0, 0, 0, time.UTC)
+		const retryDelay = 5 * time.Millisecond
+		store := newRecordingDeliveryLedgerStore()
+		var attempts atomic.Int32
+		transport := &fakeDeliveryTransport{
+			handler: func(_ context.Context, _ string, req DeliveryRequest) (DeliveryAck, error) {
+				if attempts.Add(1) == 1 {
+					return DeliveryAck{DeliveryID: "wrong-delivery", Seq: req.Event.Seq}, nil
+				}
+				return DeliveryAck{
+					DeliveryID: req.Event.DeliveryID,
+					Seq:        req.Event.Seq,
+					Outcome:    DeliveryAckOutcomeCommittedResultUnavailable,
+					Error:      &DeliveryErrorDetail{Message: "unexpected retry"},
+				}, nil
+			},
+		}
+		broker := NewBroker(
+			transport,
+			WithDeliveryLedgerStore(store),
+			WithDeliveryBrokerNow(func() time.Time { return now }),
+			WithDeliveryBrokerRetryDelay(retryDelay),
+		)
+		t.Cleanup(broker.Close)
+
+		registered := mustRegisterTestDelivery(t, broker, PromptDeliveryRegistration{
+			SessionID:     "sess-invalid-ack",
+			TurnID:        "turn-invalid-ack",
+			ExtensionName: "ext-invalid-ack",
+			DeliveryID:    "delivery-invalid-ack",
+			RoutingKey:    testRoutingKey("brg-invalid-ack", "peer-invalid-ack"),
+			DeliveryTarget: DeliveryTarget{
+				BridgeInstanceID: "brg-invalid-ack",
+				PeerID:           "peer-invalid-ack",
+				Mode:             DeliveryModeReply,
+			},
+		})
+		if err := broker.Deliver(testutil.Context(t), testDeliveryEvent(
+			registered.DeliveryID,
+			registered.BridgeInstanceID,
+			registered.RoutingKey,
+			registered.DeliveryTarget,
+			1,
+			DeliveryEventTypeStart,
+			"answer",
+			false,
+		)); err != nil {
+			t.Fatalf("Deliver(start) error = %v", err)
+		}
+
+		waitForBridgeRouteCount(t, broker, registered.BridgeInstanceID, 0)
+		assertNoAdditionalTransportCalls(t, transport, 1, 5*retryDelay)
+		if got, want := attempts.Load(), int32(1); got != want {
+			t.Fatalf("provider attempts = %d, want %d", got, want)
+		}
+		persisted, ok := store.record(registered.DeliveryID)
+		if !ok {
+			t.Fatal("terminal delivery record missing")
+		}
+		if got, want := persisted.State, DeliveryLedgerStateTerminalError; got != want {
+			t.Fatalf("persisted state = %q, want %q", got, want)
+		}
+		if got, want := persisted.LastSentSeq, int64(1); got != want {
+			t.Fatalf("persisted last sent seq = %d, want %d", got, want)
+		}
+		if got := persisted.LastAckedSeq; got != 0 {
+			t.Fatalf("persisted last acked seq = %d, want unchanged zero", got)
+		}
+		if got := persisted.TerminalError; !strings.Contains(got, "does not match event") ||
+			strings.Contains(got, "unexpected retry") {
+			t.Fatalf("persisted terminal error = %q, want first invalid acknowledgement", got)
+		}
+	})
+
+	t.Run("Should drop an unaddressable committed progress result and continue final text", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 13, 12, 30, 0, 0, time.UTC)
+		const retryDelay = 5 * time.Millisecond
+		transport := &fakeDeliveryTransport{
+			handler: func(_ context.Context, _ string, req DeliveryRequest) (DeliveryAck, error) {
+				if req.Event.EventType == DeliveryEventTypeProgress {
+					return DeliveryAck{
+						DeliveryID: req.Event.DeliveryID,
+						Seq:        req.Event.Seq,
+						Outcome:    DeliveryAckOutcomeCommittedResultUnavailable,
+						Error: &DeliveryErrorDetail{
+							Message: "progress committed without id token=sk-progress-committed-secret",
+						},
+					}, nil
+				}
+				return DeliveryAck{
+					DeliveryID:      req.Event.DeliveryID,
+					Seq:             req.Event.Seq,
+					RemoteMessageID: "answer-remote",
+				}, nil
+			},
+		}
+		broker := NewBroker(
+			transport,
+			WithDeliveryBrokerNow(func() time.Time { return now }),
+			WithDeliveryBrokerRetryDelay(retryDelay),
+		)
+		t.Cleanup(broker.Close)
+
+		registered := mustRegisterTestDelivery(t, broker, PromptDeliveryRegistration{
+			SessionID:     "sess-progress-indeterminate",
+			TurnID:        "turn-progress-indeterminate",
+			ExtensionName: "ext-discord",
+			RoutingKey:    testRoutingKey("brg-progress-indeterminate", "peer-progress-queue"),
+			DeliveryTarget: DeliveryTarget{
+				BridgeInstanceID: "brg-progress-indeterminate",
+				PeerID:           "peer-progress-queue",
+				Mode:             DeliveryModeReply,
+			},
+		})
+		progress := testProgressDeliveryEvent(
+			registered.DeliveryID,
+			registered.BridgeInstanceID,
+			"call-progress-indeterminate",
+			"agh__terminal",
+			ToolProgressPhaseStarted,
+			0,
+			1,
+			"inspect",
+		)
+		if err := broker.Deliver(testutil.Context(t), progress); err != nil {
+			t.Fatalf("Deliver(progress) error = %v", err)
+		}
+		if err := broker.Deliver(testutil.Context(t), testDeliveryEvent(
+			registered.DeliveryID,
+			registered.BridgeInstanceID,
+			registered.RoutingKey,
+			registered.DeliveryTarget,
+			1,
+			DeliveryEventTypeFinal,
+			"answer complete",
+			true,
+		)); err != nil {
+			t.Fatalf("Deliver(final) error = %v", err)
+		}
+
+		waitForCalls(t, transport, 2)
+		waitForBridgeRouteCount(t, broker, registered.BridgeInstanceID, 0)
+		assertNoAdditionalTransportCalls(t, transport, 2, 5*retryDelay)
+		assertDeliveryOrder(
+			t,
+			transport.snapshotCalls(),
+			registered.DeliveryID,
+			[]DeliveryEventType{DeliveryEventTypeProgress, DeliveryEventTypeFinal},
+			[]int64{0, 1},
+		)
+
+		metrics := broker.DeliveryMetrics()[registered.BridgeInstanceID]
+		if got, want := metrics.DeliveryDroppedTotal, 1; got != want {
+			t.Fatalf("DeliveryDroppedTotal = %d, want %d", got, want)
+		}
+		if got, want := metrics.DeliveryDroppedByReason[progressDeliveryIndeterminateReason], 1; got != want {
+			t.Fatalf("%s drops = %d, want %d", progressDeliveryIndeterminateReason, got, want)
+		}
+		if got := metrics.DeliveryDroppedByReason["progress_delivery_failed"]; got != 0 {
+			t.Fatalf("progress_delivery_failed drops = %d, want zero for an indeterminate commit", got)
+		}
+		if got := metrics.DeliveryFailuresTotal; got != 0 {
+			t.Fatalf("DeliveryFailuresTotal = %d, want progress outcome excluded", got)
+		}
+		if got := metrics.LastError; strings.Contains(got, "sk-progress-committed-secret") ||
+			!strings.Contains(got, "[REDACTED]") {
+			t.Fatalf("LastError = %q, want redacted progress issue", got)
+		}
+		if got, want := metrics.LastSuccessAt, now; !got.Equal(want) {
+			t.Fatalf("LastSuccessAt = %s, want final text success at %s", got, want)
+		}
+	})
 }
 
 func TestBrokerDeliveryMetricsForReadsOnlyRequestedBridgeRoutes(t *testing.T) {
@@ -2171,6 +2546,30 @@ func waitForAcks(t *testing.T, transport *fakeDeliveryTransport, want int) {
 			return fmt.Sprintf("delivery ack count did not reach %d before timeout; got %d", want, acks)
 		},
 	)
+}
+
+func assertNoAdditionalTransportCalls(
+	t *testing.T,
+	transport *fakeDeliveryTransport,
+	want int,
+	duration time.Duration,
+) {
+	t.Helper()
+
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	updates := transport.updateCh()
+	for {
+		calls, _ := transport.snapshotState()
+		if calls != want {
+			t.Fatalf("delivery call count = %d, want %d after terminal outcome", calls, want)
+		}
+		select {
+		case <-updates:
+		case <-timer.C:
+			return
+		}
+	}
 }
 
 func waitForBridgeRouteCount(t *testing.T, broker *Broker, bridgeInstanceID string, want int) {

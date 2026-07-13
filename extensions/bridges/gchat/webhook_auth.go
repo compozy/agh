@@ -193,10 +193,10 @@ func (c *googleX509KeyCache) fetchRemote(
 		err = errors.Join(err, bridgesdk.DrainAndCloseHTTPResponseBody(resp.Body))
 	}()
 	if resp.StatusCode != http.StatusOK {
-		return nil, time.Time{}, classifyGChatHTTPError(
-			resp.StatusCode,
-			resp.Header.Get("Retry-After"),
-			readResponseBody(resp.Body),
+		body, readErr := bridgesdk.ReadHTTPResponseBody(resp.Body)
+		return nil, time.Time{}, errors.Join(
+			classifyGChatHTTPError(resp.StatusCode, resp.Header.Get("Retry-After"), body),
+			readErr,
 		)
 	}
 	certs := map[string]string{}

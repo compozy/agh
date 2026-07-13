@@ -20,9 +20,10 @@ Every provider guide ends at the same observable result:
 3. Every required credential crosses the write-only secret-binding boundary.
 4. The provider console sends events to the exact public callback configured on the bridge.
 5. Disabled verification proves local configuration and provider identity where the adapter supports it.
-6. Enabled verification proves public callback reachability.
-7. A real inbound event creates a route in the expected workspace.
-8. `agh bridge send-test` produces a real remote message at the intended target.
+6. For providers that accept direct messages, access is explicitly configured while the bridge remains disabled.
+7. Enabled verification proves public callback reachability.
+8. A real inbound event creates a route in the expected workspace.
+9. `agh bridge send-test` produces a real remote message at the intended target.
 
 If any checkpoint is missing, the setup is not complete. A green public reachability check does not
 prove provider authentication, and a successful identity check does not prove that the provider
@@ -215,7 +216,30 @@ While disabled, webhook reachability is intentionally `skipped`. GitHub and Line
 `provider.identity` as `skipped` in the short-lived control runtime; their enabled provider health is
 the live authentication source.
 
-### 5. Enable and verify reachability
+### 5. Control direct-message access
+
+Do this before enabling any bridge that can accept direct messages. An omitted or empty `dm_policy`
+normalizes to `open`, which admits every direct-message sender whose request passes the provider's
+transport authentication. The policy applies only to direct messages. Provider membership,
+visibility, permissions, and the bridge routing policy still govern groups, channels, and spaces.
+
+`agh bridge create` and `agh bridge update` do not currently expose a `--dm-policy` flag. Use the Web
+editor or HTTP API procedure in [Control direct-message access](./access). `pairing` is not an
+interactive approval flow: the in-tree messaging providers read pre-populated `paired_user_ids` and
+`paired_usernames`, then fall back to `allow_user_ids` and `allow_usernames`.
+
+Keep the bridge disabled and inspect the stored result:
+
+```bash
+agh bridge get "$BRIDGE_ID" -o json | \
+  jq '{enabled, dm_policy, dm: (.provider_config.dm // {})}'
+```
+
+Continue only when `enabled` is `false`, `dm_policy` is the intended policy, and the corresponding ID
+or username list contains the intended senders. This proves the stored access configuration; it does
+not simulate a provider webhook.
+
+### 6. Enable and verify reachability
 
 ```bash
 agh bridge enable "$BRIDGE_ID"
@@ -226,7 +250,7 @@ agh bridge get "$BRIDGE_ID" -o json
 The bridge should settle at `ready`. A `degraded`, `auth_required`, or `error` state is evidence to
 repair, not a reason to continue to the happy-path test.
 
-### 6. Prove inbound routing
+### 7. Prove inbound routing
 
 Trigger one real supported event from the provider. Then inspect the created route:
 
@@ -238,7 +262,7 @@ Confirm the route belongs to the intended workspace and carries the expected pee
 dimensions. A route in the wrong workspace or at the wrong thread granularity is a setup failure even
 if the agent produced an answer.
 
-### 7. Prove outbound delivery
+### 8. Prove outbound delivery
 
 Use identifiers from the real inbound route:
 

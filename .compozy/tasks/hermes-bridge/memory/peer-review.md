@@ -17,9 +17,17 @@
 
 ## Round 3
 
-- Status: mandatory and pending. Round-2 SHIP became stale after the post-review deslop audit required source changes.
+- Verdict: `SHIP`, subsequently invalidated by accepted risk R-001 because fixing it changes the reviewed source; a fresh consecutive round is mandatory.
+- Findings source: `.peer-reviews/hermes-bridge-20260713T054134Z/impl-review-findings-round3.md`.
 - Remediation scope: shared HTTP response cleanup with surfaced drain/close errors; fail-closed Linear signature handling; daemon-owned `webhook_public_url` projection and removal of the browser security-policy clone; one shared bridge provider-card composite; two factual docs corrections; structural extraction of bridge payload converters from the over-cap legacy conversions file.
-- Current status: source freeze is ready. The 320px create-dialog grid min-content defect is fixed and six desktop/mobile captures are clean with teardown confirmed. HTTP cleanup now distinguishes uncommitted reads/auth, `2xx`-committed mutations, and creates with materialized remote IDs; deterministic create/delete regressions prove one transport attempt and reported cleanup. The stale fixture, branch-added error discards, daemon/Web ownership, generated co-ship, docs truth, QA flag, god-file extraction, and formatting/lint residues are closed. Focused race/API/Web/site/codegen evidence is green; global runtime/Web E2E and the single `make verify` remain intentionally deferred until round 3 returns SHIP.
+- Current status: the full R-001 remediation is closed across all eight providers, strict ACK materialization, write-ahead/no-replay behavior, progress continuation, redirects, public send-test surfaces, docs, and QA. Round 3 remains invalidated because those fixes changed reviewed source.
+
+## Round 4
+
+- Status: explicitly waived by the user on 2026-07-13 after prior external rounds and multiple final internal audits; prepared prompt/diff/status artifacts were removed without launching `compozy exec`.
+- Internal verdicts: code/runtime/docs/deslop are `SHIP`; the only readiness blocker was Daytona generated-asset drift and is resolved in the index.
+- Codegen proof: canonical sidecars `5f624649…`/`23e24f2f…` co-ship while the user's working bytes remain `f947e359…`/`feafa455…`; clean snapshot `ce4d079c…` passes `AGH_DAYTONA_CHECK=full make codegen-check`.
+- Completion rule: proceed directly to runtime E2E, Web E2E, and the single full `make verify`; any source change from those gates must still be remediated and reverified.
 
 ## Test Placement
 
@@ -36,7 +44,7 @@
 - Make one store-free bridge wire-contract package the canonical provider-facing owner, hard-cut bridgesdk/providers/subprocess/reference/generator roots to it, and enforce the complete dependency closure rather than only direct imports.
 - Preserve the current Telegram forum selection as the default while making peer-only and ordinary-group shapes explicit inputs.
 - Treat `BUG-20260712-reasoning-evidence-attribution` as part of final completion evidence: repair the diagnostics attribution owner before trusting the global runtime lane.
-- Preserve unrelated Daytona sidecar edits and keep them out of every checkpoint.
+- Co-ship the Daytona sidecars produced by the canonical full codegen for the merged source; the final codegen check must prove their freshness.
 
 ## Progress
 
@@ -63,3 +71,5 @@
 - B-002's required Storybook capture passes for the six truthful metrics. The same 320px surface exposed and closed a separate 36px overflow below them: scroller width is now `318/318`, metadata/Fields/cards have zero overflow, desktop remains unchanged, same-story captures were inspected, focused Web gates pass, and teardown is clean.
 - The deterministic projection test failure was a stale R-006 assertion, not a production regression: canonical `ToolInput` stays redacted while heuristic terminal chrome is intentionally command-name-only. Existing extension/bridges owners now assert exact safe previews and absence of arguments/secrets; focused race lanes pass.
 - The final post-review residue pass is closed. Daemon-owned `webhook_public_url` replaces the browser security-policy clone; bridge cards share one domain component; the create dialog reflows at 320px; docs import the leaf contract and match the real secret/Discord requirements; bridge payload conversion left the over-cap legacy file; response cleanup cannot retry a committed create/update/delete/affordance; Linear HMAC fails closed; `RouteTable.Replace` and GitHub test teardown no longer discard errors. Independent docs and API/Web audits returned SHIP, the focused Go owner passed 23 tests across five packages under `-race`, Web passed 51/51, site truth passed 24/24, docs conformance passed 4/4, and direct codegen check is clean.
+- Source freeze v3 closes the strict wire/documentation edge cases: explicit matching `delivery_id` and integer `seq` are required, explicit `seq: 0` is valid, missing/null/wrong-type/mismatched ACKs conservatively become `committed_result_unavailable`, and restart reconciliation distinguishes unmatched intent from checkpoint-only fail-open. `NB-bridge-restart-recovery`, `NB-indeterminate-bridge-delivery`, and the author/operations/routing docs match the final runtime.
+- Fresh focused evidence is green: bridge/extension contract owners under `-race`, eight providers under `-race`, API/CLI send-test owners, Web dialog 6/6, site truth 14/14, provider docs conformance 4/4, scoped Go lint, Oxfmt/Oxlint, CSV/nav validation, and diff-check. Deslop confirmed every new production Go file below 500 lines and no existing over-cap production file grew.

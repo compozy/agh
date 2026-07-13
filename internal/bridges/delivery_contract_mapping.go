@@ -238,19 +238,29 @@ func deliveryRequestToContract(request DeliveryRequest) bridgecontract.DeliveryR
 }
 
 func deliveryAckToContract(ack DeliveryAck) bridgecontract.DeliveryAck {
-	return bridgecontract.DeliveryAck{
+	converted := bridgecontract.DeliveryAck{
 		DeliveryID:             ack.DeliveryID,
 		Seq:                    ack.Seq,
 		RemoteMessageID:        ack.RemoteMessageID,
 		ReplaceRemoteMessageID: ack.ReplaceRemoteMessageID,
+		Outcome:                bridgecontract.DeliveryAckOutcome(ack.Outcome),
 	}
+	if ack.Error != nil {
+		converted.Error = &bridgecontract.DeliveryErrorDetail{Message: ack.Error.Message}
+	}
+	return converted
 }
 
 func deliveryAckFromContract(ack bridgecontract.DeliveryAck) DeliveryAck {
-	return DeliveryAck{
+	converted := DeliveryAck{
 		DeliveryID:             ack.DeliveryID,
 		Seq:                    ack.Seq,
 		RemoteMessageID:        ack.RemoteMessageID,
 		ReplaceRemoteMessageID: ack.ReplaceRemoteMessageID,
+		Outcome:                DeliveryAckOutcome(ack.Outcome),
 	}
+	if ack.Error != nil {
+		converted.Error = &DeliveryErrorDetail{Message: ack.Error.Message}
+	}
+	return converted
 }

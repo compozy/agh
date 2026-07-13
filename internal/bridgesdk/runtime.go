@@ -248,6 +248,7 @@ func (s *Session) AckDelivery(
 	ack := bridgepkg.DeliveryAck{
 		DeliveryID:             req.Event.DeliveryID,
 		Seq:                    req.Event.Seq,
+		Outcome:                bridgepkg.DeliveryAckOutcomeSuccess,
 		RemoteMessageID:        strings.TrimSpace(remoteMessageID),
 		ReplaceRemoteMessageID: strings.TrimSpace(replaceRemoteMessageID),
 	}

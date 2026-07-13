@@ -1081,7 +1081,14 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"delivery_id",
 					"delivery_target",
 				)
-				assertNotRequired(t, sendTestResponse, "remote_message_id")
+				assertNotRequired(t, sendTestResponse, "remote_message_id", "error")
+				assertEnumValues(
+					t,
+					propertySchema(t, sendTestResponse, "status"),
+					"delivered",
+					"committed_result_unavailable",
+				)
+				assertRequired(t, propertySchema(t, sendTestResponse, "error"), "message")
 				assertRequired(t, jsonResponseSchema(t, sendTest, http.StatusBadRequest), "error")
 
 				registerWebhook := operationFor(t, doc, "/api/bridges/{id}/webhook/register", "POST")

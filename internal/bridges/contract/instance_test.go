@@ -94,19 +94,71 @@ func TestBridgeInstanceContractValidation(t *testing.T) {
 			want   string
 		}{
 			{name: "Should reject a missing id", mutate: func(v *BridgeInstance) { v.ID = " " }, want: "instance id"},
-			{name: "Should reject a missing workspace", mutate: func(v *BridgeInstance) { v.WorkspaceID = "" }, want: "requires workspace"},
-			{name: "Should reject a missing platform", mutate: func(v *BridgeInstance) { v.Platform = "" }, want: "platform"},
-			{name: "Should reject a missing extension", mutate: func(v *BridgeInstance) { v.ExtensionName = "" }, want: "extension name"},
-			{name: "Should reject a missing display name", mutate: func(v *BridgeInstance) { v.DisplayName = "" }, want: "display name"},
-			{name: "Should reject an invalid source", mutate: func(v *BridgeInstance) { v.Source = "legacy" }, want: "source"},
-			{name: "Should reject an invalid status", mutate: func(v *BridgeInstance) { v.Status = "unknown" }, want: "status"},
-			{name: "Should reject disabled status while enabled", mutate: func(v *BridgeInstance) { v.Status = BridgeStatusDisabled }, want: "enabled"},
-			{name: "Should reject ready status while disabled", mutate: func(v *BridgeInstance) { v.Enabled = false }, want: "disabled"},
-			{name: "Should reject an invalid dm policy", mutate: func(v *BridgeInstance) { v.DMPolicy = "closed" }, want: "dm policy"},
-			{name: "Should reject an invalid routing policy", mutate: func(v *BridgeInstance) { v.RoutingPolicy = RoutingPolicy{IncludeThread: true} }, want: "thread"},
-			{name: "Should reject invalid provider JSON", mutate: func(v *BridgeInstance) { v.ProviderConfig = json.RawMessage(`{`) }, want: "valid JSON"},
-			{name: "Should reject a provider config array", mutate: func(v *BridgeInstance) { v.ProviderConfig = json.RawMessage(`[]`) }, want: "JSON object"},
-			{name: "Should reject a scalar provider config", mutate: func(v *BridgeInstance) { v.ProviderConfig = json.RawMessage(`"bot"`) }, want: "JSON object"},
+			{
+				name:   "Should reject a missing workspace",
+				mutate: func(v *BridgeInstance) { v.WorkspaceID = "" },
+				want:   "requires workspace",
+			},
+			{
+				name:   "Should reject a missing platform",
+				mutate: func(v *BridgeInstance) { v.Platform = "" },
+				want:   "platform",
+			},
+			{
+				name:   "Should reject a missing extension",
+				mutate: func(v *BridgeInstance) { v.ExtensionName = "" },
+				want:   "extension name",
+			},
+			{
+				name:   "Should reject a missing display name",
+				mutate: func(v *BridgeInstance) { v.DisplayName = "" },
+				want:   "display name",
+			},
+			{
+				name:   "Should reject an invalid source",
+				mutate: func(v *BridgeInstance) { v.Source = "legacy" },
+				want:   "source",
+			},
+			{
+				name:   "Should reject an invalid status",
+				mutate: func(v *BridgeInstance) { v.Status = "unknown" },
+				want:   "status",
+			},
+			{
+				name:   "Should reject disabled status while enabled",
+				mutate: func(v *BridgeInstance) { v.Status = BridgeStatusDisabled },
+				want:   "enabled",
+			},
+			{
+				name:   "Should reject ready status while disabled",
+				mutate: func(v *BridgeInstance) { v.Enabled = false },
+				want:   "disabled",
+			},
+			{
+				name:   "Should reject an invalid dm policy",
+				mutate: func(v *BridgeInstance) { v.DMPolicy = "closed" },
+				want:   "dm policy",
+			},
+			{
+				name:   "Should reject an invalid routing policy",
+				mutate: func(v *BridgeInstance) { v.RoutingPolicy = RoutingPolicy{IncludeThread: true} },
+				want:   "thread",
+			},
+			{
+				name:   "Should reject invalid provider JSON",
+				mutate: func(v *BridgeInstance) { v.ProviderConfig = json.RawMessage(`{`) },
+				want:   "valid JSON",
+			},
+			{
+				name:   "Should reject a provider config array",
+				mutate: func(v *BridgeInstance) { v.ProviderConfig = json.RawMessage(`[]`) },
+				want:   "JSON object",
+			},
+			{
+				name:   "Should reject a scalar provider config",
+				mutate: func(v *BridgeInstance) { v.ProviderConfig = json.RawMessage(`"bot"`) },
+				want:   "JSON object",
+			},
 			{name: "Should reject an operator api base url", mutate: func(v *BridgeInstance) {
 				v.ProviderConfig = json.RawMessage(`{"api_base_url":"https://operator.test"}`)
 			}, want: "operator-owned"},
@@ -128,7 +180,11 @@ func TestBridgeInstanceContractValidation(t *testing.T) {
 			{name: "Should reject invalid delivery defaults", mutate: func(v *BridgeInstance) {
 				v.DeliveryDefaults = json.RawMessage(`{"progress":{"tool_progress":"sometimes"}}`)
 			}, want: "progress tool_progress"},
-			{name: "Should reject a missing degradation reason", mutate: func(v *BridgeInstance) { v.Degradation = &BridgeDegradation{Message: "broken"} }, want: "reason"},
+			{
+				name:   "Should reject a missing degradation reason",
+				mutate: func(v *BridgeInstance) { v.Degradation = &BridgeDegradation{Message: "broken"} },
+				want:   "reason",
+			},
 			{name: "Should reject degradation on a ready instance", mutate: func(v *BridgeInstance) {
 				v.Status = BridgeStatusReady
 				v.Degradation = &BridgeDegradation{Reason: BridgeDegradationReasonAuthFailed}
@@ -161,7 +217,12 @@ func TestBridgeInstanceContractValidation(t *testing.T) {
 			{name: "Should accept global scope without a workspace", scope: ScopeGlobal},
 			{name: "Should accept workspace scope with an id", scope: ScopeWorkspace, workspaceID: "ws-1"},
 			{name: "Should reject workspace scope without an id", scope: ScopeWorkspace, wantErr: true},
-			{name: "Should reject global scope with a workspace", scope: ScopeGlobal, workspaceID: "ws-1", wantErr: true},
+			{
+				name:        "Should reject global scope with a workspace",
+				scope:       ScopeGlobal,
+				workspaceID: "ws-1",
+				wantErr:     true,
+			},
 			{name: "Should reject unsupported scope", scope: "tenant", wantErr: true},
 			{name: "Should reject empty scope", scope: "", wantErr: true},
 		}
@@ -272,7 +333,10 @@ func TestBridgeInstanceContractValidation(t *testing.T) {
 			{name: "Should accept rate-limited degradation", value: BridgeDegradationReasonRateLimited},
 			{name: "Should accept webhook-invalid degradation", value: BridgeDegradationReasonWebhookInvalid},
 			{name: "Should accept provider-timeout degradation", value: BridgeDegradationReasonProviderTimeout},
-			{name: "Should accept tenant-config-invalid degradation", value: BridgeDegradationReasonTenantConfigInvalid},
+			{
+				name:  "Should accept tenant-config-invalid degradation",
+				value: BridgeDegradationReasonTenantConfigInvalid,
+			},
 		}
 		for _, test := range reasons {
 			test := test
@@ -309,7 +373,12 @@ func TestBridgeInstanceContractValidation(t *testing.T) {
 			{name: "Should accept a disabled instance", status: BridgeStatusDisabled},
 			{name: "Should accept an enabled ready instance", enabled: true, status: BridgeStatusReady},
 			{name: "Should reject disabled with ready status", status: BridgeStatusReady, wantErr: true},
-			{name: "Should reject enabled with disabled status", enabled: true, status: BridgeStatusDisabled, wantErr: true},
+			{
+				name:    "Should reject enabled with disabled status",
+				enabled: true,
+				status:  BridgeStatusDisabled,
+				wantErr: true,
+			},
 		}
 		for _, test := range cases {
 			test := test
@@ -390,9 +459,18 @@ func TestRoutingContractBuildSerializeAndHash(t *testing.T) {
 			name       string
 			dimensions RoutingDimensions
 		}{
-			{name: "Should require a peer dimension", dimensions: RoutingDimensions{ThreadID: "thread-1", GroupID: "group-1"}},
-			{name: "Should require a thread dimension", dimensions: RoutingDimensions{PeerID: "peer-1", GroupID: "group-1"}},
-			{name: "Should require a group dimension", dimensions: RoutingDimensions{PeerID: "peer-1", ThreadID: "thread-1"}},
+			{
+				name:       "Should require a peer dimension",
+				dimensions: RoutingDimensions{ThreadID: "thread-1", GroupID: "group-1"},
+			},
+			{
+				name:       "Should require a thread dimension",
+				dimensions: RoutingDimensions{PeerID: "peer-1", GroupID: "group-1"},
+			},
+			{
+				name:       "Should require a group dimension",
+				dimensions: RoutingDimensions{PeerID: "peer-1", ThreadID: "thread-1"},
+			},
 		}
 		for _, test := range cases {
 			test := test

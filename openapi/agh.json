@@ -43058,10 +43058,26 @@
                       ],
                       "type": "object"
                     },
+                    "error": {
+                      "nullable": true,
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "type": "object"
+                    },
                     "remote_message_id": {
                       "type": "string"
                     },
                     "status": {
+                      "enum": [
+                        "delivered",
+                        "committed_result_unavailable"
+                      ],
                       "type": "string"
                     }
                   },

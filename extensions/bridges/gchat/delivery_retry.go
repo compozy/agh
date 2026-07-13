@@ -11,9 +11,13 @@ func createGChatDeliveryMessage(
 	api gchatAPI,
 	request gchatCreateMessageRequest,
 ) (*gchatSentMessage, error) {
-	return bridgesdk.RetryDo(ctx, bridgesdk.DefaultRetryConfig(), func(callCtx context.Context) (*gchatSentMessage, error) {
-		return api.CreateMessage(callCtx, request)
-	})
+	return bridgesdk.RetryDo(
+		ctx,
+		bridgesdk.DefaultRetryConfig(),
+		func(callCtx context.Context) (*gchatSentMessage, error) {
+			return api.CreateMessage(callCtx, request)
+		},
+	)
 }
 
 func updateGChatDeliveryMessage(
@@ -21,9 +25,13 @@ func updateGChatDeliveryMessage(
 	api gchatAPI,
 	request gchatUpdateMessageRequest,
 ) (*gchatSentMessage, error) {
-	return bridgesdk.RetryDo(ctx, bridgesdk.DefaultRetryConfig(), func(callCtx context.Context) (*gchatSentMessage, error) {
-		return api.UpdateMessage(callCtx, request)
-	})
+	return bridgesdk.RetryDo(
+		ctx,
+		bridgesdk.DefaultRetryConfig(),
+		func(callCtx context.Context) (*gchatSentMessage, error) {
+			return api.UpdateMessage(callCtx, request)
+		},
+	)
 }
 
 func deleteGChatDeliveryMessage(ctx context.Context, api gchatAPI, messageName string) error {

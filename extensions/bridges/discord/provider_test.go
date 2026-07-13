@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 	"unsafe"
@@ -656,9 +657,15 @@ func TestExecuteDiscordDeliveryChunksTerminalContent(t *testing.T) {
 		}}
 
 		_, _, err := executeDiscordDelivery(context.Background(), api, request, deliveryState{})
-		var transient *bridgesdk.TransientError
-		if !errors.As(err, &transient) {
-			t.Fatalf("executeDiscordDelivery() error = %v, want TransientError", err)
+		if got, want := bridgesdk.ClassifyError(err).Class, bridgesdk.ErrorClassPermanent; got != want {
+			t.Fatalf("executeDiscordDelivery() error class = %q, want %q: %v", got, want, err)
+		}
+		var committedErr *bridgesdk.CommittedMutationError
+		if !errors.As(err, &committedErr) {
+			t.Fatalf("executeDiscordDelivery() error = %T, want CommittedMutationError", err)
+		}
+		if got, want := len(api.postAttempts), 1; got != want {
+			t.Fatalf("post attempts = %d, want %d", got, want)
 		}
 	})
 
@@ -692,7 +699,10 @@ func TestExecuteDiscordDeliveryChunksTerminalContent(t *testing.T) {
 		if err == nil {
 			t.Fatal("executeDiscordDelivery(partial) error = nil, want exhausted rate limit")
 		}
-		if got, want := countDiscordPostRequests(api.postAttempts, chunks[1]), bridgesdk.DefaultRetryConfig().Attempts; got != want {
+		if got, want := countDiscordPostRequests(
+			api.postAttempts,
+			chunks[1],
+		), bridgesdk.DefaultRetryConfig().Attempts; got != want {
 			t.Fatalf("failed continuation attempts = %d, want %d", got, want)
 		}
 		if got, want := countDiscordPostRequests(api.postRequests, chunks[0]), 1; got != want {
@@ -834,6 +844,137 @@ func TestDiscordProgressDeliveryRendersAndEditsOneBubble(t *testing.T) {
 		_, retained := provider.deliveries.Load(deliveryStateKey("brg-discord", "delivery-progress"))
 		if retained {
 			t.Fatal("lifecycle-only final retained an orphaned delivery state")
+		}
+	})
+
+	t.Run("Should deliver final text once after a committed progress edit result failure", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 13, 12, 5, 0, 0, time.UTC)
+		timer := &discordManualProgressTimer{}
+		api := &discordAPIFake{
+			postedMessageID: "progress-committed",
+			updateErrors: []error{
+				bridgesdk.MarkCommittedMutation(errors.New("progress edit result unavailable")),
+			},
+		}
+		provider, err := newDiscordProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newDiscordProvider() error = %v", err)
+		}
+		t.Cleanup(provider.stopResources)
+		provider.now = func() time.Time { return now }
+		provider.progressDispatcherOptions = []bridgesdk.ProgressDispatcherOption{
+			bridgesdk.WithProgressSchedule(timer.Schedule),
+		}
+		provider.apiFactory = func(resolvedInstanceConfig) discordAPI { return api }
+		setDiscordProviderRoute(provider, "brg-discord", &resolvedInstanceConfig{
+			instanceID: "brg-discord",
+			managed:    testDiscordManagedInstance("brg-discord"),
+		})
+		session := &bridgesdk.Session{}
+		started := testDiscordProgressRequest(
+			"delivery-progress-committed",
+			1,
+			bridgepkg.ToolProgress{
+				ToolCallID: "call-progress-started",
+				ToolID:     "agh__terminal",
+				Phase:      bridgepkg.ToolProgressPhaseStarted,
+				Label:      "Inspecting",
+				Emoji:      "\U0001f527",
+				Index:      1,
+			},
+		)
+		if _, err := provider.handleBridgesProgress(context.Background(), session, started); err != nil {
+			t.Fatalf("handleBridgesProgress(started) error = %v", err)
+		}
+		completed := testDiscordProgressRequest(
+			"delivery-progress-committed",
+			2,
+			bridgepkg.ToolProgress{
+				ToolCallID: "call-progress-completed",
+				ToolID:     "agh__terminal",
+				Phase:      bridgepkg.ToolProgressPhaseCompleted,
+				Label:      "Inspecting",
+				Emoji:      "\U0001f527",
+				Index:      2,
+			},
+		)
+		if _, err := provider.handleBridgesProgress(context.Background(), session, completed); err != nil {
+			t.Fatalf("handleBridgesProgress(completed) error = %v", err)
+		}
+		final := testDiscordLifecycleFinalRequest("delivery-progress-committed", 3)
+		final.Event.Content.Text = "final answer"
+
+		ack, err := provider.handleBridgesDeliver(context.Background(), session, final)
+		if err != nil {
+			t.Fatalf("handleBridgesDeliver(final) error = %v", err)
+		}
+		if got, want := ack.DeliveryID, final.Event.DeliveryID; got != want {
+			t.Fatalf("ack delivery id = %q, want %q", got, want)
+		}
+		if got, want := len(api.updateAttempts), 1; got != want {
+			t.Fatalf("committed progress edit attempts = %d, want %d", got, want)
+		}
+		if got, want := countDiscordPostRequests(api.postAttempts, "final answer"), 1; got != want {
+			t.Fatalf("final text post attempts = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should discard and close progress state after a committed final text result failure", func(t *testing.T) {
+		t.Parallel()
+
+		api := &discordAPIFake{postedMessageID: "progress-text-committed"}
+		provider, err := newDiscordProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newDiscordProvider() error = %v", err)
+		}
+		t.Cleanup(provider.stopResources)
+		provider.apiFactory = func(resolvedInstanceConfig) discordAPI { return api }
+		setDiscordProviderRoute(provider, "brg-discord", &resolvedInstanceConfig{
+			instanceID: "brg-discord",
+			managed:    testDiscordManagedInstance("brg-discord"),
+		})
+		session := &bridgesdk.Session{}
+		started := testDiscordProgressRequest(
+			"delivery-text-committed",
+			1,
+			bridgepkg.ToolProgress{
+				ToolCallID: "call-progress-started",
+				ToolID:     "agh__terminal",
+				Phase:      bridgepkg.ToolProgressPhaseStarted,
+				Label:      "Inspecting",
+				Emoji:      "\U0001f527",
+				Index:      1,
+			},
+		)
+		if _, err := provider.handleBridgesProgress(context.Background(), session, started); err != nil {
+			t.Fatalf("handleBridgesProgress(started) error = %v", err)
+		}
+		dispatcher := provider.deliveryState("brg-discord", "delivery-text-committed").Progress
+		if dispatcher == nil {
+			t.Fatal("progress dispatcher = nil, want active dispatcher")
+		}
+		api.postErrorContent = "final answer"
+		api.postErr = bridgesdk.MarkCommittedMutation(errors.New("final text result unavailable"))
+		final := testDiscordLifecycleFinalRequest("delivery-text-committed", 2)
+		final.Event.Content.Text = "final answer"
+
+		_, err = provider.handleBridgesDeliver(context.Background(), session, final)
+		if !bridgesdk.IsCommittedMutation(err) {
+			t.Fatalf("handleBridgesDeliver(final) error = %T %v, want committed mutation", err, err)
+		}
+		if got, want := countDiscordPostRequests(api.postAttempts, "final answer"), 1; got != want {
+			t.Fatalf("final text post attempts = %d, want %d", got, want)
+		}
+		if _, retained := provider.deliveries.Load(
+			deliveryStateKey("brg-discord", "delivery-text-committed"),
+		); retained {
+			t.Fatal("committed final text failure retained delivery state")
+		}
+		if flushErr := dispatcher.Flush(context.Background()); flushErr == nil ||
+			!strings.Contains(flushErr.Error(), "closed") {
+			t.Fatalf("closed dispatcher Flush() error = %v, want closed error", flushErr)
 		}
 	})
 }
@@ -1060,6 +1201,91 @@ func TestHandleInteractionWebhookAcknowledgesImmediately(t *testing.T) {
 func TestDiscordBotClientRoutesRequestsAndClassifiesFailures(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve rate-limit classification when the error body read fails", func(t *testing.T) {
+		t.Parallel()
+
+		readErr := errors.New("Discord error body read failed")
+		body := &discordPartialErrorResponseBody{
+			content: []byte("too many requests"),
+			readErr: readErr,
+		}
+		client := &discordBotClient{
+			baseURL:  "https://discord.test",
+			botToken: "discord-bot-token",
+			httpClient: &http.Client{
+				Transport: discordRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					return &http.Response{
+						StatusCode: http.StatusTooManyRequests,
+						Header:     http.Header{"Retry-After": []string{"2"}},
+						Body:       body,
+						Request:    req,
+					}, nil
+				}),
+			},
+		}
+
+		_, err := client.PostMessage(t.Context(), discordPostMessageRequest{
+			ChannelID: "thread-rate-limited",
+			Content:   "hello",
+		})
+		if !errors.Is(err, readErr) {
+			t.Fatalf("PostMessage() error = %v, want response body read failure", err)
+		}
+		var httpErr *bridgesdk.HTTPError
+		if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusTooManyRequests {
+			t.Fatalf("PostMessage() error = %v, want HTTP 429 classification", err)
+		}
+		classified := bridgesdk.ClassifyError(err)
+		if classified.Class != bridgesdk.ErrorClassRateLimit || classified.RetryAfter != 2*time.Second {
+			t.Fatalf("PostMessage() classification = %#v, want rate-limit with two-second retry", classified)
+		}
+		if !strings.Contains(httpErr.Message, "too many requests") {
+			t.Fatalf("PostMessage() HTTP message = %q, want partial provider body", httpErr.Message)
+		}
+		if got, want := body.reads, 2; got != want {
+			t.Fatalf("response body reads = %d, want %d for read plus deferred drain", got, want)
+		}
+		if !body.closed {
+			t.Fatal("response body closed = false after error classification")
+		}
+	})
+
+	t.Run("Should stop after a successful create returns truncated JSON", func(t *testing.T) {
+		t.Parallel()
+
+		attempts := 0
+		client := &discordBotClient{
+			baseURL:  "https://discord.test",
+			botToken: "discord-bot-token",
+			httpClient: &http.Client{
+				Transport: discordRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					attempts++
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Header:     make(http.Header),
+						Body:       io.NopCloser(strings.NewReader(`{"id":`)),
+						Request:    req,
+					}, nil
+				}),
+			},
+		}
+
+		_, err := postDiscordDeliveryMessage(t.Context(), client, discordPostMessageRequest{
+			ChannelID: "thread-committed",
+			Content:   "hello",
+		})
+		if err == nil {
+			t.Fatal("postDiscordDeliveryMessage(truncated response) error = nil, want non-nil")
+		}
+		var committedErr *bridgesdk.CommittedMutationError
+		if !errors.As(err, &committedErr) {
+			t.Fatalf("postDiscordDeliveryMessage() error = %T, want CommittedMutationError", err)
+		}
+		if got, want := attempts, 1; got != want {
+			t.Fatalf("transport attempts = %d, want %d", got, want)
+		}
+	})
+
 	t.Run("Should preserve a materialized message when response cleanup fails", func(t *testing.T) {
 		t.Parallel()
 
@@ -1073,18 +1299,20 @@ func TestDiscordBotClientRoutesRequestsAndClassifiesFailures(t *testing.T) {
 		client := &discordBotClient{
 			baseURL:  "https://discord.test",
 			botToken: "discord-bot-token",
-			httpClient: &http.Client{Transport: discordRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-				attempts++
-				return &http.Response{
-					StatusCode: http.StatusOK,
-					Header:     make(http.Header),
-					Body: &discordResponseBody{
-						Reader:   strings.NewReader(`{"id":"msg-committed"}`),
-						closeErr: closeErr,
-					},
-					Request: req,
-				}, nil
-			})},
+			httpClient: &http.Client{
+				Transport: discordRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					attempts++
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Header:     make(http.Header),
+						Body: &discordResponseBody{
+							Reader:   strings.NewReader(`{"id":"msg-committed"}`),
+							closeErr: closeErr,
+						},
+						Request: req,
+					}, nil
+				}),
+			},
 			reportResponseCleanup: func(err error) {
 				reported = append(reported, err)
 			},
@@ -1121,26 +1349,28 @@ func TestDiscordBotClientRoutesRequestsAndClassifiesFailures(t *testing.T) {
 		client := &discordBotClient{
 			baseURL:  "https://discord.test",
 			botToken: "discord-bot-token",
-			httpClient: &http.Client{Transport: discordRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
-				attempts++
-				if attempts > 1 {
+			httpClient: &http.Client{
+				Transport: discordRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					attempts++
+					if attempts > 1 {
+						return &http.Response{
+							StatusCode: http.StatusNotFound,
+							Header:     make(http.Header),
+							Body:       io.NopCloser(strings.NewReader("already deleted")),
+							Request:    req,
+						}, nil
+					}
 					return &http.Response{
-						StatusCode: http.StatusNotFound,
+						StatusCode: http.StatusNoContent,
 						Header:     make(http.Header),
-						Body:       io.NopCloser(strings.NewReader("already deleted")),
-						Request:    req,
+						Body: &discordResponseBody{
+							Reader:   strings.NewReader(""),
+							closeErr: closeErr,
+						},
+						Request: req,
 					}, nil
-				}
-				return &http.Response{
-					StatusCode: http.StatusNoContent,
-					Header:     make(http.Header),
-					Body: &discordResponseBody{
-						Reader:   strings.NewReader(""),
-						closeErr: closeErr,
-					},
-					Request: req,
-				}, nil
-			})},
+				}),
+			},
 			reportResponseCleanup: func(err error) {
 				reported = append(reported, err)
 			},
@@ -1161,6 +1391,64 @@ func TestDiscordBotClientRoutesRequestsAndClassifiesFailures(t *testing.T) {
 		}
 	})
 
+	for _, testCase := range []struct {
+		name       string
+		statusCode int
+	}{
+		{name: "Should refuse a credentialed 301 redirect", statusCode: http.StatusMovedPermanently},
+		{name: "Should refuse a credentialed 302 redirect", statusCode: http.StatusFound},
+		{name: "Should refuse a credentialed 303 redirect", statusCode: http.StatusSeeOther},
+		{name: "Should refuse a credentialed 307 redirect", statusCode: http.StatusTemporaryRedirect},
+		{name: "Should refuse a credentialed 308 redirect", statusCode: http.StatusPermanentRedirect},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			var targetHits atomic.Int32
+			target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				targetHits.Add(1)
+				if err := json.NewEncoder(w).Encode(discordPostedMessage{ID: "msg-redirect"}); err != nil {
+					t.Errorf("encode redirect target Discord response: %v", err)
+				}
+			}))
+			defer target.Close()
+
+			redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Location", target.URL)
+				http.Error(w, "redirect refused", testCase.statusCode)
+				if got, want := r.Method, http.MethodPost; got != want {
+					t.Errorf("redirect source method = %q, want %q", got, want)
+				}
+			}))
+			defer redirect.Close()
+
+			client := &discordBotClient{
+				baseURL:    redirect.URL,
+				botToken:   "discord-bot-token",
+				httpClient: redirect.Client(),
+			}
+			_, err := client.PostMessage(t.Context(), discordPostMessageRequest{
+				ChannelID: "thread-redirect",
+				Content:   "hello",
+			})
+			var httpErr *bridgesdk.HTTPError
+			if !errors.As(err, &httpErr) || httpErr.StatusCode != testCase.statusCode {
+				t.Fatalf(
+					"PostMessage(%d) error = %T %v, want first-response HTTPError",
+					testCase.statusCode,
+					err,
+					err,
+				)
+			}
+			if bridgesdk.IsCommittedMutation(err) {
+				t.Fatalf("PostMessage(%d) error = %v, want pre-commit rejection", testCase.statusCode, err)
+			}
+			if got := targetHits.Load(); got != 0 {
+				t.Fatalf("redirect target hits = %d, want 0", got)
+			}
+		})
+	}
+
 	var mu sync.Mutex
 	var paths []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1170,11 +1458,17 @@ func TestDiscordBotClientRoutesRequestsAndClassifiesFailures(t *testing.T) {
 
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/users/@me":
-			_ = json.NewEncoder(w).Encode(discordBotIdentity{ID: "bot-1", Username: "agh"})
+			if err := json.NewEncoder(w).Encode(discordBotIdentity{ID: "bot-1", Username: "agh"}); err != nil {
+				t.Errorf("encode Discord bot identity: %v", err)
+			}
 		case r.Method == http.MethodPost && r.URL.Path == "/channels/thread-1/messages":
-			_ = json.NewEncoder(w).Encode(discordPostedMessage{ID: "msg-1"})
+			if err := json.NewEncoder(w).Encode(discordPostedMessage{ID: "msg-1"}); err != nil {
+				t.Errorf("encode Discord posted message: %v", err)
+			}
 		case r.Method == http.MethodPatch && r.URL.Path == "/channels/thread-1/messages/msg-1":
-			_ = json.NewEncoder(w).Encode(discordPostedMessage{ID: "msg-1"})
+			if err := json.NewEncoder(w).Encode(discordPostedMessage{ID: "msg-1"}); err != nil {
+				t.Errorf("encode Discord updated message: %v", err)
+			}
 		case r.Method == http.MethodDelete && r.URL.Path == "/channels/thread-1/messages/msg-1":
 			w.WriteHeader(http.StatusNoContent)
 		case r.Method == http.MethodPost && r.URL.Path == "/channels/thread-1/typing":
@@ -1268,6 +1562,26 @@ func (f discordRoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, e
 type discordResponseBody struct {
 	io.Reader
 	closeErr error
+}
+
+type discordPartialErrorResponseBody struct {
+	content []byte
+	readErr error
+	reads   int
+	closed  bool
+}
+
+func (b *discordPartialErrorResponseBody) Read(buffer []byte) (int, error) {
+	b.reads++
+	if b.reads > 1 {
+		return 0, io.EOF
+	}
+	return copy(buffer, b.content), b.readErr
+}
+
+func (b *discordPartialErrorResponseBody) Close() error {
+	b.closed = true
+	return nil
 }
 
 func (b *discordResponseBody) Close() error {
@@ -2092,12 +2406,6 @@ func TestDiscordWebhookAndHelperErrorBranches(t *testing.T) {
 	if channelID != "channel-1" || messageID != "msg-1" {
 		t.Fatalf("decodeRemoteMessageID(valid) = (%q, %q), want (channel-1, msg-1)", channelID, messageID)
 	}
-	if got := readResponseBody(nil); got != "" {
-		t.Fatalf("readResponseBody(nil) = %q, want empty", got)
-	}
-	if got := readResponseBody(discordErrorReader{}); got != "" {
-		t.Fatalf("readResponseBody(error) = %q, want empty", got)
-	}
 	if got := parseRetryAfter("0"); got != 0 {
 		t.Fatalf("parseRetryAfter(0) = %s, want 0", got)
 	}
@@ -2694,12 +3002,6 @@ func (f *discordAPIGetBotUserErrorFake) UpdateMessage(context.Context, discordUp
 
 func (f *discordAPIGetBotUserErrorFake) DeleteMessage(context.Context, discordDeleteMessageRequest) error {
 	return f.err
-}
-
-type discordErrorReader struct{}
-
-func (discordErrorReader) Read([]byte) (int, error) {
-	return 0, errors.New("read failed")
 }
 
 func injectedDiscordSession(

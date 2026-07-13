@@ -134,6 +134,13 @@ func TestClassifyErrorMapsRepresentativeProviderFailures(t *testing.T) {
 			wantRetry:  false,
 			wantStatus: bridgepkg.BridgeStatusError,
 		},
+		{
+			name:       "committed mutation",
+			err:        &CommittedMutationError{Err: errors.New("remote result unavailable")},
+			wantClass:  ErrorClassPermanent,
+			wantRetry:  false,
+			wantStatus: bridgepkg.BridgeStatusError,
+		},
 	}
 
 	for _, tt := range tests {
@@ -193,6 +200,40 @@ func TestRetryDoRetriesRateLimitedFailuresAndSucceeds(t *testing.T) {
 	if got, want := attempts, 3; got != want {
 		t.Fatalf("attempts = %d, want %d", got, want)
 	}
+
+	t.Run("Should never retry a rate limit nested inside a committed mutation", func(t *testing.T) {
+		t.Parallel()
+
+		committedErr := MarkCommittedMutation(&RateLimitError{
+			Err:        errors.New("remote result unavailable after commit"),
+			RetryAfter: time.Millisecond,
+		})
+		classified := ClassifyError(committedErr)
+		if got, want := classified.Class, ErrorClassPermanent; got != want {
+			t.Fatalf("ClassifyError(committed rate limit).Class = %q, want %q", got, want)
+		}
+		if classified.Recovery().Retry {
+			t.Fatal("ClassifyError(committed rate limit).Recovery().Retry = true, want false")
+		}
+
+		attempts := 0
+		_, err := RetryDo(context.Background(), RetryConfig{
+			Attempts:  3,
+			MinDelay:  time.Millisecond,
+			MaxDelay:  2 * time.Millisecond,
+			Jitter:    0,
+			RandFloat: func() float64 { return 0.5 },
+		}, func(context.Context) (string, error) {
+			attempts++
+			return "", committedErr
+		})
+		if !errors.Is(err, committedErr) {
+			t.Fatalf("RetryDo() error = %v, want committed mutation", err)
+		}
+		if got, want := attempts, 1; got != want {
+			t.Fatalf("attempts = %d, want %d", got, want)
+		}
+	})
 }
 
 func TestDefaultRetryConfigAndErrorUnwrapHelpers(t *testing.T) {
@@ -216,6 +257,57 @@ func TestDefaultRetryConfigAndErrorUnwrapHelpers(t *testing.T) {
 	if !errors.Is((&PermanentError{Err: root}).Unwrap(), root) {
 		t.Fatal("PermanentError.Unwrap() does not expose root error")
 	}
+	if !errors.Is((&CommittedMutationError{Err: root}).Unwrap(), root) {
+		t.Fatal("CommittedMutationError.Unwrap() does not expose root error")
+	}
+	marked := MarkCommittedMutation(root)
+	var committed *CommittedMutationError
+	if !errors.As(marked, &committed) || !errors.Is(marked, root) {
+		t.Fatalf("MarkCommittedMutation() = %v, want committed wrapper around root", marked)
+	}
+	if got := MarkCommittedMutation(marked); got != marked {
+		t.Fatalf("MarkCommittedMutation(marked) = %v, want original marker", got)
+	}
+	if MarkCommittedMutation(nil) != nil {
+		t.Fatal("MarkCommittedMutation(nil) error = non-nil")
+	}
+	if !IsCommittedMutation(marked) || IsCommittedMutation(root) {
+		t.Fatalf(
+			"IsCommittedMutation() = marked:%t root:%t, want true/false",
+			IsCommittedMutation(marked),
+			IsCommittedMutation(root),
+		)
+	}
+	if !ShouldContinueTextDeliveryAfterProgress(nil) ||
+		!ShouldContinueTextDeliveryAfterProgress(marked) ||
+		ShouldContinueTextDeliveryAfterProgress(root) {
+		t.Fatal("ShouldContinueTextDeliveryAfterProgress() did not isolate committed progress failures")
+	}
+}
+
+func TestCommittedMutationErrorUsesFallbackForEmptyCauses(t *testing.T) {
+	t.Run("Should keep the semantic acknowledgement reason non-empty", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name string
+			err  *CommittedMutationError
+		}{
+			{name: "nil receiver", err: nil},
+			{name: "nil cause", err: &CommittedMutationError{}},
+			{name: "empty cause", err: &CommittedMutationError{Err: errors.New("")}},
+			{name: "whitespace cause", err: &CommittedMutationError{Err: errors.New("  \n ")}},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				if got := test.err.Error(); got != committedMutationFallbackMessage {
+					t.Fatalf("CommittedMutationError.Error() = %q, want %q", got, committedMutationFallbackMessage)
+				}
+			})
+		}
+	})
 }
 
 func TestClassifyErrorCoversHTTPNetAndStringFallbacks(t *testing.T) {

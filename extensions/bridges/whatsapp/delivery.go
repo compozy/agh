@@ -74,7 +74,10 @@ func (p *whatsappProvider) handleBridgesDeliver(
 	state := p.deliveryState(cfg.instanceID, request.Event.DeliveryID)
 	if state.Progress != nil {
 		if err := state.Progress.Flush(ctx); err != nil {
-			return p.failWhatsAppDelivery(ctx, session, cfg, marker, err)
+			p.reportWhatsAppProgressFailure(ctx, session, cfg.instanceID, err)
+			if !bridgesdk.ShouldContinueTextDeliveryAfterProgress(err) {
+				return p.failWhatsAppDelivery(ctx, session, cfg, marker, err)
+			}
 		}
 	}
 
@@ -87,7 +90,14 @@ func (p *whatsappProvider) handleBridgesDeliver(
 		state,
 	)
 	if err != nil {
-		p.storeDeliveryRetryState(cfg.instanceID, request.Event.DeliveryID, state)
+		if bridgesdk.IsCommittedMutation(err) {
+			p.deliveries.Delete(deliveryStateKey(cfg.instanceID, request.Event.DeliveryID))
+			if state.Progress != nil {
+				state.Progress.Close()
+			}
+		} else {
+			p.storeDeliveryRetryState(cfg.instanceID, request.Event.DeliveryID, state)
+		}
 		return p.failWhatsAppDelivery(ctx, session, cfg, marker, err)
 	}
 	return p.completeWhatsAppDelivery(ctx, session, cfg, request, marker, ack, state)
@@ -257,8 +267,15 @@ func executeWhatsAppDelivery(
 	if err != nil {
 		return bridgepkg.DeliveryAck{}, state, err
 	}
+	return finalizeWhatsAppDelivery(event, state)
+}
+
+func finalizeWhatsAppDelivery(
+	event bridgepkg.DeliveryEvent,
+	state deliveryState,
+) (bridgepkg.DeliveryAck, deliveryState, error) {
 	remoteID := state.Chunks.LastRemoteMessageID()
-	replaceRemoteID = state.Chunks.ReplaceRemoteMessageID()
+	replaceRemoteID := state.Chunks.ReplaceRemoteMessageID()
 	state.Chunks = bridgesdk.DeliveryChunkCursor{}
 	ack := bridgepkg.DeliveryAck{
 		DeliveryID:      event.DeliveryID,
@@ -385,19 +402,4 @@ func sendWhatsAppDeliveryChunksWithCursor(
 		cursor = cursor.Advance(remoteID)
 	}
 	return cursor, nil
-}
-
-func lastWhatsAppResponseMessageID(response *whatsappSendMessageResponse) (string, error) {
-	if response == nil || len(response.Messages) == 0 {
-		return "", &bridgesdk.TransientError{
-			Err: errors.New("whatsapp: send message response omitted a message id"),
-		}
-	}
-	messageID := strings.TrimSpace(response.Messages[len(response.Messages)-1].ID)
-	if messageID == "" {
-		return "", &bridgesdk.TransientError{
-			Err: errors.New("whatsapp: send message response omitted a message id"),
-		}
-	}
-	return messageID, nil
 }
