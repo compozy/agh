@@ -40,8 +40,7 @@ func (r *Runtime) handleDeliver(ctx context.Context, raw json.RawMessage) (any, 
 	}
 	ack, err := handler(ctx, session, request)
 	if err != nil {
-		var committed *CommittedMutationError
-		if errors.As(err, &committed) {
+		if committed, ok := errors.AsType[*CommittedMutationError](err); ok && committed != nil {
 			return session.AckCommittedResultUnavailable(request, err.Error())
 		}
 		return nil, err

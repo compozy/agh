@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/compozy/agh/internal/bridges"
@@ -195,9 +196,7 @@ func mergeBridgeDeliveryMetricRecord(
 		map[string]int,
 		len(current.DeliveryDroppedByReason)+len(next.DeliveryDroppedByReason),
 	)
-	for reason, count := range current.DeliveryDroppedByReason {
-		merged.DeliveryDroppedByReason[reason] = count
-	}
+	maps.Copy(merged.DeliveryDroppedByReason, current.DeliveryDroppedByReason)
 	for reason, count := range next.DeliveryDroppedByReason {
 		if count > merged.DeliveryDroppedByReason[reason] {
 			merged.DeliveryDroppedByReason[reason] = count

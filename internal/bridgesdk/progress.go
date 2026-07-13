@@ -240,9 +240,7 @@ func (a *ProgressAccumulator) PendingFlushDelay() (time.Duration, bool) {
 		return 0, false
 	}
 	delay := a.config.EditInterval - a.now().Sub(a.lastEditAt)
-	if delay < 0 {
-		delay = 0
-	}
+	delay = max(delay, 0)
 	return delay, true
 }
 
@@ -319,8 +317,7 @@ func (a *ProgressAccumulator) flushLocked(ctx context.Context, force bool) error
 	if a.currentBubbleID == "" || !a.canEdit {
 		remoteID, err := a.sink.Post(ctx, a.config.Target, a.currentText)
 		if err != nil {
-			var committed *CommittedMutationError
-			if errors.As(err, &committed) {
+			if committed, ok := errors.AsType[*CommittedMutationError](err); ok && committed != nil {
 				a.resetBubbleLocked()
 			}
 			return fmt.Errorf("bridgesdk: post progress bubble: %w", err)
@@ -343,8 +340,7 @@ func (a *ProgressAccumulator) flushLocked(ctx context.Context, force bool) error
 		return nil
 	}
 	if err := a.sink.Edit(ctx, a.config.Target, a.currentBubbleID, a.currentText); err != nil {
-		var committed *CommittedMutationError
-		if errors.As(err, &committed) {
+		if committed, ok := errors.AsType[*CommittedMutationError](err); ok && committed != nil {
 			a.lastEditAt = now
 			a.dirty = false
 		}

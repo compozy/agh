@@ -28,7 +28,6 @@ func TestDeliveryScalarContracts(t *testing.T) {
 			{name: "Should normalize reply underscore", alias: "reply_send", want: DeliveryModeReply},
 		}
 		for _, test := range modeAliases {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -49,7 +48,6 @@ func TestDeliveryScalarContracts(t *testing.T) {
 			{name: "Should reject an unsupported delivery mode", mode: "broadcast"},
 		}
 		for _, test := range invalidModes {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -69,7 +67,6 @@ func TestDeliveryScalarContracts(t *testing.T) {
 			{name: "Should accept a delete operation", operation: DeliveryOperationDelete},
 		}
 		for _, test := range operations {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -139,7 +136,6 @@ func TestDeliveryScalarContracts(t *testing.T) {
 			},
 		}
 		for _, test := range invalidTargets {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -182,7 +178,6 @@ func TestDeliveryScalarContracts(t *testing.T) {
 			},
 		}
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -221,7 +216,6 @@ func TestDeliveryScalarContracts(t *testing.T) {
 			{name: "Should classify progress as non-terminal", eventType: DeliveryEventTypeProgress},
 		}
 		for _, test := range cases {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				if got := IsTerminalDeliveryEventType(test.eventType); got != test.terminal {
@@ -239,7 +233,6 @@ func TestDeliveryScalarContracts(t *testing.T) {
 			DeliveryEventTypeError, DeliveryEventTypeDelete, DeliveryEventTypeProgress,
 		}
 		for _, latest := range validResumeTypes {
-			latest := latest
 			t.Run("Should accept resume state after "+string(latest), func(t *testing.T) {
 				t.Parallel()
 
@@ -257,7 +250,6 @@ func TestDeliveryScalarContracts(t *testing.T) {
 			{name: "Should reject an unsupported resume predecessor", latest: "unknown"},
 		}
 		for _, test := range invalidResumeTypes {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -368,7 +360,6 @@ func TestDeliveryScalarContracts(t *testing.T) {
 			},
 		}
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -533,7 +524,6 @@ func TestDeliveryEventContract(t *testing.T) {
 		progress.Progress = validToolProgress()
 
 		for _, event := range []DeliveryEvent{start, delta, final, errorEvent, resume, deleteEvent, progress} {
-			event := event
 			t.Run("Should validate a "+string(event.EventType)+" event", func(t *testing.T) {
 				t.Parallel()
 
@@ -572,7 +562,6 @@ func TestDeliveryEventContract(t *testing.T) {
 			},
 		}
 		for _, test := range lifecycleCases {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -754,7 +743,6 @@ func TestDeliveryEventContract(t *testing.T) {
 		}
 
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				event := validDeliveryEvent(DeliveryEventTypeDelta)
@@ -925,7 +913,6 @@ func TestDeliveryRequestAndSnapshotContract(t *testing.T) {
 			},
 		}
 		for _, test := range snapshotMutations {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -990,7 +977,6 @@ func TestDeliveryRequestAndSnapshotContract(t *testing.T) {
 			},
 		}
 		for _, test := range requestCases {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 

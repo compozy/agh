@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 
 	redactpkg "github.com/compozy/agh/internal/redact"
 )
@@ -150,8 +151,6 @@ func (b *Broker) deliveryMetricsForIDsLocked(ids []string) map[string]BridgeDeli
 
 func cloneDeliveryDropReasons(reasons map[string]int) map[string]int {
 	cloned := make(map[string]int, len(reasons))
-	for reason, count := range reasons {
-		cloned[reason] = count
-	}
+	maps.Copy(cloned, reasons)
 	return cloned
 }

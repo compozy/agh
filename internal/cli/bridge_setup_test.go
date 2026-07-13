@@ -53,7 +53,6 @@ func TestBridgeSetupWhatsAppValidators(t *testing.T) {
 		{name: "Should name a Slack token", value: "xoxb-not-meta", product: "Slack"},
 		{name: "Should name a GitHub token", value: "ghp_not_meta", product: "GitHub"},
 	} {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -85,7 +84,6 @@ func TestBridgeSetupWhatsAppValidators(t *testing.T) {
 			value:    "EAAshort",
 		},
 	} {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -589,7 +587,6 @@ func TestBridgeSetupTelegramRoutingShapes(t *testing.T) {
 			},
 		},
 	} {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -749,7 +746,6 @@ func TestBridgeSetupTelegramRegistersWebhookOrPrintsSafeTemplate(t *testing.T) {
 		{name: "Should register the webhook through the daemon", printOnly: false, wantRegisterCall: 1},
 		{name: "Should print a safe curl template without registering", printOnly: true, wantRegisterCall: 0},
 	} {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 

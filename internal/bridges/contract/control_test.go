@@ -56,7 +56,6 @@ func TestBridgeControlWireValidation(t *testing.T) {
 			{name: "Should accept the webhook registration method", value: ControlMethodWebhookRegister},
 		}
 		for _, test := range validMethods {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				if err := test.value.Validate(); err != nil {
@@ -73,7 +72,6 @@ func TestBridgeControlWireValidation(t *testing.T) {
 			{name: "Should reject an unknown method", value: "unknown"},
 		}
 		for _, test := range invalidMethods {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				if err := test.value.Validate(); err == nil {
@@ -95,7 +93,6 @@ func TestBridgeControlWireValidation(t *testing.T) {
 			{name: "Should accept skipped status", value: BridgeCheckStatusSkipped},
 		}
 		for _, test := range validStatuses {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				if err := test.value.Validate(); err != nil {
@@ -112,7 +109,6 @@ func TestBridgeControlWireValidation(t *testing.T) {
 			{name: "Should reject an unknown status", value: "unknown"},
 		}
 		for _, test := range invalidStatuses {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				if err := test.value.Validate(); err == nil {
@@ -151,7 +147,6 @@ func TestBridgeControlWireValidation(t *testing.T) {
 			},
 		}
 		for _, test := range valid {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				if err := test.record.Validate(); err != nil {
@@ -186,7 +181,6 @@ func TestBridgeControlWireValidation(t *testing.T) {
 			},
 		}
 		for _, test := range invalid {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				if err := test.record.Validate(); err == nil {

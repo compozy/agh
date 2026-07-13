@@ -2217,8 +2217,9 @@ func TestTelegramBotClientAndClassificationHelpers(t *testing.T) {
 	if getMeErr == nil {
 		t.Fatal("GetMe(invalid json) error = nil, want non-nil")
 	}
-	var committedGetMeErr *bridgesdk.CommittedMutationError
-	if errors.As(getMeErr, &committedGetMeErr) {
+	if committedGetMeErr, ok := errors.AsType[*bridgesdk.CommittedMutationError](
+		getMeErr,
+	); ok && committedGetMeErr != nil {
 		t.Fatalf("GetMe(invalid json) error = %T %v, want non-committed error", getMeErr, getMeErr)
 	}
 

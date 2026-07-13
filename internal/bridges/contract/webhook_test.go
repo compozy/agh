@@ -39,7 +39,6 @@ func TestWebhookPublicURLContract(t *testing.T) {
 			},
 		}
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -160,7 +159,6 @@ func TestWebhookPublicURLContract(t *testing.T) {
 			},
 		}
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -180,7 +178,6 @@ func TestValidateWebhookDestinationIPContract(t *testing.T) {
 		t.Parallel()
 
 		for _, raw := range []string{"8.8.8.8", "2606:4700:4700::1111"} {
-			raw := raw
 			t.Run("Should accept "+raw, func(t *testing.T) {
 				t.Parallel()
 
@@ -209,7 +206,6 @@ func TestValidateWebhookDestinationIPContract(t *testing.T) {
 			{name: "Should reject IPv4-mapped private space", ip: netip.MustParseAddr("::ffff:10.0.0.1")},
 		}
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 

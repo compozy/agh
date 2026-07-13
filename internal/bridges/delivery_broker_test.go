@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -201,9 +202,7 @@ func (s *recordingDeliveryLedgerStore) snapshot() (
 	records := append([]DeliveryLedgerRecord(nil), s.creates...)
 	checkpoints := append([]DeliveryLedgerCheckpoint(nil), s.checkpoints...)
 	metrics := make(map[string]BridgeDeliveryMetrics, len(s.metrics))
-	for id, entry := range s.metrics {
-		metrics[id] = entry
-	}
+	maps.Copy(metrics, s.metrics)
 	return records, checkpoints, metrics
 }
 

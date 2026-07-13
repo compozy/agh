@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"strings"
 
@@ -51,9 +52,7 @@ func runBridgeSetupWizard(
 		return bridgeSetupWizardSelection{}, errors.New("cli: bridge setup wizard input and output are required")
 	}
 	values := make(map[string]string, len(input.Defaults)+len(input.Prompts))
-	for key, value := range input.Defaults {
-		values[key] = value
-	}
+	maps.Copy(values, input.Defaults)
 	reader := bufio.NewReader(input.Input)
 	for _, prompt := range input.Prompts {
 		value, err := readBridgeSetupWizardPrompt(ctx, reader, input, prompt)

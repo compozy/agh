@@ -2528,8 +2528,7 @@ func TestWhatsAppGraphClientMethods(t *testing.T) {
 		if err == nil {
 			t.Fatal("GetPhoneNumber() error = nil, want decode error")
 		}
-		var committedErr *bridgesdk.CommittedMutationError
-		if errors.As(err, &committedErr) {
+		if committedErr, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); ok && committedErr != nil {
 			t.Fatalf("GetPhoneNumber() error = %T %v, want non-committed error", err, err)
 		}
 	})

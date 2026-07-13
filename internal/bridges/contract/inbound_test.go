@@ -30,7 +30,6 @@ func TestInboundInteractionContracts(t *testing.T) {
 			{name: "Should accept edit events", value: InboundEventFamilyEdit},
 		}
 		for _, test := range families {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				if err := test.value.Validate(); err != nil {
@@ -56,7 +55,6 @@ func TestInboundInteractionContracts(t *testing.T) {
 			{name: "Should accept deleted edits", value: InboundEditOperationDeleted},
 		}
 		for _, test := range operations {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				if err := test.value.Validate(); err != nil {
@@ -144,7 +142,6 @@ func TestInboundInteractionContracts(t *testing.T) {
 			},
 		}
 		for _, test := range invalid {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				if err := test.edit.Validate(); err == nil {
@@ -205,7 +202,6 @@ func TestInboundMessageEnvelopeContract(t *testing.T) {
 			{name: "Should encode reply author name under its public name", key: `"reply_to_author_name"`},
 		}
 		for _, test := range fieldNames {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				if !strings.Contains(string(payload), test.key) {
@@ -275,7 +271,6 @@ func TestInboundMessageEnvelopeContract(t *testing.T) {
 			{name: "Should accept an edit envelope", envelope: edit},
 		}
 		for _, test := range envelopes {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				if err := test.envelope.Validate(); err != nil {
@@ -350,7 +345,6 @@ func TestInboundMessageEnvelopeContract(t *testing.T) {
 			}},
 		}
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				envelope := baseInboundEnvelope()
@@ -389,7 +383,6 @@ func TestInboundMessageEnvelopeContract(t *testing.T) {
 			},
 		}
 		for _, test := range valid {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				if err := test.ref.Validate(); err != nil {
@@ -456,7 +449,6 @@ func TestInboundMessageEnvelopeContract(t *testing.T) {
 			},
 		}
 		for _, test := range invalid {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				if err := test.ref.Validate(); err == nil {

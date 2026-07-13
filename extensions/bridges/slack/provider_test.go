@@ -2896,8 +2896,7 @@ func TestSlackBotClientCallBranches(t *testing.T) {
 		if err == nil {
 			t.Fatal("decode response error = nil, want non-nil")
 		}
-		var committedErr *bridgesdk.CommittedMutationError
-		if errors.As(err, &committedErr) {
+		if committedErr, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); ok && committedErr != nil {
 			t.Fatalf("auth read error = %T %v, want non-committed error", err, err)
 		}
 	})

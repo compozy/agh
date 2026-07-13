@@ -313,7 +313,6 @@ func TestBridgeRuntimeControlAllowsDifferentInstancesForOneExtension(t *testing.
 
 		done := make(chan error, len(instances))
 		for _, instance := range instances {
-			instance := instance
 			go func() {
 				_, err := runtime.CheckBridge(
 					testutil.Context(t),

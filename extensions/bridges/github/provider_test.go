@@ -821,8 +821,7 @@ func TestGitHubClientClassifiesHTTPFailures(t *testing.T) {
 		if !errors.As(err, &permanentErr) {
 			t.Fatalf("CreateIssueComment() error = %#v, want permanent error", err)
 		}
-		var committedErr *bridgesdk.CommittedMutationError
-		if errors.As(err, &committedErr) {
+		if committedErr, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); ok && committedErr != nil {
 			t.Fatalf("CreateIssueComment() error = %#v, want pre-commit rejection", err)
 		}
 	}

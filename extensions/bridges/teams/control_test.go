@@ -131,7 +131,6 @@ func TestTeamsControlRuntimeCheck(t *testing.T) {
 			wantRemediationContains: "app_password",
 		},
 	} {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 

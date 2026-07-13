@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"strings"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
@@ -195,8 +196,6 @@ func validateBridgeSetupGeneratedSecretUse(
 
 func cloneBridgeSetupSecrets(values map[string]string) map[string]string {
 	cloned := make(map[string]string, len(values))
-	for key, value := range values {
-		cloned[key] = value
-	}
+	maps.Copy(cloned, values)
 	return cloned
 }

@@ -121,7 +121,6 @@ func TestChunkMessage(t *testing.T) {
 			},
 		}
 		for _, testCase := range cases {
-			testCase := testCase
 			t.Run(testCase.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -145,7 +144,6 @@ func TestChunkMessage(t *testing.T) {
 			{name: "Should keep text for a negative limit", limit: -1},
 		}
 		for _, testCase := range cases {
-			testCase := testCase
 			t.Run(testCase.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -219,7 +217,6 @@ func TestChunkMessage(t *testing.T) {
 			{name: "Should use three-digit totals", textLen: 700, minimum: 100},
 		}
 		for _, testCase := range cases {
-			testCase := testCase
 			t.Run(testCase.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -260,7 +257,6 @@ func TestChunkMessage(t *testing.T) {
 			},
 		}
 		for _, testCase := range cases {
-			testCase := testCase
 			t.Run(testCase.name, func(t *testing.T) {
 				t.Parallel()
 

@@ -31,7 +31,6 @@ func TestToolProgressContract(t *testing.T) {
 			{name: "Should normalize the failed phase", phase: " failed ", want: ToolProgressPhaseFailed},
 		}
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -52,7 +51,6 @@ func TestToolProgressContract(t *testing.T) {
 			{name: "Should reject an unsupported progress phase", phase: "waiting"},
 		}
 		for _, test := range invalid {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -120,7 +118,6 @@ func TestToolProgressContract(t *testing.T) {
 			},
 		}
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -182,7 +179,6 @@ func TestProgressConfigContract(t *testing.T) {
 			{name: "Should normalize the verbose mode", mode: " VERBOSE ", want: ProgressModeVerbose},
 		}
 		for _, test := range modes {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -204,7 +200,6 @@ func TestProgressConfigContract(t *testing.T) {
 			{name: "Should normalize separate grouping", grouping: " Separate ", want: ProgressGroupingSeparate},
 		}
 		for _, test := range groupings {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -253,7 +248,6 @@ func TestProgressConfigContract(t *testing.T) {
 			},
 		}
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -300,7 +294,6 @@ func TestProgressConfigContract(t *testing.T) {
 
 		enabledPlatforms := []string{"slack", "telegram", "discord"}
 		for _, platform := range enabledPlatforms {
-			platform := platform
 			t.Run("Should enable shipped affordances for "+platform, func(t *testing.T) {
 				t.Parallel()
 
@@ -315,7 +308,6 @@ func TestProgressConfigContract(t *testing.T) {
 
 		disabledPlatforms := []string{"teams", "whatsapp", "gchat", "github", "linear", "unknown"}
 		for _, platform := range disabledPlatforms {
-			platform := platform
 			t.Run("Should keep progress disabled for "+platform, func(t *testing.T) {
 				t.Parallel()
 
@@ -372,7 +364,6 @@ func TestNormalizeDeliveryDefaultsJSONContract(t *testing.T) {
 			{name: "Should normalize JSON null defaults to nil", raw: json.RawMessage(" null ")},
 		}
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -427,7 +418,6 @@ func TestNormalizeDeliveryDefaultsJSONContract(t *testing.T) {
 			},
 		}
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 

@@ -187,7 +187,7 @@ func TestParentMessageCacheBoundsAndIsolatesReplyContext(t *testing.T) {
 
 		cache := NewParentMessageCache(32)
 		var wait sync.WaitGroup
-		for index := 0; index < 64; index++ {
+		for index := range 64 {
 			wait.Add(1)
 			go func(index int) {
 				defer wait.Done()

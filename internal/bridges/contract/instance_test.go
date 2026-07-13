@@ -192,7 +192,6 @@ func TestBridgeInstanceContractValidation(t *testing.T) {
 		}
 
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				instance := validContractBridgeInstance()
@@ -227,7 +226,6 @@ func TestBridgeInstanceContractValidation(t *testing.T) {
 			{name: "Should reject empty scope", scope: "", wantErr: true},
 		}
 		for _, test := range cases {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				err := ValidateScopeWorkspaceID(test.scope, test.workspaceID)
@@ -252,7 +250,6 @@ func TestBridgeInstanceContractValidation(t *testing.T) {
 			{name: "Should accept package source", value: BridgeInstanceSourcePackage},
 		}
 		for _, test := range sources {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				if err := test.value.Validate(); err != nil {
@@ -283,7 +280,6 @@ func TestBridgeInstanceContractValidation(t *testing.T) {
 			{name: "Should accept error status", value: BridgeStatusError},
 		}
 		for _, test := range statuses {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				if err := test.value.Validate(); err != nil {
@@ -309,7 +305,6 @@ func TestBridgeInstanceContractValidation(t *testing.T) {
 			{name: "Should accept pairing dm policy", value: BridgeDMPolicyPairing},
 		}
 		for _, test := range policies {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				if err := test.value.Validate(); err != nil {
@@ -339,7 +334,6 @@ func TestBridgeInstanceContractValidation(t *testing.T) {
 			},
 		}
 		for _, test := range reasons {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				if err := test.value.Validate(); err != nil {
@@ -381,7 +375,6 @@ func TestBridgeInstanceContractValidation(t *testing.T) {
 			},
 		}
 		for _, test := range cases {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				err := ValidateBridgeInstanceLifecycle(test.enabled, test.status)
@@ -473,7 +466,6 @@ func TestRoutingContractBuildSerializeAndHash(t *testing.T) {
 			},
 		}
 		for _, test := range cases {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 				if _, err := BuildRoutingKey(validContractBridgeInstance(), test.dimensions); err == nil {

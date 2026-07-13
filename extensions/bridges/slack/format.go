@@ -2,6 +2,7 @@ package main
 
 import (
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -90,9 +91,9 @@ func (p *slackPlaceholders) hold(value string) string {
 }
 
 func (p *slackPlaceholders) restore(value string) string {
-	for index := len(p.values) - 1; index >= 0; index-- {
+	for index, placeholder := range slices.Backward(p.values) {
 		token := p.prefix + strconv.Itoa(index) + "\x00"
-		value = strings.ReplaceAll(value, token, p.values[index])
+		value = strings.ReplaceAll(value, token, placeholder)
 	}
 	return value
 }

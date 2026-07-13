@@ -124,7 +124,7 @@ func slackIdentityChecks(identity *slackAuthIdentity, err error) []bridgepkg.Bri
 
 func splitSlackScopes(value string) []string {
 	seen := make(map[string]struct{})
-	for _, raw := range strings.Split(value, ",") {
+	for raw := range strings.SplitSeq(value, ",") {
 		if scope := strings.TrimSpace(raw); scope != "" {
 			seen[scope] = struct{}{}
 		}

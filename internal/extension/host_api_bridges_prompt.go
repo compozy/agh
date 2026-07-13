@@ -98,7 +98,7 @@ func appendInboundReplyContext(
 func quoteInboundHistoricalText(text string) []string {
 	normalized := strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n")
 	quoted := make([]string, 0, strings.Count(normalized, "\n")+1)
-	for _, line := range strings.Split(normalized, "\n") {
+	for line := range strings.SplitSeq(normalized, "\n") {
 		quoted = append(quoted, "> "+line)
 	}
 	return quoted

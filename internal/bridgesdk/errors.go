@@ -152,8 +152,7 @@ func MarkCommittedMutation(err error) error {
 	if err == nil {
 		return nil
 	}
-	var committed *CommittedMutationError
-	if errors.As(err, &committed) {
+	if committed, ok := errors.AsType[*CommittedMutationError](err); ok && committed != nil {
 		return err
 	}
 	return &CommittedMutationError{Err: err}

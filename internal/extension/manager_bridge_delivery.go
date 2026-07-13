@@ -67,8 +67,7 @@ func (m *Manager) DeliverBridge(
 		req,
 		&ack,
 	); err != nil {
-		var decodeErr *subprocess.ResponseDecodeError
-		if errors.As(err, &decodeErr) {
+		if decodeErr, ok := errors.AsType[*subprocess.ResponseDecodeError](err); ok && decodeErr != nil {
 			return indeterminateBridgeDeliveryAck(req), nil
 		}
 		return bridgepkg.DeliveryAck{}, fmt.Errorf("extension: deliver bridge via %q: %w", name, err)

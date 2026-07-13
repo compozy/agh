@@ -24,7 +24,6 @@ func TestBridgeTargetTypeContract(t *testing.T) {
 			{name: "Should normalize group targets", input: " Group ", want: BridgeTargetTypeGroup},
 		}
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -49,7 +48,6 @@ func TestBridgeTargetTypeContract(t *testing.T) {
 			{name: "Should reject an unsupported target type", value: "conversation"},
 		}
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -75,7 +73,6 @@ func TestBridgeTargetSnapshotContract(t *testing.T) {
 			BridgeTargetTypeGroup,
 		}
 		for _, targetType := range types {
-			targetType := targetType
 			t.Run("Should validate a "+string(targetType)+" snapshot", func(t *testing.T) {
 				t.Parallel()
 
@@ -112,7 +109,6 @@ func TestBridgeTargetSnapshotContract(t *testing.T) {
 			},
 		}
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -169,7 +165,6 @@ func TestBridgeTargetLookupNormalizationContract(t *testing.T) {
 			{name: "Should normalize marker-only values to empty", input: " #@# ", want: ""},
 		}
 		for _, test := range tests {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				t.Parallel()
 
