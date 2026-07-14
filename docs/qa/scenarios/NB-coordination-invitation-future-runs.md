@@ -2,10 +2,10 @@
 id: NB-coordination-invitation-future-runs
 area: NB
 title: Coordination invitation accepts for future runs only
-persona: Ada
-journey: J-23
+persona: Bruno
+journey: J-enable-coordinated-conversations
 expected: On an active multi-agent run with coordination off and Network available, the invitation is visible, states that acceptance does not change the active run, accept enables workspace coordination for future runs, and dismiss persists via daemon invitation GET across reload.
-entry_points: Task run detail; PUT /network-coordination; PUT /network-coordination/invitation; Web invitation card
+entry_points: web task run detail and kanban invitation; GET/PUT /api/workspaces/:id/network-coordination over HTTP/UDS; PUT /api/workspaces/:id/network-coordination/invitation; agh network coordination and invitation commands
 qa_status: untested
 bug_ids:
 fix_status:

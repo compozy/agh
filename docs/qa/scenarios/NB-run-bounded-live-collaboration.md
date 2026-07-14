@@ -18,4 +18,4 @@ overlaps: NB-execution-participation-defaults;NB-020;RT-073
 
 Planning flag for the Task 04 Live executor. The next targeted QA cycle should compare a Local control run with one explicit Live run, send a ten-message same-root burst plus a depth-capped reply, interrupt one wake through disable/cancel, restart with one admitted-but-unclaimed wake, and reconcile conversation, task-run, ledger detail, and aggregate usage after each branch.
 
-Taxonomy note: the journey and scenario cover the functional happy path, realistic cancellation/restart/error branches, zero-activation Local control, workspace isolation, and agent-manageable structured surfaces. Visual responsiveness and browser interaction are deliberate skips because Task 04 changes no Web UI; later public-surface tasks own the visible controls and invitation experience.
+Taxonomy note: this scenario owns runtime admission, cancellation/restart, exhaustion, usage, and workspace isolation. The browser-visible invitation and conversation panel are settled separately by `NB-coordination-invitation-future-runs` and `NB-run-conversation-bounds-usage`.
