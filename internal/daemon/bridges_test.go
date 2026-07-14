@@ -1619,6 +1619,50 @@ func TestBridgeRuntimeStopInstance(t *testing.T) {
 }
 
 func TestBridgeRuntimeRestartInstance(t *testing.T) {
+	t.Run("Should return state persisted by extension reload", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 4, 16, 13, 5, 0, 0, time.UTC)
+		runtime, _ := newResourceBackedBridgeRuntime(t, now, nil)
+		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ID:            "brg-restart-reloaded-state",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "telegram",
+			ExtensionName: "ext-restart-reloaded-state",
+			DisplayName:   "Restart Reloaded State",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusReady,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+		runtime.setExtensionRuntime(&fakeExtensionRuntime{
+			onReload: func(ctx context.Context) error {
+				_, err := runtime.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
+					ID:        instance.ID,
+					Enabled:   true,
+					Status:    bridgepkg.BridgeStatusAuthRequired,
+					UpdatedAt: now.Add(time.Second),
+				})
+				return err
+			},
+		})
+
+		updated, err := runtime.RestartInstance(testutil.Context(t), instance.ID)
+		if err != nil {
+			t.Fatalf("RestartInstance() error = %v", err)
+		}
+		if got, want := updated.Status, bridgepkg.BridgeStatusAuthRequired; got != want {
+			t.Fatalf("RestartInstance().Status = %q, want post-reload %q", got, want)
+		}
+
+		persisted, err := runtime.GetInstance(testutil.Context(t), instance.ID)
+		if err != nil {
+			t.Fatalf("GetInstance() error = %v", err)
+		}
+		if got, want := persisted.Status, updated.Status; got != want {
+			t.Fatalf("GetInstance().Status = %q, want returned status %q", got, want)
+		}
+	})
+
 	t.Run("ShouldPreserveRoutesAndReloadExtensions", func(t *testing.T) {
 		t.Parallel()
 

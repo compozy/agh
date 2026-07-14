@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 
+	"github.com/compozy/agh/internal/store/sessiondb"
 	"github.com/compozy/agh/internal/testutil"
 )
 
@@ -88,6 +90,79 @@ func TestManagerDelete(t *testing.T) {
 			},
 		},
 		{
+			name: "Should wait for active stored readers before committing deletion",
+			run: func(t *testing.T) {
+				catalog := newRecordingSessionCatalog()
+				catalog.requireExistingUpdates()
+				h := newHarness(
+					t,
+					WithSessionCatalog(catalog),
+					withDefaultQueryStoreRuntime(),
+				)
+				shutdownQueryStoreRuntimeForTest(t, h.manager)
+				session := createSession(t, h)
+				ctx := testutil.Context(t)
+
+				reader, err := h.manager.queryStoreRuntime.Open(ctx, session.ID, session.DBPath())
+				if err != nil {
+					t.Fatalf("Open(stored reader) error = %v", err)
+				}
+				t.Cleanup(func() {
+					if closeErr := reader.Close(testutil.Context(t)); closeErr != nil {
+						t.Errorf("Close(stored reader cleanup) error = %v", closeErr)
+					}
+				})
+
+				deleteDone := make(chan error, 1)
+				go func() {
+					deleteDone <- h.manager.Delete(ctx, session.ID)
+				}()
+
+				for {
+					probe, openErr := h.manager.queryStoreRuntime.Open(ctx, session.ID, session.DBPath())
+					if errors.Is(openErr, sessiondb.ErrReadOnlyPoolQuiescing) {
+						break
+					}
+					if openErr != nil {
+						t.Fatalf("Open(quiescence probe) error = %v", openErr)
+					}
+					if closeErr := probe.Close(ctx); closeErr != nil {
+						t.Fatalf("Close(quiescence probe) error = %v", closeErr)
+					}
+					select {
+					case deleteErr := <-deleteDone:
+						t.Fatalf("Delete() returned before stored reader closed: %v", deleteErr)
+					default:
+						runtime.Gosched()
+					}
+				}
+
+				select {
+				case deleteErr := <-deleteDone:
+					t.Fatalf("Delete() returned while stored reader was active: %v", deleteErr)
+				default:
+				}
+				if err := reader.Close(ctx); err != nil {
+					t.Fatalf("Close(stored reader) error = %v", err)
+				}
+				select {
+				case deleteErr := <-deleteDone:
+					if deleteErr != nil {
+						t.Fatalf("Delete() error = %v", deleteErr)
+					}
+				case <-ctx.Done():
+					t.Fatalf("Delete() did not finish after stored reader closed: %v", ctx.Err())
+				}
+
+				if _, err := os.Stat(session.SessionDir()); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("Stat(session dir after delete) error = %v, want os.ErrNotExist", err)
+				}
+				if _, ok := catalog.get(session.ID); ok {
+					t.Fatalf("catalog still returned deleted session %q", session.ID)
+				}
+			},
+		},
+		{
 			name: "Should finish artifact cleanup when catalog was already deleted",
 			run: func(t *testing.T) {
 				catalog := newRecordingSessionCatalog()
@@ -115,10 +190,26 @@ func TestManagerDelete(t *testing.T) {
 				catalogErr := errors.New("catalog unavailable")
 				catalog := newRecordingSessionCatalog()
 				catalog.setDeleteErr(catalogErr)
-				h := newHarness(t, WithSessionCatalog(catalog))
+				h := newHarness(
+					t,
+					WithSessionCatalog(catalog),
+					withDefaultQueryStoreRuntime(),
+				)
+				shutdownQueryStoreRuntimeForTest(t, h.manager)
 				session := createSession(t, h)
+				reader, err := h.manager.queryStoreRuntime.Open(
+					testutil.Context(t),
+					session.ID,
+					session.DBPath(),
+				)
+				if err != nil {
+					t.Fatalf("Open(stored reader) error = %v", err)
+				}
+				if err := reader.Close(testutil.Context(t)); err != nil {
+					t.Fatalf("Close(stored reader) error = %v", err)
+				}
 
-				err := h.manager.Delete(testutil.Context(t), session.ID)
+				err = h.manager.Delete(testutil.Context(t), session.ID)
 				if !errors.Is(err, catalogErr) {
 					t.Fatalf("Delete() error = %v, want wrapped catalog error", err)
 				}
@@ -127,6 +218,17 @@ func TestManagerDelete(t *testing.T) {
 				}
 				if _, ok := catalog.get(session.ID); !ok {
 					t.Fatalf("catalog lost session %q after failed deletion", session.ID)
+				}
+				reopened, err := h.manager.queryStoreRuntime.Open(
+					testutil.Context(t),
+					session.ID,
+					session.DBPath(),
+				)
+				if err != nil {
+					t.Fatalf("Open(stored reader after catalog failure) error = %v", err)
+				}
+				if err := reopened.Close(testutil.Context(t)); err != nil {
+					t.Fatalf("Close(reopened stored reader) error = %v", err)
 				}
 			},
 		},
@@ -190,4 +292,20 @@ func TestManagerDelete(t *testing.T) {
 			tc.run(t)
 		})
 	}
+}
+
+func withDefaultQueryStoreRuntime() Option {
+	return func(manager *Manager) {
+		manager.openQueryStore = nil
+		manager.queryStoreExplicit = false
+	}
+}
+
+func shutdownQueryStoreRuntimeForTest(t *testing.T, manager *Manager) {
+	t.Helper()
+	t.Cleanup(func() {
+		if err := manager.shutdownQueryStoreRuntime(testutil.Context(t)); err != nil {
+			t.Errorf("shutdownQueryStoreRuntime() error = %v", err)
+		}
+	})
 }

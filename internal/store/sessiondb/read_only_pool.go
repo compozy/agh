@@ -15,6 +15,12 @@ import (
 
 const defaultReadOnlyPoolTTL = 30 * time.Second
 
+var errReadOnlyPoolClosed = errors.New("store: read-only pool is closed")
+
+// ErrReadOnlyPoolQuiescing reports that destructive session work has blocked
+// new read-only leases while existing leases drain.
+var ErrReadOnlyPoolQuiescing = errors.New("store: read-only pool session is quiescing")
+
 // ReadOnlyPoolOpener opens the recorder stored behind a pooled read-only lease.
 type ReadOnlyPoolOpener func(ctx context.Context, sessionID string, path string) (store.EventRecorder, error)
 
@@ -27,12 +33,13 @@ type ReadOnlyPoolConfig struct {
 
 // ReadOnlyPool reuses short-lived read-only session database handles for hot inactive sessions.
 type ReadOnlyPool struct {
-	mu      sync.Mutex
-	ttl     time.Duration
-	now     func() time.Time
-	open    ReadOnlyPoolOpener
-	entries map[readOnlyPoolKey]*readOnlyPoolEntry
-	closed  bool
+	mu        sync.Mutex
+	ttl       time.Duration
+	now       func() time.Time
+	open      ReadOnlyPoolOpener
+	entries   map[readOnlyPoolKey]*readOnlyPoolEntry
+	quiescing map[readOnlyPoolKey]*readOnlyPoolQuiescence
+	closed    bool
 }
 
 type readOnlyPoolKey struct {
@@ -44,6 +51,14 @@ type readOnlyPoolEntry struct {
 	recorder  store.EventRecorder
 	refs      int
 	expiresAt time.Time
+	idle      chan struct{}
+}
+
+type readOnlyPoolQuiescence struct {
+	ready     chan struct{}
+	owners    int
+	err       error
+	completed bool
 }
 
 // NewReadOnlyPool constructs a read-only session recorder pool.
@@ -65,10 +80,11 @@ func NewReadOnlyPool(config ReadOnlyPoolConfig) *ReadOnlyPool {
 		}
 	}
 	return &ReadOnlyPool{
-		ttl:     ttl,
-		now:     now,
-		open:    open,
-		entries: make(map[readOnlyPoolKey]*readOnlyPoolEntry),
+		ttl:       ttl,
+		now:       now,
+		open:      open,
+		entries:   make(map[readOnlyPoolKey]*readOnlyPoolEntry),
+		quiescing: make(map[readOnlyPoolKey]*readOnlyPoolQuiescence),
 	}
 }
 
@@ -88,12 +104,18 @@ func (p *ReadOnlyPool) Open(ctx context.Context, sessionID string, path string) 
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.closed {
-		return nil, errors.New("store: read-only pool is closed")
+		return nil, errReadOnlyPoolClosed
+	}
+	if _, blocked := p.quiescing[key]; blocked {
+		return nil, fmt.Errorf("%w: %s", ErrReadOnlyPoolQuiescing, key.sessionID)
 	}
 	if err := p.closeExpiredLocked(ctx, p.now()); err != nil {
 		return nil, err
 	}
 	if entry := p.entries[key]; entry != nil {
+		if entry.refs == 0 {
+			entry.idle = make(chan struct{})
+		}
 		entry.refs++
 		entry.expiresAt = time.Time{}
 		return newReadOnlyPoolLease(p, key, entry), nil
@@ -103,9 +125,143 @@ func (p *ReadOnlyPool) Open(ctx context.Context, sessionID string, path string) 
 	if err != nil {
 		return nil, err
 	}
-	entry := &readOnlyPoolEntry{recorder: recorder, refs: 1}
+	entry := &readOnlyPoolEntry{recorder: recorder, refs: 1, idle: make(chan struct{})}
 	p.entries[key] = entry
 	return newReadOnlyPoolLease(p, key, entry), nil
+}
+
+// Quiesce prevents new leases for one session, waits for active leases to
+// return, and closes the pooled database handle. The returned function must be
+// called after the caller's destructive operation finishes so failed
+// operations can resume read access.
+func (p *ReadOnlyPool) Quiesce(
+	ctx context.Context,
+	sessionID string,
+	path string,
+) (func(), error) {
+	if p == nil {
+		return nil, errors.New("store: read-only pool is required")
+	}
+	if ctx == nil {
+		return nil, errors.New("store: quiesce read-only pool context is required")
+	}
+	key, err := normalizeReadOnlyPoolKey(sessionID, path)
+	if err != nil {
+		return nil, err
+	}
+
+	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+		return nil, errReadOnlyPoolClosed
+	}
+	if state := p.quiescing[key]; state != nil {
+		state.owners++
+		p.mu.Unlock()
+		return p.waitForQuiescence(ctx, key, state)
+	}
+
+	state := &readOnlyPoolQuiescence{ready: make(chan struct{}), owners: 1}
+	p.quiescing[key] = state
+	entry := p.entries[key]
+	var idle <-chan struct{}
+	if entry != nil && entry.refs > 0 {
+		if entry.idle == nil {
+			entry.idle = make(chan struct{})
+		}
+		idle = entry.idle
+	}
+	p.mu.Unlock()
+
+	if idle != nil {
+		select {
+		case <-idle:
+		case <-ctx.Done():
+			quiesceErr := fmt.Errorf(
+				"store: quiesce read-only pool session %q: %w",
+				key.sessionID,
+				ctx.Err(),
+			)
+			p.completeQuiescence(state, quiesceErr)
+			p.releaseQuiescence(key, state)
+			return nil, quiesceErr
+		}
+	}
+
+	var recorder store.EventRecorder
+	p.mu.Lock()
+	if current := p.entries[key]; current != nil && current == entry && current.refs == 0 {
+		delete(p.entries, key)
+		recorder = current.recorder
+	}
+	p.mu.Unlock()
+
+	var closeErr error
+	if recorder != nil {
+		if err := recorder.Close(ctx); err != nil {
+			closeErr = fmt.Errorf(
+				"store: close quiesced read-only recorder for session %q: %w",
+				key.sessionID,
+				err,
+			)
+		}
+	}
+	p.completeQuiescence(state, closeErr)
+	return p.waitForQuiescence(ctx, key, state)
+}
+
+func (p *ReadOnlyPool) waitForQuiescence(
+	ctx context.Context,
+	key readOnlyPoolKey,
+	state *readOnlyPoolQuiescence,
+) (func(), error) {
+	select {
+	case <-state.ready:
+	case <-ctx.Done():
+		p.releaseQuiescence(key, state)
+		return nil, fmt.Errorf("store: wait for read-only pool quiescence for %q: %w", key.sessionID, ctx.Err())
+	}
+
+	p.mu.Lock()
+	err := state.err
+	p.mu.Unlock()
+	if err != nil {
+		p.releaseQuiescence(key, state)
+		return nil, err
+	}
+
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			p.releaseQuiescence(key, state)
+		})
+	}, nil
+}
+
+func (p *ReadOnlyPool) completeQuiescence(state *readOnlyPoolQuiescence, err error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if state == nil || state.completed {
+		return
+	}
+	state.err = err
+	state.completed = true
+	close(state.ready)
+}
+
+func (p *ReadOnlyPool) releaseQuiescence(key readOnlyPoolKey, state *readOnlyPoolQuiescence) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	current := p.quiescing[key]
+	if current == nil || current != state {
+		return
+	}
+	if current.owners > 0 {
+		current.owners--
+	}
+	if current.owners == 0 {
+		delete(p.quiescing, key)
+	}
 }
 
 // CloseExpired closes idle handles whose TTL has elapsed.
@@ -132,10 +288,25 @@ func (p *ReadOnlyPool) Close(ctx context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.closed = true
+	for _, state := range p.quiescing {
+		if state == nil || state.completed {
+			continue
+		}
+		state.err = errReadOnlyPoolClosed
+		state.completed = true
+		close(state.ready)
+	}
 	var closeErr error
 	for key, entry := range p.entries {
 		delete(p.entries, key)
-		if entry == nil || entry.recorder == nil {
+		if entry == nil {
+			continue
+		}
+		if entry.idle != nil {
+			close(entry.idle)
+			entry.idle = nil
+		}
+		if entry.recorder == nil {
 			continue
 		}
 		if err := entry.recorder.Close(ctx); err != nil {
@@ -157,6 +328,10 @@ func (p *ReadOnlyPool) release(key readOnlyPoolKey, entry *readOnlyPoolEntry) er
 	}
 	if current.refs == 0 {
 		current.expiresAt = p.now().Add(p.ttl)
+		if current.idle != nil {
+			close(current.idle)
+			current.idle = nil
+		}
 	}
 	return nil
 }

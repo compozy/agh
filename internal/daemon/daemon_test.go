@@ -7847,6 +7847,7 @@ type fakeExtensionRuntime struct {
 	getFn       func(string) (*extensionpkg.Extension, error)
 	onStart     func()
 	onStop      func()
+	onReload    func(context.Context) error
 }
 
 func (f *fakeExtensionRuntime) Start(context.Context) error {
@@ -7865,8 +7866,13 @@ func (f *fakeExtensionRuntime) Stop(context.Context) error {
 	return f.stopErr
 }
 
-func (f *fakeExtensionRuntime) Reload(context.Context) error {
+func (f *fakeExtensionRuntime) Reload(ctx context.Context) error {
 	f.reloadCount++
+	if f.onReload != nil {
+		if err := f.onReload(ctx); err != nil {
+			return err
+		}
+	}
 	return f.reloadErr
 }
 

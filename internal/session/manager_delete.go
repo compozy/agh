@@ -35,6 +35,11 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 	if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
 		return fmt.Errorf("session: stat session directory %q: %w", sessionDir, statErr)
 	}
+	resumeQueries, err := m.quiesceSessionQueries(ctx, target, sessionDir)
+	if err != nil {
+		return fmt.Errorf("session: quiesce stored readers for %q: %w", target, err)
+	}
+	defer resumeQueries()
 
 	catalogDeleted := false
 	if m.sessionCatalog != nil {
@@ -63,6 +68,17 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 
 	m.remove(target)
 	return nil
+}
+
+func (m *Manager) quiesceSessionQueries(
+	ctx context.Context,
+	target string,
+	sessionDir string,
+) (func(), error) {
+	if m.queryStoreRuntime == nil {
+		return func() {}, nil
+	}
+	return m.queryStoreRuntime.Quiesce(ctx, target, store.SessionDBFile(sessionDir))
 }
 
 func stopSessionBeforeDelete(

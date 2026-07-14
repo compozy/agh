@@ -1072,8 +1072,7 @@ func (r *bridgeRuntime) transitionInstance(
 		return nil, err
 	}
 
-	updated, err := r.updateTransitionState(ctx, trimmedID, enabled, status, action)
-	if err != nil {
+	if _, err := r.updateTransitionState(ctx, trimmedID, enabled, status, action); err != nil {
 		return nil, err
 	}
 
@@ -1081,7 +1080,7 @@ func (r *bridgeRuntime) transitionInstance(
 		return nil, err
 	}
 
-	return updated, nil
+	return r.GetInstance(ctx, trimmedID)
 }
 
 func (r *bridgeRuntime) transitionResourceInstance(
@@ -1154,7 +1153,7 @@ func (r *bridgeRuntime) finalizeTransitionResourceInstance(
 	reload bool,
 	action string,
 ) (*bridgepkg.BridgeInstance, error) {
-	updated, err := r.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
+	_, err := r.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
 		ID:        trimmedID,
 		Enabled:   enabled,
 		Status:    status,
@@ -1193,7 +1192,7 @@ func (r *bridgeRuntime) finalizeTransitionResourceInstance(
 			err,
 		)
 	}
-	return updated, nil
+	return r.GetInstance(ctx, trimmedID)
 }
 
 func (r *bridgeRuntime) rollbackCreatedBridgeResource(

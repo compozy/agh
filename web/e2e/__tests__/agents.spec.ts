@@ -95,7 +95,11 @@ test.describe("seeded agent detail", () => {
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents/agent-detail-primary");
 
     await expect(appPage.getByTestId("agent-detail-page")).toBeVisible();
-    await expect(appPage.getByRole("heading", { name: "agent-detail-primary" })).toBeVisible();
+    await expect(
+      appPage
+        .getByTestId("agent-detail-header")
+        .getByRole("heading", { name: "agent-detail-primary" })
+    ).toBeVisible();
     await expect(appPage.getByTestId("agent-detail-tabs")).toBeVisible();
     await expect(appPage.getByTestId("agent-overview-tab")).toBeVisible();
     await expect(appPage.getByTestId("agent-stats-grid")).not.toContainText(
@@ -147,7 +151,7 @@ test.describe("seeded agent detail", () => {
     const prompt = appPage.getByTestId("agent-settings-prompt");
     await prompt.fill("Updated prompt for settings journey.");
     await expect(appPage.getByTestId("agent-settings-unsaved")).toBeVisible();
-    await expect(appPage.getByTestId("agent-settings-page-actions")).toBeVisible();
+    await expect(appPage.getByTestId("agent-settings-save")).toBeEnabled();
 
     await appPage.evaluate(() => window.history.back());
     await expect(appPage.getByTestId("unsaved-guard-dialog")).toBeVisible();
@@ -166,7 +170,7 @@ test.describe("seeded agent detail", () => {
     expect((await saveResponse).ok()).toBe(true);
     await expect(appPage.getByTestId("agent-settings-unsaved")).toHaveCount(0);
 
-    await appPage.getByRole("button", { name: /agent-detail-primary/i }).click();
+    await appPage.getByTestId("agent-settings-close").click();
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents/agent-detail-primary");
     await expect(appPage.getByTestId("agent-overview-tab")).toBeVisible();
   });
@@ -358,11 +362,16 @@ test.describe("empty-fleet first-contact journey", () => {
     appPage,
     runtime,
   }) => {
-    await appPage.route("**/api/agents**", async route => {
+    await appPage.route("**/api/agents/catalog**", async route => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ agents: [] }),
+        body: JSON.stringify({
+          agents: [],
+          facets: { active: 0, categories: [], idle: 0, total: 0 },
+          page: { has_more: false, limit: 50, total: 0 },
+          sessions_available: true,
+        }),
       });
     });
     await ensureGlobalWorkspace(runtime);

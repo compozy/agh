@@ -2727,12 +2727,7 @@ type integrationDreamTrigger struct {
 }
 
 type integrationBridgeSecretStore interface {
-	CountBridgeRoutes(context.Context, []string) (map[string]int, error)
 	ListBridgeSecretBindings(context.Context, string) ([]bridgepkg.BridgeSecretBinding, error)
-	ListBridgeSecretBindingsForInstances(
-		context.Context,
-		[]string,
-	) (map[string][]bridgepkg.BridgeSecretBinding, error)
 	PutBridgeSecretBinding(context.Context, bridgepkg.BridgeSecretBinding) error
 	DeleteBridgeSecretBinding(context.Context, string, string) error
 }
@@ -2853,16 +2848,6 @@ func (s *integrationBridgeService) DeliverBridge(
 	return bridgepkg.DeliveryAck{}, bridgepkg.ErrDeliveryTransportUnavailable
 }
 
-func (s *integrationBridgeService) CountBridgeRoutes(
-	ctx context.Context,
-	bridgeInstanceIDs []string,
-) (map[string]int, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("integration bridge route store is not configured")
-	}
-	return s.store.CountBridgeRoutes(ctx, bridgeInstanceIDs)
-}
-
 func (s *integrationBridgeService) ListSecretBindings(
 	ctx context.Context,
 	bridgeInstanceID string,
@@ -2871,16 +2856,6 @@ func (s *integrationBridgeService) ListSecretBindings(
 		return nil, errors.New("integration bridge secret store is not configured")
 	}
 	return s.store.ListBridgeSecretBindings(ctx, bridgeInstanceID)
-}
-
-func (s *integrationBridgeService) ListSecretBindingsForInstances(
-	ctx context.Context,
-	bridgeInstanceIDs []string,
-) (map[string][]bridgepkg.BridgeSecretBinding, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("integration bridge secret store is not configured")
-	}
-	return s.store.ListBridgeSecretBindingsForInstances(ctx, bridgeInstanceIDs)
 }
 
 func (s *integrationBridgeService) PutSecretBinding(

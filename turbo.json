@@ -21,6 +21,10 @@
             "dependsOn": [],
             "outputs": []
         },
+        "build-storybook": {
+            "dependsOn": ["^build"],
+            "outputs": ["storybook-static/**"]
+        },
         "@agh/site#generate:openapi": {
             "inputs": [
                 "scripts/generate-openapi.ts",
@@ -74,6 +78,14 @@
             "outputs": []
         },
         "dev": {
+            "cache": false,
+            "persistent": true
+        },
+        "lint": {
+            "dependsOn": ["^lint"],
+            "outputs": []
+        },
+        "storybook": {
             "cache": false,
             "persistent": true
         },

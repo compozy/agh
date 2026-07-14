@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -284,5 +285,8 @@ func (h *BaseHandlers) pushAndStreamSessionTranscript(
 }
 
 func (h *BaseHandlers) writeTranscriptStreamError(writer FlushWriter, err error) {
+	if errors.Is(err, session.ErrSessionNotFound) {
+		return
+	}
 	h.writeSSEBestEffort(writer, SSEMessage{Name: sessionStreamErrorKey, Data: ErrorPayloadForError(err)})
 }

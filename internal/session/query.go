@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/sessiondb"
 )
 
 // InputQueueSummary is the session package projection of durable busy-input queue state.
@@ -281,6 +282,9 @@ func (m *Manager) openRecorder(
 
 	recorder, err := opener(ctx, target, dbPath)
 	if err != nil {
+		if errors.Is(err, sessiondb.ErrReadOnlyPoolQuiescing) {
+			return nil, nil, fmt.Errorf("%w: %s", ErrSessionNotFound, target)
+		}
 		return nil, nil, fmt.Errorf("session: open events database for %q: %w", target, err)
 	}
 
