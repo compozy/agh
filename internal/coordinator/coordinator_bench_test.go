@@ -5,6 +5,7 @@ import (
 	"time"
 
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 )
 
@@ -18,11 +19,15 @@ var (
 
 func BenchmarkPromptOverlay(b *testing.B) {
 	input := PromptInput{
-		WorkspaceID:           "workspace-123",
-		TaskID:                "task-456",
-		RunID:                 "run-789",
-		WorkflowID:            "workflow-012",
-		CoordinationChannelID: "channel-345",
+		WorkspaceID: "workspace-123",
+		TaskID:      "task-456",
+		RunID:       "run-789",
+		WorkflowID:  "workflow-012",
+		NetworkParticipation: participation.Spec{
+			Version: participation.SpecVersion, Mode: participation.ModeLive,
+			WorkspaceID: "workspace-123", ChannelStrategy: participation.StrategyNamed,
+			ChannelID: "channel-345", Source: participation.SourceExplicitRequest,
+		},
 	}
 
 	b.ReportAllocs()
@@ -34,14 +39,14 @@ func BenchmarkPromptOverlay(b *testing.B) {
 func BenchmarkPermissionPolicy(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
-		permissionPolicySink = PermissionPolicy("channel-1", "channel-1", "channel-2", " ")
+		permissionPolicySink = PermissionPolicy(participation.LocalSpec())
 	}
 }
 
 func BenchmarkLineage(b *testing.B) {
 	cfg := aghconfig.DefaultCoordinatorConfig()
 	cfg.Enabled = true
-	policy := PermissionPolicy("channel-1")
+	policy := PermissionPolicy(participation.LocalSpec())
 
 	b.ReportAllocs()
 	for b.Loop() {

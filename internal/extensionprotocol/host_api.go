@@ -99,7 +99,6 @@ const (
 	HostAPIMethodTasksRuns                   HostAPIMethod = "tasks/runs"
 	HostAPIMethodTasksRunsGet                HostAPIMethod = "tasks/runs/get"
 	HostAPIMethodTasksRunsEnqueue            HostAPIMethod = "tasks/runs/enqueue"
-	HostAPIMethodTasksRunsClaim              HostAPIMethod = "tasks/runs/claim"
 	HostAPIMethodTasksRunsStart              HostAPIMethod = "tasks/runs/start"
 	HostAPIMethodTasksRunsAttachSession      HostAPIMethod = "tasks/runs/attach_session"
 	HostAPIMethodTasksRunsComplete           HostAPIMethod = "tasks/runs/complete"
@@ -205,7 +204,6 @@ func preNetworkHostAPIMethods() []HostAPIMethod {
 		HostAPIMethodTasksRuns,
 		HostAPIMethodTasksRunsGet,
 		HostAPIMethodTasksRunsEnqueue,
-		HostAPIMethodTasksRunsClaim,
 		HostAPIMethodTasksRunsStart,
 		HostAPIMethodTasksRunsAttachSession,
 		HostAPIMethodTasksRunsComplete,

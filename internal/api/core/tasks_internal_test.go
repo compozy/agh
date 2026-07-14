@@ -240,9 +240,6 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 	); err != nil {
 		t.Fatalf("addTaskDependencyFromRequest() error = %v", err)
 	}
-	if _, err := claimTaskRunFromRequest(contract.ClaimTaskRunRequest{IdempotencyKey: "claim-1"}); err != nil {
-		t.Fatalf("claimTaskRunFromRequest() error = %v", err)
-	}
 	if _, err := startTaskRunFromRequest(contract.StartTaskRunRequest{IdempotencyKey: "start-1"}); err != nil {
 		t.Fatalf("startTaskRunFromRequest() error = %v", err)
 	}

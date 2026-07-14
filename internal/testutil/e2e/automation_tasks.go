@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/agh/internal/agentidentity"
 	aghcontract "github.com/compozy/agh/internal/api/contract"
 	coreapi "github.com/compozy/agh/internal/api/core"
 	automationpkg "github.com/compozy/agh/internal/automation"
@@ -161,13 +162,58 @@ func (h *RuntimeHarness) ListTaskRuns(
 	return response.Runs, nil
 }
 
-// ClaimTaskRun claims one queued task run through the public UDS surface.
-func (h *RuntimeHarness) ClaimTaskRun(
+// ClaimExactTaskRunForSession claims one exact queued run through the canonical agent lease surface.
+func (h *RuntimeHarness) ClaimExactTaskRunForSession(
 	ctx context.Context,
 	runID string,
-	request aghcontract.ClaimTaskRunRequest,
+	session aghcontract.SessionPayload,
 ) (aghcontract.TaskRunPayload, error) {
-	return h.updateTaskRun(ctx, runID, "/claim", request)
+	requestBody, err := json.Marshal(aghcontract.AgentTaskClaimNextRequest{
+		RunID:       strings.TrimSpace(runID),
+		WorkspaceID: strings.TrimSpace(session.WorkspaceID),
+	})
+	if err != nil {
+		return aghcontract.TaskRunPayload{}, fmt.Errorf("marshal exact task-run claim: %w", err)
+	}
+	request, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		h.UDSURL("/api/agent/tasks/claim-next"),
+		strings.NewReader(string(requestBody)),
+	)
+	if err != nil {
+		return aghcontract.TaskRunPayload{}, fmt.Errorf("create exact task-run claim request: %w", err)
+	}
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set(agentidentity.HeaderSessionID, strings.TrimSpace(session.ID))
+	request.Header.Set(agentidentity.HeaderAgent, strings.TrimSpace(session.AgentName))
+	request.Header.Set(agentidentity.HeaderWorkspaceID, strings.TrimSpace(session.WorkspaceID))
+
+	response, err := h.UDSClient.Do(request)
+	if err != nil {
+		return aghcontract.TaskRunPayload{}, fmt.Errorf("execute exact task-run claim request: %w", err)
+	}
+	payload, readErr := io.ReadAll(response.Body)
+	closeErr := response.Body.Close()
+	if readErr != nil {
+		return aghcontract.TaskRunPayload{}, fmt.Errorf("read exact task-run claim response: %w", readErr)
+	}
+	if closeErr != nil {
+		return aghcontract.TaskRunPayload{}, fmt.Errorf("close exact task-run claim response: %w", closeErr)
+	}
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return aghcontract.TaskRunPayload{}, fmt.Errorf(
+			"exact task-run claim status %d: %s",
+			response.StatusCode,
+			strings.TrimSpace(string(payload)),
+		)
+	}
+	var claimed aghcontract.AgentTaskClaimResponse
+	if err := json.Unmarshal(payload, &claimed); err != nil {
+		return aghcontract.TaskRunPayload{}, fmt.Errorf("decode exact task-run claim response: %w", err)
+	}
+	return claimed.Claim.Run, nil
 }
 
 // StartTaskRun starts one claimed task run through the public UDS surface.

@@ -305,32 +305,6 @@ func (h *HostAPIHandler) handleTasksRunsEnqueue(ctx context.Context, raw json.Ra
 	return taskRunPayloadFromRun(run), nil
 }
 
-func (h *HostAPIHandler) handleTasksRunsClaim(ctx context.Context, raw json.RawMessage) (any, error) {
-	var params hostAPITaskRunClaimParams
-	if err := decodeHostAPIParams(raw, &params); err != nil {
-		return nil, err
-	}
-	runID := strings.TrimSpace(params.ID)
-	if runID == "" {
-		return nil, invalidParamsRPCError(errors.New("id is required"))
-	}
-
-	manager, actor, err := h.taskManagerAndActor(ctx)
-	if err != nil {
-		return nil, err
-	}
-	claim, err := claimTaskRunFromRequest(params.ClaimTaskRunRequest)
-	if err != nil {
-		return nil, err
-	}
-
-	run, err := manager.ClaimRun(ctx, runID, claim, actor)
-	if err != nil {
-		return nil, mapTaskRPCError(runID, err)
-	}
-	return taskRunPayloadFromRun(run), nil
-}
-
 func (h *HostAPIHandler) handleTasksRunsStart(ctx context.Context, raw json.RawMessage) (any, error) {
 	var params hostAPITaskRunStartParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
@@ -740,14 +714,6 @@ func enqueueTaskRunFromRequest(taskID string, req apicontract.EnqueueTaskRunRequ
 		return taskpkg.EnqueueRun{}, invalidParamsRPCError(err)
 	}
 	return spec, nil
-}
-
-func claimTaskRunFromRequest(req apicontract.ClaimTaskRunRequest) (taskpkg.ClaimRun, error) {
-	claim := taskpkg.ClaimRun{IdempotencyKey: strings.TrimSpace(req.IdempotencyKey)}
-	if err := claim.Validate("claim_run"); err != nil {
-		return taskpkg.ClaimRun{}, invalidParamsRPCError(err)
-	}
-	return claim, nil
 }
 
 func startTaskRunFromRequest(req apicontract.StartTaskRunRequest) (taskpkg.StartRun, error) {

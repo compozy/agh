@@ -209,10 +209,7 @@ func TestBootWiresTaskRuntimeWithDedicatedSessionBridge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
-	run, err = d.tasks.manager.ClaimRun(testutil.Context(t), run.ID, taskpkg.ClaimRun{}, actor)
-	if err != nil {
-		t.Fatalf("ClaimRun() error = %v", err)
-	}
+	run = seedNonLeasedClaimedRunForDaemonTest(t, d.tasks.store, run.ID, actor)
 	run, err = d.tasks.manager.StartRun(testutil.Context(t), run.ID, taskpkg.StartRun{}, actor)
 	if err != nil {
 		t.Fatalf("StartRun() error = %v", err)
@@ -940,12 +937,12 @@ func testBootRecoversDetachedHarnessRunThroughTaskRuntimeRules(t *testing.T) {
 	if err != nil {
 		t.Fatalf("detachedHarnessActorContext() error = %v", err)
 	}
-	claimed, err := firstDaemon.tasks.manager.ClaimRun(testutil.Context(t), submission.Run.ID, taskpkg.ClaimRun{
-		IdempotencyKey: "claim-detached-boot-recovery",
-	}, detachedActor)
-	if err != nil {
-		t.Fatalf("ClaimRun() error = %v", err)
-	}
+	claimed := seedNonLeasedClaimedRunForDaemonTest(
+		t,
+		firstDaemon.tasks.store,
+		submission.Run.ID,
+		detachedActor,
+	)
 	starting, err := firstDaemon.tasks.manager.AttachRunSession(
 		testutil.Context(t),
 		claimed.ID,

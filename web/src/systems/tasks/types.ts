@@ -103,7 +103,6 @@ export type AddTaskDependencyRequest = OperationRequestBody<"addTaskDependency">
 export type EnqueueTaskRunRequest = OperationRequestBody<"enqueueTaskRun">;
 export type AttachTaskRunSessionRequest = OperationRequestBody<"attachTaskRunSession">;
 export type CancelTaskRunRequest = OperationRequestBody<"cancelTaskRun">;
-export type ClaimTaskRunRequest = OperationRequestBody<"claimTaskRun">;
 export type CompleteTaskRunRequest = OperationRequestBody<"completeTaskRun">;
 export type FailTaskRunRequest = OperationRequestBody<"failTaskRun">;
 export type ForceReleaseTaskRunRequest = OperationRequestBody<"forceReleaseTaskRun">;

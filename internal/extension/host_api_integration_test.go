@@ -458,7 +458,7 @@ func TestHostAPIIntegrationStartRunAllocatesDedicatedSession(t *testing.T) {
 	env := newHostAPITestEnv(t)
 	env.grant(
 		"ext-tasks",
-		[]string{"tasks/create", "tasks/runs/enqueue", "tasks/runs/claim", "tasks/runs/start"},
+		[]string{"tasks/create", "tasks/runs/enqueue", "tasks/runs/start"},
 		[]string{"task.write"},
 	)
 
@@ -485,19 +485,7 @@ func TestHostAPIIntegrationStartRunAllocatesDedicatedSession(t *testing.T) {
 	var queued apicontract.TaskRunPayload
 	decodeResult(t, enqueueResult, &queued)
 
-	claimResult, err := env.call(t, "ext-tasks", "tasks/runs/claim", map[string]any{
-		"id":              queued.ID,
-		"idempotency_key": "claim-start-int",
-	})
-	if err != nil {
-		t.Fatalf("Handle(tasks/runs/claim) error = %v", err)
-	}
-
-	var claimed apicontract.TaskRunPayload
-	decodeResult(t, claimResult, &claimed)
-	if got, want := claimed.Status, taskpkg.TaskRunStatusClaimed; got != want {
-		t.Fatalf("tasks/runs/claim status = %q, want %q", got, want)
-	}
+	seedHostAPIRunClaimed(t, env, queued.ID, "ext-tasks")
 
 	startResult, err := env.call(t, "ext-tasks", "tasks/runs/start", map[string]any{
 		"id":              queued.ID,
@@ -591,11 +579,7 @@ func TestHostAPIIntegrationTaskReadAndAggregateSurfaces(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tasks.EnqueueRun() error = %v", err)
 	}
-	if _, err := env.tasks.ClaimRun(testutil.Context(t), queued.ID, taskpkg.ClaimRun{
-		IdempotencyKey: "integration-read-claim",
-	}, actor); err != nil {
-		t.Fatalf("tasks.ClaimRun() error = %v", err)
-	}
+	seedHostAPIRunClaimed(t, env, queued.ID, "ext-reader")
 	started, err := env.tasks.StartRun(testutil.Context(t), queued.ID, taskpkg.StartRun{
 		IdempotencyKey: "integration-read-start",
 	}, actor)

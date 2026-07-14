@@ -1080,19 +1080,6 @@ func TestRequestAndQueryValidation(t *testing.T) {
 			wantErr: ErrValidation,
 		},
 		{
-			name: "claim run valid",
-			run: func() error {
-				return ClaimRun{}.Validate("claim")
-			},
-		},
-		{
-			name: "claim run invalid path",
-			run: func() error {
-				return ClaimRun{}.Validate(" ")
-			},
-			wantErr: ErrValidation,
-		},
-		{
 			name: "start run valid",
 			run: func() error {
 				return StartRun{}.Validate("start")

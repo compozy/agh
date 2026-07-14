@@ -2542,7 +2542,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		tasks := &nativeTaskManager{
 			claimResult: &taskpkg.ClaimResult{
-				Task: taskpkg.Task{
+				Task: &taskpkg.Task{
 					ID:          "task-1",
 					Title:       "Autonomy task",
 					Status:      taskpkg.TaskStatusInProgress,
@@ -2583,7 +2583,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			scope,
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDTaskRunClaimNext,
-				Input:  json.RawMessage(`{"lease_seconds":60}`),
+				Input:  json.RawMessage(`{"run_id":"run-1","lease_seconds":60}`),
 			},
 		)
 		if err != nil {
@@ -2594,6 +2594,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredExcludes(t, claimResult, []byte(rawToken))
 		requireNativeStructuredExcludes(t, claimResult, []byte(`"claim_token"`))
 		if tasks.claimNextCalls != 1 ||
+			tasks.lastClaimCriteria.RunID != "run-1" ||
 			tasks.lastClaimCriteria.ClaimerSessionID != "sess-agent" ||
 			tasks.lastClaimCriteria.WorkspaceID != "ws-1" ||
 			tasks.lastClaimActor.Actor.Ref != "sess-agent" {
@@ -8813,15 +8814,6 @@ func (unsupportedNativeTaskManager) ClaimNextRun(
 	taskpkg.ClaimCriteria,
 	taskpkg.ActorContext,
 ) (*taskpkg.ClaimResult, error) {
-	return nil, errUnexpectedNativeTaskCall
-}
-
-func (unsupportedNativeTaskManager) ClaimRun(
-	context.Context,
-	string,
-	taskpkg.ClaimRun,
-	taskpkg.ActorContext,
-) (*taskpkg.Run, error) {
 	return nil, errUnexpectedNativeTaskCall
 }
 

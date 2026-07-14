@@ -454,7 +454,6 @@ type DaemonClient interface {
 	FanOutTaskRuns(ctx context.Context, id string, request FanOutTaskRunsRequest) (FanOutTaskRunsRecord, error)
 	ListTaskRuns(ctx context.Context, id string, query TaskRunListQuery) ([]TaskRunRecord, error)
 	GetTaskRun(ctx context.Context, id string) (TaskRunDetailRecord, error)
-	ClaimTaskRun(ctx context.Context, id string, request ClaimTaskRunRequest) (TaskRunRecord, error)
 	StartTaskRun(ctx context.Context, id string, request StartTaskRunRequest) (TaskRunRecord, error)
 	AttachTaskRunSession(ctx context.Context, id string, request AttachTaskRunSessionRequest) (TaskRunRecord, error)
 	CompleteTaskRun(ctx context.Context, id string, request CompleteTaskRunRequest) (TaskRunRecord, error)
@@ -1161,9 +1160,6 @@ type FanOutTaskRunsRequest = contract.FanOutTaskRunsRequest
 
 // FanOutTaskRunsRecord captures designated sibling run enqueue results.
 type FanOutTaskRunsRecord = contract.FanOutTaskRunsResponse
-
-// ClaimTaskRunRequest captures the shared run-claim payload.
-type ClaimTaskRunRequest = contract.ClaimTaskRunRequest
 
 // StartTaskRunRequest captures the shared run-start payload.
 type StartTaskRunRequest = contract.StartTaskRunRequest
@@ -4547,14 +4543,6 @@ func (c *unixSocketClient) GetTaskRun(ctx context.Context, id string) (TaskRunDe
 		return TaskRunDetailRecord{}, err
 	}
 	return response.Run, nil
-}
-
-func (c *unixSocketClient) ClaimTaskRun(
-	ctx context.Context,
-	id string,
-	request ClaimTaskRunRequest,
-) (TaskRunRecord, error) {
-	return c.taskRunAction(ctx, strings.TrimSpace(id), "claim", request)
 }
 
 func (c *unixSocketClient) StartTaskRun(

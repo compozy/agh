@@ -151,8 +151,15 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 	taskID = run.TaskID
 	taskRunID = run.TaskRunID
 
-	if _, err := harness.ClaimTaskRun(ctx, run.TaskRunID, aghcontract.ClaimTaskRunRequest{}); err != nil {
-		t.Fatalf("ClaimTaskRun(%q) error = %v", run.TaskRunID, err)
+	worker := createFixtureBackedSession(
+		t,
+		ctx,
+		harness,
+		nightlyCombinedTaskAgentName,
+		"nightly-task-claim-worker",
+	)
+	if _, err := harness.ClaimExactTaskRunForSession(ctx, run.TaskRunID, worker); err != nil {
+		t.Fatalf("ClaimExactTaskRunForSession(%q) error = %v", run.TaskRunID, err)
 	}
 	startedRun, err := harness.StartTaskRun(ctx, run.TaskRunID, aghcontract.StartTaskRunRequest{})
 	if err != nil {

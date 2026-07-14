@@ -20,7 +20,6 @@ import {
   attachTaskRunSession,
   cancelTask,
   cancelTaskRun,
-  claimTaskRun,
   completeTaskRun,
   createChildTask,
   createTask,
@@ -541,7 +540,6 @@ describe("task runs", () => {
   it("runs lifecycle commands against /api/task-runs/{id}/*", async () => {
     mockJsonSequence({ run: runFixture });
 
-    await claimTaskRun("run_001", { idempotency_key: "c" });
     await startTaskRun("run_001");
     await completeTaskRun("run_001", { result: { ok: true } });
     await failTaskRun("run_001", { error: "boom" });
@@ -549,37 +547,31 @@ describe("task runs", () => {
     await attachTaskRunSession("run_001", { session_id: "sess_a" });
 
     await expectFetchRequest({
-      body: { idempotency_key: "c" },
-      method: "POST",
-      path: "/api/task-runs/run_001/claim",
-    });
-    await expectFetchRequest({
       body: {},
-      callIndex: 1,
       method: "POST",
       path: "/api/task-runs/run_001/start",
     });
     await expectFetchRequest({
       body: { result: { ok: true } },
-      callIndex: 2,
+      callIndex: 1,
       method: "POST",
       path: "/api/task-runs/run_001/complete",
     });
     await expectFetchRequest({
       body: { error: "boom" },
-      callIndex: 3,
+      callIndex: 2,
       method: "POST",
       path: "/api/task-runs/run_001/fail",
     });
     await expectFetchRequest({
       body: {},
-      callIndex: 4,
+      callIndex: 3,
       method: "POST",
       path: "/api/task-runs/run_001/cancel",
     });
     await expectFetchRequest({
       body: { session_id: "sess_a" },
-      callIndex: 5,
+      callIndex: 4,
       method: "POST",
       path: "/api/task-runs/run_001/attach-session",
     });

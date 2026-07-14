@@ -49,6 +49,7 @@ type ClaimCriteria struct {
 	Scope                 Scope                `json:"scope,omitempty"`
 	WorkspaceID           string               `json:"workspace_id,omitempty"`
 	RunKind               RunKind              `json:"run_kind,omitempty"`
+	TargetSessionID       string               `json:"target_session_id,omitempty"`
 	ClaimerSessionID      string               `json:"claimer_session_id"`
 	ClaimedBy             *ActorIdentity       `json:"claimed_by,omitempty"`
 	AgentName             string               `json:"agent_name,omitempty"`
@@ -84,7 +85,7 @@ type CoordinationChannelMetadata struct {
 
 // ClaimResult is the successful synchronous claim result. ClaimToken is raw and must not cross public surfaces.
 type ClaimResult struct {
-	Task                Task                         `json:"task"`
+	Task                *Task                        `json:"task,omitempty"`
 	Run                 Run                          `json:"run"`
 	ClaimToken          string                       `json:"claim_token"`
 	LeaseUntil          time.Time                    `json:"lease_until"`

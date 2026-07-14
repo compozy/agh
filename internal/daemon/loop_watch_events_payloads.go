@@ -39,14 +39,13 @@ const (
 	watchEventsPayloadWorkIDKey       = "work_id"
 	watchEventsPayloadWorkStateKey    = "work_state"
 
-	watchEventsPayloadCoordinatorSessionIDKey  = "coordinator_session_id"
-	watchEventsPayloadCoordinationChannelIDKey = "coordination_channel_id"
-	watchEventsPayloadDecisionKey              = "decision"
-	watchEventsPayloadDecisionKindKey          = "decision_kind"
-	watchEventsPayloadModelKey                 = "model"
-	watchEventsPayloadProviderKey              = "provider"
-	watchEventsPayloadStopReasonKey            = "stop_reason"
-	watchEventsPayloadWorkflowIDKey            = "workflow_id"
+	watchEventsPayloadCoordinatorSessionIDKey = "coordinator_session_id"
+	watchEventsPayloadDecisionKey             = "decision"
+	watchEventsPayloadDecisionKindKey         = "decision_kind"
+	watchEventsPayloadModelKey                = "model"
+	watchEventsPayloadProviderKey             = "provider"
+	watchEventsPayloadStopReasonKey           = "stop_reason"
+	watchEventsPayloadWorkflowIDKey           = "workflow_id"
 )
 
 func watchEventsTaskStatusChangedEvent(
@@ -243,16 +242,16 @@ func watchEventsCoordinatorLifecycleEvent(
 		RunID:       strings.TrimSpace(payload.RunID),
 		SessionID:   coordinatorSessionID,
 		Payload: map[string]any{
-			watchEventsPayloadAgentNameKey:             strings.TrimSpace(payload.AgentName),
-			watchEventsPayloadCoordinatorSessionIDKey:  coordinatorSessionID,
-			watchEventsPayloadCoordinationChannelIDKey: strings.TrimSpace(payload.CoordinationChannelID),
-			watchEventsPayloadWorkflowIDKey:            strings.TrimSpace(payload.WorkflowID),
-			watchEventsPayloadProviderKey:              strings.TrimSpace(payload.Provider),
-			watchEventsPayloadModelKey:                 strings.TrimSpace(payload.Model),
-			watchEventsPayloadDecisionKindKey:          strings.TrimSpace(payload.DecisionKind),
-			watchEventsPayloadDecisionKey:              strings.TrimSpace(payload.Decision),
-			watchEventsPayloadStopReasonKey:            strings.TrimSpace(payload.StopReason),
-			watchEventsPayloadErrorKey:                 strings.TrimSpace(payload.Error),
+			watchEventsPayloadAgentNameKey:            strings.TrimSpace(payload.AgentName),
+			watchEventsPayloadCoordinatorSessionIDKey: coordinatorSessionID,
+			daemonCoordinationChannelIDKey:            strings.TrimSpace(payload.CoordinationChannelID),
+			watchEventsPayloadWorkflowIDKey:           strings.TrimSpace(payload.WorkflowID),
+			watchEventsPayloadProviderKey:             strings.TrimSpace(payload.Provider),
+			watchEventsPayloadModelKey:                strings.TrimSpace(payload.Model),
+			watchEventsPayloadDecisionKindKey:         strings.TrimSpace(payload.DecisionKind),
+			watchEventsPayloadDecisionKey:             strings.TrimSpace(payload.Decision),
+			watchEventsPayloadStopReasonKey:           strings.TrimSpace(payload.StopReason),
+			watchEventsPayloadErrorKey:                strings.TrimSpace(payload.Error),
 		},
 		LedgerKind: string(kind),
 	}

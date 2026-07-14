@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -24,7 +25,9 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
-	store := newCoordinatorRuntimeStore(coordinatorRuntimeTask(), coordinatorRuntimeRun())
+	run := coordinatorRuntimeRun()
+	run.SetNetworkState(participation.LocalSpec(), "", "", "")
+	store := newCoordinatorRuntimeStore(coordinatorRuntimeTask(), run)
 	sessions := &coordinatorRuntimeSessions{}
 	hooks := &recordingCoordinatorHooks{}
 	runtime := newCoordinatorRuntimeForTest(t, store, sessions, hooks, coordinatorRuntimeConfig(), now)
@@ -57,12 +60,12 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 			call.Model,
 		)
 	}
-	if call.Workspace != "ws-1" || call.NetworkParticipation == nil ||
-		call.NetworkParticipation.ChannelID == nil || *call.NetworkParticipation.ChannelID != "ch-run-1" {
+	if call.Workspace != "ws-1" || call.ResolvedNetworkParticipation == nil ||
+		call.ResolvedNetworkParticipation.Mode != participation.ModeLocal {
 		t.Fatalf(
-			"CreateOpts workspace/participation = %q/%#v, want ws-1/live ch-run-1",
+			"CreateOpts workspace/participation = %q/%#v, want ws-1/local",
 			call.Workspace,
-			call.NetworkParticipation,
+			call.ResolvedNetworkParticipation,
 		)
 	}
 	if call.Lineage == nil || call.Lineage.SpawnRole != string(session.SessionTypeCoordinator) {
@@ -74,16 +77,34 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 	if call.Lineage.TTLExpiresAt == nil || !call.Lineage.TTLExpiresAt.Equal(now.Add(2*time.Hour)) {
 		t.Fatalf("Lineage.TTLExpiresAt = %#v, want %s", call.Lineage.TTLExpiresAt, now.Add(2*time.Hour))
 	}
-	if !coordinator.ToolAllowed(toolspkg.ToolIDTaskRunClaimNext.String()) ||
-		coordinator.ToolAllowed(toolspkg.ToolIDTaskCancel.String()) {
+	if !coordinator.ToolAllowed(participation.LocalSpec(), toolspkg.ToolIDTaskRunClaimNext.String()) ||
+		coordinator.ToolAllowed(participation.LocalSpec(), toolspkg.ToolIDTaskCancel.String()) {
 		t.Fatal("coordinator tool allowlist is not restricted as expected")
 	}
-	if got := call.Lineage.PermissionPolicy.NetworkChannels; len(got) != 1 || got[0] != "ch-run-1" {
-		t.Fatalf("Lineage.PermissionPolicy.NetworkChannels = %#v, want ch-run-1", got)
+	for _, networkTool := range []string{
+		toolspkg.ToolIDNetworkChannels.String(),
+		toolspkg.ToolIDNetworkInbox.String(),
+		toolspkg.ToolIDNetworkSend.String(),
+	} {
+		if slices.Contains(call.Lineage.PermissionPolicy.Tools, networkTool) {
+			t.Fatalf(
+				"Lineage.PermissionPolicy.Tools = %#v, want no %q",
+				call.Lineage.PermissionPolicy.Tools,
+				networkTool,
+			)
+		}
 	}
-	for _, required := range []string{"agh me context", "agh task next", "agh ch", "agh spawn", "ch-run-1"} {
+	if got := call.Lineage.PermissionPolicy.NetworkChannels; len(got) != 0 {
+		t.Fatalf("Lineage.PermissionPolicy.NetworkChannels = %#v, want empty", got)
+	}
+	for _, required := range []string{"agh me context", "agh task next", "agh spawn"} {
 		if !contains(call.PromptOverlay, required) {
 			t.Fatalf("PromptOverlay missing %q:\n%s", required, call.PromptOverlay)
+		}
+	}
+	for _, forbidden := range []string{"agh ch", "ch-run-1", "coordination_channel_id"} {
+		if contains(call.PromptOverlay, forbidden) {
+			t.Fatalf("PromptOverlay contains local coordinator guidance %q:\n%s", forbidden, call.PromptOverlay)
 		}
 	}
 	if got := sessions.promptCount(); got != 1 {
@@ -173,17 +194,6 @@ func TestCoordinatorRuntimeSkipsIneligibleRuns(t *testing.T) {
 			run:        coordinatorRuntimeRun(),
 			cfg:        coordinatorRuntimeConfig(),
 			wantReason: coordinator.DecisionGlobalScope,
-		},
-		{
-			name: "missing channel",
-			task: coordinatorRuntimeTask(),
-			run: func() taskpkg.Run {
-				run := coordinatorRuntimeRun()
-				run.SetNetworkState(participation.LocalSpec(), "", "", "")
-				return run
-			}(),
-			cfg:        coordinatorRuntimeConfig(),
-			wantReason: coordinator.DecisionMissingChannel,
 		},
 	}
 

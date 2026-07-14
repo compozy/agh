@@ -43,7 +43,6 @@ const (
 	taskActionGetRun           = "get_run"
 	taskActionEnqueueRun       = "enqueue_run"
 	taskActionFanOutRuns       = "fan_out_runs"
-	taskActionClaimRun         = "claim_run"
 	taskActionStartRun         = "start_run"
 	taskActionAttachRun        = "attach_run_session"
 	taskActionCompleteRun      = "complete_run"
@@ -1484,50 +1483,6 @@ func enqueueFanOutTaskRuns(
 	return runs, nil
 }
 
-// ClaimTaskRun claims one queued run.
-func (h *BaseHandlers) ClaimTaskRun(c *gin.Context) {
-	manager, ok := h.requireTaskManager(c)
-	if !ok {
-		return
-	}
-
-	runID, err := requiredPathID(c.Param("id"), "run id")
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-
-	var req contract.ClaimTaskRunRequest
-	if err := decodeOptionalJSON(c, &req); err != nil {
-		h.respondError(
-			c,
-			http.StatusBadRequest,
-			NewTaskValidationError(fmt.Errorf("%s: decode claim run request: %w", h.transportName(), err)),
-		)
-		return
-	}
-
-	actor, err := h.taskActorContext(c, taskActionClaimRun)
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-
-	claim, err := claimTaskRunFromRequest(req)
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-
-	run, err := manager.ClaimRun(c.Request.Context(), runID, claim, actor)
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
-	}
-
-	c.JSON(http.StatusOK, contract.TaskRunResponse{Run: TaskRunPayloadFromRun(run)})
-}
-
 // StartTaskRun starts one claimed run.
 func (h *BaseHandlers) StartTaskRun(c *gin.Context) {
 	manager, ok := h.requireTaskManager(c)
@@ -2290,14 +2245,6 @@ func taskExecutionRequestFromRequest(req contract.TaskExecutionRequest) (taskpkg
 		return taskpkg.ExecutionRequest{}, err
 	}
 	return spec, nil
-}
-
-func claimTaskRunFromRequest(req contract.ClaimTaskRunRequest) (taskpkg.ClaimRun, error) {
-	claim := taskpkg.ClaimRun{IdempotencyKey: strings.TrimSpace(req.IdempotencyKey)}
-	if err := claim.Validate("claim_run"); err != nil {
-		return taskpkg.ClaimRun{}, err
-	}
-	return claim, nil
 }
 
 func startTaskRunFromRequest(req contract.StartTaskRunRequest) (taskpkg.StartRun, error) {

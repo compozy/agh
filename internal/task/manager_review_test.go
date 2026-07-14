@@ -537,9 +537,9 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
-		run, err = manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+		run, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, run.ID, actor)
 		if err != nil {
-			t.Fatalf("ClaimRun() error = %v", err)
+			t.Fatalf("claimExactRunForTest() error = %v", err)
 		}
 		run, err = manager.StartRun(context.Background(), run.ID, StartRun{}, actor)
 		if err != nil {

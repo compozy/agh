@@ -41,7 +41,7 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		return fmt.Errorf("daemon: create task wake bridge: %w", err)
 	}
 	reviewRequests := newRunReviewRequestedForwarder()
-	eventObserver, bridgeNotifications, networkTaskStatus := d.composeTaskEventObserver(
+	eventObserver, bridgeNotifications, taskStatusProjection := d.composeTaskEventObserver(
 		state,
 		store,
 		reentry,
@@ -83,7 +83,7 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		reentry,
 		wakeBridge,
 		bridgeNotifications,
-		networkTaskStatus,
+		taskStatusProjection,
 		loopActions,
 		reviewRequests,
 		coordinatorBackstop,
@@ -220,23 +220,23 @@ func installTaskRuntime(
 	reentry *harnessReentryBridge,
 	wakeBridge *taskWakeBridge,
 	bridgeNotifications *bridgeTerminalTaskNotificationObserver,
-	networkTaskStatus *networkTaskStatusObserver,
+	taskStatusProjection *taskStatusProjectionObserver,
 	loopActions *loopActionRuntime,
 	reviewRequests *runReviewRequestedForwarder,
 	coordinatorBackstop *loopCoordinatorBootGate,
 	loopJudges *loopGateJudgeRunner,
 ) {
 	state.tasks = &taskRuntime{
-		manager:             manager,
-		store:               store,
-		detached:            detached,
-		reentry:             reentry,
-		wakeBridge:          wakeBridge,
-		bridgeNotifications: bridgeNotifications,
-		networkTaskStatus:   networkTaskStatus,
-		loopActions:         loopActions,
-		coordinatorBackstop: coordinatorBackstop,
-		loopJudges:          loopJudges,
+		manager:              manager,
+		store:                store,
+		detached:             detached,
+		reentry:              reentry,
+		wakeBridge:           wakeBridge,
+		bridgeNotifications:  bridgeNotifications,
+		taskStatusProjection: taskStatusProjection,
+		loopActions:          loopActions,
+		coordinatorBackstop:  coordinatorBackstop,
+		loopJudges:           loopJudges,
 	}
 	state.reviewRequests = reviewRequests
 	state.deps.Tasks = manager

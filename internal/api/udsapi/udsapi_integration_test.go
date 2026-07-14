@@ -1544,13 +1544,13 @@ func TestUDSTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		t,
 		runtime,
 		created.ID,
-		`{"idempotency_key":"enqueue-1","network_channel":"builders"}`,
+		`{"idempotency_key":"enqueue-1"}`,
 	)
 	if queued.Status != taskpkg.TaskRunStatusQueued {
 		t.Fatalf("queued status = %q, want %q", queued.Status, taskpkg.TaskRunStatusQueued)
 	}
-	if queued.NetworkChannel != "builders" {
-		t.Fatalf("queued network_channel = %q, want %q", queued.NetworkChannel, "builders")
+	if queued.NetworkChannel != "" {
+		t.Fatalf("queued network_channel = %q, want local run", queued.NetworkChannel)
 	}
 
 	listQueuedResp := mustUnixRequest(
@@ -1577,7 +1577,12 @@ func TestUDSTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		t.Fatalf("queued runs = %#v, want queued run", queuedList.Runs)
 	}
 
-	claimed := claimIntegrationTaskRun(t, runtime, queued.ID, `{"idempotency_key":"claim-1"}`)
+	seedIntegrationTaskRunClaimed(t, runtime, queued.ID)
+	claimedRun, err := runtime.registry.GetTaskRun(context.Background(), queued.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(%q) error = %v", queued.ID, err)
+	}
+	claimed := core.TaskRunPayloadFromRun(&claimedRun)
 	if claimed.Status != taskpkg.TaskRunStatusClaimed {
 		t.Fatalf("claimed status = %q, want %q", claimed.Status, taskpkg.TaskRunStatusClaimed)
 	}
@@ -1627,7 +1632,7 @@ func TestUDSTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 	}
 
 	secondRun := enqueueIntegrationTaskRun(t, runtime, created.ID, `{"idempotency_key":"enqueue-2"}`)
-	claimIntegrationTaskRun(t, runtime, secondRun.ID, `{"idempotency_key":"claim-2"}`)
+	seedIntegrationTaskRunClaimed(t, runtime, secondRun.ID)
 	attachResp := mustUnixRequest(
 		t,
 		runtime.client,
@@ -1735,7 +1740,7 @@ func TestUDSTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 		runtime.client,
 		http.MethodPost,
 		"http://unix/api/tasks/"+draft.ID+"/publish",
-		[]byte(`{"idempotency_key":"publish-live-1","network_channel":"builders"}`),
+		[]byte(`{"idempotency_key":"publish-live-1"}`),
 		nil,
 	)
 	if publishResp.StatusCode != http.StatusOK {
@@ -1753,7 +1758,7 @@ func TestUDSTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 	}
 
 	run := published.Run
-	claimIntegrationTaskRun(t, runtime, run.ID, `{"idempotency_key":"claim-live-1"}`)
+	seedIntegrationTaskRunClaimed(t, runtime, run.ID)
 
 	startResp := mustUnixRequest(
 		t,
@@ -3135,30 +3140,20 @@ func enqueueIntegrationTaskRun(
 	return created.Run
 }
 
-func claimIntegrationTaskRun(
-	t *testing.T,
-	runtime integrationRuntime,
-	runID string,
-	body string,
-) contract.TaskRunPayload {
+func seedIntegrationTaskRunClaimed(t *testing.T, runtime integrationRuntime, runID string) {
 	t.Helper()
 
-	resp := mustUnixRequest(
-		t,
-		runtime.client,
-		http.MethodPost,
-		"http://unix/api/task-runs/"+runID+"/claim",
-		[]byte(body),
-		nil,
-	)
-	if resp.StatusCode != http.StatusOK {
-		payload, _ := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
-		t.Fatalf("claim run status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(payload))
+	ctx := context.Background()
+	run, err := runtime.registry.GetTaskRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(%q) error = %v", runID, err)
 	}
-	var claimed contract.TaskRunResponse
-	decodeHTTPJSON(t, resp, &claimed)
-	return claimed.Run
+	run.Status = taskpkg.TaskRunStatusClaimed
+	run.ClaimedBy = &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"}
+	run.ClaimedAt = time.Now().UTC()
+	if err := runtime.registry.UpdateTaskRun(ctx, run); err != nil {
+		t.Fatalf("UpdateTaskRun(%q) error = %v", runID, err)
+	}
 }
 
 func requireUDSInboxGroup(

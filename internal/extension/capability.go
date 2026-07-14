@@ -93,7 +93,6 @@ const (
 	capabilityTasksRunsPath                = "tasks/runs"
 	capabilityTasksRunsAttachSessionPath   = "tasks/runs/attach_session"
 	capabilityTasksRunsCancelPath          = "tasks/runs/cancel"
-	capabilityTasksRunsClaimPath           = "tasks/runs/claim"
 	capabilityTasksRunsCompletePath        = "tasks/runs/complete"
 	capabilityTasksRunsEnqueuePath         = "tasks/runs/enqueue"
 	capabilityTasksRunsFailPath            = "tasks/runs/fail"
@@ -156,7 +155,6 @@ var (
 		capabilityTasksRunsPath:                capabilityTaskReadPath,
 		capabilityTasksRunsGetPath:             capabilityTaskReadPath,
 		capabilityTasksRunsEnqueuePath:         capabilityTaskWritePath,
-		capabilityTasksRunsClaimPath:           capabilityTaskWritePath,
 		capabilityTasksRunsStartPath:           capabilityTaskWritePath,
 		capabilityTasksRunsAttachSessionPath:   capabilityTaskWritePath,
 		capabilityTasksRunsCompletePath:        capabilityTaskWritePath,

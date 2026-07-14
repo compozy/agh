@@ -183,6 +183,9 @@ func (r *taskRoleRuntime) Recover(ctx context.Context) {
 		return
 	}
 	for _, run := range runs {
+		if run.RunKind.Normalize() != taskpkg.RunKindWorker || run.IsLoopWorker() {
+			continue
+		}
 		taskRecord, err := r.store.GetTask(ctx, run.TaskID)
 		if err != nil {
 			r.logTaskRoleError("daemon: load task for role recovery", err, hookspkg.TaskRunEnqueuedPayload{

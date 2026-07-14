@@ -1515,6 +1515,7 @@ func newTaskRecoverCommand(deps commandDeps) *cobra.Command {
 
 func newTaskNextCommand(deps commandDeps) *cobra.Command {
 	var (
+		runID                string
 		workspaceID          string
 		requiredCapabilities []string
 		priorityMin          int
@@ -1533,6 +1534,9 @@ func newTaskNextCommand(deps commandDeps) *cobra.Command {
   # Wait until matching work is claimable and request a five-minute lease
   agh task next --wait --lease-seconds 300 -o json
 
+  # Claim one exact queued run through the canonical lease path
+  agh task next --run-id run-123 -o json
+
   # Filter by required caller capability
   agh task next --capability go.test --priority-min 10`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -1543,6 +1547,7 @@ func newTaskNextCommand(deps commandDeps) *cobra.Command {
 				return fmt.Errorf("cli: --priority-min must be zero or positive: %d", priorityMin)
 			}
 			request := AgentTaskClaimNextRequest{
+				RunID:                strings.TrimSpace(runID),
 				WorkspaceID:          strings.TrimSpace(workspaceID),
 				RequiredCapabilities: trimAgentTaskCapabilities(requiredCapabilities),
 				PriorityMin:          priorityMin,
@@ -1571,6 +1576,7 @@ func newTaskNextCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, agentTaskNextBundle(record))
 		},
 	}
+	cmd.Flags().StringVar(&runID, "run-id", "", "Claim exactly this queued run")
 	cmd.Flags().
 		StringVar(&workspaceID, "workspace-id", "", "Workspace ID override; defaults to caller workspace")
 	cmd.Flags().
@@ -2304,7 +2310,6 @@ func newTaskRunCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newTaskRunListCommand(deps))
 	cmd.AddCommand(newTaskRunShowCommand(deps))
 	cmd.AddCommand(newTaskRunEnqueueCommand(deps))
-	cmd.AddCommand(newTaskRunClaimCommand(deps))
 	cmd.AddCommand(newTaskRunStartCommand(deps))
 	cmd.AddCommand(newTaskRunAttachSessionCommand(deps))
 	cmd.AddCommand(newTaskRunCompleteCommand(deps))
@@ -2410,32 +2415,6 @@ func newTaskRunEnqueueCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&idempotencyKey, "idempotency-key", "", "Optional idempotency key")
 	cmd.Flags().StringVar(&networkRaw, "channel", "", "Optional run channel override")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional run metadata JSON")
-	return cmd
-}
-
-func newTaskRunClaimCommand(deps commandDeps) *cobra.Command {
-	var idempotencyKey string
-
-	cmd := &cobra.Command{
-		Use:   "claim <run-id>",
-		Short: "Claim a queued task run",
-		Args:  exactOneNonBlankArg(),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-
-			run, err := client.ClaimTaskRun(cmd.Context(), args[0], ClaimTaskRunRequest{
-				IdempotencyKey: strings.TrimSpace(idempotencyKey),
-			})
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, taskRunBundle(run))
-		},
-	}
-	cmd.Flags().StringVar(&idempotencyKey, "idempotency-key", "", "Optional idempotency key")
 	return cmd
 }
 

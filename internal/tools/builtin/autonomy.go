@@ -102,6 +102,7 @@ func autonomyDescriptors() []toolspkg.Descriptor {
 const autonomyClaimNextInputSchema = `{
 	"type":"object",
 	"properties":{
+		"run_id":{"type":"string"},
 		"workspace_id":{"type":"string"},
 		"required_capabilities":{"type":"array","items":{"type":"string"}},
 		"priority_min":{"type":"integer"},

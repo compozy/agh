@@ -23,8 +23,10 @@ func (g *TaskRepo) CreateTaskRun(ctx context.Context, run taskpkg.Run) error {
 	}
 
 	return g.withTaskImmediateTransaction(ctx, "create task run", func(exec taskSQLExecutor) error {
-		if err := g.ensureTaskExistsWithExecutor(ctx, exec, normalized.TaskID); err != nil {
-			return err
+		if normalized.IsTaskAnchored() {
+			if err := g.ensureTaskExistsWithExecutor(ctx, exec, normalized.TaskID); err != nil {
+				return err
+			}
 		}
 		if err := insertTaskRunWithExecutor(ctx, exec, normalized); err != nil {
 			return err
@@ -116,14 +118,18 @@ func (g *TaskRepo) updateTaskRunWithExecutor(
 	if normalized.QueuedAt.IsZero() {
 		normalized.QueuedAt = current.QueuedAt
 	}
-	if err := g.ensureTaskExistsWithExecutor(ctx, exec, normalized.TaskID); err != nil {
-		return err
+	if normalized.IsTaskAnchored() {
+		if err := g.ensureTaskExistsWithExecutor(ctx, exec, normalized.TaskID); err != nil {
+			return err
+		}
 	}
 	if err := updateTaskRunRecordWithExecutor(ctx, exec, normalized); err != nil {
 		return err
 	}
-	if err := updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, current, normalized); err != nil {
-		return err
+	if normalized.IsTaskAnchored() {
+		if err := updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, current, normalized); err != nil {
+			return err
+		}
 	}
 	return replaceTaskRunCapabilitiesWithExecutor(ctx, exec, normalized)
 }

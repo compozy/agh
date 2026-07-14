@@ -29,7 +29,6 @@ export {
 export {
   attachTaskRunSession,
   cancelTaskRun,
-  claimTaskRun,
   completeTaskRun,
   failTaskRun,
   forceFailTaskRun,

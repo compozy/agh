@@ -108,7 +108,7 @@ func TestSchedulerSessionSourcePreservesCapabilityCertainty(t *testing.T) {
 	})
 }
 
-func TestSchedulerTaskSourcePendingRunsShouldHideLoopActionRuns(t *testing.T) {
+func TestSchedulerTaskSourcePendingRunsShouldExposeOnlyTaskAnchoredGenericWorkers(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should expose only generic queued worker runs", func(t *testing.T) {
@@ -169,6 +169,16 @@ func TestSchedulerTaskSourcePendingRunsShouldHideLoopActionRuns(t *testing.T) {
 			QueuedAt:       now,
 		}); err != nil {
 			t.Fatalf("ReserveQueuedRun(loop) error = %v", err)
+		}
+		wake := taskpkg.Run{
+			ID: "run-network-wake", RunKind: taskpkg.RunKindNetworkWake,
+			Status: taskpkg.TaskRunStatusQueued, Attempt: 1,
+			Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindNetwork, Ref: "network.accept"},
+			QueuedAt: now,
+		}
+		wake.SetNetworkState(daemonTestLiveParticipation("ws-scheduler", "operations"), "wake-1", "sess-1", "owner-1")
+		if err := db.CreateTaskRun(ctx, wake); err != nil {
+			t.Fatalf("CreateTaskRun(network wake) error = %v", err)
 		}
 
 		pending, err := (schedulerTaskSource{store: db}).PendingRuns(ctx)

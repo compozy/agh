@@ -978,14 +978,6 @@ func (r ExecutionRequest) Validate(path string) error {
 	return nil
 }
 
-// Validate reports whether the claim-run request is internally consistent.
-func (r ClaimRun) Validate(path string) error {
-	if strings.TrimSpace(path) == "" {
-		return fmt.Errorf("%w: claim_run path is required", ErrValidation)
-	}
-	return nil
-}
-
 // Validate reports whether the start-run request is internally consistent.
 func (r StartRun) Validate(path string) error {
 	if strings.TrimSpace(path) == "" {

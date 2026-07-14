@@ -10,7 +10,7 @@ import (
 	"database/sql"
 )
 
-const claimTaskRun = `-- name: ClaimTaskRun :execrows
+const claimSelectedTaskRun = `-- name: ClaimSelectedTaskRun :execrows
 UPDATE task_runs
 SET status = ?1,
     claimed_by_kind = ?2,
@@ -29,7 +29,7 @@ SET status = ?1,
 WHERE id = ?11 AND status = ?12
 `
 
-type ClaimTaskRunParams struct {
+type ClaimSelectedTaskRunParams struct {
 	ClaimedStatus  string         `json:"claimed_status"`
 	ClaimedByKind  sql.NullString `json:"claimed_by_kind"`
 	ClaimedByRef   sql.NullString `json:"claimed_by_ref"`
@@ -44,8 +44,8 @@ type ClaimTaskRunParams struct {
 	QueuedStatus   string         `json:"queued_status"`
 }
 
-func (q *Queries) ClaimTaskRun(ctx context.Context, arg ClaimTaskRunParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, claimTaskRun,
+func (q *Queries) ClaimSelectedTaskRun(ctx context.Context, arg ClaimSelectedTaskRunParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, claimSelectedTaskRun,
 		arg.ClaimedStatus,
 		arg.ClaimedByKind,
 		arg.ClaimedByRef,
@@ -251,29 +251,39 @@ func (q *Queries) HeartbeatTaskRunLease(ctx context.Context, arg HeartbeatTaskRu
 }
 
 const listAutonomyLeaseHandles = `-- name: ListAutonomyLeaseHandles :many
-SELECT tr.id, tr.task_id, COALESCE(t.workspace_id, '') AS workspace_id, tr.status,
+SELECT tr.id, tr.task_id, tr.run_kind, COALESCE(t.workspace_id, '') AS task_workspace_id,
+       tr.network_spec_json, tr.network_mode, tr.network_channel, tr.network_source,
+       COALESCE(tr.network_target_session_id, '') AS target_session_id,
+       COALESCE(tr.network_owner_key, '') AS owner_key, tr.status,
        COALESCE(tr.session_id, '') AS session_id, tr.claimed_by_kind, tr.claimed_by_ref,
        COALESCE(tr.claim_token, '') AS claim_token, COALESCE(tr.claim_token_hash, '') AS claim_token_hash,
        tr.lease_until, tr.heartbeat_at
 FROM task_runs tr
-JOIN tasks t ON t.id = tr.task_id
+LEFT JOIN tasks t ON t.id = tr.task_id
 WHERE tr.session_id = ?1
   AND COALESCE(tr.claim_token_hash, '') <> ''
 ORDER BY COALESCE(tr.lease_until, '') DESC, tr.id ASC
 `
 
 type ListAutonomyLeaseHandlesRow struct {
-	ID             string         `json:"id"`
-	TaskID         sql.NullString `json:"task_id"`
-	WorkspaceID    string         `json:"workspace_id"`
-	Status         string         `json:"status"`
-	SessionID      string         `json:"session_id"`
-	ClaimedByKind  sql.NullString `json:"claimed_by_kind"`
-	ClaimedByRef   sql.NullString `json:"claimed_by_ref"`
-	ClaimToken     string         `json:"claim_token"`
-	ClaimTokenHash string         `json:"claim_token_hash"`
-	LeaseUntil     sql.NullString `json:"lease_until"`
-	HeartbeatAt    sql.NullString `json:"heartbeat_at"`
+	ID              string         `json:"id"`
+	TaskID          sql.NullString `json:"task_id"`
+	RunKind         string         `json:"run_kind"`
+	TaskWorkspaceID string         `json:"task_workspace_id"`
+	NetworkSpecJson string         `json:"network_spec_json"`
+	NetworkMode     string         `json:"network_mode"`
+	NetworkChannel  sql.NullString `json:"network_channel"`
+	NetworkSource   string         `json:"network_source"`
+	TargetSessionID string         `json:"target_session_id"`
+	OwnerKey        string         `json:"owner_key"`
+	Status          string         `json:"status"`
+	SessionID       string         `json:"session_id"`
+	ClaimedByKind   sql.NullString `json:"claimed_by_kind"`
+	ClaimedByRef    sql.NullString `json:"claimed_by_ref"`
+	ClaimToken      string         `json:"claim_token"`
+	ClaimTokenHash  string         `json:"claim_token_hash"`
+	LeaseUntil      sql.NullString `json:"lease_until"`
+	HeartbeatAt     sql.NullString `json:"heartbeat_at"`
 }
 
 func (q *Queries) ListAutonomyLeaseHandles(ctx context.Context, sessionID sql.NullString) ([]ListAutonomyLeaseHandlesRow, error) {
@@ -288,7 +298,14 @@ func (q *Queries) ListAutonomyLeaseHandles(ctx context.Context, sessionID sql.Nu
 		if err := rows.Scan(
 			&i.ID,
 			&i.TaskID,
-			&i.WorkspaceID,
+			&i.RunKind,
+			&i.TaskWorkspaceID,
+			&i.NetworkSpecJson,
+			&i.NetworkMode,
+			&i.NetworkChannel,
+			&i.NetworkSource,
+			&i.TargetSessionID,
+			&i.OwnerKey,
 			&i.Status,
 			&i.SessionID,
 			&i.ClaimedByKind,

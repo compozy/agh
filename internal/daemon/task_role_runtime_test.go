@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 	schedulerpkg "github.com/compozy/agh/internal/scheduler"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
@@ -87,7 +88,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		if got := call.Model; got != "" {
 			t.Fatalf("CreateOpts.Model = %q, want provider-native default model resolution", got)
 		}
-		for _, required := range []string{"agh task next --wait -o json", "agh task run claim", run.ID, "design-review"} {
+		for _, required := range []string{"agh task next --run-id 'run-frontend' --wait -o json", run.ID, "design-review"} {
 			if !strings.Contains(call.PromptOverlay, required) {
 				t.Fatalf("PromptOverlay missing %q:\n%s", required, call.PromptOverlay)
 			}
@@ -242,7 +243,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reuse an active matching role session for duplicate queued runs", func(t *testing.T) {
+	t.Run("Should bind distinct role sessions to distinct owning runs", func(t *testing.T) {
 		t.Parallel()
 
 		firstTask := taskRoleRuntimeTask("task-frontend-a", "frontend-engineer-agent")
@@ -261,7 +262,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		})
 		runtime.wg.Wait()
 
-		if got, want := sessions.createCount(), 1; got != want {
+		if got, want := sessions.createCount(), 2; got != want {
 			t.Fatalf("create count = %d, want %d", got, want)
 		}
 		if got, want := sessions.promptCount(), 2; got != want {
@@ -269,6 +270,40 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		}
 		if first, second := sessions.promptCall(0), sessions.promptCall(1); first.opts.TurnID == second.opts.TurnID {
 			t.Fatalf("distinct runs reused activation turn id %q", first.opts.TurnID)
+		}
+		if first, second := sessions.createCall(0).Name, sessions.createCall(1).Name; first == second {
+			t.Fatalf("role session names = %q, want run-bound identities", first)
+		}
+	})
+
+	t.Run("Should keep local role identity and prompt free of fictional channels", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskRoleRuntimeTask("task-local", "frontend-engineer-agent")
+		run := taskRoleRuntimeRun("run-local", taskRecord.ID, "design-review")
+		run.SetNetworkState(participation.LocalSpec(), "", "", "")
+		store := newTaskRoleRuntimeStore(taskRecord, run)
+		sessions := &taskRoleRuntimeSessions{}
+		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
+
+		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+			TaskRunContext: hookspkg.TaskRunContext{TaskID: taskRecord.ID, RunID: run.ID},
+		})
+		runtime.wg.Wait()
+
+		call := sessions.createCall(0)
+		if !strings.Contains(call.Name, "run-local") {
+			t.Fatalf("CreateOpts.Name = %q, want owning run identity", call.Name)
+		}
+		for _, forbidden := range []string{"Coordination channel", "default", "design-review"} {
+			if strings.Contains(call.PromptOverlay, forbidden) || strings.Contains(call.Name, forbidden) {
+				t.Fatalf(
+					"local role identity contains fictional channel %q: name=%q prompt=%q",
+					forbidden,
+					call.Name,
+					call.PromptOverlay,
+				)
+			}
 		}
 	})
 
@@ -377,7 +412,8 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		if !strings.Contains(call.PromptOverlay, "Runtime evidence mode is enabled") {
 			t.Fatalf("PromptOverlay missing runtime evidence guidance:\n%s", call.PromptOverlay)
 		}
-		if !strings.Contains(call.PromptOverlay, "agh task next --wait -o json --capability 'frontend'") {
+		claimCommand := "agh task next --run-id 'run-profile-worker' --wait -o json --capability 'frontend'"
+		if !strings.Contains(call.PromptOverlay, claimCommand) {
 			t.Fatalf("PromptOverlay missing required capability claim:\n%s", call.PromptOverlay)
 		}
 	})

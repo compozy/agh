@@ -38,8 +38,9 @@ func TestAgentTaskClaimNextUsesCallerIdentityAndReturnsCoordinationChannel(t *te
 			run := agentTaskRun(taskpkg.TaskRunStatusClaimed)
 			run.ClaimTokenHash = claimHash
 			run.LeaseUntil = leaseUntil
+			taskRecord := agentTaskRecord()
 			return &taskpkg.ClaimResult{
-				Task:       agentTaskRecord(),
+				Task:       &taskRecord,
 				Run:        run,
 				ClaimToken: rawToken,
 				LeaseUntil: leaseUntil,
@@ -77,7 +78,10 @@ func TestAgentTaskClaimNextUsesCallerIdentityAndReturnsCoordinationChannel(t *te
 		engine,
 		http.MethodPost,
 		"/api/agent/tasks/claim-next",
-		[]byte(`{"workspace_id":"ws-1","required_capabilities":["manual"],"priority_min":2,"lease_seconds":120}`),
+		[]byte(
+			`{"run_id":"run-1","workspace_id":"ws-1",`+
+				`"required_capabilities":["manual"],"priority_min":2,"lease_seconds":120}`,
+		),
 		agentKernelHeaders(),
 	)
 	if recorder.Code != http.StatusOK {
@@ -97,13 +101,14 @@ func TestAgentTaskClaimNextUsesCallerIdentityAndReturnsCoordinationChannel(t *te
 		response.Claim.Run.CoordinationChannel == nil {
 		t.Fatalf("claim response = %#v, want hash and coordination metadata", response.Claim)
 	}
-	if seenCriteria.WorkspaceID != "ws-1" ||
+	if seenCriteria.RunID != "run-1" ||
+		seenCriteria.WorkspaceID != "ws-1" ||
 		seenCriteria.ClaimerSessionID != "sess-agent" ||
 		seenCriteria.AgentName != "coder" ||
 		seenCriteria.CoordinationChannelID != "builders" ||
 		seenCriteria.PriorityMin != 2 ||
 		seenCriteria.LeaseDuration != 120*time.Second {
-		t.Fatalf("criteria = %#v, want caller workspace/session/agent/channel and flags", seenCriteria)
+		t.Fatalf("criteria = %#v, want exact run plus caller workspace/session/agent/channel and flags", seenCriteria)
 	}
 	if !containsString(seenCriteria.RequiredCapabilities, "manual") ||
 		!containsString(seenCriteria.RequiredCapabilities, "go") {

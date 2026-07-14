@@ -2121,7 +2121,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "502a3fce750eacd198bf44f520f4534083ed6a54511880109d2277e66c1aecd3",
+    "input_schema_digest": "9d1dbb8f0c87d196a4d20d6b4bf27b2a2fe18b4b7d33bdf45268d455a6a61ce9",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {

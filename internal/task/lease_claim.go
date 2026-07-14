@@ -12,6 +12,7 @@ func (c ClaimCriteria) Normalize(defaultNow time.Time) (ClaimCriteria, error) {
 	normalized.Scope = normalized.Scope.Normalize()
 	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
 	normalized.RunKind = normalized.RunKind.Normalize()
+	normalized.TargetSessionID = strings.TrimSpace(normalized.TargetSessionID)
 	if normalized.Scope == "" {
 		if normalized.WorkspaceID != "" {
 			normalized.Scope = ScopeWorkspace
@@ -70,6 +71,28 @@ func (c ClaimCriteria) Validate(path string) error {
 		if err := c.RunKind.Validate(nestedPath(path, "run_kind")); err != nil {
 			return err
 		}
+	}
+	if c.RunKind.Normalize() == RunKindNetworkWake {
+		if strings.TrimSpace(c.TargetSessionID) == "" {
+			return fmt.Errorf(
+				"%w: %s is required for network_wake claims",
+				ErrValidation,
+				nestedPath(path, "target_session_id"),
+			)
+		}
+		if strings.TrimSpace(c.TargetSessionID) != strings.TrimSpace(c.ClaimerSessionID) {
+			return fmt.Errorf(
+				"%w: %s must match claimer_session_id for network_wake claims",
+				ErrPermissionDenied,
+				nestedPath(path, "target_session_id"),
+			)
+		}
+	} else if strings.TrimSpace(c.TargetSessionID) != "" {
+		return fmt.Errorf(
+			"%w: %s is only valid for network_wake claims",
+			ErrValidation,
+			nestedPath(path, "target_session_id"),
+		)
 	}
 	if strings.TrimSpace(c.ClaimerSessionID) == "" {
 		return fmt.Errorf(

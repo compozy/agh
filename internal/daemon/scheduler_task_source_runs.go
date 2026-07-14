@@ -15,6 +15,9 @@ func (s schedulerTaskSource) PendingRuns(ctx context.Context) ([]schedulerpkg.Ru
 	}
 	workerRuns := make([]taskpkg.Run, 0, len(runs))
 	for _, run := range runs {
+		if !run.IsTaskAnchored() {
+			continue
+		}
 		if run.RunKind.Normalize() == taskpkg.RunKindCoordinator {
 			continue
 		}
@@ -28,6 +31,24 @@ func (s schedulerTaskSource) PendingRuns(ctx context.Context) ([]schedulerpkg.Ru
 		return nil, err
 	}
 	return s.filterPausedRuns(ctx, snapshots)
+}
+
+func (s schedulerTaskSource) ActiveRuns(ctx context.Context) ([]taskpkg.Run, error) {
+	runs, err := s.store.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{
+		taskpkg.TaskRunStatusClaimed,
+		taskpkg.TaskRunStatusStarting,
+		taskpkg.TaskRunStatusRunning,
+	})
+	if err != nil {
+		return nil, err
+	}
+	anchored := make([]taskpkg.Run, 0, len(runs))
+	for _, run := range runs {
+		if run.IsTaskAnchored() {
+			anchored = append(anchored, run)
+		}
+	}
+	return anchored, nil
 }
 
 func (s schedulerTaskSource) joinRunsWithTasks(

@@ -358,7 +358,6 @@ type stubClient struct {
 	fanOutTaskRunsFn       func(context.Context, string, FanOutTaskRunsRequest) (FanOutTaskRunsRecord, error)
 	listTaskRunsFn         func(context.Context, string, TaskRunListQuery) ([]TaskRunRecord, error)
 	getTaskRunFn           func(context.Context, string) (TaskRunDetailRecord, error)
-	claimTaskRunFn         func(context.Context, string, ClaimTaskRunRequest) (TaskRunRecord, error)
 	startTaskRunFn         func(context.Context, string, StartTaskRunRequest) (TaskRunRecord, error)
 	attachTaskRunSessionFn func(context.Context, string, AttachTaskRunSessionRequest) (TaskRunRecord, error)
 	completeTaskRunFn      func(context.Context, string, CompleteTaskRunRequest) (TaskRunRecord, error)
@@ -2991,17 +2990,6 @@ func (s *stubClient) GetTaskRun(ctx context.Context, id string) (TaskRunDetailRe
 		return s.getTaskRunFn(ctx, id)
 	}
 	return TaskRunDetailRecord{}, errors.New("unexpected GetTaskRun call")
-}
-
-func (s *stubClient) ClaimTaskRun(
-	ctx context.Context,
-	id string,
-	request ClaimTaskRunRequest,
-) (TaskRunRecord, error) {
-	if s.claimTaskRunFn != nil {
-		return s.claimTaskRunFn(ctx, id, request)
-	}
-	return TaskRunRecord{}, errors.New("unexpected ClaimTaskRun call")
 }
 
 func (s *stubClient) StartTaskRun(

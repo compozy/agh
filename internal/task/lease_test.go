@@ -132,7 +132,7 @@ func TestClaimResultSanitizesRawClaimTokenMetadata(t *testing.T) {
 		t.Parallel()
 
 		result := ClaimResult{
-			Task: Task{
+			Task: &Task{
 				Metadata: json.RawMessage(
 					`{"claim_token":"task-raw","nested":{"claim_token":"nested-raw","keep":true}}`,
 				),
@@ -191,7 +191,7 @@ func TestClaimResultSanitizesRawClaimTokenMetadata(t *testing.T) {
 		if err != nil {
 			t.Fatalf("json.Marshal(over-depth metadata) error = %v", err)
 		}
-		result := ClaimResult{Task: Task{Metadata: raw}}
+		result := ClaimResult{Task: &Task{Metadata: raw}}
 
 		claimResultWithoutRawTokenInMetadata(&result)
 		if result.Task.Metadata != nil {
@@ -379,6 +379,7 @@ func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
 
 	claimNow := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 	claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+		RunID:            firstRun.ID,
 		Scope:            ScopeGlobal,
 		ClaimerSessionID: "sess-agent",
 		LeaseDuration:    time.Minute,

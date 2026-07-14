@@ -737,11 +737,6 @@ type EnqueueRun struct {
 	Metadata                   json.RawMessage        `json:"metadata,omitempty"`
 }
 
-// ClaimRun captures one run-claim request.
-type ClaimRun struct {
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
-}
-
 // StartRun captures one run-start request.
 type StartRun struct {
 	IdempotencyKey string `json:"idempotency_key,omitempty"`

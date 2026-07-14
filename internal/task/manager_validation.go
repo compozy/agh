@@ -194,15 +194,6 @@ func normalizeEnqueueRunSpec(spec EnqueueRun) (EnqueueRun, error) {
 	return normalized, nil
 }
 
-func normalizeClaimRun(claim ClaimRun) (ClaimRun, error) {
-	normalized := claim
-	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
-	if err := normalized.Validate("claim_run"); err != nil {
-		return ClaimRun{}, err
-	}
-	return normalized, nil
-}
-
 func normalizeStartRun(req StartRun) (StartRun, error) {
 	normalized := req
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)

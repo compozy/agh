@@ -198,7 +198,6 @@ func registerTaskRoutes(api gin.IRouter, handlers *Handlers) {
 	taskRuns.GET("/:id", handlers.GetTaskRun)
 	taskRuns.POST("/:id/reviews", handlers.RequestTaskRunReview)
 	taskRuns.GET("/:id/reviews", handlers.ListTaskRunReviews)
-	taskRuns.POST("/:id/claim", handlers.ClaimTaskRun)
 	taskRuns.POST("/:id/start", handlers.StartTaskRun)
 	taskRuns.POST("/:id/attach-session", handlers.AttachTaskRunSession)
 	taskRuns.POST("/:id/complete", handlers.CompleteTaskRun)

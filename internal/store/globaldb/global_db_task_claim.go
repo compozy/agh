@@ -71,12 +71,17 @@ func (g *TaskRunRepo) ClaimNextRun(
 		if err := claimRunWithExecutor(ctx, exec, runID, normalized, claimToken, claimHash, leaseUntil); err != nil {
 			return err
 		}
-		if err := setTaskCurrentRunProjectionForRun(ctx, exec, runID); err != nil {
-			return err
-		}
-
 		run, err := g.tasks.getTaskRunWithExecutor(ctx, exec, runID)
 		if err != nil {
+			return err
+		}
+		if run.IsNetworkWake() {
+			result = taskpkg.ClaimResult{
+				Run: run, ClaimToken: claimToken, LeaseUntil: leaseUntil,
+			}
+			return nil
+		}
+		if err := setTaskCurrentRunProjectionForRun(ctx, exec, runID); err != nil {
 			return err
 		}
 		if err := appendLoopNodeRunningEventWithExecutor(ctx, exec, run, normalized.Now); err != nil {
@@ -91,7 +96,7 @@ func (g *TaskRunRepo) ClaimNextRun(
 			return err
 		}
 		result = taskpkg.ClaimResult{
-			Task:                taskRecord,
+			Task:                &taskRecord,
 			Run:                 run,
 			ClaimToken:          claimToken,
 			LeaseUntil:          leaseUntil,
@@ -220,8 +225,10 @@ func (g *TaskRunRepo) ReleaseRunLease(
 		if err := requeueLeasedRun(ctx, exec, current.ID); err != nil {
 			return err
 		}
-		if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
-			return err
+		if current.IsTaskAnchored() {
+			if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
+				return err
+			}
 		}
 		updated, err = g.tasks.getTaskRunWithExecutor(ctx, exec, current.ID)
 		return err

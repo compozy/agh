@@ -110,7 +110,7 @@ Use this guidance only inside a worker session with an active task claim or whil
 When a run includes a designation, follow only your own `designation.brief`; do not merge sibling
 assignments into your scope.
 
-Do not use agh task run claim for autonomous session-bound work when the runtime instructed agh task next.
+Use `agh task next --run-id <run-id> -o json` when the runtime assigns a specific queued run. It uses the same session-bound lease path as unfiltered `agh task next`.
 
 ## Reviewer Loop
 

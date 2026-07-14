@@ -2933,19 +2933,6 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 						Run: sampleTaskRunDetailRecord(taskpkg.TaskRunStatusQueued),
 					})
 					return newHTTPResponse(http.StatusOK, string(body)), nil
-				case req.Method == http.MethodPost && req.URL.Path == "/api/task-runs/run-1/claim":
-					var payload contract.ClaimTaskRunRequest
-					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
-						t.Fatalf("json.Decode(claim run body) error = %v", err)
-					}
-					if payload.IdempotencyKey != "idem-claim" {
-						t.Fatalf("claim run payload = %#v", payload)
-					}
-					body := mustJSON(
-						t,
-						contract.TaskRunResponse{Run: sampleTaskRunRecord(taskpkg.TaskRunStatusClaimed)},
-					)
-					return newHTTPResponse(http.StatusOK, string(body)), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/task-runs/run-1/start":
 					var payload contract.StartTaskRunRequest
 					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
@@ -3111,11 +3098,6 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 			shown.Run.Status != taskpkg.TaskRunStatusQueued ||
 			shown.Task.ID != "task-1" {
 			t.Fatalf("GetTaskRun() = %#v, %v", shown, err)
-		}
-
-		claimed, err := client.ClaimTaskRun(ctx, "run-1", ClaimTaskRunRequest{IdempotencyKey: "idem-claim"})
-		if err != nil || claimed.Status != taskpkg.TaskRunStatusClaimed {
-			t.Fatalf("ClaimTaskRun() = %#v, %v", claimed, err)
 		}
 
 		started, err := client.StartTaskRun(ctx, "run-1", StartTaskRunRequest{IdempotencyKey: "idem-start"})

@@ -443,7 +443,6 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.POST("/scheduler/resume", handlers.ResumeScheduler)
 	engine.POST("/scheduler/drain", handlers.DrainScheduler)
 	engine.GET("/scheduler/backlog", handlers.GetSchedulerBacklog)
-	engine.POST("/task-runs/:id/claim", handlers.ClaimTaskRun)
 	engine.POST("/task-runs/:id/start", handlers.StartTaskRun)
 	engine.POST("/task-runs/:id/attach-session", handlers.AttachTaskRunSession)
 	engine.POST("/task-runs/:id/complete", handlers.CompleteTaskRun)

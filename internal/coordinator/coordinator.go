@@ -7,6 +7,7 @@ import (
 	"time"
 
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -22,7 +23,6 @@ const (
 	DecisionDisabled         = "disabled"
 	DecisionGlobalScope      = "global_scope"
 	DecisionMissingWorkspace = "missing_workspace"
-	DecisionMissingChannel   = "missing_coordination_channel"
 	DecisionNonExecutableRun = "non_executable_run"
 	DecisionTaskRunMismatch  = "task_run_mismatch"
 	DecisionExisting         = "existing_coordinator"
@@ -43,21 +43,23 @@ var (
 		"review_request",
 	}
 
-	// toolAllowlist is the orchestration-safe surface granted to coordinator
+	// taskToolAllowlist is the orchestration-safe surface granted to coordinator
 	// sessions. Operator lifecycle verbs and coordinator-to-coordinator spawn
 	// are intentionally absent. These must stay aligned with canonical builtin
 	// ToolIDs because lineage permission policies validate concrete tool atoms.
-	toolAllowlist = [...]string{
+	taskToolAllowlist = [...]string{
 		toolspkg.ToolIDSessionDescribe.String(),
-		toolspkg.ToolIDNetworkChannels.String(),
-		toolspkg.ToolIDNetworkInbox.String(),
-		toolspkg.ToolIDNetworkSend.String(),
 		toolspkg.ToolIDTaskRunClaimNext.String(),
 		toolspkg.ToolIDTaskRunHeartbeat.String(),
 		toolspkg.ToolIDTaskRunComplete.String(),
 		toolspkg.ToolIDTaskRunFail.String(),
 		toolspkg.ToolIDTaskRunRelease.String(),
 		toolspkg.ToolIDTaskCreate.String(),
+	}
+	networkToolAllowlist = [...]string{
+		toolspkg.ToolIDNetworkChannels.String(),
+		toolspkg.ToolIDNetworkInbox.String(),
+		toolspkg.ToolIDNetworkSend.String(),
 	}
 )
 
@@ -69,8 +71,12 @@ func OperationalMessageKinds() []string {
 
 // ToolAllowlist returns the orchestration-safe tool surface granted to
 // coordinator sessions.
-func ToolAllowlist() []string {
-	return slices.Clone(toolAllowlist[:])
+func ToolAllowlist(spec participation.Spec) []string {
+	tools := slices.Clone(taskToolAllowlist[:])
+	if spec.Mode == participation.ModeLive {
+		tools = append(tools, networkToolAllowlist[:]...)
+	}
+	return tools
 }
 
 // Decision describes whether a task run is eligible to bootstrap a workspace
@@ -87,11 +93,11 @@ type Decision struct {
 
 // PromptInput captures the first-run situation given to a coordinator session.
 type PromptInput struct {
-	WorkspaceID           string
-	TaskID                string
-	RunID                 string
-	WorkflowID            string
-	CoordinationChannelID string
+	WorkspaceID          string
+	TaskID               string
+	RunID                string
+	WorkflowID           string
+	NetworkParticipation participation.Spec
 }
 
 // DecideBootstrap evaluates the mechanical coordinator bootstrap rules. It
@@ -132,10 +138,6 @@ func DecideBootstrap(task taskpkg.Task, run taskpkg.Run, cfg aghconfig.Coordinat
 		decision.Reason = DecisionNonExecutableRun
 		return decision
 	}
-	if decision.CoordinationChannelID == "" {
-		decision.Reason = DecisionMissingChannel
-		return decision
-	}
 	decision.ShouldBootstrap = true
 	decision.Reason = DecisionBootstrap
 	return decision
@@ -166,17 +168,21 @@ func ExecutableRunStatuses() []taskpkg.RunStatus {
 }
 
 // PermissionPolicy returns the restricted coordinator root permission policy.
-func PermissionPolicy(channelIDs ...string) store.SessionPermissionPolicy {
+func PermissionPolicy(spec participation.Spec) store.SessionPermissionPolicy {
+	channelIDs := []string(nil)
+	if spec.Mode == participation.ModeLive {
+		channelIDs = nonEmptyAtoms(spec.ChannelID)
+	}
 	policy := store.SessionPermissionPolicy{
-		Tools:           ToolAllowlist(),
-		NetworkChannels: nonEmptyAtoms(channelIDs...),
+		Tools:           ToolAllowlist(spec),
+		NetworkChannels: channelIDs,
 	}
 	return store.NormalizeSessionPermissionPolicy(policy)
 }
 
 // ToolAllowed reports whether a concrete tool/action is coordinator-safe.
-func ToolAllowed(tool string) bool {
-	return slices.Contains(toolAllowlist[:], strings.TrimSpace(tool))
+func ToolAllowed(spec participation.Spec, tool string) bool {
+	return slices.Contains(ToolAllowlist(spec), strings.TrimSpace(tool))
 }
 
 // SpawnRoleAllowed reports whether a coordinator may request the given child
@@ -240,18 +246,24 @@ func PromptOverlay(input PromptInput) string {
 	writePromptLine(&b, "task_id", input.TaskID)
 	writePromptLine(&b, "run_id", input.RunID)
 	writePromptLine(&b, "workflow_id", input.WorkflowID)
-	writePromptLine(&b, "coordination_channel_id", input.CoordinationChannelID)
+	if input.NetworkParticipation.Mode == participation.ModeLive {
+		writePromptLine(&b, "coordination_channel_id", input.NetworkParticipation.ChannelID)
+	}
 	b.WriteString("\nUse public AGH agent APIs only:\n")
 	b.WriteString("- `agh me context` for the Situation Surface.\n")
 	b.WriteString("- `agh task create` to persist follow-up task intent.\n")
 	b.WriteString("- `agh task next|heartbeat|complete|fail|release` for task ownership and terminal status.\n")
-	b.WriteString("- `agh ch list|recv|send|reply` for operational worker communication.\n")
+	if input.NetworkParticipation.Mode == participation.ModeLive {
+		b.WriteString("- `agh ch list|recv|send|reply` for operational worker communication.\n")
+	}
 	b.WriteString("- `agh spawn` for bounded worker delegation.\n")
 	b.WriteString("\nCreating a task only records follow-up intent. The current coordinator run is the active ")
 	b.WriteString("execution boundary, and child work must stay within the allowed task-run and spawn surfaces.\n")
-	b.WriteString("\nChannel communication is operational only. Use the run coordination channel for ")
-	b.WriteString(strings.Join(operationalMessageKinds[:], ", "))
-	b.WriteString(" messages when conversation is useful. Do not use channel messages as task ownership state.\n")
+	if input.NetworkParticipation.Mode == participation.ModeLive {
+		b.WriteString("\nChannel communication is operational only. Use the run coordination channel for ")
+		b.WriteString(strings.Join(operationalMessageKinds[:], ", "))
+		b.WriteString(" messages when conversation is useful. Do not use channel messages as task ownership state.\n")
+	}
 	b.WriteString("Never spawn another coordinator. ")
 	b.WriteString("Worker delegation must stay inside safe-spawn permissions and task approvals.\n")
 	return strings.TrimSpace(b.String())

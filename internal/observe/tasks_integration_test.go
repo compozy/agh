@@ -41,6 +41,31 @@ type taskStopCall struct {
 	Reason    taskpkg.StopReason
 }
 
+func seedNonLeasedClaimedObserveRun(
+	t *testing.T,
+	h *harness,
+	runID string,
+	actor taskpkg.ActorContext,
+	claimedAt time.Time,
+) {
+	t.Helper()
+
+	ctx := testutil.Context(t)
+	run, err := h.registry.GetTaskRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(%q) error = %v", runID, err)
+	}
+	run.Status = taskpkg.TaskRunStatusClaimed
+	run.ClaimedBy = &taskpkg.ActorIdentity{Kind: actor.Actor.Kind, Ref: actor.Actor.Ref}
+	run.ClaimedAt = claimedAt.UTC()
+	run.SessionID = ""
+	run.ClaimTokenHash = ""
+	run.LeaseUntil = time.Time{}
+	if err := h.registry.UpdateTaskRun(ctx, run); err != nil {
+		t.Fatalf("UpdateTaskRun(%q) error = %v", runID, err)
+	}
+}
+
 type forbidCountDependenciesRegistry struct {
 	Registry
 }
@@ -119,14 +144,7 @@ func TestObserveTaskLifecycleSummaryAndMetrics(t *testing.T) {
 	}
 
 	clock.Advance(2 * time.Minute)
-	if _, err := manager.ClaimRun(
-		testutil.Context(t),
-		run.ID,
-		taskpkg.ClaimRun{IdempotencyKey: "claim-observe-1"},
-		daemonActor,
-	); err != nil {
-		t.Fatalf("ClaimRun() error = %v", err)
-	}
+	seedNonLeasedClaimedObserveRun(t, h, run.ID, daemonActor, clock.Now())
 
 	clock.Advance(3 * time.Minute)
 	if _, err := manager.StartRun(
@@ -232,14 +250,7 @@ func TestObserveHealthReflectsRecoveryAndForcedStopOutcomes(t *testing.T) {
 		t.Fatalf("EnqueueRun(running) error = %v", err)
 	}
 	clock.Advance(time.Minute)
-	if _, err := manager.ClaimRun(
-		testutil.Context(t),
-		runningRun.ID,
-		taskpkg.ClaimRun{IdempotencyKey: "claim-cancel-1"},
-		daemonActor,
-	); err != nil {
-		t.Fatalf("ClaimRun(running) error = %v", err)
-	}
+	seedNonLeasedClaimedObserveRun(t, h, runningRun.ID, daemonActor, clock.Now())
 	clock.Advance(time.Minute)
 	if _, err := manager.StartRun(
 		testutil.Context(t),
@@ -270,14 +281,7 @@ func TestObserveHealthReflectsRecoveryAndForcedStopOutcomes(t *testing.T) {
 		t.Fatalf("EnqueueRun(recovery) error = %v", err)
 	}
 	clock.Advance(time.Minute)
-	if _, err := manager.ClaimRun(
-		testutil.Context(t),
-		recoveredRun.ID,
-		taskpkg.ClaimRun{IdempotencyKey: "claim-recovery-1"},
-		daemonActor,
-	); err != nil {
-		t.Fatalf("ClaimRun(recovery) error = %v", err)
-	}
+	seedNonLeasedClaimedObserveRun(t, h, recoveredRun.ID, daemonActor, clock.Now())
 	clock.Advance(time.Minute)
 	if _, err := manager.AttachRunSession(
 		testutil.Context(t),
@@ -502,14 +506,7 @@ func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
 			t.Fatalf("EnqueueRun(runningTask) error = %v", err)
 		}
 		clock.Advance(time.Minute)
-		if _, err := manager.ClaimRun(
-			testutil.Context(t),
-			runningRun.ID,
-			taskpkg.ClaimRun{IdempotencyKey: "claim-running-1"},
-			daemonActor,
-		); err != nil {
-			t.Fatalf("ClaimRun(runningTask) error = %v", err)
-		}
+		seedNonLeasedClaimedObserveRun(t, h, runningRun.ID, daemonActor, clock.Now())
 		clock.Advance(time.Minute)
 		if _, err := manager.StartRun(
 			testutil.Context(t),
@@ -529,14 +526,7 @@ func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
 			t.Fatalf("EnqueueRun(failedTask) error = %v", err)
 		}
 		clock.Advance(time.Minute)
-		if _, err := manager.ClaimRun(
-			testutil.Context(t),
-			failedRun.ID,
-			taskpkg.ClaimRun{IdempotencyKey: "claim-failed-1"},
-			daemonActor,
-		); err != nil {
-			t.Fatalf("ClaimRun(failedTask) error = %v", err)
-		}
+		seedNonLeasedClaimedObserveRun(t, h, failedRun.ID, daemonActor, clock.Now())
 		clock.Advance(time.Minute)
 		if _, err := manager.StartRun(
 			testutil.Context(t),
@@ -569,14 +559,7 @@ func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
 			t.Fatalf("EnqueueRun(completedTask) error = %v", err)
 		}
 		clock.Advance(time.Minute)
-		if _, err := manager.ClaimRun(
-			testutil.Context(t),
-			completedRun.ID,
-			taskpkg.ClaimRun{IdempotencyKey: "claim-completed-1"},
-			daemonActor,
-		); err != nil {
-			t.Fatalf("ClaimRun(completedTask) error = %v", err)
-		}
+		seedNonLeasedClaimedObserveRun(t, h, completedRun.ID, daemonActor, clock.Now())
 		clock.Advance(time.Minute)
 		if _, err := manager.StartRun(
 			testutil.Context(t),
@@ -691,14 +674,7 @@ func TestObserveTaskDashboardRefreshesAfterPersistedTransitions(t *testing.T) {
 			t.Fatalf("queuedDashboard.Freshness.Status = %q, want %q", got, want)
 		}
 
-		if _, err := manager.ClaimRun(
-			testutil.Context(t),
-			run.ID,
-			taskpkg.ClaimRun{IdempotencyKey: "claim-transition-1"},
-			daemonActor,
-		); err != nil {
-			t.Fatalf("ClaimRun() error = %v", err)
-		}
+		seedNonLeasedClaimedObserveRun(t, h, run.ID, daemonActor, clock.Now())
 		clock.Advance(time.Minute)
 		if _, err := manager.StartRun(
 			testutil.Context(t),
@@ -829,14 +805,7 @@ func TestObserveTaskInboxReflectsApprovalAndTriageTransitions(t *testing.T) {
 			t.Fatalf("EnqueueRun(failTask) error = %v", err)
 		}
 		clock.Advance(time.Minute)
-		if _, err := manager.ClaimRun(
-			testutil.Context(t),
-			failRun.ID,
-			taskpkg.ClaimRun{IdempotencyKey: "claim-inbox-fail-1"},
-			daemonActor,
-		); err != nil {
-			t.Fatalf("ClaimRun(failTask) error = %v", err)
-		}
+		seedNonLeasedClaimedObserveRun(t, h, failRun.ID, daemonActor, clock.Now())
 		clock.Advance(time.Minute)
 		if _, err := manager.StartRun(
 			testutil.Context(t),

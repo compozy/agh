@@ -105,10 +105,14 @@ func TestNetworkTaskIngressCreateAndEnqueueRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
-	claimed, err := taskManager.ClaimRun(ctx, run.ID, taskpkg.ClaimRun{}, claimActor)
+	claim, err := taskManager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		RunID:            run.ID,
+		ClaimerSessionID: "network-task-ingress:" + run.ID,
+	}, claimActor)
 	if err != nil {
-		t.Fatalf("ClaimRun() error = %v", err)
+		t.Fatalf("ClaimNextRun() error = %v", err)
 	}
+	claimed := claim.Run
 	if got, want := claimed.Status, taskpkg.TaskRunStatusClaimed; got != want {
 		t.Fatalf("claimed.Status = %q, want %q", got, want)
 	}

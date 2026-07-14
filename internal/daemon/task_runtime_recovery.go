@@ -33,8 +33,8 @@ func (r *taskRuntime) shutdown(ctx context.Context) error {
 	if r.bridgeNotifications != nil {
 		r.bridgeNotifications.shutdown()
 	}
-	if r.networkTaskStatus != nil {
-		r.networkTaskStatus.shutdown()
+	if r.taskStatusProjection != nil {
+		r.taskStatusProjection.shutdown()
 	}
 	if r.reentry != nil {
 		r.reentry.shutdown()

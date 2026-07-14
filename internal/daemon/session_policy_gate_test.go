@@ -165,13 +165,13 @@ func TestSessionPolicyGateBuildsConcreteTaskRoleCreateOpts(t *testing.T) {
 			SandboxRef:     "evidence-lab",
 			DisableSandbox: false,
 			Permissions:    aghconfig.PermissionModeApproveAll,
-			Name:           "task-role:frontend-engineer:design-review:63e604975a4c215d",
+			Name:           "task-role:frontend-engineer:run-parity:63e604975a4c215d",
 			Workspace:      "ws-parity",
 			WorkspacePath:  "",
 			ResolvedNetworkParticipation: participationSnapshotPointer(
 				daemonTestLiveParticipation("ws-parity", "design-review"),
 			),
-			PromptOverlay: "A queued AGH task run is assigned to this agent.\n\nTask: Parity task\nRun: run-parity\nCoordination channel: design-review\n\nUse `agh task next --wait -o json --capability 'frontend'` once to claim work for this session before changing files. Complete or fail the claimed run through the AGH task lease commands from this same session. Do not use `agh task run claim` for autonomous work.\n\nRuntime evidence mode is enabled for this task. You may boot local app runtimes, run browser or simulator validation, and capture runtime evidence artifacts required by the task.",
+			PromptOverlay: "A queued AGH task run is assigned to this agent.\n\nTask: Parity task\nRun: run-parity\nCoordination channel: design-review\n\nUse `agh task next --run-id 'run-parity' --wait -o json --capability 'frontend'` once to claim work for this session before changing files. Complete or fail the claimed run through the AGH task lease commands from this same session.\n\nRuntime evidence mode is enabled for this task. You may boot local app runtimes, run browser or simulator validation, and capture runtime evidence artifacts required by the task.",
 			Type:          session.SessionTypeSystem,
 		}
 		if !reflect.DeepEqual(got, want) {

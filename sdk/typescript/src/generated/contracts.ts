@@ -79,7 +79,6 @@ export type HostAPIMethod =
   | "tasks/runs"
   | "tasks/runs/attach_session"
   | "tasks/runs/cancel"
-  | "tasks/runs/claim"
   | "tasks/runs/complete"
   | "tasks/runs/enqueue"
   | "tasks/runs/fail"
@@ -5158,17 +5157,15 @@ export interface TaskRunCancelParams {
 }
 
 export interface TaskRunClaimCriteria {
+  run_id?: string;
+  run_kind?: string;
   workspace_id?: string;
+  target_session_id?: string;
   claimer_session_id?: string;
   agent_name?: string;
   required_capabilities?: string[];
   priority_min?: number;
   coordination_channel_id?: string;
-}
-
-export interface TaskRunClaimParams {
-  id: string;
-  idempotency_key?: string;
 }
 
 export interface TaskRunCompleteParams {
@@ -5205,6 +5202,9 @@ export interface TaskRunCompletedPayload {
   task_id?: string;
   run_id?: string;
   run_kind?: string;
+  wake_id?: string;
+  owner_key?: string;
+  target_session_id?: string;
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
@@ -5235,6 +5235,9 @@ export interface TaskRunContext {
   task_id?: string;
   run_id?: string;
   run_kind?: string;
+  wake_id?: string;
+  owner_key?: string;
+  target_session_id?: string;
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
@@ -5300,6 +5303,9 @@ export interface TaskRunEnqueuedPayload {
   task_id?: string;
   run_id?: string;
   run_kind?: string;
+  wake_id?: string;
+  owner_key?: string;
+  target_session_id?: string;
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
@@ -5335,6 +5341,9 @@ export interface TaskRunFailedPayload {
   task_id?: string;
   run_id?: string;
   run_kind?: string;
+  wake_id?: string;
+  owner_key?: string;
+  target_session_id?: string;
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
@@ -5371,6 +5380,9 @@ export interface TaskRunLeaseExpiredPayload {
   task_id?: string;
   run_id?: string;
   run_kind?: string;
+  wake_id?: string;
+  owner_key?: string;
+  target_session_id?: string;
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
@@ -5403,6 +5415,9 @@ export interface TaskRunLeaseExtendedPayload {
   task_id?: string;
   run_id?: string;
   run_kind?: string;
+  wake_id?: string;
+  owner_key?: string;
+  target_session_id?: string;
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
@@ -5435,6 +5450,9 @@ export interface TaskRunLeasePayload {
   task_id?: string;
   run_id?: string;
   run_kind?: string;
+  wake_id?: string;
+  owner_key?: string;
+  target_session_id?: string;
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
@@ -5467,6 +5485,9 @@ export interface TaskRunLeaseRecoveredPayload {
   task_id?: string;
   run_id?: string;
   run_kind?: string;
+  wake_id?: string;
+  owner_key?: string;
+  target_session_id?: string;
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
@@ -5503,6 +5524,9 @@ export interface TaskRunPostClaimPayload {
   task_id?: string;
   run_id?: string;
   run_kind?: string;
+  wake_id?: string;
+  owner_key?: string;
+  target_session_id?: string;
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
@@ -5539,6 +5563,9 @@ export interface TaskRunPreClaimPayload {
   task_id?: string;
   run_id?: string;
   run_kind?: string;
+  wake_id?: string;
+  owner_key?: string;
+  target_session_id?: string;
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
@@ -5570,6 +5597,9 @@ export interface TaskRunReleasedPayload {
   task_id?: string;
   run_id?: string;
   run_kind?: string;
+  wake_id?: string;
+  owner_key?: string;
+  target_session_id?: string;
   loop_run_id?: string;
   workspace_id?: string;
   workflow_id?: string;
@@ -6446,10 +6476,6 @@ export interface HostAPIMethodMap {
   };
   "tasks/runs/enqueue": {
     params: TaskRunEnqueueParams;
-    result: TaskRun;
-  };
-  "tasks/runs/claim": {
-    params: TaskRunClaimParams;
     result: TaskRun;
   };
   "tasks/runs/start": {

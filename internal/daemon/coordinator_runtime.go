@@ -210,6 +210,9 @@ func (r *coordinatorRuntime) OnTaskRunEnqueued(ctx context.Context, payload hook
 		r.logCoordinatorError("daemon: load task run for coordinator enqueue", err, payload)
 		return
 	}
+	if !run.IsTaskAnchored() {
+		return
+	}
 	taskRecord, err := r.store.GetTask(ctx, run.TaskID)
 	if err != nil {
 		r.logCoordinatorError("daemon: load task for coordinator enqueue", err, payload)
@@ -261,6 +264,9 @@ func (r *coordinatorRuntime) recoverWorkspace(ctx context.Context, workspaceID s
 
 	workspaceID = strings.TrimSpace(workspaceID)
 	for _, run := range runs {
+		if !run.IsTaskAnchored() {
+			continue
+		}
 		taskRecord, err := r.store.GetTask(ctx, run.TaskID)
 		if err != nil {
 			r.logCoordinatorError("daemon: load task for coordinator recovery", err, hookspkg.TaskRunEnqueuedPayload{
@@ -646,14 +652,15 @@ func (r *coordinatorRuntime) startCoordinatorSession(
 	decision coordinator.Decision,
 	cfg aghconfig.CoordinatorConfig,
 ) (*session.Info, error) {
-	policy := coordinator.PermissionPolicy(decision.CoordinationChannelID)
+	coordinatorParticipation := participation.LocalSpec()
+	policy := coordinator.PermissionPolicy(coordinatorParticipation)
 	now := r.now().UTC()
 	promptOverlay := coordinator.PromptOverlay(coordinator.PromptInput{
-		WorkspaceID:           decision.WorkspaceID,
-		TaskID:                decision.TaskID,
-		RunID:                 decision.RunID,
-		WorkflowID:            decision.WorkflowID,
-		CoordinationChannelID: decision.CoordinationChannelID,
+		WorkspaceID:          decision.WorkspaceID,
+		TaskID:               decision.TaskID,
+		RunID:                decision.RunID,
+		WorkflowID:           decision.WorkflowID,
+		NetworkParticipation: coordinatorParticipation,
 	})
 	if r.contextOverlay != nil &&
 		strings.TrimSpace(decision.TaskID) != "" &&
@@ -672,23 +679,16 @@ func (r *coordinatorRuntime) startCoordinatorSession(
 		}
 		promptOverlay = joinPromptOverlays(taskOverlay, promptOverlay)
 	}
-	live := participation.ModeLive
-	named := participation.StrategyNamed
-	channelID := strings.TrimSpace(decision.CoordinationChannelID)
 	created, err := r.sessions.Create(ctx, session.CreateOpts{
-		AgentName: cfg.AgentName,
-		Provider:  cfg.Provider,
-		Model:     cfg.Model,
-		Name:      coordinatorSessionName(decision.WorkspaceID),
-		Workspace: decision.WorkspaceID,
-		NetworkParticipation: &participation.Request{
-			Mode:            &live,
-			ChannelStrategy: &named,
-			ChannelID:       &channelID,
-		},
-		PromptOverlay: promptOverlay,
-		Type:          session.SessionTypeCoordinator,
-		Lineage:       coordinator.Lineage(now, cfg, policy),
+		AgentName:                    cfg.AgentName,
+		Provider:                     cfg.Provider,
+		Model:                        cfg.Model,
+		Name:                         coordinatorSessionName(decision.WorkspaceID),
+		Workspace:                    decision.WorkspaceID,
+		ResolvedNetworkParticipation: &coordinatorParticipation,
+		PromptOverlay:                promptOverlay,
+		Type:                         session.SessionTypeCoordinator,
+		Lineage:                      coordinator.Lineage(now, cfg, policy),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create coordinator session: %w", err)

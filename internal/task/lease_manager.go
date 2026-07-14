@@ -7,8 +7,6 @@ import (
 	"log/slog"
 	"strings"
 	"time"
-
-	hookspkg "github.com/compozy/agh/internal/hooks"
 )
 
 // ClaimNextRun atomically claims the next eligible run for one session and returns the raw claim token once.
@@ -34,6 +32,10 @@ func (m *Service) ClaimNextRun(
 		return nil, err
 	}
 	claimResultWithoutRawTokenInMetadata(&result)
+	if result.Run.IsNetworkWake() {
+		m.dispatchTaskRunPostClaim(ctx, result.Run, Task{}, actor)
+		return &result, nil
+	}
 
 	reconciledTask, err := m.reconcileTaskCascade(ctx, result.Run.TaskID, actor)
 	if err != nil {
@@ -49,7 +51,7 @@ func (m *Service) ClaimNextRun(
 		return nil, err
 	}
 	m.dispatchTaskRunPostClaim(ctx, result.Run, reconciledTask, actor)
-	result.Task = reconciledTask
+	result.Task = &reconciledTask
 	return &result, nil
 }
 
@@ -69,6 +71,10 @@ func (m *Service) HeartbeatRunLease(
 	run, err := m.store.HeartbeatRunLease(ctx, normalized)
 	if err != nil {
 		return nil, err
+	}
+	if run.IsNetworkWake() {
+		m.dispatchTaskRunLeaseExtended(ctx, run, Task{}, actor)
+		return &run, nil
 	}
 	taskRecord, err := m.store.GetTask(ctx, run.TaskID)
 	if err != nil {
@@ -100,11 +106,19 @@ func (m *Service) ReleaseRunLease(
 	if err != nil {
 		return nil, err
 	}
-	previous, taskRecord, err := m.loadRunWithTask(ctx, normalized.RunID)
+	previous, err := m.store.GetTaskRun(ctx, normalized.RunID)
 	if err != nil {
 		return nil, err
 	}
 	run, err := m.store.ReleaseRunLease(ctx, normalized)
+	if err != nil {
+		return nil, err
+	}
+	if run.IsNetworkWake() {
+		m.dispatchTaskRunReleased(ctx, run, Task{}, actor, previous, normalized.Reason)
+		return &run, nil
+	}
+	taskRecord, err := m.store.GetTask(ctx, run.TaskID)
 	if err != nil {
 		return nil, err
 	}
@@ -150,6 +164,15 @@ func (m *Service) ReleaseSessionRunLeases(
 		run := requeueSessionRunLease(previous)
 		if err := m.store.UpdateTaskRun(ctx, run); err != nil {
 			return nil, err
+		}
+		if run.IsNetworkWake() {
+			m.dispatchTaskRunReleased(ctx, run, Task{}, actor, previous, normalized.Reason)
+			results = append(results, SessionLeaseReleaseResult{
+				Run: run, PreviousRunStatus: previous.Status,
+				PreviousSessionID: previous.SessionID, PreviousLeaseUntil: previous.LeaseUntil,
+				PreviousClaimTokenHash: previous.ClaimTokenHash, Reason: normalized.Reason,
+			})
+			continue
 		}
 		reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID, actor)
 		if err != nil {
@@ -485,6 +508,10 @@ func (m *Service) FailRunLease(
 	if err != nil {
 		return nil, err
 	}
+	if run.IsNetworkWake() {
+		m.dispatchTaskRunFailed(ctx, run, Task{}, actor)
+		return &run, nil
+	}
 	reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID, actor)
 	if err != nil {
 		return nil, err
@@ -513,6 +540,11 @@ func (m *Service) RecoverExpiredRunLeases(
 	}
 	for idx := range results {
 		result := &results[idx]
+		if result.Run.IsNetworkWake() {
+			m.dispatchTaskRunLeaseExpired(ctx, result.Run, Task{}, actor, result)
+			m.dispatchTaskRunLeaseRecoveredFromExpiration(ctx, result.Run, Task{}, actor, result)
+			continue
+		}
 		reconciledTask, err := m.reconcileTaskCascade(ctx, result.Run.TaskID, actor)
 		if err != nil {
 			return nil, err
@@ -687,7 +719,10 @@ func normalizeAutonomyLeaseHandle(handle AutonomyLeaseHandle) AutonomyLeaseHandl
 	handle.SessionID = strings.TrimSpace(handle.SessionID)
 	handle.RunID = strings.TrimSpace(handle.RunID)
 	handle.TaskID = strings.TrimSpace(handle.TaskID)
+	handle.RunKind = handle.RunKind.Normalize()
 	handle.WorkspaceID = strings.TrimSpace(handle.WorkspaceID)
+	handle.TargetSessionID = strings.TrimSpace(handle.TargetSessionID)
+	handle.OwnerKey = strings.TrimSpace(handle.OwnerKey)
 	handle.ClaimToken = strings.TrimSpace(handle.ClaimToken)
 	handle.ClaimTokenHash = strings.TrimSpace(handle.ClaimTokenHash)
 	return handle
@@ -737,75 +772,4 @@ func requeueSessionRunLease(run Run) Run {
 	run.Error = ""
 	run.Result = nil
 	return run
-}
-
-func (m *Service) normalizeClaimCriteriaForActor(
-	criteria ClaimCriteria,
-	actor ActorContext,
-) (ClaimCriteria, error) {
-	normalized := criteria
-	if strings.TrimSpace(normalized.ClaimerSessionID) == "" && actor.Actor.Kind.Normalize() == ActorKindAgentSession {
-		normalized.ClaimerSessionID = strings.TrimSpace(actor.Actor.Ref)
-	}
-	if normalized.ClaimedBy == nil {
-		normalized.ClaimedBy = &ActorIdentity{
-			Kind: actor.Actor.Kind.Normalize(),
-			Ref:  strings.TrimSpace(actor.Actor.Ref),
-		}
-	}
-	if strings.TrimSpace(normalized.AgentName) == "" && actor.Actor.Kind.Normalize() == ActorKindAgentSession {
-		normalized.AgentName = strings.TrimSpace(actor.Actor.Ref)
-	}
-	return normalized.Normalize(m.now().UTC())
-}
-
-func (m *Service) dispatchTaskRunPreClaimCriteria(
-	ctx context.Context,
-	criteria ClaimCriteria,
-	actor ActorContext,
-) (ClaimCriteria, error) {
-	taskContext := hookspkg.TaskRunContext{
-		WorkspaceID: strings.TrimSpace(criteria.WorkspaceID),
-		AgentName:   strings.TrimSpace(criteria.AgentName),
-		SessionID:   strings.TrimSpace(criteria.ClaimerSessionID),
-		ActorKind:   string(actor.Actor.Kind.Normalize()),
-		ActorID:     strings.TrimSpace(actor.Actor.Ref),
-	}
-	if criteria.Soul != nil {
-		taskContext.SoulSnapshotID = strings.TrimSpace(criteria.Soul.SnapshotID)
-		taskContext.SoulDigest = strings.TrimSpace(criteria.Soul.Digest)
-	}
-	payload := hookspkg.TaskRunPreClaimPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskRunPreClaim,
-			Timestamp: m.now().UTC(),
-		},
-		TaskRunContext: &taskContext,
-		Criteria: hookspkg.TaskRunClaimCriteria{
-			WorkspaceID:           criteria.WorkspaceID,
-			ClaimerSessionID:      criteria.ClaimerSessionID,
-			AgentName:             criteria.AgentName,
-			RequiredCapabilities:  append([]string(nil), criteria.RequiredCapabilities...),
-			PriorityMin:           criteria.PriorityMin,
-			CoordinationChannelID: criteria.CoordinationChannelID,
-		},
-	}
-	result, err := m.taskHooks.DispatchTaskRunPreClaim(ctx, payload)
-	if err != nil {
-		return ClaimCriteria{}, err
-	}
-	if result.Denied {
-		reason := strings.TrimSpace(result.DenyReason)
-		if reason == "" {
-			reason = "task run claim denied by hook"
-		}
-		return ClaimCriteria{}, fmt.Errorf("%w: %s", ErrPermissionDenied, reason)
-	}
-	patched := criteria
-	patched.RequiredCapabilities = append([]string(nil), result.Criteria.RequiredCapabilities...)
-	patched.PriorityMin = result.Criteria.PriorityMin
-	if strings.TrimSpace(result.Criteria.CoordinationChannelID) != "" {
-		patched.CoordinationChannelID = strings.TrimSpace(result.Criteria.CoordinationChannelID)
-	}
-	return patched.Normalize(m.now().UTC())
 }

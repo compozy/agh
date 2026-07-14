@@ -58,7 +58,6 @@ type Manager interface {
 
 	EnqueueRun(ctx context.Context, spec EnqueueRun, actor ActorContext) (*Run, error)
 	ClaimNextRun(ctx context.Context, criteria ClaimCriteria, actor ActorContext) (*ClaimResult, error)
-	ClaimRun(ctx context.Context, runID string, claim ClaimRun, actor ActorContext) (*Run, error)
 	StartRun(ctx context.Context, runID string, req StartRun, actor ActorContext) (*Run, error)
 	AttachRunSession(ctx context.Context, runID string, sessionID string, actor ActorContext) (*Run, error)
 	HeartbeatRunLease(ctx context.Context, heartbeat LeaseHeartbeat, actor ActorContext) (*Run, error)

@@ -2022,7 +2022,7 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 			runtime.client,
 			http.MethodPost,
 			mustURL(runtime.host, runtime.port, "/api/tasks/"+created.ID+"/runs"),
-			[]byte(`{"idempotency_key":"enqueue-1","network_channel":"builders"}`),
+			[]byte(`{"idempotency_key":"enqueue-1"}`),
 			nil,
 		)
 		if enqueueResp.StatusCode != http.StatusCreated {
@@ -2040,8 +2040,8 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		if queued.Run.Status != taskpkg.TaskRunStatusQueued {
 			t.Fatalf("queued status = %q, want %q", queued.Run.Status, taskpkg.TaskRunStatusQueued)
 		}
-		if queued.Run.NetworkChannel != "builders" {
-			t.Fatalf("queued network_channel = %q, want %q", queued.Run.NetworkChannel, "builders")
+		if queued.Run.NetworkChannel != "" {
+			t.Fatalf("queued network_channel = %q, want local run", queued.Run.NetworkChannel)
 		}
 
 		listQueuedResp := mustHTTPRequest(
@@ -2068,26 +2068,17 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 			t.Fatalf("queued runs = %#v, want queued run", queuedList.Runs)
 		}
 
-		claimResp := mustHTTPRequest(
-			t,
-			runtime.client,
-			http.MethodPost,
-			mustURL(runtime.host, runtime.port, "/api/task-runs/"+queued.Run.ID+"/claim"),
-			[]byte(`{"idempotency_key":"claim-1"}`),
-			nil,
-		)
-		if claimResp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(claimResp.Body)
-			_ = claimResp.Body.Close()
-			t.Fatalf("claim run status = %d, want %d; body=%s", claimResp.StatusCode, http.StatusOK, string(body))
+		seedIntegrationTaskRunClaimed(t, runtime, queued.Run.ID)
+		claimedRun, err := runtime.registry.GetTaskRun(context.Background(), queued.Run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(%q) error = %v", queued.Run.ID, err)
 		}
-		var claimed contract.TaskRunResponse
-		decodeHTTPJSON(t, claimResp, &claimed)
-		if claimed.Run.Status != taskpkg.TaskRunStatusClaimed {
-			t.Fatalf("claimed status = %q, want %q", claimed.Run.Status, taskpkg.TaskRunStatusClaimed)
+		claimed := core.TaskRunPayloadFromRun(&claimedRun)
+		if claimed.Status != taskpkg.TaskRunStatusClaimed {
+			t.Fatalf("claimed status = %q, want %q", claimed.Status, taskpkg.TaskRunStatusClaimed)
 		}
-		if claimed.Run.ClaimedBy == nil || claimed.Run.ClaimedBy.Ref != "local-user" {
-			t.Fatalf("claimed claimed_by = %#v, want local-user", claimed.Run.ClaimedBy)
+		if claimed.ClaimedBy == nil || claimed.ClaimedBy.Ref != "local-user" {
+			t.Fatalf("claimed claimed_by = %#v, want local-user", claimed.ClaimedBy)
 		}
 
 		startResp := mustHTTPRequest(
@@ -2138,7 +2129,7 @@ func TestHTTPTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 		runtime := newIntegrationRuntime(t)
 		created := createIntegrationTask(t, runtime, []byte(`{"scope":"global","title":"Run task routes"}`))
 		run := enqueueIntegrationTaskRun(t, runtime, created.ID, `{"idempotency_key":"enqueue-2"}`)
-		claimIntegrationTaskRun(t, runtime, run.ID, `{"idempotency_key":"claim-2"}`)
+		seedIntegrationTaskRunClaimed(t, runtime, run.ID)
 
 		attachResp := mustHTTPRequest(
 			t,
@@ -2256,7 +2247,7 @@ func TestHTTPTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 		runtime.client,
 		http.MethodPost,
 		mustURL(runtime.host, runtime.port, "/api/tasks/"+draft.ID+"/publish"),
-		[]byte(`{"idempotency_key":"publish-live-1","network_channel":"builders"}`),
+		[]byte(`{"idempotency_key":"publish-live-1"}`),
 		nil,
 	)
 	if publishResp.StatusCode != http.StatusOK {
@@ -2274,7 +2265,7 @@ func TestHTTPTaskPublishRunDetailAndLiveRoutesRoundTrip(t *testing.T) {
 	}
 
 	run := published.Run
-	claimIntegrationTaskRun(t, runtime, run.ID, `{"idempotency_key":"claim-live-1"}`)
+	seedIntegrationTaskRunClaimed(t, runtime, run.ID)
 
 	startResp := mustHTTPRequest(
 		t,
@@ -3689,30 +3680,20 @@ func enqueueIntegrationTaskRun(
 	return created.Run
 }
 
-func claimIntegrationTaskRun(
-	t *testing.T,
-	runtime integrationRuntime,
-	runID string,
-	body string,
-) contract.TaskRunPayload {
+func seedIntegrationTaskRunClaimed(t *testing.T, runtime integrationRuntime, runID string) {
 	t.Helper()
 
-	resp := mustHTTPRequest(
-		t,
-		runtime.client,
-		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/task-runs/"+runID+"/claim"),
-		[]byte(body),
-		nil,
-	)
-	if resp.StatusCode != http.StatusOK {
-		payload, _ := io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
-		t.Fatalf("claim run status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, string(payload))
+	ctx := context.Background()
+	run, err := runtime.registry.GetTaskRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(%q) error = %v", runID, err)
 	}
-	var claimed contract.TaskRunResponse
-	decodeHTTPJSON(t, resp, &claimed)
-	return claimed.Run
+	run.Status = taskpkg.TaskRunStatusClaimed
+	run.ClaimedBy = &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"}
+	run.ClaimedAt = time.Now().UTC()
+	if err := runtime.registry.UpdateTaskRun(ctx, run); err != nil {
+		t.Fatalf("UpdateTaskRun(%q) error = %v", runID, err)
+	}
 }
 
 func requireHTTPInboxGroup(

@@ -35,6 +35,61 @@ type integrationStopCall struct {
 	Reason    taskpkg.StopReason
 }
 
+type exactRunClaimStore interface {
+	GetTaskRun(context.Context, string) (taskpkg.Run, error)
+	GetTask(context.Context, string) (taskpkg.Task, error)
+	UpdateTaskRun(context.Context, taskpkg.Run) error
+}
+
+func claimExactRunIntegration(
+	ctx context.Context,
+	manager *taskpkg.Service,
+	claimStore exactRunClaimStore,
+	runID string,
+	actor taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	run, err := claimStore.GetTaskRun(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	taskRecord, err := claimStore.GetTask(ctx, run.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	result, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		RunID:                run.ID,
+		WorkspaceID:          taskRecord.WorkspaceID,
+		ClaimerSessionID:     "integration-claim:" + run.ID,
+		RequiredCapabilities: append([]string(nil), run.RequiredCapabilities...),
+	}, actor)
+	if err != nil {
+		return nil, err
+	}
+	return &result.Run, nil
+}
+
+func seedNonLeasedClaimedRunIntegration(
+	ctx context.Context,
+	claimStore exactRunClaimStore,
+	runID string,
+	actor taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	run, err := claimStore.GetTaskRun(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	run.Status = taskpkg.TaskRunStatusClaimed
+	run.ClaimedBy = &taskpkg.ActorIdentity{Kind: actor.Actor.Kind, Ref: actor.Actor.Ref}
+	run.ClaimedAt = time.Now().UTC()
+	run.SessionID = ""
+	run.ClaimTokenHash = ""
+	run.LeaseUntil = time.Time{}
+	if err := claimStore.UpdateTaskRun(ctx, run); err != nil {
+		return nil, err
+	}
+	return &run, nil
+}
+
 type integrationSessionExecutor struct {
 	startCalls       []taskpkg.StartTaskSession
 	requestStopCalls []integrationStopCall
@@ -403,7 +458,7 @@ func TestTaskManagerPublishTaskReconcilesDraftLifecycleIntegration(t *testing.T)
 	if err != nil {
 		t.Fatalf("EnqueueRun(blocker) error = %v", err)
 	}
-	blockerRun, err = manager.ClaimRun(ctx, blockerRun.ID, taskpkg.ClaimRun{}, actor)
+	blockerRun, err = seedNonLeasedClaimedRunIntegration(ctx, db, blockerRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun(blocker) error = %v", err)
 	}
@@ -498,7 +553,7 @@ func TestTaskManagerPublishTaskReadModelsStayConsistentAfterReload(t *testing.T)
 	if err != nil {
 		t.Fatalf("EnqueueRun(blocker) error = %v", err)
 	}
-	blockerRun, err = firstManager.ClaimRun(ctx, blockerRun.ID, taskpkg.ClaimRun{}, actor)
+	blockerRun, err = seedNonLeasedClaimedRunIntegration(ctx, first, blockerRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun(blocker) error = %v", err)
 	}
@@ -697,7 +752,7 @@ func TestTaskManagerApprovalGateAndAttemptExhaustionIntegration(t *testing.T) {
 	}
 
 	run := approved.Run
-	claimedRun, err := manager.ClaimRun(ctx, run.ID, taskpkg.ClaimRun{}, actor)
+	claimedRun, err := seedNonLeasedClaimedRunIntegration(ctx, db, run.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun(approved) error = %v", err)
 	}
@@ -2291,7 +2346,7 @@ func TestTaskManagerRunLifecyclePersistsAndReconcilesAgainstStorage(t *testing.T
 		t.Fatalf("queued run status = %q, want %q", got, want)
 	}
 
-	run, err = manager.ClaimRun(ctx, run.ID, taskpkg.ClaimRun{}, actor)
+	run, err = seedNonLeasedClaimedRunIntegration(ctx, db, run.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun() error = %v", err)
 	}
@@ -2515,7 +2570,7 @@ func TestTaskManagerCancelTaskTreePersistsCancellationAudit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun(active child) error = %v", err)
 	}
-	activeRun, err = manager.ClaimRun(ctx, activeRun.ID, taskpkg.ClaimRun{}, actor)
+	activeRun, err = seedNonLeasedClaimedRunIntegration(ctx, db, activeRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun(active child) error = %v", err)
 	}
@@ -2624,7 +2679,7 @@ func TestTaskManagerTimelineLiveReadsIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
-	run, err = manager.ClaimRun(ctx, run.ID, taskpkg.ClaimRun{}, actor)
+	run, err = seedNonLeasedClaimedRunIntegration(ctx, db, run.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun() error = %v", err)
 	}
@@ -2748,7 +2803,7 @@ func TestTaskManagerRunDetailUsesPersistedRuntimeDataIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
-	run, err = manager.ClaimRun(ctx, run.ID, taskpkg.ClaimRun{}, actor)
+	run, err = seedNonLeasedClaimedRunIntegration(ctx, db, run.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun() error = %v", err)
 	}
@@ -2957,7 +3012,7 @@ func TestTaskManagerTreeLiveViewIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
-	run, err = manager.ClaimRun(ctx, run.ID, taskpkg.ClaimRun{}, actor)
+	run, err = seedNonLeasedClaimedRunIntegration(ctx, db, run.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun() error = %v", err)
 	}
@@ -3089,7 +3144,7 @@ func TestTaskManagerStreamSupportsReplayAndReconnectIntegration(t *testing.T) {
 		t.Fatalf("liveEnqueued.Type = %q, want %q", got, want)
 	}
 
-	run, err = manager.ClaimRun(ctx, run.ID, taskpkg.ClaimRun{}, actor)
+	run, err = seedNonLeasedClaimedRunIntegration(ctx, db, run.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun() error = %v", err)
 	}

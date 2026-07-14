@@ -28,6 +28,31 @@ import (
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
+func seedNonLeasedClaimedRunForDaemonTest(
+	t *testing.T,
+	claimStore taskpkg.Store,
+	runID string,
+	actor taskpkg.ActorContext,
+) *taskpkg.Run {
+	t.Helper()
+
+	ctx := testutil.Context(t)
+	run, err := claimStore.GetTaskRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(%q) error = %v", runID, err)
+	}
+	run.Status = taskpkg.TaskRunStatusClaimed
+	run.ClaimedBy = &taskpkg.ActorIdentity{Kind: actor.Actor.Kind, Ref: actor.Actor.Ref}
+	run.ClaimedAt = time.Now().UTC()
+	run.SessionID = ""
+	run.ClaimTokenHash = ""
+	run.LeaseUntil = time.Time{}
+	if err := claimStore.UpdateTaskRun(ctx, run); err != nil {
+		t.Fatalf("UpdateTaskRun(%q) error = %v", runID, err)
+	}
+	return &run
+}
+
 func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing.T) {
 	t.Parallel()
 
@@ -1399,14 +1424,34 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
-	claimedRun, err := seedManager.ClaimRun(context.Background(), runRecord.ID, taskpkg.ClaimRun{
-		IdempotencyKey: "claim-boot-recovery",
-	}, seedActor)
-	if err != nil {
-		t.Fatalf("ClaimRun() error = %v", err)
-	}
+	claimedRun := seedNonLeasedClaimedRunForDaemonTest(t, db, runRecord.ID, seedActor)
 	if _, err := seedManager.AttachRunSession(context.Background(), claimedRun.ID, "sess-live", seedActor); err != nil {
 		t.Fatalf("AttachRunSession() error = %v", err)
+	}
+	wake := taskpkg.Run{
+		ID: "run-wake-boot-recovery", RunKind: taskpkg.RunKindNetworkWake,
+		Status: taskpkg.TaskRunStatusQueued, Attempt: 1,
+		Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindNetwork, Ref: "network.accept"},
+		QueuedAt: time.Now().UTC(),
+	}
+	wake.SetNetworkState(
+		daemonTestLiveParticipation("global", "operations"),
+		"wake-boot-recovery",
+		"sess-wake-missing",
+		"owner-wake-boot-recovery",
+	)
+	if err := db.CreateTaskRun(context.Background(), wake); err != nil {
+		t.Fatalf("CreateTaskRun(network wake) error = %v", err)
+	}
+	wakeActor, err := taskpkg.DeriveAgentSessionActorContext("sess-wake-missing")
+	if err != nil {
+		t.Fatalf("DeriveAgentSessionActorContext(network wake) error = %v", err)
+	}
+	if _, err := seedManager.ClaimNextRun(context.Background(), taskpkg.ClaimCriteria{
+		RunID: wake.ID, RunKind: taskpkg.RunKindNetworkWake,
+		TargetSessionID: "sess-wake-missing", ClaimerSessionID: "sess-wake-missing",
+	}, wakeActor); err != nil {
+		t.Fatalf("ClaimNextRun(network wake) error = %v", err)
 	}
 
 	daemon := &Daemon{
@@ -1443,6 +1488,14 @@ func TestBootTasksRecoversPendingRunsOnStartup(t *testing.T) {
 	}
 	if got, want := recoveredRun.Status, taskpkg.TaskRunStatusRunning; got != want {
 		t.Fatalf("recovered run status = %q, want %q", got, want)
+	}
+	recoveredWake, err := db.GetTaskRun(context.Background(), wake.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(recovered network wake) error = %v", err)
+	}
+	if recoveredWake.Status != taskpkg.TaskRunStatusQueued || recoveredWake.TaskID != "" ||
+		recoveredWake.SessionID != "" || recoveredWake.ClaimTokenHash != "" {
+		t.Fatalf("recovered network wake = %#v, want taskless queued run", recoveredWake)
 	}
 }
 
@@ -1930,12 +1983,7 @@ func TestRecoverTaskRunsOnBootPreservesDetachedHarnessMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("detachedHarnessActorContext() error = %v", err)
 	}
-	claimed, err := runtime.manager.ClaimRun(context.Background(), submission.Run.ID, taskpkg.ClaimRun{
-		IdempotencyKey: "claim-detached-recovery-1",
-	}, actor)
-	if err != nil {
-		t.Fatalf("ClaimRun() error = %v", err)
-	}
+	claimed := seedNonLeasedClaimedRunForDaemonTest(t, runtime.store, submission.Run.ID, actor)
 	starting, err := runtime.manager.AttachRunSession(context.Background(), claimed.ID, "sess-runtime", actor)
 	if err != nil {
 		t.Fatalf("AttachRunSession() error = %v", err)
@@ -2044,26 +2092,12 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 		t.Fatalf("detachedHarnessActorContext() error = %v", err)
 	}
 
-	if _, err := runtime.manager.ClaimRun(context.Background(), requeueSubmission.Run.ID, taskpkg.ClaimRun{
-		IdempotencyKey: "claim-requeue",
-	}, actor); err != nil {
-		t.Fatalf("ClaimRun(requeue) error = %v", err)
-	}
-	claimed, err := runtime.manager.ClaimRun(context.Background(), markSubmission.Run.ID, taskpkg.ClaimRun{
-		IdempotencyKey: "claim-mark",
-	}, actor)
-	if err != nil {
-		t.Fatalf("ClaimRun(mark) error = %v", err)
-	}
+	seedNonLeasedClaimedRunForDaemonTest(t, runtime.store, requeueSubmission.Run.ID, actor)
+	claimed := seedNonLeasedClaimedRunForDaemonTest(t, runtime.store, markSubmission.Run.ID, actor)
 	if _, err := runtime.manager.AttachRunSession(context.Background(), claimed.ID, "sess-live", actor); err != nil {
 		t.Fatalf("AttachRunSession(mark) error = %v", err)
 	}
-	claimed, err = runtime.manager.ClaimRun(context.Background(), failSubmission.Run.ID, taskpkg.ClaimRun{
-		IdempotencyKey: "claim-fail",
-	}, actor)
-	if err != nil {
-		t.Fatalf("ClaimRun(fail) error = %v", err)
-	}
+	claimed = seedNonLeasedClaimedRunForDaemonTest(t, runtime.store, failSubmission.Run.ID, actor)
 	if _, err := runtime.manager.AttachRunSession(context.Background(), claimed.ID, "sess-fail", actor); err != nil {
 		t.Fatalf("AttachRunSession(fail) error = %v", err)
 	}
@@ -3181,12 +3215,7 @@ func completeDetachedHarnessRunForTest(
 	if err != nil {
 		t.Fatalf("detachedHarnessActorContext() error = %v", err)
 	}
-	claimed, err := runtime.manager.ClaimRun(testutil.Context(t), runID, taskpkg.ClaimRun{
-		IdempotencyKey: "claim-" + runID,
-	}, actor)
-	if err != nil {
-		t.Fatalf("ClaimRun() error = %v", err)
-	}
+	claimed := seedNonLeasedClaimedRunForDaemonTest(t, runtime.store, runID, actor)
 	started, err := runtime.manager.StartRun(testutil.Context(t), claimed.ID, taskpkg.StartRun{
 		IdempotencyKey: "start-" + runID,
 	}, actor)

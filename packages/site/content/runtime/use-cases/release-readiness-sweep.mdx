@@ -40,32 +40,33 @@ agh task create \
 <Mermaid
   chart={`flowchart TD
     Task[Operator creates release task] --> Enqueue[Operator enqueues run]
-    Enqueue --> Claim[Agent or operator claims run]
-    Claim --> Session[Operator attaches AGH session]
-    Session --> Work[Agent runs checks and collects evidence]
+    Enqueue --> Session[Operator starts AGH session]
+    Session --> Claim[Agent session claims exact run]
+    Claim --> Work[Agent runs checks and collects evidence]
     Work --> Decision{Ready?}
-    Decision -->|yes| Complete[Agent or operator completes run]
-    Decision -->|no| Fail[Agent or operator fails run]
+    Decision -->|yes| Complete[Claiming agent completes run]
+    Decision -->|no| Fail[Claiming agent fails run]
     Complete --> Audit[Task run history]
     Fail --> Audit`}
-  caption="A release readiness sweep moves from task creation through a claimed run, attached session evidence, and an auditable completion decision."
+  caption="A release readiness sweep moves from task creation through an exact session-bound claim, agent evidence, and an auditable completion decision."
 />
 
-In a small team, the same human operator may enqueue, claim, attach, and close the run. In a more
-autonomous setup, an agent can claim and close runs while the operator reviews the durable evidence.
+The operator creates the work and starts the intended agent session. That session claims the exact
+queued run, renews its lease while working, and closes it; the operator reviews the durable evidence.
 
 ```bash
 agh task run enqueue task_123 -o json
-agh task run claim run_123 -o json
 agh session new --workspace project --agent reviewer --name release-docs -o json
-agh task run attach-session run_123 --session sess_1234 -o json
+export AGH_SESSION_ID=sess_1234
+export AGH_AGENT=reviewer
+agh task next --run-id run_123 -o json
 agh session prompt sess_1234 "Verify release documentation. Report mismatches, missing examples, and commands used."
 ```
 
 When the evidence is clear, close the run:
 
 ```bash
-agh task run complete run_123 \
+agh task complete run_123 \
   --result '{"status":"ready","evidence":["agh session history sess_1234"]}' \
   -o json
 ```
@@ -73,7 +74,7 @@ agh task run complete run_123 \
 If the check finds a blocker, fail the run instead:
 
 ```bash
-agh task run fail run_123 \
+agh task fail run_123 \
   --error "CLI examples do not match generated reference" \
   --metadata '{"session":"sess_1234"}' \
   -o json
@@ -85,7 +86,7 @@ agh task run fail run_123 \
 | ---------------- | -------------------------------------------------------- | ---------------------------------------------------------- |
 | Task definition  | `agh task get task_123 -o json`                          | Shows scope, workspace, owner, channel, and metadata.      |
 | Run state        | `agh task run list task_123 -o json`                     | Shows whether work is queued, claimed, running, or closed. |
-| Attached session | `agh task run list task_123 --session sess_1234 -o json` | Connects agent work to the task run.                       |
+| Claiming session | `agh task run list task_123 --session sess_1234 -o json` | Connects the session-bound lease to the task run.          |
 | Session history  | `agh session history sess_1234`                          | Preserves the reasoning and commands behind the result.    |
 
 ## Useful release sweep tasks
@@ -103,7 +104,7 @@ agh task run fail run_123 \
 | Symptom                         | First check                                              | Likely fix                                      |
 | ------------------------------- | -------------------------------------------------------- | ----------------------------------------------- |
 | No one can claim the run        | `agh task run list task_123 -o json`                     | Confirm the run was enqueued and is not closed. |
-| Session is doing unrelated work | `agh task run list task_123 --session sess_1234 -o json` | Attach the intended session or start a new one. |
+| Session is doing unrelated work | `agh task run list task_123 --session sess_1234 -o json` | Claim the exact run from the intended session.  |
 | Result JSON is too vague        | `agh session history sess_1234`                          | Re-prompt for concrete evidence before closing. |
 | Release concern keeps recurring | Task history and run metadata                            | Split the concern into smaller tasks.           |
 

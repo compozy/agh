@@ -193,11 +193,12 @@ func TestRunOnceEscalatesStarvedRuns(t *testing.T) {
 				wantKind: CapacityUnmatched,
 			},
 			{
-				name: "Should return unmatched for a foreign coordination channel",
+				name: "Should ignore participation channels when classifying otherwise compatible capacity",
 				sessions: []SessionSnapshot{with(func(candidate *SessionSnapshot) {
 					candidate.Channel = "backend"
 				})},
-				wantKind: CapacityUnmatched,
+				wantKind:      CapacityAvailable,
+				wantAvailable: []string{"sess-matching"},
 			},
 			{
 				name: "Should return unmatched for a foreign owner pool",

@@ -142,7 +142,6 @@ type StubTaskManager struct {
 		taskpkg.ClaimCriteria,
 		taskpkg.ActorContext,
 	) (*taskpkg.ClaimResult, error)
-	ClaimRunFn             func(context.Context, string, taskpkg.ClaimRun, taskpkg.ActorContext) (*taskpkg.Run, error)
 	StartRunFn             func(context.Context, string, taskpkg.StartRun, taskpkg.ActorContext) (*taskpkg.Run, error)
 	AttachRunSessionFn     func(context.Context, string, string, taskpkg.ActorContext) (*taskpkg.Run, error)
 	HeartbeatRunLeaseFn    func(context.Context, taskpkg.LeaseHeartbeat, taskpkg.ActorContext) (*taskpkg.Run, error)
@@ -554,18 +553,6 @@ func (s *StubTaskManager) ClaimNextRun(
 		return s.ClaimNextRunFn(ctx, criteria, actor)
 	}
 	return nil, taskpkg.ErrNoClaimableRun
-}
-
-func (s *StubTaskManager) ClaimRun(
-	ctx context.Context,
-	runID string,
-	claim taskpkg.ClaimRun,
-	actor taskpkg.ActorContext,
-) (*taskpkg.Run, error) {
-	if s.ClaimRunFn != nil {
-		return s.ClaimRunFn(ctx, runID, claim, actor)
-	}
-	return nil, taskpkg.ErrTaskRunNotFound
 }
 
 func (s *StubTaskManager) StartRun(

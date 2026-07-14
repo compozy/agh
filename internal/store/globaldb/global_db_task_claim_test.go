@@ -110,6 +110,396 @@ func TestGlobalDBClaimNextRunConcurrentSingleWinner(t *testing.T) {
 	)
 }
 
+func TestGlobalDBClaimNextRunExactRunID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should claim only the requested queued run with the canonical lease", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 13, 21, 0, 0, 0, time.UTC)
+		createExactRun(ctx, t, globalDB, "task-exact-older", "run-exact-older", taskpkg.PriorityUrgent, now)
+		target := createExactRun(
+			ctx, t, globalDB, "task-exact-target", "run-exact-target", taskpkg.PriorityLow, now.Add(time.Minute),
+		)
+
+		result, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: target.ID, Scope: taskpkg.ScopeGlobal, ClaimerSessionID: "sess-exact",
+			LeaseDuration: 2 * time.Minute, Now: now.Add(2 * time.Minute),
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun(exact) error = %v", err)
+		}
+		if result.Run.ID != target.ID {
+			t.Fatalf("ClaimNextRun(exact) run = %q, want %q", result.Run.ID, target.ID)
+		}
+		if result.Task == nil || result.Task.ID != target.TaskID {
+			t.Fatalf("ClaimNextRun(exact) task = %#v, want %q", result.Task, target.TaskID)
+		}
+		if result.ClaimToken == "" || !taskpkg.VerifyClaimToken(result.ClaimToken, result.Run.ClaimTokenHash) {
+			t.Fatal("ClaimNextRun(exact) returned an invalid canonical claim token")
+		}
+		if want := now.Add(4 * time.Minute); !result.LeaseUntil.Equal(want) {
+			t.Fatalf("ClaimNextRun(exact) lease_until = %s, want %s", result.LeaseUntil, want)
+		}
+	})
+
+	t.Run("Should not fall back when the exact target is unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 13, 21, 30, 0, 0, time.UTC)
+		target := createExactRun(
+			ctx, t, globalDB, "task-exact-busy", "run-exact-busy", taskpkg.PriorityMedium, now,
+		)
+		fallback := createExactRun(
+			ctx, t, globalDB, "task-exact-fallback", "run-exact-fallback", taskpkg.PriorityUrgent, now,
+		)
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: target.ID, Scope: taskpkg.ScopeGlobal, ClaimerSessionID: "sess-first", Now: now,
+		}); err != nil {
+			t.Fatalf("ClaimNextRun(first exact) error = %v", err)
+		}
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: target.ID, Scope: taskpkg.ScopeGlobal, ClaimerSessionID: "sess-second", Now: now,
+		}); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+			t.Fatalf("ClaimNextRun(unavailable exact) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
+		}
+		storedFallback, err := globalDB.GetTaskRun(ctx, fallback.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(fallback) error = %v", err)
+		}
+		if storedFallback.Status.Normalize() != taskpkg.TaskRunStatusQueued {
+			t.Fatalf("fallback status = %s, want queued", storedFallback.Status)
+		}
+	})
+
+	t.Run("Should allow a workspace caller to claim global work without crossing workspaces", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 13, 21, 45, 0, 0, time.UTC)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "exact-scope", t.TempDir())
+		foreignWorkspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"exact-scope-foreign",
+			t.TempDir(),
+		)
+		globalRun := createExactRun(
+			ctx,
+			t,
+			globalDB,
+			"task-exact-global",
+			"run-exact-global",
+			taskpkg.PriorityMedium,
+			now,
+		)
+		foreignTask := taskRecordForTest("task-exact-foreign")
+		foreignTask.Scope = taskpkg.ScopeWorkspace
+		foreignTask.WorkspaceID = foreignWorkspaceID
+		foreignTask.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, foreignTask); err != nil {
+			t.Fatalf("CreateTask(foreign) error = %v", err)
+		}
+		foreignRun := taskRunForTest("run-exact-foreign", foreignTask.ID)
+		if err := globalDB.CreateTaskRun(ctx, foreignRun); err != nil {
+			t.Fatalf("CreateTaskRun(foreign) error = %v", err)
+		}
+
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: globalRun.ID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceID,
+			ClaimerSessionID: "sess-exact-global", Now: now,
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun(global from workspace) error = %v", err)
+		}
+		if claim.Run.ID != globalRun.ID {
+			t.Fatalf("ClaimNextRun(global from workspace) run = %q, want %q", claim.Run.ID, globalRun.ID)
+		}
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: foreignRun.ID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: workspaceID,
+			ClaimerSessionID: "sess-exact-foreign", Now: now,
+		}); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+			t.Fatalf("ClaimNextRun(foreign workspace) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
+		}
+		storedForeign, err := globalDB.GetTaskRun(ctx, foreignRun.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(foreign) error = %v", err)
+		}
+		if storedForeign.Status.Normalize() != taskpkg.TaskRunStatusQueued {
+			t.Fatalf("foreign run status = %s, want queued", storedForeign.Status)
+		}
+	})
+
+	t.Run("Should preserve exact owner fences for pool and agent session work", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 13, 21, 50, 0, 0, time.UTC)
+		createOwnedRun := func(taskID, runID string, owner *taskpkg.Ownership) taskpkg.Run {
+			t.Helper()
+			taskRecord := taskRecordForTest(taskID)
+			taskRecord.Status = taskpkg.TaskStatusReady
+			taskRecord.Owner = owner
+			if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+				t.Fatalf("CreateTask(%q) error = %v", taskID, err)
+			}
+			run := taskRunForTest(runID, taskID)
+			if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+				t.Fatalf("CreateTaskRun(%q) error = %v", runID, err)
+			}
+			return run
+		}
+
+		poolRun := createOwnedRun(
+			"task-exact-pool",
+			"run-exact-pool",
+			ownershipForTest(taskpkg.OwnerKindPool, "builder"),
+		)
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: poolRun.ID, Scope: taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-wrong-pool", AgentName: "reviewer", Now: now,
+		}); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+			t.Fatalf("ClaimNextRun(unmatched pool) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
+		}
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: poolRun.ID, Scope: taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-matched-pool", AgentName: "builder", Now: now,
+		}); err != nil {
+			t.Fatalf("ClaimNextRun(matched pool) error = %v", err)
+		}
+
+		sessionRun := createOwnedRun(
+			"task-exact-session",
+			"run-exact-session",
+			ownershipForTest(taskpkg.OwnerKindAgentSession, "sess-owner"),
+		)
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: sessionRun.ID, Scope: taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-foreign", Now: now,
+		}); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+			t.Fatalf("ClaimNextRun(foreign session owner) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
+		}
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: sessionRun.ID, Scope: taskpkg.ScopeGlobal,
+			ClaimerSessionID: "daemon-recovery", ClaimedBy: &taskpkg.ActorIdentity{
+				Kind: taskpkg.ActorKindDaemon, Ref: "boot-recovery",
+			}, Now: now,
+		}); err != nil {
+			t.Fatalf("ClaimNextRun(daemon recovery) error = %v", err)
+		}
+	})
+}
+
+func TestGlobalDBNetworkWakeRunLeaseLifecycle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should target claim and complete a taskless wake without mutating task projections", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 13, 22, 0, 0, 0, time.UTC)
+		anchor := taskRecordForTest("task-wake-anchor")
+		anchor.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, anchor); err != nil {
+			t.Fatalf("CreateTask(anchor) error = %v", err)
+		}
+		wake := networkWakeRunForClaimTest("run-network-wake", "wake-1", "sess-target", "owner-1", now)
+		if err := globalDB.CreateTaskRun(ctx, wake); err != nil {
+			t.Fatalf("CreateTaskRun(network wake) error = %v", err)
+		}
+		queued, err := globalDB.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{taskpkg.TaskRunStatusQueued})
+		if err != nil {
+			t.Fatalf("ListTaskRunsByStatus(network wake) error = %v", err)
+		}
+		if len(queued) != 1 || queued[0].ID != wake.ID || !queued[0].IsNetworkWake() || queued[0].TaskID != "" {
+			t.Fatalf("queued wake projection = %#v, want one badged taskless wake", queued)
+		}
+
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: wake.ID, RunKind: taskpkg.RunKindNetworkWake,
+			TargetSessionID: "sess-foreign", ClaimerSessionID: "sess-foreign", Now: now,
+		}); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+			t.Fatalf("ClaimNextRun(foreign wake) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
+		}
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: wake.ID, RunKind: taskpkg.RunKindNetworkWake,
+			TargetSessionID: "sess-target", ClaimerSessionID: "sess-target", Now: now,
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun(target wake) error = %v", err)
+		}
+		if claim.Task != nil {
+			t.Fatalf("ClaimNextRun(target wake) task = %#v, want nil", claim.Task)
+		}
+		handles, err := globalDB.ListAutonomyLeaseHandles(ctx, "sess-target")
+		if err != nil {
+			t.Fatalf("ListAutonomyLeaseHandles(network wake) error = %v", err)
+		}
+		if len(handles) != 1 {
+			t.Fatalf("len(ListAutonomyLeaseHandles(network wake)) = %d, want 1", len(handles))
+		}
+		handle := handles[0]
+		if handle.RunKind != taskpkg.RunKindNetworkWake || handle.TaskID != "" ||
+			handle.WorkspaceID != "ws-wake" || handle.TargetSessionID != "sess-target" ||
+			handle.OwnerKey != "owner-1" {
+			t.Fatalf("network wake autonomy handle = %#v, want taskless wake correlation", handle)
+		}
+		if _, err := globalDB.HeartbeatRunLease(ctx, taskpkg.LeaseHeartbeat{
+			RunID: wake.ID, ClaimToken: claim.ClaimToken, LeaseDuration: time.Minute,
+			Now: now.Add(time.Second), TokensUsed: 17,
+		}); err != nil {
+			t.Fatalf("HeartbeatRunLease(network wake) error = %v", err)
+		}
+		completed, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+			Actor: coordinatorActorContextForTest(), RunID: wake.ID, ClaimToken: claim.ClaimToken,
+			Result: taskpkg.RunResult{Value: json.RawMessage(`{"delivered":true}`)},
+			Now:    now.Add(2 * time.Second), TokensUsed: 23,
+		})
+		if err != nil {
+			t.Fatalf("CompleteRunLease(network wake) error = %v", err)
+		}
+		if completed.Status.Normalize() != taskpkg.TaskRunStatusCompleted || completed.TaskID != "" {
+			t.Fatalf("completed wake = %#v, want taskless completed run", completed)
+		}
+		storedAnchor, err := globalDB.GetTask(ctx, anchor.ID)
+		if err != nil {
+			t.Fatalf("GetTask(anchor) error = %v", err)
+		}
+		if storedAnchor.Status.Normalize() != taskpkg.TaskStatusReady || storedAnchor.CurrentRunID != "" {
+			t.Fatalf(
+				"anchor projection = status %s current_run %q, want ready/empty",
+				storedAnchor.Status,
+				storedAnchor.CurrentRunID,
+			)
+		}
+	})
+
+	t.Run("Should release fail and recover wakes through the standard token-fenced lifecycle", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 13, 22, 30, 0, 0, time.UTC)
+		for _, run := range []taskpkg.Run{
+			networkWakeRunForClaimTest("run-wake-release", "wake-release", "sess-release", "owner-release", now),
+			networkWakeRunForClaimTest("run-wake-fail", "wake-fail", "sess-fail", "owner-fail", now),
+			networkWakeRunForClaimTest("run-wake-expire", "wake-expire", "sess-expire", "owner-expire", now),
+		} {
+			if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+				t.Fatalf("CreateTaskRun(%q) error = %v", run.ID, err)
+			}
+		}
+		claimWake := func(runID, sessionID string, at time.Time) taskpkg.ClaimResult {
+			t.Helper()
+			claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+				RunID: runID, RunKind: taskpkg.RunKindNetworkWake,
+				TargetSessionID: sessionID, ClaimerSessionID: sessionID,
+				LeaseDuration: time.Minute, Now: at,
+			})
+			if err != nil {
+				t.Fatalf("ClaimNextRun(%q) error = %v", runID, err)
+			}
+			return claim
+		}
+		releaseClaim := claimWake("run-wake-release", "sess-release", now)
+		released, err := globalDB.ReleaseRunLease(ctx, taskpkg.LeaseRelease{
+			RunID: releaseClaim.Run.ID, ClaimToken: releaseClaim.ClaimToken,
+			Reason: "handoff", Now: now.Add(time.Second),
+		})
+		if err != nil || released.Status.Normalize() != taskpkg.TaskRunStatusQueued {
+			t.Fatalf("ReleaseRunLease(network wake) = %#v, %v, want queued", released, err)
+		}
+
+		failClaim := claimWake("run-wake-fail", "sess-fail", now)
+		failed, err := globalDB.FailRunLease(ctx, taskpkg.LeaseFailure{
+			Actor: coordinatorActorContextForTest(), RunID: failClaim.Run.ID,
+			ClaimToken: failClaim.ClaimToken, Failure: taskpkg.RunFailure{Error: "provider failed"},
+			Now: now.Add(time.Second),
+		})
+		if err != nil || failed.Status.Normalize() != taskpkg.TaskRunStatusFailed {
+			t.Fatalf("FailRunLease(network wake) = %#v, %v, want failed", failed, err)
+		}
+
+		expiringClaim := claimWake("run-wake-expire", "sess-expire", now)
+		if expiringClaim.Run.ID != "run-wake-expire" || expiringClaim.ClaimToken == "" {
+			t.Fatalf("expiring wake claim = %#v, want exact run and raw token", expiringClaim)
+		}
+		recovered, err := globalDB.RecoverExpiredRunLeases(ctx, taskpkg.ExpiredLeaseRecovery{
+			Now: now.Add(2 * time.Minute), Reason: "expired", Limit: 10,
+		})
+		if err != nil {
+			t.Fatalf("RecoverExpiredRunLeases(network wake) error = %v", err)
+		}
+		if len(recovered) != 1 || recovered[0].Run.ID != "run-wake-expire" ||
+			recovered[0].Run.Status.Normalize() != taskpkg.TaskRunStatusQueued {
+			t.Fatalf("recovered wakes = %#v, want one queued expired wake", recovered)
+		}
+	})
+}
+
+func createExactRun(
+	ctx context.Context,
+	t *testing.T,
+	globalDB *GlobalDB,
+	taskID string,
+	runID string,
+	priority taskpkg.Priority,
+	queuedAt time.Time,
+) taskpkg.Run {
+	t.Helper()
+	taskRecord := taskRecordForTest(taskID)
+	taskRecord.Status = taskpkg.TaskStatusReady
+	taskRecord.Priority = priority
+	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+		t.Fatalf("CreateTask(%q) error = %v", taskID, err)
+	}
+	run := taskRunForTest(runID, taskID)
+	run.QueuedAt = queuedAt
+	if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+		t.Fatalf("CreateTaskRun(%q) error = %v", runID, err)
+	}
+	return run
+}
+
+func networkWakeRunForClaimTest(
+	runID string,
+	wakeID string,
+	targetSessionID string,
+	ownerKey string,
+	queuedAt time.Time,
+) taskpkg.Run {
+	run := taskpkg.Run{
+		ID: runID, RunKind: taskpkg.RunKindNetworkWake, Status: taskpkg.TaskRunStatusQueued,
+		Attempt: 1, Origin: taskpkg.Origin{Kind: taskpkg.OriginKindNetwork, Ref: "network.accept"},
+		QueuedAt: queuedAt,
+	}
+	run.SetNetworkState(participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     "ws-wake",
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       "wake-channel",
+		Source:          participation.SourceExplicitRequest,
+		Bounds: participation.Bounds{
+			MaxWakes:         4,
+			MaxWakeWallTime:  "30s",
+			MaxTotalWallTime: "2m",
+			MaxInputTokens:   4096,
+			MaxOutputTokens:  4096,
+			MaxWakeDepth:     4,
+			CoalesceWindow:   "250ms",
+		},
+	}, wakeID, targetSessionID, ownerKey)
+	return run
+}
+
 func TestGlobalDBClaimNextRunFiltersByCapabilitiesAndScope(t *testing.T) {
 	globalDB := openTestGlobalDB(t)
 	ctx := testutil.Context(t)

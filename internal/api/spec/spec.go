@@ -4165,26 +4165,6 @@ var operationRegistry = append([]OperationSpec{
 	},
 	{
 		Method:      httpMethodPost,
-		Path:        "/api/task-runs/{id}/claim",
-		OperationID: "claimTaskRun",
-		Summary:     "Claim one queued task run",
-		Tags:        []string{specTasksKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			pathParam("id", "Task run id"),
-		},
-		RequestBody: contract.ClaimTaskRunRequest{},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.TaskRunResponse{}},
-			{Status: 404, Description: specTaskRunNotFoundDescription, Body: contract.ErrorPayload{}},
-			{Status: 409, Description: "Task-run claim conflict", Body: contract.ErrorPayload{}},
-			{Status: 422, Description: "Invalid task-run claim request", Body: contract.ErrorPayload{}},
-			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	},
-	{
-		Method:      httpMethodPost,
 		Path:        "/api/task-runs/{id}/start",
 		OperationID: "startTaskRun",
 		Summary:     "Start one claimed task run",

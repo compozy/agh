@@ -252,12 +252,6 @@ type hostAPITaskManager interface {
 		actor taskpkg.ActorContext,
 	) (*taskpkg.Task, error)
 	EnqueueRun(ctx context.Context, spec taskpkg.EnqueueRun, actor taskpkg.ActorContext) (*taskpkg.Run, error)
-	ClaimRun(
-		ctx context.Context,
-		runID string,
-		claim taskpkg.ClaimRun,
-		actor taskpkg.ActorContext,
-	) (*taskpkg.Run, error)
 	StartRun(
 		ctx context.Context,
 		runID string,
@@ -573,7 +567,6 @@ func hostAPIMethodHandlers(handler *HostAPIHandler) map[string]hostAPIMethodFunc
 		string(extensioncontract.HostAPIMethodTasksRuns):               handler.handleTasksRuns,
 		string(extensioncontract.HostAPIMethodTasksRunsGet):            handler.handleTasksRunsGet,
 		string(extensioncontract.HostAPIMethodTasksRunsEnqueue):        handler.handleTasksRunsEnqueue,
-		string(extensioncontract.HostAPIMethodTasksRunsClaim):          handler.handleTasksRunsClaim,
 		string(extensioncontract.HostAPIMethodTasksRunsStart):          handler.handleTasksRunsStart,
 		string(extensioncontract.HostAPIMethodTasksRunsAttachSession):  handler.handleTasksRunsAttachSession,
 		string(extensioncontract.HostAPIMethodTasksRunsComplete):       handler.handleTasksRunsComplete,
@@ -818,8 +811,6 @@ type hostAPITaskRunsParams = extensioncontract.TaskRunsParams
 type hostAPITaskRunGetParams = extensioncontract.TaskRunGetParams
 
 type hostAPITaskRunEnqueueParams = extensioncontract.TaskRunEnqueueParams
-
-type hostAPITaskRunClaimParams = extensioncontract.TaskRunClaimParams
 
 type hostAPITaskRunStartParams = extensioncontract.TaskRunStartParams
 

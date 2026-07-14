@@ -2044,13 +2044,15 @@ func TestCLITaskRunLifecycleIntegration(t *testing.T) {
 	}
 	assertDetachedHarnessMetadata(t, "enqueued metadata", enqueued.Metadata)
 
-	claimOut := mustExecuteRoot(t, h.deps, "task", "run", "claim", enqueued.ID, "-o", "json")
-	var claimed TaskRunRecord
-	if err := json.Unmarshal([]byte(claimOut), &claimed); err != nil {
-		t.Fatalf("json.Unmarshal(task run claim) error = %v", err)
+	agentDeps, _ := newIntegrationAgentCommandDeps(t, h, "task-run-lifecycle-worker", "", "")
+	claimOut := mustExecuteRoot(t, agentDeps, "task", "next", "--run-id", enqueued.ID, "-o", "json")
+	var next AgentTaskNextRecord
+	if err := json.Unmarshal([]byte(claimOut), &next); err != nil {
+		t.Fatalf("json.Unmarshal(task next exact claim) error = %v", err)
 	}
-	if claimed.Status != taskpkg.TaskRunStatusClaimed {
-		t.Fatalf("claimed run = %#v, want claimed", claimed)
+	if !next.Claimed || next.Claim == nil || next.Claim.Run.ID != enqueued.ID ||
+		next.Claim.Run.Status != taskpkg.TaskRunStatusClaimed {
+		t.Fatalf("task next = %#v, want exact claimed run %q", next, enqueued.ID)
 	}
 
 	startOut := mustExecuteRoot(t, h.deps, "task", "run", "start", enqueued.ID, "-o", "json")
@@ -2263,15 +2265,23 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 		}
 		mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
 
-		claimOut := mustExecuteRoot(t, h.deps, "task", "run", "claim", enqueued.ID, "-o", "json")
-		var claimed TaskRunRecord
-		if err := json.Unmarshal([]byte(claimOut), &claimed); err != nil {
-			t.Fatalf("json.Unmarshal(task run claim) error = %v", err)
+		agentDeps, _ := newIntegrationAgentCommandDeps(
+			t,
+			h,
+			"history-run-start-worker",
+			"alpha",
+			channel,
+		)
+		claimOut := mustExecuteRoot(t, agentDeps, "task", "next", "--run-id", enqueued.ID, "-o", "json")
+		var next AgentTaskNextRecord
+		if err := json.Unmarshal([]byte(claimOut), &next); err != nil {
+			t.Fatalf("json.Unmarshal(task next exact claim) error = %v", err)
 		}
-		if claimed.Status != taskpkg.TaskRunStatusClaimed ||
-			claimed.NetworkChannel != channel ||
-			claimed.CoordinationChannelID != channel {
-			t.Fatalf("claimed = %#v, want claimed historical run", claimed)
+		if !next.Claimed || next.Claim == nil || next.Claim.Run.ID != enqueued.ID ||
+			next.Claim.Run.Status != taskpkg.TaskRunStatusClaimed ||
+			next.Claim.Run.NetworkChannel != channel ||
+			next.Claim.Run.CoordinationChannelID != channel {
+			t.Fatalf("task next = %#v, want exact claimed historical run", next)
 		}
 
 		startOut := mustExecuteRoot(t, h.deps, "task", "run", "start", enqueued.ID, "-o", "json")
@@ -2389,8 +2399,6 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 		"agent-worker",
 		"--workspace",
 		"alpha",
-		"--channel",
-		"builders",
 		"-o",
 		"json",
 	)
@@ -2423,8 +2431,6 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 		"workspace",
 		"--workspace",
 		"alpha",
-		"--channel",
-		"builders",
 		"--title",
 		"Agent lease task",
 		"-o",
@@ -2443,8 +2449,6 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 		created.ID,
 		"--idempotency-key",
 		"idem-agent-lease",
-		"--channel",
-		"builders",
 		"-o",
 		"json",
 	)
@@ -2457,11 +2461,18 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 	}
 
 	var next AgentTaskNextRecord
-	var channelID string
-	var channelName string
 
-	t.Run("Should claim the next task with coordination channel", func(t *testing.T) {
-		nextOut := mustExecuteRoot(t, agentDeps, "task", "next", "-o", "json")
+	t.Run("Should claim the exact local task run without a fictional channel", func(t *testing.T) {
+		nextOut := mustExecuteRoot(
+			t,
+			agentDeps,
+			"task",
+			"next",
+			"--run-id",
+			enqueued.ID,
+			"-o",
+			"json",
+		)
 		if err := json.Unmarshal([]byte(nextOut), &next); err != nil {
 			t.Fatalf("json.Unmarshal(task next) error = %v", err)
 		}
@@ -2469,15 +2480,12 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 			next.Claim == nil ||
 			next.Claim.Lease.ClaimTokenHash == "" ||
 			next.Claim.Run.ID != enqueued.ID ||
-			next.Claim.CoordinationChannel == nil ||
-			next.Claim.CoordinationChannel.ID == "" {
-			t.Fatalf("next = %#v, want claimed run with lease hash and coordination channel", next)
+			next.Claim.CoordinationChannel != nil {
+			t.Fatalf("next = %#v, want claimed local run with lease hash and no channel", next)
 		}
 		if strings.Contains(nextOut, `"claim_token"`) || strings.Contains(nextOut, "agh_claim_") {
 			t.Fatal("task next output exposed raw claim token")
 		}
-		channelID = next.Claim.CoordinationChannel.ID
-		channelName = firstCLIValue(next.Claim.CoordinationChannel.Channel, channelID)
 	})
 
 	t.Run("Should renew the claimed lease", func(t *testing.T) {
@@ -2502,37 +2510,6 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 		if heartbeat.RunID != enqueued.ID || heartbeat.Status != taskpkg.TaskRunStatusClaimed ||
 			heartbeat.LeaseUntil == nil {
 			t.Fatalf("heartbeat = %#v, want renewed claimed lease", heartbeat)
-		}
-	})
-
-	t.Run("Should send coordination status metadata", func(t *testing.T) {
-		messageOut := mustExecuteRoot(
-			t,
-			agentDeps,
-			"ch",
-			"send",
-			channelName,
-			"--body",
-			`{"text":"working"}`,
-			"--task-id",
-			created.ID,
-			"--run-id",
-			enqueued.ID,
-			"--coordination-channel-id",
-			channelID,
-			"--kind",
-			"status",
-			"-o",
-			"json",
-		)
-		var message AgentChannelMessageRecord
-		if err := json.Unmarshal([]byte(messageOut), &message); err != nil {
-			t.Fatalf("json.Unmarshal(ch send) error = %v", err)
-		}
-		if message.Metadata.CoordinationChannelID != channelID ||
-			message.Metadata.RunID != enqueued.ID ||
-			message.Metadata.MessageKind != contract.CoordinationMessageStatus {
-			t.Fatalf("message = %#v, want status coordination metadata", message)
 		}
 	})
 
@@ -2602,8 +2579,6 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 			"workspace",
 			"--workspace",
 			"alpha",
-			"--channel",
-			"builders",
 			"--title",
 			"Agent stale lease task",
 			"-o",
@@ -2622,8 +2597,6 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 			staleTask.ID,
 			"--idempotency-key",
 			"idem-agent-stale-lease",
-			"--channel",
-			"builders",
 			"-o",
 			"json",
 		)
@@ -2636,6 +2609,8 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 			agentDeps,
 			"task",
 			"next",
+			"--run-id",
+			staleRun.ID,
 			"--lease-seconds",
 			"1",
 			"-o",
@@ -2995,6 +2970,49 @@ type integrationHarness struct {
 	homePaths aghconfig.HomePaths
 	workspace string
 	runner    *integrationDaemon
+}
+
+func newIntegrationAgentCommandDeps(
+	t *testing.T,
+	h integrationHarness,
+	name string,
+	workspace string,
+	channel string,
+) (commandDeps, SessionRecord) {
+	t.Helper()
+
+	args := []string{"session", "new", "--agent", "coder", "--name", name}
+	if workspace != "" {
+		args = append(args, "--workspace", workspace)
+	} else {
+		args = append(args, "--cwd", h.workspace)
+	}
+	if channel != "" {
+		args = append(args, "--channel", channel)
+	}
+	args = append(args, "-o", "json")
+
+	sessionOut := mustExecuteRoot(t, h.deps, args...)
+	var worker SessionRecord
+	if err := json.Unmarshal([]byte(sessionOut), &worker); err != nil {
+		t.Fatalf("json.Unmarshal(agent session) error = %v", err)
+	}
+	if worker.ID == "" || worker.AgentName == "" || worker.State != session.StateActive {
+		t.Fatalf("agent session = %#v, want active agent identity", worker)
+	}
+
+	agentDeps := h.deps
+	agentDeps.getenv = func(key string) string {
+		switch key {
+		case agentidentity.EnvSessionID:
+			return worker.ID
+		case agentidentity.EnvAgent:
+			return worker.AgentName
+		default:
+			return ""
+		}
+	}
+	return agentDeps, worker
 }
 
 type integrationDreamTrigger struct {

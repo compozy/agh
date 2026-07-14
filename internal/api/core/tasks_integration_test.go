@@ -134,7 +134,7 @@ func TestTaskHandlersCreateTaskAndListFiltersReachManagerIntegration(t *testing.
 func TestTaskRunHandlersDelegateLifecycleSequenceIntegration(t *testing.T) {
 	t.Parallel()
 
-	calls := make([]string, 0, 4)
+	calls := make([]string, 0, 3)
 	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
 
 	tasks := &testutil.StubTaskManager{
@@ -148,19 +148,6 @@ func TestTaskRunHandlersDelegateLifecycleSequenceIntegration(t *testing.T) {
 				Origin:         actor.Origin,
 				IdempotencyKey: spec.IdempotencyKey,
 				QueuedAt:       now,
-			}, nil
-		},
-		ClaimRunFn: func(_ context.Context, runID string, claim taskpkg.ClaimRun, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
-			calls = append(calls, "claim")
-			return &taskpkg.Run{
-				ID:        runID,
-				TaskID:    "task-1",
-				Status:    taskpkg.TaskRunStatusClaimed,
-				Attempt:   1,
-				ClaimedBy: &actor.Actor,
-				Origin:    actor.Origin,
-				QueuedAt:  now,
-				ClaimedAt: now.Add(time.Minute),
 			}, nil
 		},
 		StartRunFn: func(_ context.Context, runID string, _ taskpkg.StartRun, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
@@ -215,11 +202,6 @@ func TestTaskRunHandlersDelegateLifecycleSequenceIntegration(t *testing.T) {
 		t.Fatalf("enqueue status = %d, want %d; body=%s", resp.Code, 201, resp.Body.String())
 	}
 
-	resp = performRequest(t, fixture.Engine, "POST", "/task-runs/run-1/claim", []byte(`{}`))
-	if resp.Code != 200 {
-		t.Fatalf("claim status = %d, want %d; body=%s", resp.Code, 200, resp.Body.String())
-	}
-
 	resp = performRequest(t, fixture.Engine, "POST", "/task-runs/run-1/start", []byte(`{}`))
 	if resp.Code != 200 {
 		t.Fatalf("start status = %d, want %d; body=%s", resp.Code, 200, resp.Body.String())
@@ -230,7 +212,7 @@ func TestTaskRunHandlersDelegateLifecycleSequenceIntegration(t *testing.T) {
 		t.Fatalf("complete status = %d, want %d; body=%s", resp.Code, 200, resp.Body.String())
 	}
 
-	if want := []string{"enqueue", "claim", "start", "complete"}; !reflect.DeepEqual(calls, want) {
+	if want := []string{"enqueue", "start", "complete"}; !reflect.DeepEqual(calls, want) {
 		t.Fatalf("call order = %#v, want %#v", calls, want)
 	}
 }

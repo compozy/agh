@@ -142,7 +142,14 @@ func (m *Service) RecoverRunOnBoot(
 		return nil, err
 	}
 
-	run, taskRecord, err := m.loadRunWithTask(ctx, runID)
+	run, err := m.loadRun(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	if run.IsNetworkWake() {
+		return m.recoverNetworkWakeOnBoot(ctx, run, normalizedRecovery, actor)
+	}
+	taskRecord, err := m.store.GetTask(ctx, run.TaskID)
 	if err != nil {
 		return nil, err
 	}

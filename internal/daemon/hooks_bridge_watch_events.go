@@ -10,6 +10,10 @@ type taskStatusChangedObserver interface {
 	OnTaskStatusChanged(context.Context, hookspkg.TaskStatusChangedPayload) error
 }
 
+type taskStatusProjectionConsumer interface {
+	OnTaskStatusProjection(context.Context, taskStatusProjection) error
+}
+
 type taskLifecycleWatchObserver interface {
 	OnTaskBlocked(context.Context, hookspkg.TaskBlockedPayload) error
 	OnTaskUnblocked(context.Context, hookspkg.TaskUnblockedPayload) error
@@ -42,6 +46,35 @@ func (n *hooksNotifier) AddTaskStatusChangedObserver(observer taskStatusChangedO
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.taskStatusChangedHooks = append(n.taskStatusChangedHooks, observer)
+}
+
+func (n *hooksNotifier) AddTaskStatusProjectionObserver(observer taskStatusProjectionConsumer) {
+	if n == nil || observer == nil {
+		return
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.taskStatusProjectionHooks = append(n.taskStatusProjectionHooks, observer)
+}
+
+func (n *hooksNotifier) PublishTaskStatusProjection(ctx context.Context, projection taskStatusProjection) {
+	if n == nil {
+		return
+	}
+	n.mu.RLock()
+	observers := append([]taskStatusProjectionConsumer(nil), n.taskStatusProjectionHooks...)
+	n.mu.RUnlock()
+	for _, observer := range observers {
+		if err := observer.OnTaskStatusProjection(ctx, projection); err != nil {
+			n.logger.Warn(
+				"daemon: task status projection observer failed",
+				"error", err,
+				"event_id", projection.EventID,
+				"task_id", projection.TaskID,
+				"run_id", projection.RunID,
+			)
+		}
+	}
 }
 
 func (n *hooksNotifier) AddTaskLifecycleWatchObserver(observer taskLifecycleWatchObserver) {

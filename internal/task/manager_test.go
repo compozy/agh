@@ -1445,17 +1445,29 @@ func (s *inMemoryManagerStore) ClaimNextRun(
 		if !ok || run.Status.Normalize() != TaskRunStatusQueued {
 			continue
 		}
+		if normalized.RunID != "" && run.ID != normalized.RunID {
+			continue
+		}
 		switch taskRecord.Status.Normalize() {
 		case TaskStatusDraft, TaskStatusBlocked, TaskStatusNeedsAttention, TaskStatusCanceled:
 			continue
 		}
-		if taskRecord.Scope.Normalize() != normalized.Scope {
+		if normalized.RunID != "" && normalized.WorkspaceID != "" {
+			if taskRecord.Scope.Normalize() == ScopeWorkspace && taskRecord.WorkspaceID != normalized.WorkspaceID {
+				continue
+			}
+		} else {
+			if taskRecord.Scope.Normalize() != normalized.Scope {
+				continue
+			}
+			if normalized.Scope == ScopeWorkspace && taskRecord.WorkspaceID != normalized.WorkspaceID {
+				continue
+			}
+		}
+		if !testClaimOwnerEligible(taskRecord, normalized) {
 			continue
 		}
-		if normalized.Scope == ScopeWorkspace && taskRecord.WorkspaceID != normalized.WorkspaceID {
-			continue
-		}
-		if taskPriorityMin(taskRecord.Priority) < normalized.PriorityMin {
+		if testTaskPriorityValue(taskRecord.Priority) < normalized.PriorityMin {
 			continue
 		}
 		if !capabilitySetContainsAll(normalized.RequiredCapabilities, run.RequiredCapabilities) {
@@ -1466,8 +1478,8 @@ func (s *inMemoryManagerStore) ClaimNextRun(
 	sort.Slice(candidates, func(i int, j int) bool {
 		leftTask := s.tasks[candidates[i].TaskID]
 		rightTask := s.tasks[candidates[j].TaskID]
-		if taskPriorityMin(leftTask.Priority) != taskPriorityMin(rightTask.Priority) {
-			return taskPriorityMin(leftTask.Priority) > taskPriorityMin(rightTask.Priority)
+		if testTaskPriorityValue(leftTask.Priority) != testTaskPriorityValue(rightTask.Priority) {
+			return testTaskPriorityValue(leftTask.Priority) > testTaskPriorityValue(rightTask.Priority)
 		}
 		if !candidates[i].QueuedAt.Equal(candidates[j].QueuedAt) {
 			return candidates[i].QueuedAt.Before(candidates[j].QueuedAt)
@@ -1498,11 +1510,56 @@ func (s *inMemoryManagerStore) ClaimNextRun(
 	s.runs[run.ID] = cloneTaskRun(run)
 	taskRecord := cloneTask(s.tasks[run.TaskID])
 	return ClaimResult{
-		Task:       taskRecord,
+		Task:       &taskRecord,
 		Run:        cloneTaskRun(run),
 		ClaimToken: token,
 		LeaseUntil: run.LeaseUntil,
 	}, nil
+}
+
+func testClaimOwnerEligible(taskRecord Task, criteria ClaimCriteria) bool {
+	if taskRecord.Owner == nil || taskRecord.Owner.IsZero() {
+		return true
+	}
+	ownerKind := taskRecord.Owner.Kind.Normalize()
+	ownerRef := strings.TrimSpace(taskRecord.Owner.Ref)
+	if strings.TrimSpace(criteria.RunID) == "" {
+		switch ownerKind {
+		case OwnerKindPool:
+			return ownerRef == strings.TrimSpace(criteria.AgentName)
+		case OwnerKindAgentSession:
+			return ownerRef == strings.TrimSpace(criteria.ClaimerSessionID)
+		default:
+			return false
+		}
+	}
+
+	switch ownerKind {
+	case OwnerKindHuman, OwnerKindAutomation, OwnerKindExtension, OwnerKindNetworkPeer:
+		return true
+	case OwnerKindPool:
+		return ownerRef == strings.TrimSpace(criteria.AgentName)
+	case OwnerKindAgentSession:
+		return ownerRef == strings.TrimSpace(criteria.ClaimerSessionID) ||
+			(criteria.ClaimedBy != nil && criteria.ClaimedBy.Kind.Normalize() == ActorKindDaemon)
+	default:
+		return false
+	}
+}
+
+func testTaskPriorityValue(priority Priority) int {
+	switch priority.Normalize() {
+	case PriorityUrgent:
+		return 40
+	case PriorityHigh:
+		return 30
+	case PriorityMedium:
+		return 20
+	case PriorityLow:
+		return 10
+	default:
+		return 0
+	}
 }
 
 func (s *inMemoryManagerStore) HeartbeatRunLease(
@@ -4175,7 +4232,7 @@ func TestManagerApprovalGateBlocksExecutionUntilApproved(t *testing.T) {
 		t.Fatalf("approved.Run.Status = %q, want %q", got, want)
 	}
 
-	claimed, err := manager.ClaimRun(context.Background(), approved.Run.ID, ClaimRun{}, actor)
+	claimed, err := claimExactRunForTest(context.Background(), manager, approved.Run.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun(approved) error = %v", err)
 	}
@@ -4271,16 +4328,11 @@ func TestManagerRejectTaskKeepsManualApprovalBlocked(t *testing.T) {
 	if got, want := rejected.Status, TaskStatusBlocked; got != want {
 		t.Fatalf("rejected.Status = %q, want %q", got, want)
 	}
-	if _, err := manager.ClaimRun(
-		context.Background(),
-		run.ID,
-		ClaimRun{},
-		actor,
-	); !errors.Is(
+	if _, err := claimExactRunForTest(context.Background(), manager, run.ID, actor); !errors.Is(
 		err,
-		ErrInvalidStatusTransition,
+		ErrNoClaimableRun,
 	) {
-		t.Fatalf("ClaimRun(rejected) error = %v, want %v", err, ErrInvalidStatusTransition)
+		t.Fatalf("exact claim of rejected run error = %v, want %v", err, ErrNoClaimableRun)
 	}
 
 	events, err := store.ListTaskEvents(context.Background(), EventQuery{TaskID: taskRecord.ID})
@@ -4413,7 +4465,7 @@ func TestManagerAttemptExhaustionBlocksFurtherRetries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun(first) error = %v", err)
 	}
-	firstRun, err = manager.ClaimRun(context.Background(), firstRun.ID, ClaimRun{}, actor)
+	firstRun, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, firstRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun(first) error = %v", err)
 	}
@@ -4438,7 +4490,7 @@ func TestManagerAttemptExhaustionBlocksFurtherRetries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun(second) error = %v", err)
 	}
-	secondRun, err = manager.ClaimRun(context.Background(), secondRun.ID, ClaimRun{}, actor)
+	secondRun, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, secondRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun(second) error = %v", err)
 	}
@@ -4483,7 +4535,7 @@ func TestManagerEnqueueRunRejectsConcurrentOpenRun(t *testing.T) {
 			name: "running",
 			openRun: func(ctx context.Context, t *testing.T, manager *Service, run Run, actor ActorContext) Run {
 				t.Helper()
-				claimed, err := manager.ClaimRun(ctx, run.ID, ClaimRun{}, actor)
+				claimed, err := seedNonLeasedClaimedRunForTest(ctx, manager, run.ID, actor)
 				if err != nil {
 					t.Fatalf("ClaimRun() error = %v", err)
 				}
@@ -6444,7 +6496,7 @@ func TestManagerRunLifecycleRejectsInvalidTransitions(t *testing.T) {
 		t.Fatalf("CompleteRun(queued) error = %v, want %v", err, ErrInvalidStatusTransition)
 	}
 
-	claimedRun, err := manager.ClaimRun(context.Background(), queuedRun.ID, ClaimRun{}, actor)
+	claimedRun, err := seedNonLeasedClaimedRunForTest(context.Background(), manager, queuedRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun() error = %v", err)
 	}
@@ -6453,23 +6505,18 @@ func TestManagerRunLifecycleRejectsInvalidTransitions(t *testing.T) {
 		t.Fatalf("StartRun() error = %v", err)
 	}
 
-	if _, err := manager.ClaimRun(
-		context.Background(),
-		runningRun.ID,
-		ClaimRun{},
-		actor,
-	); !errors.Is(
+	if _, err := claimExactRunForTest(context.Background(), manager, runningRun.ID, actor); !errors.Is(
 		err,
-		ErrInvalidStatusTransition,
+		ErrNoClaimableRun,
 	) {
-		t.Fatalf("ClaimRun(running) error = %v, want %v", err, ErrInvalidStatusTransition)
+		t.Fatalf("exact claim of running run error = %v, want %v", err, ErrNoClaimableRun)
 	}
 }
 
-func TestManagerClaimRunRejectsAutonomousOwners(t *testing.T) {
+func TestManagerExactClaimRespectsAutonomousOwners(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should reject explicit claims for pool-owned runs", func(t *testing.T) {
+	t.Run("Should exclude pool-owned runs from unmatched exact claims", func(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
@@ -6492,9 +6539,12 @@ func TestManagerClaimRunRejectsAutonomousOwners(t *testing.T) {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
 
-		_, err = manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
-		if !errors.Is(err, ErrPermissionDenied) {
-			t.Fatalf("ClaimRun(pool owner) error = %v, want %v", err, ErrPermissionDenied)
+		_, err = manager.ClaimNextRun(context.Background(), ClaimCriteria{
+			RunID:            run.ID,
+			ClaimerSessionID: "unmatched-session",
+		}, actor)
+		if !errors.Is(err, ErrNoClaimableRun) {
+			t.Fatalf("ClaimNextRun(pool owner) error = %v, want %v", err, ErrNoClaimableRun)
 		}
 	})
 }
@@ -6659,7 +6709,7 @@ func createRunningRunForTest(t *testing.T, manager *Service, actor ActorContext)
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
-	claimedRun, err := manager.ClaimRun(context.Background(), queuedRun.ID, ClaimRun{}, actor)
+	claimedRun, err := seedNonLeasedClaimedRunForTest(context.Background(), manager, queuedRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun() error = %v", err)
 	}
@@ -6797,7 +6847,7 @@ func TestManagerTaskReconciliationAcrossDependenciesAndRuns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun(blocker) error = %v", err)
 	}
-	blockerRun, err = manager.ClaimRun(context.Background(), blockerRun.ID, ClaimRun{}, actor)
+	blockerRun, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, blockerRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun(blocker) error = %v", err)
 	}
@@ -6821,7 +6871,7 @@ func TestManagerTaskReconciliationAcrossDependenciesAndRuns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun(target) error = %v", err)
 	}
-	targetRun, err = manager.ClaimRun(context.Background(), targetRun.ID, ClaimRun{}, actor)
+	targetRun, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, targetRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun(target) error = %v", err)
 	}
@@ -6857,7 +6907,7 @@ func TestManagerTaskReconciliationAcrossDependenciesAndRuns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun(failedTask) error = %v", err)
 	}
-	failedRun, err = manager.ClaimRun(context.Background(), failedRun.ID, ClaimRun{}, actor)
+	failedRun, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, failedRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun(failedTask) error = %v", err)
 	}
@@ -6889,7 +6939,7 @@ func TestManagerTaskReconciliationAcrossDependenciesAndRuns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun(cancelledTask) error = %v", err)
 	}
-	cancelledRun, err = manager.ClaimRun(context.Background(), cancelledRun.ID, ClaimRun{}, actor)
+	cancelledRun, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, cancelledRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun(cancelledTask) error = %v", err)
 	}
@@ -6958,7 +7008,7 @@ func TestManagerCancelTaskPropagatesAcrossTree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun(active child) error = %v", err)
 	}
-	activeRun, err = manager.ClaimRun(context.Background(), activeRun.ID, ClaimRun{}, actor)
+	activeRun, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, activeRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun(active child) error = %v", err)
 	}
@@ -7056,7 +7106,7 @@ func TestManagerAttachRunSessionAndRetryLatestRunOutcome(t *testing.T) {
 	if got, want := firstRun.NetworkSpecSnapshot().Source, participation.SourceBuiltInLocal; got != want {
 		t.Fatalf("firstRun.NetworkSpecSnapshot().Source = %q, want %q", got, want)
 	}
-	firstRun, err = manager.ClaimRun(context.Background(), firstRun.ID, ClaimRun{}, actor)
+	firstRun, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, firstRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun(first) error = %v", err)
 	}
@@ -7087,7 +7137,7 @@ func TestManagerAttachRunSessionAndRetryLatestRunOutcome(t *testing.T) {
 		t.Fatalf("task.Status after retry enqueue = %q, want %q", got, want)
 	}
 
-	retryRun, err = manager.ClaimRun(context.Background(), retryRun.ID, ClaimRun{}, actor)
+	retryRun, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, retryRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun(retry) error = %v", err)
 	}
@@ -7170,7 +7220,7 @@ func TestManagerForceRunOperations(t *testing.T) {
 			if err != nil {
 				t.Fatalf("EnqueueRun() error = %v", err)
 			}
-			run, err = manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+			run, err = claimExactRunForTest(context.Background(), manager, run.ID, actor)
 			if err != nil {
 				t.Fatalf("ClaimRun() error = %v", err)
 			}
@@ -7722,22 +7772,9 @@ func TestManagerNonHumanIdempotencyAndExecutionGuards(t *testing.T) {
 		t.Fatalf("EnqueueRun(taskTwo duplicate key) error = %v, want %v", err, ErrValidation)
 	}
 
-	if _, err := manager.ClaimRun(
-		context.Background(),
-		runOne.ID,
-		ClaimRun{},
-		automationActor,
-	); !errors.Is(
-		err,
-		ErrValidation,
-	) {
-		t.Fatalf("ClaimRun(no idempotency) error = %v, want %v", err, ErrValidation)
-	}
-	claimedRun, err := manager.ClaimRun(context.Background(), runOne.ID, ClaimRun{
-		IdempotencyKey: "claim-idem",
-	}, automationActor)
+	claimedRun, err := seedNonLeasedClaimedRunForTest(context.Background(), manager, runOne.ID, automationActor)
 	if err != nil {
-		t.Fatalf("ClaimRun(with idempotency) error = %v", err)
+		t.Fatalf("claimExactRunForTest() error = %v", err)
 	}
 	if _, err := manager.StartRun(
 		context.Background(),
@@ -8462,7 +8499,7 @@ func TestManagerStartRunPreservesResolvedParticipationSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
-	run, err = bootstrap.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+	run, err = seedNonLeasedClaimedRunForTest(context.Background(), bootstrap, run.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun() error = %v", err)
 	}
@@ -8527,16 +8564,11 @@ func TestManagerBlockedExecutionAndFailureGuardrails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun(blocked target) error = %v", err)
 	}
-	if _, err := manager.ClaimRun(
-		context.Background(),
-		blockedRun.ID,
-		ClaimRun{},
-		actor,
-	); !errors.Is(
+	if _, err := claimExactRunForTest(context.Background(), manager, blockedRun.ID, actor); !errors.Is(
 		err,
-		ErrInvalidStatusTransition,
+		ErrNoClaimableRun,
 	) {
-		t.Fatalf("ClaimRun(blocked target) error = %v, want %v", err, ErrInvalidStatusTransition)
+		t.Fatalf("exact claim of blocked target error = %v, want %v", err, ErrNoClaimableRun)
 	}
 
 	failingTask, err := manager.CreateTask(context.Background(), CreateTask{
@@ -8555,7 +8587,7 @@ func TestManagerBlockedExecutionAndFailureGuardrails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun(failingTask) error = %v", err)
 	}
-	failingRun, err = manager.ClaimRun(context.Background(), failingRun.ID, ClaimRun{}, actor)
+	failingRun, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, failingRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun(failingTask) error = %v", err)
 	}
@@ -8585,7 +8617,7 @@ func TestManagerBlockedExecutionAndFailureGuardrails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnqueueRun(completedTask) error = %v", err)
 	}
-	completedRun, err = manager.ClaimRun(context.Background(), completedRun.ID, ClaimRun{}, actor)
+	completedRun, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, completedRun.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun(completedTask) error = %v", err)
 	}
@@ -8813,7 +8845,7 @@ func TestManagerStartRunPersistsDedicatedSessionAfterCallerCancellation(t *testi
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
-	run, err = manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+	run, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, run.ID, actor)
 	if err != nil {
 		t.Fatalf("ClaimRun() error = %v", err)
 	}
@@ -8909,7 +8941,7 @@ func TestManagerStartRunExecutionProfile(t *testing.T) {
 			if err != nil {
 				t.Fatalf("EnqueueRun() error = %v", err)
 			}
-			run, err = manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+			run, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, run.ID, actor)
 			if err != nil {
 				t.Fatalf("ClaimRun() error = %v", err)
 			}
@@ -8965,7 +8997,7 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 			if err != nil {
 				t.Fatalf("EnqueueRun() error = %v", err)
 			}
-			run, err = manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+			run, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, run.ID, actor)
 			if err != nil {
 				t.Fatalf("ClaimRun() error = %v", err)
 			}
@@ -9003,7 +9035,7 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnqueueRun(runOne) error = %v", err)
 		}
-		runOne, err = manager.ClaimRun(context.Background(), runOne.ID, ClaimRun{}, actor)
+		runOne, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, runOne.ID, actor)
 		if err != nil {
 			t.Fatalf("ClaimRun(runOne) error = %v", err)
 		}
@@ -9026,7 +9058,7 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnqueueRun(runTwo) error = %v", err)
 		}
-		runTwo, err = manager.ClaimRun(context.Background(), runTwo.ID, ClaimRun{}, actor)
+		runTwo, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, runTwo.ID, actor)
 		if err != nil {
 			t.Fatalf("ClaimRun(runTwo) error = %v", err)
 		}
@@ -9069,7 +9101,7 @@ func TestManagerStartRunAndAttachErrorBranches(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
-		run, err = managerWithoutExecutor.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+		run, err = seedNonLeasedClaimedRunForTest(context.Background(), managerWithoutExecutor, run.ID, actor)
 		if err != nil {
 			t.Fatalf("ClaimRun() error = %v", err)
 		}
@@ -9164,7 +9196,7 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
-		run, err = manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+		run, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, run.ID, actor)
 		if err != nil {
 			t.Fatalf("ClaimRun() error = %v", err)
 		}
@@ -9223,7 +9255,7 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
-		run, err = manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+		run, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, run.ID, actor)
 		if err != nil {
 			t.Fatalf("ClaimRun() error = %v", err)
 		}
@@ -9273,7 +9305,7 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 			if err != nil {
 				t.Fatalf("EnqueueRun() error = %v", err)
 			}
-			run, err = manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+			run, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, run.ID, actor)
 			if err != nil {
 				t.Fatalf("ClaimRun() error = %v", err)
 			}
@@ -9357,7 +9389,7 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 			if err != nil {
 				t.Fatalf("EnqueueRun() error = %v", err)
 			}
-			run, err = manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+			run, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, run.ID, actor)
 			if err != nil {
 				t.Fatalf("ClaimRun() error = %v", err)
 			}
@@ -9401,7 +9433,7 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 			if err != nil {
 				t.Fatalf("EnqueueRun() error = %v", err)
 			}
-			run, err = manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+			run, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, run.ID, actor)
 			if err != nil {
 				t.Fatalf("ClaimRun() error = %v", err)
 			}
@@ -9471,7 +9503,7 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnqueueRun() error = %v", err)
 		}
-		run, err = manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+		run, err = seedNonLeasedClaimedRunForTest(context.Background(), manager, run.ID, actor)
 		if err != nil {
 			t.Fatalf("ClaimRun() error = %v", err)
 		}
@@ -9490,6 +9522,43 @@ func TestManagerRecoverRunOnBoot(t *testing.T) {
 				err,
 				ErrInvalidStatusTransition,
 			)
+		}
+	})
+
+	t.Run("Should requeue a claimed taskless wake without task reconciliation", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		var recoveredHook hookspkg.TaskRunLeaseRecoveredPayload
+		manager := newTaskManagerForTestWithOptions(t, store, WithTaskRunHooks(recordingTaskRunHooks{
+			recovered: func(
+				_ context.Context,
+				payload hookspkg.TaskRunLeaseRecoveredPayload,
+			) (hookspkg.TaskRunLeaseRecoveredPayload, error) {
+				recoveredHook = payload
+				return payload, nil
+			},
+		}))
+		run := Run{
+			ID: "run-wake-recovery", RunKind: RunKindNetworkWake, Status: TaskRunStatusClaimed,
+			SessionID: "sess-target", ClaimTokenHash: "sha256:claimed", ClaimedAt: time.Now().UTC(),
+		}
+		run.SetNetworkState(participation.LocalSpec(), "wake-1", "sess-target", "owner-1")
+		store.runs[run.ID] = run
+
+		recovered, err := manager.RecoverRunOnBoot(context.Background(), run.ID, RunBootRecovery{
+			Action: RunBootRecoveryRequeue, Reason: "daemon_restart", SessionState: "missing",
+		}, daemonActor)
+		if err != nil {
+			t.Fatalf("RecoverRunOnBoot(network wake) error = %v", err)
+		}
+		if recovered.Status != TaskRunStatusQueued || recovered.TaskID != "" ||
+			recovered.SessionID != "" || recovered.ClaimTokenHash != "" {
+			t.Fatalf("recovered network wake = %#v, want taskless queued run", recovered)
+		}
+		if recoveredHook.TaskID != "" || recoveredHook.OwnerKey != "owner-1" ||
+			recoveredHook.TargetSessionID != "sess-target" {
+			t.Fatalf("recovered wake hook = %#v, want taskless durable correlation", recoveredHook.TaskRunContext)
 		}
 	})
 }
@@ -10298,11 +10367,9 @@ func createRunningRunForWakeTestWithMaxAttempts(
 	if err != nil {
 		t.Fatalf("EnqueueRun() error = %v", err)
 	}
-	claimedRun, err := manager.ClaimRun(context.Background(), queuedRun.ID, ClaimRun{
-		IdempotencyKey: "claim-" + taskRecord.ID,
-	}, worker)
+	claimedRun, err := seedNonLeasedClaimedRunForTest(context.Background(), manager, queuedRun.ID, worker)
 	if err != nil {
-		t.Fatalf("ClaimRun() error = %v", err)
+		t.Fatalf("claimExactRunForTest() error = %v", err)
 	}
 	runningRun, err := manager.StartRun(context.Background(), claimedRun.ID, StartRun{
 		IdempotencyKey: "start-" + taskRecord.ID,

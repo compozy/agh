@@ -50,8 +50,9 @@ func TestAgentTaskResponsesProjectImmutableParticipationSnapshots(t *testing.T) 
 				run.LeaseUntil = leaseUntil
 				run.ClaimTokenHash = claimHash
 				run.SetNetworkState(udsTestLiveParticipation("ws-1", participationChannel), "", "", "")
+				taskRecord := agentTaskRecord()
 				return &taskpkg.ClaimResult{
-					Task:       agentTaskRecord(),
+					Task:       &taskRecord,
 					Run:        run,
 					ClaimToken: rawToken,
 					LeaseUntil: leaseUntil,

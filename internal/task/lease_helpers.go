@@ -129,7 +129,9 @@ func claimResultWithoutRawTokenInMetadata(result *ClaimResult) {
 		return
 	}
 	result.CoordinationChannel = sanitizedCoordinationChannelMetadata(result.CoordinationChannel)
-	result.Task.Metadata = removeRawClaimTokenFields(result.Task.Metadata)
+	if result.Task != nil {
+		result.Task.Metadata = removeRawClaimTokenFields(result.Task.Metadata)
+	}
 	result.Run.Metadata = removeRawClaimTokenFields(result.Run.Metadata)
 	result.Run.Result = removeRawClaimTokenFields(result.Run.Result)
 }

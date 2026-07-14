@@ -1335,7 +1335,6 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					{path: "/api/tasks/{id}/runs", method: "GET"},
 					{path: "/api/tasks/{id}/runs", method: "POST"},
 					{path: "/api/task-runs/{id}", method: "GET"},
-					{path: "/api/task-runs/{id}/claim", method: "POST"},
 					{path: "/api/task-runs/{id}/start", method: "POST"},
 					{path: "/api/task-runs/{id}/attach-session", method: "POST"},
 					{path: "/api/task-runs/{id}/complete", method: "POST"},

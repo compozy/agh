@@ -716,11 +716,6 @@ type TaskExecutionRequest struct {
 	Metadata       json.RawMessage `json:"metadata,omitempty"`
 }
 
-// ClaimTaskRunRequest is the shared run-claim request payload.
-type ClaimTaskRunRequest struct {
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
-}
-
 // StartTaskRunRequest is the shared run-start request payload.
 type StartTaskRunRequest struct {
 	IdempotencyKey string `json:"idempotency_key,omitempty"`

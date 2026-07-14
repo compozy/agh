@@ -3566,11 +3566,7 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 	if err != nil {
 		t.Fatalf("tasks.EnqueueRun() error = %v", err)
 	}
-	if _, err := env.tasks.ClaimRun(testutil.Context(t), queued.ID, taskpkg.ClaimRun{
-		IdempotencyKey: "host-api-read-claim",
-	}, actor); err != nil {
-		t.Fatalf("tasks.ClaimRun() error = %v", err)
-	}
+	seedHostAPIRunClaimed(t, env, queued.ID, "ext-reader")
 	started, err := env.tasks.StartRun(testutil.Context(t), queued.ID, taskpkg.StartRun{
 		IdempotencyKey: "host-api-read-start",
 	}, actor)
@@ -3804,7 +3800,6 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 			"tasks/create",
 			"tasks/runs",
 			"tasks/runs/enqueue",
-			"tasks/runs/claim",
 			"tasks/runs/attach_session",
 			"tasks/runs/start",
 			"tasks/runs/complete",
@@ -3849,20 +3844,6 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 		return run
 	}
 
-	claimRun := func(runID string, idempotencyKey string) apicontract.TaskRunPayload {
-		t.Helper()
-
-		result, err := env.call(t, "ext-runs", "tasks/runs/claim", map[string]any{
-			"id":              runID,
-			"idempotency_key": idempotencyKey,
-		})
-		if err != nil {
-			t.Fatalf("Handle(tasks/runs/claim %q) error = %v", runID, err)
-		}
-		var run apicontract.TaskRunPayload
-		decodeResult(t, result, &run)
-		return run
-	}
 	assertMetadataPhase := func(label string, raw json.RawMessage, want string) {
 		t.Helper()
 
@@ -3881,13 +3862,7 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 		"phase": "extension",
 	})
 	assertMetadataPhase("tasks/runs/enqueue", completedQueued.Metadata, "extension")
-	completedClaimed := claimRun(completedQueued.ID, "claim-complete")
-	if got, want := completedClaimed.Status, taskpkg.TaskRunStatusClaimed; got != want {
-		t.Fatalf("tasks/runs/claim status = %q, want %q", got, want)
-	}
-	if completedClaimed.ClaimedBy == nil {
-		t.Fatal("tasks/runs/claim claimed_by = nil, want extension actor")
-	}
+	seedHostAPIRunClaimed(t, env, completedQueued.ID, "ext-runs")
 
 	boundSession := env.createSession(t)
 	attachResult, err := env.call(t, "ext-runs", "tasks/runs/attach_session", map[string]any{
@@ -3937,7 +3912,7 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 
 	failedTask := createTask("Failed run task")
 	failedQueued := enqueueRun(failedTask.ID, "enqueue-fail", nil)
-	_ = claimRun(failedQueued.ID, "claim-fail")
+	seedHostAPIRunClaimed(t, env, failedQueued.ID, "ext-runs")
 	_, err = env.call(t, "ext-runs", "tasks/runs/start", map[string]any{
 		"id":              failedQueued.ID,
 		"idempotency_key": "start-fail",
@@ -3967,7 +3942,7 @@ func TestHostAPIHandlerTaskRunLifecycleOperationsAndFiltering(t *testing.T) {
 
 	cancelledTask := createTask("Canceled run task")
 	cancelledQueued := enqueueRun(cancelledTask.ID, "enqueue-cancel", nil)
-	_ = claimRun(cancelledQueued.ID, "claim-cancel")
+	seedHostAPIRunClaimed(t, env, cancelledQueued.ID, "ext-runs")
 	cancelRunResult, err := env.call(t, "ext-runs", "tasks/runs/cancel", map[string]any{
 		"id":     cancelledQueued.ID,
 		"reason": " no longer needed ",
@@ -4239,7 +4214,6 @@ func TestHostAPIHandlerTaskMethodsRequireIdentifiers(t *testing.T) {
 			"tasks/runs",
 			"tasks/runs/get",
 			"tasks/runs/enqueue",
-			"tasks/runs/claim",
 			"tasks/runs/start",
 			"tasks/runs/complete",
 			"tasks/runs/fail",
@@ -4298,12 +4272,6 @@ func TestHostAPIHandlerTaskMethodsRequireIdentifiers(t *testing.T) {
 			wantText: "task_id is required",
 		},
 		{
-			name:     "ShouldRequireTaskIDForRunClaim",
-			method:   "tasks/runs/claim",
-			params:   map[string]any{"idempotency_key": "idem"},
-			wantText: "id is required",
-		},
-		{
 			name:     "ShouldRequireTaskIDForRunStart",
 			method:   "tasks/runs/start",
 			params:   map[string]any{"idempotency_key": "idem"},
@@ -4354,7 +4322,6 @@ func TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords(t *testing.T) 
 			"tasks/cancel",
 			"tasks/runs",
 			"tasks/runs/get",
-			"tasks/runs/claim",
 			"tasks/runs/start",
 			"tasks/runs/attach_session",
 			"tasks/runs/complete",
@@ -4410,12 +4377,6 @@ func TestHostAPIHandlerTaskMethodsReturnNotFoundForMissingRecords(t *testing.T) 
 			name:     "ShouldReturnRunNotFoundForGetRun",
 			method:   "tasks/runs/get",
 			params:   map[string]any{"id": "run-missing"},
-			wantText: "task run not found",
-		},
-		{
-			name:     "ShouldReturnRunNotFoundForClaim",
-			method:   "tasks/runs/claim",
-			params:   map[string]any{"id": "run-missing", "idempotency_key": "idem"},
 			wantText: "task run not found",
 		},
 		{
@@ -4742,6 +4703,26 @@ type hostAPITestEnv struct {
 	resources   *resources.Kernel
 	checker     *CapabilityChecker
 	handler     *HostAPIHandler
+}
+
+func seedHostAPIRunClaimed(t *testing.T, env *hostAPITestEnv, runID string, extensionName string) taskpkg.Run {
+	t.Helper()
+
+	ctx := testutil.Context(t)
+	run, err := env.registry.GetTaskRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("registry.GetTaskRun(%q) error = %v", runID, err)
+	}
+	run.Status = taskpkg.TaskRunStatusClaimed
+	run.ClaimedBy = &taskpkg.ActorIdentity{
+		Kind: taskpkg.ActorKindExtension,
+		Ref:  extensionName,
+	}
+	run.ClaimedAt = time.Now().UTC()
+	if err := env.registry.UpdateTaskRun(ctx, run); err != nil {
+		t.Fatalf("registry.UpdateTaskRun(%q) error = %v", runID, err)
+	}
+	return run
 }
 
 type hostAPITestEnvConfig struct {

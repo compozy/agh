@@ -204,16 +204,25 @@ func TestCLIHistoricalChannelTaskRunTerminalAfterDaemonRestartIntegration(t *tes
 				)
 			}
 
-			claimOut := mustExecuteRoot(t, h.deps, "task", "run", "claim", enqueued.ID, "-o", "json")
-			var claimed TaskRunRecord
-			if err := json.Unmarshal([]byte(claimOut), &claimed); err != nil {
-				t.Fatalf("json.Unmarshal(task run claim) error = %v", err)
+			agentDeps, _ := newIntegrationAgentCommandDeps(
+				t,
+				h,
+				tt.channel+"-worker",
+				"alpha",
+				tt.channel,
+			)
+			claimOut := mustExecuteRoot(t, agentDeps, "task", "next", "--run-id", enqueued.ID, "-o", "json")
+			var next AgentTaskNextRecord
+			if err := json.Unmarshal([]byte(claimOut), &next); err != nil {
+				t.Fatalf("json.Unmarshal(task next exact claim) error = %v", err)
 			}
-			if claimed.Status != taskpkg.TaskRunStatusClaimed {
-				t.Fatalf("claimed = %#v, want claimed run", claimed)
+			if !next.Claimed || next.Claim == nil || next.Claim.Run.ID != enqueued.ID ||
+				next.Claim.Run.Status != taskpkg.TaskRunStatusClaimed {
+				t.Fatalf("task next = %#v, want exact claimed run %q", next, enqueued.ID)
 			}
-			if claimed.NetworkChannel != tt.channel || claimed.CoordinationChannelID != tt.channel {
-				t.Fatalf("claimed = %#v, want preserved historical channel", claimed)
+			if next.Claim.Run.NetworkChannel != tt.channel ||
+				next.Claim.Run.CoordinationChannelID != tt.channel {
+				t.Fatalf("task next = %#v, want preserved historical channel", next)
 			}
 
 			startOut := mustExecuteRoot(t, h.deps, "task", "run", "start", enqueued.ID, "-o", "json")

@@ -89,7 +89,6 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   enqueueTaskRun: (...args: unknown[]) => enqueueTaskRunMock(...args),
   attachTaskRunSession: vi.fn(),
   cancelTaskRun: vi.fn(),
-  claimTaskRun: vi.fn(),
   startTaskRun: vi.fn(),
   completeTaskRun: vi.fn(),
   failTaskRun: vi.fn(),

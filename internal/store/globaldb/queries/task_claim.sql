@@ -69,12 +69,15 @@ SET status = sqlc.arg(status), lease_until = NULL, heartbeat_at = NULL, claim_to
 WHERE id = sqlc.arg(id) AND claim_token_hash = sqlc.arg(claim_token_hash);
 
 -- name: ListAutonomyLeaseHandles :many
-SELECT tr.id, tr.task_id, COALESCE(t.workspace_id, '') AS workspace_id, tr.status,
+SELECT tr.id, tr.task_id, tr.run_kind, COALESCE(t.workspace_id, '') AS task_workspace_id,
+       tr.network_spec_json, tr.network_mode, tr.network_channel, tr.network_source,
+       COALESCE(tr.network_target_session_id, '') AS target_session_id,
+       COALESCE(tr.network_owner_key, '') AS owner_key, tr.status,
        COALESCE(tr.session_id, '') AS session_id, tr.claimed_by_kind, tr.claimed_by_ref,
        COALESCE(tr.claim_token, '') AS claim_token, COALESCE(tr.claim_token_hash, '') AS claim_token_hash,
        tr.lease_until, tr.heartbeat_at
 FROM task_runs tr
-JOIN tasks t ON t.id = tr.task_id
+LEFT JOIN tasks t ON t.id = tr.task_id
 WHERE tr.session_id = sqlc.arg(session_id)
   AND COALESCE(tr.claim_token_hash, '') <> ''
 ORDER BY COALESCE(tr.lease_until, '') DESC, tr.id ASC;
@@ -106,7 +109,7 @@ WHERE id = sqlc.arg(id)
   AND claim_token_hash = sqlc.arg(claim_token_hash)
   AND lease_until = sqlc.arg(lease_until);
 
--- name: ClaimTaskRun :execrows
+-- name: ClaimSelectedTaskRun :execrows
 UPDATE task_runs
 SET status = sqlc.arg(claimed_status),
     claimed_by_kind = sqlc.narg(claimed_by_kind),

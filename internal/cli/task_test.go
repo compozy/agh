@@ -882,38 +882,6 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 			},
 		},
 		{
-			name: "Should parse task run claim request",
-			run: func(t *testing.T) {
-				t.Helper()
-
-				var claimRequest ClaimTaskRunRequest
-				deps := newTestDeps(t, &stubClient{
-					claimTaskRunFn: func(_ context.Context, _ string, request ClaimTaskRunRequest) (TaskRunRecord, error) {
-						claimRequest = request
-						return sampleTaskRunRecord(taskpkg.TaskRunStatusClaimed), nil
-					},
-				})
-
-				if _, _, err := executeRootCommand(
-					t,
-					deps,
-					"task",
-					"run",
-					"claim",
-					"run-1",
-					"--idempotency-key",
-					"idem-claim",
-					"-o",
-					"json",
-				); err != nil {
-					t.Fatalf("task run claim error = %v", err)
-				}
-				if claimRequest.IdempotencyKey != "idem-claim" {
-					t.Fatalf("claimRequest = %#v, want idempotency key", claimRequest)
-				}
-			},
-		},
-		{
 			name: "Should parse task run start request",
 			run: func(t *testing.T) {
 				t.Helper()
@@ -1114,6 +1082,8 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 			deps,
 			"task",
 			"next",
+			"--run-id",
+			"run-exact",
 			"--workspace-id",
 			"ws-1",
 			"--capability",
@@ -1135,7 +1105,8 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 		if err != nil {
 			t.Fatalf("task next error = %v", err)
 		}
-		if gotRequest.WorkspaceID != "ws-1" ||
+		if gotRequest.RunID != "run-exact" ||
+			gotRequest.WorkspaceID != "ws-1" ||
 			gotRequest.PriorityMin != 3 ||
 			gotRequest.LeaseSeconds != 120 ||
 			!gotRequest.Wait ||

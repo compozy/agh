@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 
-	"fmt"
 	"log/slog"
 
 	"strings"
@@ -29,43 +28,6 @@ func (m *Service) dispatchTaskRunEnqueued(
 	}
 	_, err := m.taskHooks.DispatchTaskRunEnqueued(taskRunObservationHookContext(ctx), payload)
 	m.reportTaskRunHookFailure(hookspkg.HookTaskRunEnqueued, err, run, taskRecord)
-}
-
-func (m *Service) dispatchTaskRunPreClaim(
-	ctx context.Context,
-	run Run,
-	taskRecord Task,
-	actor ActorContext,
-) error {
-	contextPayload := m.taskRunHookContext(run, taskRecord, actor)
-	networkSpec := contextPayload.ResolvedNetworkParticipation
-	payload := hookspkg.TaskRunPreClaimPayload{
-		PayloadBase: hookspkg.PayloadBase{
-			Event:     hookspkg.HookTaskRunPreClaim,
-			Timestamp: m.now().UTC(),
-		},
-		TaskRunContext: &contextPayload,
-		Criteria: hookspkg.TaskRunClaimCriteria{
-			WorkspaceID:           contextPayload.WorkspaceID,
-			ClaimerSessionID:      taskRunHookClaimerSessionID(run, actor),
-			AgentName:             contextPayload.AgentName,
-			RequiredCapabilities:  append([]string(nil), run.RequiredCapabilities...),
-			PriorityMin:           taskPriorityMin(taskRecord.Priority),
-			CoordinationChannelID: networkSpec.ChannelID,
-		},
-	}
-	result, err := m.taskHooks.DispatchTaskRunPreClaim(ctx, payload)
-	if err != nil {
-		return err
-	}
-	if result.Denied {
-		reason := strings.TrimSpace(result.DenyReason)
-		if reason == "" {
-			reason = "task run claim denied by hook"
-		}
-		return fmt.Errorf("%w: %s", ErrPermissionDenied, reason)
-	}
-	return nil
 }
 
 func (m *Service) dispatchTaskRunPostClaim(
@@ -136,14 +98,23 @@ func (m *Service) taskRunHookContext(
 ) hookspkg.TaskRunContext {
 	soulSnapshotID, soulDigest := taskRunSoulMetadata(run.Metadata)
 	runKind := run.RunKind.Normalize().String()
+	networkSpec := run.NetworkSpecSnapshot()
+	workspaceID := strings.TrimSpace(taskRecord.WorkspaceID)
+	if workspaceID == "" {
+		workspaceID = strings.TrimSpace(networkSpec.WorkspaceID)
+	}
+	wakeID, targetSessionID, ownerKey := run.NetworkWakeCorrelation()
 	return hookspkg.TaskRunContext{
 		TaskID:                       strings.TrimSpace(run.TaskID),
 		RunID:                        strings.TrimSpace(run.ID),
 		RunKind:                      &runKind,
+		WakeID:                       strings.TrimSpace(wakeID),
+		OwnerKey:                     strings.TrimSpace(ownerKey),
+		TargetSessionID:              strings.TrimSpace(targetSessionID),
 		LoopRunID:                    strings.TrimSpace(run.LoopRunID),
-		WorkspaceID:                  strings.TrimSpace(taskRecord.WorkspaceID),
+		WorkspaceID:                  workspaceID,
 		WorkflowID:                   taskRunMetadataString(run.Metadata, "workflow_id"),
-		ResolvedNetworkParticipation: new(run.NetworkSpecSnapshot()),
+		ResolvedNetworkParticipation: new(networkSpec),
 		AgentName:                    taskRunHookAgentName(run, actor),
 		SessionID:                    strings.TrimSpace(run.SessionID),
 		ActorKind:                    string(actor.Actor.Kind.Normalize()),
@@ -184,29 +155,6 @@ func taskRunHookAgentName(run Run, actor ActorContext) string {
 		return strings.TrimSpace(actor.Actor.Ref)
 	}
 	return ""
-}
-
-func taskRunHookClaimerSessionID(run Run, actor ActorContext) string {
-	if strings.TrimSpace(run.SessionID) != "" {
-		return strings.TrimSpace(run.SessionID)
-	}
-	if actor.Actor.Kind.Normalize() == ActorKindAgentSession {
-		return strings.TrimSpace(actor.Actor.Ref)
-	}
-	return ""
-}
-
-func taskPriorityMin(priority Priority) int {
-	switch priority.Normalize() {
-	case PriorityLow:
-		return 10
-	case PriorityHigh:
-		return 30
-	case PriorityUrgent:
-		return 40
-	default:
-		return 20
-	}
 }
 
 func taskRunMetadataString(raw json.RawMessage, key string) string {

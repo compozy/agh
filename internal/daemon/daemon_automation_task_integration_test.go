@@ -283,9 +283,16 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 		t.Fatalf("delegatedTaskRun.SessionID = %q, want empty before start", got)
 	}
 
-	claimedRun, err := harness.ClaimTaskRun(ctx, run.TaskRunID, aghcontract.ClaimTaskRunRequest{})
+	worker := createFixtureBackedSession(
+		t,
+		ctx,
+		harness,
+		automationTaskFixtureAgentName,
+		"automation-task-claim-worker",
+	)
+	claimedRun, err := harness.ClaimExactTaskRunForSession(ctx, run.TaskRunID, worker)
 	if err != nil {
-		t.Fatalf("ClaimTaskRun(%q) error = %v", run.TaskRunID, err)
+		t.Fatalf("ClaimExactTaskRunForSession(%q) error = %v", run.TaskRunID, err)
 	}
 	if got, want := claimedRun.Status, taskpkg.TaskRunStatusClaimed; got != want {
 		t.Fatalf("claimedRun.Status = %q, want %q", got, want)

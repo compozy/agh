@@ -1551,7 +1551,6 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	enqueuedRuns := make([]taskpkg.EnqueueRun, 0)
 	var listedRunTaskID string
 	var listedRunQuery taskpkg.RunQuery
-	var claimedRun taskpkg.ClaimRun
 	var startedRun taskpkg.StartRun
 	var attachedRunID string
 	var attachedSessionID string
@@ -1729,19 +1728,6 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 				DesignationGroupID: spec.DesignationGroupID,
 				Metadata:           spec.Metadata,
 				QueuedAt:           now,
-			}, nil
-		},
-		ClaimRunFn: func(_ context.Context, _ string, claim taskpkg.ClaimRun, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
-			claimedRun = claim
-			return &taskpkg.Run{
-				ID:        "run-1",
-				TaskID:    "task-1",
-				Status:    taskpkg.TaskRunStatusClaimed,
-				Attempt:   1,
-				ClaimedBy: &actor.Actor,
-				Origin:    actor.Origin,
-				QueuedAt:  now,
-				ClaimedAt: now,
 			}, nil
 		},
 		StartRunFn: func(_ context.Context, _ string, req taskpkg.StartRun, actor taskpkg.ActorContext) (*taskpkg.Run, error) {
@@ -2132,17 +2118,6 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		t,
 		fixture.Engine,
 		http.MethodPost,
-		"/task-runs/run-1/claim",
-		[]byte(`{"idempotency_key":"claim-1"}`),
-	)
-	if resp.Code != http.StatusOK {
-		t.Fatalf("claim status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
-	}
-
-	resp = performRequest(
-		t,
-		fixture.Engine,
-		http.MethodPost,
 		"/task-runs/run-1/start",
 		[]byte(`{"idempotency_key":"start-1"}`),
 	)
@@ -2397,9 +2372,6 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 			t.Fatalf("fanout enqueue %d metadata = %s, want designation payload", idx, run.Metadata)
 		}
 	}
-	if claimedRun.IdempotencyKey != "claim-1" {
-		t.Fatalf("claimed run = %#v", claimedRun)
-	}
 	if startedRun.IdempotencyKey != "start-1" {
 		t.Fatalf("started run = %#v", startedRun)
 	}
@@ -2457,7 +2429,6 @@ func TestBaseHandlersTaskActorResolverErrors(t *testing.T) {
 		{method: http.MethodDelete, path: "/tasks/task-1/dependencies/task-blocker"},
 		{method: http.MethodGet, path: "/tasks/task-1/runs"},
 		{method: http.MethodPost, path: "/tasks/task-1/runs", body: []byte(`{}`)},
-		{method: http.MethodPost, path: "/task-runs/run-1/claim", body: []byte(`{}`)},
 		{method: http.MethodPost, path: "/task-runs/run-1/start", body: []byte(`{}`)},
 		{method: http.MethodPost, path: "/task-runs/run-1/attach-session", body: []byte(`{"session_id":"sess-1"}`)},
 		{method: http.MethodPost, path: "/task-runs/run-1/complete", body: []byte(`{}`)},
@@ -2520,7 +2491,6 @@ func TestBaseHandlersTaskServiceUnavailable(t *testing.T) {
 		{method: http.MethodDelete, path: "/tasks/task-1/dependencies/task-blocker"},
 		{method: http.MethodGet, path: "/tasks/task-1/runs"},
 		{method: http.MethodPost, path: "/tasks/task-1/runs", body: []byte(`{}`)},
-		{method: http.MethodPost, path: "/task-runs/run-1/claim", body: []byte(`{}`)},
 		{method: http.MethodPost, path: "/task-runs/run-1/start", body: []byte(`{}`)},
 		{method: http.MethodPost, path: "/task-runs/run-1/attach-session", body: []byte(`{"session_id":"sess-1"}`)},
 		{method: http.MethodPost, path: "/task-runs/run-1/complete", body: []byte(`{}`)},
@@ -2586,9 +2556,6 @@ func TestBaseHandlersTaskManagerErrors(t *testing.T) {
 			EnqueueRunFn: func(context.Context, taskpkg.EnqueueRun, taskpkg.ActorContext) (*taskpkg.Run, error) {
 				return nil, taskpkg.ErrInvalidStatusTransition
 			},
-			ClaimRunFn: func(context.Context, string, taskpkg.ClaimRun, taskpkg.ActorContext) (*taskpkg.Run, error) {
-				return nil, taskpkg.ErrTaskRunNotFound
-			},
 			StartRunFn: func(context.Context, string, taskpkg.StartRun, taskpkg.ActorContext) (*taskpkg.Run, error) {
 				return nil, taskpkg.ErrInvalidStatusTransition
 			},
@@ -2647,7 +2614,6 @@ func TestBaseHandlersTaskManagerErrors(t *testing.T) {
 		{method: http.MethodDelete, path: "/tasks/task-1/dependencies/task-blocker", want: http.StatusNotFound},
 		{method: http.MethodGet, path: "/tasks/task-1/runs", want: http.StatusNotFound},
 		{method: http.MethodPost, path: "/tasks/task-1/runs", body: []byte(`{}`), want: http.StatusConflict},
-		{method: http.MethodPost, path: "/task-runs/run-1/claim", body: []byte(`{}`), want: http.StatusNotFound},
 		{method: http.MethodPost, path: "/task-runs/run-1/start", body: []byte(`{}`), want: http.StatusConflict},
 		{
 			method: http.MethodPost,
@@ -2706,7 +2672,6 @@ func TestBaseHandlersTaskDecodeErrors(t *testing.T) {
 		{method: http.MethodPost, path: "/tasks/task-root/children", body: []byte(`{"scope":`)},
 		{method: http.MethodPost, path: "/tasks/task-1/dependencies", body: []byte(`{"depends_on_task_id":`)},
 		{method: http.MethodPost, path: "/tasks/task-1/runs", body: []byte(`{"idempotency_key":`)},
-		{method: http.MethodPost, path: "/task-runs/run-1/claim", body: []byte(`{"idempotency_key":`)},
 		{method: http.MethodPost, path: "/task-runs/run-1/start", body: []byte(`{"idempotency_key":`)},
 		{method: http.MethodPost, path: "/task-runs/run-1/attach-session", body: []byte(`{"session_id":`)},
 		{method: http.MethodPost, path: "/task-runs/run-1/complete", body: []byte(`{"result":`)},
