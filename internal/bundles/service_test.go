@@ -621,6 +621,59 @@ func TestServiceActivationSpecDriftUsesContentHashAndClearsOnReapply(t *testing.
 		}
 	})
 
+	t.Run("Should require confirmation when reapply introduces a live network requirement", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryStore()
+		store.agents = []resources.Record[aghconfig.AgentDef]{plannerAgentRecord()}
+		ext := newMarketingExtension()
+		service := newServiceForExtensions(
+			store,
+			[]*extensionpkg.Extension{ext},
+			WithLogger(discardBundleTestLogger()),
+		)
+		activated, err := service.Activate(testutil.Context(t), ActivateRequest{
+			ExtensionName: "marketing-team",
+			BundleName:    "marketing",
+			ProfileName:   "default",
+			Scope:         ScopeGlobal,
+		})
+		if err != nil {
+			t.Fatalf("Activate() error = %v", err)
+		}
+
+		ext.Manifest.NetworkParticipation = &extensionpkg.NetworkParticipationRequirement{
+			Required:      true,
+			Mode:          "live",
+			ChannelScopes: []string{"workspace"},
+		}
+		_, err = service.UpdateActivation(testutil.Context(t), UpdateActivationRequest{
+			ID: activated.Activation.ID,
+		})
+		if !errors.Is(err, ErrNetworkRequirementConfirmationRequired) {
+			t.Fatalf("UpdateActivation() error = %v, want confirmation required", err)
+		}
+		storedAfterRejection := store.activations[activated.Activation.ID]
+		if storedAfterRejection.NetworkRequirementDigest != "" || storedAfterRejection.ConfirmedBy != "" {
+			t.Fatalf("rejected UpdateActivation() persisted confirmation = %#v", storedAfterRejection)
+		}
+
+		reapplied, err := service.UpdateActivation(testutil.Context(t), UpdateActivationRequest{
+			ID:                        activated.Activation.ID,
+			ConfirmNetworkRequirement: true,
+		})
+		if err != nil {
+			t.Fatalf("confirmed UpdateActivation() error = %v", err)
+		}
+		if reapplied.SpecDrift {
+			t.Fatal("confirmed UpdateActivation() SpecDrift = true, want false")
+		}
+		if reapplied.Activation.NetworkRequirementDigest == "" ||
+			reapplied.Activation.ConfirmedBy != networkRequirementConfirmedByOperator {
+			t.Fatalf("confirmed UpdateActivation() activation = %#v", reapplied.Activation)
+		}
+	})
+
 	t.Run("Should treat a missing stored hash as drift regardless of timestamps", func(t *testing.T) {
 		t.Parallel()
 

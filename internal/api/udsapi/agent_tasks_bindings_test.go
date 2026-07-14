@@ -58,7 +58,6 @@ func TestAgentTaskResponsesProjectImmutableParticipationSnapshots(t *testing.T) 
 					LeaseUntil: leaseUntil,
 					CoordinationChannel: &taskpkg.CoordinationChannelMetadata{
 						ID:                  participationChannel,
-						Channel:             participationChannel,
 						DisplayName:         "Participation reclaim lane",
 						WorkspaceID:         "ws-1",
 						TaskID:              "task-1",
@@ -102,8 +101,10 @@ func TestAgentTaskResponsesProjectImmutableParticipationSnapshots(t *testing.T) 
 		}
 
 		if response.Claim.Lease.SessionID != "sess-agent" ||
-			response.Claim.Lease.CoordinationChannelID != participationChannel ||
-			response.Claim.Run.CoordinationChannelID != participationChannel {
+			response.Claim.Lease.ResolvedNetworkParticipation == nil ||
+			response.Claim.Lease.ResolvedNetworkParticipation.ChannelID != participationChannel ||
+			response.Claim.Run.ResolvedNetworkParticipation == nil ||
+			response.Claim.Run.ResolvedNetworkParticipation.ChannelID != participationChannel {
 			t.Fatalf("claim response = %#v, want projected participation session/channel bindings", response.Claim)
 		}
 		if response.Claim.CoordinationChannel == nil ||
@@ -113,7 +114,7 @@ func TestAgentTaskResponsesProjectImmutableParticipationSnapshots(t *testing.T) 
 			t.Fatalf("claim response = %#v, want participation coordination metadata", response.Claim)
 		}
 		if seenCriteria.ClaimerSessionID != "sess-agent" ||
-			seenCriteria.CoordinationChannelID != participationChannel ||
+			seenCriteria.ParticipationChannel != participationChannel ||
 			seenCriteria.LeaseDuration != 90*time.Second {
 			t.Fatalf("criteria = %#v, want immutable participation caller fencing", seenCriteria)
 		}
@@ -369,7 +370,8 @@ func TestAgentTaskResponsesProjectImmutableParticipationSnapshots(t *testing.T) 
 				if response.Lease.RunID != "run-1" ||
 					response.Lease.Status != tc.wantStatus ||
 					response.Lease.SessionID != "sess-agent" ||
-					response.Lease.CoordinationChannelID != participationChannel {
+					response.Lease.ResolvedNetworkParticipation == nil ||
+					response.Lease.ResolvedNetworkParticipation.ChannelID != participationChannel {
 					t.Fatalf("lease = %#v, want projected participation session/channel bindings", response.Lease)
 				}
 

@@ -357,7 +357,6 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 	}
 	if _, err := networkConfigFromPayload(contract.SettingsNetworkConfigPayload{
 		Enabled:                        true,
-		DefaultChannel:                 "builders",
 		Port:                           4222,
 		MaxPayload:                     1024,
 		GreetInterval:                  5,

@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   automationJobToDraft,
+  automationJobUpdateFromDraft,
   automationTargetMode,
   automationTriggerToDraft,
   bindLoopTargetWorkspace,
+  automationTriggerUpdateFromDraft,
   createAutomationJobDraft,
   createAutomationTriggerDraft,
   emptyJobTask,
@@ -94,24 +96,14 @@ describe("automation draft helpers", () => {
     });
   });
 
-  it("strips a legacy task.network_channel key when mapping a job into a draft", () => {
-    const legacyTask = {
-      title: "Audit payout drift",
-      description: "Review payout anomalies.",
-      network_channel: "ops-review",
-      owner: { kind: "pool" as const, ref: "reviewers" },
-    };
-    const draft = automationJobToDraft({
-      ...jobFixture,
-      task: legacyTask as typeof legacyTask & { network_channel?: string },
-    });
+  it("projects a job draft onto the mutable update contract", () => {
+    const update = automationJobUpdateFromDraft(automationJobToDraft(jobFixture));
 
-    expect(draft.task).toEqual({
-      title: "Audit payout drift",
-      description: "Review payout anomalies.",
-      owner: { kind: "pool", ref: "reviewers" },
+    expect(update).not.toHaveProperty("scope");
+    expect(update).toMatchObject({
+      name: "daily-review",
+      workspace_id: "ws_alpha",
     });
-    expect(draft.task).not.toHaveProperty("network_channel");
   });
 
   it("creates trigger drafts with the expected defaults", () => {
@@ -150,6 +142,16 @@ describe("automation draft helpers", () => {
     });
   });
 
+  it("projects a trigger draft onto the mutable update contract", () => {
+    const update = automationTriggerUpdateFromDraft(automationTriggerToDraft(triggerFixture));
+
+    expect(update).not.toHaveProperty("scope");
+    expect(update).toMatchObject({
+      name: "push-review",
+      workspace_id: "ws_alpha",
+    });
+  });
+
   it("normalizes retry payloads for none and backoff strategies", () => {
     expect(normalizeAutomationRetry()).toEqual({
       strategy: "none",
@@ -179,7 +181,12 @@ describe("job output mode helpers", () => {
   });
 
   it("Should produce a blank unassigned task for entering task mode", () => {
-    expect(emptyJobTask()).toEqual({ title: "", description: "", owner: null });
+    expect(emptyJobTask()).toEqual({
+      title: "",
+      description: "",
+      owner: null,
+      network_participation: { mode: "local" },
+    });
   });
 
   it("Should force retry to none when switching to task mode (Go requires it)", () => {
@@ -188,7 +195,12 @@ describe("job output mode helpers", () => {
       retry: { strategy: "backoff", max_retries: 5, base_delay: "5s" },
     };
     const taskDraft = setJobOutputMode(backoffDraft, "task");
-    expect(taskDraft.task).toEqual({ title: "", description: "", owner: null });
+    expect(taskDraft.task).toEqual({
+      title: "",
+      description: "",
+      owner: null,
+      network_participation: { mode: "local" },
+    });
     expect(taskDraft.retry).toEqual({ strategy: "none", max_retries: 0, base_delay: "" });
   });
 

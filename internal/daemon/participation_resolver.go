@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	aghconfig "github.com/compozy/agh/internal/config"
+	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -82,6 +83,9 @@ func ensureDaemonParticipationResolver(
 	resolver, err := newDaemonParticipationResolver(dependencies, state.cfg.Network)
 	if err != nil {
 		return nil, err
+	}
+	if hooksRuntime, ok := state.hooks.(*hookspkg.Hooks); ok {
+		resolver = wrapParticipationResolverWithHooks(resolver, hooksRuntime)
 	}
 	state.participationResolver = resolver
 	return resolver, nil

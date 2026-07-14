@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	redactpkg "github.com/compozy/agh/internal/redact"
-	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -65,18 +65,6 @@ type AgentWorkspacePayload struct {
 	ID      string `json:"id,omitempty"`
 	Name    string `json:"name,omitempty"`
 	RootDir string `json:"root_dir,omitempty"`
-}
-
-// AgentSessionPayload is the compact session context used by agent endpoints.
-type AgentSessionPayload struct {
-	ID        string                 `json:"id"`
-	Name      string                 `json:"name,omitempty"`
-	Type      session.Type           `json:"type,omitempty"`
-	State     session.State          `json:"state"`
-	Channel   string                 `json:"channel,omitempty"`
-	Lineage   *SessionLineagePayload `json:"lineage,omitempty"`
-	CreatedAt time.Time              `json:"created_at"`
-	UpdatedAt time.Time              `json:"updated_at"`
 }
 
 // SessionLineagePayload exposes safe parent/child lineage metadata for spawned sessions.
@@ -140,7 +128,6 @@ type CoordinatorConfigPayload struct {
 // CoordinationChannelPayload describes the stable task-run coordination channel binding.
 type CoordinationChannelPayload struct {
 	ID                  string                    `json:"id"`
-	Channel             string                    `json:"channel,omitempty"`
 	DisplayName         string                    `json:"display_name"`
 	Purpose             string                    `json:"purpose,omitempty"`
 	WorkspaceID         string                    `json:"workspace_id,omitempty"`
@@ -153,16 +140,16 @@ type CoordinationChannelPayload struct {
 
 // TaskRunLeaseSummaryPayload is the safe read projection for task-run lease state.
 type TaskRunLeaseSummaryPayload struct {
-	TaskID                string                      `json:"task_id"`
-	RunID                 string                      `json:"run_id"`
-	Status                taskpkg.RunStatus           `json:"status"`
-	SessionID             string                      `json:"session_id,omitempty"`
-	ClaimedBy             *taskpkg.ActorIdentity      `json:"claimed_by,omitempty"`
-	ClaimTokenHash        string                      `json:"claim_token_hash,omitempty"`
-	LeaseUntil            *time.Time                  `json:"lease_until,omitempty"`
-	HeartbeatAt           *time.Time                  `json:"heartbeat_at,omitempty"`
-	CoordinationChannelID string                      `json:"coordination_channel_id,omitempty"`
-	CoordinationChannel   *CoordinationChannelPayload `json:"coordination_channel,omitempty"`
+	TaskID                       string                      `json:"task_id"`
+	RunID                        string                      `json:"run_id"`
+	Status                       taskpkg.RunStatus           `json:"status"`
+	SessionID                    string                      `json:"session_id,omitempty"`
+	ClaimedBy                    *taskpkg.ActorIdentity      `json:"claimed_by,omitempty"`
+	ClaimTokenHash               string                      `json:"claim_token_hash,omitempty"`
+	LeaseUntil                   *time.Time                  `json:"lease_until,omitempty"`
+	HeartbeatAt                  *time.Time                  `json:"heartbeat_at,omitempty"`
+	ResolvedNetworkParticipation *participation.Spec         `json:"resolved_network_participation,omitempty"`
+	CoordinationChannel          *CoordinationChannelPayload `json:"coordination_channel,omitempty"`
 }
 
 // AgentTaskContextPayload is the bounded active-task section in `/agent/context`.
@@ -259,13 +246,13 @@ type AgentContextPayload struct {
 
 // CoordinationMessageMetadataPayload carries typed task/run correlation for channel messages.
 type CoordinationMessageMetadataPayload struct {
-	TaskID                string                     `json:"task_id"`
-	RunID                 string                     `json:"run_id"`
-	WorkflowID            string                     `json:"workflow_id,omitempty"`
-	CoordinationChannelID string                     `json:"coordination_channel_id"`
-	MessageKind           CoordinationMessageKind    `json:"message_kind"`
-	CorrelationID         string                     `json:"correlation_id"`
-	Ext                   map[string]json.RawMessage `json:"ext,omitempty"`
+	TaskID        string                     `json:"task_id"`
+	RunID         string                     `json:"run_id"`
+	WorkflowID    string                     `json:"workflow_id,omitempty"`
+	ChannelID     string                     `json:"channel_id"`
+	MessageKind   CoordinationMessageKind    `json:"message_kind"`
+	CorrelationID string                     `json:"correlation_id"`
+	Ext           map[string]json.RawMessage `json:"ext,omitempty"`
 }
 
 // AgentChannelSendRequest sends one task-bound coordination message.
@@ -333,7 +320,7 @@ func NormalizeAgentMePayload(payload AgentMePayload) AgentMePayload {
 	payload.Capabilities = normalizeAgentCapabilities(payload.Capabilities)
 	payload.Channels = normalizeCoordinationChannels(payload.Channels)
 	payload.ActiveTaskLeases = normalizeTaskRunLeases(payload.ActiveTaskLeases)
-	payload.Session.Lineage = NormalizeSessionLineagePayload(payload.Session.Lineage)
+	payload.Session = NormalizeAgentSessionPayload(payload.Session)
 	return payload
 }
 
@@ -343,7 +330,7 @@ func NormalizeAgentContextPayload(source *AgentContextPayload) AgentContextPaylo
 		return AgentContextPayload{}
 	}
 	payload := *source
-	payload.Session.Lineage = NormalizeSessionLineagePayload(payload.Session.Lineage)
+	payload.Session = NormalizeAgentSessionPayload(payload.Session)
 	payload.Soul.Tone = normalizeStrings(payload.Soul.Tone)
 	payload.Soul.Principles = normalizeStrings(payload.Soul.Principles)
 	if payload.Task.Lease != nil {
@@ -413,8 +400,8 @@ func (p CoordinationMessageMetadataPayload) Validate() error {
 	if strings.TrimSpace(p.RunID) == "" {
 		return fmt.Errorf("%w: run_id is required", ErrInvalidCoordinationMessageMetadata)
 	}
-	if strings.TrimSpace(p.CoordinationChannelID) == "" {
-		return fmt.Errorf("%w: coordination_channel_id is required", ErrInvalidCoordinationMessageMetadata)
+	if strings.TrimSpace(p.ChannelID) == "" {
+		return fmt.Errorf("%w: channel_id is required", ErrInvalidCoordinationMessageMetadata)
 	}
 	if strings.TrimSpace(p.CorrelationID) == "" {
 		return fmt.Errorf("%w: correlation_id is required", ErrInvalidCoordinationMessageMetadata)

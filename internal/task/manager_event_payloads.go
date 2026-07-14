@@ -2,8 +2,9 @@ package task
 
 import (
 	"encoding/json"
-
 	"time"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 type createdTaskPayload struct {
@@ -154,12 +155,12 @@ type releasedRunPayload struct {
 }
 
 type expiredLeasePayload struct {
-	PreviousStatus      RunStatus `json:"previous_status"`
-	Status              RunStatus `json:"status"`
-	TaskStatus          Status    `json:"task_status"`
-	Reason              string    `json:"reason,omitempty"`
-	SessionID           string    `json:"session_id,omitempty"`
-	LeaseUntil          time.Time `json:"lease_until"`
-	PreviousTokenHash   string    `json:"previous_claim_token_hash,omitempty"`
-	CoordinationChannel string    `json:"coordination_channel_id,omitempty"`
+	PreviousStatus               RunStatus           `json:"previous_status"`
+	Status                       RunStatus           `json:"status"`
+	TaskStatus                   Status              `json:"task_status"`
+	Reason                       string              `json:"reason,omitempty"`
+	SessionID                    string              `json:"session_id,omitempty"`
+	LeaseUntil                   time.Time           `json:"lease_until"`
+	PreviousTokenHash            string              `json:"previous_claim_token_hash,omitempty"`
+	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation"`
 }

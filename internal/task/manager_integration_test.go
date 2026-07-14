@@ -213,7 +213,6 @@ func (r *integrationRuntimeViewReader) GetSession(
 			WorkspaceID: session.WorkspaceID,
 			AgentName:   session.AgentName,
 			Name:        session.Name,
-			Channel:     session.NetworkSpecSnapshot().ChannelID,
 			State:       session.State,
 			CreatedAt:   session.CreatedAt,
 			UpdatedAt:   session.UpdatedAt,
@@ -2924,9 +2923,6 @@ func TestTaskManagerRunDetailUsesPersistedRuntimeDataIntegration(t *testing.T) {
 	}
 	if got, want := detail.Session.AgentName, "codex"; got != want {
 		t.Fatalf("detail.Session.AgentName = %q, want %q", got, want)
-	}
-	if got, want := detail.Session.Channel, ""; got != want {
-		t.Fatalf("detail.Session.Channel = %q, want %q", got, want)
 	}
 	if detail.Summary.ToolCallCount == nil || *detail.Summary.ToolCallCount != 2 {
 		t.Fatalf("detail.Summary.ToolCallCount = %#v, want 2", detail.Summary.ToolCallCount)

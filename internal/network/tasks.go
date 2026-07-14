@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	tasksCapabilityDeniedKey = "capability_denied"
-	tasksNetworkChannelKey   = "network_channel"
-	tasksTaskIDKey           = "task_id"
+	tasksCapabilityDeniedKey     = "capability_denied"
+	tasksParticipationChannelKey = "participation_channel"
+	tasksTaskIDKey               = "task_id"
 )
 
 const (
@@ -250,10 +250,10 @@ func (m *Manager) EnqueueRunFromPeer(
 		})
 	}
 	m.recordTaskIngress(ctx, peerCtx.ingress, networkTaskActionEnqueue, AuditDirectionReceived, "", map[string]any{
-		tasksTaskIDKey:         run.TaskID,
-		"run_id":               run.ID,
-		"idempotency_key":      strings.TrimSpace(run.IdempotencyKey),
-		tasksNetworkChannelKey: strings.TrimSpace(peerCtx.ingress.Channel),
+		tasksTaskIDKey:               run.TaskID,
+		"run_id":                     run.ID,
+		"idempotency_key":            strings.TrimSpace(run.IdempotencyKey),
+		tasksParticipationChannelKey: strings.TrimSpace(peerCtx.ingress.Channel),
 	})
 	return run, nil
 }
@@ -385,14 +385,14 @@ func networkRunMetadataValues(ingress TaskIngressContext) (map[string]string, er
 		return nil, fmt.Errorf("%w: network work_id is required", ErrMissingField)
 	}
 	values := map[string]string{
-		"network_workspace_id": strings.TrimSpace(ingress.WorkspaceID),
-		"network_work_id":      workID,
-		"network_message_id":   strings.TrimSpace(ingress.RequestID),
-		tasksNetworkChannelKey: strings.TrimSpace(ingress.Channel),
-		"network_surface":      strings.TrimSpace(string(ingress.Surface)),
-		"network_reply_to":     strings.TrimSpace(ingress.ReplyTo),
-		"network_trace_id":     strings.TrimSpace(ingress.TraceID),
-		"network_causation_id": strings.TrimSpace(ingress.CausationID),
+		"network_workspace_id":       strings.TrimSpace(ingress.WorkspaceID),
+		"network_work_id":            workID,
+		"network_message_id":         strings.TrimSpace(ingress.RequestID),
+		tasksParticipationChannelKey: strings.TrimSpace(ingress.Channel),
+		"network_surface":            strings.TrimSpace(string(ingress.Surface)),
+		"network_reply_to":           strings.TrimSpace(ingress.ReplyTo),
+		"network_trace_id":           strings.TrimSpace(ingress.TraceID),
+		"network_causation_id":       strings.TrimSpace(ingress.CausationID),
 	}
 	switch ingress.Surface {
 	case SurfaceThread:

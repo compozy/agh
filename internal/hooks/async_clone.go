@@ -3,6 +3,8 @@ package hooks
 import (
 	"encoding/json"
 	"reflect"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 type asyncPayloadCloner[P any] interface {
@@ -123,10 +125,12 @@ func (payload AutomationTriggerPreFirePayload) cloneForAsync() AutomationTrigger
 }
 
 func (payload CoordinatorPreSpawnPayload) cloneForAsync() CoordinatorPreSpawnPayload {
+	payload.CoordinatorContext = cloneCoordinatorContext(payload.CoordinatorContext)
 	return payload
 }
 
 func (payload CoordinatorLifecyclePayload) cloneForAsync() CoordinatorLifecyclePayload {
+	payload.CoordinatorContext = cloneCoordinatorContext(payload.CoordinatorContext)
 	return payload
 }
 
@@ -149,21 +153,25 @@ func (payload TaskRunLeasePayload) cloneForAsync() TaskRunLeasePayload {
 }
 
 func (payload LoopLifecyclePayload) cloneForAsync() LoopLifecyclePayload {
+	payload.LoopContext = cloneLoopContext(payload.LoopContext)
 	payload.Details = cloneRawJSON(payload.Details)
 	return payload
 }
 
 func (payload LoopGenerationPayload) cloneForAsync() LoopGenerationPayload {
+	payload.LoopContext = cloneLoopContext(payload.LoopContext)
 	payload.Details = cloneRawJSON(payload.Details)
 	return payload
 }
 
 func (payload LoopGatePayload) cloneForAsync() LoopGatePayload {
+	payload.LoopContext = cloneLoopContext(payload.LoopContext)
 	payload.Details = cloneRawJSON(payload.Details)
 	return payload
 }
 
 func (payload LoopNodeTerminalPayload) cloneForAsync() LoopNodeTerminalPayload {
+	payload.LoopContext = cloneLoopContext(payload.LoopContext)
 	payload.Details = cloneRawJSON(payload.Details)
 	return payload
 }
@@ -248,15 +256,39 @@ func cloneAutomationTriggerPreFirePayload(payload AutomationTriggerPreFirePayloa
 }
 
 func cloneSpawnPreCreatePayload(payload SpawnPreCreatePayload) SpawnPreCreatePayload {
+	payload.SpawnContext = cloneSpawnContext(payload.SpawnContext)
 	payload.ParentPermissions = clonePermissionSet(payload.ParentPermissions)
 	payload.ChildPermissions = clonePermissionSet(payload.ChildPermissions)
 	return payload
 }
 
 func cloneSpawnLifecyclePayload(payload SpawnLifecyclePayload) SpawnLifecyclePayload {
+	payload.SpawnContext = cloneSpawnContext(payload.SpawnContext)
 	payload.ParentPermissions = clonePermissionSet(payload.ParentPermissions)
 	payload.ChildPermissions = clonePermissionSet(payload.ChildPermissions)
 	return payload
+}
+
+func cloneCoordinatorContext(ctx CoordinatorContext) CoordinatorContext {
+	ctx.ResolvedNetworkParticipation = cloneParticipationSpec(ctx.ResolvedNetworkParticipation)
+	return ctx
+}
+
+func cloneLoopContext(ctx LoopContext) LoopContext {
+	ctx.ResolvedNetworkParticipation = cloneParticipationSpec(ctx.ResolvedNetworkParticipation)
+	return ctx
+}
+
+func cloneSpawnContext(ctx SpawnContext) SpawnContext {
+	ctx.ResolvedNetworkParticipation = cloneParticipationSpec(ctx.ResolvedNetworkParticipation)
+	return ctx
+}
+
+func cloneParticipationSpec(spec *participation.Spec) *participation.Spec {
+	if spec == nil {
+		return nil
+	}
+	return participation.CloneSpec(*spec)
 }
 
 func clonePermissionSet(src *PermissionSet) *PermissionSet {

@@ -231,8 +231,8 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if got := driver.promptCalls[0].Message; !strings.Contains(got, "<agh-situation-context>") {
 		t.Fatalf("user prompt message = %q, want situation context augmentation", got)
 	}
-	if got := driver.promptCalls[0].Message; !strings.Contains(got, `"coordination_channel_id":"coord-run-1"`) {
-		t.Fatalf("user prompt message = %q, want active task coordination channel", got)
+	if got := driver.promptCalls[0].Message; !strings.Contains(got, `"channel_id":"coord-run-1"`) {
+		t.Fatalf("user prompt message = %q, want resolved task participation channel", got)
 	}
 	if got := strings.Count(driver.promptCalls[0].Message, "<agh-situation-context>"); got != 1 {
 		t.Fatalf("user prompt situation context occurrences = %d, want 1", got)
@@ -489,7 +489,7 @@ func seedHarnessSituationTaskRun(
 		RunNetworkState: &taskpkg.RunNetworkState{
 			NetworkSpec: daemonTestLiveParticipation(workspaceID, "coord-run-1"),
 		},
-		Metadata:  json.RawMessage(`{"coordination_channel_id":"coord-run-1","workflow_id":"wf-run-1"}`),
+		Metadata:  json.RawMessage(`{"workflow_id":"wf-run-1"}`),
 		QueuedAt:  now,
 		StartedAt: now.Add(time.Minute),
 	}

@@ -102,7 +102,7 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 			t.Fatalf("PromptOverlay missing %q:\n%s", required, call.PromptOverlay)
 		}
 	}
-	for _, forbidden := range []string{"agh ch", "ch-run-1", "coordination_channel_id"} {
+	for _, forbidden := range []string{"agh ch", "ch-run-1", "participation_channel", "coordination_channel_id"} {
 		if contains(call.PromptOverlay, forbidden) {
 			t.Fatalf("PromptOverlay contains local coordinator guidance %q:\n%s", forbidden, call.PromptOverlay)
 		}
@@ -592,10 +592,17 @@ func TestHooksNotifierTaskRunEnqueuedObserversReceivePayload(t *testing.T) {
 
 	_, err := notifier.DispatchTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
 		TaskRunContext: hookspkg.TaskRunContext{
-			TaskID:                "task-1",
-			RunID:                 "run-1",
-			WorkspaceID:           "ws-1",
-			CoordinationChannelID: "ch-run-1",
+			TaskID:      "task-1",
+			RunID:       "run-1",
+			WorkspaceID: "ws-1",
+			ResolvedNetworkParticipation: &participation.Spec{
+				Version:         participation.SpecVersion,
+				Mode:            participation.ModeLive,
+				WorkspaceID:     "ws-1",
+				ChannelStrategy: participation.StrategyNamed,
+				ChannelID:       "ch-run-1",
+				Source:          participation.SourceExplicitRequest,
+			},
 		},
 	})
 	if err != nil {
@@ -604,8 +611,13 @@ func TestHooksNotifierTaskRunEnqueuedObserversReceivePayload(t *testing.T) {
 	if got := observer.count(); got != 1 {
 		t.Fatalf("observer count = %d, want 1", got)
 	}
-	if got := observer.last().CoordinationChannelID; got != "ch-run-1" {
-		t.Fatalf("observer channel = %q, want ch-run-1", got)
+	last := observer.last()
+	if last.ResolvedNetworkParticipation == nil ||
+		last.ResolvedNetworkParticipation.ChannelID != "ch-run-1" {
+		t.Fatalf(
+			"observer resolved participation = %#v, want channel ch-run-1",
+			last.ResolvedNetworkParticipation,
+		)
 	}
 }
 

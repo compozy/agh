@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 // DefaultTaskStarvationAge is the queued age past which a claimable run is treated as
@@ -20,17 +22,17 @@ func WithStarvationAge(age time.Duration) Option {
 }
 
 type runStarvedPayload struct {
-	QueuedAt            time.Time `json:"queued_at,omitzero"`
-	QueuedAgeMS         int64     `json:"queued_age_ms"`
-	CoordinationChannel string    `json:"coordination_channel,omitempty"`
+	QueuedAt                     time.Time           `json:"queued_at,omitzero"`
+	QueuedAgeMS                  int64               `json:"queued_age_ms"`
+	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation"`
 }
 
 type runNeedsAttentionPayload struct {
-	PreviousStatus      RunStatus `json:"previous_status"`
-	Status              RunStatus `json:"status"`
-	Diagnostic          string    `json:"diagnostic,omitempty"`
-	QueuedAt            time.Time `json:"queued_at,omitzero"`
-	CoordinationChannel string    `json:"coordination_channel,omitempty"`
+	PreviousStatus               RunStatus           `json:"previous_status"`
+	Status                       RunStatus           `json:"status"`
+	Diagnostic                   string              `json:"diagnostic,omitempty"`
+	QueuedAt                     time.Time           `json:"queued_at,omitzero"`
+	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation"`
 }
 
 // RecordRunStarved emits the canonical task.run_starved event for one starved queued run.
@@ -47,9 +49,9 @@ func (m *Service) RecordRunStarved(
 		return err
 	}
 	return m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunStarved, actor, runStarvedPayload{
-		QueuedAt:            queuedAt,
-		QueuedAgeMS:         age.Milliseconds(),
-		CoordinationChannel: run.NetworkSpecSnapshot().ChannelID,
+		QueuedAt:                     queuedAt,
+		QueuedAgeMS:                  age.Milliseconds(),
+		ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
 	})
 }
 
@@ -92,11 +94,11 @@ func (m *Service) MarkRunNeedsAttention(
 		taskEventRunNeedsAttention,
 		actor,
 		runNeedsAttentionPayload{
-			PreviousStatus:      TaskRunStatusQueued,
-			Status:              updated.Status.Normalize(),
-			Diagnostic:          diagnostic,
-			QueuedAt:            updated.QueuedAt,
-			CoordinationChannel: updated.NetworkSpecSnapshot().ChannelID,
+			PreviousStatus:               TaskRunStatusQueued,
+			Status:                       updated.Status.Normalize(),
+			Diagnostic:                   diagnostic,
+			QueuedAt:                     updated.QueuedAt,
+			ResolvedNetworkParticipation: participation.CloneSpec(updated.NetworkSpecSnapshot()),
 		},
 	); err != nil {
 		return Run{}, err

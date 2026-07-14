@@ -358,6 +358,13 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.POST("/webhooks/global/:endpoint", handlers.DeliverGlobalWebhook)
 	engine.POST("/webhooks/workspaces/:workspace_id/:endpoint", handlers.DeliverWorkspaceWebhook)
 	engine.GET("/network/status", handlers.NetworkStatus)
+	engine.GET("/workspaces/:workspace_id/network/usage", handlers.GetNetworkUsage)
+	engine.GET("/workspaces/:workspace_id/network-coordination", handlers.GetNetworkCoordination)
+	engine.PUT("/workspaces/:workspace_id/network-coordination", handlers.PutNetworkCoordination)
+	engine.PUT(
+		"/workspaces/:workspace_id/network-coordination/invitation",
+		handlers.PutNetworkCoordinationInvitation,
+	)
 	engine.GET("/workspaces/:workspace_id/network/peers", handlers.NetworkPeers)
 	engine.GET("/workspaces/:workspace_id/network/peers/:peer_id/messages", handlers.NetworkPeerMessages)
 	engine.GET("/workspaces/:workspace_id/network/peers/:peer_id", handlers.NetworkPeer)

@@ -8,15 +8,14 @@ import (
 
 // TaskRunClaimCriteria carries the mutable claim criteria exposed to task-run pre-claim hooks.
 type TaskRunClaimCriteria struct {
-	RunID                 string   `json:"run_id,omitempty"`
-	RunKind               string   `json:"run_kind,omitempty"`
-	WorkspaceID           string   `json:"workspace_id,omitempty"`
-	TargetSessionID       string   `json:"target_session_id,omitempty"`
-	ClaimerSessionID      string   `json:"claimer_session_id,omitempty"`
-	AgentName             string   `json:"agent_name,omitempty"`
-	RequiredCapabilities  []string `json:"required_capabilities,omitempty"`
-	PriorityMin           int      `json:"priority_min,omitempty"`
-	CoordinationChannelID string   `json:"coordination_channel_id,omitempty"`
+	RunID                string   `json:"run_id,omitempty"`
+	RunKind              string   `json:"run_kind,omitempty"`
+	WorkspaceID          string   `json:"workspace_id,omitempty"`
+	TargetSessionID      string   `json:"target_session_id,omitempty"`
+	ClaimerSessionID     string   `json:"claimer_session_id,omitempty"`
+	AgentName            string   `json:"agent_name,omitempty"`
+	RequiredCapabilities []string `json:"required_capabilities,omitempty"`
+	PriorityMin          int      `json:"priority_min,omitempty"`
 }
 
 // TaskRunContext carries task-run identifiers shared across task-run hooks.
@@ -31,8 +30,6 @@ type TaskRunContext struct {
 	WorkspaceID                  string              `json:"workspace_id,omitempty"`
 	WorkflowID                   string              `json:"workflow_id,omitempty"`
 	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation"`
-	CoordinationChannelID        string              `json:"coordination_channel_id,omitempty"`
-	NetworkChannel               string              `json:"network_channel,omitempty"`
 	AgentName                    string              `json:"agent_name,omitempty"`
 	SessionID                    string              `json:"session_id,omitempty"`
 	ActorKind                    string              `json:"actor_kind,omitempty"`

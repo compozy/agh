@@ -54,7 +54,7 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
   const bridgesQuery = useBridges(bridgeListFilters, { enabled: bridgeListEnabled });
   useBridgeHealthStream({
     bridgeIds: bridgesQuery.bridges.map(bridge => bridge.id),
-    enabled: bridgeListEnabled,
+    enabled: bridgeListEnabled && !hasChildMatch,
     filters: bridgeListFilters,
   });
   const providersQuery = useBridgeProviders();

@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 )
 
@@ -38,11 +39,11 @@ func TestAgentContextReturnsSituationPayload(t *testing.T) {
 					},
 					Workspace: contract.AgentWorkspacePayload{ID: info.WorkspaceID, RootDir: info.Workspace},
 					Session: contract.AgentSessionPayload{
-						ID:        info.ID,
-						State:     info.State,
-						Channel:   info.NetworkParticipation.ChannelID,
-						CreatedAt: info.CreatedAt,
-						UpdatedAt: info.UpdatedAt,
+						ID:                           info.ID,
+						State:                        info.State,
+						ResolvedNetworkParticipation: participation.CloneSpec(info.NetworkParticipation),
+						CreatedAt:                    info.CreatedAt,
+						UpdatedAt:                    info.UpdatedAt,
 					},
 					Task:                contract.AgentTaskContextPayload{Available: true},
 					CoordinationChannel: contract.AgentCoordinationChannelContextPayload{Available: true},
@@ -149,7 +150,7 @@ func TestAgentChannelSendUsesCallerIdentityAndRejectsRawClaimToken(t *testing.T)
 		http.MethodPost,
 		"/api/agent/channels/builders/send",
 		[]byte(
-			`{"body":{"text":"progress"},"metadata":{"task_id":"task-1","run_id":"run-1","workflow_id":"wf-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
+			`{"body":{"text":"progress"},"metadata":{"task_id":"task-1","run_id":"run-1","workflow_id":"wf-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
 		),
 		agentKernelHeaders(),
 	)
@@ -174,17 +175,17 @@ func TestAgentChannelSendUsesCallerIdentityAndRejectsRawClaimToken(t *testing.T)
 	}{
 		{
 			name:       "payload body",
-			body:       []byte(`{"body":{"claim_token":"agh_claim_UDS_CHANNEL_123"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`),
+			body:       []byte(`{"body":{"claim_token":"agh_claim_UDS_CHANNEL_123"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`),
 			mustRedact: "agh_claim_UDS_CHANNEL_123",
 		},
 		{
 			name:       "metadata ext",
-			body:       []byte(`{"body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1","ext":{"claim_token":"agh_claim_UDS_CHANNEL_123"}}}`),
+			body:       []byte(`{"body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1","ext":{"claim_token":"agh_claim_UDS_CHANNEL_123"}}}`),
 			mustRedact: "agh_claim_UDS_CHANNEL_123",
 		},
 		{
 			name: "caller supplied verified-format identity",
-			body: []byte(`{"body":{"text":"spoof"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"},"from":"alice@39f713d0a644253f04529421b9f51b9b"}`),
+			body: []byte(`{"body":{"text":"spoof"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1"},"from":"alice@39f713d0a644253f04529421b9f51b9b"}`),
 		},
 	} {
 		t.Run("Should reject unsafe "+tt.name, func(t *testing.T) {
@@ -219,7 +220,7 @@ func TestAgentChannelSendUsesCallerIdentityAndRejectsRawClaimToken(t *testing.T)
 		http.MethodPost,
 		"/api/agent/channels/builders/send",
 		[]byte(
-			`{"body":{"text":"progress"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
+			`{"body":{"text":"progress"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
 		),
 		map[string]string{},
 	)
@@ -410,7 +411,7 @@ func TestAgentChannelReplyResolvesSourceMessageMetadata(t *testing.T) {
 		metadata := decodeCoordinationExt(t, seen.Ext)
 		if metadata.TaskID != "task-1" ||
 			metadata.RunID != "run-1" ||
-			metadata.CoordinationChannelID != "builders" ||
+			metadata.ChannelID != "builders" ||
 			metadata.MessageKind != contract.CoordinationMessageReply {
 			t.Fatalf("reply metadata = %#v, want inherited source metadata with reply kind", metadata)
 		}
@@ -530,12 +531,12 @@ func agentChannelEnvelopeWithExt(
 
 func misleadingCoordinationExt() network.ExtensionMap {
 	return network.ExtensionMap{
-		"task_id":                 json.RawMessage(`"task-1"`),
-		"run_id":                  json.RawMessage(`"run-1"`),
-		"workflow_id":             json.RawMessage(`"wf-1"`),
-		"coordination_channel_id": json.RawMessage(`"builders"`),
-		"message_kind":            json.RawMessage(`"result"`),
-		"correlation_id":          json.RawMessage(`"run-1"`),
+		"task_id":        json.RawMessage(`"task-1"`),
+		"run_id":         json.RawMessage(`"run-1"`),
+		"workflow_id":    json.RawMessage(`"wf-1"`),
+		"channel_id":     json.RawMessage(`"builders"`),
+		"message_kind":   json.RawMessage(`"result"`),
+		"correlation_id": json.RawMessage(`"run-1"`),
 	}
 }
 
@@ -543,12 +544,12 @@ func mustCoordinationMetadata(t *testing.T, kind contract.CoordinationMessageKin
 	t.Helper()
 
 	content, err := json.Marshal(contract.CoordinationMessageMetadataPayload{
-		TaskID:                "task-1",
-		RunID:                 "run-1",
-		WorkflowID:            "wf-1",
-		CoordinationChannelID: "builders",
-		MessageKind:           kind,
-		CorrelationID:         "run-1",
+		TaskID:        "task-1",
+		RunID:         "run-1",
+		WorkflowID:    "wf-1",
+		ChannelID:     "builders",
+		MessageKind:   kind,
+		CorrelationID: "run-1",
 	})
 	if err != nil {
 		t.Fatalf("json.Marshal(coordination metadata) error = %v", err)

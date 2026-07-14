@@ -99,7 +99,11 @@ func TestCLIHistoricalChannelTaskRunTerminalAfterDaemonRestartIntegration(t *tes
 				tt.channel+"-seed",
 				"--workspace",
 				"alpha",
-				"--channel",
+				"--network",
+				"live",
+				"--network-channel-strategy",
+				"named",
+				"--network-channel",
 				tt.channel,
 				"-o",
 				"json",
@@ -108,7 +112,8 @@ func TestCLIHistoricalChannelTaskRunTerminalAfterDaemonRestartIntegration(t *tes
 			if err := json.Unmarshal([]byte(seedOut), &seed); err != nil {
 				t.Fatalf("json.Unmarshal(session new) error = %v", err)
 			}
-			if seed.ID == "" || seed.State != session.StateActive || seed.Channel != tt.channel {
+			if seed.ID == "" || seed.State != session.StateActive ||
+				resolvedParticipationChannelID(seed.ResolvedNetworkParticipation) != tt.channel {
 				t.Fatalf("seed = %#v, want active seed session on %q", seed, tt.channel)
 			}
 
@@ -117,7 +122,8 @@ func TestCLIHistoricalChannelTaskRunTerminalAfterDaemonRestartIntegration(t *tes
 			if err := json.Unmarshal([]byte(stopSeedOut), &stoppedSeed); err != nil {
 				t.Fatalf("json.Unmarshal(session stop) error = %v", err)
 			}
-			if stoppedSeed.State != session.StateStopped || stoppedSeed.Channel != tt.channel {
+			if stoppedSeed.State != session.StateStopped ||
+				resolvedParticipationChannelID(stoppedSeed.ResolvedNetworkParticipation) != tt.channel {
 				t.Fatalf("stoppedSeed = %#v, want stopped seed session on %q", stoppedSeed, tt.channel)
 			}
 
@@ -144,7 +150,11 @@ func TestCLIHistoricalChannelTaskRunTerminalAfterDaemonRestartIntegration(t *tes
 				"workspace",
 				"--workspace",
 				"alpha",
-				"--channel",
+				"--network",
+				"live",
+				"--network-channel-strategy",
+				"named",
+				"--network-channel",
 				tt.channel,
 				"--title",
 				tt.title,
@@ -155,7 +165,8 @@ func TestCLIHistoricalChannelTaskRunTerminalAfterDaemonRestartIntegration(t *tes
 			if err := json.Unmarshal([]byte(createOut), &created); err != nil {
 				t.Fatalf("json.Unmarshal(task create) error = %v", err)
 			}
-			if created.ID == "" || created.NetworkChannel != tt.channel {
+			if created.ID == "" ||
+				resolvedParticipationChannelID(created.ResolvedNetworkParticipation) != tt.channel {
 				t.Fatalf("created = %#v, want historical channel task", created)
 			}
 
@@ -168,7 +179,11 @@ func TestCLIHistoricalChannelTaskRunTerminalAfterDaemonRestartIntegration(t *tes
 				created.ID,
 				"--idempotency-key",
 				"idem-"+tt.channel,
-				"--channel",
+				"--network",
+				"live",
+				"--network-channel-strategy",
+				"named",
+				"--network-channel",
 				tt.channel,
 				"-o",
 				"json",
@@ -180,7 +195,7 @@ func TestCLIHistoricalChannelTaskRunTerminalAfterDaemonRestartIntegration(t *tes
 			if enqueued.ID == "" || enqueued.Status != taskpkg.TaskRunStatusQueued {
 				t.Fatalf("enqueued = %#v, want queued run", enqueued)
 			}
-			if enqueued.NetworkChannel != tt.channel || enqueued.CoordinationChannelID != tt.channel {
+			if resolvedParticipationChannelID(enqueued.ResolvedNetworkParticipation) != tt.channel {
 				t.Fatalf("enqueued = %#v, want preserved historical channel", enqueued)
 			}
 
@@ -220,8 +235,7 @@ func TestCLIHistoricalChannelTaskRunTerminalAfterDaemonRestartIntegration(t *tes
 				next.Claim.Run.Status != taskpkg.TaskRunStatusClaimed {
 				t.Fatalf("task next = %#v, want exact claimed run %q", next, enqueued.ID)
 			}
-			if next.Claim.Run.NetworkChannel != tt.channel ||
-				next.Claim.Run.CoordinationChannelID != tt.channel {
+			if resolvedParticipationChannelID(next.Claim.Run.ResolvedNetworkParticipation) != tt.channel {
 				t.Fatalf("task next = %#v, want preserved historical channel", next)
 			}
 
@@ -233,7 +247,7 @@ func TestCLIHistoricalChannelTaskRunTerminalAfterDaemonRestartIntegration(t *tes
 			if started.Status != taskpkg.TaskRunStatusRunning || started.SessionID == "" {
 				t.Fatalf("started = %#v, want running run with session", started)
 			}
-			if started.NetworkChannel != tt.channel || started.CoordinationChannelID != tt.channel {
+			if resolvedParticipationChannelID(started.ResolvedNetworkParticipation) != tt.channel {
 				t.Fatalf("started = %#v, want preserved historical channel", started)
 			}
 
@@ -246,7 +260,7 @@ func TestCLIHistoricalChannelTaskRunTerminalAfterDaemonRestartIntegration(t *tes
 			if terminalRun.Status != tt.wantRunStatus {
 				t.Fatalf("terminalRun = %#v, want status %q", terminalRun, tt.wantRunStatus)
 			}
-			if terminalRun.NetworkChannel != tt.channel || terminalRun.CoordinationChannelID != tt.channel {
+			if resolvedParticipationChannelID(terminalRun.ResolvedNetworkParticipation) != tt.channel {
 				t.Fatalf("terminalRun = %#v, want preserved historical channel", terminalRun)
 			}
 
@@ -264,7 +278,7 @@ func TestCLIHistoricalChannelTaskRunTerminalAfterDaemonRestartIntegration(t *tes
 			if detail.Runs[0].Status != tt.wantRunStatus || detail.Runs[0].SessionID == "" {
 				t.Fatalf("detail.Runs[0] = %#v, want terminal run with session", detail.Runs[0])
 			}
-			if detail.Runs[0].NetworkChannel != tt.channel || detail.Runs[0].CoordinationChannelID != tt.channel {
+			if resolvedParticipationChannelID(detail.Runs[0].ResolvedNetworkParticipation) != tt.channel {
 				t.Fatalf("detail.Runs[0] = %#v, want preserved historical channel", detail.Runs[0])
 			}
 			if !containsCLITaskEventType(detail.Events, tt.wantEventType) {

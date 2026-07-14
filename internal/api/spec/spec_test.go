@@ -1486,7 +1486,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					metadataSchema,
 					"task_id",
 					"run_id",
-					"coordination_channel_id",
+					"channel_id",
 					"message_kind",
 					"correlation_id",
 				)
@@ -1557,7 +1557,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"id",
 					"identifier",
 					"workspace",
-					"network_channel",
+					"network_participation",
 					"description",
 					"priority",
 					"max_attempts",
@@ -1821,7 +1821,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				publishTask := operationFor(t, doc, "/api/tasks/{id}/publish", "POST")
 				assertParameter(t, publishTask, "id", openapi3.ParameterInPath, true)
 				publishTaskSchema := jsonRequestSchema(t, publishTask)
-				assertNotRequired(t, publishTaskSchema, "idempotency_key", "network_channel", "metadata")
+				assertNotRequired(t, publishTaskSchema, "idempotency_key", "network_participation", "metadata")
 				publishTaskResponse := jsonResponseSchema(t, publishTask, 200)
 				assertRequired(t, publishTaskResponse, "task", "run")
 				assertResponseStatus(t, publishTask, 409)
@@ -1830,7 +1830,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				startTask := operationFor(t, doc, "/api/tasks/{id}/start", "POST")
 				assertParameter(t, startTask, "id", openapi3.ParameterInPath, true)
 				startTaskSchema := jsonRequestSchema(t, startTask)
-				assertNotRequired(t, startTaskSchema, "idempotency_key", "network_channel", "metadata")
+				assertNotRequired(t, startTaskSchema, "idempotency_key", "network_participation", "metadata")
 				startTaskResponse := jsonResponseSchema(t, startTask, 201)
 				assertRequired(t, startTaskResponse, "task", "run")
 				assertResponseStatus(t, startTask, 409)
@@ -2006,7 +2006,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					t.Fatal("approve task request body is required, want optional")
 				}
 				approveSchema := jsonRequestSchema(t, approve)
-				assertNotRequired(t, approveSchema, "idempotency_key", "network_channel", "metadata")
+				assertNotRequired(t, approveSchema, "idempotency_key", "network_participation", "metadata")
 				approveResponse := jsonResponseSchema(t, approve, 201)
 				assertRequired(t, approveResponse, "task", "run")
 				assertResponseStatus(t, approve, 409)
@@ -2018,7 +2018,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertParameter(t, dashboard, "workspace", openapi3.ParameterInQuery, false)
 				assertParameter(t, dashboard, "owner_kind", openapi3.ParameterInQuery, false)
 				assertParameter(t, dashboard, "owner_ref", openapi3.ParameterInQuery, false)
-				assertParameter(t, dashboard, "network_channel", openapi3.ParameterInQuery, false)
+				assertParameter(t, dashboard, "participation_channel", openapi3.ParameterInQuery, false)
 				assertParameter(t, dashboard, "origin_kind", openapi3.ParameterInQuery, false)
 				dashboardSchema := jsonResponseSchema(t, dashboard, 200)
 				assertRequired(t, dashboardSchema, "dashboard")

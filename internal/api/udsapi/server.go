@@ -19,6 +19,8 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	mcppkg "github.com/compozy/agh/internal/mcp"
 	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/agh/internal/store"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -52,62 +54,65 @@ type Option func(*Server)
 type Server struct {
 	mu sync.Mutex
 
-	homePaths          aghconfig.HomePaths
-	config             aghconfig.Config
-	configSet          bool
-	socketPath         string
-	logger             *slog.Logger
-	startedAt          time.Time
-	now                func() time.Time
-	pollInterval       time.Duration
-	sessions           core.SessionManager
-	sessionCatalog     core.SessionCatalog
-	tasks              core.TaskService
-	network            core.NetworkService
-	networkStore       core.NetworkStore
-	observer           core.Observer
-	schemaStreams      core.SchemaStreamStatusReader
-	resources          core.ResourceService
-	automation         core.AutomationManager
-	loops              core.LoopService
-	bridges            core.BridgeService
-	notifications      core.NotificationPresetService
-	bundles            core.BundleService
-	supportBundles     core.SupportBundleService
-	tools              core.ToolRegistry
-	toolsets           core.ToolsetRegistry
-	toolApprovals      core.ToolApprovalIssuer
-	settings           core.SettingsService
-	settingsRestart    core.SettingsRestartController
-	settingsUpdate     core.SettingsUpdateController
-	vault              core.VaultService
-	workspaces         core.WorkspaceService
-	onboarding         core.OnboardingStore
-	agentCatalog       core.AgentCatalog
-	agentSync          core.AgentDefinitionSync
-	modelCatalog       core.ModelCatalogService
-	marketplaceCatalog core.MarketplaceCatalogService
-	agentContext       core.AgentContextService
-	soulAuthoring      core.SoulAuthoringService
-	soulHistoryPurger  core.SoulHistoryPurger
-	soulRefresher      core.SoulRefresher
-	heartbeatAuthor    core.HeartbeatAuthoringService
-	heartbeatPurger    core.HeartbeatHistoryPurger
-	heartbeatStatus    core.HeartbeatStatusService
-	heartbeatWake      core.HeartbeatWakeService
-	sessionHealth      core.SessionHealthReader
-	wakeEvents         core.HeartbeatWakeEventReader
-	coordinatorConfig  core.CoordinatorConfigResolver
-	skillsRegistry     core.SkillsRegistry
-	skillResources     core.SkillResourceSyncer
-	memoryStore        *memory.Store
-	dreamTrigger       core.DreamTrigger
-	memoryExtractor    core.MemoryExtractorService
-	memoryProviders    core.MemoryProviderService
-	memoryLedger       core.MemorySessionLedgerService
-	agentLoader        core.AgentLoader
-	extensions         ExtensionService
-	hostedMCP          *mcppkg.HostedService
+	homePaths               aghconfig.HomePaths
+	config                  aghconfig.Config
+	configSet               bool
+	socketPath              string
+	logger                  *slog.Logger
+	startedAt               time.Time
+	now                     func() time.Time
+	pollInterval            time.Duration
+	sessions                core.SessionManager
+	sessionCatalog          core.SessionCatalog
+	tasks                   core.TaskService
+	network                 core.NetworkService
+	networkStore            core.NetworkStore
+	networkUsage            store.NetworkUsageStore
+	coordinationSettings    workspacepkg.CoordinationSettings
+	coordinationInvitations workspacepkg.CoordinationInvitations
+	observer                core.Observer
+	schemaStreams           core.SchemaStreamStatusReader
+	resources               core.ResourceService
+	automation              core.AutomationManager
+	loops                   core.LoopService
+	bridges                 core.BridgeService
+	notifications           core.NotificationPresetService
+	bundles                 core.BundleService
+	supportBundles          core.SupportBundleService
+	tools                   core.ToolRegistry
+	toolsets                core.ToolsetRegistry
+	toolApprovals           core.ToolApprovalIssuer
+	settings                core.SettingsService
+	settingsRestart         core.SettingsRestartController
+	settingsUpdate          core.SettingsUpdateController
+	vault                   core.VaultService
+	workspaces              core.WorkspaceService
+	onboarding              core.OnboardingStore
+	agentCatalog            core.AgentCatalog
+	agentSync               core.AgentDefinitionSync
+	modelCatalog            core.ModelCatalogService
+	marketplaceCatalog      core.MarketplaceCatalogService
+	agentContext            core.AgentContextService
+	soulAuthoring           core.SoulAuthoringService
+	soulHistoryPurger       core.SoulHistoryPurger
+	soulRefresher           core.SoulRefresher
+	heartbeatAuthor         core.HeartbeatAuthoringService
+	heartbeatPurger         core.HeartbeatHistoryPurger
+	heartbeatStatus         core.HeartbeatStatusService
+	heartbeatWake           core.HeartbeatWakeService
+	sessionHealth           core.SessionHealthReader
+	wakeEvents              core.HeartbeatWakeEventReader
+	coordinatorConfig       core.CoordinatorConfigResolver
+	skillsRegistry          core.SkillsRegistry
+	skillResources          core.SkillResourceSyncer
+	memoryStore             *memory.Store
+	dreamTrigger            core.DreamTrigger
+	memoryExtractor         core.MemoryExtractorService
+	memoryProviders         core.MemoryProviderService
+	memoryLedger            core.MemorySessionLedgerService
+	agentLoader             core.AgentLoader
+	extensions              ExtensionService
+	hostedMCP               *mcppkg.HostedService
 
 	engine       *gin.Engine
 	handlers     *Handlers
@@ -213,6 +218,27 @@ func WithNetworkService(service core.NetworkService) Option {
 func WithNetworkStore(store core.NetworkStore) Option {
 	return func(server *Server) {
 		server.networkStore = store
+	}
+}
+
+// WithNetworkUsageStore injects the workspace network usage ledger reader.
+func WithNetworkUsageStore(usage store.NetworkUsageStore) Option {
+	return func(server *Server) {
+		server.networkUsage = usage
+	}
+}
+
+// WithCoordinationSettings injects workspace coordination settings.
+func WithCoordinationSettings(settings workspacepkg.CoordinationSettings) Option {
+	return func(server *Server) {
+		server.coordinationSettings = settings
+	}
+}
+
+// WithCoordinationInvitations injects invitation dismissal persistence.
+func WithCoordinationInvitations(invitations workspacepkg.CoordinationInvitations) Option {
+	return func(server *Server) {
+		server.coordinationInvitations = invitations
 	}
 }
 
@@ -577,60 +603,63 @@ func (s *Server) ensureEngine() {
 
 func (s *Server) handlerConfig() *handlerConfig {
 	return &handlerConfig{
-		sessions:           s.sessions,
-		sessionCatalog:     s.sessionCatalog,
-		tasks:              s.tasks,
-		network:            s.network,
-		networkStore:       s.networkStore,
-		observer:           s.observer,
-		schemaStreams:      s.schemaStreams,
-		resources:          s.resources,
-		automation:         s.automation,
-		loops:              s.loops,
-		bridges:            s.bridges,
-		notifications:      s.notifications,
-		bundles:            s.bundles,
-		supportBundles:     s.supportBundles,
-		tools:              s.tools,
-		toolsets:           s.toolsets,
-		toolApprovals:      s.toolApprovals,
-		settings:           s.settings,
-		settingsRestart:    s.settingsRestart,
-		settingsUpdate:     s.settingsUpdate,
-		vault:              s.vault,
-		workspaces:         s.workspaces,
-		onboarding:         s.onboarding,
-		agentCatalog:       s.agentCatalog,
-		agentSync:          s.agentSync,
-		modelCatalog:       s.modelCatalog,
-		marketplaceCatalog: s.marketplaceCatalog,
-		agentContext:       s.agentContext,
-		soulAuthoring:      s.soulAuthoring,
-		soulHistoryPurger:  s.soulHistoryPurger,
-		soulRefresher:      s.soulRefresher,
-		heartbeatAuthor:    s.heartbeatAuthor,
-		heartbeatPurger:    s.heartbeatPurger,
-		heartbeatStatus:    s.heartbeatStatus,
-		heartbeatWake:      s.heartbeatWake,
-		sessionHealth:      s.sessionHealth,
-		wakeEvents:         s.wakeEvents,
-		coordinatorConfig:  s.coordinatorConfig,
-		skillsRegistry:     s.skillsRegistry,
-		skillResources:     s.skillResources,
-		memoryStore:        s.memoryStore,
-		dreamTrigger:       s.dreamTrigger,
-		memoryExtractor:    s.memoryExtractor,
-		memoryProviders:    s.memoryProviders,
-		memoryLedger:       s.memoryLedger,
-		homePaths:          s.homePaths,
-		config:             s.config,
-		logger:             s.logger,
-		startedAt:          s.startedAt,
-		now:                s.now,
-		pollInterval:       s.pollInterval,
-		agentLoader:        s.agentLoader,
-		extensions:         s.extensions,
-		hostedMCP:          s.hostedMCP,
+		sessions:                s.sessions,
+		sessionCatalog:          s.sessionCatalog,
+		tasks:                   s.tasks,
+		network:                 s.network,
+		networkStore:            s.networkStore,
+		networkUsage:            s.networkUsage,
+		coordinationSettings:    s.coordinationSettings,
+		coordinationInvitations: s.coordinationInvitations,
+		observer:                s.observer,
+		schemaStreams:           s.schemaStreams,
+		resources:               s.resources,
+		automation:              s.automation,
+		loops:                   s.loops,
+		bridges:                 s.bridges,
+		notifications:           s.notifications,
+		bundles:                 s.bundles,
+		supportBundles:          s.supportBundles,
+		tools:                   s.tools,
+		toolsets:                s.toolsets,
+		toolApprovals:           s.toolApprovals,
+		settings:                s.settings,
+		settingsRestart:         s.settingsRestart,
+		settingsUpdate:          s.settingsUpdate,
+		vault:                   s.vault,
+		workspaces:              s.workspaces,
+		onboarding:              s.onboarding,
+		agentCatalog:            s.agentCatalog,
+		agentSync:               s.agentSync,
+		modelCatalog:            s.modelCatalog,
+		marketplaceCatalog:      s.marketplaceCatalog,
+		agentContext:            s.agentContext,
+		soulAuthoring:           s.soulAuthoring,
+		soulHistoryPurger:       s.soulHistoryPurger,
+		soulRefresher:           s.soulRefresher,
+		heartbeatAuthor:         s.heartbeatAuthor,
+		heartbeatPurger:         s.heartbeatPurger,
+		heartbeatStatus:         s.heartbeatStatus,
+		heartbeatWake:           s.heartbeatWake,
+		sessionHealth:           s.sessionHealth,
+		wakeEvents:              s.wakeEvents,
+		coordinatorConfig:       s.coordinatorConfig,
+		skillsRegistry:          s.skillsRegistry,
+		skillResources:          s.skillResources,
+		memoryStore:             s.memoryStore,
+		dreamTrigger:            s.dreamTrigger,
+		memoryExtractor:         s.memoryExtractor,
+		memoryProviders:         s.memoryProviders,
+		memoryLedger:            s.memoryLedger,
+		homePaths:               s.homePaths,
+		config:                  s.config,
+		logger:                  s.logger,
+		startedAt:               s.startedAt,
+		now:                     s.now,
+		pollInterval:            s.pollInterval,
+		agentLoader:             s.agentLoader,
+		extensions:              s.extensions,
+		hostedMCP:               s.hostedMCP,
 	}
 }
 
@@ -867,6 +896,9 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			Tasks:                        cfg.tasks,
 			Network:                      cfg.network,
 			NetworkStore:                 cfg.networkStore,
+			NetworkUsage:                 cfg.networkUsage,
+			CoordinationSettings:         cfg.coordinationSettings,
+			CoordinationInvitations:      cfg.coordinationInvitations,
 			Observer:                     cfg.observer,
 			SchemaStreams:                cfg.schemaStreams,
 			Resources:                    cfg.resources,

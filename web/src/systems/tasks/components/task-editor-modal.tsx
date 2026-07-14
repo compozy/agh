@@ -24,6 +24,7 @@ import {
   type TaskTemplateId,
 } from "../lib/task-templates";
 import type { TaskRecord } from "../types";
+import { NetworkParticipationFields } from "@/systems/network";
 import { ContractSection } from "./task-form/contract-section";
 import { ExecutionCollapsible } from "./task-form/execution-collapsible";
 import { IngressIdentitySection } from "./task-form/ingress-identity-section";
@@ -190,10 +191,33 @@ export function TaskEditorModal({
               <PrioritySection onPriority={form.updatePriority} priority={draft.priority} />
             </NumberedSection>
 
+            <NumberedSection
+              index={isNewMode ? "04" : "03"}
+              subtitle="Local by default. Live requires an explicit channel."
+              title="Network participation"
+            >
+              <NetworkParticipationFields
+                onChange={next =>
+                  onDraftChange(current => ({
+                    ...current,
+                    networkParticipationMode: next.mode,
+                    networkChannelId: next.channelId,
+                    networkChannelStrategy: next.channelStrategy,
+                  }))
+                }
+                testIdPrefix="task-editor-participation"
+                value={{
+                  mode: draft.networkParticipationMode,
+                  channelId: draft.networkChannelId,
+                  channelStrategy: draft.networkChannelStrategy,
+                }}
+              />
+            </NumberedSection>
+
             {advanced ? (
               <>
                 <NumberedSection
-                  index="04"
+                  index="05"
                   subtitle="Where it sits in the task hierarchy."
                   title="Placement"
                 >
@@ -203,7 +227,7 @@ export function TaskEditorModal({
                   />
                 </NumberedSection>
                 <NumberedSection
-                  index="05"
+                  index="06"
                   subtitle="Who runs it, and how retries behave."
                   title="Queue &amp; ownership"
                 >
@@ -219,7 +243,7 @@ export function TaskEditorModal({
                   />
                 </NumberedSection>
                 <NumberedSection
-                  index="06"
+                  index="07"
                   subtitle="Optional — stable identifier override."
                   title="Identity"
                 >
@@ -239,7 +263,7 @@ export function TaskEditorModal({
 
             {!isNewMode ? (
               <NumberedSection
-                index="03"
+                index="04"
                 subtitle="Who runs it, and how retries behave."
                 title="Queue &amp; ownership"
               >

@@ -28,7 +28,15 @@ type Story = StoryObj;
 export const NetworkOff: Story = {
   render: () => (
     <PanelSurface className="min-h-[320px]">
-      <NetworkEmpty />
+      <NetworkEmpty disabledByAdmin onOpenSettings={() => undefined} />
+    </PanelSurface>
+  ),
+};
+
+export const NetworkReady: Story = {
+  render: () => (
+    <PanelSurface className="min-h-[320px]">
+      <NetworkEmpty onOpenSettings={() => undefined} />
     </PanelSurface>
   ),
 };

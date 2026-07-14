@@ -9,6 +9,7 @@ import {
   createBridgeUpdateDraft,
   fingerprintBridgeProviderConfig,
   useBridge,
+  useBridgeHealthStream,
   useBridgeProviders,
   useBridgeRoutes,
   useBridgeSecretBindings,
@@ -49,6 +50,11 @@ function useBridgeDetailPage(bridgeId: string) {
   const bridgeListFilters = bridgeListFilterForScope("all", activeWorkspaceId);
 
   const bridgesQuery = useBridges(bridgeListFilters, { enabled: Boolean(bridgeId) });
+  useBridgeHealthStream({
+    bridgeIds: bridgeId ? [bridgeId] : [],
+    enabled: Boolean(bridgeId),
+    filters: bridgeListFilters,
+  });
   const providersQuery = useBridgeProviders();
   const updateBridgeMutation = useUpdateBridge();
   const putBridgeSecretBindingMutation = usePutBridgeSecretBinding();

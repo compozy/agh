@@ -269,6 +269,43 @@ export {
 export { KindChip } from "@agh/ui";
 export type { KindChipProps } from "@agh/ui";
 export { NetworkCreateChannelDialog } from "./components/network-create-channel-dialog";
+export { NetworkCoordinationInvitation } from "./components/coordination-invitation";
+export type { NetworkCoordinationInvitationProps } from "./components/coordination-invitation";
+export { shouldShowCoordinationInvitation } from "./lib/coordination-invitation-gates";
+export type { NetworkCoordinationInvitationGates } from "./lib/coordination-invitation-gates";
+export { NetworkParticipationFields } from "./components/network-participation-fields";
+export type { NetworkParticipationFieldsProps } from "./components/network-participation-fields";
+export { TaskRunCoordinationInvitationHost } from "./components/task-run-coordination-invitation-host";
+export type { TaskRunCoordinationInvitationHostProps } from "./components/task-run-coordination-invitation-host";
+export { TaskRunConversationPanel } from "./components/task-run-conversation-panel";
+export type { TaskRunConversationPanelProps } from "./components/task-run-conversation-panel";
+export {
+  DEFAULT_NETWORK_PARTICIPATION_DRAFT,
+  serializeNetworkParticipation,
+} from "./lib/network-participation";
+export type {
+  NetworkParticipationDraft,
+  NetworkParticipationMode,
+  NetworkParticipationPayload,
+} from "./lib/network-participation";
+export {
+  networkCoordinationOptions,
+  networkUsageOptions,
+  useAcceptNetworkCoordinationInvitation,
+  useDismissNetworkCoordinationInvitation,
+  useNetworkCoordination,
+  useNetworkUsage,
+} from "./hooks/use-network-coordination";
+export {
+  getNetworkCoordination,
+  getNetworkUsage,
+  putNetworkCoordination,
+  putNetworkCoordinationInvitation,
+} from "./adapters/network-coordination-api";
+export type {
+  NetworkCoordinationResponse,
+  NetworkUsageResponse,
+} from "./adapters/network-coordination-api";
 
 // Components — timeline subtree
 export {

@@ -26,7 +26,7 @@ describe("tasksKeys", () => {
         owner_kind: "human",
         owner_ref: "op",
         parent_task_id: "task_parent",
-        network_channel: "net",
+        participation_channel: "net",
         query: "review",
         sort: "priority",
         cursor: "ignored-cursor",

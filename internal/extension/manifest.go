@@ -49,17 +49,18 @@ var (
 
 // Manifest describes one extension without executing any extension code.
 type Manifest struct {
-	Name          string             `toml:"name"                   json:"name"`
-	Version       string             `toml:"version"                json:"version"`
-	Description   string             `toml:"description,omitempty"  json:"description,omitempty"`
-	MinAGHVersion string             `toml:"min_agh_version"        json:"min_agh_version"`
-	RequiresEnv   []string           `toml:"requires_env,omitempty" json:"requires_env,omitempty"`
-	Resources     ResourcesConfig    `toml:"resources"              json:"resources"`
-	Capabilities  CapabilitiesConfig `toml:"capabilities"           json:"capabilities"`
-	Actions       ActionsConfig      `toml:"actions"                json:"actions"`
-	Subprocess    SubprocessConfig   `toml:"subprocess"             json:"subprocess"`
-	Security      SecurityConfig     `toml:"security"               json:"security"`
-	Bridge        BridgeConfig       `toml:"bridge"                 json:"bridge"`
+	Name                 string                      `toml:"name"                            json:"name"`
+	Version              string                      `toml:"version"                         json:"version"`
+	Description          string                      `toml:"description,omitempty"           json:"description,omitempty"`
+	MinAGHVersion        string                      `toml:"min_agh_version"                 json:"min_agh_version"`
+	RequiresEnv          []string                    `toml:"requires_env,omitempty"          json:"requires_env,omitempty"`
+	NetworkParticipation *manifestNetworkRequirement `toml:"network_participation,omitempty" json:"network_participation,omitempty"`
+	Resources            ResourcesConfig             `toml:"resources"                       json:"resources"`
+	Capabilities         CapabilitiesConfig          `toml:"capabilities"                    json:"capabilities"`
+	Actions              ActionsConfig               `toml:"actions"                         json:"actions"`
+	Subprocess           SubprocessConfig            `toml:"subprocess"                      json:"subprocess"`
+	Security             SecurityConfig              `toml:"security"                        json:"security"`
+	Bridge               BridgeConfig                `toml:"bridge"                          json:"bridge"`
 }
 
 // ResourcesConfig declares static assets bundled with an extension.
@@ -229,18 +230,19 @@ type ManifestCompatibilityError struct {
 }
 
 type manifestDocument struct {
-	Extension     manifestCore       `toml:"extension"              json:"extension"`
-	Name          string             `toml:"name"                   json:"name"`
-	Version       string             `toml:"version"                json:"version"`
-	Description   string             `toml:"description,omitempty"  json:"description,omitempty"`
-	MinAGHVersion string             `toml:"min_agh_version"        json:"min_agh_version"`
-	RequiresEnv   []string           `toml:"requires_env,omitempty" json:"requires_env,omitempty"`
-	Resources     ResourcesConfig    `toml:"resources"              json:"resources"`
-	Capabilities  CapabilitiesConfig `toml:"capabilities"           json:"capabilities"`
-	Actions       ActionsConfig      `toml:"actions"                json:"actions"`
-	Subprocess    SubprocessConfig   `toml:"subprocess"             json:"subprocess"`
-	Security      SecurityConfig     `toml:"security"               json:"security"`
-	Bridge        BridgeConfig       `toml:"bridge"                 json:"bridge"`
+	Extension            manifestCore                `toml:"extension"                       json:"extension"`
+	Name                 string                      `toml:"name"                            json:"name"`
+	Version              string                      `toml:"version"                         json:"version"`
+	Description          string                      `toml:"description,omitempty"           json:"description,omitempty"`
+	MinAGHVersion        string                      `toml:"min_agh_version"                 json:"min_agh_version"`
+	RequiresEnv          []string                    `toml:"requires_env,omitempty"          json:"requires_env,omitempty"`
+	NetworkParticipation *manifestNetworkRequirement `toml:"network_participation,omitempty" json:"network_participation,omitempty"`
+	Resources            ResourcesConfig             `toml:"resources"                       json:"resources"`
+	Capabilities         CapabilitiesConfig          `toml:"capabilities"                    json:"capabilities"`
+	Actions              ActionsConfig               `toml:"actions"                         json:"actions"`
+	Subprocess           SubprocessConfig            `toml:"subprocess"                      json:"subprocess"`
+	Security             SecurityConfig              `toml:"security"                        json:"security"`
+	Bridge               BridgeConfig                `toml:"bridge"                          json:"bridge"`
 }
 
 type manifestCore struct {
@@ -302,6 +304,9 @@ func (m *Manifest) Validate() error {
 		return err
 	}
 	if err := validateEnvRequirements("requires_env", m.RequiresEnv); err != nil {
+		return err
+	}
+	if err := m.NetworkParticipation.Validate("network_participation"); err != nil {
 		return err
 	}
 	if err := validateManifestEnvMaps(
@@ -568,17 +573,18 @@ func (d *manifestDocument) toManifest() (Manifest, error) {
 	}
 
 	manifest := Manifest{
-		Name:          name,
-		Version:       versionValue,
-		Description:   description,
-		MinAGHVersion: minVersion,
-		RequiresEnv:   normalizeStrings(requiresEnv),
-		Resources:     normalizeResourcesConfig(d.Resources),
-		Capabilities:  normalizeCapabilitiesConfig(d.Capabilities),
-		Actions:       normalizeActionsConfig(d.Actions),
-		Subprocess:    normalizeSubprocessConfig(d.Subprocess),
-		Security:      normalizeSecurityConfig(d.Security),
-		Bridge:        normalizeBridgeConfig(d.Bridge),
+		Name:                 name,
+		Version:              versionValue,
+		Description:          description,
+		MinAGHVersion:        minVersion,
+		RequiresEnv:          normalizeStrings(requiresEnv),
+		NetworkParticipation: d.NetworkParticipation.Normalize(),
+		Resources:            normalizeResourcesConfig(d.Resources),
+		Capabilities:         normalizeCapabilitiesConfig(d.Capabilities),
+		Actions:              normalizeActionsConfig(d.Actions),
+		Subprocess:           normalizeSubprocessConfig(d.Subprocess),
+		Security:             normalizeSecurityConfig(d.Security),
+		Bridge:               normalizeBridgeConfig(d.Bridge),
 	}
 	return manifest, nil
 }

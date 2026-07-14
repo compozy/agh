@@ -41,7 +41,7 @@ func (h *BaseHandlers) CreateLoop(c *gin.Context) {
 		return
 	}
 	var req contract.CreateLoopRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondLoopError(c, fmt.Errorf("%w: decode create loop request: %v", looppkg.ErrValidation, err))
 		return
 	}
@@ -74,7 +74,7 @@ func (h *BaseHandlers) PatchLoop(c *gin.Context) {
 		return
 	}
 	var req contract.PatchLoopRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondLoopError(c, fmt.Errorf("%w: decode patch loop request: %v", looppkg.ErrValidation, err))
 		return
 	}
@@ -93,7 +93,7 @@ func (h *BaseHandlers) ValidateLoop(c *gin.Context) {
 		return
 	}
 	var req contract.ValidateLoopRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondLoopError(c, fmt.Errorf("%w: decode validate loop request: %v", looppkg.ErrValidation, err))
 		return
 	}
@@ -125,7 +125,7 @@ func (h *BaseHandlers) RunLoop(c *gin.Context) {
 		return
 	}
 	var req contract.RunLoopRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondLoopError(c, fmt.Errorf("%w: decode run loop request: %v", looppkg.ErrValidation, err))
 		return
 	}

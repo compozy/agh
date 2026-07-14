@@ -296,6 +296,7 @@ describe("useSessionCreateDialog", () => {
     expect(mockMutateAsync).toHaveBeenCalledWith({
       agent_name: "codex-agent",
       workspace: "ws_alpha",
+      network_participation: { mode: "local" },
       provider: "codex",
     });
     expect(mockNavigate).toHaveBeenCalledWith({
@@ -511,6 +512,7 @@ describe("useSessionCreateDialog", () => {
     expect(mockMutateAsync).toHaveBeenCalledWith({
       agent_name: "codex-agent",
       workspace: "ws_alpha",
+      network_participation: { mode: "local" },
       provider: "codex",
       model: "custom-experimental",
     });
@@ -552,6 +554,7 @@ describe("useSessionCreateDialog", () => {
     expect(mockMutateAsync).toHaveBeenCalledWith({
       agent_name: "codex-agent",
       workspace: "ws_alpha",
+      network_participation: { mode: "local" },
       provider: "codex",
       model: "gpt-5.4-mini",
     });
@@ -629,6 +632,7 @@ describe("useSessionCreateDialog", () => {
     expect(mockMutateAsync).toHaveBeenCalledWith({
       agent_name: "codex-agent",
       workspace: "ws_alpha",
+      network_participation: { mode: "local" },
       provider: "codex",
       model: "manual-fallback",
     });
@@ -663,6 +667,7 @@ describe("useSessionCreateDialog", () => {
       agent_name: "codex-agent",
       workspace: "ws_alpha",
       provider: "codex",
+      network_participation: { mode: "local" },
     });
   });
 
@@ -748,6 +753,7 @@ describe("useSessionCreateDialog", () => {
     expect(mockMutateAsync).toHaveBeenLastCalledWith({
       agent_name: "codex-agent",
       workspace: "ws_alpha",
+      network_participation: { mode: "local" },
       provider: "codex",
       model: "gpt-5.4",
       reasoning_effort: "high",
@@ -783,6 +789,7 @@ describe("useSessionCreateDialog", () => {
     expect(mockMutateAsync).toHaveBeenLastCalledWith({
       agent_name: "codex-agent",
       workspace: "ws_alpha",
+      network_participation: { mode: "local" },
       provider: "codex",
       model: "gpt-5.4-mini",
     });
@@ -849,6 +856,7 @@ describe("useSessionCreateDialog", () => {
     expect(mockMutateAsync).toHaveBeenCalledWith({
       agent_name: "codex-agent",
       workspace: "ws_alpha",
+      network_participation: { mode: "local" },
       provider: "codex",
       reasoning_effort: "high",
     });
@@ -917,6 +925,7 @@ describe("useSessionCreateDialog", () => {
     expect(mockMutateAsync).toHaveBeenLastCalledWith({
       agent_name: "codex-agent",
       workspace: "ws_alpha",
+      network_participation: { mode: "local" },
       provider: "claude",
       model: "gpt-5.5",
     });

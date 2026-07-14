@@ -304,6 +304,7 @@ const loopRunInputSchema = `{
 		"inputs":{"type":"object","additionalProperties":true},
 		"parent_loop_run_id":{"type":"string"},
 		"config_overrides":{"type":"object","additionalProperties":true},
+		"network_participation":` + networkParticipationRequestSchema + `,
 		"dry":{"type":"boolean"}
 	}
 }`

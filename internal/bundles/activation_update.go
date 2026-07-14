@@ -23,6 +23,14 @@ func (s *Service) UpdateActivation(ctx context.Context, req UpdateActivationRequ
 		return ActivationPreview{}, err
 	}
 	next.SpecContentHash = definition.specContentHash
+	if err := s.applyNetworkRequirementConfirmation(
+		ctx,
+		ActivateRequest{ConfirmNetworkRequirement: req.ConfirmNetworkRequirement},
+		&current,
+		&next,
+	); err != nil {
+		return ActivationPreview{}, err
+	}
 	next.UpdatedAt = s.now().UTC()
 
 	if err := s.store.UpdateBundleActivation(ctx, next); err != nil {

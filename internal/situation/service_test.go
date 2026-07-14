@@ -132,7 +132,7 @@ func TestRenderPromptProvenanceCacheStability(t *testing.T) {
 	})
 }
 
-func TestContextForSessionBoundsListsAndIncludesTaskChannelProvenance(t *testing.T) {
+func TestContextForSessionBoundsListsAndIncludesTaskParticipationProvenance(t *testing.T) {
 	t.Parallel()
 
 	taskRecord := taskpkg.Task{
@@ -154,7 +154,7 @@ func TestContextForSessionBoundsListsAndIncludesTaskChannelProvenance(t *testing
 		ClaimedBy:       &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-1"},
 		SessionID:       "sess-1",
 		RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: situationLiveSpec("coord-structured")},
-		Metadata:        jsonRaw(t, `{"coordination_channel_id":"coord-1","workflow_id":"wf-1"}`),
+		Metadata:        jsonRaw(t, `{"workflow_id":"wf-1"}`),
 		QueuedAt:        fixedTime(),
 		StartedAt:       fixedTime().Add(time.Minute),
 	}
@@ -267,7 +267,9 @@ func TestContextForSessionBoundsListsAndIncludesTaskChannelProvenance(t *testing
 	if payload.Task.Task == nil || payload.Task.Task.ID != "task-1" {
 		t.Fatalf("Task section = %#v, want task-1", payload.Task)
 	}
-	if payload.Task.Lease == nil || payload.Task.Lease.CoordinationChannelID != "coord-structured" {
+	if payload.Task.Lease == nil ||
+		payload.Task.Lease.ResolvedNetworkParticipation == nil ||
+		payload.Task.Lease.ResolvedNetworkParticipation.ChannelID != "coord-structured" {
 		t.Fatalf("Task lease = %#v, want coord-structured", payload.Task.Lease)
 	}
 	if payload.Task.Bundle == nil ||
@@ -1353,17 +1355,17 @@ func TestCoordinationMetadataAndPeerHelpers(t *testing.T) {
 	rawMetadata := jsonRaw(t, `{
 		"task_id":"task-1",
 		"run_id":"run-1",
-		"coordination_channel_id":"coord-1",
+		"channel_id":"coord-1",
 		"message_kind":"status",
 		"correlation_id":"corr-1"
 	}`)
 	direct := network.Envelope{
 		Ext: network.ExtensionMap{
-			"task_id":                 jsonRaw(t, `"task-1"`),
-			"run_id":                  jsonRaw(t, `"run-1"`),
-			"coordination_channel_id": jsonRaw(t, `"coord-1"`),
-			"message_kind":            jsonRaw(t, `"status"`),
-			"correlation_id":          jsonRaw(t, `"corr-1"`),
+			"task_id":        jsonRaw(t, `"task-1"`),
+			"run_id":         jsonRaw(t, `"run-1"`),
+			"channel_id":     jsonRaw(t, `"coord-1"`),
+			"message_kind":   jsonRaw(t, `"status"`),
+			"correlation_id": jsonRaw(t, `"corr-1"`),
 		},
 	}
 	if metadata, ok := coordinationMetadataFromEnvelope(direct); !ok || metadata.TaskID != "task-1" {
@@ -1500,11 +1502,11 @@ func coordinationEnvelope(
 		t.Fatalf("marshal say body: %v", err)
 	}
 	metadata, err := json.Marshal(contract.CoordinationMessageMetadataPayload{
-		TaskID:                "task-1",
-		RunID:                 "run-1",
-		CoordinationChannelID: channel,
-		MessageKind:           contract.CoordinationMessageStatus,
-		CorrelationID:         id + "-corr",
+		TaskID:        "task-1",
+		RunID:         "run-1",
+		ChannelID:     channel,
+		MessageKind:   contract.CoordinationMessageStatus,
+		CorrelationID: id + "-corr",
 	})
 	if err != nil {
 		t.Fatalf("marshal coordination metadata: %v", err)

@@ -145,9 +145,11 @@ type Registry interface {
 	store.NetworkMessageStore
 	store.NetworkPreferenceStore
 	store.NetworkAvailabilityStore
+	store.NetworkUsageStore
 	store.OnboardingStore
 	workspacepkg.Store
 	workspacepkg.CoordinationSettings
+	workspacepkg.CoordinationInvitations
 }
 
 // Server is a daemon-owned runtime component with explicit start and shutdown phases.

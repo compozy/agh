@@ -150,7 +150,6 @@ func assertMigrationAppliedLogs(t *testing.T, processLog string) {
 		Version      int64  `json:"version"`
 		AppliedCount int    `json:"applied_count"`
 	}
-
 	found := make(map[string]migrationLog, 2)
 	for _, line := range strings.Split(processLog, "\n") {
 		if strings.TrimSpace(line) == "" {

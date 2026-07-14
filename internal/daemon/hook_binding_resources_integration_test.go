@@ -240,8 +240,8 @@ func TestHookBindingResourceReconcileFiresTaskRunHookThroughDaemonBridge(t *test
 		Matcher: hookspkg.HookMatcher{
 			WorkspaceID: "ws-1",
 			Autonomy: &hookspkg.AutonomyMatcher{
-				TaskID:                "task-1",
-				CoordinationChannelID: "coord-ch-1",
+				TaskID:               "task-1",
+				ParticipationChannel: "coord-ch-1",
 			},
 		},
 	})
@@ -255,10 +255,10 @@ func TestHookBindingResourceReconcileFiresTaskRunHookThroughDaemonBridge(t *test
 			Timestamp: time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC),
 		},
 		TaskRunContext: hookspkg.TaskRunContext{
-			TaskID:                "task-1",
-			RunID:                 "run-1",
-			WorkspaceID:           "ws-1",
-			CoordinationChannelID: "coord-ch-1",
+			TaskID:                       "task-1",
+			RunID:                        "run-1",
+			WorkspaceID:                  "ws-1",
+			ResolvedNetworkParticipation: daemonTestLiveParticipationPtr("", "coord-ch-1"),
 		},
 	}); err != nil {
 		t.Fatalf("DispatchTaskRunEnqueued() error = %v", err)
@@ -266,8 +266,9 @@ func TestHookBindingResourceReconcileFiresTaskRunHookThroughDaemonBridge(t *test
 
 	select {
 	case payload := <-taskRunPayloads:
-		if payload.RunID != "run-1" || payload.CoordinationChannelID != "coord-ch-1" {
-			t.Fatalf("task-run payload = %#v, want run and coordination channel metadata", payload.TaskRunContext)
+		if payload.RunID != "run-1" ||
+			resolvedParticipationChannelID(payload.ResolvedNetworkParticipation) != "coord-ch-1" {
+			t.Fatalf("task-run payload = %#v, want run and participation channel metadata", payload.TaskRunContext)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for resource-backed task.run.enqueued hook")

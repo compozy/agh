@@ -176,6 +176,92 @@ func TestGlobalDBClaimNextRunExactRunID(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject an exact target with an unresolved dependency", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 14, 9, 0, 0, 0, time.UTC)
+		prerequisite := taskRecordForTest("task-exact-prerequisite")
+		prerequisite.Status = taskpkg.TaskStatusPending
+		if err := globalDB.CreateTask(ctx, prerequisite); err != nil {
+			t.Fatalf("CreateTask(prerequisite) error = %v", err)
+		}
+		target := createExactRun(
+			ctx,
+			t,
+			globalDB,
+			"task-exact-dependent",
+			"run-exact-dependent",
+			taskpkg.PriorityMedium,
+			now,
+		)
+		if err := globalDB.CreateDependency(ctx, taskpkg.Dependency{
+			TaskID:          target.TaskID,
+			DependsOnTaskID: prerequisite.ID,
+			Kind:            taskpkg.DependencyKindBlocks,
+			CreatedAt:       now.Add(time.Minute),
+		}); err != nil {
+			t.Fatalf("CreateDependency() error = %v", err)
+		}
+
+		_, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: target.ID, Scope: taskpkg.ScopeGlobal, ClaimerSessionID: "sess-exact-dependent",
+			LeaseDuration: time.Minute, Now: now.Add(2 * time.Minute),
+		})
+		if !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+			t.Fatalf("ClaimNextRun(unresolved dependency) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
+		}
+	})
+
+	t.Run("Should admit an exact target when its dependency has a completed latest run", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 14, 9, 30, 0, 0, time.UTC)
+		prerequisite := taskRecordForTest("task-exact-completed-prerequisite")
+		prerequisite.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, prerequisite); err != nil {
+			t.Fatalf("CreateTask(prerequisite) error = %v", err)
+		}
+		completedRun := taskRunForTest("run-exact-completed-prerequisite", prerequisite.ID)
+		completedRun.Status = taskpkg.TaskRunStatusCompleted
+		completedRun.StartedAt = now
+		completedRun.EndedAt = now.Add(time.Minute)
+		if err := globalDB.CreateTaskRun(ctx, completedRun); err != nil {
+			t.Fatalf("CreateTaskRun(completed prerequisite) error = %v", err)
+		}
+		target := createExactRun(
+			ctx,
+			t,
+			globalDB,
+			"task-exact-released-dependent",
+			"run-exact-released-dependent",
+			taskpkg.PriorityMedium,
+			now.Add(2*time.Minute),
+		)
+		if err := globalDB.CreateDependency(ctx, taskpkg.Dependency{
+			TaskID:          target.TaskID,
+			DependsOnTaskID: prerequisite.ID,
+			Kind:            taskpkg.DependencyKindBlocks,
+			CreatedAt:       now.Add(3 * time.Minute),
+		}); err != nil {
+			t.Fatalf("CreateDependency() error = %v", err)
+		}
+
+		claimed, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			RunID: target.ID, Scope: taskpkg.ScopeGlobal, ClaimerSessionID: "sess-exact-released",
+			LeaseDuration: time.Minute, Now: now.Add(4 * time.Minute),
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun(completed dependency) error = %v", err)
+		}
+		if claimed.Run.ID != target.ID {
+			t.Fatalf("ClaimNextRun(completed dependency) run = %q, want %q", claimed.Run.ID, target.ID)
+		}
+	})
+
 	t.Run("Should allow a workspace caller to claim global work without crossing workspaces", func(t *testing.T) {
 		t.Parallel()
 
@@ -675,12 +761,12 @@ func TestGlobalDBClaimNextRunScopesCoordinationMetadataToRunWorkspace(t *testing
 		{workspaceID: workspaceB, purpose: "Workspace B operations"},
 	} {
 		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:                 taskpkg.ScopeWorkspace,
-			WorkspaceID:           expected.workspaceID,
-			ClaimerSessionID:      fmt.Sprintf("sess-channel-scope-%d", index),
-			CoordinationChannelID: "operations",
-			LeaseDuration:         time.Minute,
-			Now:                   now.Add(time.Duration(index) * time.Second),
+			Scope:                taskpkg.ScopeWorkspace,
+			WorkspaceID:          expected.workspaceID,
+			ClaimerSessionID:     fmt.Sprintf("sess-channel-scope-%d", index),
+			ParticipationChannel: "operations",
+			LeaseDuration:        time.Minute,
+			Now:                  now.Add(time.Duration(index) * time.Second),
 		})
 		if err != nil {
 			t.Fatalf("ClaimNextRun(%q) error = %v", expected.workspaceID, err)

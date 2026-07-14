@@ -362,16 +362,33 @@ test.describe("empty-fleet first-contact journey", () => {
     appPage,
     runtime,
   }) => {
-    await appPage.route("**/api/agents/catalog**", async route => {
+    await appPage.route("**/api/agents**", async route => {
+      const url = new URL(route.request().url());
+      if (url.pathname === "/api/agents/catalog") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            agents: [],
+            facets: { active: 0, categories: [], idle: 0, total: 0 },
+            page: {
+              has_more: false,
+              limit: Number(url.searchParams.get("limit") ?? "50"),
+              total: 0,
+            },
+            sessions_available: true,
+          }),
+        });
+        return;
+      }
+      if (url.pathname !== "/api/agents") {
+        await route.fallback();
+        return;
+      }
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({
-          agents: [],
-          facets: { active: 0, categories: [], idle: 0, total: 0 },
-          page: { has_more: false, limit: 50, total: 0 },
-          sessions_available: true,
-        }),
+        body: JSON.stringify({ agents: [] }),
       });
     });
     await ensureGlobalWorkspace(runtime);

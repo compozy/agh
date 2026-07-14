@@ -232,6 +232,7 @@ export const handlers: HttpHandler[] = [
           loop_name: name,
           generation: 1,
           resolved_inputs: {},
+          resolved_network_participation: null,
           contract: entry.contract,
           nodes: [{ id: "plan", kind: "run-agent", class: "action" }],
           effective_config: {

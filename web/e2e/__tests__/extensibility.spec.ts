@@ -137,7 +137,9 @@ interface BundleActivation {
   bundle_name: string;
   profile_name: string;
   scope: string;
-  bind_primary_channel_as_default: boolean;
+  network_requirement_digest?: string;
+  network_requirement_confirmed_by?: string;
+  network_requirement_confirmed_at?: string;
   channels?: Array<{ name: string }>;
   inventory?: Array<{ resource_kind: string; resource_name: string }>;
 }
@@ -152,9 +154,6 @@ interface BundleActivationsResponse {
 
 interface BundleNetworkSettingsResponse {
   network: {
-    configured_default_channel?: string;
-    effective_default_channel?: string;
-    effective_default_source?: string;
     declared_channels?: Array<{ activation_id: string; name: string; primary: boolean }>;
   };
 }
@@ -361,7 +360,7 @@ test("operator installs a local extension tool provider, invokes it over transpo
     bundle_name: bundleName,
     profile_name: bundleProfile,
     scope: "global",
-    bind_primary_channel_as_default: true,
+    confirm_network_requirement: true,
   });
   const httpPreview = await runtime.requestJSON<BundleActivationResponse>("/api/bundles/preview", {
     method: "POST",
@@ -378,7 +377,7 @@ test("operator installs a local extension tool provider, invokes it over transpo
     bundleName,
     "--profile",
     bundleProfile,
-    "--bind-primary-channel-as-default",
+    "--confirm-network-requirement",
   ]);
   expectBundleActivation(cliPreview, "CLI bundle preview");
 
@@ -419,9 +418,13 @@ test("operator installs a local extension tool provider, invokes it over transpo
     runtime,
     ["bundle", "network-settings"]
   );
-  expect(networkHTTP.network.effective_default_channel).toBe(bundleChannel);
-  expect(networkUDS.network.effective_default_channel).toBe(bundleChannel);
-  expect(networkCLI.effective_default_channel).toBe(bundleChannel);
+  expect(
+    networkHTTP.network.declared_channels?.some(channel => channel.name === bundleChannel)
+  ).toBe(true);
+  expect(
+    networkUDS.network.declared_channels?.some(channel => channel.name === bundleChannel)
+  ).toBe(true);
+  expect(networkCLI.declared_channels?.some(channel => channel.name === bundleChannel)).toBe(true);
 
   const restart = await runtime.requestJSON<SettingsRestartAction>(
     "/api/settings/actions/restart",
@@ -486,9 +489,10 @@ test("operator installs a local extension tool provider, invokes it over transpo
     "bundle",
     "update",
     activationID,
-    "--clear-primary-channel-default",
+    "--confirm-network-requirement",
   ]);
-  expect(updatedActivation.bind_primary_channel_as_default).toBe(false);
+  expect(updatedActivation.id).toBe(activationID);
+  expect(updatedActivation.extension_name).toBe(extensionName);
 
   const failureHTTP = await appPage.request.post(runtime.url("/api/extensions"), {
     data: { path: checksumFailureDir, checksum: "sha256:bad-checksum" },
@@ -1181,7 +1185,7 @@ function projectBundleActivation(activation: BundleActivation): Record<string, u
     bundle_name: activation.bundle_name,
     profile_name: activation.profile_name,
     scope: activation.scope,
-    bind_primary_channel_as_default: activation.bind_primary_channel_as_default,
+    network_requirement_confirmed_by: activation.network_requirement_confirmed_by ?? "",
     channels: activation.channels?.map(channel => channel.name) ?? [],
     inventory: activation.inventory ?? [],
   };

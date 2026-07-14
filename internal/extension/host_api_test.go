@@ -3196,43 +3196,61 @@ func TestHostAPIHandlerTaskOperationsRequireCapabilities(t *testing.T) {
 func TestHostAPIHandlerTasksCreateUsesTrustedExtensionIdentity(t *testing.T) {
 	t.Parallel()
 
-	env := newHostAPITestEnv(t)
-	env.grant("ext-tasks", []string{"tasks/create"}, []string{"task.write"})
+	t.Run("Should reject client-supplied identity fields under strict decode", func(t *testing.T) {
+		t.Parallel()
 
-	result, err := env.call(t, "ext-tasks", "tasks/create", map[string]any{
-		"scope": taskpkg.ScopeGlobal,
-		"title": "Trusted extension task",
-		"created_by": map[string]any{
-			"kind": "human",
-			"ref":  "spoofed-user",
-		},
-		"origin": map[string]any{
-			"kind": "cli",
-			"ref":  "spoofed-origin",
-		},
+		env := newHostAPITestEnv(t)
+		env.grant("ext-tasks", []string{"tasks/create"}, []string{"task.write"})
+		_, err := env.call(t, "ext-tasks", "tasks/create", map[string]any{
+			"scope": taskpkg.ScopeGlobal,
+			"title": "Spoofed extension task",
+			"created_by": map[string]any{
+				"kind": "human",
+				"ref":  "spoofed-user",
+			},
+			"origin": map[string]any{
+				"kind": "cli",
+				"ref":  "spoofed-origin",
+			},
+		})
+		if err == nil {
+			t.Fatal("Handle(tasks/create with spoofed identity) error = nil, want invalid params")
+		}
+		assertErrorContains(t, err, "created_by")
 	})
-	if err != nil {
-		t.Fatalf("Handle(tasks/create) error = %v", err)
-	}
 
-	var created apicontract.TaskPayload
-	decodeResult(t, result, &created)
-	stored, err := env.registry.GetTask(testutil.Context(t), created.ID)
-	if err != nil {
-		t.Fatalf("registry.GetTask(%q) error = %v", created.ID, err)
-	}
-	if got, want := stored.CreatedBy.Kind, taskpkg.ActorKindExtension; got != want {
-		t.Fatalf("stored.CreatedBy.Kind = %q, want %q", got, want)
-	}
-	if got, want := stored.CreatedBy.Ref, "ext-tasks"; got != want {
-		t.Fatalf("stored.CreatedBy.Ref = %q, want %q", got, want)
-	}
-	if got, want := stored.Origin.Kind, taskpkg.OriginKindExtension; got != want {
-		t.Fatalf("stored.Origin.Kind = %q, want %q", got, want)
-	}
-	if got, want := stored.Origin.Ref, "ext-tasks"; got != want {
-		t.Fatalf("stored.Origin.Ref = %q, want %q", got, want)
-	}
+	t.Run("Should stamp trusted extension identity on create", func(t *testing.T) {
+		t.Parallel()
+
+		env := newHostAPITestEnv(t)
+		env.grant("ext-tasks", []string{"tasks/create"}, []string{"task.write"})
+		result, err := env.call(t, "ext-tasks", "tasks/create", map[string]any{
+			"scope": taskpkg.ScopeGlobal,
+			"title": "Trusted extension task",
+		})
+		if err != nil {
+			t.Fatalf("Handle(tasks/create) error = %v", err)
+		}
+
+		var created apicontract.TaskPayload
+		decodeResult(t, result, &created)
+		stored, err := env.registry.GetTask(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("registry.GetTask(%q) error = %v", created.ID, err)
+		}
+		if got, want := stored.CreatedBy.Kind, taskpkg.ActorKindExtension; got != want {
+			t.Fatalf("stored.CreatedBy.Kind = %q, want %q", got, want)
+		}
+		if got, want := stored.CreatedBy.Ref, "ext-tasks"; got != want {
+			t.Fatalf("stored.CreatedBy.Ref = %q, want %q", got, want)
+		}
+		if got, want := stored.Origin.Kind, taskpkg.OriginKindExtension; got != want {
+			t.Fatalf("stored.Origin.Kind = %q, want %q", got, want)
+		}
+		if got, want := stored.Origin.Ref, "ext-tasks"; got != want {
+			t.Fatalf("stored.Origin.Ref = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestHostAPIHandlerTaskRunStartRespectsManagerTransitions(t *testing.T) {
@@ -4145,10 +4163,10 @@ func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {
 				name:   "ShouldRejectInvalidListChannel",
 				method: "tasks",
 				params: map[string]any{
-					"network_channel": "not valid",
+					"participation_channel": "not valid",
 				},
 				wantCode: HostAPIInvalidParamsCode,
-				wantText: "task_query.network_channel",
+				wantText: "task_query.participation_channel",
 			},
 			{
 				name:     "ShouldRequireUpdateChanges",
@@ -4174,9 +4192,9 @@ func TestHostAPIHandlerTaskMethodsValidateInputsAndConfiguration(t *testing.T) {
 			{
 				name:     "ShouldRejectInvalidDashboardChannel",
 				method:   "tasks/dashboard",
-				params:   map[string]any{"network_channel": "not valid"},
+				params:   map[string]any{"participation_channel": "not valid"},
 				wantCode: HostAPIInvalidParamsCode,
-				wantText: "task_dashboard_query.network_channel",
+				wantText: "task_dashboard_query.participation_channel",
 			},
 			{
 				name:     "ShouldRejectInvalidInboxLane",
@@ -4621,7 +4639,7 @@ func TestHostAPIHandlerTaskMethodsRejectInvalidPayloadCombinations(t *testing.T)
 		"network_channel": "not valid",
 	})
 	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
-	assertErrorContains(t, err, "create_task.network_channel")
+	assertErrorContains(t, err, "network_channel")
 
 	createResult, err := env.call(t, "ext-invalid", "tasks/create", map[string]any{
 		"scope":     taskpkg.ScopeWorkspace,
@@ -4649,7 +4667,7 @@ func TestHostAPIHandlerTaskMethodsRejectInvalidPayloadCombinations(t *testing.T)
 		"network_channel": "not valid",
 	})
 	assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
-	assertErrorContains(t, err, "enqueue_run.network_channel")
+	assertErrorContains(t, err, "network_channel")
 }
 
 func TestHostAPITaskRequestHelpersRejectInvalidPayloads(t *testing.T) {

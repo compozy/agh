@@ -1,9 +1,8 @@
 package core
 
 import (
-	"strings"
-
 	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -14,32 +13,39 @@ func TaskRunSummaryPayloadFromSummary(summary *taskpkg.RunSummary) *contract.Tas
 	}
 
 	return &contract.TaskRunSummaryPayload{
-		ID:                    summary.ID,
-		TaskID:                summary.TaskID,
-		Status:                summary.Status,
-		Attempt:               summary.Attempt,
-		PreviousRunID:         summary.PreviousRunID,
-		FailureKind:           summary.FailureKind,
-		MaxAttempts:           summary.MaxAttempts,
-		SessionID:             summary.SessionID,
-		ClaimedBy:             cloneActorIdentity(summary.ClaimedBy),
-		ClaimTokenHash:        summary.ClaimTokenHash,
-		LeaseUntil:            optionalTime(summary.LeaseUntil),
-		HeartbeatAt:           optionalTime(summary.HeartbeatAt),
-		CoordinationChannelID: taskRunSummaryChannel(summary),
-		DesignationGroupID:    summary.DesignationGroupID,
-		Designation:           cloneRunDesignationSummary(summary.Designation),
-		QueuedAt:              summary.QueuedAt,
-		ClaimedAt:             optionalTime(summary.ClaimedAt),
-		StartedAt:             optionalTime(summary.StartedAt),
-		EndedAt:               optionalTime(summary.EndedAt),
-		Error:                 summary.Error,
+		ID:                           summary.ID,
+		TaskID:                       summary.TaskID,
+		Status:                       summary.Status,
+		Attempt:                      summary.Attempt,
+		PreviousRunID:                summary.PreviousRunID,
+		FailureKind:                  summary.FailureKind,
+		MaxAttempts:                  summary.MaxAttempts,
+		SessionID:                    summary.SessionID,
+		ClaimedBy:                    cloneActorIdentity(summary.ClaimedBy),
+		ClaimTokenHash:               summary.ClaimTokenHash,
+		LeaseUntil:                   optionalTime(summary.LeaseUntil),
+		HeartbeatAt:                  optionalTime(summary.HeartbeatAt),
+		ResolvedNetworkParticipation: resolvedParticipationFromRunSummary(summary),
+		DesignationGroupID:           summary.DesignationGroupID,
+		Designation:                  cloneRunDesignationSummary(summary.Designation),
+		QueuedAt:                     summary.QueuedAt,
+		ClaimedAt:                    optionalTime(summary.ClaimedAt),
+		StartedAt:                    optionalTime(summary.StartedAt),
+		EndedAt:                      optionalTime(summary.EndedAt),
+		Error:                        summary.Error,
 	}
 }
 
-func taskRunSummaryChannel(summary *taskpkg.RunSummary) string {
+func resolvedParticipationFromRunSummary(summary *taskpkg.RunSummary) *participation.Spec {
 	if summary == nil || summary.ResolvedNetworkParticipation == nil {
-		return ""
+		return nil
 	}
-	return strings.TrimSpace(summary.ResolvedNetworkParticipation.ChannelID)
+	return cloneResolvedParticipation(summary.ResolvedNetworkParticipation)
+}
+
+func cloneResolvedParticipation(spec *participation.Spec) *participation.Spec {
+	if spec == nil {
+		return nil
+	}
+	return participation.CloneSpec(*spec)
 }

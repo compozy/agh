@@ -124,6 +124,31 @@ func TestNetworkWakeRunner(t *testing.T) {
 		}
 	})
 
+	t.Run("Should stop cleanly when shutdown cancels the initial durable wake scan", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newNetworkWakeRunnerFixture(t)
+		scanStarted := make(chan struct{})
+		fixture.store.listQueued = func(ctx context.Context) ([]store.CommittedNetworkNotification, error) {
+			close(scanStarted)
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}
+		if err := fixture.runner.Start(t.Context()); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		select {
+		case <-scanStarted:
+		case <-time.After(time.Second):
+			t.Fatal("initial durable wake scan did not start")
+		}
+		shutdownCtx, shutdownCancel := context.WithTimeout(t.Context(), time.Second)
+		defer shutdownCancel()
+		if err := fixture.runner.Shutdown(shutdownCtx); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+	})
+
 	t.Run("Should cancel an active wake after availability disables", func(t *testing.T) {
 		t.Parallel()
 
@@ -381,6 +406,7 @@ func (s *networkWakePrompterStub) CancelPrompt(context.Context, string) error {
 
 type networkWakeStoreStub struct {
 	mu          sync.Mutex
+	listQueued  func(context.Context) ([]store.CommittedNetworkNotification, error)
 	queued      []store.CommittedNetworkNotification
 	reservation store.WakeReservation
 	messages    []store.NetworkMessageEntry
@@ -396,9 +422,12 @@ func (*networkWakeStoreStub) AcceptNetworkMessage(
 }
 
 func (s *networkWakeStoreStub) ListQueuedNetworkWakes(
-	context.Context,
-	int,
+	ctx context.Context,
+	_ int,
 ) ([]store.CommittedNetworkNotification, error) {
+	if s.listQueued != nil {
+		return s.listQueued(ctx)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	queued := append([]store.CommittedNetworkNotification(nil), s.queued...)

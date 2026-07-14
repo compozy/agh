@@ -28,8 +28,10 @@ describe("buildCreateTaskRequest", () => {
     );
 
     expect(payload.workspace).toBe("ws_signalforge");
-    expect(payload.network_channel).toBeUndefined();
+    expect(payload.network_participation).toEqual({ mode: "local" });
     expect("network_channel" in payload).toBe(false);
+    expect("channel" in payload).toBe(false);
+    expect("coordination_channel_id" in payload).toBe(false);
     expect(payload.identifier).toBeUndefined();
     expect("parent_task_id" in payload).toBe(false);
   });
@@ -54,8 +56,10 @@ describe("buildCreateChildTaskRequest", () => {
     );
 
     expect(payload.workspace).toBe("ws_signalforge");
-    expect(payload.network_channel).toBeUndefined();
+    expect(payload.network_participation).toEqual({ mode: "local" });
     expect("network_channel" in payload).toBe(false);
+    expect("channel" in payload).toBe(false);
+    expect("coordination_channel_id" in payload).toBe(false);
     expect(payload.identifier).toBe("WEB-CHILD-0425");
     expect("parent_task_id" in payload).toBe(false);
   });

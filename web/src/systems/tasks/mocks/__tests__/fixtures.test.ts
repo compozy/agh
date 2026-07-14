@@ -66,9 +66,9 @@ describe("tasks fixtures cover the manual-first lifecycle states", () => {
   it("queuedCoordinatedTaskFixture has a queued run bound to a coordination channel", () => {
     expect(queuedCoordinatedTaskFixture.active_run?.status).toBe("queued");
     expect(runIsCoordinated(queuedCoordinatedTaskFixture.active_run)).toBe(true);
-    expect(queuedCoordinatedTaskFixture.active_run?.coordination_channel_id).toBe(
-      "coord-task-queued"
-    );
+    expect(
+      queuedCoordinatedTaskFixture.active_run?.resolved_network_participation?.channel_id
+    ).toBe("coord-task-queued");
     expect(queuedCoordinatedTaskFixture.active_run).not.toHaveProperty("claim_token_hash");
     expect(queuedCoordinatedTaskFixture.active_run).not.toHaveProperty("coordination_channel");
     expect(taskLifecyclePhase(queuedCoordinatedTaskFixture)).toBe("queued");
@@ -117,7 +117,7 @@ describe("tasks MSW handlers preserve counted query contracts", () => {
       approval_state: "pending",
       include_drafts: "false",
       limit: "1",
-      network_channel: storyHeroNetworkChannel,
+      participation_channel: storyHeroNetworkChannel,
       owner_kind: "human",
       owner_ref: storyPeople.productLead,
       parent_task_id: "task_001",
@@ -142,7 +142,7 @@ describe("tasks MSW handlers preserve counted query contracts", () => {
 
     const exclusions: [string, string][] = [
       ["approval_state", "approved"],
-      ["network_channel", "unrelated-channel"],
+      ["participation_channel", "unrelated-channel"],
       ["owner_kind", "agent_session"],
       ["owner_ref", "another-owner"],
       ["parent_task_id", "task_other"],

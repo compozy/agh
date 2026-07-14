@@ -11,6 +11,7 @@ import (
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	looppkg "github.com/compozy/agh/internal/loop"
 	watchpkg "github.com/compozy/agh/internal/loop/watch"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
@@ -357,14 +358,21 @@ func TestLoopWatchEventsObserverShouldWakeForTypedWatchEvents(t *testing.T) {
 				return observer.OnTaskRunTerminal(ctx, hookspkg.TaskRunLeasePayload{
 					PayloadBase: hookspkg.PayloadBase{Timestamp: fixedNow},
 					TaskRunContext: hookspkg.TaskRunContext{
-						WorkspaceID:    "ws-1",
-						TaskID:         "task-target",
-						RunID:          "run-failed",
-						RunStatus:      taskpkg.TaskRunStatusFailed.String(),
-						LoopRunID:      "loop-run-source",
-						SessionID:      "session-1",
-						NetworkChannel: "chan-1",
-						Error:          "boom",
+						WorkspaceID: "ws-1",
+						TaskID:      "task-target",
+						RunID:       "run-failed",
+						RunStatus:   taskpkg.TaskRunStatusFailed.String(),
+						LoopRunID:   "loop-run-source",
+						SessionID:   "session-1",
+						ResolvedNetworkParticipation: &participation.Spec{
+							Version:         participation.SpecVersion,
+							Mode:            participation.ModeLive,
+							WorkspaceID:     "ws-1",
+							ChannelStrategy: participation.StrategyNamed,
+							ChannelID:       "chan-1",
+							Source:          participation.SourceExplicitRequest,
+						},
+						Error: "boom",
 					},
 					PreviousRunStatus: "claimed",
 					PreviousSessionID: "session-old",
@@ -759,15 +767,17 @@ func watchEventsTaskContextForTest(taskID string) hookspkg.TaskContext {
 
 func watchEventsLoopContextForTest(nodeID string) hookspkg.LoopContext {
 	return hookspkg.LoopContext{
-		WorkspaceID:    "ws-1",
-		LoopRunID:      "loop-run-source",
-		LoopName:       "delivery",
-		Generation:     1,
-		TaskID:         "task-target",
-		RunID:          "run-loop-node",
-		NodeID:         nodeID,
-		SessionID:      "session-1",
-		NetworkChannel: "chan-1",
+		WorkspaceID: "ws-1",
+		LoopRunID:   "loop-run-source",
+		LoopName:    "delivery",
+		Generation:  1,
+		TaskID:      "task-target",
+		RunID:       "run-loop-node",
+		NodeID:      nodeID,
+		SessionID:   "session-1",
+		ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
+			ChannelID: "chan-1",
+		}),
 	}
 }
 

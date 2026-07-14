@@ -447,8 +447,10 @@ func TestLoopGoalJudgeEvaluatorShouldReturnAggregateUsage(t *testing.T) {
 				Version: run.DefinitionVersion, Definition: run.DefinitionSnapshot,
 			},
 		}
+		var gotJudgeReq gate.JudgeRequest
 		evaluator := gate.NewEvaluator(gate.WithJudgeRunner(goalJudgeRunnerFunc(
 			func(_ context.Context, req gate.JudgeRequest) (gate.JudgeResponse, error) {
+				gotJudgeReq = req
 				const evidenceHeading = "\nJudge rubric:\nCheck\n\n" +
 					"Authoritative completed candidate evidence"
 				if strings.Contains(req.Rubric, "Review attempt:") ||
@@ -486,6 +488,9 @@ func TestLoopGoalJudgeEvaluatorShouldReturnAggregateUsage(t *testing.T) {
 		})
 		if err != nil {
 			t.Fatalf("EvaluateGoal() error = %v", err)
+		}
+		if got, want := gotJudgeReq.LoopRunID, string(run.ID); got != want {
+			t.Fatalf("JudgeRequest.LoopRunID = %q, want %q", got, want)
 		}
 		if result.Verdict.Outcome != gate.VerdictOutcomeApproved ||
 			result.TokensUsed != 9 || !result.TokensReported {

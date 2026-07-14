@@ -23,6 +23,7 @@ import (
 	memorypkg "github.com/compozy/agh/internal/memory"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/skills"
 	"github.com/compozy/agh/internal/store"
@@ -2126,15 +2127,15 @@ func (n *daemonNativeTools) taskCreate(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if err := nativeRejectRemovedTaskChannel(req.ToolID, input.NetworkChannel); err != nil {
-		return toolspkg.ToolResult{}, err
-	}
 	actor, err := actorContextFromScope(scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	created, err := n.deps.Tasks.CreateTask(ctx, input.spec(scope), actor)
 	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	if err := n.applyNativeTaskNetworkParticipation(ctx, created.ID, input.NetworkParticipation, actor); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	return structuredResult(map[string]any{nativeToolsTaskKey: created}, created.Title)
@@ -2149,15 +2150,15 @@ func (n *daemonNativeTools) taskChildCreate(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if err := nativeRejectRemovedTaskChannel(req.ToolID, input.NetworkChannel); err != nil {
-		return toolspkg.ToolResult{}, err
-	}
 	actor, err := actorContextFromScope(scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	created, err := n.deps.Tasks.CreateChildTask(ctx, input.ParentTaskID, input.spec(scope), actor)
 	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	if err := n.applyNativeTaskNetworkParticipation(ctx, created.ID, input.NetworkParticipation, actor); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	return structuredResult(map[string]any{nativeToolsTaskKey: created}, created.Title)
@@ -2172,16 +2173,11 @@ func (n *daemonNativeTools) taskUpdate(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	if input.NetworkChannel != nil {
-		if err := nativeRejectRemovedTaskChannel(req.ToolID, *input.NetworkChannel); err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-	}
 	actor, err := actorContextFromScope(scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	updated, err := n.deps.Tasks.UpdateTask(ctx, input.TaskID, input.patch(), actor)
+	updated, err := n.updateNativeTask(ctx, input, actor)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -2539,8 +2535,11 @@ func (n *daemonNativeTools) taskFanOutRuns(
 	runs := make([]taskpkg.Run, 0, len(input.Designations))
 	for index := range input.Designations {
 		run, enqueueErr := n.deps.Tasks.EnqueueRun(ctx, taskpkg.EnqueueRun{
-			TaskID:             taskID,
-			IdempotencyKey:     prepared[index].idempotencyKey,
+			TaskID:         taskID,
+			IdempotencyKey: prepared[index].idempotencyKey,
+			NetworkParticipation: participation.CloneRequest(
+				input.NetworkParticipation,
+			),
 			DesignationGroupID: groupID,
 			Metadata:           prepared[index].metadata,
 		}, actor)
@@ -2572,9 +2571,6 @@ func prepareNativeFanOutDesignations(
 	input taskFanOutRunsInput,
 	maxDesignations int,
 ) ([]nativePreparedFanOutDesignation, error) {
-	if strings.TrimSpace(input.NetworkChannel) != "" {
-		return nil, errors.New("network_channel is no longer supported")
-	}
 	if len(input.Designations) == 0 {
 		return nil, errors.New("designations are required")
 	}
@@ -3406,20 +3402,20 @@ type taskReadInput struct {
 }
 
 type taskCreateInput struct {
-	ID             string             `json:"id,omitempty"`
-	Identifier     string             `json:"identifier,omitempty"`
-	Scope          string             `json:"scope"`
-	WorkspaceID    string             `json:"workspace_id,omitempty"`
-	NetworkChannel string             `json:"network_channel,omitempty"`
-	Title          string             `json:"title"`
-	Description    string             `json:"description,omitempty"`
-	Priority       string             `json:"priority,omitempty"`
-	MaxAttempts    *int               `json:"max_attempts,omitempty"`
-	Draft          bool               `json:"draft,omitempty"`
-	ApprovalPolicy string             `json:"approval_policy,omitempty"`
-	Owner          *taskpkg.Ownership `json:"owner,omitempty"`
-	WakeCreator    *bool              `json:"wake_creator,omitempty"`
-	Metadata       json.RawMessage    `json:"metadata,omitempty"`
+	ID                   string                 `json:"id,omitempty"`
+	Identifier           string                 `json:"identifier,omitempty"`
+	Scope                string                 `json:"scope"`
+	WorkspaceID          string                 `json:"workspace_id,omitempty"`
+	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
+	Title                string                 `json:"title"`
+	Description          string                 `json:"description,omitempty"`
+	Priority             string                 `json:"priority,omitempty"`
+	MaxAttempts          *int                   `json:"max_attempts,omitempty"`
+	Draft                bool                   `json:"draft,omitempty"`
+	ApprovalPolicy       string                 `json:"approval_policy,omitempty"`
+	Owner                *taskpkg.Ownership     `json:"owner,omitempty"`
+	WakeCreator          *bool                  `json:"wake_creator,omitempty"`
+	Metadata             json.RawMessage        `json:"metadata,omitempty"`
 }
 
 func (i taskCreateInput) spec(scope toolspkg.Scope) taskpkg.CreateTask {
@@ -3457,16 +3453,16 @@ func (i taskChildCreateInput) spec(scope toolspkg.Scope) taskpkg.CreateTask {
 }
 
 type taskUpdateInput struct {
-	TaskID         string             `json:"task_id"`
-	Title          *string            `json:"title,omitempty"`
-	Description    *string            `json:"description,omitempty"`
-	Priority       *string            `json:"priority,omitempty"`
-	MaxAttempts    *int               `json:"max_attempts,omitempty"`
-	ApprovalPolicy *string            `json:"approval_policy,omitempty"`
-	Metadata       *json.RawMessage   `json:"metadata,omitempty"`
-	NetworkChannel *string            `json:"network_channel,omitempty"`
-	Owner          *taskpkg.Ownership `json:"owner,omitempty"`
-	ClearOwner     bool               `json:"clear_owner,omitempty"`
+	TaskID               string                 `json:"task_id"`
+	Title                *string                `json:"title,omitempty"`
+	Description          *string                `json:"description,omitempty"`
+	Priority             *string                `json:"priority,omitempty"`
+	MaxAttempts          *int                   `json:"max_attempts,omitempty"`
+	ApprovalPolicy       *string                `json:"approval_policy,omitempty"`
+	Metadata             *json.RawMessage       `json:"metadata,omitempty"`
+	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
+	Owner                *taskpkg.Ownership     `json:"owner,omitempty"`
+	ClearOwner           bool                   `json:"clear_owner,omitempty"`
 }
 
 func (i taskUpdateInput) patch() taskpkg.Patch {
@@ -3533,10 +3529,10 @@ type taskPromoteFromThreadInput struct {
 }
 
 type taskFanOutRunsInput struct {
-	TaskID         string                                     `json:"task_id"`
-	NetworkChannel string                                     `json:"network_channel,omitempty"`
-	Designations   []contract.TaskFanOutRunDesignationRequest `json:"designations"`
-	IdempotencyKey string                                     `json:"idempotency_key,omitempty"`
+	TaskID               string                                     `json:"task_id"`
+	NetworkParticipation *participation.Request                     `json:"network_participation,omitempty"`
+	Designations         []contract.TaskFanOutRunDesignationRequest `json:"designations"`
+	IdempotencyKey       string                                     `json:"idempotency_key,omitempty"`
 }
 
 type autonomyHeartbeatInput struct {

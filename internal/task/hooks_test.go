@@ -572,7 +572,7 @@ func TestTaskLevelHooksDispatchAtServiceCallSites(t *testing.T) {
 			WorkspaceID: "ws-task-hooks",
 			Title:       "Task hook dispatch",
 			Metadata: json.RawMessage(
-				`{"workflow_id":"wf-task-hooks","coordination_channel_id":"coord-task-hooks","agent_name":"worker-a"}`,
+				`{"workflow_id":"wf-task-hooks","agent_name":"worker-a"}`,
 			),
 		}, operator)
 		if err != nil {
@@ -615,13 +615,17 @@ func TestTaskLevelHooksDispatchAtServiceCallSites(t *testing.T) {
 			blocked.WorkspaceID != taskRecord.WorkspaceID ||
 			blocked.RunID != run.ID ||
 			blocked.WorkflowID != "wf-task-hooks" ||
-			blocked.CoordinationChannelID != "" ||
-			blocked.NetworkChannel != "" ||
 			blocked.AgentName != "worker-a" ||
 			blocked.ReleaseReason != "blocked" {
 			t.Fatalf(
 				"blocked.TaskContext = %#v, want correlation keys for task/run/workflow/release",
 				blocked.TaskContext,
+			)
+		}
+		if blocked.ResolvedNetworkParticipation != nil {
+			t.Fatalf(
+				"blocked.ResolvedNetworkParticipation = %#v, want nil for local default correlation",
+				blocked.ResolvedNetworkParticipation,
 			)
 		}
 		if blocked.ClaimTokenHash == "" || !VerifyClaimToken(claim.ClaimToken, blocked.ClaimTokenHash) {
@@ -928,13 +932,6 @@ func testTaskRunHookContextCarriesLoopFilterKeys(t *testing.T) {
 	}
 	if got := payload.ResolvedNetworkParticipation; got == nil || *got != liveSpec {
 		t.Fatalf("ResolvedNetworkParticipation = %#v, want %#v", got, liveSpec)
-	}
-	if payload.CoordinationChannelID != "" || payload.NetworkChannel != "" {
-		t.Fatalf(
-			"flat task-run channels = %q/%q, want empty owner writes",
-			payload.CoordinationChannelID,
-			payload.NetworkChannel,
-		)
 	}
 }
 

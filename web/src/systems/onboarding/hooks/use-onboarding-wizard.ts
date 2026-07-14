@@ -35,7 +35,7 @@ const STEP_META: Record<number, OnboardingStepMeta> = {
   3: {
     eyebrow: "Step 3 of 3",
     title: "Meet your onboarding agent",
-    lead: "Your onboarding agent finishes setup in a short chat — it can create the channels and agents you ask for. You can finish without it.",
+    lead: "Your onboarding agent finishes setup in a short chat — it can create the channels and agents you ask for. You can finish without it. After setup, open Network anytime to explore channels; visiting Network does not change settings.",
     hint: "Onboarding chat",
   },
 };

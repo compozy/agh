@@ -17,6 +17,7 @@ import {
 } from "@agh/ui";
 
 import { AgentCommandSelect, AgentIcon, type AgentPayload } from "@/systems/agent";
+import { NetworkParticipationFields } from "@/systems/network";
 import {
   RuntimeSelector,
   type RuntimeModelOption,
@@ -45,8 +46,18 @@ export interface SessionCreateDialogProps {
   providersLoading: boolean;
   providersError: string | null;
   hasProviderOptions: boolean;
+  networkParticipation: {
+    mode: "local" | "live";
+    channelId: string;
+    channelStrategy: string;
+  };
   onAgentChange: (agentName: string) => void;
   onRuntimeChange: (next: RuntimeSelectorValue) => void;
+  onNetworkParticipationChange: (next: {
+    mode: "local" | "live";
+    channelId: string;
+    channelStrategy: string;
+  }) => void;
   onCatalogRefresh: () => void;
   onOpenProviderSettings: () => void;
   onSubmit: () => void;
@@ -72,8 +83,10 @@ function SessionCreateDialog({
   providersLoading,
   providersError,
   hasProviderOptions,
+  networkParticipation,
   onAgentChange,
   onRuntimeChange,
+  onNetworkParticipationChange,
   onCatalogRefresh,
   onOpenProviderSettings,
   onSubmit,
@@ -240,6 +253,13 @@ function SessionCreateDialog({
                 runtime confirms it.
               </p>
             ) : null}
+
+            <NetworkParticipationFields
+              disabled={isSubmitting}
+              onChange={onNetworkParticipationChange}
+              testIdPrefix="session-create-participation"
+              value={networkParticipation}
+            />
 
             {submitError ? (
               <p

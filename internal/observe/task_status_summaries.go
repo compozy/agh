@@ -20,7 +20,7 @@ func summarizeTasks(tasks []taskpkg.Summary, taskChannels map[string]string) []T
 		current := counts[key]
 		current.Scope = item.Scope.Normalize()
 		current.Status = item.Status.Normalize()
-		current.NetworkChannel = channel
+		current.ChannelID = channel
 		current.Count++
 		counts[key] = current
 	}
@@ -35,7 +35,7 @@ func summarizeTasks(tasks []taskpkg.Summary, taskChannels map[string]string) []T
 		if cmp := strings.Compare(string(left.Status), string(right.Status)); cmp != 0 {
 			return cmp
 		}
-		return strings.Compare(left.NetworkChannel, right.NetworkChannel)
+		return strings.Compare(left.ChannelID, right.ChannelID)
 	})
 	return rows
 }
@@ -48,7 +48,7 @@ func summarizeTaskOrigins(tasks []taskpkg.Summary, taskChannels map[string]strin
 		key := string(item.Origin.Kind.Normalize()) + "\x00" + channel
 		current := counts[key]
 		current.OriginKind = item.Origin.Kind.Normalize()
-		current.NetworkChannel = channel
+		current.ChannelID = channel
 		current.Count++
 		counts[key] = current
 	}
@@ -60,7 +60,7 @@ func summarizeTaskOrigins(tasks []taskpkg.Summary, taskChannels map[string]strin
 		if cmp := strings.Compare(string(left.OriginKind), string(right.OriginKind)); cmp != 0 {
 			return cmp
 		}
-		return strings.Compare(left.NetworkChannel, right.NetworkChannel)
+		return strings.Compare(left.ChannelID, right.ChannelID)
 	})
 	return rows
 }

@@ -33,7 +33,7 @@ func TestSchedulerWakeLeavesClaimToTaskServiceIntegration(t *testing.T) {
 		execution := createSchedulerTaskRun(t, ctx, manager, workspaceID, "Wake then claim")
 		runChannel := execution.Run.NetworkSpecSnapshot().ChannelID
 		if runChannel == "" {
-			t.Fatal("execution.Run.CoordinationChannelID = empty, want derived channel")
+			t.Fatal("execution.Run.NetworkSpecSnapshot().ChannelID = empty, want derived channel")
 		}
 		run := execution.Run
 		run.RequiredCapabilities = []string{"go"}
@@ -95,13 +95,13 @@ func TestSchedulerWakeLeavesClaimToTaskServiceIntegration(t *testing.T) {
 			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 		}
 		claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:                 taskpkg.ScopeWorkspace,
-			WorkspaceID:           workspaceID,
-			ClaimerSessionID:      "sess-worker",
-			CoordinationChannelID: runChannel,
-			RequiredCapabilities:  []string{"go"},
-			LeaseDuration:         time.Minute,
-			Now:                   base.Add(time.Second),
+			Scope:                taskpkg.ScopeWorkspace,
+			WorkspaceID:          workspaceID,
+			ClaimerSessionID:     "sess-worker",
+			ParticipationChannel: runChannel,
+			RequiredCapabilities: []string{"go"},
+			LeaseDuration:        time.Minute,
+			Now:                  base.Add(time.Second),
 		}, claimActor)
 		if err != nil {
 			t.Fatalf("ClaimNextRun() error = %v", err)
@@ -125,7 +125,7 @@ func TestSchedulerRecoversExpiredLeaseAfterDatabaseRestartIntegration(t *testing
 		execution := createSchedulerTaskRun(t, ctx, firstManager, workspaceID, "Restart recovery")
 		runChannel := execution.Run.NetworkSpecSnapshot().ChannelID
 		if runChannel == "" {
-			t.Fatal("execution.Run.CoordinationChannelID = empty, want derived channel")
+			t.Fatal("execution.Run.NetworkSpecSnapshot().ChannelID = empty, want derived channel")
 		}
 
 		oldActor, err := taskpkg.DeriveAgentSessionActorContext("sess-old")
@@ -133,12 +133,12 @@ func TestSchedulerRecoversExpiredLeaseAfterDatabaseRestartIntegration(t *testing
 			t.Fatalf("DeriveAgentSessionActorContext(old) error = %v", err)
 		}
 		claimed, err := firstManager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:                 taskpkg.ScopeWorkspace,
-			WorkspaceID:           workspaceID,
-			ClaimerSessionID:      "sess-old",
-			CoordinationChannelID: runChannel,
-			LeaseDuration:         time.Second,
-			Now:                   base,
+			Scope:                taskpkg.ScopeWorkspace,
+			WorkspaceID:          workspaceID,
+			ClaimerSessionID:     "sess-old",
+			ParticipationChannel: runChannel,
+			LeaseDuration:        time.Second,
+			Now:                  base,
 		}, oldActor)
 		if err != nil {
 			t.Fatalf("ClaimNextRun(old) error = %v", err)
@@ -203,12 +203,12 @@ func TestSchedulerRecoversExpiredLeaseAfterDatabaseRestartIntegration(t *testing
 			t.Fatalf("DeriveAgentSessionActorContext(new) error = %v", err)
 		}
 		claim, err := secondManager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:                 taskpkg.ScopeWorkspace,
-			WorkspaceID:           workspaceID,
-			ClaimerSessionID:      "sess-new",
-			CoordinationChannelID: runChannel,
-			LeaseDuration:         time.Minute,
-			Now:                   base.Add(3 * time.Second),
+			Scope:                taskpkg.ScopeWorkspace,
+			WorkspaceID:          workspaceID,
+			ClaimerSessionID:     "sess-new",
+			ParticipationChannel: runChannel,
+			LeaseDuration:        time.Minute,
+			Now:                  base.Add(3 * time.Second),
 		}, newActor)
 		if err != nil {
 			t.Fatalf("ClaimNextRun(new) error = %v", err)
@@ -278,12 +278,12 @@ func TestSchedulerRecoversExpiredImmutableParticipationLeaseIntegration(t *testi
 				t.Fatalf("DeriveAgentSessionActorContext(old) error = %v", err)
 			}
 			firstClaim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-				Scope:                 taskpkg.ScopeWorkspace,
-				WorkspaceID:           workspaceID,
-				ClaimerSessionID:      "sess-old",
-				CoordinationChannelID: "scope-direct-history",
-				LeaseDuration:         time.Second,
-				Now:                   base,
+				Scope:                taskpkg.ScopeWorkspace,
+				WorkspaceID:          workspaceID,
+				ClaimerSessionID:     "sess-old",
+				ParticipationChannel: "scope-direct-history",
+				LeaseDuration:        time.Second,
+				Now:                  base,
 			}, oldActor)
 			if err != nil {
 				t.Fatalf("ClaimNextRun(old) error = %v", err)
@@ -339,12 +339,12 @@ func TestSchedulerRecoversExpiredImmutableParticipationLeaseIntegration(t *testi
 				t.Fatalf("DeriveAgentSessionActorContext(new) error = %v", err)
 			}
 			secondClaim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-				Scope:                 taskpkg.ScopeWorkspace,
-				WorkspaceID:           workspaceID,
-				ClaimerSessionID:      "sess-new",
-				CoordinationChannelID: "scope-direct-history",
-				LeaseDuration:         time.Minute,
-				Now:                   base.Add(14 * time.Second),
+				Scope:                taskpkg.ScopeWorkspace,
+				WorkspaceID:          workspaceID,
+				ClaimerSessionID:     "sess-new",
+				ParticipationChannel: "scope-direct-history",
+				LeaseDuration:        time.Minute,
+				Now:                  base.Add(14 * time.Second),
 			}, newActor)
 			if err != nil {
 				t.Fatalf("ClaimNextRun(new) error = %v", err)
@@ -435,7 +435,7 @@ func TestSchedulerRequeuesDeadWorkerLeaseAndWakesReplacementIntegration(t *testi
 		execution := createSchedulerTaskRun(t, ctx, manager, workspaceID, "Dead worker recovery")
 		runChannel := execution.Run.NetworkSpecSnapshot().ChannelID
 		if runChannel == "" {
-			t.Fatal("execution.Run.CoordinationChannelID = empty, want derived channel")
+			t.Fatal("execution.Run.NetworkSpecSnapshot().ChannelID = empty, want derived channel")
 		}
 
 		deadActor, err := taskpkg.DeriveAgentSessionActorContext("sess-dead-worker")
@@ -443,12 +443,12 @@ func TestSchedulerRequeuesDeadWorkerLeaseAndWakesReplacementIntegration(t *testi
 			t.Fatalf("DeriveAgentSessionActorContext(dead) error = %v", err)
 		}
 		firstClaim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:                 taskpkg.ScopeWorkspace,
-			WorkspaceID:           workspaceID,
-			ClaimerSessionID:      "sess-dead-worker",
-			CoordinationChannelID: runChannel,
-			LeaseDuration:         time.Minute,
-			Now:                   base,
+			Scope:                taskpkg.ScopeWorkspace,
+			WorkspaceID:          workspaceID,
+			ClaimerSessionID:     "sess-dead-worker",
+			ParticipationChannel: runChannel,
+			LeaseDuration:        time.Minute,
+			Now:                  base,
 		}, deadActor)
 		if err != nil {
 			t.Fatalf("ClaimNextRun(dead) error = %v", err)
@@ -535,12 +535,12 @@ func TestSchedulerRequeuesDeadWorkerLeaseAndWakesReplacementIntegration(t *testi
 			t.Fatalf("DeriveAgentSessionActorContext(replacement) error = %v", err)
 		}
 		secondClaim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:                 taskpkg.ScopeWorkspace,
-			WorkspaceID:           workspaceID,
-			ClaimerSessionID:      "sess-replacement",
-			CoordinationChannelID: runChannel,
-			LeaseDuration:         time.Minute,
-			Now:                   base.Add(13 * time.Second),
+			Scope:                taskpkg.ScopeWorkspace,
+			WorkspaceID:          workspaceID,
+			ClaimerSessionID:     "sess-replacement",
+			ParticipationChannel: runChannel,
+			LeaseDuration:        time.Minute,
+			Now:                  base.Add(13 * time.Second),
 		}, replacementActor)
 		if err != nil {
 			t.Fatalf("ClaimNextRun(replacement) error = %v", err)

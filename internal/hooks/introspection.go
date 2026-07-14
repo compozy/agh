@@ -632,6 +632,20 @@ var hookEventDescriptors = map[HookEvent]EventDescriptor{
 		PayloadSchema: "NetworkWorkClosedPayload",
 		PatchSchema:   introspectionNetworkObservationPatchValue,
 	},
+	HookNetworkParticipationPreResolve: {
+		Event:         HookNetworkParticipationPreResolve,
+		Family:        HookEventFamilyNetwork,
+		SyncEligible:  true,
+		PayloadSchema: "NetworkParticipationPreResolvePayload",
+		PatchSchema:   "NetworkParticipationPreResolvePatch",
+	},
+	HookNetworkParticipationResolved: {
+		Event:         HookNetworkParticipationResolved,
+		Family:        HookEventFamilyNetwork,
+		SyncEligible:  false,
+		PayloadSchema: "NetworkParticipationResolvedPayload",
+		PatchSchema:   "NetworkParticipationResolvedPatch",
+	},
 }
 
 // Catalog returns the currently resolved hook catalog in deterministic pipeline order.

@@ -156,7 +156,7 @@ func (h *HostAPIHandler) handleTasksInbox(ctx context.Context, raw json.RawMessa
 
 func (h *HostAPIHandler) handleTasksCreate(ctx context.Context, raw json.RawMessage) (any, error) {
 	var params hostAPITaskCreateParams
-	if err := decodeHostAPIParams(raw, &params); err != nil {
+	if err := decodeHostAPIParamsStrict(raw, &params); err != nil {
 		return nil, err
 	}
 
@@ -281,7 +281,7 @@ func (h *HostAPIHandler) handleTasksRunsGet(ctx context.Context, raw json.RawMes
 
 func (h *HostAPIHandler) handleTasksRunsEnqueue(ctx context.Context, raw json.RawMessage) (any, error) {
 	var params hostAPITaskRunEnqueueParams
-	if err := decodeHostAPIParams(raw, &params); err != nil {
+	if err := decodeHostAPIParamsStrict(raw, &params); err != nil {
 		return nil, err
 	}
 	taskID := strings.TrimSpace(params.TaskID)
@@ -514,10 +514,10 @@ func (h *HostAPIHandler) taskQueryFromParams(
 		}
 		query.WorkspaceID = workspaceID
 	}
-	if err := validateTaskChannel("task_query.network_channel", params.NetworkChannel); err != nil {
+	if err := validateTaskChannel("task_query.participation_channel", params.ParticipationChannel); err != nil {
 		return taskpkg.CatalogQuery{}, err
 	}
-	query.NetworkChannel = strings.TrimSpace(params.NetworkChannel)
+	query.ParticipationChannel = strings.TrimSpace(params.ParticipationChannel)
 	normalized, err := taskpkg.NormalizeCatalogQuery(query)
 	if err != nil {
 		return taskpkg.CatalogQuery{}, invalidParamsRPCError(err)
@@ -553,11 +553,11 @@ func (h *HostAPIHandler) taskDashboardQueryFromParams(
 	params apicontract.TaskDashboardQuery,
 ) (observepkg.TaskDashboardQuery, error) {
 	query := observepkg.TaskDashboardQuery{
-		Scope:          params.Scope.Normalize(),
-		OwnerKind:      params.OwnerKind.Normalize(),
-		OwnerRef:       strings.TrimSpace(params.OwnerRef),
-		NetworkChannel: strings.TrimSpace(params.NetworkChannel),
-		OriginKind:     params.OriginKind.Normalize(),
+		Scope:                params.Scope.Normalize(),
+		OwnerKind:            params.OwnerKind.Normalize(),
+		OwnerRef:             strings.TrimSpace(params.OwnerRef),
+		ParticipationChannel: strings.TrimSpace(params.ParticipationChannel),
+		OriginKind:           params.OriginKind.Normalize(),
 	}
 	if query.Scope.Normalize() != "" {
 		if err := query.Scope.Validate("task_dashboard_query.scope"); err != nil {
@@ -581,7 +581,10 @@ func (h *HostAPIHandler) taskDashboardQueryFromParams(
 		}
 		query.WorkspaceID = workspaceID
 	}
-	if err := validateTaskChannel("task_dashboard_query.network_channel", query.NetworkChannel); err != nil {
+	if err := validateTaskChannel(
+		"task_dashboard_query.participation_channel",
+		query.ParticipationChannel,
+	); err != nil {
 		return observepkg.TaskDashboardQuery{}, err
 	}
 	if err := query.Validate(); err != nil {
@@ -640,9 +643,6 @@ func (h *HostAPIHandler) createTaskSpecFromRequest(
 	if err != nil {
 		return taskpkg.CreateTask{}, err
 	}
-	if err := rejectRemovedTaskChannel("create_task.network_channel", req.NetworkChannel); err != nil {
-		return taskpkg.CreateTask{}, err
-	}
 
 	spec := taskpkg.CreateTask{
 		ID:                 strings.TrimSpace(req.ID),
@@ -666,12 +666,6 @@ func (h *HostAPIHandler) createTaskSpecFromRequest(
 }
 
 func taskPatchFromRequest(req apicontract.UpdateTaskRequest) (taskpkg.Patch, error) {
-	if req.NetworkChannel != nil {
-		if err := rejectRemovedTaskChannel("task_patch.network_channel", *req.NetworkChannel); err != nil {
-			return taskpkg.Patch{}, err
-		}
-	}
-
 	patch := taskpkg.Patch{
 		Title:              trimStringPtr(req.Title),
 		Description:        trimStringPtr(req.Description),
@@ -701,10 +695,6 @@ func cancelTaskFromRequest(req apicontract.CancelTaskRequest) (taskpkg.CancelTas
 }
 
 func enqueueTaskRunFromRequest(taskID string, req apicontract.EnqueueTaskRunRequest) (taskpkg.EnqueueRun, error) {
-	if err := rejectRemovedTaskChannel("enqueue_run.network_channel", req.NetworkChannel); err != nil {
-		return taskpkg.EnqueueRun{}, err
-	}
-
 	spec := taskpkg.EnqueueRun{
 		TaskID:         strings.TrimSpace(taskID),
 		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
@@ -806,13 +796,6 @@ func validateTaskChannel(path string, channel string) error {
 		return invalidParamsRPCError(fmt.Errorf("%s: %w", path, err))
 	}
 	return nil
-}
-
-func rejectRemovedTaskChannel(path string, channel string) error {
-	if strings.TrimSpace(channel) == "" {
-		return nil
-	}
-	return invalidParamsRPCError(fmt.Errorf("%s is no longer supported", path))
 }
 
 func mapTaskRPCError(id string, err error) error {
@@ -1066,7 +1049,6 @@ func taskRunSessionPayloadFromSession(session *taskpkg.RunSessionRef) *apicontra
 		WorkspaceID: session.WorkspaceID,
 		AgentName:   session.AgentName,
 		Name:        session.Name,
-		Channel:     session.Channel,
 		State:       session.State,
 		CreatedAt:   session.CreatedAt,
 		UpdatedAt:   session.UpdatedAt,
@@ -1203,7 +1185,7 @@ func taskDashboardQueuePayload(queue observepkg.TaskDashboardQueue) apicontract.
 	payload.Depth = make([]apicontract.TaskDashboardQueueDepthPayload, 0, len(queue.Depth))
 	for _, item := range queue.Depth {
 		payload.Depth = append(payload.Depth, apicontract.TaskDashboardQueueDepthPayload{
-			NetworkChannel:      item.NetworkChannel,
+			ChannelID:           item.ChannelID,
 			Count:               item.Count,
 			OldestQueuedAt:      item.OldestQueuedAt,
 			OldestQueueAgeMilli: item.OldestQueueAgeMilli,
@@ -1238,25 +1220,25 @@ func taskDashboardActiveRunsPayload(
 	payload.Items = make([]apicontract.TaskDashboardActiveRunPayload, 0, len(activeRuns.Items))
 	for _, item := range activeRuns.Items {
 		payload.Items = append(payload.Items, apicontract.TaskDashboardActiveRunPayload{
-			TaskID:         item.TaskID,
-			TaskIdentifier: item.TaskIdentifier,
-			TaskTitle:      item.TaskTitle,
-			TaskStatus:     item.TaskStatus,
-			TaskPriority:   item.TaskPriority,
-			TaskOwner:      cloneOwnership(item.TaskOwner),
-			Scope:          item.Scope,
-			WorkspaceID:    item.WorkspaceID,
-			RunID:          item.RunID,
-			RunStatus:      item.RunStatus,
-			Attempt:        item.Attempt,
-			MaxAttempts:    item.MaxAttempts,
-			SessionID:      item.SessionID,
-			NetworkChannel: item.NetworkChannel,
-			LastActivityAt: item.LastActivityAt,
-			AgeMilli:       item.AgeMilli,
-			HealthStatus:   item.HealthStatus,
-			Stuck:          item.Stuck,
-			Error:          item.Error,
+			TaskID:                       item.TaskID,
+			TaskIdentifier:               item.TaskIdentifier,
+			TaskTitle:                    item.TaskTitle,
+			TaskStatus:                   item.TaskStatus,
+			TaskPriority:                 item.TaskPriority,
+			TaskOwner:                    cloneOwnership(item.TaskOwner),
+			Scope:                        item.Scope,
+			WorkspaceID:                  item.WorkspaceID,
+			RunID:                        item.RunID,
+			RunStatus:                    item.RunStatus,
+			Attempt:                      item.Attempt,
+			MaxAttempts:                  item.MaxAttempts,
+			SessionID:                    item.SessionID,
+			ResolvedNetworkParticipation: cloneResolvedParticipation(item.ResolvedNetworkParticipation),
+			LastActivityAt:               item.LastActivityAt,
+			AgeMilli:                     item.AgeMilli,
+			HealthStatus:                 item.HealthStatus,
+			Stuck:                        item.Stuck,
+			Error:                        item.Error,
 		})
 	}
 	return payload

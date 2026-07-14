@@ -136,7 +136,15 @@ export function NetworkSettingsPage() {
 
 function OperationalLinksSection() {
   return (
-    <Section divided label="Operational" note="inspect channels, peers, and live message flow">
+    <Section
+      divided
+      label="Operational"
+      note="availability and live defaults never enroll executions"
+    >
+      <p className="text-xs text-subtle" data-testid="settings-page-network-enrollment-note">
+        These settings control Network availability and Live defaults/ceilings. They do not opt
+        sessions, tasks, loops, or automations into participation.
+      </p>
       <div className="flex flex-wrap gap-2" data-testid="settings-page-network-operational-links">
         <Link
           to="/network"
@@ -145,6 +153,14 @@ function OperationalLinksSection() {
         >
           <ExternalLink className="size-3 text-subtle" />
           Open Network
+        </Link>
+        <Link
+          to="/network"
+          className="inline-flex items-center gap-1.5 rounded-md border border-line bg-elevated px-3 py-1.5 text-xs font-medium text-fg hover:bg-hover"
+          data-testid="settings-page-network-link-usage"
+        >
+          <ExternalLink className="size-3 text-subtle" />
+          View usage
         </Link>
       </div>
     </Section>
@@ -257,26 +273,6 @@ function ListenerSection({
               setDraft(prev => {
                 const current = prev ?? draft;
                 return { ...current, port: value };
-              })
-            }
-          />
-        }
-      />
-      <SettingsFieldRow
-        data-testid="settings-page-network-default-channel"
-        label="Default channel"
-        description="Channel new sessions join when none is specified"
-        hint="DEFAULT"
-        control={
-          <Input
-            className="w-56 font-mono"
-            data-testid="settings-page-network-default-channel-input"
-            value={draft.default_channel ?? ""}
-            placeholder="agh"
-            onChange={event =>
-              setDraft(prev => {
-                const current = prev ?? draft;
-                return { ...current, default_channel: event.target.value };
               })
             }
           />

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -25,73 +26,73 @@ type TaskReferencePayload struct {
 
 // TaskSummaryPayload is the shared list-oriented task response payload.
 type TaskSummaryPayload struct {
-	ID                   string                           `json:"id"`
-	Identifier           string                           `json:"identifier,omitempty"`
-	Scope                taskpkg.Scope                    `json:"scope"`
-	WorkspaceID          string                           `json:"workspace_id,omitempty"`
-	ParentTaskID         string                           `json:"parent_task_id,omitempty"`
-	NetworkChannel       string                           `json:"network_channel,omitempty"`
-	Title                string                           `json:"title"`
-	Priority             taskpkg.Priority                 `json:"priority,omitempty"`
-	MaxAttempts          int                              `json:"max_attempts,omitempty"`
-	AutoEnqueueOnReady   bool                             `json:"auto_enqueue_on_ready,omitempty"`
-	Status               taskpkg.Status                   `json:"status"`
-	ApprovalPolicy       taskpkg.ApprovalPolicy           `json:"approval_policy,omitempty"`
-	ApprovalState        taskpkg.ApprovalState            `json:"approval_state,omitempty"`
-	Draft                bool                             `json:"draft,omitempty"`
-	Owner                *taskpkg.Ownership               `json:"owner,omitempty"`
-	CurrentRunID         string                           `json:"current_run_id,omitempty"`
-	LatestEventSeq       int64                            `json:"latest_event_seq"`
-	Paused               bool                             `json:"paused,omitempty"`
-	PausedBy             string                           `json:"paused_by,omitempty"`
-	PausedAt             *time.Time                       `json:"paused_at,omitempty"`
-	PausedReason         string                           `json:"paused_reason,omitempty"`
-	EffectivePaused      bool                             `json:"effective_paused,omitempty"`
-	PausedByTaskID       string                           `json:"paused_by_task_id,omitempty"`
-	BlockedReasons       []taskpkg.BlockedReason          `json:"blocked_reasons,omitempty"`
-	NeedsAttention       bool                             `json:"needs_attention,omitempty"`
-	NeedsAttentionReason string                           `json:"needs_attention_reason,omitempty"`
-	NeedsAttentionAt     *time.Time                       `json:"needs_attention_at,omitempty"`
-	NeedsAttentionBy     *taskpkg.ActorIdentity           `json:"needs_attention_by,omitempty"`
-	WakeCreator          bool                             `json:"wake_creator"`
-	CreatedBy            taskpkg.ActorIdentity            `json:"created_by"`
-	Origin               taskpkg.Origin                   `json:"origin"`
-	CreatedAt            time.Time                        `json:"created_at"`
-	UpdatedAt            time.Time                        `json:"updated_at"`
-	ClosedAt             *time.Time                       `json:"closed_at,omitempty"`
-	ChildCount           int                              `json:"child_count,omitempty"`
-	DependencyCount      int                              `json:"dependency_count,omitempty"`
-	Dependencies         []TaskDependencyReferencePayload `json:"dependencies,omitempty"`
-	ActiveRun            *TaskRunSummaryPayload           `json:"active_run,omitempty"`
-	LastActivityAt       *time.Time                       `json:"last_activity_at,omitempty"`
+	ID                           string                           `json:"id"`
+	Identifier                   string                           `json:"identifier,omitempty"`
+	Scope                        taskpkg.Scope                    `json:"scope"`
+	WorkspaceID                  string                           `json:"workspace_id,omitempty"`
+	ParentTaskID                 string                           `json:"parent_task_id,omitempty"`
+	ResolvedNetworkParticipation *participation.Spec              `json:"resolved_network_participation,omitempty"`
+	Title                        string                           `json:"title"`
+	Priority                     taskpkg.Priority                 `json:"priority,omitempty"`
+	MaxAttempts                  int                              `json:"max_attempts,omitempty"`
+	AutoEnqueueOnReady           bool                             `json:"auto_enqueue_on_ready,omitempty"`
+	Status                       taskpkg.Status                   `json:"status"`
+	ApprovalPolicy               taskpkg.ApprovalPolicy           `json:"approval_policy,omitempty"`
+	ApprovalState                taskpkg.ApprovalState            `json:"approval_state,omitempty"`
+	Draft                        bool                             `json:"draft,omitempty"`
+	Owner                        *taskpkg.Ownership               `json:"owner,omitempty"`
+	CurrentRunID                 string                           `json:"current_run_id,omitempty"`
+	LatestEventSeq               int64                            `json:"latest_event_seq"`
+	Paused                       bool                             `json:"paused,omitempty"`
+	PausedBy                     string                           `json:"paused_by,omitempty"`
+	PausedAt                     *time.Time                       `json:"paused_at,omitempty"`
+	PausedReason                 string                           `json:"paused_reason,omitempty"`
+	EffectivePaused              bool                             `json:"effective_paused,omitempty"`
+	PausedByTaskID               string                           `json:"paused_by_task_id,omitempty"`
+	BlockedReasons               []taskpkg.BlockedReason          `json:"blocked_reasons,omitempty"`
+	NeedsAttention               bool                             `json:"needs_attention,omitempty"`
+	NeedsAttentionReason         string                           `json:"needs_attention_reason,omitempty"`
+	NeedsAttentionAt             *time.Time                       `json:"needs_attention_at,omitempty"`
+	NeedsAttentionBy             *taskpkg.ActorIdentity           `json:"needs_attention_by,omitempty"`
+	WakeCreator                  bool                             `json:"wake_creator"`
+	CreatedBy                    taskpkg.ActorIdentity            `json:"created_by"`
+	Origin                       taskpkg.Origin                   `json:"origin"`
+	CreatedAt                    time.Time                        `json:"created_at"`
+	UpdatedAt                    time.Time                        `json:"updated_at"`
+	ClosedAt                     *time.Time                       `json:"closed_at,omitempty"`
+	ChildCount                   int                              `json:"child_count,omitempty"`
+	DependencyCount              int                              `json:"dependency_count,omitempty"`
+	Dependencies                 []TaskDependencyReferencePayload `json:"dependencies,omitempty"`
+	ActiveRun                    *TaskRunSummaryPayload           `json:"active_run,omitempty"`
+	LastActivityAt               *time.Time                       `json:"last_activity_at,omitempty"`
 }
 
 // TaskPayload is the shared full task response payload.
 type TaskPayload struct {
-	ID                 string                 `json:"id"`
-	Identifier         string                 `json:"identifier,omitempty"`
-	Scope              taskpkg.Scope          `json:"scope"`
-	WorkspaceID        string                 `json:"workspace_id,omitempty"`
-	ParentTaskID       string                 `json:"parent_task_id,omitempty"`
-	NetworkChannel     string                 `json:"network_channel,omitempty"`
-	Title              string                 `json:"title"`
-	Description        string                 `json:"description,omitempty"`
-	Priority           taskpkg.Priority       `json:"priority,omitempty"`
-	MaxAttempts        int                    `json:"max_attempts,omitempty"`
-	AutoEnqueueOnReady bool                   `json:"auto_enqueue_on_ready,omitempty"`
-	Status             taskpkg.Status         `json:"status"`
-	ApprovalPolicy     taskpkg.ApprovalPolicy `json:"approval_policy,omitempty"`
-	ApprovalState      taskpkg.ApprovalState  `json:"approval_state,omitempty"`
-	Draft              bool                   `json:"draft,omitempty"`
-	Owner              *taskpkg.Ownership     `json:"owner,omitempty"`
-	CurrentRunID       string                 `json:"current_run_id,omitempty"`
-	LatestEventSeq     int64                  `json:"latest_event_seq"`
-	Paused             bool                   `json:"paused,omitempty"`
-	PausedBy           string                 `json:"paused_by,omitempty"`
-	PausedAt           *time.Time             `json:"paused_at,omitempty"`
-	PausedReason       string                 `json:"paused_reason,omitempty"`
-	EffectivePaused    bool                   `json:"effective_paused,omitempty"`
-	PausedByTaskID     string                 `json:"paused_by_task_id,omitempty"`
+	ID                           string                 `json:"id"`
+	Identifier                   string                 `json:"identifier,omitempty"`
+	Scope                        taskpkg.Scope          `json:"scope"`
+	WorkspaceID                  string                 `json:"workspace_id,omitempty"`
+	ParentTaskID                 string                 `json:"parent_task_id,omitempty"`
+	ResolvedNetworkParticipation *participation.Spec    `json:"resolved_network_participation,omitempty"`
+	Title                        string                 `json:"title"`
+	Description                  string                 `json:"description,omitempty"`
+	Priority                     taskpkg.Priority       `json:"priority,omitempty"`
+	MaxAttempts                  int                    `json:"max_attempts,omitempty"`
+	AutoEnqueueOnReady           bool                   `json:"auto_enqueue_on_ready,omitempty"`
+	Status                       taskpkg.Status         `json:"status"`
+	ApprovalPolicy               taskpkg.ApprovalPolicy `json:"approval_policy,omitempty"`
+	ApprovalState                taskpkg.ApprovalState  `json:"approval_state,omitempty"`
+	Draft                        bool                   `json:"draft,omitempty"`
+	Owner                        *taskpkg.Ownership     `json:"owner,omitempty"`
+	CurrentRunID                 string                 `json:"current_run_id,omitempty"`
+	LatestEventSeq               int64                  `json:"latest_event_seq"`
+	Paused                       bool                   `json:"paused,omitempty"`
+	PausedBy                     string                 `json:"paused_by,omitempty"`
+	PausedAt                     *time.Time             `json:"paused_at,omitempty"`
+	PausedReason                 string                 `json:"paused_reason,omitempty"`
+	EffectivePaused              bool                   `json:"effective_paused,omitempty"`
+	PausedByTaskID               string                 `json:"paused_by_task_id,omitempty"`
 	// BlockedReasons is populated on read/detail projections and may be omitted by mutation responses.
 	BlockedReasons       []taskpkg.BlockedReason `json:"blocked_reasons,omitempty"`
 	NeedsAttention       bool                    `json:"needs_attention,omitempty"`
@@ -178,56 +179,55 @@ type TaskDependencyReferencePayload struct {
 
 // TaskRunPayload is the shared task-run response payload.
 type TaskRunPayload struct {
-	ID                    string                         `json:"id"`
-	TaskID                string                         `json:"task_id"`
-	Status                taskpkg.RunStatus              `json:"status"`
-	Attempt               int                            `json:"attempt"`
-	PreviousRunID         string                         `json:"previous_run_id,omitempty"`
-	FailureKind           string                         `json:"failure_kind,omitempty"`
-	ClaimedBy             *taskpkg.ActorIdentity         `json:"claimed_by,omitempty"`
-	SessionID             string                         `json:"session_id,omitempty"`
-	Origin                taskpkg.Origin                 `json:"origin"`
-	IdempotencyKey        string                         `json:"idempotency_key,omitempty"`
-	NetworkChannel        string                         `json:"network_channel,omitempty"`
-	DesignationGroupID    string                         `json:"designation_group_id,omitempty"`
-	ClaimTokenHash        string                         `json:"claim_token_hash,omitempty"`
-	LeaseUntil            *time.Time                     `json:"lease_until,omitempty"`
-	HeartbeatAt           *time.Time                     `json:"heartbeat_at,omitempty"`
-	CoordinationChannelID string                         `json:"coordination_channel_id,omitempty"`
-	CoordinationChannel   *CoordinationChannelPayload    `json:"coordination_channel,omitempty"`
-	Designation           *taskpkg.RunDesignationSummary `json:"designation,omitempty"`
-	QueuedAt              time.Time                      `json:"queued_at"`
-	ClaimedAt             *time.Time                     `json:"claimed_at,omitempty"`
-	StartedAt             *time.Time                     `json:"started_at,omitempty"`
-	EndedAt               *time.Time                     `json:"ended_at,omitempty"`
-	Error                 string                         `json:"error,omitempty"`
-	Metadata              json.RawMessage                `json:"metadata,omitempty"`
-	Result                json.RawMessage                `json:"result,omitempty"`
+	ID                           string                         `json:"id"`
+	TaskID                       string                         `json:"task_id"`
+	Status                       taskpkg.RunStatus              `json:"status"`
+	Attempt                      int                            `json:"attempt"`
+	PreviousRunID                string                         `json:"previous_run_id,omitempty"`
+	FailureKind                  string                         `json:"failure_kind,omitempty"`
+	ClaimedBy                    *taskpkg.ActorIdentity         `json:"claimed_by,omitempty"`
+	SessionID                    string                         `json:"session_id,omitempty"`
+	Origin                       taskpkg.Origin                 `json:"origin"`
+	IdempotencyKey               string                         `json:"idempotency_key,omitempty"`
+	ResolvedNetworkParticipation *participation.Spec            `json:"resolved_network_participation,omitempty"`
+	DesignationGroupID           string                         `json:"designation_group_id,omitempty"`
+	ClaimTokenHash               string                         `json:"claim_token_hash,omitempty"`
+	LeaseUntil                   *time.Time                     `json:"lease_until,omitempty"`
+	HeartbeatAt                  *time.Time                     `json:"heartbeat_at,omitempty"`
+	CoordinationChannel          *CoordinationChannelPayload    `json:"coordination_channel,omitempty"`
+	Designation                  *taskpkg.RunDesignationSummary `json:"designation,omitempty"`
+	QueuedAt                     time.Time                      `json:"queued_at"`
+	ClaimedAt                    *time.Time                     `json:"claimed_at,omitempty"`
+	StartedAt                    *time.Time                     `json:"started_at,omitempty"`
+	EndedAt                      *time.Time                     `json:"ended_at,omitempty"`
+	Error                        string                         `json:"error,omitempty"`
+	Metadata                     json.RawMessage                `json:"metadata,omitempty"`
+	Result                       json.RawMessage                `json:"result,omitempty"`
 }
 
 // TaskRunSummaryPayload is the shared run-chip payload reused by enriched task reads.
 type TaskRunSummaryPayload struct {
-	ID                    string                         `json:"id"`
-	TaskID                string                         `json:"task_id"`
-	Status                taskpkg.RunStatus              `json:"status"`
-	Attempt               int                            `json:"attempt"`
-	PreviousRunID         string                         `json:"previous_run_id,omitempty"`
-	FailureKind           string                         `json:"failure_kind,omitempty"`
-	MaxAttempts           int                            `json:"max_attempts"`
-	SessionID             string                         `json:"session_id,omitempty"`
-	ClaimedBy             *taskpkg.ActorIdentity         `json:"claimed_by,omitempty"`
-	ClaimTokenHash        string                         `json:"claim_token_hash,omitempty"`
-	LeaseUntil            *time.Time                     `json:"lease_until,omitempty"`
-	HeartbeatAt           *time.Time                     `json:"heartbeat_at,omitempty"`
-	CoordinationChannelID string                         `json:"coordination_channel_id,omitempty"`
-	CoordinationChannel   *CoordinationChannelPayload    `json:"coordination_channel,omitempty"`
-	DesignationGroupID    string                         `json:"designation_group_id,omitempty"`
-	Designation           *taskpkg.RunDesignationSummary `json:"designation,omitempty"`
-	QueuedAt              time.Time                      `json:"queued_at"`
-	ClaimedAt             *time.Time                     `json:"claimed_at,omitempty"`
-	StartedAt             *time.Time                     `json:"started_at,omitempty"`
-	EndedAt               *time.Time                     `json:"ended_at,omitempty"`
-	Error                 string                         `json:"error,omitempty"`
+	ID                           string                         `json:"id"`
+	TaskID                       string                         `json:"task_id"`
+	Status                       taskpkg.RunStatus              `json:"status"`
+	Attempt                      int                            `json:"attempt"`
+	PreviousRunID                string                         `json:"previous_run_id,omitempty"`
+	FailureKind                  string                         `json:"failure_kind,omitempty"`
+	MaxAttempts                  int                            `json:"max_attempts"`
+	SessionID                    string                         `json:"session_id,omitempty"`
+	ClaimedBy                    *taskpkg.ActorIdentity         `json:"claimed_by,omitempty"`
+	ClaimTokenHash               string                         `json:"claim_token_hash,omitempty"`
+	LeaseUntil                   *time.Time                     `json:"lease_until,omitempty"`
+	HeartbeatAt                  *time.Time                     `json:"heartbeat_at,omitempty"`
+	ResolvedNetworkParticipation *participation.Spec            `json:"resolved_network_participation,omitempty"`
+	CoordinationChannel          *CoordinationChannelPayload    `json:"coordination_channel,omitempty"`
+	DesignationGroupID           string                         `json:"designation_group_id,omitempty"`
+	Designation                  *taskpkg.RunDesignationSummary `json:"designation,omitempty"`
+	QueuedAt                     time.Time                      `json:"queued_at"`
+	ClaimedAt                    *time.Time                     `json:"claimed_at,omitempty"`
+	StartedAt                    *time.Time                     `json:"started_at,omitempty"`
+	EndedAt                      *time.Time                     `json:"ended_at,omitempty"`
+	Error                        string                         `json:"error,omitempty"`
 }
 
 // TaskEventPayload is the shared task audit-event response payload.
@@ -304,7 +304,6 @@ type TaskRunSessionPayload struct {
 	WorkspaceID string    `json:"workspace_id,omitempty"`
 	AgentName   string    `json:"agent_name,omitempty"`
 	Name        string    `json:"name,omitempty"`
-	Channel     string    `json:"channel,omitempty"`
 	State       string    `json:"state,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
@@ -507,7 +506,7 @@ type TaskDashboardQueuePayload struct {
 
 // TaskDashboardQueueDepthPayload reports queued work by channel.
 type TaskDashboardQueueDepthPayload struct {
-	NetworkChannel      string    `json:"network_channel,omitempty"`
+	ChannelID           string    `json:"channel_id,omitempty"`
 	Count               int       `json:"count"`
 	OldestQueuedAt      time.Time `json:"oldest_queued_at"`
 	OldestQueueAgeMilli int64     `json:"oldest_queue_age_ms"`
@@ -533,26 +532,26 @@ type TaskDashboardActiveRunsPayload struct {
 
 // TaskDashboardActiveRunPayload exposes one recent active-run card payload.
 type TaskDashboardActiveRunPayload struct {
-	TaskID         string             `json:"task_id"`
-	TaskIdentifier string             `json:"task_identifier,omitempty"`
-	TaskTitle      string             `json:"task_title"`
-	TaskStatus     taskpkg.Status     `json:"task_status"`
-	TaskPriority   taskpkg.Priority   `json:"task_priority,omitempty"`
-	TaskOwner      *taskpkg.Ownership `json:"task_owner,omitempty"`
-	Scope          taskpkg.Scope      `json:"scope"`
-	WorkspaceID    string             `json:"workspace_id,omitempty"`
-	LatestEventSeq int64              `json:"latest_event_seq"`
-	RunID          string             `json:"run_id"`
-	RunStatus      taskpkg.RunStatus  `json:"run_status"`
-	Attempt        int                `json:"attempt"`
-	MaxAttempts    int                `json:"max_attempts"`
-	SessionID      string             `json:"session_id,omitempty"`
-	NetworkChannel string             `json:"network_channel,omitempty"`
-	LastActivityAt time.Time          `json:"last_activity_at"`
-	AgeMilli       int64              `json:"age_ms"`
-	HealthStatus   string             `json:"health_status"`
-	Stuck          bool               `json:"stuck"`
-	Error          string             `json:"error,omitempty"`
+	TaskID                       string              `json:"task_id"`
+	TaskIdentifier               string              `json:"task_identifier,omitempty"`
+	TaskTitle                    string              `json:"task_title"`
+	TaskStatus                   taskpkg.Status      `json:"task_status"`
+	TaskPriority                 taskpkg.Priority    `json:"task_priority,omitempty"`
+	TaskOwner                    *taskpkg.Ownership  `json:"task_owner,omitempty"`
+	Scope                        taskpkg.Scope       `json:"scope"`
+	WorkspaceID                  string              `json:"workspace_id,omitempty"`
+	LatestEventSeq               int64               `json:"latest_event_seq"`
+	RunID                        string              `json:"run_id"`
+	RunStatus                    taskpkg.RunStatus   `json:"run_status"`
+	Attempt                      int                 `json:"attempt"`
+	MaxAttempts                  int                 `json:"max_attempts"`
+	SessionID                    string              `json:"session_id,omitempty"`
+	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation,omitempty"`
+	LastActivityAt               time.Time           `json:"last_activity_at"`
+	AgeMilli                     int64               `json:"age_ms"`
+	HealthStatus                 string              `json:"health_status"`
+	Stuck                        bool                `json:"stuck"`
+	Error                        string              `json:"error,omitempty"`
 }
 
 // TaskDashboardFreshnessPayload exposes recency and stale-warning state for the dashboard snapshot.
@@ -597,64 +596,64 @@ type TaskStreamQuery struct {
 
 // TaskDashboardQuery captures the shared observer-backed task dashboard filters.
 type TaskDashboardQuery struct {
-	Scope          taskpkg.Scope      `json:"scope,omitempty"`
-	Workspace      string             `json:"workspace,omitempty"`
-	OwnerKind      taskpkg.OwnerKind  `json:"owner_kind,omitempty"`
-	OwnerRef       string             `json:"owner_ref,omitempty"`
-	NetworkChannel string             `json:"network_channel,omitempty"`
-	OriginKind     taskpkg.OriginKind `json:"origin_kind,omitempty"`
+	Scope                taskpkg.Scope      `json:"scope,omitempty"`
+	Workspace            string             `json:"workspace,omitempty"`
+	OwnerKind            taskpkg.OwnerKind  `json:"owner_kind,omitempty"`
+	OwnerRef             string             `json:"owner_ref,omitempty"`
+	ParticipationChannel string             `json:"participation_channel,omitempty"`
+	OriginKind           taskpkg.OriginKind `json:"origin_kind,omitempty"`
 }
 
 // CreateTaskRequest is the shared task-create request payload.
 type CreateTaskRequest struct {
-	ID                 string                 `json:"id,omitempty"`
-	Identifier         string                 `json:"identifier,omitempty"`
-	Scope              taskpkg.Scope          `json:"scope"`
-	Workspace          string                 `json:"workspace,omitempty"`
-	NetworkChannel     string                 `json:"network_channel,omitempty"`
-	Title              string                 `json:"title"`
-	Description        string                 `json:"description,omitempty"`
-	Priority           taskpkg.Priority       `json:"priority,omitempty"`
-	MaxAttempts        *int                   `json:"max_attempts,omitempty"`
-	AutoEnqueueOnReady bool                   `json:"auto_enqueue_on_ready,omitempty"`
-	Draft              bool                   `json:"draft,omitempty"`
-	ApprovalPolicy     taskpkg.ApprovalPolicy `json:"approval_policy,omitempty"`
-	Owner              *taskpkg.Ownership     `json:"owner,omitempty"`
-	WakeCreator        *bool                  `json:"wake_creator,omitempty"`
-	Metadata           json.RawMessage        `json:"metadata,omitempty"`
+	ID                   string                 `json:"id,omitempty"`
+	Identifier           string                 `json:"identifier,omitempty"`
+	Scope                taskpkg.Scope          `json:"scope"`
+	Workspace            string                 `json:"workspace,omitempty"`
+	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
+	Title                string                 `json:"title"`
+	Description          string                 `json:"description,omitempty"`
+	Priority             taskpkg.Priority       `json:"priority,omitempty"`
+	MaxAttempts          *int                   `json:"max_attempts,omitempty"`
+	AutoEnqueueOnReady   bool                   `json:"auto_enqueue_on_ready,omitempty"`
+	Draft                bool                   `json:"draft,omitempty"`
+	ApprovalPolicy       taskpkg.ApprovalPolicy `json:"approval_policy,omitempty"`
+	Owner                *taskpkg.Ownership     `json:"owner,omitempty"`
+	WakeCreator          *bool                  `json:"wake_creator,omitempty"`
+	Metadata             json.RawMessage        `json:"metadata,omitempty"`
 }
 
 // CreateTaskChildRequest is the shared child-task create payload.
 type CreateTaskChildRequest struct {
-	ID                 string                 `json:"id,omitempty"`
-	Identifier         string                 `json:"identifier,omitempty"`
-	Scope              taskpkg.Scope          `json:"scope"`
-	Workspace          string                 `json:"workspace,omitempty"`
-	NetworkChannel     string                 `json:"network_channel,omitempty"`
-	Title              string                 `json:"title"`
-	Description        string                 `json:"description,omitempty"`
-	Priority           taskpkg.Priority       `json:"priority,omitempty"`
-	MaxAttempts        *int                   `json:"max_attempts,omitempty"`
-	AutoEnqueueOnReady bool                   `json:"auto_enqueue_on_ready,omitempty"`
-	Draft              bool                   `json:"draft,omitempty"`
-	ApprovalPolicy     taskpkg.ApprovalPolicy `json:"approval_policy,omitempty"`
-	Owner              *taskpkg.Ownership     `json:"owner,omitempty"`
-	WakeCreator        *bool                  `json:"wake_creator,omitempty"`
-	Metadata           json.RawMessage        `json:"metadata,omitempty"`
+	ID                   string                 `json:"id,omitempty"`
+	Identifier           string                 `json:"identifier,omitempty"`
+	Scope                taskpkg.Scope          `json:"scope"`
+	Workspace            string                 `json:"workspace,omitempty"`
+	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
+	Title                string                 `json:"title"`
+	Description          string                 `json:"description,omitempty"`
+	Priority             taskpkg.Priority       `json:"priority,omitempty"`
+	MaxAttempts          *int                   `json:"max_attempts,omitempty"`
+	AutoEnqueueOnReady   bool                   `json:"auto_enqueue_on_ready,omitempty"`
+	Draft                bool                   `json:"draft,omitempty"`
+	ApprovalPolicy       taskpkg.ApprovalPolicy `json:"approval_policy,omitempty"`
+	Owner                *taskpkg.Ownership     `json:"owner,omitempty"`
+	WakeCreator          *bool                  `json:"wake_creator,omitempty"`
+	Metadata             json.RawMessage        `json:"metadata,omitempty"`
 }
 
 // UpdateTaskRequest is the shared task patch payload.
 type UpdateTaskRequest struct {
-	Title              *string                 `json:"title,omitempty"`
-	Description        *string                 `json:"description,omitempty"`
-	Priority           *taskpkg.Priority       `json:"priority,omitempty"`
-	MaxAttempts        *int                    `json:"max_attempts,omitempty"`
-	AutoEnqueueOnReady *bool                   `json:"auto_enqueue_on_ready,omitempty"`
-	ApprovalPolicy     *taskpkg.ApprovalPolicy `json:"approval_policy,omitempty"`
-	Metadata           *json.RawMessage        `json:"metadata,omitempty"`
-	NetworkChannel     *string                 `json:"network_channel,omitempty"`
-	Owner              *taskpkg.Ownership      `json:"owner,omitempty"`
-	ClearOwner         bool                    `json:"clear_owner,omitempty"`
+	Title                *string                 `json:"title,omitempty"`
+	Description          *string                 `json:"description,omitempty"`
+	Priority             *taskpkg.Priority       `json:"priority,omitempty"`
+	MaxAttempts          *int                    `json:"max_attempts,omitempty"`
+	AutoEnqueueOnReady   *bool                   `json:"auto_enqueue_on_ready,omitempty"`
+	ApprovalPolicy       *taskpkg.ApprovalPolicy `json:"approval_policy,omitempty"`
+	Metadata             *json.RawMessage        `json:"metadata,omitempty"`
+	NetworkParticipation *participation.Request  `json:"network_participation,omitempty"`
+	Owner                *taskpkg.Ownership      `json:"owner,omitempty"`
+	ClearOwner           bool                    `json:"clear_owner,omitempty"`
 }
 
 // HasChanges reports whether the patch includes any mutable task field.
@@ -666,7 +665,7 @@ func (r UpdateTaskRequest) HasChanges() bool {
 		r.AutoEnqueueOnReady != nil ||
 		r.ApprovalPolicy != nil ||
 		r.Metadata != nil ||
-		r.NetworkChannel != nil ||
+		r.NetworkParticipation != nil ||
 		r.Owner != nil ||
 		r.ClearOwner
 }
@@ -685,9 +684,9 @@ type AddTaskDependencyRequest struct {
 
 // EnqueueTaskRunRequest is the shared run-enqueue request payload.
 type EnqueueTaskRunRequest struct {
-	IdempotencyKey string          `json:"idempotency_key,omitempty"`
-	NetworkChannel string          `json:"network_channel,omitempty"`
-	Metadata       json.RawMessage `json:"metadata,omitempty"`
+	IdempotencyKey       string                 `json:"idempotency_key,omitempty"`
+	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
+	Metadata             json.RawMessage        `json:"metadata,omitempty"`
 }
 
 // CreateTaskBlockRequest captures one task-block create request.
@@ -711,9 +710,9 @@ type RecoverTaskRequest struct {
 
 // TaskExecutionRequest is the shared task publish/start/approval execution payload.
 type TaskExecutionRequest struct {
-	IdempotencyKey string          `json:"idempotency_key,omitempty"`
-	NetworkChannel string          `json:"network_channel,omitempty"`
-	Metadata       json.RawMessage `json:"metadata,omitempty"`
+	IdempotencyKey       string                 `json:"idempotency_key,omitempty"`
+	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
+	Metadata             json.RawMessage        `json:"metadata,omitempty"`
 }
 
 // StartTaskRunRequest is the shared run-start request payload.

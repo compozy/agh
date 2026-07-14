@@ -57,15 +57,14 @@ func (m *Service) dispatchTaskRunPreClaimCriteria(
 		},
 		TaskRunContext: &taskContext,
 		Criteria: hookspkg.TaskRunClaimCriteria{
-			RunID:                 criteria.RunID,
-			RunKind:               criteria.RunKind.Normalize().String(),
-			WorkspaceID:           criteria.WorkspaceID,
-			TargetSessionID:       criteria.TargetSessionID,
-			ClaimerSessionID:      criteria.ClaimerSessionID,
-			AgentName:             criteria.AgentName,
-			RequiredCapabilities:  append([]string(nil), criteria.RequiredCapabilities...),
-			PriorityMin:           criteria.PriorityMin,
-			CoordinationChannelID: criteria.CoordinationChannelID,
+			RunID:                criteria.RunID,
+			RunKind:              criteria.RunKind.Normalize().String(),
+			WorkspaceID:          criteria.WorkspaceID,
+			TargetSessionID:      criteria.TargetSessionID,
+			ClaimerSessionID:     criteria.ClaimerSessionID,
+			AgentName:            criteria.AgentName,
+			RequiredCapabilities: append([]string(nil), criteria.RequiredCapabilities...),
+			PriorityMin:          criteria.PriorityMin,
 		},
 	}
 	result, err := m.taskHooks.DispatchTaskRunPreClaim(ctx, payload)
@@ -82,8 +81,5 @@ func (m *Service) dispatchTaskRunPreClaimCriteria(
 	patched := criteria
 	patched.RequiredCapabilities = append([]string(nil), result.Criteria.RequiredCapabilities...)
 	patched.PriorityMin = result.Criteria.PriorityMin
-	if strings.TrimSpace(result.Criteria.CoordinationChannelID) != "" {
-		patched.CoordinationChannelID = strings.TrimSpace(result.Criteria.CoordinationChannelID)
-	}
 	return patched.Normalize(m.now().UTC())
 }

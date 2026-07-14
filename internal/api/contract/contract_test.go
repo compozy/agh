@@ -970,27 +970,32 @@ func TestTaskPayloadJSONShape(t *testing.T) {
 		t.Parallel()
 
 		payload := contract.TaskPayload{
-			ID:             "task-1",
-			Identifier:     "TASK-1",
-			Scope:          taskpkg.ScopeWorkspace,
-			WorkspaceID:    "ws-alpha",
-			ParentTaskID:   "task-root",
-			NetworkChannel: "builders",
-			Title:          "Review task",
-			Description:    "Check the API layer",
-			Status:         taskpkg.TaskStatusInProgress,
-			Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "reviewers"},
-			CreatedBy:      taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
-			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.create"},
-			CreatedAt:      time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC),
-			UpdatedAt:      time.Date(2026, 4, 14, 10, 5, 0, 0, time.UTC),
-			Metadata:       json.RawMessage(`{"priority":"high"}`),
+			ID:           "task-1",
+			Identifier:   "TASK-1",
+			Scope:        taskpkg.ScopeWorkspace,
+			WorkspaceID:  "ws-alpha",
+			ParentTaskID: "task-root",
+			ResolvedNetworkParticipation: &participation.Spec{
+				Version:   participation.SpecVersion,
+				Mode:      participation.ModeLive,
+				ChannelID: "builders",
+				Source:    participation.SourceExplicitRequest,
+			},
+			Title:       "Review task",
+			Description: "Check the API layer",
+			Status:      taskpkg.TaskStatusInProgress,
+			Owner:       &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "reviewers"},
+			CreatedBy:   taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "local-user"},
+			Origin:      taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.create"},
+			CreatedAt:   time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC),
+			UpdatedAt:   time.Date(2026, 4, 14, 10, 5, 0, 0, time.UTC),
+			Metadata:    json.RawMessage(`{"priority":"high"}`),
 		}
 
 		var got map[string]any
 		marshalJSON(t, payload, &got)
 
-		if got["workspace_id"] != "ws-alpha" || got["network_channel"] != "builders" {
+		if got["workspace_id"] != "ws-alpha" || resolvedChannelFromJSON(got) != "builders" {
 			t.Fatalf("task JSON = %#v", got)
 		}
 		createdBy, ok := got["created_by"].(map[string]any)
@@ -1049,10 +1054,15 @@ func TestTaskRunPayloadJSONShape(t *testing.T) {
 			SessionID:      "sess-1",
 			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.start_run"},
 			IdempotencyKey: "key-1",
-			NetworkChannel: "builders",
-			QueuedAt:       time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC),
-			StartedAt:      &startedAt,
-			Result:         json.RawMessage(`{"ok":true}`),
+			ResolvedNetworkParticipation: &participation.Spec{
+				Version:   participation.SpecVersion,
+				Mode:      participation.ModeLive,
+				ChannelID: "builders",
+				Source:    participation.SourceExplicitRequest,
+			},
+			QueuedAt:  time.Date(2026, 4, 14, 10, 0, 0, 0, time.UTC),
+			StartedAt: &startedAt,
+			Result:    json.RawMessage(`{"ok":true}`),
 		}
 
 		var got map[string]any
@@ -1061,7 +1071,7 @@ func TestTaskRunPayloadJSONShape(t *testing.T) {
 		if got["session_id"] != "sess-1" || got["idempotency_key"] != "key-1" {
 			t.Fatalf("task run JSON = %#v", got)
 		}
-		if got["network_channel"] != "builders" || got["status"] != taskpkg.TaskRunStatusRunning.String() {
+		if resolvedChannelFromJSON(got) != "builders" || got["status"] != taskpkg.TaskRunStatusRunning.String() {
 			t.Fatalf("task run JSON = %#v", got)
 		}
 	})
@@ -1105,8 +1115,12 @@ func TestUpdateTaskRequestHasChanges(t *testing.T) {
 		{name: "Should return false when no task changes are set", req: contract.UpdateTaskRequest{}, want: false},
 		{name: "Should return true when title is set", req: contract.UpdateTaskRequest{Title: &title}, want: true},
 		{
-			name: "Should return true when network channel is set",
-			req:  contract.UpdateTaskRequest{NetworkChannel: &channel},
+			name: "Should return true when network participation is set",
+			req: contract.UpdateTaskRequest{
+				NetworkParticipation: &participation.Request{
+					ChannelID: &channel,
+				},
+			},
 			want: true,
 		},
 		{name: "Should return true when owner is set", req: contract.UpdateTaskRequest{Owner: owner}, want: true},

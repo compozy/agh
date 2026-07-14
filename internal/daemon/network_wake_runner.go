@@ -156,6 +156,9 @@ func (r *networkWakeRunner) Run(ctx context.Context) error {
 		return fmt.Errorf("daemon: derive network wake actor: %w", err)
 	}
 	if err := r.enqueueDurableWakes(ctx); err != nil {
+		if ctx.Err() != nil {
+			return nil
+		}
 		return err
 	}
 	ticker := time.NewTicker(networkWakePollInterval)

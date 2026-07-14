@@ -1071,6 +1071,31 @@ func TestNewHostAPISessionManagerAdapter(t *testing.T) {
 		if got := len(source.promptCalls); got != 0 {
 			t.Fatalf("Prompt() fallback calls = %d, want 0", got)
 		}
+
+		promptOpts, ok := adapter.(hostAPIPromptOptsSessionManager)
+		if !ok {
+			t.Fatalf("newHostAPISessionManagerAdapter() = %T, want PromptWithOpts", adapter)
+		}
+		optsEvents, err := promptOpts.PromptWithOpts(
+			testutil.Context(t),
+			"sess-bridge",
+			session.PromptOpts{
+				Message:    "bridge opts message",
+				TurnSource: session.TurnSourceNetwork,
+				PromptMeta: acp.PromptMeta{
+					Network: &acp.PromptNetworkMeta{MessageID: "msg-2", Kind: "message", From: "peer-1"},
+				},
+			},
+		)
+		if err != nil {
+			t.Fatalf("PromptWithOpts() error = %v", err)
+		}
+		for event := range optsEvents {
+			t.Fatalf("PromptWithOpts() emitted unexpected event %#v", event)
+		}
+		if got, want := source.promptWithOptsCalls, 1; got != want {
+			t.Fatalf("PromptWithOpts() calls = %d, want %d", got, want)
+		}
 	})
 }
 
@@ -5813,10 +5838,11 @@ func (f *fakeSessionManager) createCall(index int) session.CreateOpts {
 
 type fakeNetworkBindableSessionManager struct {
 	*fakeSessionManager
-	networkPeers    session.NetworkPeerLifecycle
-	turnEndNotifier session.TurnEndNotifier
-	promptNetworkFn func(context.Context, string, string) (<-chan acp.AgentEvent, error)
-	prompting       map[string]bool
+	networkPeers        session.NetworkPeerLifecycle
+	turnEndNotifier     session.TurnEndNotifier
+	promptNetworkFn     func(context.Context, string, string) (<-chan acp.AgentEvent, error)
+	promptWithOptsCalls int
+	prompting           map[string]bool
 }
 
 func newFakeNetworkBindableSessionManager() *fakeNetworkBindableSessionManager {
@@ -5824,6 +5850,19 @@ func newFakeNetworkBindableSessionManager() *fakeNetworkBindableSessionManager {
 		fakeSessionManager: &fakeSessionManager{},
 		prompting:          make(map[string]bool),
 	}
+}
+
+func (f *fakeNetworkBindableSessionManager) PromptWithOpts(
+	_ context.Context,
+	_ string,
+	_ session.PromptOpts,
+) (<-chan acp.AgentEvent, error) {
+	f.mu.Lock()
+	f.promptWithOptsCalls++
+	f.mu.Unlock()
+	ch := make(chan acp.AgentEvent)
+	close(ch)
+	return ch, nil
 }
 
 func (f *fakeNetworkBindableSessionManager) SetNetworkPeerLifecycle(lifecycle session.NetworkPeerLifecycle) {
@@ -6561,6 +6600,44 @@ func (r *recordingRegistry) Set(
 	setting.UpdatedBy = strings.TrimSpace(actor)
 	r.coordinationSettings[id] = setting
 	return setting, nil
+}
+
+func (*recordingRegistry) GetInvitation(
+	_ context.Context,
+	scopeKind string,
+	scopeID string,
+) (workspacepkg.CoordinationInvitation, error) {
+	return workspacepkg.CoordinationInvitation{
+		ScopeKind: strings.TrimSpace(scopeKind),
+		ScopeID:   strings.TrimSpace(scopeID),
+	}, nil
+}
+
+func (*recordingRegistry) DismissInvitation(
+	_ context.Context,
+	scopeKind string,
+	scopeID string,
+	actor string,
+) (workspacepkg.CoordinationInvitation, error) {
+	now := time.Now().UTC()
+	return workspacepkg.CoordinationInvitation{
+		ScopeKind:   strings.TrimSpace(scopeKind),
+		ScopeID:     strings.TrimSpace(scopeID),
+		Dismissed:   true,
+		DismissedAt: now,
+		DismissedBy: strings.TrimSpace(actor),
+	}, nil
+}
+
+func (*recordingRegistry) ResetInvitation(context.Context, string, string) error {
+	return nil
+}
+
+func (*recordingRegistry) GetNetworkUsage(
+	context.Context,
+	store.NetworkUsageQuery,
+) (store.NetworkUsageReport, error) {
+	return store.NetworkUsageReport{}, nil
 }
 
 func (r *recordingRegistry) WriteNetworkChannel(context.Context, store.NetworkChannelEntry) error {

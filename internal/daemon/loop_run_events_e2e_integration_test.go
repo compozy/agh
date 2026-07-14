@@ -564,10 +564,10 @@ func claimTaskRunViaAgentUDS(
 		current, err := harness.GetSession(ctx, session.ID)
 		return err == nil && current.ID == session.ID && strings.TrimSpace(string(current.State)) == "active"
 	})
-	if strings.TrimSpace(session.Channel) == "" {
-		t.Fatalf("agent session %s channel is empty", session.ID)
+	if strings.TrimSpace(session.ID) == "" {
+		t.Fatalf("agent session id is empty")
 	}
-	run := enqueueTaskRunViaUDS(t, ctx, harness, taskID, session.Channel)
+	run := enqueueTaskRunViaUDS(t, ctx, harness, taskID, "")
 
 	var response aghcontract.AgentTaskClaimResponse
 	agentUDSJSON(
@@ -680,8 +680,8 @@ func enqueueTaskRunViaUDS(
 	var response aghcontract.TaskRunResponse
 	path := "/api/tasks/" + url.PathEscape(taskID) + "/runs"
 	request := aghcontract.EnqueueTaskRunRequest{
-		IdempotencyKey: "watch-events-" + taskID,
-		NetworkChannel: strings.TrimSpace(networkChannel),
+		IdempotencyKey:       "watch-events-" + taskID,
+		NetworkParticipation: daemonTestNamedParticipationRequest(networkChannel),
 	}
 	if err := harness.UDSJSON(ctx, http.MethodPost, path, request, &response); err != nil {
 		t.Fatalf("UDS enqueue task run error = %v", err)

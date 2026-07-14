@@ -150,14 +150,16 @@ const (
 	HookSpawnTTLExpired    HookEvent = "spawn.ttl_expired"
 	HookSpawnReaped        HookEvent = "spawn.reaped"
 
-	HookNetworkThreadOpened     HookEvent = "network.thread.opened"
-	HookNetworkDirectRoomOpened HookEvent = "network.direct_room.opened"
-	HookNetworkMessagePersisted HookEvent = "network.message.persisted"
-	HookNetworkWorkOpened       HookEvent = "network.work.opened"
-	HookNetworkWorkTransitioned HookEvent = "network.work.transitioned"
-	HookNetworkWorkClosed       HookEvent = "network.work.closed"
-	HookNetworkPeerJoined       HookEvent = "network.peer.joined"
-	HookNetworkPeerLeft         HookEvent = "network.peer.left"
+	HookNetworkThreadOpened            HookEvent = "network.thread.opened"
+	HookNetworkDirectRoomOpened        HookEvent = "network.direct_room.opened"
+	HookNetworkMessagePersisted        HookEvent = "network.message.persisted"
+	HookNetworkWorkOpened              HookEvent = "network.work.opened"
+	HookNetworkWorkTransitioned        HookEvent = "network.work.transitioned"
+	HookNetworkWorkClosed              HookEvent = "network.work.closed"
+	HookNetworkPeerJoined              HookEvent = "network.peer.joined"
+	HookNetworkPeerLeft                HookEvent = "network.peer.left"
+	HookNetworkParticipationPreResolve HookEvent = "network.participation.pre_resolve"
+	HookNetworkParticipationResolved   HookEvent = "network.participation.resolved"
 )
 
 type hookEventSpec struct {
@@ -418,6 +420,14 @@ var hookEventSpecs = map[HookEvent]hookEventSpec{
 		family:       HookEventFamilyNetwork,
 		syncEligible: false,
 	},
+	HookNetworkParticipationPreResolve: {
+		family:       HookEventFamilyNetwork,
+		syncEligible: true,
+	},
+	HookNetworkParticipationResolved: {
+		family:       HookEventFamilyNetwork,
+		syncEligible: false,
+	},
 }
 
 var allHookEvents = []HookEvent{
@@ -505,6 +515,8 @@ var allHookEvents = []HookEvent{
 	HookNetworkWorkClosed,
 	HookNetworkPeerJoined,
 	HookNetworkPeerLeft,
+	HookNetworkParticipationPreResolve,
+	HookNetworkParticipationResolved,
 }
 
 var _ = func() bool {

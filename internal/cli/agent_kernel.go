@@ -336,8 +336,7 @@ func (f *coordinationMetadataFlags) bind(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.taskID, "task-id", "", "Task id for coordination metadata")
 	cmd.Flags().StringVar(&f.runID, "run-id", "", "Run id for coordination metadata")
 	cmd.Flags().StringVar(&f.workflowID, "workflow-id", "", "Workflow id for coordination metadata")
-	cmd.Flags().
-		StringVar(&f.coordinationChannelID, "coordination-channel-id", "", "Coordination channel id; defaults to channel")
+	cmd.Flags().StringVar(&f.coordinationChannelID, "channel-id", "", "Channel id; defaults to channel")
 	cmd.Flags().StringVar(&f.kind, agentKernelKindKey, f.kind, "Coordination message kind")
 	cmd.Flags().StringVar(&f.correlationID, "correlation-id", "", "Correlation id; defaults to run id")
 	cmd.Flags().StringVar(&f.extRaw, "metadata-ext", "", "Optional JSON object for coordination metadata ext")
@@ -368,13 +367,13 @@ func (f coordinationMetadataFlags) metadata(
 
 	kind := contract.CoordinationMessageKind(firstCLIValue(f.kind, string(defaultKind)))
 	metadata := contract.CoordinationMessageMetadataPayload{
-		TaskID:                strings.TrimSpace(f.taskID),
-		RunID:                 strings.TrimSpace(f.runID),
-		WorkflowID:            strings.TrimSpace(f.workflowID),
-		CoordinationChannelID: firstCLIValue(f.coordinationChannelID, channel),
-		MessageKind:           kind,
-		CorrelationID:         firstCLIValue(f.correlationID, f.runID),
-		Ext:                   metadataExt,
+		TaskID:        strings.TrimSpace(f.taskID),
+		RunID:         strings.TrimSpace(f.runID),
+		WorkflowID:    strings.TrimSpace(f.workflowID),
+		ChannelID:     firstCLIValue(f.coordinationChannelID, channel),
+		MessageKind:   kind,
+		CorrelationID: firstCLIValue(f.correlationID, f.runID),
+		Ext:           metadataExt,
 	}
 	if err := metadata.Validate(); err != nil {
 		return contract.CoordinationMessageMetadataPayload{}, err
@@ -468,20 +467,19 @@ func agentChannelsBundle(channels []AgentChannelRecord) outputBundle {
 		channels,
 		channels,
 		"Agent Channels",
-		[]string{"ID", agentKernelChannelValue, "Purpose", taskTaskValue, taskRunValue},
+		[]string{"ID", "Purpose", taskTaskValue, taskRunValue},
 		"agent_channels",
-		[]string{"id", agentKernelChannelKey, "purpose", taskTaskIDKey, agentKernelRunIDKey},
+		[]string{"id", "purpose", taskTaskIDKey, agentKernelRunIDKey},
 		func(channel AgentChannelRecord) []string {
 			return []string{
 				channel.ID,
-				channel.Channel,
 				stringOrDash(channel.Purpose),
 				stringOrDash(channel.TaskID),
 				stringOrDash(channel.RunID),
 			}
 		},
 		func(channel AgentChannelRecord) []string {
-			return []string{channel.ID, channel.Channel, channel.Purpose, channel.TaskID, channel.RunID}
+			return []string{channel.ID, channel.Purpose, channel.TaskID, channel.RunID}
 		},
 	)
 }
@@ -569,7 +567,7 @@ func zeroCLIAgentCoordinationMetadata(metadata contract.CoordinationMessageMetad
 	return strings.TrimSpace(metadata.TaskID) == "" &&
 		strings.TrimSpace(metadata.RunID) == "" &&
 		strings.TrimSpace(metadata.WorkflowID) == "" &&
-		strings.TrimSpace(metadata.CoordinationChannelID) == "" &&
+		strings.TrimSpace(metadata.ChannelID) == "" &&
 		strings.TrimSpace(string(metadata.MessageKind)) == "" &&
 		strings.TrimSpace(metadata.CorrelationID) == "" &&
 		len(metadata.Ext) == 0

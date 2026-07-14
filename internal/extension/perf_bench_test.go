@@ -26,7 +26,7 @@ func BenchmarkDecodeHostAPIParamsTaskCreate(b *testing.B) {
 		"identifier":"bench-task",
 		"scope":"workspace",
 		"workspace":"ws-bench",
-		"network_channel":"agent/bench",
+		"network_participation":{"mode":"live","channel_strategy":"named","channel_id":"agent/bench"},
 		"title":"Benchmark task",
 		"description":"Benchmark payload decode",
 		"metadata":{"body":"%s","labels":["alpha","beta","gamma"]}

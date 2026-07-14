@@ -11,7 +11,9 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/memory"
 	authproviders "github.com/compozy/agh/internal/providers"
+	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -27,6 +29,9 @@ type BaseHandlerConfig struct {
 	SessionCatalog               SessionCatalog
 	Network                      NetworkService
 	NetworkStore                 NetworkStore
+	NetworkUsage                 store.NetworkUsageStore
+	CoordinationSettings         workspacepkg.CoordinationSettings
+	CoordinationInvitations      workspacepkg.CoordinationInvitations
 	Observer                     Observer
 	SchemaStreams                SchemaStreamStatusReader
 	Resources                    ResourceService
@@ -94,6 +99,9 @@ type BaseHandlers struct {
 	SessionCatalog               SessionCatalog
 	Network                      NetworkService
 	NetworkStore                 NetworkStore
+	NetworkUsage                 store.NetworkUsageStore
+	CoordinationSettings         workspacepkg.CoordinationSettings
+	CoordinationInvitations      workspacepkg.CoordinationInvitations
 	Observer                     Observer
 	SchemaStreams                SchemaStreamStatusReader
 	Resources                    ResourceService
@@ -170,6 +178,9 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		SessionCatalog:               cfg.SessionCatalog,
 		Network:                      cfg.Network,
 		NetworkStore:                 cfg.NetworkStore,
+		NetworkUsage:                 cfg.NetworkUsage,
+		CoordinationSettings:         cfg.CoordinationSettings,
+		CoordinationInvitations:      cfg.CoordinationInvitations,
 		Observer:                     cfg.Observer,
 		SchemaStreams:                cfg.SchemaStreams,
 		Resources:                    cfg.Resources,

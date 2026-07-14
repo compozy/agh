@@ -108,7 +108,7 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		})
 
 		if payload.ID != "sess-1" || payload.WorkspaceID != "ws_alpha" || payload.WorkspacePath != "/workspace" ||
-			payload.Channel != "builders" {
+			resolvedParticipationChannelID(payload.ResolvedNetworkParticipation) != "builders" {
 			t.Fatalf("payload = %#v", payload)
 		}
 		if payload.Provider != "fake" {

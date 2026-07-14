@@ -108,6 +108,7 @@ func (e *loopGoalJudgeEvaluator) EvaluateGoal(
 		Criteria:      append([]dsl.GateCriterion(nil), req.Criteria...),
 		VerdictPolicy: dsl.VerdictPolicyReviseUntilClean,
 	}, gate.GateInput{
+		LoopRunID:              string(run.ID),
 		Placement:              gate.PlacementInBody,
 		Contract:               resolved.Definition.Contract,
 		TemplateData:           map[string]any{"goal_turn": req.Turn},

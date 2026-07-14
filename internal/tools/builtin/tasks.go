@@ -361,7 +361,7 @@ const taskCreateInputSchema = `{
 		"identifier":{"type":"string"},
 		"scope":{"type":"string"},
 		"workspace_id":{"type":"string"},
-		"network_channel":{"type":"string"},
+		"network_participation":` + networkParticipationRequestSchema + `,
 		"title":{"type":"string"},
 		"description":{"type":"string"},
 		"priority":{"type":"string"},
@@ -384,7 +384,7 @@ const taskChildCreateInputSchema = `{
 		"identifier":{"type":"string"},
 		"scope":{"type":"string"},
 		"workspace_id":{"type":"string"},
-		"network_channel":{"type":"string"},
+		"network_participation":` + networkParticipationRequestSchema + `,
 		"title":{"type":"string"},
 		"description":{"type":"string"},
 		"priority":{"type":"string"},
@@ -409,7 +409,7 @@ const taskUpdateInputSchema = `{
 		"max_attempts":{"type":"integer"},
 		"approval_policy":{"type":"string"},
 		"metadata":{},
-		"network_channel":{"type":"string"},
+		"network_participation":` + networkParticipationRequestSchema + `,
 		"owner":` + ownerSchema + `,
 		"clear_owner":{"type":"boolean"}
 	},
@@ -480,7 +480,7 @@ const taskRunListInputSchema = `{
 		"task_id":{"type":"string"},
 		"status":{"type":"string"},
 		"session_id":{"type":"string"},
-		"coordination_channel_id":{"type":"string"},
+		"participation_channel":{"type":"string"},
 		"limit":{"type":"integer"}
 	},
 	"additionalProperties":false
@@ -621,7 +621,7 @@ const taskFanOutRunsInputSchema = `{
 	"required":["task_id","designations"],
 	"properties":{
 		"task_id":{"type":"string"},
-		"network_channel":{"type":"string"},
+		"network_participation":` + networkParticipationRequestSchema + `,
 		"designations":{
 			"type":"array",
 			"minItems":1,
@@ -650,7 +650,8 @@ const taskExecutionProfileSchema = `{
 		"review":` + reviewProfileSchema + `,
 		"participants":` + participantPolicySchema + `,
 		"sandbox":` + sandboxPolicySchema + `,
-		"runtime":` + runtimePolicySchema + `
+		"runtime":` + runtimePolicySchema + `,
+		"network_participation":` + networkParticipationRequestSchema + `
 	},
 	"additionalProperties":false
 }`

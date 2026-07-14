@@ -260,7 +260,6 @@ type SettingsAutomationConfigPayload struct {
 
 type SettingsNetworkConfigPayload struct {
 	Enabled                        bool   `json:"enabled"`
-	DefaultChannel                 string `json:"default_channel"`
 	Port                           int    `json:"port"`
 	MaxPayload                     int    `json:"max_payload"`
 	GreetInterval                  int    `json:"greet_interval"`

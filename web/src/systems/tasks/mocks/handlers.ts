@@ -156,7 +156,6 @@ function resolveTaskRun(runId: string) {
               created_at: taskRunDetailFixture.session?.created_at ?? "2026-04-17T09:58:00Z",
               updated_at: taskRunDetailFixture.session?.updated_at ?? "2026-04-17T10:01:00Z",
               agent_name: taskRunDetailFixture.session?.agent_name,
-              channel: taskRunDetailFixture.session?.channel,
               name: taskRunDetailFixture.session?.name,
               state: taskRunDetailFixture.session?.state,
               workspace_id: taskRunDetailFixture.session?.workspace_id,
@@ -337,7 +336,6 @@ export const handlers: HttpHandler[] = [
           body.approval_policy === "none"
             ? undefined
             : (body.approval_policy ?? task.approval_policy),
-        network_channel: body.network_channel ?? task.network_channel,
       },
     });
   }),
@@ -529,7 +527,6 @@ export const handlers: HttpHandler[] = [
           brief: designation.brief,
         },
         designation_group_id: "desig_storybook",
-        network_channel: body.network_channel ?? task.network_channel,
       })
     );
 

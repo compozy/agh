@@ -66,8 +66,10 @@ export type { AutomationLoopTarget, AutomationTargetMode } from "./lib/automatio
 export {
   LOOP_TARGET_KIND,
   automationJobToDraft,
+  automationJobUpdateFromDraft,
   automationTargetMode,
   automationTriggerToDraft,
+  automationTriggerUpdateFromDraft,
   createAutomationJobDraft,
   createAutomationTriggerDraft,
   createLoopTargetJobDraft,

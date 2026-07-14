@@ -240,6 +240,10 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/marketplace/search",
 		"GET /api/workspaces/:workspace_id/memory/sessions/:session_id/ledger",
 		"GET /api/workspaces/:workspace_id/network/inbox",
+		"GET /api/workspaces/:workspace_id/network/usage",
+		"GET /api/workspaces/:workspace_id/network-coordination",
+		"PUT /api/workspaces/:workspace_id/network-coordination",
+		"PUT /api/workspaces/:workspace_id/network-coordination/invitation",
 		"GET /api/workspaces/:workspace_id/network/peers",
 		"GET /api/workspaces/:workspace_id/network/peers/:peer_id",
 		"GET /api/workspaces/:workspace_id/network/channels",
@@ -1165,8 +1169,12 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 	if response.Session.WorkspaceID != "ws-workspace" || response.Session.WorkspacePath != "/workspace" {
 		t.Fatalf("session workspace = %#v", response.Session)
 	}
-	if response.Session.Channel != "" {
-		t.Fatalf("session channel = %q, want Local session projection", response.Session.Channel)
+	if response.Session.ResolvedNetworkParticipation != nil &&
+		response.Session.ResolvedNetworkParticipation.Mode != "local" {
+		t.Fatalf(
+			"session resolved_network_participation = %#v, want Local session projection",
+			response.Session.ResolvedNetworkParticipation,
+		)
 	}
 }
 

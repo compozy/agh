@@ -4,6 +4,8 @@ import type {
   AutomationTrigger,
   CreateAutomationJobRequest,
   CreateAutomationTriggerRequest,
+  UpdateAutomationJobRequest,
+  UpdateAutomationTriggerRequest,
 } from "../types";
 
 const DEFAULT_RETRY_NONE = {
@@ -79,22 +81,12 @@ export function jobOutputMode(draft: CreateAutomationJobRequest): JobOutputMode 
 
 /** A blank task object for entering task mode. */
 export function emptyJobTask(): NonNullable<CreateAutomationJobRequest["task"]> {
-  return { title: "", description: "", owner: null };
-}
-
-type JobTaskDraft = NonNullable<CreateAutomationJobRequest["task"]>;
-
-/**
- * Drop a legacy raw network_channel key if a daemon payload still carries one.
- * Draft write surfaces must not re-emit execution state owned by the daemon.
- */
-export function omitTaskNetworkChannel(task: JobTaskDraft): JobTaskDraft {
-  if (!Object.hasOwn(task, "network_channel")) {
-    return task;
-  }
-  const next = { ...task } as JobTaskDraft & { network_channel?: string };
-  delete next.network_channel;
-  return next;
+  return {
+    title: "",
+    description: "",
+    owner: null,
+    network_participation: { mode: "local" },
+  };
 }
 
 /**
@@ -129,7 +121,7 @@ export function automationJobToDraft(job: AutomationJob): CreateAutomationJobReq
     target_kind: job.target_kind,
     loop_target: job.loop_target ?? undefined,
     workspace_id: job.workspace_id,
-    task: job.task ? omitTaskNetworkChannel(job.task) : undefined,
+    task: job.task,
     enabled: job.enabled,
     retry: normalizeAutomationRetry(job.retry),
     fire_limit: {
@@ -137,6 +129,14 @@ export function automationJobToDraft(job: AutomationJob): CreateAutomationJobReq
       window: job.fire_limit.window,
     },
   };
+}
+
+/** Project an editable create-shaped draft onto the mutable job update contract. */
+export function automationJobUpdateFromDraft(
+  draft: CreateAutomationJobRequest
+): UpdateAutomationJobRequest {
+  const { scope: _scope, ...request } = draft;
+  return request;
 }
 
 export function createAutomationTriggerDraft(
@@ -313,4 +313,12 @@ export function automationTriggerToDraft(
     endpoint_slug: trigger.endpoint_slug,
     webhook_id: trigger.webhook_id,
   };
+}
+
+/** Project an editable create-shaped draft onto the mutable trigger update contract. */
+export function automationTriggerUpdateFromDraft(
+  draft: CreateAutomationTriggerRequest
+): UpdateAutomationTriggerRequest {
+  const { scope: _scope, ...request } = draft;
+  return request;
 }

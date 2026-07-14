@@ -157,10 +157,10 @@ func TestValidateHookDeclAllowsAutonomyMatcherFields(t *testing.T) {
 			Matcher: HookMatcher{
 				WorkspaceID: "ws-1",
 				Autonomy: &AutonomyMatcher{
-					TaskID:                "task-*",
-					RunID:                 "run-1",
-					CoordinationChannelID: "coord-ch-1",
-					CoordinatorSessionID:  "coord-sess-1",
+					TaskID:               "task-*",
+					RunID:                "run-1",
+					ParticipationChannel: "coord-ch-1",
+					CoordinatorSessionID: "coord-sess-1",
 				},
 			},
 		},
@@ -172,9 +172,9 @@ func TestValidateHookDeclAllowsAutonomyMatcherFields(t *testing.T) {
 			Matcher: HookMatcher{
 				WorkspaceID: "ws-1",
 				Autonomy: &AutonomyMatcher{
-					TaskID:                "task-1",
-					RunID:                 "run-*",
-					CoordinationChannelID: "coord-ch-1",
+					TaskID:               "task-1",
+					RunID:                "run-*",
+					ParticipationChannel: "coord-ch-1",
 				},
 			},
 		},
@@ -186,11 +186,11 @@ func TestValidateHookDeclAllowsAutonomyMatcherFields(t *testing.T) {
 			Matcher: HookMatcher{
 				WorkspaceID: "ws-1",
 				Autonomy: &AutonomyMatcher{
-					ParentSessionID:       "parent-1",
-					RootSessionID:         "root-1",
-					ChildSessionID:        "child-*",
-					SpawnRole:             "reviewer",
-					CoordinationChannelID: "coord-ch-1",
+					ParentSessionID:      "parent-1",
+					RootSessionID:        "root-1",
+					ChildSessionID:       "child-*",
+					SpawnRole:            "reviewer",
+					ParticipationChannel: "coord-ch-1",
 				},
 			},
 		},

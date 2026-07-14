@@ -33,7 +33,6 @@ const networkEnvelope: SettingsNetworkSection = {
   config: {
     enabled: true,
     port: 4222,
-    default_channel: "agh",
     greet_interval: 30,
     max_payload: 131072,
     max_queue_depth: 1024,

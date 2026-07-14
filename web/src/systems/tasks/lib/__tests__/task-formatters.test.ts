@@ -320,9 +320,14 @@ describe("task handoff actions — boundary semantics", () => {
 });
 
 describe("coordination channel signal", () => {
-  it("recognises runs with coordination_channel_id as coordinated", () => {
+  it("recognises runs with live resolved participation as coordinated", () => {
     const run = {
-      coordination_channel_id: "coord-task-001",
+      resolved_network_participation: {
+        mode: "live",
+        channel_id: "coord-task-001",
+        source: "explicit",
+        version: "network-participation/v1",
+      },
     } as TaskRun;
 
     expect(runIsCoordinated(run)).toBe(true);
@@ -331,7 +336,12 @@ describe("coordination channel signal", () => {
 
   it("prefers the embedded display name when available", () => {
     const run = {
-      coordination_channel_id: "coord-task-001",
+      resolved_network_participation: {
+        mode: "live",
+        channel_id: "coord-task-001",
+        source: "explicit",
+        version: "network-participation/v1",
+      },
       coordination_channel: {
         id: "coord-task-001",
         display_name: "TASK-1 coordination",

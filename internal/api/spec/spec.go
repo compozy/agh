@@ -3244,7 +3244,7 @@ var operationRegistry = append([]OperationSpec{
 			enumQueryParam("owner_kind", "Filter by owner kind", taskOwnerKindValues()),
 			queryParam("owner_ref", "Filter by owner reference", false),
 			queryParam("parent_task_id", "Filter by parent task ID", false),
-			queryParam("network_channel", "Filter by network channel", false),
+			queryParam("participation_channel", "Filter by resolved participation channel", false),
 			queryParam("query", "Filter by task title or identifier", false),
 			enumQueryParam("sort", "Order by recent activity or priority", taskCatalogSortValues()),
 			queryParam("cursor", "Opaque query-bound continuation cursor", false),
@@ -4431,7 +4431,7 @@ var operationRegistry = append([]OperationSpec{
 			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
 			enumQueryParam("owner_kind", "Filter by owner kind", taskOwnerKindValues()),
 			queryParam("owner_ref", "Filter by owner reference", false),
-			queryParam("network_channel", "Filter by network channel", false),
+			queryParam("participation_channel", "Filter by resolved participation channel", false),
 			enumQueryParam("origin_kind", "Filter by task origin kind", taskOriginKindValues()),
 		},
 		Responses: []ResponseSpec{

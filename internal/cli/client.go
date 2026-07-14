@@ -66,6 +66,19 @@ type DaemonClient interface {
 	PutVaultSecret(ctx context.Context, request PutVaultSecretRequest) (VaultRecord, error)
 	DeleteVaultSecret(ctx context.Context, ref string) error
 	NetworkStatus(ctx context.Context) (NetworkStatusRecord, error)
+	GetNetworkCoordination(ctx context.Context, workspaceRef string, taskID string) (NetworkCoordinationRecord, error)
+	PutNetworkCoordination(
+		ctx context.Context,
+		workspaceRef string,
+		request PutNetworkCoordinationRequest,
+		taskID string,
+	) (NetworkCoordinationRecord, error)
+	PutNetworkCoordinationInvitation(
+		ctx context.Context,
+		workspaceRef string,
+		request PutNetworkCoordinationInvitationRequest,
+	) (NetworkCoordinationRecord, error)
+	GetNetworkUsage(ctx context.Context, workspaceRef string) (NetworkUsageRecord, error)
 	NetworkPeers(ctx context.Context, query NetworkPeersQuery) ([]NetworkPeerRecord, error)
 	NetworkChannels(ctx context.Context, workspaceRef string) ([]NetworkChannelRecord, error)
 	CreateNetworkChannel(
@@ -5704,8 +5717,8 @@ func taskValues(query TaskListQuery) url.Values {
 	if trimmed := strings.TrimSpace(query.ParentTaskID); trimmed != "" {
 		values.Set("parent_task_id", trimmed)
 	}
-	if trimmed := strings.TrimSpace(query.NetworkChannel); trimmed != "" {
-		values.Set("network_channel", trimmed)
+	if trimmed := strings.TrimSpace(query.ParticipationChannel); trimmed != "" {
+		values.Set("participation_channel", trimmed)
 	}
 	if trimmed := strings.TrimSpace(query.Query); trimmed != "" {
 		values.Set("query", trimmed)

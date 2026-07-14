@@ -128,6 +128,7 @@ func newNetworkCommand(deps commandDeps) *cobra.Command {
 		),
 	)
 	cmd.AddCommand(newNetworkUnmuteCommand(deps, &workspaceRef))
+	registerNetworkPublicSurfaceCommands(cmd, deps, &workspaceRef)
 	return cmd
 }
 

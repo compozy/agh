@@ -52,12 +52,12 @@ test("operator can navigate the settings shell and complete a restart-aware gene
     ]);
 
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/general");
-  await expect(settingsUI.shell.sectionActive("general")).toBeVisible();
+  await expect(settingsUI.shell.sectionLink("general")).toHaveAttribute("aria-current", "page");
   await expect(settingsUI.general.page).toBeVisible();
 
   await settingsUI.shell.sectionLink("network").click();
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/network");
-  await expect(settingsUI.shell.sectionActive("network")).toBeVisible();
+  await expect(settingsUI.shell.sectionLink("network")).toHaveAttribute("aria-current", "page");
 
   await settingsUI.shell.sectionLink("hooks").click();
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/settings/hooks");

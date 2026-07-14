@@ -20,6 +20,7 @@ import (
 	"github.com/compozy/agh/internal/diagnostics"
 	eventspkg "github.com/compozy/agh/internal/events"
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 	observepkg "github.com/compozy/agh/internal/observe"
 	"github.com/compozy/agh/internal/session"
 	settingspkg "github.com/compozy/agh/internal/settings"
@@ -52,30 +53,30 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 
 	ref := workref.NewPath(info.WorkspaceID, info.Workspace)
 	payload = contract.SessionPayload{
-		ID:                info.ID,
-		Name:              info.Name,
-		AgentName:         info.AgentName,
-		Provider:          info.Provider,
-		Model:             strings.TrimSpace(info.Model),
-		ReasoningEffort:   contract.ReasoningEffort(strings.TrimSpace(info.ReasoningEffort)),
-		WorkspaceID:       ref.WorkspaceID,
-		WorkspacePath:     ref.WorkspacePath,
-		Channel:           info.NetworkParticipation.ChannelID,
-		Type:              info.Type,
-		State:             info.State,
-		Badge:             session.BadgeForInfo(info),
-		Attachable:        session.AttachableForInfo(info, now),
-		AttachedTo:        strings.TrimSpace(info.AttachedTo),
-		AttachExpiresAt:   cloneTimePtr(info.AttachExpiresAt),
-		TranscriptEpoch:   info.TranscriptEpoch,
-		StopReason:        info.StopReason,
-		StopDetail:        info.StopDetail,
-		Failure:           SessionFailurePayloadFromStore(info.Failure),
-		ACPSessionID:      info.ACPSessionID,
-		AvailableCommands: availableCommandPayloads(info.AdvertisedCommands),
-		Lineage:           contract.SessionLineagePayloadFromStore(info.Lineage),
-		CreatedAt:         info.CreatedAt,
-		UpdatedAt:         info.UpdatedAt,
+		ID:                           info.ID,
+		Name:                         info.Name,
+		AgentName:                    info.AgentName,
+		Provider:                     info.Provider,
+		Model:                        strings.TrimSpace(info.Model),
+		ReasoningEffort:              contract.ReasoningEffort(strings.TrimSpace(info.ReasoningEffort)),
+		WorkspaceID:                  ref.WorkspaceID,
+		WorkspacePath:                ref.WorkspacePath,
+		ResolvedNetworkParticipation: participation.CloneSpec(info.NetworkParticipation),
+		Type:                         info.Type,
+		State:                        info.State,
+		Badge:                        session.BadgeForInfo(info),
+		Attachable:                   session.AttachableForInfo(info, now),
+		AttachedTo:                   strings.TrimSpace(info.AttachedTo),
+		AttachExpiresAt:              cloneTimePtr(info.AttachExpiresAt),
+		TranscriptEpoch:              info.TranscriptEpoch,
+		StopReason:                   info.StopReason,
+		StopDetail:                   info.StopDetail,
+		Failure:                      SessionFailurePayloadFromStore(info.Failure),
+		ACPSessionID:                 info.ACPSessionID,
+		AvailableCommands:            availableCommandPayloads(info.AdvertisedCommands),
+		Lineage:                      contract.SessionLineagePayloadFromStore(info.Lineage),
+		CreatedAt:                    info.CreatedAt,
+		UpdatedAt:                    info.UpdatedAt,
 	}
 	if caps := ACPCapsPayloadFromInfo(info.ACPCaps); caps != nil {
 		payload.ACPCaps = caps
@@ -564,7 +565,7 @@ func TaskQueueDepthPayloadsFromObserve(rows []observepkg.TaskQueueDepth) []contr
 	payloads := make([]contract.TaskQueueDepthPayload, 0, len(rows))
 	for _, row := range rows {
 		payloads = append(payloads, contract.TaskQueueDepthPayload{
-			NetworkChannel:      strings.TrimSpace(row.NetworkChannel),
+			ChannelID:           strings.TrimSpace(row.ChannelID),
 			Count:               row.Count,
 			OldestQueuedAt:      optionalTime(row.OldestQueuedAt),
 			OldestQueueAgeMilli: row.OldestQueueAgeMilli,
@@ -581,13 +582,13 @@ func StuckTaskRunPayloadsFromObserve(rows []observepkg.StuckTaskRun) []contract.
 	payloads := make([]contract.StuckTaskRunPayload, 0, len(rows))
 	for _, row := range rows {
 		payloads = append(payloads, contract.StuckTaskRunPayload{
-			TaskID:         strings.TrimSpace(row.TaskID),
-			RunID:          strings.TrimSpace(row.RunID),
-			Status:         strings.TrimSpace(string(row.Status)),
-			OriginKind:     strings.TrimSpace(string(row.OriginKind)),
-			NetworkChannel: strings.TrimSpace(row.NetworkChannel),
-			SessionID:      strings.TrimSpace(row.SessionID),
-			AgeMillis:      row.AgeMillis,
+			TaskID:     strings.TrimSpace(row.TaskID),
+			RunID:      strings.TrimSpace(row.RunID),
+			Status:     strings.TrimSpace(string(row.Status)),
+			OriginKind: strings.TrimSpace(string(row.OriginKind)),
+			ChannelID:  strings.TrimSpace(row.ChannelID),
+			SessionID:  strings.TrimSpace(row.SessionID),
+			AgeMillis:  row.AgeMillis,
 		})
 	}
 	return payloads
@@ -601,10 +602,10 @@ func TaskStatusTotalPayloadsFromObserve(rows []observepkg.TaskStatusTotal) []con
 	payloads := make([]contract.TaskStatusTotalPayload, 0, len(rows))
 	for _, row := range rows {
 		payloads = append(payloads, contract.TaskStatusTotalPayload{
-			Scope:          strings.TrimSpace(string(row.Scope)),
-			Status:         strings.TrimSpace(string(row.Status)),
-			NetworkChannel: strings.TrimSpace(row.NetworkChannel),
-			Count:          row.Count,
+			Scope:     strings.TrimSpace(string(row.Scope)),
+			Status:    strings.TrimSpace(string(row.Status)),
+			ChannelID: strings.TrimSpace(row.ChannelID),
+			Count:     row.Count,
 		})
 	}
 	return payloads
@@ -618,10 +619,10 @@ func TaskRunTotalPayloadsFromObserve(rows []observepkg.TaskRunTotal) []contract.
 	payloads := make([]contract.TaskRunTotalPayload, 0, len(rows))
 	for _, row := range rows {
 		payloads = append(payloads, contract.TaskRunTotalPayload{
-			Status:         strings.TrimSpace(string(row.Status)),
-			OriginKind:     strings.TrimSpace(string(row.OriginKind)),
-			NetworkChannel: strings.TrimSpace(row.NetworkChannel),
-			Count:          row.Count,
+			Status:     strings.TrimSpace(string(row.Status)),
+			OriginKind: strings.TrimSpace(string(row.OriginKind)),
+			ChannelID:  strings.TrimSpace(row.ChannelID),
+			Count:      row.Count,
 		})
 	}
 	return payloads
@@ -2430,7 +2431,6 @@ func TaskRunSessionPayloadFromSession(session *taskpkg.RunSessionRef) *contract.
 		WorkspaceID: session.WorkspaceID,
 		AgentName:   session.AgentName,
 		Name:        session.Name,
-		Channel:     session.Channel,
 		State:       session.State,
 		CreatedAt:   session.CreatedAt,
 		UpdatedAt:   session.UpdatedAt,
@@ -2577,7 +2577,7 @@ func taskDashboardQueuePayload(queue observepkg.TaskDashboardQueue) contract.Tas
 	payload.Depth = make([]contract.TaskDashboardQueueDepthPayload, 0, len(queue.Depth))
 	for _, item := range queue.Depth {
 		payload.Depth = append(payload.Depth, contract.TaskDashboardQueueDepthPayload{
-			NetworkChannel:      item.NetworkChannel,
+			ChannelID:           item.ChannelID,
 			Count:               item.Count,
 			OldestQueuedAt:      item.OldestQueuedAt,
 			OldestQueueAgeMilli: item.OldestQueueAgeMilli,
@@ -2630,26 +2630,26 @@ func taskDashboardActiveRunsPayload(
 	payload.Items = make([]contract.TaskDashboardActiveRunPayload, 0, len(activeRuns.Items))
 	for _, item := range activeRuns.Items {
 		payload.Items = append(payload.Items, contract.TaskDashboardActiveRunPayload{
-			TaskID:         item.TaskID,
-			TaskIdentifier: item.TaskIdentifier,
-			TaskTitle:      item.TaskTitle,
-			TaskStatus:     item.TaskStatus,
-			TaskPriority:   item.TaskPriority,
-			TaskOwner:      cloneOwnership(item.TaskOwner),
-			Scope:          item.Scope,
-			WorkspaceID:    item.WorkspaceID,
-			LatestEventSeq: item.LatestEventSeq,
-			RunID:          item.RunID,
-			RunStatus:      item.RunStatus,
-			Attempt:        item.Attempt,
-			MaxAttempts:    item.MaxAttempts,
-			SessionID:      item.SessionID,
-			NetworkChannel: item.NetworkChannel,
-			LastActivityAt: item.LastActivityAt,
-			AgeMilli:       item.AgeMilli,
-			HealthStatus:   item.HealthStatus,
-			Stuck:          item.Stuck,
-			Error:          item.Error,
+			TaskID:                       item.TaskID,
+			TaskIdentifier:               item.TaskIdentifier,
+			TaskTitle:                    item.TaskTitle,
+			TaskStatus:                   item.TaskStatus,
+			TaskPriority:                 item.TaskPriority,
+			TaskOwner:                    cloneOwnership(item.TaskOwner),
+			Scope:                        item.Scope,
+			WorkspaceID:                  item.WorkspaceID,
+			LatestEventSeq:               item.LatestEventSeq,
+			RunID:                        item.RunID,
+			RunStatus:                    item.RunStatus,
+			Attempt:                      item.Attempt,
+			MaxAttempts:                  item.MaxAttempts,
+			SessionID:                    item.SessionID,
+			ResolvedNetworkParticipation: cloneResolvedParticipation(item.ResolvedNetworkParticipation),
+			LastActivityAt:               item.LastActivityAt,
+			AgeMilli:                     item.AgeMilli,
+			HealthStatus:                 item.HealthStatus,
+			Stuck:                        item.Stuck,
+			Error:                        item.Error,
 		})
 	}
 	return payload

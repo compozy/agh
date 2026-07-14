@@ -60,6 +60,38 @@ func TestHarnessContextResolverMatrix(t *testing.T) {
 			},
 		},
 		{
+			name: "local user session plus network provenance turn resolves without live network section",
+			input: HarnessResolutionInput{
+				Surface: ResolutionSurfaceTurn,
+				Session: HarnessSessionInput{
+					Type: session.SessionTypeUser,
+				},
+				Turn: HarnessTurnRequest{
+					Source: session.TurnSourceNetwork,
+					PromptMeta: acp.PromptMeta{
+						Network: &acp.PromptNetworkMeta{
+							MessageID: "321",
+							Kind:      "message",
+							From:      "777",
+						},
+					},
+				},
+			},
+			wantSections:   []HarnessPromptSection{HarnessPromptSectionMemory, HarnessPromptSectionSkills},
+			wantAugmenters: []HarnessAugmenter{HarnessAugmenterSkills},
+			wantReentry:    ReentryModeNone,
+			wantDetached:   DetachedRunModeNone,
+			wantLabel:      "interactive.network",
+			wantTags: map[string]string{
+				"harness.surface":          "turn",
+				"harness.session_type":     "user",
+				"harness.session_class":    "interactive",
+				"harness.turn_origin":      "network",
+				"harness.network_live":     "false",
+				"harness.diagnostic_label": "interactive.network",
+			},
+		},
+		{
 			name: "channel-bound user session plus network turn resolves network-aware policy",
 			input: HarnessResolutionInput{
 				Surface: ResolutionSurfaceTurn,

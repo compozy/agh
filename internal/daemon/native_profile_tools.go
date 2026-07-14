@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 	toolspkg "github.com/compozy/agh/internal/tools"
 )
@@ -23,12 +24,14 @@ type taskExecutionProfileSetInput struct {
 }
 
 type taskExecutionProfileInput struct {
-	TaskID       string                     `json:"task_id,omitempty"`
-	Coordinator  taskpkg.CoordinatorProfile `json:"coordinator"`
-	Worker       taskpkg.WorkerProfile      `json:"worker"`
-	Review       taskpkg.ReviewProfile      `json:"review"`
-	Participants taskpkg.ParticipantPolicy  `json:"participants"`
-	Sandbox      taskpkg.SandboxPolicy      `json:"sandbox"`
+	TaskID               string                     `json:"task_id,omitempty"`
+	Coordinator          taskpkg.CoordinatorProfile `json:"coordinator"`
+	Worker               taskpkg.WorkerProfile      `json:"worker"`
+	Review               taskpkg.ReviewProfile      `json:"review"`
+	Participants         taskpkg.ParticipantPolicy  `json:"participants"`
+	Sandbox              taskpkg.SandboxPolicy      `json:"sandbox"`
+	Runtime              taskpkg.RuntimePolicy      `json:"runtime"`
+	NetworkParticipation *participation.Request     `json:"network_participation,omitempty"`
 }
 
 func (n *daemonNativeTools) taskExecutionProfileGet(
@@ -130,11 +133,13 @@ func (i *taskExecutionProfileInput) profile(taskID string) (taskpkg.ExecutionPro
 		profileTaskID = taskID
 	}
 	return taskpkg.ExecutionProfile{
-		TaskID:       profileTaskID,
-		Coordinator:  i.Coordinator,
-		Worker:       i.Worker,
-		Review:       i.Review,
-		Participants: i.Participants,
-		Sandbox:      i.Sandbox,
+		TaskID:               profileTaskID,
+		Coordinator:          i.Coordinator,
+		Worker:               i.Worker,
+		Review:               i.Review,
+		Participants:         i.Participants,
+		Sandbox:              i.Sandbox,
+		Runtime:              i.Runtime,
+		NetworkParticipation: participation.CloneRequest(i.NetworkParticipation),
 	}, nil
 }

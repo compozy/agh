@@ -5,6 +5,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/url"
 	"path/filepath"
 	"strings"
@@ -237,8 +238,11 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 	if got, want := taskDetail.Task.Status, taskpkg.TaskStatusReady; got != want {
 		t.Fatalf("taskDetail.Task.Status = %q, want %q before task runtime start", got, want)
 	}
-	if got := taskDetail.Task.NetworkChannel; got != "" {
-		t.Fatalf("taskDetail.Task.NetworkChannel = %q, want empty task ingress policy", got)
+	if got := resolvedParticipationChannelID(taskDetail.Task.ResolvedNetworkParticipation); got != "" {
+		t.Fatalf(
+			"taskDetail.Task.ResolvedNetworkParticipation.ChannelID = %q, want empty task ingress policy",
+			got,
+		)
 	}
 	if taskDetail.Task.Owner == nil || taskDetail.Task.Owner.Kind != taskpkg.OwnerKindAutomation {
 		t.Fatalf("taskDetail.Task.Owner = %#v, want automation ownership", taskDetail.Task.Owner)
@@ -276,8 +280,14 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 	if got, want := delegatedTaskRun.IdempotencyKey, "automation-run:"+run.ID; got != want {
 		t.Fatalf("delegatedTaskRun.IdempotencyKey = %q, want %q", got, want)
 	}
-	if got, want := delegatedTaskRun.NetworkChannel, channelID; got != want {
-		t.Fatalf("delegatedTaskRun.NetworkChannel = %q, want resolved %q", got, want)
+	if got, want := resolvedParticipationChannelID(
+		delegatedTaskRun.ResolvedNetworkParticipation,
+	), channelID; got != want {
+		t.Fatalf(
+			"delegatedTaskRun.ResolvedNetworkParticipation.ChannelID = %q, want resolved %q",
+			got,
+			want,
+		)
 	}
 	if got := delegatedTaskRun.SessionID; got != "" {
 		t.Fatalf("delegatedTaskRun.SessionID = %q, want empty before start", got)
@@ -343,14 +353,19 @@ func TestDaemonE2EAutomationTaskBackedJobDelegatesTaskRun(t *testing.T) {
 		t.Fatalf("task transcript = %q, want mock task-session response", taskTranscriptContent)
 	}
 
-	completedRun, err := harness.CompleteTaskRun(ctx, run.TaskRunID, aghcontract.CompleteTaskRunRequest{
-		Result: json.RawMessage(`{"result":"ok"}`),
-	})
-	if err != nil {
-		t.Fatalf("CompleteTaskRun(%q) error = %v", run.TaskRunID, err)
-	}
-	if got, want := completedRun.Status, taskpkg.TaskRunStatusCompleted; got != want {
-		t.Fatalf("completedRun.Status = %q, want %q", got, want)
+	var completedLease aghcontract.AgentTaskLeaseResponse
+	agentUDSJSON(
+		t,
+		ctx,
+		harness,
+		taskSessionInfo,
+		http.MethodPost,
+		"/api/agent/tasks/"+url.PathEscape(run.TaskRunID)+"/complete",
+		aghcontract.AgentTaskCompleteRequest{Result: json.RawMessage(`{"result":"ok"}`)},
+		&completedLease,
+	)
+	if got, want := completedLease.Lease.Status.Normalize(), taskpkg.TaskRunStatusCompleted; got != want {
+		t.Fatalf("completedLease.Lease.Status = %q, want %q", got, want)
 	}
 
 	taskDetail, err = harness.GetTask(ctx, run.TaskID)

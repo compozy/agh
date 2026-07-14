@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/agh/internal/api/core"
 	"github.com/compozy/agh/internal/api/testutil"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/notifications"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -1348,6 +1349,10 @@ func TestBaseHandlersTaskValidationAndErrorMapping(t *testing.T) {
 				resp.Body.String(),
 			)
 		}
+		body := resp.Body.String()
+		if !strings.Contains(body, "unknown_field") || !strings.Contains(body, "network_channel") {
+			t.Fatalf("channel create body = %s, want unknown_field with network_channel named", body)
+		}
 	})
 
 	t.Run("ShouldRejectUnknownWorkspaceAndInvalidOwnerInput", func(t *testing.T) {
@@ -1935,7 +1940,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		t,
 		fixture.Engine,
 		http.MethodGet,
-		"/tasks?scope=workspace&workspace=alpha&status=ready&owner_kind=pool&owner_ref=reviewers&parent_task_id=task-root&network_channel=builders&limit=2",
+		"/tasks?scope=workspace&workspace=alpha&status=ready&owner_kind=pool&owner_ref=reviewers&parent_task_id=task-root&participation_channel=builders&limit=2",
 		nil,
 	)
 	if resp.Code != http.StatusOK {
@@ -2148,8 +2153,8 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	}
 	var completedResp contract.TaskRunResponse
 	testutil.DecodeJSONResponse(t, resp, &completedResp)
-	if completedResp.Run.NetworkChannel != "builders" || completedResp.Run.CoordinationChannelID != "builders" {
-		t.Fatalf("completed response = %#v, want preserved network/coordination channel", completedResp.Run)
+	if resolvedParticipationChannelID(completedResp.Run.ResolvedNetworkParticipation) != "builders" {
+		t.Fatalf("completed response = %#v, want preserved participation", completedResp.Run)
 	}
 
 	resp = performRequest(
@@ -2164,8 +2169,8 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	}
 	var failedResp contract.TaskRunResponse
 	testutil.DecodeJSONResponse(t, resp, &failedResp)
-	if failedResp.Run.NetworkChannel != "builders" || failedResp.Run.CoordinationChannelID != "builders" {
-		t.Fatalf("failed response = %#v, want preserved network/coordination channel", failedResp.Run)
+	if resolvedParticipationChannelID(failedResp.Run.ResolvedNetworkParticipation) != "builders" {
+		t.Fatalf("failed response = %#v, want preserved participation", failedResp.Run)
 	}
 
 	resp = performRequest(
@@ -2180,8 +2185,8 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	}
 	var cancelledResp contract.TaskRunResponse
 	testutil.DecodeJSONResponse(t, resp, &cancelledResp)
-	if cancelledResp.Run.NetworkChannel != "builders" || cancelledResp.Run.CoordinationChannelID != "builders" {
-		t.Fatalf("canceled response = %#v, want preserved network/coordination channel", cancelledResp.Run)
+	if resolvedParticipationChannelID(cancelledResp.Run.ResolvedNetworkParticipation) != "builders" {
+		t.Fatalf("canceled response = %#v, want preserved participation", cancelledResp.Run)
 	}
 
 	// not parallel: these cases share one fixture and captured request variables for the end-of-flow assertions.
@@ -2311,7 +2316,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	}
 	if listedQuery.Status != taskpkg.TaskStatusReady || listedQuery.OwnerKind != taskpkg.OwnerKindPool ||
 		listedQuery.OwnerRef != "reviewers" ||
-		listedQuery.NetworkChannel != "builders" ||
+		listedQuery.ParticipationChannel != "builders" ||
 		listedQuery.Limit != 2 {
 		t.Fatalf("listed query = %#v", listedQuery)
 	}
@@ -2694,4 +2699,112 @@ func TestBaseHandlersTaskDecodeErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBaseHandlersUpdateTaskNetworkParticipation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist Live intent on the execution-profile owning stream", func(t *testing.T) {
+		t.Parallel()
+
+		const taskID = "task-np-update"
+		var (
+			gotSetProfile *taskpkg.ExecutionProfile
+			getCalls      int
+			setCalls      int
+			updateCalls   int
+		)
+		tasks := &testutil.StubTaskManager{
+			GetTaskFn: func(_ context.Context, id string, _ taskpkg.ActorContext) (*taskpkg.View, error) {
+				if id != taskID {
+					t.Fatalf("GetTask id = %q, want %q", id, taskID)
+				}
+				return &taskpkg.View{
+					Task: taskpkg.Task{
+						ID:     taskID,
+						Title:  "Draft handoff",
+						Scope:  taskpkg.ScopeWorkspace,
+						Status: taskpkg.TaskStatusDraft,
+					},
+				}, nil
+			},
+			UpdateTaskFn: func(context.Context, string, taskpkg.Patch, taskpkg.ActorContext) (*taskpkg.Task, error) {
+				updateCalls++
+				t.Fatal("UpdateTask must not run for network_participation-only patches")
+				return nil, nil
+			},
+			GetExecutionProfileFn: func(_ context.Context, id string, _ taskpkg.ActorContext) (taskpkg.ExecutionProfile, error) {
+				getCalls++
+				if id != taskID {
+					t.Fatalf("GetExecutionProfile id = %q, want %q", id, taskID)
+				}
+				return taskpkg.DefaultExecutionProfile(taskID), nil
+			},
+			SetExecutionProfileFn: func(
+				_ context.Context,
+				id string,
+				profile *taskpkg.ExecutionProfile,
+				_ taskpkg.ActorContext,
+			) (taskpkg.ExecutionProfile, error) {
+				setCalls++
+				if id != taskID {
+					t.Fatalf("SetExecutionProfile id = %q, want %q", id, taskID)
+				}
+				if profile == nil {
+					t.Fatal("SetExecutionProfile profile = nil")
+				}
+				cloned := *profile
+				gotSetProfile = &cloned
+				return cloned, nil
+			},
+		}
+		fixture := newHandlerFixtureWithTasks(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			tasks,
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/tasks/"+taskID,
+			[]byte(`{"network_participation":{"mode":"live","channel_strategy":"run"}}`),
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		if updateCalls != 0 {
+			t.Fatalf("UpdateTask calls = %d, want 0", updateCalls)
+		}
+		if getCalls != 1 || setCalls != 1 {
+			t.Fatalf("profile get/set calls = %d/%d, want 1/1", getCalls, setCalls)
+		}
+		if gotSetProfile == nil || gotSetProfile.NetworkParticipation == nil {
+			t.Fatalf("SetExecutionProfile profile = %#v, want network_participation", gotSetProfile)
+		}
+		if gotSetProfile.NetworkParticipation.Mode == nil ||
+			*gotSetProfile.NetworkParticipation.Mode != participation.ModeLive {
+			t.Fatalf("mode = %#v, want %q", gotSetProfile.NetworkParticipation.Mode, participation.ModeLive)
+		}
+		if gotSetProfile.NetworkParticipation.ChannelStrategy == nil ||
+			*gotSetProfile.NetworkParticipation.ChannelStrategy != participation.StrategyRun {
+			t.Fatalf(
+				"channel_strategy = %#v, want %q",
+				gotSetProfile.NetworkParticipation.ChannelStrategy,
+				participation.StrategyRun,
+			)
+		}
+
+		var response contract.TaskResponse
+		if err := json.Unmarshal(resp.Body.Bytes(), &response); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if response.Task.ID != taskID {
+			t.Fatalf("response task id = %q, want %q", response.Task.ID, taskID)
+		}
+	})
 }

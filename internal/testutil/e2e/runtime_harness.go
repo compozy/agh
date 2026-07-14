@@ -1448,9 +1448,29 @@ func (h *RuntimeHarness) CaptureTaskRuns(
 	return h.Artifacts.CaptureJSON(ArtifactKindTaskRuns, response.Runs)
 }
 
-// CaptureBridgeHealth stores one bridge health-stream snapshot.
-func (h *RuntimeHarness) CaptureBridgeHealth(ctx context.Context) error {
-	response, err := doRequest(ctx, h.UDSClient, h.UDSURL("/api/bridges/health/stream"), http.MethodGet, nil)
+// CaptureBridgeHealth stores one bridge health-stream snapshot for the given bridge IDs.
+func (h *RuntimeHarness) CaptureBridgeHealth(ctx context.Context, bridgeIDs ...string) error {
+	trimmed := make([]string, 0, len(bridgeIDs))
+	for _, id := range bridgeIDs {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		trimmed = append(trimmed, id)
+	}
+	if len(trimmed) == 0 {
+		return errors.New("bridge health capture requires at least one bridge id")
+	}
+
+	query := url.Values{}
+	query.Set("bridge_ids", strings.Join(trimmed, ","))
+	response, err := doRequest(
+		ctx,
+		h.UDSClient,
+		h.UDSURL("/api/bridges/health/stream")+"?"+query.Encode(),
+		http.MethodGet,
+		nil,
+	)
 	if err != nil {
 		return err
 	}

@@ -114,14 +114,14 @@ describe("ExtensionsInventory", () => {
     expect(mocks.toggle).toHaveBeenCalledWith({ enabled: false, name: "otel-bridge" });
   });
 
-  it("Should show bundle Update only for spec drift and preserve binding in the PATCH input", async () => {
+  it("Should show bundle Update only for spec drift and send a plain reapply PATCH", async () => {
     const user = userEvent.setup();
     render(<ExtensionsInventory tab="bundles" />);
 
     const update = screen.getByRole("button", { name: "Update" });
     await user.click(update);
     expect(mocks.updateBundle).toHaveBeenCalledWith({
-      body: { bind_primary_channel_as_default: false },
+      body: {},
       id: "activation-dep-kit",
     });
     expect(screen.getByTestId("bundle-row-activation-ops-starter")).not.toHaveTextContent("Update");

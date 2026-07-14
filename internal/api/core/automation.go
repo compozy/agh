@@ -75,7 +75,7 @@ func (h *BaseHandlers) CreateAutomationJob(c *gin.Context) {
 	}
 
 	var req contract.CreateJobRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -144,7 +144,7 @@ func (h *BaseHandlers) UpdateAutomationJob(c *gin.Context) {
 	}
 
 	var req contract.UpdateJobRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -312,7 +312,7 @@ func (h *BaseHandlers) CreateAutomationTrigger(c *gin.Context) {
 	}
 
 	var req contract.CreateTriggerRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -365,7 +365,7 @@ func (h *BaseHandlers) UpdateAutomationTrigger(c *gin.Context) {
 	}
 
 	var req contract.UpdateTriggerRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,

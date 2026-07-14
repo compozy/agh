@@ -97,7 +97,6 @@ type RunSessionRef struct {
 	WorkspaceID string    `json:"workspace_id,omitempty"`
 	AgentName   string    `json:"agent_name,omitempty"`
 	Name        string    `json:"name,omitempty"`
-	Channel     string    `json:"channel,omitempty"`
 	State       string    `json:"state,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`

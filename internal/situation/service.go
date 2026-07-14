@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	skillspkg "github.com/compozy/agh/internal/skills"
 	"github.com/compozy/agh/internal/soul"
@@ -544,15 +545,15 @@ func (s *Service) taskAndChannelContext(
 
 	channel := coordinationChannelPayload(taskRecord, run)
 	lease := contract.TaskRunLeaseSummaryPayload{
-		TaskID:                strings.TrimSpace(run.TaskID),
-		RunID:                 strings.TrimSpace(run.ID),
-		Status:                run.Status.Normalize(),
-		SessionID:             strings.TrimSpace(run.SessionID),
-		ClaimedBy:             cloneActorIdentity(run.ClaimedBy),
-		ClaimTokenHash:        strings.TrimSpace(run.ClaimTokenHash),
-		LeaseUntil:            optionalTimePtr(run.LeaseUntil),
-		HeartbeatAt:           optionalTimePtr(run.HeartbeatAt),
-		CoordinationChannelID: channel.ID,
+		TaskID:                       strings.TrimSpace(run.TaskID),
+		RunID:                        strings.TrimSpace(run.ID),
+		Status:                       run.Status.Normalize(),
+		SessionID:                    strings.TrimSpace(run.SessionID),
+		ClaimedBy:                    cloneActorIdentity(run.ClaimedBy),
+		ClaimTokenHash:               strings.TrimSpace(run.ClaimTokenHash),
+		LeaseUntil:                   optionalTimePtr(run.LeaseUntil),
+		HeartbeatAt:                  optionalTimePtr(run.HeartbeatAt),
+		ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
 	}
 	if channel.ID != "" {
 		lease.CoordinationChannel = &channel
@@ -571,7 +572,7 @@ func (s *Service) taskAndChannelContext(
 	if !channelContext.Available {
 		channelContext.Channel = nil
 	}
-	return taskContext, channelContext, firstTrimmed(channel.Channel, channel.ID), nil
+	return taskContext, channelContext, strings.TrimSpace(channel.ID), nil
 }
 
 func (s *Service) reviewBindingTaskAndChannelContext(
@@ -623,7 +624,6 @@ func (s *Service) reviewBindingTaskAndChannelContext(
 	channel := coordinationChannelPayload(taskRecord, run)
 	if reviewerChannelID := strings.TrimSpace(review.ReviewerChannelID); reviewerChannelID != "" {
 		channel.ID = reviewerChannelID
-		channel.Channel = reviewerChannelID
 		channel.DisplayName = reviewerChannelID
 		channel = contract.NormalizeCoordinationChannelPayload(channel)
 	}
@@ -640,7 +640,7 @@ func (s *Service) reviewBindingTaskAndChannelContext(
 	if !channelContext.Available {
 		channelContext.Channel = nil
 	}
-	return taskContext, channelContext, firstTrimmed(review.ReviewerChannelID, channel.Channel, channel.ID), nil
+	return taskContext, channelContext, firstTrimmed(review.ReviewerChannelID, channel.ID), nil
 }
 
 func (s *Service) sessionContextBundle(
@@ -826,14 +826,14 @@ func sessionPayload(info *session.Info) contract.AgentSessionPayload {
 		return contract.AgentSessionPayload{}
 	}
 	return contract.AgentSessionPayload{
-		ID:        strings.TrimSpace(info.ID),
-		Name:      strings.TrimSpace(info.Name),
-		Type:      info.Type,
-		State:     info.State,
-		Channel:   strings.TrimSpace(info.NetworkParticipation.ChannelID),
-		Lineage:   contract.SessionLineagePayloadFromStore(info.Lineage),
-		CreatedAt: info.CreatedAt.UTC(),
-		UpdatedAt: info.UpdatedAt.UTC(),
+		ID:                           strings.TrimSpace(info.ID),
+		Name:                         strings.TrimSpace(info.Name),
+		Type:                         info.Type,
+		State:                        info.State,
+		ResolvedNetworkParticipation: participation.CloneSpec(info.NetworkParticipation),
+		Lineage:                      contract.SessionLineagePayloadFromStore(info.Lineage),
+		CreatedAt:                    info.CreatedAt.UTC(),
+		UpdatedAt:                    info.UpdatedAt.UTC(),
 	}
 }
 
@@ -918,7 +918,7 @@ func workspaceRoot(workspace *workspacepkg.ResolvedWorkspace) string {
 func coordinationChannelPayload(taskRecord taskpkg.Task, run taskpkg.Run) contract.CoordinationChannelPayload {
 	metadata := runMetadata(run.Metadata)
 	networkSpec := run.NetworkSpecSnapshot()
-	channelID := firstTrimmed(networkSpec.ChannelID, metadata["coordination_channel_id"])
+	channelID := strings.TrimSpace(networkSpec.ChannelID)
 	channelName := firstTrimmed(networkSpec.ChannelID, channelID)
 	lastActivity := latestTime(
 		run.QueuedAt,
@@ -928,7 +928,6 @@ func coordinationChannelPayload(taskRecord taskpkg.Task, run taskpkg.Run) contra
 	)
 	return contract.NormalizeCoordinationChannelPayload(contract.CoordinationChannelPayload{
 		ID:          channelID,
-		Channel:     channelName,
 		DisplayName: firstTrimmed(channelName, channelID),
 		Purpose:     "task_run_coordination",
 		WorkspaceID: strings.TrimSpace(taskRecord.WorkspaceID),
@@ -953,13 +952,13 @@ func inboxSummary(
 			continue
 		}
 		if active := strings.TrimSpace(activeCoordinationChannelID); active != "" &&
-			strings.TrimSpace(metadata.CoordinationChannelID) != active {
+			strings.TrimSpace(metadata.ChannelID) != active {
 			continue
 		}
 		items = append(items, contract.AgentInboxItemPayload{
 			MessageID: strings.TrimSpace(envelope.ID),
 			ChannelID: firstTrimmed(
-				metadata.CoordinationChannelID,
+				metadata.ChannelID,
 				envelope.Channel,
 			),
 			Kind:      metadata.MessageKind,

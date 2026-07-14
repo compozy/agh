@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -17,12 +18,17 @@ func TestTaskContractsMarshalExpandedTaskReadModels(t *testing.T) {
 	startedAt := now.Add(3 * time.Minute)
 
 	summary := TaskSummaryPayload{
-		ID:              "task-1",
-		Identifier:      "TSK-001",
-		Scope:           taskpkg.ScopeWorkspace,
-		WorkspaceID:     "ws-1",
-		ParentTaskID:    "parent-1",
-		NetworkChannel:  "ops",
+		ID:           "task-1",
+		Identifier:   "TSK-001",
+		Scope:        taskpkg.ScopeWorkspace,
+		WorkspaceID:  "ws-1",
+		ParentTaskID: "parent-1",
+		ResolvedNetworkParticipation: &participation.Spec{
+			Version:   participation.SpecVersion,
+			Mode:      participation.ModeLive,
+			ChannelID: "ops",
+			Source:    participation.SourceExplicitRequest,
+		},
 		Title:           "Review contract coverage",
 		Priority:        taskpkg.PriorityHigh,
 		MaxAttempts:     4,
@@ -73,12 +79,17 @@ func TestTaskContractsMarshalExpandedTaskReadModels(t *testing.T) {
 	detail := TaskDetailPayload{
 		Summary: summary,
 		Task: TaskPayload{
-			ID:             "task-1",
-			Identifier:     "TSK-001",
-			Scope:          taskpkg.ScopeWorkspace,
-			WorkspaceID:    "ws-1",
-			ParentTaskID:   "parent-1",
-			NetworkChannel: "ops",
+			ID:           "task-1",
+			Identifier:   "TSK-001",
+			Scope:        taskpkg.ScopeWorkspace,
+			WorkspaceID:  "ws-1",
+			ParentTaskID: "parent-1",
+			ResolvedNetworkParticipation: &participation.Spec{
+				Version:   participation.SpecVersion,
+				Mode:      participation.ModeLive,
+				ChannelID: "ops",
+				Source:    participation.SourceExplicitRequest,
+			},
 			Title:          "Review contract coverage",
 			Description:    "Expand the task contract surface",
 			Priority:       taskpkg.PriorityHigh,
@@ -114,10 +125,15 @@ func TestTaskContractsMarshalExpandedTaskReadModels(t *testing.T) {
 				SessionID:      "session-1",
 				Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindAgentSession, Ref: "sess-1"},
 				IdempotencyKey: "idem-1",
-				NetworkChannel: "ops",
-				QueuedAt:       now,
-				ClaimedAt:      &claimedAt,
-				StartedAt:      &startedAt,
+				ResolvedNetworkParticipation: &participation.Spec{
+					Version:   participation.SpecVersion,
+					Mode:      participation.ModeLive,
+					ChannelID: "ops",
+					Source:    participation.SourceExplicitRequest,
+				},
+				QueuedAt:  now,
+				ClaimedAt: &claimedAt,
+				StartedAt: &startedAt,
 			},
 		},
 		Events: []TaskEventPayload{
@@ -214,7 +230,6 @@ func TestTaskContractsMarshalLiveDashboardAndInboxPayloads(t *testing.T) {
 				WorkspaceID: "ws-1",
 				AgentName:   "codex",
 				Name:        "task-run",
-				Channel:     "ops",
 				State:       "active",
 				CreatedAt:   now,
 				UpdatedAt:   now,

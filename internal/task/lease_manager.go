@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 // ClaimNextRun atomically claims the next eligible run for one session and returns the raw claim token once.
@@ -556,14 +558,14 @@ func (m *Service) RecoverExpiredRunLeases(
 			taskEventRunLeaseExpired,
 			actor,
 			expiredLeasePayload{
-				PreviousStatus:      result.PreviousRunStatus,
-				Status:              result.Run.Status,
-				TaskStatus:          reconciledTask.Status,
-				Reason:              result.Reason,
-				SessionID:           result.PreviousSessionID,
-				LeaseUntil:          result.PreviousLeaseUntil,
-				PreviousTokenHash:   result.PreviousClaimTokenHash,
-				CoordinationChannel: result.Run.NetworkSpecSnapshot().ChannelID,
+				PreviousStatus:               result.PreviousRunStatus,
+				Status:                       result.Run.Status,
+				TaskStatus:                   reconciledTask.Status,
+				Reason:                       result.Reason,
+				SessionID:                    result.PreviousSessionID,
+				LeaseUntil:                   result.PreviousLeaseUntil,
+				PreviousTokenHash:            result.PreviousClaimTokenHash,
+				ResolvedNetworkParticipation: participation.CloneSpec(result.Run.NetworkSpecSnapshot()),
 			},
 		); err != nil {
 			return nil, err

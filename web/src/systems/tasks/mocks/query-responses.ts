@@ -100,7 +100,7 @@ function matchesCatalogTask(task: TaskListItem, url: URL): boolean {
   const ownerKind = queryText(url, "owner_kind");
   const ownerRef = queryText(url, "owner_ref");
   const parentTaskId = queryText(url, "parent_task_id");
-  const networkChannel = queryText(url, "network_channel");
+  const participationChannel = queryText(url, "participation_channel");
   const search = queryText(url, "query").toLowerCase();
 
   if (priority !== "" && task.priority !== priority) {
@@ -118,7 +118,10 @@ function matchesCatalogTask(task: TaskListItem, url: URL): boolean {
   if (parentTaskId !== "" && task.parent_task_id !== parentTaskId) {
     return false;
   }
-  if (networkChannel !== "" && task.network_channel !== networkChannel) {
+  if (
+    participationChannel !== "" &&
+    task.resolved_network_participation?.channel_id !== participationChannel
+  ) {
     return false;
   }
   if (

@@ -163,15 +163,15 @@ func TestEnqueueRunFromPeerAttachesNetworkWorkMetadata(t *testing.T) {
 			t.Fatalf("json.Unmarshal(captured.Metadata) error = %v", err)
 		}
 		for key, want := range map[string]string{
-			"user":                 "kept",
-			"network_work_id":      "work_task_ingress",
-			"network_message_id":   "msg-enqueue-task",
-			"network_channel":      "ops",
-			"network_surface":      string(SurfaceThread),
-			"network_thread_id":    "thread_task_ingress",
-			"network_reply_to":     "msg-root-task",
-			"network_trace_id":     "trace-task-ingress",
-			"network_causation_id": "msg-root-task",
+			"user":                  "kept",
+			"network_work_id":       "work_task_ingress",
+			"network_message_id":    "msg-enqueue-task",
+			"participation_channel": "ops",
+			"network_surface":       string(SurfaceThread),
+			"network_thread_id":     "thread_task_ingress",
+			"network_reply_to":      "msg-root-task",
+			"network_trace_id":      "trace-task-ingress",
+			"network_causation_id":  "msg-root-task",
 		} {
 			if got := metadata[key]; got != want {
 				t.Fatalf("metadata[%q] = %q, want %q in %s", key, got, want, captured.Metadata)

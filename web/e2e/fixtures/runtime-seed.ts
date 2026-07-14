@@ -1191,31 +1191,20 @@ export async function seedBrowserTasksOperatorFlow(
     )
   ).run;
 
-  await runtime.requestJSON<{ run: TaskRun }>(
-    `/api/task-runs/${encodeURIComponent(runningRun.id)}/claim`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        idempotency_key: browserTasksOperatorFlowScenario.runningRun.claimIdempotencyKey,
-      }),
-    }
-  );
-  await runtime.requestJSON<{ run: TaskRun }>(
-    `/api/task-runs/${encodeURIComponent(runningRun.id)}/attach-session`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        session_id: session.id,
-      }),
-    }
-  );
-  await runtime.requestJSON<{ run: TaskRun }>(
-    `/api/task-runs/${encodeURIComponent(runningRun.id)}/start`,
-    {
-      method: "POST",
-      body: JSON.stringify({}),
-    }
-  );
+  // Operator HTTP claim was removed (Task #03); seed claims via the agent claim-next path.
+  // Claim-next binds the caller session and leaves the run claimed — enough for dashboard
+  // active_runs. Operator /start would try to spawn a second task session and 500.
+  await runtime.requestJSON<{ claim: { run: TaskRun } }>("/api/agent/tasks/claim-next", {
+    method: "POST",
+    headers: {
+      "X-AGH-Session-ID": session.id,
+      "X-AGH-Agent": sessionAgentName,
+    },
+    body: JSON.stringify({
+      run_id: runningRun.id,
+      idempotency_key: browserTasksOperatorFlowScenario.runningRun.claimIdempotencyKey,
+    }),
+  });
 
   const runningRunDetail = await waitForSeedCondition(
     async () => {

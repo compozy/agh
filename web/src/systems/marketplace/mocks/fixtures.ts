@@ -339,7 +339,6 @@ export const marketplaceDetails: Record<string, MarketplaceEntryResponse> = {
 export const marketplaceBundlePreviewFixture: BundlePreviewResponse = {
   activation: {
     agents: [{ id: "dep-reviewer", name: "dep-reviewer", provider: "anthropic" }],
-    bind_primary_channel_as_default: false,
     bundle_description: "Dependency review and release hygiene.",
     bundle_name: "dep-kit",
     channels: [{ name: "dependency-review", primary: true }],
@@ -359,6 +358,7 @@ export const marketplaceBundlePreviewFixture: BundlePreviewResponse = {
         resource_name: "release-notes",
       },
     ],
+    network_requirement_digest: "sha256:live-network-requirement",
     profile_description: "Dependency review with a weekly audit job.",
     profile_name: "default",
     scope: "workspace",

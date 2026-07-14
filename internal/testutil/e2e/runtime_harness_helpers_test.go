@@ -27,6 +27,17 @@ const (
 	harnessNetworkWorkID   = "work_patch_42"
 )
 
+func harnessBuildersParticipationSpec() participation.Spec {
+	return participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     "ws-1",
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       "builders",
+		Source:          participation.SourceExplicitRequest,
+	}
+}
+
 func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	t.Parallel()
 
@@ -170,8 +181,12 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	if got, want := resumedSession.State, sessionpkg.StateActive; got != want {
 		t.Fatalf("resumedSession.State = %q, want %q", got, want)
 	}
-	if got, want := resumedSession.Channel, "builders"; got != want {
-		t.Fatalf("resumedSession.Channel = %q, want %q", got, want)
+	if resumedSession.ResolvedNetworkParticipation == nil ||
+		resumedSession.ResolvedNetworkParticipation.ChannelID != "builders" {
+		t.Fatalf(
+			"resumedSession.ResolvedNetworkParticipation = %#v, want channel builders",
+			resumedSession.ResolvedNetworkParticipation,
+		)
 	}
 
 	stream, err := harness.PromptSession(testContext(t), "sess-1", "hello world")
@@ -299,9 +314,6 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	if err := harness.CaptureNetworkArtifacts(testContext(t), "builders"); err != nil {
 		t.Fatalf("CaptureNetworkArtifacts() error = %v", err)
 	}
-	if err := harness.CaptureBridgeHealth(testContext(t)); err != nil {
-		t.Fatalf("CaptureBridgeHealth() error = %v", err)
-	}
 
 	createdBridge, err := harness.CreateBridge(testContext(t), aghcontract.CreateBridgeRequest{
 		Scope:         bridgepkg.ScopeWorkspace,
@@ -396,7 +408,7 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 	if err := harness.CaptureTaskRuns(testContext(t), "task-1", url.Values{"status": {"completed"}}); err != nil {
 		t.Fatalf("CaptureTaskRuns() error = %v", err)
 	}
-	if err := harness.CaptureBridgeHealth(testContext(t)); err != nil {
+	if err := harness.CaptureBridgeHealth(testContext(t), "brg-1"); err != nil {
 		t.Fatalf("CaptureBridgeHealth() error = %v", err)
 	}
 	if err := harness.CaptureBridgeRoutes(testContext(t), "brg-1"); err != nil {
@@ -773,7 +785,7 @@ func TestRuntimeHarnessBridgeAndExtensionHelpersSurfaceTransportErrors(t *testin
 			harness.CaptureBridgeSecretBindings(ctx, "brg-1"),
 			"/api/bridges/brg-1/secret-bindings status 500: boom",
 		)
-		assertErrorContains(t, harness.CaptureBridgeHealth(ctx), "decode bridge health snapshot")
+		assertErrorContains(t, harness.CaptureBridgeHealth(ctx, "brg-1"), "decode bridge health snapshot")
 	})
 }
 
@@ -953,13 +965,13 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 		}
 		writeJSON(w, aghcontract.SessionAttachResponse{
 			Session: aghcontract.SessionPayload{
-				ID:            "sess-1",
-				AgentName:     "coder",
-				WorkspaceID:   "ws-1",
-				WorkspacePath: "/workspace",
-				Channel:       "builders",
-				State:         "active",
-				Badge:         "idle",
+				ID:                           "sess-1",
+				AgentName:                    "coder",
+				WorkspaceID:                  "ws-1",
+				WorkspacePath:                "/workspace",
+				ResolvedNetworkParticipation: participation.CloneSpec(harnessBuildersParticipationSpec()),
+				State:                        "active",
+				Badge:                        "idle",
 				Sandbox: &aghcontract.SessionSandboxPayload{
 					SandboxID: "env-1",
 					Backend:   "local",
@@ -1247,10 +1259,10 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 					Channel:   "builders",
 					PeerCount: 1,
 					Sessions: []aghcontract.SessionPayload{{
-						ID:        "sess-1",
-						AgentName: "coder",
-						Channel:   "builders",
-						State:     "active",
+						ID:                           "sess-1",
+						AgentName:                    "coder",
+						ResolvedNetworkParticipation: participation.CloneSpec(harnessBuildersParticipationSpec()),
+						State:                        "active",
 					}},
 				},
 			})
@@ -1274,10 +1286,10 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				Channel:   "builders",
 				PeerCount: 1,
 				Sessions: []aghcontract.SessionPayload{{
-					ID:        "sess-1",
-					AgentName: "coder",
-					Channel:   "builders",
-					State:     "active",
+					ID:                           "sess-1",
+					AgentName:                    "coder",
+					ResolvedNetworkParticipation: participation.CloneSpec(harnessBuildersParticipationSpec()),
+					State:                        "active",
 				}},
 				Peers: []aghcontract.NetworkPeerPayload{{
 					SessionID:   new("sess-1"),

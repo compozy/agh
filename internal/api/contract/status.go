@@ -151,34 +151,34 @@ type TaskHealthPayload struct {
 }
 
 type TaskQueueDepthPayload struct {
-	NetworkChannel      string     `json:"network_channel,omitempty"`
+	ChannelID           string     `json:"channel_id,omitempty"`
 	Count               int        `json:"count"`
 	OldestQueuedAt      *time.Time `json:"oldest_queued_at,omitempty"`
 	OldestQueueAgeMilli int64      `json:"oldest_queue_age_ms"`
 }
 
 type StuckTaskRunPayload struct {
-	TaskID         string `json:"task_id"`
-	RunID          string `json:"run_id"`
-	Status         string `json:"status"`
-	OriginKind     string `json:"origin_kind"`
-	NetworkChannel string `json:"network_channel,omitempty"`
-	SessionID      string `json:"session_id,omitempty"`
-	AgeMillis      int64  `json:"age_ms"`
+	TaskID     string `json:"task_id"`
+	RunID      string `json:"run_id"`
+	Status     string `json:"status"`
+	OriginKind string `json:"origin_kind"`
+	ChannelID  string `json:"channel_id,omitempty"`
+	SessionID  string `json:"session_id,omitempty"`
+	AgeMillis  int64  `json:"age_ms"`
 }
 
 type TaskStatusTotalPayload struct {
-	Scope          string `json:"scope"`
-	Status         string `json:"status"`
-	NetworkChannel string `json:"network_channel,omitempty"`
-	Count          int    `json:"count"`
+	Scope     string `json:"scope"`
+	Status    string `json:"status"`
+	ChannelID string `json:"channel_id,omitempty"`
+	Count     int    `json:"count"`
 }
 
 type TaskRunTotalPayload struct {
-	Status         string `json:"status"`
-	OriginKind     string `json:"origin_kind"`
-	NetworkChannel string `json:"network_channel,omitempty"`
-	Count          int    `json:"count"`
+	Status     string `json:"status"`
+	OriginKind string `json:"origin_kind"`
+	ChannelID  string `json:"channel_id,omitempty"`
+	Count      int    `json:"count"`
 }
 
 type TaskOwnerTotalPayload struct {

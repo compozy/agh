@@ -82,13 +82,13 @@ func ToolAllowlist(spec participation.Spec) []string {
 // Decision describes whether a task run is eligible to bootstrap a workspace
 // coordinator.
 type Decision struct {
-	ShouldBootstrap       bool
-	Reason                string
-	WorkspaceID           string
-	TaskID                string
-	RunID                 string
-	WorkflowID            string
-	CoordinationChannelID string
+	ShouldBootstrap      bool
+	Reason               string
+	WorkspaceID          string
+	TaskID               string
+	RunID                string
+	WorkflowID           string
+	NetworkParticipation participation.Spec
 }
 
 // PromptInput captures the first-run situation given to a coordinator session.
@@ -105,11 +105,11 @@ type PromptInput struct {
 // belongs to the daemon runtime.
 func DecideBootstrap(task taskpkg.Task, run taskpkg.Run, cfg aghconfig.CoordinatorConfig) Decision {
 	decision := Decision{
-		WorkspaceID:           strings.TrimSpace(task.WorkspaceID),
-		TaskID:                strings.TrimSpace(task.ID),
-		RunID:                 strings.TrimSpace(run.ID),
-		WorkflowID:            workflowIDFromMetadata(run.Metadata),
-		CoordinationChannelID: strings.TrimSpace(run.NetworkSpecSnapshot().ChannelID),
+		WorkspaceID:          strings.TrimSpace(task.WorkspaceID),
+		TaskID:               strings.TrimSpace(task.ID),
+		RunID:                strings.TrimSpace(run.ID),
+		WorkflowID:           workflowIDFromMetadata(run.Metadata),
+		NetworkParticipation: run.NetworkSpecSnapshot(),
 	}
 	if !cfg.Enabled {
 		decision.Reason = DecisionDisabled
@@ -247,7 +247,7 @@ func PromptOverlay(input PromptInput) string {
 	writePromptLine(&b, "run_id", input.RunID)
 	writePromptLine(&b, "workflow_id", input.WorkflowID)
 	if input.NetworkParticipation.Mode == participation.ModeLive {
-		writePromptLine(&b, "coordination_channel_id", input.NetworkParticipation.ChannelID)
+		writePromptLine(&b, "participation_channel", input.NetworkParticipation.ChannelID)
 	}
 	b.WriteString("\nUse public AGH agent APIs only:\n")
 	b.WriteString("- `agh me context` for the Situation Surface.\n")

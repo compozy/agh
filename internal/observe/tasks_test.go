@@ -125,9 +125,9 @@ func TestQueryTaskSummaryAggregatesByScopeOriginChannelAndOwner(t *testing.T) {
 	}
 
 	filtered, err := h.observer.QueryTaskSummary(testutil.Context(t), TaskSummaryQuery{
-		OwnerKind:      taskpkg.OwnerKindHuman,
-		OwnerRef:       "alice",
-		NetworkChannel: "ops",
+		OwnerKind:            taskpkg.OwnerKindHuman,
+		OwnerRef:             "alice",
+		ParticipationChannel: "ops",
 	})
 	if err != nil {
 		t.Fatalf("QueryTaskSummary(filtered) error = %v", err)
@@ -356,8 +356,8 @@ func TestQueryTaskMetricsCountsDuplicateIngressAndChannelMismatch(t *testing.T) 
 	})
 
 	metrics, err := h.observer.QueryTaskMetrics(testutil.Context(t), TaskMetricsQuery{
-		Since:          h.now,
-		NetworkChannel: "ops",
+		Since:                h.now,
+		ParticipationChannel: "ops",
 	})
 	if err != nil {
 		t.Fatalf("QueryTaskMetrics() error = %v", err)
@@ -377,9 +377,9 @@ func TestQueryTaskMetricsCountsDuplicateIngressAndChannelMismatch(t *testing.T) 
 	}
 
 	cliMetrics, err := h.observer.QueryTaskMetrics(testutil.Context(t), TaskMetricsQuery{
-		Since:          h.now,
-		NetworkChannel: "ops",
-		OriginKind:     taskpkg.OriginKindCLI,
+		Since:                h.now,
+		ParticipationChannel: "ops",
+		OriginKind:           taskpkg.OriginKindCLI,
 	})
 	if err != nil {
 		t.Fatalf("QueryTaskMetrics(cli filter) error = %v", err)
@@ -1282,7 +1282,7 @@ func containsTaskTotal(
 	count int,
 ) bool {
 	for _, item := range rows {
-		if item.Scope == scope && item.Status == status && item.NetworkChannel == channel && item.Count == count {
+		if item.Scope == scope && item.Status == status && item.ChannelID == channel && item.Count == count {
 			return true
 		}
 	}
@@ -1291,7 +1291,7 @@ func containsTaskTotal(
 
 func containsTaskOriginTotal(rows []TaskOriginTotal, origin taskpkg.OriginKind, channel string, count int) bool {
 	for _, item := range rows {
-		if item.OriginKind == origin && item.NetworkChannel == channel && item.Count == count {
+		if item.OriginKind == origin && item.ChannelID == channel && item.Count == count {
 			return true
 		}
 	}
@@ -1306,7 +1306,7 @@ func containsRunTotal(
 	count int,
 ) bool {
 	for _, item := range rows {
-		if item.Status == status && item.OriginKind == origin && item.NetworkChannel == channel && item.Count == count {
+		if item.Status == status && item.OriginKind == origin && item.ChannelID == channel && item.Count == count {
 			return true
 		}
 	}
@@ -1324,7 +1324,7 @@ func containsOwnerTotal(rows []TaskOwnerTotal, ownerKind taskpkg.OwnerKind, owne
 
 func containsQueueDepth(rows []TaskQueueDepth, channel string, count int) bool {
 	for _, item := range rows {
-		if item.NetworkChannel == channel && item.Count == count {
+		if item.ChannelID == channel && item.Count == count {
 			return true
 		}
 	}

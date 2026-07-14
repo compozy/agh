@@ -167,4 +167,8 @@ export const networkKeys = {
   peerDetails: (workspaceId: string) => [...networkKeys.peersRoot(workspaceId), "detail"] as const,
   peerDetail: (workspaceId: string, peerId: string) =>
     [...networkKeys.peerDetails(workspaceId), normalizeText(peerId)] as const,
+
+  coordination: (workspaceId: string, taskId?: string | null) =>
+    [...networkKeys.workspace(workspaceId), "coordination", normalizeText(taskId)] as const,
+  usage: (workspaceId: string) => [...networkKeys.workspace(workspaceId), "usage"] as const,
 };

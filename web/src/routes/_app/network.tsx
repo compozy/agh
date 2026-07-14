@@ -85,7 +85,7 @@ function NetworkRouteShell() {
           className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
           data-testid="network-disabled-state"
         >
-          <NetworkEmpty onOpenSettings={view.networkCreate.openNetworkSettings} />
+          <NetworkEmpty disabledByAdmin onOpenSettings={view.networkCreate.openNetworkSettings} />
         </div>
         {view.networkCreate.dialog}
       </>

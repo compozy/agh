@@ -34,7 +34,7 @@ func (c ClaimCriteria) Normalize(defaultNow time.Time) (ClaimCriteria, error) {
 		}
 	}
 	normalized.AgentName = strings.TrimSpace(normalized.AgentName)
-	normalized.CoordinationChannelID = strings.TrimSpace(normalized.CoordinationChannelID)
+	normalized.ParticipationChannel = strings.TrimSpace(normalized.ParticipationChannel)
 	normalized.RequiredCapabilities = normalizeCapabilityCriteria(normalized.RequiredCapabilities)
 	if normalized.LeaseDuration == 0 {
 		normalized.LeaseDuration = DefaultRunLeaseDuration

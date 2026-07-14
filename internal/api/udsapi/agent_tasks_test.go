@@ -46,7 +46,6 @@ func TestAgentTaskClaimNextUsesCallerIdentityAndReturnsCoordinationChannel(t *te
 				LeaseUntil: leaseUntil,
 				CoordinationChannel: &taskpkg.CoordinationChannelMetadata{
 					ID:                  "builders",
-					Channel:             "builders",
 					DisplayName:         "Builders",
 					Purpose:             "coordinated execution",
 					WorkspaceID:         "ws-1",
@@ -95,7 +94,8 @@ func TestAgentTaskClaimNextUsesCallerIdentityAndReturnsCoordinationChannel(t *te
 	var response contract.AgentTaskClaimResponse
 	decodeJSONResponse(t, recorder, &response)
 	if response.Claim.Lease.ClaimTokenHash != claimHash ||
-		response.Claim.Lease.CoordinationChannelID != "builders" ||
+		response.Claim.Lease.ResolvedNetworkParticipation == nil ||
+		response.Claim.Lease.ResolvedNetworkParticipation.ChannelID != "builders" ||
 		response.Claim.CoordinationChannel == nil ||
 		response.Claim.CoordinationChannel.DisplayName != "Builders" ||
 		response.Claim.Run.CoordinationChannel == nil {
@@ -105,7 +105,7 @@ func TestAgentTaskClaimNextUsesCallerIdentityAndReturnsCoordinationChannel(t *te
 		seenCriteria.WorkspaceID != "ws-1" ||
 		seenCriteria.ClaimerSessionID != "sess-agent" ||
 		seenCriteria.AgentName != "coder" ||
-		seenCriteria.CoordinationChannelID != "builders" ||
+		seenCriteria.ParticipationChannel != "builders" ||
 		seenCriteria.PriorityMin != 2 ||
 		seenCriteria.LeaseDuration != 120*time.Second {
 		t.Fatalf("criteria = %#v, want exact run plus caller workspace/session/agent/channel and flags", seenCriteria)
@@ -288,7 +288,8 @@ func TestAgentTaskLeaseMutationsUseSessionBoundLookupAndDoNotEchoToken(t *testin
 			if response.Lease.RunID != "run-1" ||
 				response.Lease.Status != tt.status ||
 				response.Lease.SessionID != "sess-agent" ||
-				response.Lease.CoordinationChannelID != "builders" {
+				response.Lease.ResolvedNetworkParticipation == nil ||
+				response.Lease.ResolvedNetworkParticipation.ChannelID != "builders" {
 				t.Fatalf(
 					"lease = %#v, want run-1 status %s session sess-agent channel builders",
 					response.Lease,

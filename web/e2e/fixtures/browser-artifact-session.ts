@@ -275,15 +275,12 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       : document.querySelector('[data-testid="automation-trigger-form"]')
         ? "trigger"
         : undefined;
-    const bridgeScopeFilter = document.querySelector(
-      '[data-testid="bridge-scope-all"][aria-pressed="true"]'
-    )
-      ? "all"
-      : document.querySelector('[data-testid="bridge-scope-global"][aria-pressed="true"]')
-        ? "global"
-        : document.querySelector('[data-testid="bridge-scope-workspace"][aria-pressed="true"]')
-          ? "workspace"
-          : undefined;
+    const bridgeScopeSearch = new URLSearchParams(window.location.search).get("scope");
+    const bridgeScopeFilter = document.querySelector('[data-testid="bridge-list-panel"]')
+      ? bridgeScopeSearch === "global" || bridgeScopeSearch === "workspace"
+        ? bridgeScopeSearch
+        : "all"
+      : undefined;
     const bridgeSelectedItem =
       document
         .querySelector<HTMLElement>('[data-testid="bridge-detail-panel"] h1')

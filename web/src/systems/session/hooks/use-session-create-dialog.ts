@@ -40,6 +40,9 @@ export interface SessionCreateDialogDraft {
   providerOverride: string;
   modelOverride: string;
   reasoningEffort: ReasoningEffort | "";
+  networkParticipationMode: "local" | "live";
+  networkChannelId: string;
+  networkChannelStrategy: string;
 }
 
 export interface SessionCreateDialogState {
@@ -70,6 +73,16 @@ export interface SessionCreateDialogApi extends SessionCreateDialogState {
   onOpenChange: (open: boolean) => void;
   onAgentChange: (agentName: string) => void;
   onRuntimeChange: (next: RuntimeSelectorValue) => void;
+  onNetworkParticipationChange: (next: {
+    mode: "local" | "live";
+    channelId: string;
+    channelStrategy: string;
+  }) => void;
+  networkParticipation: {
+    mode: "local" | "live";
+    channelId: string;
+    channelStrategy: string;
+  };
   refreshCatalog: () => void;
   openProviderSettings: () => void;
   submit: () => Promise<void>;
@@ -142,6 +155,9 @@ export function useSessionCreateDialog({
     providerOverride: "",
     modelOverride: "",
     reasoningEffort: "",
+    networkParticipationMode: "local",
+    networkChannelId: "",
+    networkChannelStrategy: "",
   });
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [pendingAgentName, setPendingAgentName] = useState<string | null>(null);
@@ -233,6 +249,9 @@ export function useSessionCreateDialog({
       providerOverride: "",
       modelOverride: "",
       reasoningEffort: "",
+      networkParticipationMode: "local",
+      networkChannelId: "",
+      networkChannelStrategy: "",
     });
     setSubmitError(null);
     setOpenState(true);
@@ -247,7 +266,28 @@ export function useSessionCreateDialog({
 
   const onAgentChange = (agentName: string) => {
     setSubmitError(null);
-    setDraft({ agentName, providerOverride: "", modelOverride: "", reasoningEffort: "" });
+    setDraft({
+      agentName,
+      providerOverride: "",
+      modelOverride: "",
+      reasoningEffort: "",
+      networkParticipationMode: "local",
+      networkChannelId: "",
+      networkChannelStrategy: "",
+    });
+  };
+
+  const onNetworkParticipationChange = (next: {
+    mode: "local" | "live";
+    channelId: string;
+    channelStrategy: string;
+  }) => {
+    setDraft(current => ({
+      ...current,
+      networkParticipationMode: next.mode,
+      networkChannelId: next.channelId,
+      networkChannelStrategy: next.channelStrategy,
+    }));
   };
 
   const onRuntimeChange = (next: RuntimeSelectorValue) => {
@@ -296,6 +336,15 @@ export function useSessionCreateDialog({
         provider,
         ...(modelDiffersFromDefault ? { model: effectiveSelectedModel } : {}),
         ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+        network_participation: {
+          mode: draft.networkParticipationMode,
+          ...(draft.networkParticipationMode === "live" && draft.networkChannelId.trim()
+            ? { channel_id: draft.networkChannelId.trim() }
+            : {}),
+          ...(draft.networkParticipationMode === "live" && draft.networkChannelStrategy.trim()
+            ? { channel_strategy: draft.networkChannelStrategy.trim() }
+            : {}),
+        },
       });
     } catch (error) {
       const message = describeError("Failed to create session.", error);
@@ -342,6 +391,12 @@ export function useSessionCreateDialog({
     onOpenChange: handleOpenChange,
     onAgentChange,
     onRuntimeChange,
+    onNetworkParticipationChange,
+    networkParticipation: {
+      mode: draft.networkParticipationMode,
+      channelId: draft.networkChannelId,
+      channelStrategy: draft.networkChannelStrategy,
+    },
     refreshCatalog,
     openProviderSettings,
     submit,

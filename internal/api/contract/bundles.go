@@ -73,24 +73,26 @@ type BundleInventoryPayload struct {
 }
 
 type BundleActivationPayload struct {
-	ID                          string                   `json:"id"`
-	ExtensionName               string                   `json:"extension_name"`
-	BundleName                  string                   `json:"bundle_name"`
-	BundleDescription           string                   `json:"bundle_description,omitempty"`
-	ProfileName                 string                   `json:"profile_name"`
-	ProfileDescription          string                   `json:"profile_description,omitempty"`
-	Scope                       string                   `json:"scope"`
-	WorkspaceID                 string                   `json:"workspace_id,omitempty"`
-	BindPrimaryChannelAsDefault bool                     `json:"bind_primary_channel_as_default"`
-	Channels                    []BundleChannelPayload   `json:"channels,omitempty"`
-	Agents                      []BundleAgentPayload     `json:"agents,omitempty"`
-	Jobs                        []BundleJobPayload       `json:"jobs,omitempty"`
-	Triggers                    []BundleTriggerPayload   `json:"triggers,omitempty"`
-	Bridges                     []BundleBridgePayload    `json:"bridges,omitempty"`
-	Inventory                   []BundleInventoryPayload `json:"inventory,omitempty"`
-	SpecDrift                   bool                     `json:"spec_drift"`
-	CreatedAt                   time.Time                `json:"created_at"`
-	UpdatedAt                   time.Time                `json:"updated_at"`
+	ID                            string                   `json:"id"`
+	ExtensionName                 string                   `json:"extension_name"`
+	BundleName                    string                   `json:"bundle_name"`
+	BundleDescription             string                   `json:"bundle_description,omitempty"`
+	ProfileName                   string                   `json:"profile_name"`
+	ProfileDescription            string                   `json:"profile_description,omitempty"`
+	Scope                         string                   `json:"scope"`
+	WorkspaceID                   string                   `json:"workspace_id,omitempty"`
+	NetworkRequirementDigest      string                   `json:"network_requirement_digest,omitempty"`
+	NetworkRequirementConfirmedBy string                   `json:"network_requirement_confirmed_by,omitempty"`
+	NetworkRequirementConfirmedAt string                   `json:"network_requirement_confirmed_at,omitempty"`
+	Channels                      []BundleChannelPayload   `json:"channels,omitempty"`
+	Agents                        []BundleAgentPayload     `json:"agents,omitempty"`
+	Jobs                          []BundleJobPayload       `json:"jobs,omitempty"`
+	Triggers                      []BundleTriggerPayload   `json:"triggers,omitempty"`
+	Bridges                       []BundleBridgePayload    `json:"bridges,omitempty"`
+	Inventory                     []BundleInventoryPayload `json:"inventory,omitempty"`
+	SpecDrift                     bool                     `json:"spec_drift"`
+	CreatedAt                     time.Time                `json:"created_at"`
+	UpdatedAt                     time.Time                `json:"updated_at"`
 }
 
 type DeclaredNetworkChannelPayload struct {
@@ -105,23 +107,20 @@ type DeclaredNetworkChannelPayload struct {
 }
 
 type BundleNetworkSettingsPayload struct {
-	ConfiguredDefaultChannel string                          `json:"configured_default_channel,omitempty"`
-	EffectiveDefaultChannel  string                          `json:"effective_default_channel,omitempty"`
-	EffectiveDefaultSource   string                          `json:"effective_default_source,omitempty"`
-	DeclaredChannels         []DeclaredNetworkChannelPayload `json:"declared_channels,omitempty"`
+	DeclaredChannels []DeclaredNetworkChannelPayload `json:"declared_channels,omitempty"`
 }
 
 type ActivateBundleRequest struct {
-	ExtensionName               string `json:"extension_name"`
-	BundleName                  string `json:"bundle_name"`
-	ProfileName                 string `json:"profile_name"`
-	Scope                       string `json:"scope,omitempty"`
-	Workspace                   string `json:"workspace,omitempty"`
-	BindPrimaryChannelAsDefault bool   `json:"bind_primary_channel_as_default"`
+	ExtensionName             string `json:"extension_name"`
+	BundleName                string `json:"bundle_name"`
+	ProfileName               string `json:"profile_name"`
+	Scope                     string `json:"scope,omitempty"`
+	Workspace                 string `json:"workspace,omitempty"`
+	ConfirmNetworkRequirement bool   `json:"confirm_network_requirement,omitempty"`
 }
 
 type UpdateBundleActivationRequest struct {
-	BindPrimaryChannelAsDefault bool `json:"bind_primary_channel_as_default"`
+	ConfirmNetworkRequirement bool `json:"confirm_network_requirement,omitempty"`
 }
 
 type BundlesCatalogResponse struct {

@@ -234,7 +234,6 @@ function createdTaskFromBody(body: CreateTaskRequest): StatefulTask {
     last_activity_at: "2026-04-17T10:00:00Z",
     latest_event_seq: 1,
     max_attempts: body.max_attempts ?? 1,
-    network_channel: body.network_channel,
     origin: { kind: "web", ref: "operator" },
     owner: body.owner ?? undefined,
     scope: body.scope,
@@ -370,7 +369,7 @@ function taskCreateHandlers(): HttpHandler[] {
       const activeRun: NonNullable<TaskListItem["active_run"]> = {
         attempt: run.attempt,
         claimed_by: run.claimed_by,
-        coordination_channel_id: run.coordination_channel_id,
+        resolved_network_participation: run.resolved_network_participation,
         error: run.error,
         id: run.id,
         max_attempts: task.max_attempts,
@@ -858,13 +857,28 @@ describe("TaskCreateRoute create modal", () => {
       description: "Preserve every mutable field while clearing ownership.",
       draft: false,
       max_attempts: 3,
-      network_channel: "launch-room",
+      network_participation: { mode: "live", channel_id: "launch-room" },
       owner: { kind: "agent_session", ref: "sess-exact-owner" },
       priority: "urgent",
       scope: "workspace",
       title: "Release exact owner",
       workspace: "ws_alpha",
     });
+    task.resolved_network_participation = {
+      version: "network-participation/v1",
+      mode: "live",
+      source: "explicit",
+      channel_id: "launch-room",
+      bounds: {
+        coalesce_window: "0s",
+        max_input_tokens: 0,
+        max_output_tokens: 0,
+        max_total_wall_time: "0s",
+        max_wake_depth: 0,
+        max_wake_wall_time: "0s",
+        max_wakes: 0,
+      },
+    };
     taskStore.reset([task]);
 
     const edit = renderTaskEditPage(task.id);
@@ -887,6 +901,7 @@ describe("TaskCreateRoute create modal", () => {
       clear_owner: true,
       description: "Preserve every mutable field while clearing ownership.",
       max_attempts: 3,
+      network_participation: { mode: "live", channel_id: "launch-room" },
       priority: "urgent",
       title: "Release exact owner",
     });

@@ -14,6 +14,7 @@ import (
 
 	"github.com/compozy/agh/internal/agentidentity"
 	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -200,7 +201,7 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 	ctx.Request = httptest.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
-		"/tasks?scope=workspace&workspace=alpha&status=ready&owner_kind=pool&owner_ref=reviewers&parent_task_id=task-root&network_channel=builders&limit=3",
+		"/tasks?scope=workspace&workspace=alpha&status=ready&owner_kind=pool&owner_ref=reviewers&parent_task_id=task-root&participation_channel=builders&limit=3",
 		http.NoBody,
 	)
 
@@ -269,18 +270,16 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 	} else {
 		assertTaskValidationError(t, err, "run_failure.error is required")
 	}
-	if err := validateTaskChannel("task.network_channel", "bad.channel"); err == nil {
-		t.Fatal("validateTaskChannel(invalid) error = nil, want non-nil")
+	if err := validateParticipationChannel("task.participation_channel", "bad.channel"); err == nil {
+		t.Fatal("validateParticipationChannel(invalid) error = nil, want non-nil")
 	} else {
-		assertTaskValidationError(t, err, `task.network_channel: network: invalid field: channel="bad.channel"`)
+		assertTaskValidationError(t, err, `task.participation_channel: network: invalid field: channel="bad.channel"`)
 	}
 	if _, err := enqueueTaskRunFromRequest(
 		"task-1",
-		contract.EnqueueTaskRunRequest{NetworkChannel: "bad.channel"},
-	); err == nil {
-		t.Fatal("enqueueTaskRunFromRequest(invalid) error = nil, want non-nil")
-	} else {
-		assertTaskValidationError(t, err, "enqueue_run.network_channel is no longer supported")
+		contract.EnqueueTaskRunRequest{},
+	); err != nil {
+		t.Fatalf("enqueueTaskRunFromRequest(empty) error = %v", err)
 	}
 	if _, err := requiredPathID("", "task id"); err == nil {
 		t.Fatal("requiredPathID(empty) error = nil, want non-nil")
@@ -348,6 +347,22 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 		t.Fatal("decodeOptionalJSON(invalid) error = nil, want non-nil")
 	} else if !strings.Contains(err.Error(), "unexpected EOF") {
 		t.Fatalf("decodeOptionalJSON(invalid) error = %q, want unexpected EOF", err.Error())
+	}
+
+	unknownRecorder := httptest.NewRecorder()
+	unknownCtx, _ := gin.CreateTestContext(unknownRecorder)
+	unknownCtx.Request = httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/tasks/task-1/runs",
+		bytes.NewBufferString(`{"network_channel":"builders"}`),
+	)
+	unknownCtx.Request.Header.Set("Content-Type", "application/json")
+	var enqueuePayload contract.EnqueueTaskRunRequest
+	if err := decodeOptionalJSON(unknownCtx, &enqueuePayload); err == nil {
+		t.Fatal("decodeOptionalJSON(unknown field) error = nil, want non-nil")
+	} else if !errors.Is(err, ErrUnknownJSONField) || !strings.Contains(err.Error(), "network_channel") {
+		t.Fatalf("decodeOptionalJSON(unknown field) error = %q, want unknown_field with field named", err.Error())
 	}
 }
 
@@ -422,10 +437,11 @@ func TestTaskRunPayloadFromRunExposesLeaseStateWithoutRawClaimToken(t *testing.T
 		if payload.HeartbeatAt == nil || !payload.HeartbeatAt.Equal(run.HeartbeatAt) {
 			t.Fatalf("HeartbeatAt = %v, want %v", payload.HeartbeatAt, run.HeartbeatAt)
 		}
-		if payload.CoordinationChannelID != run.NetworkSpecSnapshot().ChannelID {
+		if payload.ResolvedNetworkParticipation == nil ||
+			payload.ResolvedNetworkParticipation.ChannelID != run.NetworkSpecSnapshot().ChannelID {
 			t.Fatalf(
-				"CoordinationChannelID = %q, want %q",
-				payload.CoordinationChannelID,
+				"ResolvedNetworkParticipation = %#v, want channel %q",
+				payload.ResolvedNetworkParticipation,
 				run.NetworkSpecSnapshot().ChannelID,
 			)
 		}
@@ -462,6 +478,37 @@ func TestTaskExecutionRequestFromRequestValidatesDomainRequest(t *testing.T) {
 		_, err := taskExecutionRequestFromRequest(contract.TaskExecutionRequest{Metadata: oversizedMetadata})
 		if !errors.Is(err, taskpkg.ErrPayloadTooLarge) {
 			t.Fatalf("taskExecutionRequestFromRequest() error = %v, want %v", err, taskpkg.ErrPayloadTooLarge)
+		}
+	})
+}
+
+func TestTaskUpdateHasRowFields(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should treat network_participation alone as non-row patch", func(t *testing.T) {
+		t.Parallel()
+		mode := participation.ModeLive
+		req := contract.UpdateTaskRequest{
+			NetworkParticipation: &participation.Request{Mode: &mode},
+		}
+		if taskUpdateHasRowFields(req) {
+			t.Fatal("taskUpdateHasRowFields() = true, want false for network_participation-only patch")
+		}
+		if !req.HasChanges() {
+			t.Fatal("HasChanges() = false, want true when network_participation is set")
+		}
+	})
+
+	t.Run("Should detect row fields independently of network_participation", func(t *testing.T) {
+		t.Parallel()
+		title := "ship"
+		mode := participation.ModeLocal
+		req := contract.UpdateTaskRequest{
+			Title:                &title,
+			NetworkParticipation: &participation.Request{Mode: &mode},
+		}
+		if !taskUpdateHasRowFields(req) {
+			t.Fatal("taskUpdateHasRowFields() = false, want true when title is set")
 		}
 	})
 }

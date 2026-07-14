@@ -228,13 +228,11 @@ func TestTaskRunTokenFenceHandlersHonorImmutableParticipationOwnershipIntegratio
 			if payload.Run.SessionID != "sess-history-mixed" {
 				t.Fatalf("payload.Run.SessionID = %q, want %q", payload.Run.SessionID, "sess-history-mixed")
 			}
-			if payload.Run.NetworkChannel != "scope-direct-history" {
-				t.Fatalf("payload.Run.NetworkChannel = %q, want %q", payload.Run.NetworkChannel, "scope-direct-history")
-			}
-			if payload.Run.CoordinationChannelID != "scope-direct-history" {
+			if payload.Run.ResolvedNetworkParticipation == nil ||
+				payload.Run.ResolvedNetworkParticipation.ChannelID != "scope-direct-history" {
 				t.Fatalf(
-					"payload.Run.CoordinationChannelID = %q, want %q",
-					payload.Run.CoordinationChannelID,
+					"payload.Run.ResolvedNetworkParticipation = %#v, want channel %q",
+					payload.Run.ResolvedNetworkParticipation,
 					"scope-direct-history",
 				)
 			}

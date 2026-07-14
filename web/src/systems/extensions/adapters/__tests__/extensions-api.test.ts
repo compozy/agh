@@ -109,9 +109,9 @@ describe("extensions management mutations", () => {
     });
   });
 
-  it("Should preserve binding changes when updating and deactivating a bundle", async () => {
+  it("Should confirm a network requirement when updating and deactivating a bundle", async () => {
     const controller = new AbortController();
-    const body = { bind_primary_channel_as_default: false };
+    const body = { confirm_network_requirement: true };
     mockJsonResponse({ activation: bundleActivationFixtures[0] });
     await expect(
       updateBundleActivation("activation-ops-starter", body, controller.signal)
@@ -184,7 +184,7 @@ describe("extensions management failures", () => {
       "activation",
       () =>
         updateBundleActivation("activation-ops-starter", {
-          bind_primary_channel_as_default: false,
+          confirm_network_requirement: true,
         }),
     ],
   ])("Should reject a successful empty %s envelope", async (_name, field, invoke) => {

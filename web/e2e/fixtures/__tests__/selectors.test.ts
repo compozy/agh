@@ -177,7 +177,12 @@ describe("automation operator selectors", () => {
 describe("bridge operator selectors", () => {
   it("maps the bridge list, edit, secret-binding, and test-delivery surfaces to stable test IDs", () => {
     const getByTestId = vi.fn((testId: string) => `locator:${testId}` as unknown as Locator);
+    const getByRole = vi.fn(
+      (role: string, options?: { name: string }) =>
+        `role:${role}:${options?.name}` as unknown as Locator
+    );
     const selectors = bridgeOperatorSelectors({
+      getByRole,
       getByTestId,
     });
 
@@ -229,7 +234,11 @@ describe("bridge operator selectors", () => {
     expect(selectors.restartRequired).toBe(
       `locator:${bridgeOperatorTestIds.bridgeRestartRequired}`
     );
-    expect(selectors.scopeAll).toBe(`locator:${bridgeOperatorTestIds.bridgeScopeAll}`);
+    expect(selectors.addListFilter).toBe(`locator:${bridgeOperatorTestIds.bridgeListFiltersAdd}`);
+    expect(selectors.activeRoutesMetric).toBe(
+      `locator:${bridgeOperatorTestIds.bridgeMetricActiveRoutes}`
+    );
+    expect(selectors.backToList).toBe("role:button:Back to bridges");
     expect(selectors.openTestDeliveryButton).toBe(
       `locator:${bridgeOperatorTestIds.openTestDeliveryButton}`
     );

@@ -320,6 +320,12 @@ func registerNetworkRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaceNetwork.GET("/work/:work_id", handlers.NetworkWork)
 	workspaceNetwork.POST("/send", handlers.NetworkSend)
 	workspaceNetwork.GET("/inbox", handlers.NetworkInbox)
+	workspaceNetwork.GET("/usage", handlers.GetNetworkUsage)
+
+	workspaceCoordination := api.Group("/workspaces/:workspace_id/network-coordination")
+	workspaceCoordination.GET("", handlers.GetNetworkCoordination)
+	workspaceCoordination.PUT("", handlers.PutNetworkCoordination)
+	workspaceCoordination.PUT("/invitation", handlers.PutNetworkCoordinationInvitation)
 }
 
 func registerBundleRoutes(api gin.IRouter, handlers *Handlers) {

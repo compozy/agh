@@ -45,20 +45,20 @@ var canonicalTaskIDTokenPattern = regexp.MustCompile(`\btask-[A-Za-z0-9][A-Za-z0
 
 // ClaimCriteria captures the atomic next-work filters for one claiming session.
 type ClaimCriteria struct {
-	RunID                 string               `json:"run_id,omitempty"`
-	Scope                 Scope                `json:"scope,omitempty"`
-	WorkspaceID           string               `json:"workspace_id,omitempty"`
-	RunKind               RunKind              `json:"run_kind,omitempty"`
-	TargetSessionID       string               `json:"target_session_id,omitempty"`
-	ClaimerSessionID      string               `json:"claimer_session_id"`
-	ClaimedBy             *ActorIdentity       `json:"claimed_by,omitempty"`
-	AgentName             string               `json:"agent_name,omitempty"`
-	RequiredCapabilities  []string             `json:"required_capabilities,omitempty"`
-	PriorityMin           int                  `json:"priority_min,omitempty"`
-	CoordinationChannelID string               `json:"coordination_channel_id,omitempty"`
-	Soul                  *SoulClaimProvenance `json:"soul,omitempty"`
-	LeaseDuration         time.Duration        `json:"lease_duration"`
-	Now                   time.Time            `json:"now"`
+	RunID                string               `json:"run_id,omitempty"`
+	Scope                Scope                `json:"scope,omitempty"`
+	WorkspaceID          string               `json:"workspace_id,omitempty"`
+	RunKind              RunKind              `json:"run_kind,omitempty"`
+	TargetSessionID      string               `json:"target_session_id,omitempty"`
+	ClaimerSessionID     string               `json:"claimer_session_id"`
+	ClaimedBy            *ActorIdentity       `json:"claimed_by,omitempty"`
+	AgentName            string               `json:"agent_name,omitempty"`
+	RequiredCapabilities []string             `json:"required_capabilities,omitempty"`
+	PriorityMin          int                  `json:"priority_min,omitempty"`
+	ParticipationChannel string               `json:"participation_channel,omitempty"`
+	Soul                 *SoulClaimProvenance `json:"soul,omitempty"`
+	LeaseDuration        time.Duration        `json:"lease_duration"`
+	Now                  time.Time            `json:"now"`
 }
 
 // SoulClaimProvenance captures pre-resolved session Soul data at claim time.
@@ -72,7 +72,6 @@ type SoulClaimProvenance struct {
 // CoordinationChannelMetadata is the safe channel display metadata returned with a claim.
 type CoordinationChannelMetadata struct {
 	ID                  string    `json:"id"`
-	Channel             string    `json:"channel,omitempty"`
 	DisplayName         string    `json:"display_name"`
 	Purpose             string    `json:"purpose,omitempty"`
 	WorkspaceID         string    `json:"workspace_id,omitempty"`

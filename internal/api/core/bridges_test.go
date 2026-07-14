@@ -869,6 +869,72 @@ func TestBridgeHandlersHealthStreamFiltersActiveWorkspaceScope(t *testing.T) {
 		}
 	})
 
+	t.Run("Should emit a new bounded snapshot when bridge health changes", func(t *testing.T) {
+		t.Parallel()
+
+		streamDone := make(chan struct{})
+		instance := bridgeHandlerCatalogInstance(
+			"brg-live",
+			bridgepkg.ScopeGlobal,
+			"",
+			"telegram",
+			"Live",
+		)
+		calls := 0
+		handlers, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			ListInstancesByIDsFn: func(context.Context, []string) ([]bridgepkg.BridgeInstance, error) {
+				return []bridgepkg.BridgeInstance{instance}, nil
+			},
+		})
+		handlers.Observer = testutil.StubObserver{
+			QueryBridgeHealthForFn: func(
+				context.Context,
+				[]bridgepkg.BridgeInstance,
+			) ([]observe.BridgeInstanceHealth, error) {
+				calls++
+				if calls == 1 {
+					return []observe.BridgeInstanceHealth{{
+						BridgeInstanceID: instance.ID,
+						Status:           bridgepkg.BridgeStatusStarting,
+					}}, nil
+				}
+				close(streamDone)
+				return []observe.BridgeInstanceHealth{{
+					BridgeInstanceID: instance.ID,
+					Status:           bridgepkg.BridgeStatusReady,
+					RouteCount:       1,
+				}}, nil
+			},
+		}
+		handlers.PollInterval = time.Millisecond
+		handlers.SetStreamDone(streamDone)
+		engine.GET("/bridges/health/stream", handlers.StreamBridgeHealth)
+
+		response := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/bridges/health/stream?bridge_ids=brg-live",
+			nil,
+		)
+		records := testutil.ParseSSE(t, response.Body.String())
+		if len(records) != 2 {
+			t.Fatalf(
+				"stream records = %d, want initial and changed snapshots; body=%s",
+				len(records),
+				response.Body.String(),
+			)
+		}
+		var changed contract.BridgeHealthStreamPayload
+		testutil.DecodeSSEData(t, records[1], &changed)
+		if got, want := changed.BridgeHealth[instance.ID].Status, bridgepkg.BridgeStatusReady; got != want {
+			t.Fatalf("changed status = %q, want %q", got, want)
+		}
+		if got, want := changed.BridgeHealth[instance.ID].RouteCount, 1; got != want {
+			t.Fatalf("changed route count = %d, want %d", got, want)
+		}
+	})
+
 	t.Run("Should emit a terminal error frame when initial hydration fails after SSE setup", func(t *testing.T) {
 		t.Parallel()
 

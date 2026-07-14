@@ -52,12 +52,12 @@ func (h *BaseHandlers) agentTaskClaimCriteria(
 			Kind: taskpkg.ActorKindAgentSession,
 			Ref:  strings.TrimSpace(caller.Session.ID),
 		},
-		AgentName:             strings.TrimSpace(caller.Session.AgentName),
-		RequiredCapabilities:  capabilities,
-		PriorityMin:           req.PriorityMin,
-		CoordinationChannelID: strings.TrimSpace(caller.Session.NetworkSpecSnapshot().ChannelID),
-		Soul:                  soulClaimProvenanceFromCaller(caller),
-		LeaseDuration:         leaseDuration,
+		AgentName:            strings.TrimSpace(caller.Session.AgentName),
+		RequiredCapabilities: capabilities,
+		PriorityMin:          req.PriorityMin,
+		ParticipationChannel: strings.TrimSpace(caller.Session.NetworkSpecSnapshot().ChannelID),
+		Soul:                 soulClaimProvenanceFromCaller(caller),
+		LeaseDuration:        leaseDuration,
 	}, nil
 }
 

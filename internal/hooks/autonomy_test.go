@@ -11,7 +11,7 @@ import (
 	"github.com/compozy/agh/internal/network/participation"
 )
 
-func TestAutonomyPayloadsCarryCoordinationChannelID(t *testing.T) {
+func TestAutonomyPayloadsCarryResolvedNetworkParticipation(t *testing.T) {
 	t.Parallel()
 
 	coordinatorPayloads := make(chan CoordinatorPreSpawnPayload, 1)
@@ -63,8 +63,10 @@ func TestAutonomyPayloadsCarryCoordinationChannelID(t *testing.T) {
 	if _, err := hooks.DispatchCoordinatorPreSpawn(t.Context(), CoordinatorPreSpawnPayload{
 		PayloadBase: PayloadBase{Event: HookCoordinatorPreSpawn, Timestamp: time.Now().UTC()},
 		CoordinatorContext: CoordinatorContext{
-			WorkspaceID:           "ws-1",
-			CoordinationChannelID: channelID,
+			WorkspaceID: "ws-1",
+			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
+				ChannelID: channelID,
+			}),
 		},
 	}); err != nil {
 		t.Fatalf("DispatchCoordinatorPreSpawn() error = %v", err)
@@ -468,9 +470,11 @@ func TestAutonomyObservationDispatchMethodsNoop(t *testing.T) {
 	coordinator := CoordinatorLifecyclePayload{
 		PayloadBase: PayloadBase{Timestamp: now},
 		CoordinatorContext: CoordinatorContext{
-			WorkspaceID:           "ws-1",
-			CoordinatorSessionID:  "coord-sess-1",
-			CoordinationChannelID: "coord-ch-1",
+			WorkspaceID:          "ws-1",
+			CoordinatorSessionID: "coord-sess-1",
+			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
+				ChannelID: "coord-ch-1",
+			}),
 		},
 	}
 	taskRunLease := TaskRunLeasePayload{
@@ -487,10 +491,12 @@ func TestAutonomyObservationDispatchMethodsNoop(t *testing.T) {
 	spawn := SpawnLifecyclePayload{
 		PayloadBase: PayloadBase{Timestamp: now},
 		SpawnContext: SpawnContext{
-			ParentSessionID:       "parent-1",
-			ChildSessionID:        "child-1",
-			WorkspaceID:           "ws-1",
-			CoordinationChannelID: "coord-ch-1",
+			ParentSessionID: "parent-1",
+			ChildSessionID:  "child-1",
+			WorkspaceID:     "ws-1",
+			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
+				ChannelID: "coord-ch-1",
+			}),
 		},
 	}
 
@@ -580,10 +586,9 @@ func baseTaskRunPreClaimPayload() TaskRunPreClaimPayload {
 			}),
 		},
 		Criteria: TaskRunClaimCriteria{
-			WorkspaceID:           "ws-1",
-			RequiredCapabilities:  []string{"code"},
-			PriorityMin:           20,
-			CoordinationChannelID: "coord-ch-1",
+			WorkspaceID:          "ws-1",
+			RequiredCapabilities: []string{"code"},
+			PriorityMin:          20,
 		},
 	}
 }
@@ -592,13 +597,15 @@ func baseLoopGenerationPayload() LoopGenerationPrePayload {
 	return LoopGenerationPrePayload{
 		PayloadBase: PayloadBase{Event: HookLoopGenerationPre, Timestamp: time.Now().UTC()},
 		LoopContext: LoopContext{
-			LoopRunID:             "loop-run-1",
-			WorkspaceID:           "ws-1",
-			LoopName:              "daily-review",
-			Generation:            1,
-			TaskID:                "task-1",
-			RunID:                 "run-1",
-			CoordinationChannelID: "coord-ch-1",
+			LoopRunID:   "loop-run-1",
+			WorkspaceID: "ws-1",
+			LoopName:    "daily-review",
+			Generation:  1,
+			TaskID:      "task-1",
+			RunID:       "run-1",
+			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
+				ChannelID: "coord-ch-1",
+			}),
 		},
 		Status: "running",
 	}
@@ -608,13 +615,15 @@ func baseLoopGatePayload() LoopGatePrePayload {
 	return LoopGatePrePayload{
 		PayloadBase: PayloadBase{Event: HookLoopGatePre, Timestamp: time.Now().UTC()},
 		LoopContext: LoopContext{
-			LoopRunID:             "loop-run-1",
-			WorkspaceID:           "ws-1",
-			LoopName:              "daily-review",
-			Generation:            1,
-			TaskID:                "task-1",
-			RunID:                 "run-1",
-			CoordinationChannelID: "coord-ch-1",
+			LoopRunID:   "loop-run-1",
+			WorkspaceID: "ws-1",
+			LoopName:    "daily-review",
+			Generation:  1,
+			TaskID:      "task-1",
+			RunID:       "run-1",
+			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
+				ChannelID: "coord-ch-1",
+			}),
 		},
 		GateID: "contract",
 		Status: "done",
@@ -630,13 +639,15 @@ func baseSpawnPreCreatePayload() SpawnPreCreatePayload {
 	return SpawnPreCreatePayload{
 		PayloadBase: PayloadBase{Event: HookSpawnPreCreate, Timestamp: time.Now().UTC()},
 		SpawnContext: SpawnContext{
-			ParentSessionID:       "parent-1",
-			RootSessionID:         "root-1",
-			WorkspaceID:           "ws-1",
-			AgentName:             "worker",
-			SpawnRole:             "coder",
-			TTLSeconds:            3600,
-			CoordinationChannelID: "coord-ch-1",
+			ParentSessionID: "parent-1",
+			RootSessionID:   "root-1",
+			WorkspaceID:     "ws-1",
+			AgentName:       "worker",
+			SpawnRole:       "coder",
+			TTLSeconds:      3600,
+			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
+				ChannelID: "coord-ch-1",
+			}),
 		},
 		ParentPermissions: &parentPermissions,
 		ChildPermissions:  &childPermissions,
@@ -667,8 +678,13 @@ func assertCoordinatorChannelPayload(
 
 	select {
 	case payload := <-payloads:
-		if payload.CoordinationChannelID != wantChannelID {
-			t.Fatalf("Coordinator CoordinationChannelID = %q, want %q", payload.CoordinationChannelID, wantChannelID)
+		if payload.ResolvedNetworkParticipation == nil ||
+			payload.ResolvedNetworkParticipation.ChannelID != wantChannelID {
+			t.Fatalf(
+				"Coordinator ResolvedNetworkParticipation = %#v, want channel %q",
+				payload.ResolvedNetworkParticipation,
+				wantChannelID,
+			)
 		}
 	default:
 		t.Fatal("coordinator hook did not receive payload")

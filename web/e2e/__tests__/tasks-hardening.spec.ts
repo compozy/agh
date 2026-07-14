@@ -415,19 +415,36 @@ test("operator inspects child and dependency graph, edits the task, and deletes 
   );
   expect(blockedRunResponse.ok).toBe(true);
   const blockedRunPayload = (await blockedRunResponse.json()) as TaskRunEnvelope;
-  const blockedClaimResponse = await fetch(
-    runtime.url(`/api/task-runs/${encodeURIComponent(blockedRunPayload.run.id)}/claim`),
-    {
+  // Operator claim route is gone; blocked work must also fail on the agent claim-next path.
+  const workspaceRoot = runtime.paths?.homeDir;
+  if (!workspaceRoot) {
+    throw new Error("blocked claim check requires launch-mode runtime home");
+  }
+  const claimWorkspace = await runtime.resolveWorkspace(workspaceRoot);
+  const blockedSession = (
+    await runtime.requestJSON<{ session: { id: string; agent_name: string } }>("/api/sessions", {
       method: "POST",
       body: JSON.stringify({
-        idempotency_key: uniqueID("blocked-claim"),
+        agent_name: "browser-lifecycle-agent",
+        workspace: claimWorkspace.id,
       }),
-    }
-  );
+    })
+  ).session;
+  const blockedClaimResponse = await fetch(runtime.url("/api/agent/tasks/claim-next"), {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      [aghSessionHeader]: blockedSession.id,
+      [aghAgentHeader]: blockedSession.agent_name || "browser-lifecycle-agent",
+    },
+    body: JSON.stringify({
+      run_id: blockedRunPayload.run.id,
+      idempotency_key: uniqueID("blocked-claim"),
+    }),
+  });
   const blockedClaimBody = await blockedClaimResponse.text();
-  expect(blockedClaimResponse.ok).toBe(false);
-  expect(blockedClaimResponse.status).toBeGreaterThanOrEqual(400);
-  expect(blockedClaimBody).toMatch(/blocked|dependency|invalid/i);
+  expect(blockedClaimResponse.status).toBe(204);
+  expect(blockedClaimBody).toBe("");
 
   const editedTitle = uniqueTitle("Graph child edited");
   await ui.detailEdit.click();

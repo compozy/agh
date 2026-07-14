@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/agh/internal/agentidentity"
 	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/gin-gonic/gin"
@@ -373,9 +374,6 @@ func AgentTaskClaimPayloadFromResult(result *taskpkg.ClaimResult) contract.Agent
 	run := TaskRunPayloadFromRun(&result.Run)
 	if channel != nil {
 		run.CoordinationChannel = channel
-		if strings.TrimSpace(run.CoordinationChannelID) == "" {
-			run.CoordinationChannelID = channel.ID
-		}
 	}
 	lease := AgentTaskLeasePayloadFromRun(&result.Run, channel)
 	if lease.LeaseUntil == nil && !result.LeaseUntil.IsZero() {
@@ -398,19 +396,16 @@ func AgentTaskLeasePayloadFromRun(
 		return contract.TaskRunLeaseSummaryPayload{}
 	}
 	payload := contract.TaskRunLeaseSummaryPayload{
-		TaskID:                run.TaskID,
-		RunID:                 run.ID,
-		Status:                run.Status,
-		SessionID:             run.SessionID,
-		ClaimedBy:             cloneActorIdentity(run.ClaimedBy),
-		ClaimTokenHash:        run.ClaimTokenHash,
-		LeaseUntil:            optionalTime(run.LeaseUntil),
-		HeartbeatAt:           optionalTime(run.HeartbeatAt),
-		CoordinationChannelID: run.NetworkSpecSnapshot().ChannelID,
-		CoordinationChannel:   channel,
-	}
-	if channel != nil && strings.TrimSpace(payload.CoordinationChannelID) == "" {
-		payload.CoordinationChannelID = channel.ID
+		TaskID:                       run.TaskID,
+		RunID:                        run.ID,
+		Status:                       run.Status,
+		SessionID:                    run.SessionID,
+		ClaimedBy:                    cloneActorIdentity(run.ClaimedBy),
+		ClaimTokenHash:               run.ClaimTokenHash,
+		LeaseUntil:                   optionalTime(run.LeaseUntil),
+		HeartbeatAt:                  optionalTime(run.HeartbeatAt),
+		ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
+		CoordinationChannel:          channel,
 	}
 	return contract.NormalizeTaskRunLeaseSummaryPayload(payload)
 }
@@ -433,7 +428,6 @@ func coordinationChannelPayloadFromMetadata(
 	}
 	payload := contract.CoordinationChannelPayload{
 		ID:                  strings.TrimSpace(metadata.ID),
-		Channel:             strings.TrimSpace(metadata.Channel),
 		DisplayName:         displayName,
 		Purpose:             strings.TrimSpace(metadata.Purpose),
 		WorkspaceID:         strings.TrimSpace(metadata.WorkspaceID),

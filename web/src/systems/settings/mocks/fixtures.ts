@@ -21,12 +21,7 @@ import type {
   SettingsRestartStatus,
   SettingsSkillsSection,
 } from "@/systems/settings";
-import {
-  storyAgentNames,
-  storyCompany,
-  storyHeroNetworkChannel,
-  storyWorkspacePaths,
-} from "@/storybook/fintech-scenario";
+import { storyAgentNames, storyCompany, storyWorkspacePaths } from "@/storybook/fintech-scenario";
 
 export const settingsGeneralSectionFixture: SettingsGeneralSection = {
   section: "general",
@@ -72,7 +67,6 @@ export const settingsNetworkSectionFixture: SettingsNetworkSection = {
   config: {
     enabled: true,
     port: 4222,
-    default_channel: storyHeroNetworkChannel,
     greet_interval: 30,
     max_payload: 131072,
     max_queue_depth: 1024,

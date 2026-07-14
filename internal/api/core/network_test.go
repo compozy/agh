@@ -1830,7 +1830,7 @@ func TestBaseHandlersPromoteNetworkThreadTask(t *testing.T) {
 		var payload contract.PromoteNetworkThreadTaskResponse
 		testutil.DecodeJSONResponse(t, resp, &payload)
 		if payload.Task.ID != "task-promoted" ||
-			payload.Task.NetworkChannel != "" ||
+			resolvedParticipationChannelID(payload.Task.ResolvedNetworkParticipation) != "" ||
 			payload.Origin.OriginMessageID != "msg-followup" ||
 			payload.Origin.TaskID != "task-promoted" {
 			t.Fatalf("promote payload = %#v", payload)

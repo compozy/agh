@@ -395,7 +395,7 @@ func (r *taskRoleRuntime) logTaskRoleError(
 		taskRoleRuntimeTaskIDKey, strings.TrimSpace(payload.TaskID),
 		daemonLogRunIDKey, strings.TrimSpace(payload.RunID),
 		taskRoleRuntimeWorkspaceIDKey, strings.TrimSpace(payload.WorkspaceID),
-		daemonCoordinationChannelIDKey, strings.TrimSpace(payload.NetworkSpecSnapshot().ChannelID),
+		daemonNetworkChannelKey, strings.TrimSpace(payload.NetworkSpecSnapshot().ChannelID),
 	}
 	if err != nil {
 		args = append(args, "error", err)

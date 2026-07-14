@@ -63,6 +63,62 @@ function readTaskPriority(record: Record<string, unknown> | null) {
 
 export const handlers: HttpHandler[] = [
   aghApiMock.get("/api/network/status", () => HttpResponse.json({ network: networkStatusFixture })),
+  aghApiMock.get("/api/workspaces/{workspace_id}/network-coordination", () =>
+    HttpResponse.json({
+      coordination: {
+        workspace_id: "ws-fixture",
+        enabled: false,
+        revision: 1,
+        invitation: { scope: "workspace", dismissed: false },
+        updated_at: "2026-04-17T10:00:00Z",
+      },
+    })
+  ),
+  aghApiMock.put("/api/workspaces/{workspace_id}/network-coordination", async ({ request }) => {
+    const body = (await request.json()) as { enabled?: boolean };
+    return HttpResponse.json({
+      coordination: {
+        workspace_id: "ws-fixture",
+        enabled: Boolean(body.enabled),
+        revision: 2,
+        invitation: { scope: "workspace", dismissed: false },
+        updated_at: "2026-04-17T10:05:00Z",
+      },
+    });
+  }),
+  aghApiMock.put(
+    "/api/workspaces/{workspace_id}/network-coordination/invitation",
+    async ({ request }) => {
+      const body = (await request.json()) as { dismissed?: boolean; scope?: string };
+      return HttpResponse.json({
+        coordination: {
+          workspace_id: "ws-fixture",
+          enabled: false,
+          revision: 1,
+          invitation: {
+            scope: body.scope ?? "workspace",
+            dismissed: Boolean(body.dismissed),
+          },
+          updated_at: "2026-04-17T10:10:00Z",
+        },
+      });
+    }
+  ),
+  aghApiMock.get("/api/workspaces/{workspace_id}/network/usage", () =>
+    HttpResponse.json({
+      workspace_id: "ws-fixture",
+      details: [],
+      total: {
+        wake_count: 0,
+        reserved_wake_count: 0,
+        actual_wake_count: 0,
+        unavailable_wake_count: 0,
+        charged_wall_time: "0s",
+        input_tokens: 0,
+        output_tokens: 0,
+      },
+    })
+  ),
   aghApiMock.get("/api/workspaces/{workspace_id}/network/channels", () =>
     HttpResponse.json(networkChannelsFixture)
   ),
@@ -226,7 +282,21 @@ export const handlers: HttpHandler[] = [
               "Task promoted from an AGH Network thread.",
             id: taskId,
             latest_event_seq: 1,
-            network_channel: channel,
+            resolved_network_participation: {
+              version: "network-participation/v1",
+              mode: "live",
+              source: "explicit",
+              channel_id: channel,
+              bounds: {
+                coalesce_window: "0s",
+                max_input_tokens: 0,
+                max_output_tokens: 0,
+                max_total_wall_time: "0s",
+                max_wake_depth: 0,
+                max_wake_wall_time: "0s",
+                max_wakes: 0,
+              },
+            },
             origin: { kind: "network", ref: `${channel}/${threadId}` },
             priority: readTaskPriority(body),
             scope: "workspace",

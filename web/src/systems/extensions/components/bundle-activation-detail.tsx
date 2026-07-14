@@ -30,6 +30,7 @@ export function BundleActivationDetail({ id }: { id: string }) {
   const deactivate = useDeactivateBundle();
   const navigate = useNavigate();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [confirmNetworkRequirement, setConfirmNetworkRequirement] = useState(false);
   if (query.isLoading) return <BundleActivationDetailSkeleton />;
   if (query.error)
     return (
@@ -41,9 +42,11 @@ export function BundleActivationDetail({ id }: { id: string }) {
     );
   if (!query.data) return <Empty icon={Box} title="Bundle activation not found" />;
   const activation = query.data;
-  const applyUpdate = (bind?: boolean) => {
-    const bindPrimary = bind ?? activation.bind_primary_channel_as_default;
-    update.mutate({ id, body: { bind_primary_channel_as_default: bindPrimary } });
+  const applyUpdate = () => {
+    update.mutate({
+      id,
+      body: confirmNetworkRequirement ? { confirm_network_requirement: true } : {},
+    });
   };
   const capabilityCount = (activation.inventory ?? []).length;
   return (
@@ -52,12 +55,7 @@ export function BundleActivationDetail({ id }: { id: string }) {
         actions={
           <>
             {activation.spec_drift ? (
-              <Button
-                disabled={update.isPending}
-                onClick={() => applyUpdate()}
-                size="sm"
-                variant="outline"
-              >
+              <Button disabled={update.isPending} onClick={applyUpdate} size="sm" variant="outline">
                 Update
               </Button>
             ) : null}
@@ -176,23 +174,60 @@ export function BundleActivationDetail({ id }: { id: string }) {
               )}
             </InfoRailRow>
           </InfoRail>
-          <Section label="Channel binding">
-            <div className="flex items-start justify-between gap-4 rounded-lg bg-canvas-soft px-4 py-3">
-              <div>
-                <p className="text-small-body text-fg">Bind primary channel as default</p>
-                <p className="mt-1 text-xs text-muted">
-                  Use the activation’s primary channel as the workspace default.
-                </p>
+          {activation.network_requirement_digest ? (
+            <InfoRail label="Network requirement">
+              <InfoRailRow term="Participation">
+                <Pill tone={activation.network_requirement_confirmed_by ? "success" : "warning"}>
+                  {activation.network_requirement_confirmed_by
+                    ? "Live confirmed"
+                    : "Confirmation required"}
+                </Pill>
+              </InfoRailRow>
+              <InfoRailRow term="Digest">
+                <MonoId value={activation.network_requirement_digest} />
+              </InfoRailRow>
+              {activation.network_requirement_confirmed_by ? (
+                <InfoRailRow term="Confirmed by">
+                  <code className="font-mono text-xs text-fg">
+                    {activation.network_requirement_confirmed_by}
+                  </code>
+                </InfoRailRow>
+              ) : null}
+              {activation.network_requirement_confirmed_at ? (
+                <InfoRailRow term="Confirmed at">
+                  <Time iso={activation.network_requirement_confirmed_at} />
+                </InfoRailRow>
+              ) : null}
+            </InfoRail>
+          ) : null}
+          {activation.spec_drift ? (
+            <Section label="Update confirmation">
+              <div className="flex items-start gap-3 rounded-lg bg-canvas-soft px-4 py-3">
+                <Switch
+                  aria-describedby="bundle-update-network-confirmation-description"
+                  checked={confirmNetworkRequirement}
+                  disabled={update.isPending}
+                  id="bundle-update-network-confirmation"
+                  onCheckedChange={setConfirmNetworkRequirement}
+                  size="sm"
+                />
+                <span className="flex flex-col gap-1">
+                  <label
+                    className="text-small-body text-fg"
+                    htmlFor="bundle-update-network-confirmation"
+                  >
+                    Confirm Live network participation
+                  </label>
+                  <span
+                    className="text-xs text-muted"
+                    id="bundle-update-network-confirmation-description"
+                  >
+                    Required only if the updated extension declares Live AGH Network participation.
+                  </span>
+                </span>
               </div>
-              <Switch
-                aria-label="Bind primary channel as default"
-                checked={activation.bind_primary_channel_as_default}
-                disabled={update.isPending}
-                onCheckedChange={applyUpdate}
-                size="sm"
-              />
-            </div>
-          </Section>
+            </Section>
+          ) : null}
           <InfoRail label="Timestamps">
             <InfoRailRow term="Created">
               <Time iso={activation.created_at} />

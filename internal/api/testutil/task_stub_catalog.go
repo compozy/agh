@@ -32,7 +32,7 @@ func (s *StubTaskManager) ListTaskCatalog(
 		return taskpkg.CatalogPage{Limit: query.Limit}, nil
 	}
 	limit := query.Limit
-	if strings.TrimSpace(query.NetworkChannel) != "" {
+	if strings.TrimSpace(query.ParticipationChannel) != "" {
 		limit = 0
 	}
 	tasks, err := s.ListTasksFn(ctx, taskpkg.Query{
@@ -50,7 +50,7 @@ func (s *StubTaskManager) ListTaskCatalog(
 	if err != nil {
 		return taskpkg.CatalogPage{}, err
 	}
-	channel := strings.TrimSpace(query.NetworkChannel)
+	channel := strings.TrimSpace(query.ParticipationChannel)
 	if channel != "" {
 		filtered := make([]taskpkg.Summary, 0, len(tasks))
 		for index := range tasks {

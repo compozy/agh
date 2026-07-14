@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import {
   automationJobToDraft,
   buildAutomationJobRequest,
+  automationJobUpdateFromDraft,
   createAutomationJobDraft,
   createAutomationDialogHandle,
   createLoopTargetJobDraft,
@@ -117,7 +118,10 @@ export function useAutomationJobsPage(
       const job =
         editor.mode === "create"
           ? await createJobMutation.mutateAsync(payload)
-          : await updateJobMutation.mutateAsync({ data: payload, id: editor.id });
+          : await updateJobMutation.mutateAsync({
+              data: automationJobUpdateFromDraft(payload),
+              id: editor.id,
+            });
 
       page.setSelectedId(job.id);
       setEditor(null);

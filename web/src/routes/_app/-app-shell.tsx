@@ -142,8 +142,10 @@ function AppShell() {
           catalogStale={page.sessionCreate.catalogStale}
           hasProviderOptions={page.sessionCreate.hasProviderOptions}
           isSubmitting={page.sessionCreate.isSubmitting}
+          networkParticipation={page.sessionCreate.networkParticipation}
           onAgentChange={page.sessionCreate.onAgentChange}
           onCatalogRefresh={page.sessionCreate.refreshCatalog}
+          onNetworkParticipationChange={page.sessionCreate.onNetworkParticipationChange}
           onOpenChange={page.sessionCreate.onOpenChange}
           onOpenProviderSettings={page.sessionCreate.openProviderSettings}
           onRuntimeChange={page.sessionCreate.onRuntimeChange}

@@ -7,12 +7,16 @@ import { describe, expect, it, vi } from "vitest";
 import { DaemonDown, DirectEmpty, DirectsEmpty, NetworkEmpty, ThreadEmpty, ThreadsEmpty } from "..";
 
 describe("Empty / disabled / error state copy (`_design.md` §7.2 + §7.3)", () => {
-  it("NetworkEmpty matches the disabled-state copy verbatim", () => {
+  it("NetworkEmpty matches the ready-state orientation copy", () => {
     render(<NetworkEmpty />);
-    expect(screen.getByText("The network is off.")).toBeInTheDocument();
-    expect(
-      screen.getByText("Enable the embedded network in your AGH config to start.")
-    ).toBeInTheDocument();
+    expect(screen.getByText("Network is ready when you are.")).toBeInTheDocument();
+    expect(screen.getByText(/You are in the Network area/i)).toBeInTheDocument();
+  });
+
+  it("NetworkEmpty names who can change availability when disabled", () => {
+    render(<NetworkEmpty disabledByAdmin />);
+    expect(screen.getByText("Network is disabled.")).toBeInTheDocument();
+    expect(screen.getByText(/operator with admin access/i)).toBeInTheDocument();
   });
 
   it("ThreadsEmpty matches the no-threads copy verbatim", () => {

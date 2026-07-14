@@ -271,6 +271,51 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose typed participation on execution management tools", func(t *testing.T) {
+		t.Parallel()
+
+		descriptors := descriptorMap(NativeDescriptors())
+		for _, id := range []toolspkg.ToolID{
+			toolspkg.ToolIDTaskCreate,
+			toolspkg.ToolIDTaskChildCreate,
+			toolspkg.ToolIDTaskUpdate,
+			toolspkg.ToolIDTaskFanOutRuns,
+			toolspkg.ToolIDLoopRun,
+		} {
+			var schema struct {
+				Properties map[string]json.RawMessage `json:"properties"`
+			}
+			if err := json.Unmarshal(descriptors[id].InputSchema, &schema); err != nil {
+				t.Fatalf("%s input schema unmarshal error = %v", id, err)
+			}
+			if _, ok := schema.Properties["network_participation"]; !ok {
+				t.Fatalf("%s input schema omits network_participation", id)
+			}
+			for _, legacy := range []string{"channel", "network_channel", "coordination_channel_id"} {
+				if _, ok := schema.Properties[legacy]; ok {
+					t.Fatalf("%s input schema exposes removed %s", id, legacy)
+				}
+			}
+		}
+
+		for _, id := range []toolspkg.ToolID{toolspkg.ToolIDTaskList, toolspkg.ToolIDTaskRunList} {
+			var schema struct {
+				Properties map[string]json.RawMessage `json:"properties"`
+			}
+			if err := json.Unmarshal(descriptors[id].InputSchema, &schema); err != nil {
+				t.Fatalf("%s input schema unmarshal error = %v", id, err)
+			}
+			if _, ok := schema.Properties["participation_channel"]; !ok {
+				t.Fatalf("%s input schema omits participation_channel", id)
+			}
+			for _, legacy := range []string{"network_channel", "coordination_channel_id"} {
+				if _, ok := schema.Properties[legacy]; ok {
+					t.Fatalf("%s input schema exposes removed %s", id, legacy)
+				}
+			}
+		}
+	})
+
 	t.Run("Should describe the first public thread send contract", func(t *testing.T) {
 		t.Parallel()
 

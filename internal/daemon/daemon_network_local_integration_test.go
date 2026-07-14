@@ -48,8 +48,8 @@ func TestDaemonE2ELocalDefaultExecutionHasZeroNetworkCost(t *testing.T) {
 			"local-default",
 			"local-default-session",
 		)
-		if localSession.Channel != "" {
-			t.Fatalf("local session channel = %q, want empty", localSession.Channel)
+		if got := resolvedParticipationChannelID(localSession.ResolvedNetworkParticipation); got != "" {
+			t.Fatalf("local session participation channel = %q, want empty", got)
 		}
 		if _, err := harness.PromptSession(ctx, localSession.ID, "local session probe"); err != nil {
 			t.Fatalf("PromptSession(local default) error = %v", err)
@@ -81,7 +81,8 @@ func TestDaemonE2ELocalDefaultExecutionHasZeroNetworkCost(t *testing.T) {
 		if err != nil {
 			t.Fatalf("StartTaskRun(%q) error = %v", taskRun.ID, err)
 		}
-		if startedRun.Status.Normalize() != taskpkg.TaskRunStatusRunning || startedRun.NetworkChannel != "" {
+		if startedRun.Status.Normalize() != taskpkg.TaskRunStatusRunning ||
+			resolvedParticipationChannelID(startedRun.ResolvedNetworkParticipation) != "" {
 			t.Fatalf("started Local task run = %#v, want running with empty Network channel", startedRun)
 		}
 		taskSession, err := harness.GetSession(ctx, startedRun.SessionID)

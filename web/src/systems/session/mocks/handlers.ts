@@ -57,7 +57,10 @@ export const handlers: HttpHandler[] = [
       name?: string;
       workspace?: string;
       workspace_path?: string;
-      channel?: string;
+      network_participation?: {
+        mode?: string | null;
+        channel_id?: string | null;
+      } | null;
     };
 
     return HttpResponse.json(
@@ -69,7 +72,24 @@ export const handlers: HttpHandler[] = [
           agent_name: body.agent_name ?? primarySessionFixture.agent_name,
           workspace_path:
             body.workspace_path ?? body.workspace ?? primarySessionFixture.workspace_path,
-          channel: body.channel ?? primarySessionFixture.channel,
+          resolved_network_participation:
+            body.network_participation?.mode === "live"
+              ? {
+                  version: "network-participation/v1",
+                  mode: "live",
+                  source: "explicit",
+                  channel_id: body.network_participation.channel_id ?? undefined,
+                  bounds: {
+                    coalesce_window: "0s",
+                    max_input_tokens: 0,
+                    max_output_tokens: 0,
+                    max_total_wall_time: "0s",
+                    max_wake_depth: 0,
+                    max_wake_wall_time: "0s",
+                    max_wakes: 0,
+                  },
+                }
+              : (primarySessionFixture.resolved_network_participation ?? null),
         },
       },
       { status: 201 }

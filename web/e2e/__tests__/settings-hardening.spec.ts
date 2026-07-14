@@ -48,10 +48,14 @@ test("operator applies Memory, Network, Automation, and Observability settings w
     /restart required/i
   );
 
-  const nextChannel = `settings-${Date.now()}`;
+  const networkBefore = await runtime.requestJSON<{
+    config: { greet_interval: number };
+  }>("/api/settings/network");
+  const nextGreetInterval = networkBefore.config.greet_interval + 1;
   await appPage.goto(runtime.url("/settings/network"), { waitUntil: "domcontentloaded" });
-  await expect(appPage.getByTestId("settings-page-network-default-channel-input")).toBeVisible();
-  await appPage.getByTestId("settings-page-network-default-channel-input").fill(nextChannel);
+  await expect(appPage.getByTestId("settings-page-network-enrollment-note")).toBeVisible();
+  await expect(appPage.getByTestId("settings-page-network-greet-interval")).toBeVisible();
+  await appPage.getByTestId("settings-page-network-greet-interval").fill(String(nextGreetInterval));
   await expect(appPage.getByTestId("settings-page-network-save")).toBeEnabled();
   await appPage.getByTestId("settings-page-network-save").click();
   await expect(appPage.getByTestId("settings-page-network-save-applied")).toContainText(
@@ -126,10 +130,10 @@ test("operator applies Memory, Network, Automation, and Observability settings w
         "-o",
         "json",
       ]),
-      network_default_channel: await runCLIJSON(runtime.paths, [
+      network_greet_interval: await runCLIJSON(runtime.paths, [
         "config",
         "get",
-        "network.default_channel",
+        "network.greet_interval",
         "-o",
         "json",
       ]),
@@ -160,7 +164,7 @@ test("operator applies Memory, Network, Automation, and Observability settings w
   };
 
   expect(JSON.stringify(parity.http.memory)).toContain(`"top_k":${nextTopK}`);
-  expect(JSON.stringify(parity.http.network)).toContain(nextChannel);
+  expect(JSON.stringify(parity.http.network)).toContain(`"greet_interval":${nextGreetInterval}`);
   expect(JSON.stringify(parity.http.automation)).toContain(
     `"max_concurrent_jobs":${nextMaxConcurrent}`
   );
@@ -168,7 +172,9 @@ test("operator applies Memory, Network, Automation, and Observability settings w
     `"retention_days":${nextRetentionDays}`
   );
   expect(JSON.stringify(parity.cli.memory_top_k)).toContain(`"value":${nextTopK}`);
-  expect(JSON.stringify(parity.cli.network_default_channel)).toContain(nextChannel);
+  expect(JSON.stringify(parity.cli.network_greet_interval)).toContain(
+    `"value":${nextGreetInterval}`
+  );
   expect(JSON.stringify(parity.cli.automation_max_concurrent_jobs)).toContain(
     `"value":${nextMaxConcurrent}`
   );
@@ -176,7 +182,9 @@ test("operator applies Memory, Network, Automation, and Observability settings w
     `"value":${nextRetentionDays}`
   );
   expect(parity.config_file_excerpt).toContain("[network]");
-  expect(parity.config_file_excerpt).toContain(`default_channel = "${nextChannel}"`);
+  expect(parity.config_file_excerpt).toMatch(
+    new RegExp(`greet_interval\\s*=\\s*${nextGreetInterval}`)
+  );
   expect(JSON.stringify(parity)).not.toMatch(sensitivePattern);
 
   await runtime.artifactCollector.captureJSON("browser_api_snapshots", parity);

@@ -196,8 +196,8 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 	if got, want := resumed.State, sessionpkg.StateActive; got != want {
 		t.Fatalf("resumed.State = %q, want %q", got, want)
 	}
-	if got, want := resumed.Channel, "ops-nightly"; got != want {
-		t.Fatalf("resumed.Channel = %q, want %q", got, want)
+	if got, want := resolvedParticipationChannelID(resumed.ResolvedNetworkParticipation), "ops-nightly"; got != want {
+		t.Fatalf("resumed.ResolvedNetworkParticipation.ChannelID = %q, want %q", got, want)
 	}
 	if resumed.Sandbox == nil {
 		t.Fatal("resumed.Sandbox = nil, want sandbox metadata after resume")
@@ -828,10 +828,10 @@ func registerNightlyBridgeCombinedArtifacts(
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		if err := harness.CaptureBridgeHealth(ctx); err != nil {
-			t.Logf("CaptureBridgeHealth() error = %v", err)
-		}
 		if trimmedBridgeID := strings.TrimSpace(derefStringValue(bridgeID)); trimmedBridgeID != "" {
+			if err := harness.CaptureBridgeHealth(ctx, trimmedBridgeID); err != nil {
+				t.Logf("CaptureBridgeHealth(%q) error = %v", trimmedBridgeID, err)
+			}
 			if err := harness.CaptureBridgeRoutes(ctx, trimmedBridgeID); err != nil {
 				t.Logf("CaptureBridgeRoutes(%q) error = %v", trimmedBridgeID, err)
 			}

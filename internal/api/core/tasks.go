@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/gin-gonic/gin"
@@ -196,7 +197,7 @@ func (h *BaseHandlers) CreateTask(c *gin.Context) {
 	}
 
 	var req contract.CreateTaskRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -218,6 +219,16 @@ func (h *BaseHandlers) CreateTask(c *gin.Context) {
 
 	record, err := manager.CreateTask(c.Request.Context(), spec, actor)
 	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	if err := applyTaskNetworkParticipation(
+		c.Request.Context(),
+		manager,
+		record.ID,
+		req.NetworkParticipation,
+		actor,
+	); err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
@@ -272,7 +283,7 @@ func (h *BaseHandlers) BlockTask(c *gin.Context) {
 	}
 
 	var req contract.CreateTaskBlockRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -558,7 +569,7 @@ func (h *BaseHandlers) UpdateTask(c *gin.Context) {
 	}
 
 	var req contract.UpdateTaskRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -578,14 +589,34 @@ func (h *BaseHandlers) UpdateTask(c *gin.Context) {
 		return
 	}
 
-	patch, err := taskPatchFromRequest(req)
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
-		return
+	var record *taskpkg.Task
+	if taskUpdateHasRowFields(req) {
+		patch, err := taskPatchFromRequest(req)
+		if err != nil {
+			h.respondError(c, StatusForTaskError(err), err)
+			return
+		}
+		record, err = manager.UpdateTask(c.Request.Context(), taskID, patch, actor)
+		if err != nil {
+			h.respondError(c, StatusForTaskError(err), err)
+			return
+		}
+	} else {
+		view, err := manager.GetTask(c.Request.Context(), taskID, actor)
+		if err != nil {
+			h.respondError(c, StatusForTaskError(err), err)
+			return
+		}
+		taskCopy := view.Task
+		record = &taskCopy
 	}
-
-	record, err := manager.UpdateTask(c.Request.Context(), taskID, patch, actor)
-	if err != nil {
+	if err := applyTaskNetworkParticipation(
+		c.Request.Context(),
+		manager,
+		taskID,
+		req.NetworkParticipation,
+		actor,
+	); err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
@@ -635,7 +666,7 @@ func (h *BaseHandlers) SetTaskExecutionProfile(c *gin.Context) {
 	}
 
 	var req contract.SetTaskExecutionProfileRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -838,7 +869,7 @@ func (h *BaseHandlers) CreateChildTask(c *gin.Context) {
 	}
 
 	var req contract.CreateTaskChildRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -861,6 +892,16 @@ func (h *BaseHandlers) CreateChildTask(c *gin.Context) {
 
 	record, err := manager.CreateChildTask(c.Request.Context(), parentTaskID, spec, actor)
 	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	if err := applyTaskNetworkParticipation(
+		c.Request.Context(),
+		manager,
+		record.ID,
+		req.NetworkParticipation,
+		actor,
+	); err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
@@ -1372,7 +1413,7 @@ func (h *BaseHandlers) FanOutTaskRuns(c *gin.Context) {
 		return
 	}
 	var req contract.FanOutTaskRunsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := decodeStrictJSONBody(c, &req); err != nil {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -1433,9 +1474,6 @@ func prepareFanOutTaskRunsRequest(
 	}
 	if len(req.Designations) > maxDesignations {
 		return nil, NewTaskValidationError(fmt.Errorf("designations cannot exceed %d", maxDesignations))
-	}
-	if err := rejectRemovedTaskChannel("fan_out_runs.network_channel", req.NetworkChannel); err != nil {
-		return nil, err
 	}
 	prepared := make([]preparedFanOutDesignation, 0, len(req.Designations))
 	for index, designation := range req.Designations {
@@ -1973,9 +2011,6 @@ func (h *BaseHandlers) createTaskSpecFromRequest(
 	if err != nil {
 		return taskpkg.CreateTask{}, err
 	}
-	if err := rejectRemovedTaskChannel("create_task.network_channel", req.NetworkChannel); err != nil {
-		return taskpkg.CreateTask{}, err
-	}
 
 	spec := taskpkg.CreateTask{
 		ID:                 strings.TrimSpace(req.ID),
@@ -2008,9 +2043,6 @@ func (h *BaseHandlers) createChildTaskSpecFromRequest(
 	if err != nil {
 		return taskpkg.CreateTask{}, err
 	}
-	if err := rejectRemovedTaskChannel("create_child_task.network_channel", req.NetworkChannel); err != nil {
-		return taskpkg.CreateTask{}, err
-	}
 
 	spec := taskpkg.CreateTask{
 		ID:                 strings.TrimSpace(req.ID),
@@ -2035,12 +2067,6 @@ func (h *BaseHandlers) createChildTaskSpecFromRequest(
 }
 
 func taskPatchFromRequest(req contract.UpdateTaskRequest) (taskpkg.Patch, error) {
-	if req.NetworkChannel != nil {
-		if err := rejectRemovedTaskChannel("task_patch.network_channel", *req.NetworkChannel); err != nil {
-			return taskpkg.Patch{}, err
-		}
-	}
-
 	patch := taskpkg.Patch{
 		Title:              trimStringPtr(req.Title),
 		Description:        trimStringPtr(req.Description),
@@ -2111,14 +2137,11 @@ func addTaskDependencyFromRequest(taskID string, req contract.AddTaskDependencyR
 }
 
 func enqueueTaskRunFromRequest(taskID string, req contract.EnqueueTaskRunRequest) (taskpkg.EnqueueRun, error) {
-	if err := rejectRemovedTaskChannel("enqueue_run.network_channel", req.NetworkChannel); err != nil {
-		return taskpkg.EnqueueRun{}, err
-	}
-
 	spec := taskpkg.EnqueueRun{
-		TaskID:         strings.TrimSpace(taskID),
-		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
-		Metadata:       append(json.RawMessage(nil), req.Metadata...),
+		TaskID:               strings.TrimSpace(taskID),
+		IdempotencyKey:       strings.TrimSpace(req.IdempotencyKey),
+		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
+		Metadata:             append(json.RawMessage(nil), req.Metadata...),
 	}
 	if err := spec.Validate("enqueue_run"); err != nil {
 		return taskpkg.EnqueueRun{}, err
@@ -2234,12 +2257,10 @@ func fanOutDesignationRollupJSON(runs []taskpkg.Run, now time.Time) json.RawMess
 }
 
 func taskExecutionRequestFromRequest(req contract.TaskExecutionRequest) (taskpkg.ExecutionRequest, error) {
-	if err := rejectRemovedTaskChannel("task_execution.network_channel", req.NetworkChannel); err != nil {
-		return taskpkg.ExecutionRequest{}, err
-	}
 	spec := taskpkg.ExecutionRequest{
-		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
-		Metadata:       append(json.RawMessage(nil), req.Metadata...),
+		IdempotencyKey:       strings.TrimSpace(req.IdempotencyKey),
+		NetworkParticipation: participation.CloneRequest(req.NetworkParticipation),
+		Metadata:             append(json.RawMessage(nil), req.Metadata...),
 	}
 	if err := spec.Validate("task_execution"); err != nil {
 		return taskpkg.ExecutionRequest{}, err
@@ -2363,7 +2384,7 @@ func requiredPathID(raw string, field string) (string, error) {
 }
 
 func decodeOptionalJSON(c *gin.Context, dest any) error {
-	if err := c.ShouldBindJSON(dest); err != nil && !errors.Is(err, io.EOF) {
+	if err := decodeStrictJSONBody(c, dest); err != nil && !errors.Is(err, io.EOF) {
 		return err
 	}
 	return nil
@@ -2385,45 +2406,45 @@ func TaskSummaryPayloadFromSummary(record *taskpkg.Summary) contract.TaskSummary
 	}
 
 	return contract.TaskSummaryPayload{
-		ID:                   record.ID,
-		Identifier:           record.Identifier,
-		Scope:                record.Scope,
-		WorkspaceID:          record.WorkspaceID,
-		ParentTaskID:         record.ParentTaskID,
-		NetworkChannel:       taskRunSummaryChannel(record.ActiveRun),
-		Title:                taskpkg.RedactClaimTokens(strings.TrimSpace(record.Title)),
-		Priority:             record.Priority,
-		MaxAttempts:          record.MaxAttempts,
-		AutoEnqueueOnReady:   record.AutoEnqueueOnReady,
-		Status:               record.Status,
-		ApprovalPolicy:       record.ApprovalPolicy,
-		ApprovalState:        record.ApprovalState,
-		Draft:                record.Draft,
-		Owner:                cloneOwnership(record.Owner),
-		CurrentRunID:         record.CurrentRunID,
-		LatestEventSeq:       record.LatestEventSeq,
-		Paused:               record.Paused,
-		PausedBy:             record.PausedBy,
-		PausedAt:             optionalTime(record.PausedAt),
-		PausedReason:         taskpkg.RedactClaimTokens(strings.TrimSpace(record.PausedReason)),
-		EffectivePaused:      record.EffectivePaused,
-		PausedByTaskID:       record.PausedByTaskID,
-		BlockedReasons:       blockedReasonsPayload(record.BlockedReasons),
-		NeedsAttention:       recordNeedsAttention(record.NeedsAttention, record.Status),
-		NeedsAttentionReason: needsAttentionReason(record.NeedsAttention),
-		NeedsAttentionAt:     needsAttentionAt(record.NeedsAttention),
-		NeedsAttentionBy:     needsAttentionBy(record.NeedsAttention),
-		WakeCreator:          record.WakeCreator,
-		CreatedBy:            record.CreatedBy,
-		Origin:               record.Origin,
-		CreatedAt:            record.CreatedAt,
-		UpdatedAt:            record.UpdatedAt,
-		ClosedAt:             optionalTime(record.ClosedAt),
-		ChildCount:           int(record.ChildCount),
-		DependencyCount:      int(record.DependencyCount),
-		Dependencies:         TaskDependencyReferencePayloadsFromReferences(record.Dependencies),
-		ActiveRun:            TaskRunSummaryPayloadFromSummary(record.ActiveRun),
-		LastActivityAt:       optionalTime(record.LastActivityAt),
+		ID:                           record.ID,
+		Identifier:                   record.Identifier,
+		Scope:                        record.Scope,
+		WorkspaceID:                  record.WorkspaceID,
+		ParentTaskID:                 record.ParentTaskID,
+		ResolvedNetworkParticipation: resolvedParticipationFromRunSummary(record.ActiveRun),
+		Title:                        taskpkg.RedactClaimTokens(strings.TrimSpace(record.Title)),
+		Priority:                     record.Priority,
+		MaxAttempts:                  record.MaxAttempts,
+		AutoEnqueueOnReady:           record.AutoEnqueueOnReady,
+		Status:                       record.Status,
+		ApprovalPolicy:               record.ApprovalPolicy,
+		ApprovalState:                record.ApprovalState,
+		Draft:                        record.Draft,
+		Owner:                        cloneOwnership(record.Owner),
+		CurrentRunID:                 record.CurrentRunID,
+		LatestEventSeq:               record.LatestEventSeq,
+		Paused:                       record.Paused,
+		PausedBy:                     record.PausedBy,
+		PausedAt:                     optionalTime(record.PausedAt),
+		PausedReason:                 taskpkg.RedactClaimTokens(strings.TrimSpace(record.PausedReason)),
+		EffectivePaused:              record.EffectivePaused,
+		PausedByTaskID:               record.PausedByTaskID,
+		BlockedReasons:               blockedReasonsPayload(record.BlockedReasons),
+		NeedsAttention:               recordNeedsAttention(record.NeedsAttention, record.Status),
+		NeedsAttentionReason:         needsAttentionReason(record.NeedsAttention),
+		NeedsAttentionAt:             needsAttentionAt(record.NeedsAttention),
+		NeedsAttentionBy:             needsAttentionBy(record.NeedsAttention),
+		WakeCreator:                  record.WakeCreator,
+		CreatedBy:                    record.CreatedBy,
+		Origin:                       record.Origin,
+		CreatedAt:                    record.CreatedAt,
+		UpdatedAt:                    record.UpdatedAt,
+		ClosedAt:                     optionalTime(record.ClosedAt),
+		ChildCount:                   int(record.ChildCount),
+		DependencyCount:              int(record.DependencyCount),
+		Dependencies:                 TaskDependencyReferencePayloadsFromReferences(record.Dependencies),
+		ActiveRun:                    TaskRunSummaryPayloadFromSummary(record.ActiveRun),
+		LastActivityAt:               optionalTime(record.LastActivityAt),
 	}
 }
 
@@ -2590,29 +2611,28 @@ func TaskRunPayloadFromRun(run *taskpkg.Run) contract.TaskRunPayload {
 
 	networkSpec := run.NetworkSpecSnapshot()
 	return contract.TaskRunPayload{
-		ID:                    run.ID,
-		TaskID:                run.TaskID,
-		Status:                run.Status,
-		Attempt:               int(run.Attempt),
-		PreviousRunID:         run.PreviousRunID,
-		FailureKind:           run.FailureKind,
-		ClaimedBy:             cloneActorIdentity(run.ClaimedBy),
-		SessionID:             run.SessionID,
-		Origin:                run.Origin,
-		IdempotencyKey:        run.IdempotencyKey,
-		NetworkChannel:        networkSpec.ChannelID,
-		DesignationGroupID:    run.DesignationGroupID,
-		ClaimTokenHash:        run.ClaimTokenHash,
-		LeaseUntil:            optionalTime(run.LeaseUntil),
-		HeartbeatAt:           optionalTime(run.HeartbeatAt),
-		CoordinationChannelID: networkSpec.ChannelID,
-		QueuedAt:              run.QueuedAt,
-		ClaimedAt:             optionalTime(run.ClaimedAt),
-		StartedAt:             optionalTime(run.StartedAt),
-		EndedAt:               optionalTime(run.EndedAt),
-		Error:                 run.Error,
-		Metadata:              redactRawClaimTokenFields(run.Metadata),
-		Result:                redactRawClaimTokenFields(run.Result),
+		ID:                           run.ID,
+		TaskID:                       run.TaskID,
+		Status:                       run.Status,
+		Attempt:                      int(run.Attempt),
+		PreviousRunID:                run.PreviousRunID,
+		FailureKind:                  run.FailureKind,
+		ClaimedBy:                    cloneActorIdentity(run.ClaimedBy),
+		SessionID:                    run.SessionID,
+		Origin:                       run.Origin,
+		IdempotencyKey:               run.IdempotencyKey,
+		ResolvedNetworkParticipation: participation.CloneSpec(networkSpec),
+		DesignationGroupID:           run.DesignationGroupID,
+		ClaimTokenHash:               run.ClaimTokenHash,
+		LeaseUntil:                   optionalTime(run.LeaseUntil),
+		HeartbeatAt:                  optionalTime(run.HeartbeatAt),
+		QueuedAt:                     run.QueuedAt,
+		ClaimedAt:                    optionalTime(run.ClaimedAt),
+		StartedAt:                    optionalTime(run.StartedAt),
+		EndedAt:                      optionalTime(run.EndedAt),
+		Error:                        run.Error,
+		Metadata:                     redactRawClaimTokenFields(run.Metadata),
+		Result:                       redactRawClaimTokenFields(run.Result),
 	}
 }
 

@@ -1326,15 +1326,18 @@ func TestUDSShutdownWaitsForInflightRequests(t *testing.T) {
 	}
 }
 
-func TestUDSSessionChannelRoundTrip(t *testing.T) {
+func TestUDSSessionParticipationRoundTrip(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
+	enableIntegrationLiveNetwork(t, runtime.registry)
 
 	createResp := mustUnixRequest(
 		t,
 		runtime.client,
 		http.MethodPost,
 		"http://unix/api/sessions",
-		[]byte(`{"agent_name":"coder","workspace_path":"`+runtime.workspace+`","channel":"builders"}`),
+		[]byte(
+			`{"agent_name":"coder","workspace_path":"`+runtime.workspace+`","network_participation":{"mode":"live","channel_strategy":"named","channel_id":"builders"}}`,
+		),
 		nil,
 	)
 	if createResp.StatusCode != http.StatusCreated {
@@ -1351,9 +1354,7 @@ func TestUDSSessionChannelRoundTrip(t *testing.T) {
 		Session sessionPayload `json:"session"`
 	}
 	decodeHTTPJSON(t, createResp, &created)
-	if created.Session.Channel != "builders" {
-		t.Fatalf("created.Session.Channel = %q, want %q", created.Session.Channel, "builders")
-	}
+	assertResolvedParticipationChannel(t, created.Session.ResolvedNetworkParticipation, "builders")
 	if created.Session.WorkspaceID == "" {
 		t.Fatal("expected created session workspace id")
 	}
@@ -1371,9 +1372,7 @@ func TestUDSSessionChannelRoundTrip(t *testing.T) {
 	if got, want := len(listed.Sessions), 1; got != want {
 		t.Fatalf("len(listed.Sessions) = %d, want %d", got, want)
 	}
-	if listed.Sessions[0].Channel != "builders" {
-		t.Fatalf("listed.Sessions[0].Channel = %q, want %q", listed.Sessions[0].Channel, "builders")
-	}
+	assertResolvedParticipationChannel(t, listed.Sessions[0].ResolvedNetworkParticipation, "builders")
 
 	stopIntegrationSession(t, runtime, created.Session.WorkspaceID, created.Session.ID)
 
@@ -1394,8 +1393,9 @@ func TestUDSSessionChannelRoundTrip(t *testing.T) {
 		Session sessionPayload `json:"session"`
 	}
 	decodeHTTPJSON(t, statusResp, &stopped)
-	if stopped.Session.Channel != "builders" || stopped.Session.State != session.StateStopped {
-		t.Fatalf("stopped session = %#v, want stopped builders session", stopped.Session)
+	assertResolvedParticipationChannel(t, stopped.Session.ResolvedNetworkParticipation, "builders")
+	if stopped.Session.State != session.StateStopped {
+		t.Fatalf("stopped session state = %q, want %q", stopped.Session.State, session.StateStopped)
 	}
 
 	resumeResp := mustUnixRequest(
@@ -1425,7 +1425,6 @@ func TestUDSTaskRoutesRoundTrip(t *testing.T) {
 		"scope":"global",
 		"title":"Ship task routes",
 		"description":"Expose the transport routes",
-		"network_channel":"builders",
 		"owner":{"kind":"pool","ref":"ops"},
 		"metadata":{"priority":"high"}
 	}`))
@@ -1435,9 +1434,7 @@ func TestUDSTaskRoutesRoundTrip(t *testing.T) {
 	if created.Scope != taskpkg.ScopeGlobal {
 		t.Fatalf("created scope = %q, want %q", created.Scope, taskpkg.ScopeGlobal)
 	}
-	if created.NetworkChannel != "builders" {
-		t.Fatalf("created network_channel = %q, want %q", created.NetworkChannel, "builders")
-	}
+	assertLocalResolvedParticipation(t, created.ResolvedNetworkParticipation)
 	if created.Owner == nil || created.Owner.Kind != taskpkg.OwnerKindPool || created.Owner.Ref != "ops" {
 		t.Fatalf("created owner = %#v, want pool/ops", created.Owner)
 	}
@@ -1455,7 +1452,7 @@ func TestUDSTaskRoutesRoundTrip(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		"http://unix/api/tasks?scope=global&status=ready&owner_kind=pool&owner_ref=ops&network_channel=builders",
+		"http://unix/api/tasks?scope=global&status=ready&owner_kind=pool&owner_ref=ops",
 		nil,
 		nil,
 	)
@@ -1488,7 +1485,6 @@ func TestUDSTaskRoutesRoundTrip(t *testing.T) {
 	updateResp := mustUnixRequest(t, runtime.client, http.MethodPatch, "http://unix/api/tasks/"+created.ID, []byte(`{
 		"title":"Ship task routes now",
 		"description":"Expose the task and run transports everywhere",
-		"network_channel":"ops",
 		"clear_owner":true
 	}`), nil)
 	if updateResp.StatusCode != http.StatusOK {
@@ -1504,9 +1500,7 @@ func TestUDSTaskRoutesRoundTrip(t *testing.T) {
 	if updated.Task.Description != "Expose the task and run transports everywhere" {
 		t.Fatalf("updated description = %q", updated.Task.Description)
 	}
-	if updated.Task.NetworkChannel != "ops" {
-		t.Fatalf("updated network_channel = %q, want %q", updated.Task.NetworkChannel, "ops")
-	}
+	assertLocalResolvedParticipation(t, updated.Task.ResolvedNetworkParticipation)
 	if updated.Task.Owner != nil {
 		t.Fatalf("updated owner = %#v, want nil", updated.Task.Owner)
 	}
@@ -1515,7 +1509,7 @@ func TestUDSTaskRoutesRoundTrip(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		"http://unix/api/tasks?scope=global&status=ready&network_channel=ops",
+		"http://unix/api/tasks?scope=global&status=ready",
 		nil,
 		nil,
 	)
@@ -1549,9 +1543,7 @@ func TestUDSTaskRunLifecycleRoutesRoundTrip(t *testing.T) {
 	if queued.Status != taskpkg.TaskRunStatusQueued {
 		t.Fatalf("queued status = %q, want %q", queued.Status, taskpkg.TaskRunStatusQueued)
 	}
-	if queued.NetworkChannel != "" {
-		t.Fatalf("queued network_channel = %q, want local run", queued.NetworkChannel)
-	}
+	assertLocalResolvedParticipation(t, queued.ResolvedNetworkParticipation)
 
 	listQueuedResp := mustUnixRequest(
 		t,
@@ -2895,6 +2887,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	if err != nil {
 		t.Fatalf("local.NewRegistry() error = %v", err)
 	}
+	participationResolver := newIntegrationParticipationResolver(t, registry)
 	manager, err := session.NewManager(
 		session.WithHomePaths(homePaths),
 		session.WithWorkspaceResolver(resolver),
@@ -2903,6 +2896,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		session.WithNotifier(fanout),
 		session.WithSandboxRegistry(sandboxRegistry),
 		session.WithSessionCatalog(registry),
+		session.WithParticipationResolver(participationResolver),
 	)
 	if err != nil {
 		t.Fatalf("session.NewManager() error = %v", err)
@@ -2959,6 +2953,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	taskManager, err := taskpkg.NewManager(
 		taskpkg.WithStore(registry),
 		taskpkg.WithSessionExecutor(taskExecutor),
+		taskpkg.WithParticipationResolver(participationResolver),
 	)
 	if err != nil {
 		t.Fatalf("task.NewManager() error = %v", err)

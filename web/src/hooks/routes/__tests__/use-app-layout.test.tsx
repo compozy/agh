@@ -433,6 +433,7 @@ describe("useAppLayout", () => {
       agent_name: "claude-agent",
       workspace: "ws_alpha",
       provider: "gemini",
+      network_participation: { mode: "local" },
     });
     expect(mockNavigate).toHaveBeenCalledWith({
       to: "/agents/$name/sessions/$id",

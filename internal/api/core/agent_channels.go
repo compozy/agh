@@ -422,14 +422,14 @@ func mergeCoordinationChannels(
 	mergedByID := make(map[string]contract.CoordinationChannelPayload, len(left)+len(right))
 	for _, channel := range left {
 		normalized := contract.NormalizeCoordinationChannelPayload(channel)
-		id := firstNonEmpty(normalized.ID, normalized.Channel)
+		id := strings.TrimSpace(normalized.ID)
 		if id != "" {
 			mergedByID[id] = normalized
 		}
 	}
 	for _, channel := range right {
 		normalized := contract.NormalizeCoordinationChannelPayload(channel)
-		id := firstNonEmpty(normalized.ID, normalized.Channel)
+		id := strings.TrimSpace(normalized.ID)
 		if id != "" {
 			mergedByID[id] = normalized
 		}
@@ -477,7 +477,6 @@ func coordinationChannelFromNetwork(
 	workspaceID = firstNonEmpty(strings.TrimSpace(entry.WorkspaceID), strings.TrimSpace(workspaceID))
 	payload := contract.CoordinationChannelPayload{
 		ID:          channel,
-		Channel:     channel,
 		DisplayName: channel,
 		Purpose:     firstNonEmpty(strings.TrimSpace(entry.Purpose), "network_channel"),
 		WorkspaceID: workspaceID,
@@ -623,25 +622,25 @@ func decodeOptionalCoordinationMetadata(
 	raw json.RawMessage,
 ) (contract.CoordinationMessageMetadataPayload, bool, error) {
 	var decoded struct {
-		TaskID                string                           `json:"task_id"`
-		RunID                 string                           `json:"run_id"`
-		WorkflowID            string                           `json:"workflow_id,omitempty"`
-		CoordinationChannelID string                           `json:"coordination_channel_id"`
-		MessageKind           contract.CoordinationMessageKind `json:"message_kind"`
-		CorrelationID         string                           `json:"correlation_id"`
-		Ext                   map[string]json.RawMessage       `json:"ext,omitempty"`
+		TaskID        string                           `json:"task_id"`
+		RunID         string                           `json:"run_id"`
+		WorkflowID    string                           `json:"workflow_id,omitempty"`
+		ChannelID     string                           `json:"channel_id"`
+		MessageKind   contract.CoordinationMessageKind `json:"message_kind"`
+		CorrelationID string                           `json:"correlation_id"`
+		Ext           map[string]json.RawMessage       `json:"ext,omitempty"`
 	}
 	if err := json.Unmarshal(raw, &decoded); err != nil {
 		return contract.CoordinationMessageMetadataPayload{}, false, err
 	}
 	metadata := contract.CoordinationMessageMetadataPayload{
-		TaskID:                decoded.TaskID,
-		RunID:                 decoded.RunID,
-		WorkflowID:            decoded.WorkflowID,
-		CoordinationChannelID: decoded.CoordinationChannelID,
-		MessageKind:           decoded.MessageKind,
-		CorrelationID:         decoded.CorrelationID,
-		Ext:                   decoded.Ext,
+		TaskID:        decoded.TaskID,
+		RunID:         decoded.RunID,
+		WorkflowID:    decoded.WorkflowID,
+		ChannelID:     decoded.ChannelID,
+		MessageKind:   decoded.MessageKind,
+		CorrelationID: decoded.CorrelationID,
+		Ext:           decoded.Ext,
 	}
 	if zeroCoordinationMetadata(metadata) {
 		return contract.CoordinationMessageMetadataPayload{}, false, nil
@@ -715,7 +714,7 @@ func agentChannelMessagesFromEnvelopes(
 		messages = append(messages, contract.AgentChannelMessagePayload{
 			MessageID: strings.TrimSpace(envelope.ID),
 			ChannelID: firstNonEmpty(
-				strings.TrimSpace(metadata.CoordinationChannelID),
+				strings.TrimSpace(metadata.ChannelID),
 				strings.TrimSpace(envelope.Channel),
 			),
 			FromSessionID: strings.TrimSpace(envelope.From),
@@ -748,7 +747,7 @@ func agentChannelMessageFromRequest(
 ) contract.AgentChannelMessagePayload {
 	return contract.AgentChannelMessagePayload{
 		MessageID:     strings.TrimSpace(messageID),
-		ChannelID:     firstNonEmpty(strings.TrimSpace(metadata.CoordinationChannelID), strings.TrimSpace(channel)),
+		ChannelID:     firstNonEmpty(strings.TrimSpace(metadata.ChannelID), strings.TrimSpace(channel)),
 		FromSessionID: strings.TrimSpace(fromSessionID),
 		ToSessionID:   strings.TrimSpace(toSessionID),
 		Body:          cloneRawMessage(body),
@@ -893,7 +892,7 @@ func zeroCoordinationMetadata(metadata contract.CoordinationMessageMetadataPaylo
 	return strings.TrimSpace(metadata.TaskID) == "" &&
 		strings.TrimSpace(metadata.RunID) == "" &&
 		strings.TrimSpace(metadata.WorkflowID) == "" &&
-		strings.TrimSpace(metadata.CoordinationChannelID) == "" &&
+		strings.TrimSpace(metadata.ChannelID) == "" &&
 		strings.TrimSpace(string(metadata.MessageKind)) == "" &&
 		strings.TrimSpace(metadata.CorrelationID) == "" &&
 		len(metadata.Ext) == 0

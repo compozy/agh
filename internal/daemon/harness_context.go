@@ -357,9 +357,9 @@ func (r *HarnessContextResolver) normalizeHarnessTurnContext(
 	if err != nil {
 		return HarnessTurnContext{}, err
 	}
-	if origin == TurnOriginNetwork && !sessionCtx.NetworkLive {
-		return HarnessTurnContext{}, participation.ErrNotParticipating
-	}
+	// Network turn origin is provenance only. Live participation remains gated by
+	// session.PromptNetwork; bridge ingress uses PromptWithOpts with network meta
+	// on Local sessions and must still resolve harness policy.
 
 	if request.Synthetic != nil && origin != TurnOriginSynthetic {
 		return HarnessTurnContext{}, errors.New(

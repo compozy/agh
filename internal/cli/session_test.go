@@ -142,38 +142,57 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 	}
 }
 
-func TestSessionNewPassesChannelFlag(t *testing.T) {
+func TestSessionNewPassesNetworkParticipationFlags(t *testing.T) {
 	t.Parallel()
 
 	deps := newTestDeps(t, &stubClient{
 		createSessionFn: func(_ context.Context, request CreateSessionRequest) (SessionRecord, error) {
-			if request.Channel != "builders" {
-				t.Fatalf("CreateSession() Channel = %q, want %q", request.Channel, "builders")
+			if participationRequestChannelID(request.NetworkParticipation) != "builders" {
+				t.Fatalf(
+					"CreateSession() NetworkParticipation = %#v, want channel builders",
+					request.NetworkParticipation,
+				)
 			}
 			return SessionRecord{
-				ID:            "sess-1",
-				AgentName:     "general",
-				WorkspaceID:   "ws-1",
-				WorkspacePath: request.WorkspacePath,
-				Channel:       request.Channel,
-				State:         session.StateActive,
-				CreatedAt:     fixedTestNow,
-				UpdatedAt:     fixedTestNow,
+				ID:                           "sess-1",
+				AgentName:                    "general",
+				WorkspaceID:                  "ws-1",
+				WorkspacePath:                request.WorkspacePath,
+				ResolvedNetworkParticipation: testLiveResolvedParticipation("builders"),
+				State:                        session.StateActive,
+				CreatedAt:                    fixedTestNow,
+				UpdatedAt:                    fixedTestNow,
 			}, nil
 		},
 	})
 
-	stdout, _, err := executeRootCommand(t, deps, "session", "new", "--channel", "builders", "-o", "json")
+	stdout, _, err := executeRootCommand(
+		t,
+		deps,
+		"session",
+		"new",
+		"--network",
+		"live",
+		"--network-channel-strategy",
+		"named",
+		"--network-channel",
+		"builders",
+		"-o",
+		"json",
+	)
 	if err != nil {
-		t.Fatalf("executeRootCommand(session new --channel) error = %v", err)
+		t.Fatalf("executeRootCommand(session new --network*) error = %v", err)
 	}
 
 	var decoded SessionRecord
 	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
-		t.Fatalf("json.Unmarshal(session new --channel) error = %v", err)
+		t.Fatalf("json.Unmarshal(session new --network*) error = %v", err)
 	}
-	if decoded.Channel != "builders" {
-		t.Fatalf("decoded.Channel = %q, want %q", decoded.Channel, "builders")
+	if resolvedParticipationChannelID(decoded.ResolvedNetworkParticipation) != "builders" {
+		t.Fatalf(
+			"decoded.ResolvedNetworkParticipation = %#v, want channel builders",
+			decoded.ResolvedNetworkParticipation,
+		)
 	}
 }
 
@@ -1335,14 +1354,14 @@ func TestSessionListBundleRendersHumanAndToon(t *testing.T) {
 	t.Parallel()
 
 	items := []SessionRecord{{
-		ID:            "sess-1",
-		Name:          "demo",
-		AgentName:     "coder",
-		Provider:      "fake",
-		WorkspaceID:   "ws-1",
-		WorkspacePath: "/workspace/project",
-		Channel:       "builders",
-		State:         session.StateActive,
+		ID:                           "sess-1",
+		Name:                         "demo",
+		AgentName:                    "coder",
+		Provider:                     "fake",
+		WorkspaceID:                  "ws-1",
+		WorkspacePath:                "/workspace/project",
+		ResolvedNetworkParticipation: testLiveResolvedParticipation("builders"),
+		State:                        session.StateActive,
 		Health: &contract.SessionHealthPayload{
 			State:  contract.SessionHealthStateIdle,
 			Health: contract.SessionHealthHealthy,

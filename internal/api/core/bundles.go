@@ -95,13 +95,9 @@ func (h *BaseHandlers) UpdateBundleActivation(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	if req.BindPrimaryChannelAsDefault {
-		h.respondError(c, http.StatusBadRequest, bundlepkg.ErrDefaultChannelRemoved)
-		return
-	}
-
 	item, err := h.Bundles.UpdateActivation(c.Request.Context(), bundlepkg.UpdateActivationRequest{
-		ID: strings.TrimSpace(c.Param("id")),
+		ID:                        strings.TrimSpace(c.Param("id")),
+		ConfirmNetworkRequirement: req.ConfirmNetworkRequirement,
 	})
 	if err != nil {
 		h.respondError(c, StatusForBundleError(err), err)
@@ -149,17 +145,14 @@ func (h *BaseHandlers) bindBundleActivateRequest(c *gin.Context) (bundlepkg.Acti
 		h.respondError(c, http.StatusBadRequest, err)
 		return bundlepkg.ActivateRequest{}, false
 	}
-	if req.BindPrimaryChannelAsDefault {
-		h.respondError(c, http.StatusBadRequest, bundlepkg.ErrDefaultChannelRemoved)
-		return bundlepkg.ActivateRequest{}, false
-	}
 
 	return bundlepkg.ActivateRequest{
-		ExtensionName: strings.TrimSpace(req.ExtensionName),
-		BundleName:    strings.TrimSpace(req.BundleName),
-		ProfileName:   strings.TrimSpace(req.ProfileName),
-		Scope:         bundlepkg.Scope(strings.TrimSpace(req.Scope)).Normalize(),
-		Workspace:     strings.TrimSpace(req.Workspace),
+		ExtensionName:             strings.TrimSpace(req.ExtensionName),
+		BundleName:                strings.TrimSpace(req.BundleName),
+		ProfileName:               strings.TrimSpace(req.ProfileName),
+		Scope:                     bundlepkg.Scope(strings.TrimSpace(req.Scope)).Normalize(),
+		Workspace:                 strings.TrimSpace(req.Workspace),
+		ConfirmNetworkRequirement: req.ConfirmNetworkRequirement,
 	}, true
 }
 
@@ -262,23 +255,26 @@ func BundleActivationPayload(item bundlepkg.ActivationPreview) contract.BundleAc
 		})
 	}
 	return contract.BundleActivationPayload{
-		ID:                 strings.TrimSpace(item.Activation.ID),
-		ExtensionName:      strings.TrimSpace(item.Activation.ExtensionName),
-		BundleName:         strings.TrimSpace(item.Bundle.Name),
-		BundleDescription:  strings.TrimSpace(item.Bundle.Description),
-		ProfileName:        strings.TrimSpace(item.Profile.Name),
-		ProfileDescription: strings.TrimSpace(item.Profile.Description),
-		Scope:              string(item.Activation.Scope),
-		WorkspaceID:        strings.TrimSpace(item.Activation.WorkspaceID),
-		Channels:           bundleChannelPayloads(item.Profile.Channels),
-		Agents:             agents,
-		Jobs:               jobs,
-		Triggers:           triggers,
-		Bridges:            bridges,
-		Inventory:          inventory,
-		SpecDrift:          item.SpecDrift,
-		CreatedAt:          item.Activation.CreatedAt,
-		UpdatedAt:          item.Activation.UpdatedAt,
+		ID:                            strings.TrimSpace(item.Activation.ID),
+		ExtensionName:                 strings.TrimSpace(item.Activation.ExtensionName),
+		BundleName:                    strings.TrimSpace(item.Bundle.Name),
+		BundleDescription:             strings.TrimSpace(item.Bundle.Description),
+		ProfileName:                   strings.TrimSpace(item.Profile.Name),
+		ProfileDescription:            strings.TrimSpace(item.Profile.Description),
+		Scope:                         string(item.Activation.Scope),
+		WorkspaceID:                   strings.TrimSpace(item.Activation.WorkspaceID),
+		NetworkRequirementDigest:      strings.TrimSpace(item.Activation.NetworkRequirementDigest),
+		NetworkRequirementConfirmedBy: strings.TrimSpace(item.Activation.ConfirmedBy),
+		NetworkRequirementConfirmedAt: strings.TrimSpace(item.Activation.ConfirmedAt),
+		Channels:                      bundleChannelPayloads(item.Profile.Channels),
+		Agents:                        agents,
+		Jobs:                          jobs,
+		Triggers:                      triggers,
+		Bridges:                       bridges,
+		Inventory:                     inventory,
+		SpecDrift:                     item.SpecDrift,
+		CreatedAt:                     item.Activation.CreatedAt,
+		UpdatedAt:                     item.Activation.UpdatedAt,
 	}
 }
 
@@ -327,7 +323,8 @@ func StatusForBundleError(err error) int {
 	case errors.Is(err, bundlepkg.ErrAgentReferenceNotFound):
 		return http.StatusUnprocessableEntity
 	case errors.Is(err, bundlepkg.ErrWebhookUnsupported),
-		errors.Is(err, bundlepkg.ErrDefaultChannelRemoved):
+		errors.Is(err, bundlepkg.ErrDefaultChannelRemoved),
+		errors.Is(err, bundlepkg.ErrNetworkRequirementConfirmationRequired):
 		return http.StatusBadRequest
 	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
 		errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):

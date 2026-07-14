@@ -332,7 +332,7 @@ func taskCatalogBaseFilter(query taskpkg.CatalogQuery) ([]string, []any) {
 func taskCatalogFilter(query taskpkg.CatalogQuery) ([]string, []any) {
 	return store.BuildClauses(
 		store.StringClause("status", string(query.Status)),
-		store.StringClause("network_channel", query.NetworkChannel),
+		store.StringClause("network_channel", query.ParticipationChannel),
 	)
 }
 

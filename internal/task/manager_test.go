@@ -2542,7 +2542,6 @@ func TestManagerRunDetailAggregatesRuntimeContextAndOmitsOptionalFields(t *testi
 					WorkspaceID: "ws-1",
 					AgentName:   "codex",
 					Name:        "Run session",
-					Channel:     "tasks",
 					State:       "running",
 					CreatedAt:   base,
 					UpdatedAt:   base.Add(10 * time.Minute),

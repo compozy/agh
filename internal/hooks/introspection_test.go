@@ -236,6 +236,30 @@ func TestAllEventDescriptorsReturnsFullTaxonomy(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should describe network.participation.pre_resolve as sync", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := byEvent[HookNetworkParticipationPreResolve]
+		if descriptor.Family != HookEventFamilyNetwork ||
+			!descriptor.SyncEligible ||
+			descriptor.PayloadSchema != "NetworkParticipationPreResolvePayload" ||
+			descriptor.PatchSchema != "NetworkParticipationPreResolvePatch" {
+			t.Fatalf("pre_resolve descriptor = %#v", descriptor)
+		}
+	})
+
+	t.Run("Should describe network.participation.resolved as async observation", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := byEvent[HookNetworkParticipationResolved]
+		if descriptor.Family != HookEventFamilyNetwork ||
+			descriptor.SyncEligible ||
+			descriptor.PayloadSchema != "NetworkParticipationResolvedPayload" ||
+			descriptor.PatchSchema != "NetworkParticipationResolvedPatch" {
+			t.Fatalf("resolved descriptor = %#v", descriptor)
+		}
+	})
 }
 
 func TestHooksCatalogFiltersByEventSourceModeAndExposesExecutorKind(t *testing.T) {

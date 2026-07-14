@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
@@ -27,13 +28,18 @@ func TestAgentContractNormalizationAndJSONShape(t *testing.T) {
 			RunID:       "run-1",
 		}
 		lease := TaskRunLeaseSummaryPayload{
-			TaskID:                "task-1",
-			RunID:                 "run-1",
-			Status:                taskpkg.TaskRunStatusRunning,
-			SessionID:             "sess-child",
-			ClaimTokenHash:        "sha256:abc",
-			CoordinationChannelID: channel.ID,
-			CoordinationChannel:   &channel,
+			TaskID:         "task-1",
+			RunID:          "run-1",
+			Status:         taskpkg.TaskRunStatusRunning,
+			SessionID:      "sess-child",
+			ClaimTokenHash: "sha256:abc",
+			ResolvedNetworkParticipation: &participation.Spec{
+				Version:   participation.SpecVersion,
+				Mode:      participation.ModeLive,
+				ChannelID: channel.ID,
+				Source:    participation.SourceExplicitRequest,
+			},
+			CoordinationChannel: &channel,
 		}
 		lineage := &SessionLineagePayload{
 			ParentSessionID:  "sess-parent",
@@ -58,13 +64,14 @@ func TestAgentContractNormalizationAndJSONShape(t *testing.T) {
 			},
 			Workspace: AgentWorkspacePayload{ID: "ws-1", Name: "agh", RootDir: "/workspace/agh"},
 			Session: AgentSessionPayload{
-				ID:        "sess-child",
-				Name:      "worker",
-				Type:      session.SessionTypeUser,
-				State:     session.StateActive,
-				Lineage:   lineage,
-				CreatedAt: now,
-				UpdatedAt: now,
+				ID:                           "sess-child",
+				Name:                         "worker",
+				Type:                         session.SessionTypeUser,
+				State:                        session.StateActive,
+				ResolvedNetworkParticipation: participation.CloneSpec(*lease.ResolvedNetworkParticipation),
+				Lineage:                      lineage,
+				CreatedAt:                    now,
+				UpdatedAt:                    now,
 			},
 			Task: AgentTaskContextPayload{
 				Available: true,
@@ -104,6 +111,12 @@ func TestAgentContractNormalizationAndJSONShape(t *testing.T) {
 			"inbox_summary", "peer_roster", "capabilities", "limits", "provenance")
 
 		sessionObject := nestedContractObject(t, contextObject, "session")
+		assertContractKeys(t, sessionObject, "id", "name", "type", "state", "resolved_network_participation",
+			"lineage", "created_at", "updated_at")
+		sessionParticipation := nestedContractObject(t, sessionObject, "resolved_network_participation")
+		if sessionParticipation["channel_id"] != "coord-run-1" {
+			t.Fatalf("session resolved participation JSON = %#v", sessionParticipation)
+		}
 		lineageObject := nestedContractObject(t, sessionObject, "lineage")
 		assertContractKeys(t, lineageObject, "parent_session_id", "root_session_id", "spawn_depth", "spawn_role",
 			"ttl_expires_at", "auto_stop_on_parent", "spawn_budget", "permission_policy")
@@ -236,7 +249,7 @@ func TestCoordinationMessageMetadataValidationRejectsRawClaimTokens(t *testing.T
 		"task_id":"task-1",
 		"run_id":"run-1",
 		"workflow_id":"workflow-1",
-		"coordination_channel_id":"coord-run-1",
+		"channel_id":"coord-run-1",
 		"message_kind":"status",
 		"correlation_id":"corr-1",
 		"ext":{"safe":"true"}
@@ -255,19 +268,19 @@ func TestCoordinationMessageMetadataValidationRejectsRawClaimTokens(t *testing.T
 	}{
 		{
 			name: "Should reject top level claim token",
-			body: `{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"coord-run-1","message_kind":"status","correlation_id":"corr-1","claim_token":"raw"}`,
+			body: `{"task_id":"task-1","run_id":"run-1","channel_id":"coord-run-1","message_kind":"status","correlation_id":"corr-1","claim_token":"raw"}`,
 		},
 		{
 			name: "Should reject nested claim token",
-			body: `{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"coord-run-1","message_kind":"status","correlation_id":"corr-1","ext":{"nested":{"claim_token":"raw"}}}`,
+			body: `{"task_id":"task-1","run_id":"run-1","channel_id":"coord-run-1","message_kind":"status","correlation_id":"corr-1","ext":{"nested":{"claim_token":"raw"}}}`,
 		},
 		{
 			name: "Should reject token-shaped ext value",
-			body: `{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"coord-run-1","message_kind":"status","correlation_id":"corr-1","ext":{"debug":"contains agh_claim_raw"}}`,
+			body: `{"task_id":"task-1","run_id":"run-1","channel_id":"coord-run-1","message_kind":"status","correlation_id":"corr-1","ext":{"debug":"contains agh_claim_raw"}}`,
 		},
 		{
 			name: "Should reject uppercase token-shaped ext value",
-			body: `{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"coord-run-1","message_kind":"status","correlation_id":"corr-1","ext":{"debug":"contains AGH_CLAIM_RAW"}}`,
+			body: `{"task_id":"task-1","run_id":"run-1","channel_id":"coord-run-1","message_kind":"status","correlation_id":"corr-1","ext":{"debug":"contains AGH_CLAIM_RAW"}}`,
 		},
 	}
 	for _, tc := range testCases {
@@ -299,7 +312,7 @@ func TestCoordinationMessageMetadataValidationRejectsRawClaimTokens(t *testing.T
 	var invalidKind CoordinationMessageMetadataPayload
 	err := json.Unmarshal(
 		[]byte(
-			`{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"coord-run-1","message_kind":"claim_token","correlation_id":"corr-1"}`,
+			`{"task_id":"task-1","run_id":"run-1","channel_id":"coord-run-1","message_kind":"claim_token","correlation_id":"corr-1"}`,
 		),
 		&invalidKind,
 	)

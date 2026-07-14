@@ -2287,6 +2287,56 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should persist typed participation from native task create", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := &nativeTaskManager{}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{Tasks: tasks}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{SessionID: "sess-task-create", WorkspaceID: "ws-1"}
+
+		_, err := registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskCreate,
+				Input: json.RawMessage(
+					`{"scope":"workspace","title":"Coordinated task",` +
+						`"network_participation":{"mode":"local"}}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(task_create participation) error = %v", err)
+		}
+		if tasks.createCalls != 1 || tasks.profileGetCalls != 1 || tasks.profileSetCalls != 1 {
+			t.Fatalf(
+				"task/profile calls = %d/%d/%d, want 1/1/1",
+				tasks.createCalls,
+				tasks.profileGetCalls,
+				tasks.profileSetCalls,
+			)
+		}
+		request := tasks.lastSetProfile.NetworkParticipation
+		if request == nil || request.Mode == nil || *request.Mode != participation.ModeLocal {
+			t.Fatalf("stored network participation = %#v, want local request", request)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskCreate,
+				Input:  json.RawMessage(`{"scope":"workspace","title":"Legacy","network_channel":"legacy"}`),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("Registry.Call(task_create legacy channel) error = %v, want ErrToolInvalidInput", err)
+		}
+		if tasks.createCalls != 1 {
+			t.Fatalf("CreateTask calls = %d, want no write for legacy field", tasks.createCalls)
+		}
+	})
+
 	t.Run("Should route task run review request list and show through task service authority", func(t *testing.T) {
 		t.Parallel()
 
@@ -2470,7 +2520,8 @@ func TestDaemonNativeTools(t *testing.T) {
 						`"worker":{"mode":"select","agent_name":"worker-b","required_capabilities":["build"]},` +
 						`"review":{"agent_name":"reviewer-b","allowed_channel_ids":["reviews"]},` +
 						`"participants":{"allowed_agent_names":["worker-b"],"required_capabilities":["build"]},` +
-						`"sandbox":{"mode":"none"}}}`,
+						`"sandbox":{"mode":"none"},"runtime":{"mode":"evidence"},` +
+						`"network_participation":{"mode":"local"}}}`,
 				),
 			},
 		)
@@ -2482,7 +2533,11 @@ func TestDaemonNativeTools(t *testing.T) {
 		if tasks.profileSetCalls != 1 ||
 			tasks.lastSetProfile.TaskID != "task-profile" ||
 			tasks.lastSetProfile.Worker.AgentName != "worker-b" ||
-			tasks.lastSetProfile.Participants.RequiredCapabilities[0] != "build" {
+			tasks.lastSetProfile.Participants.RequiredCapabilities[0] != "build" ||
+			tasks.lastSetProfile.Runtime.Mode != taskpkg.RuntimeModeEvidence ||
+			tasks.lastSetProfile.NetworkParticipation == nil ||
+			tasks.lastSetProfile.NetworkParticipation.Mode == nil ||
+			*tasks.lastSetProfile.NetworkParticipation.Mode != participation.ModeLocal {
 			t.Fatalf(
 				"SetExecutionProfile calls/profile = %d/%#v, want profile update",
 				tasks.profileSetCalls,
@@ -7708,6 +7763,18 @@ func (s *nativeBundleServiceStub) Deactivate(context.Context, string) error {
 
 func (s *nativeBundleServiceStub) NetworkSettings(context.Context) (bundlepkg.NetworkSettings, error) {
 	return s.network, nil
+}
+
+func (s *nativeBundleServiceStub) ConfirmNetworkRequirement(
+	_ context.Context,
+	activationID string,
+) (bundlepkg.ActivationPreview, error) {
+	for _, item := range s.activations {
+		if item.Activation.ID == activationID {
+			return item, nil
+		}
+	}
+	return bundlepkg.ActivationPreview{}, bundlepkg.ErrActivationNotFound
 }
 
 type nativeResourceServiceStub struct {

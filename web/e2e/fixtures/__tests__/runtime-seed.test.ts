@@ -737,15 +737,20 @@ describe("browser runtime seed helpers", () => {
         };
       }
 
-      if (pathname === "/api/task-runs/run_browser_tasks_01/claim") {
+      if (pathname === "/api/agent/tasks/claim-next") {
         return {
-          run: {
-            attempt: 1,
-            claimed_by: { kind: "automation", ref: "browser-task-runner" },
-            id: "run_browser_tasks_01",
-            queued_at: "2026-04-17T14:00:00Z",
-            status: "claimed",
-            task_id: "task_browser_running",
+          claim: {
+            run: {
+              attempt: 1,
+              claimed_by: { kind: "automation", ref: "browser-task-runner" },
+              id: "run_browser_tasks_01",
+              queued_at: "2026-04-17T14:00:00Z",
+              status: "claimed",
+              task_id: "task_browser_running",
+            },
+            lease: {
+              claim_token_hash: "seed-claim-hash",
+            },
           },
         };
       }
@@ -938,13 +943,18 @@ describe("browser runtime seed helpers", () => {
     ]);
 
     expect(requestJSON).toHaveBeenCalledWith(
-      "/api/task-runs/run_browser_tasks_01/attach-session",
+      "/api/agent/tasks/claim-next",
       expect.objectContaining({
-        body: JSON.stringify({
-          session_id: "sess_browser_tasks_01",
-        }),
         method: "POST",
       })
+    );
+    expect(requestJSON).not.toHaveBeenCalledWith(
+      "/api/task-runs/run_browser_tasks_01/start",
+      expect.anything()
+    );
+    expect(requestJSON).not.toHaveBeenCalledWith(
+      "/api/task-runs/run_browser_tasks_01/attach-session",
+      expect.anything()
     );
     expect(requestJSON).toHaveBeenCalledWith("/api/observe/tasks/dashboard");
     expect(requestJSON).toHaveBeenCalledWith("/api/observe/tasks/inbox?lane=approvals&limit=10");

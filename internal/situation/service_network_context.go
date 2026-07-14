@@ -38,15 +38,13 @@ func (s *Service) populateSessionRuntimeContext(
 
 func startupSessionPayload(startup session.StartupPromptContext) contract.AgentSessionPayload {
 	payload := contract.AgentSessionPayload{
-		ID:        strings.TrimSpace(startup.SessionID),
-		Name:      strings.TrimSpace(startup.SessionName),
-		Type:      startup.SessionType,
-		State:     session.StateStarting,
-		CreatedAt: startup.CreatedAt.UTC(),
-		UpdatedAt: startup.UpdatedAt.UTC(),
-	}
-	if startup.NetworkParticipation.Mode == participation.ModeLive {
-		payload.Channel = strings.TrimSpace(startup.NetworkParticipation.ChannelID)
+		ID:                           strings.TrimSpace(startup.SessionID),
+		Name:                         strings.TrimSpace(startup.SessionName),
+		Type:                         startup.SessionType,
+		State:                        session.StateStarting,
+		ResolvedNetworkParticipation: participation.CloneSpec(startup.NetworkParticipation),
+		CreatedAt:                    startup.CreatedAt.UTC(),
+		UpdatedAt:                    startup.UpdatedAt.UTC(),
 	}
 	return payload
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/transcript"
@@ -17,14 +18,14 @@ const (
 
 // CreateSessionRequest is the shared session creation request payload.
 type CreateSessionRequest struct {
-	AgentName       string          `json:"agent_name,omitempty"`
-	Provider        string          `json:"provider,omitempty"`
-	Model           string          `json:"model,omitempty"`
-	ReasoningEffort ReasoningEffort `json:"reasoning_effort,omitempty"`
-	Name            string          `json:"name,omitempty"`
-	Workspace       string          `json:"workspace,omitempty"`
-	WorkspacePath   string          `json:"workspace_path,omitempty"`
-	Channel         string          `json:"channel,omitempty"`
+	AgentName            string                 `json:"agent_name,omitempty"`
+	Provider             string                 `json:"provider,omitempty"`
+	Model                string                 `json:"model,omitempty"`
+	ReasoningEffort      ReasoningEffort        `json:"reasoning_effort,omitempty"`
+	Name                 string                 `json:"name,omitempty"`
+	Workspace            string                 `json:"workspace,omitempty"`
+	WorkspacePath        string                 `json:"workspace_path,omitempty"`
+	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
 }
 
 // ApproveSessionRequest is the interactive permission approval payload.
@@ -36,22 +37,22 @@ type ApproveSessionRequest struct {
 
 // SessionPayload is the shared session response payload.
 type SessionPayload struct {
-	ID              string          `json:"id"`
-	Name            string          `json:"name,omitempty"`
-	AgentName       string          `json:"agent_name"`
-	Provider        string          `json:"provider"`
-	Model           string          `json:"model,omitempty"`
-	ReasoningEffort ReasoningEffort `json:"reasoning_effort,omitempty"`
-	WorkspaceID     string          `json:"workspace_id,omitempty"`
-	WorkspacePath   string          `json:"workspace_path,omitempty"`
-	Channel         string          `json:"channel,omitempty"`
-	Type            session.Type    `json:"type,omitempty"`
-	State           session.State   `json:"state"`
-	Badge           session.Badge   `json:"badge"`
-	Attachable      bool            `json:"attachable"`
-	AttachedTo      string          `json:"attached_to,omitempty"`
-	AttachExpiresAt *time.Time      `json:"attach_expires_at,omitempty"`
-	TranscriptEpoch int64           `json:"transcript_epoch,omitempty"`
+	ID                           string              `json:"id"`
+	Name                         string              `json:"name,omitempty"`
+	AgentName                    string              `json:"agent_name"`
+	Provider                     string              `json:"provider"`
+	Model                        string              `json:"model,omitempty"`
+	ReasoningEffort              ReasoningEffort     `json:"reasoning_effort,omitempty"`
+	WorkspaceID                  string              `json:"workspace_id,omitempty"`
+	WorkspacePath                string              `json:"workspace_path,omitempty"`
+	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation,omitempty"`
+	Type                         session.Type        `json:"type,omitempty"`
+	State                        session.State       `json:"state"`
+	Badge                        session.Badge       `json:"badge"`
+	Attachable                   bool                `json:"attachable"`
+	AttachedTo                   string              `json:"attached_to,omitempty"`
+	AttachExpiresAt              *time.Time          `json:"attach_expires_at,omitempty"`
+	TranscriptEpoch              int64               `json:"transcript_epoch,omitempty"`
 	// StopReason is the session-level stop classification, distinct from AgentEventPayload.StopReason.
 	StopReason store.StopReason `json:"stop_reason,omitempty"`
 	// StopDetail is the session-level stop context paired with StopReason.
@@ -547,34 +548,31 @@ type HookEventPayload struct {
 
 // NetworkStatusPayload is the shared network diagnostics response payload.
 type NetworkStatusPayload struct {
-	Enabled                  bool                            `json:"enabled"`
-	Status                   string                          `json:"status"`
-	ConfiguredDefaultChannel string                          `json:"configured_default_channel,omitempty"`
-	EffectiveDefaultChannel  string                          `json:"effective_default_channel,omitempty"`
-	EffectiveDefaultSource   string                          `json:"effective_default_source,omitempty"`
-	ListenerHost             string                          `json:"listener_host,omitempty"`
-	ListenerPort             int                             `json:"listener_port,omitempty"`
-	LocalPeers               int                             `json:"local_peers,omitempty"`
-	RemotePeers              int                             `json:"remote_peers,omitempty"`
-	Channels                 int                             `json:"channels,omitempty"`
-	QueuedMessages           int                             `json:"queued_messages,omitempty"`
-	QueuedSessions           int                             `json:"queued_sessions,omitempty"`
-	DeliveryWorkers          int                             `json:"delivery_workers,omitempty"`
-	MessagesSent             int64                           `json:"messages_sent,omitempty"`
-	MessagesReceived         int64                           `json:"messages_received,omitempty"`
-	MessagesRejected         int64                           `json:"messages_rejected,omitempty"`
-	MessagesDelivered        int64                           `json:"messages_delivered,omitempty"`
-	WorkflowTaggedEvents     int64                           `json:"workflow_tagged_events,omitempty"`
-	HandoffTaggedEvents      int64                           `json:"handoff_tagged_events,omitempty"`
-	OpenThreads              int64                           `json:"open_threads,omitempty"`
-	OpenDirectRooms          int64                           `json:"open_direct_rooms,omitempty"`
-	OpenWorkItems            int64                           `json:"open_work_items,omitempty"`
-	ConversationMessages     int64                           `json:"conversation_messages,omitempty"`
-	WorkTransitions          int64                           `json:"work_transitions,omitempty"`
-	DirectResolves           int64                           `json:"direct_resolves,omitempty"`
-	LastDisconnect           string                          `json:"last_disconnect,omitempty"`
-	DeclaredChannels         []DeclaredNetworkChannelPayload `json:"declared_channels,omitempty"`
-	KindMetrics              []NetworkKindMetricPayload      `json:"kind_metrics,omitempty"`
+	Enabled              bool                            `json:"enabled"`
+	Status               string                          `json:"status"`
+	ListenerHost         string                          `json:"listener_host,omitempty"`
+	ListenerPort         int                             `json:"listener_port,omitempty"`
+	LocalPeers           int                             `json:"local_peers,omitempty"`
+	RemotePeers          int                             `json:"remote_peers,omitempty"`
+	Channels             int                             `json:"channels,omitempty"`
+	QueuedMessages       int                             `json:"queued_messages,omitempty"`
+	QueuedSessions       int                             `json:"queued_sessions,omitempty"`
+	DeliveryWorkers      int                             `json:"delivery_workers,omitempty"`
+	MessagesSent         int64                           `json:"messages_sent,omitempty"`
+	MessagesReceived     int64                           `json:"messages_received,omitempty"`
+	MessagesRejected     int64                           `json:"messages_rejected,omitempty"`
+	MessagesDelivered    int64                           `json:"messages_delivered,omitempty"`
+	WorkflowTaggedEvents int64                           `json:"workflow_tagged_events,omitempty"`
+	HandoffTaggedEvents  int64                           `json:"handoff_tagged_events,omitempty"`
+	OpenThreads          int64                           `json:"open_threads,omitempty"`
+	OpenDirectRooms      int64                           `json:"open_direct_rooms,omitempty"`
+	OpenWorkItems        int64                           `json:"open_work_items,omitempty"`
+	ConversationMessages int64                           `json:"conversation_messages,omitempty"`
+	WorkTransitions      int64                           `json:"work_transitions,omitempty"`
+	DirectResolves       int64                           `json:"direct_resolves,omitempty"`
+	LastDisconnect       string                          `json:"last_disconnect,omitempty"`
+	DeclaredChannels     []DeclaredNetworkChannelPayload `json:"declared_channels,omitempty"`
+	KindMetrics          []NetworkKindMetricPayload      `json:"kind_metrics,omitempty"`
 }
 
 // NetworkKindMetricPayload is the per-kind network runtime metric snapshot.
@@ -695,9 +693,9 @@ type TaskFanOutRunDesignationRequest struct {
 
 // FanOutTaskRunsRequest captures one designated fan-out enqueue request.
 type FanOutTaskRunsRequest struct {
-	NetworkChannel string                            `json:"network_channel,omitempty"`
-	Designations   []TaskFanOutRunDesignationRequest `json:"designations"`
-	IdempotencyKey string                            `json:"idempotency_key,omitempty"`
+	NetworkParticipation *participation.Request            `json:"network_participation,omitempty"`
+	Designations         []TaskFanOutRunDesignationRequest `json:"designations"`
+	IdempotencyKey       string                            `json:"idempotency_key,omitempty"`
 }
 
 // NetworkCapabilityBriefPayload is the shared brief discovery projection for

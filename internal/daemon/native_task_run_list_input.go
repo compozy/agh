@@ -7,16 +7,16 @@ import (
 )
 
 type taskRunListInput struct {
-	TaskID                string `json:"task_id"`
-	Status                string `json:"status,omitempty"`
-	SessionID             string `json:"session_id,omitempty"`
-	CoordinationChannelID string `json:"coordination_channel_id,omitempty"`
-	Limit                 int    `json:"limit,omitempty"`
+	TaskID               string `json:"task_id"`
+	Status               string `json:"status,omitempty"`
+	SessionID            string `json:"session_id,omitempty"`
+	ParticipationChannel string `json:"participation_channel,omitempty"`
+	Limit                int    `json:"limit,omitempty"`
 }
 
 func (i taskRunListInput) query() taskpkg.RunQuery {
 	limit := i.Limit
-	if strings.TrimSpace(i.CoordinationChannelID) != "" {
+	if strings.TrimSpace(i.ParticipationChannel) != "" {
 		limit = 0
 	}
 	return taskpkg.RunQuery{
@@ -28,7 +28,7 @@ func (i taskRunListInput) query() taskpkg.RunQuery {
 }
 
 func (i taskRunListInput) filterRuns(runs []taskpkg.Run) []taskpkg.Run {
-	channel := strings.TrimSpace(i.CoordinationChannelID)
+	channel := strings.TrimSpace(i.ParticipationChannel)
 	if channel != "" {
 		filtered := make([]taskpkg.Run, 0, len(runs))
 		for index := range runs {

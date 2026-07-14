@@ -10,18 +10,18 @@ import (
 
 func newTaskListCommand(deps commandDeps) *cobra.Command {
 	var (
-		scopeRaw     string
-		workspaceRef string
-		statusRaw    string
-		priorityRaw  string
-		ownerKindRaw string
-		ownerRef     string
-		parentTaskID string
-		networkRaw   string
-		queryRaw     string
-		sortRaw      string
-		cursor       string
-		limit        int
+		scopeRaw                string
+		workspaceRef            string
+		statusRaw               string
+		priorityRaw             string
+		ownerKindRaw            string
+		ownerRef                string
+		parentTaskID            string
+		participationChannelRaw string
+		queryRaw                string
+		sortRaw                 string
+		cursor                  string
+		limit                   int
 	)
 
 	cmd := &cobra.Command{
@@ -42,7 +42,7 @@ func newTaskListCommand(deps commandDeps) *cobra.Command {
 				ownerKindRaw,
 				ownerRef,
 				parentTaskID,
-				networkRaw,
+				participationChannelRaw,
 				queryRaw,
 				sortRaw,
 				cursor,
@@ -66,7 +66,12 @@ func newTaskListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&ownerKindRaw, "owner-kind", "", "Filter by owner kind")
 	cmd.Flags().StringVar(&ownerRef, "owner-ref", "", "Filter by owner reference")
 	cmd.Flags().StringVar(&parentTaskID, "parent", "", "Filter by parent task ID")
-	cmd.Flags().StringVar(&networkRaw, "channel", "", "Filter by network channel")
+	cmd.Flags().StringVar(
+		&participationChannelRaw,
+		"participation-channel",
+		"",
+		"Filter by resolved participation channel",
+	)
 	cmd.Flags().StringVar(&queryRaw, "query", "", "Search task title or identifier")
 	cmd.Flags().StringVar(&sortRaw, "sort", "recent", "Sort by recent or priority")
 	cmd.Flags().StringVar(&cursor, "cursor", "", "Continue from an opaque catalog cursor")
@@ -82,7 +87,7 @@ func parseTaskListFilters(
 	ownerKindRaw string,
 	ownerRef string,
 	parentTaskID string,
-	channelRaw string,
+	participationChannelRaw string,
 	queryRaw string,
 	sortRaw string,
 	cursor string,
@@ -117,7 +122,7 @@ func parseTaskListFilters(
 			"cli: --owner-kind and --owner-ref must be provided together",
 		)
 	}
-	if err := validateTaskChannelFlag(channelRaw); err != nil {
+	if err := validateTaskChannelFlag(participationChannelRaw); err != nil {
 		return TaskListQuery{}, err
 	}
 	if err := validateTaskLast(limit); err != nil {
@@ -136,18 +141,18 @@ func parseTaskListFilters(
 	}
 
 	return TaskListQuery{
-		Scope:          catalogScope,
-		Workspace:      workspace,
-		Status:         status,
-		Priority:       priority,
-		OwnerKind:      ownerKind,
-		OwnerRef:       trimmedOwnerRef,
-		ParentTaskID:   strings.TrimSpace(parentTaskID),
-		NetworkChannel: strings.TrimSpace(channelRaw),
-		Query:          strings.TrimSpace(queryRaw),
-		Sort:           sortKey,
-		Cursor:         strings.TrimSpace(cursor),
-		Limit:          limit,
+		Scope:                catalogScope,
+		Workspace:            workspace,
+		Status:               status,
+		Priority:             priority,
+		OwnerKind:            ownerKind,
+		OwnerRef:             trimmedOwnerRef,
+		ParentTaskID:         strings.TrimSpace(parentTaskID),
+		ParticipationChannel: strings.TrimSpace(participationChannelRaw),
+		Query:                strings.TrimSpace(queryRaw),
+		Sort:                 sortKey,
+		Cursor:               strings.TrimSpace(cursor),
+		Limit:                limit,
 	}, nil
 }
 
@@ -164,7 +169,7 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 			taskParentValue,
 			taskStatusValue,
 			taskOwnerValue,
-			taskChannelValue,
+			taskParticipationChannelValue,
 			taskTitleValue,
 		},
 		"tasks",
@@ -176,7 +181,7 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 			"parent_task_id",
 			taskStatusKey,
 			taskOwnerKey,
-			taskNetworkChannelKey,
+			taskParticipationChannelKey,
 			taskTitleKey,
 		},
 		func(item TaskCatalogItemRecord) []string {
@@ -188,7 +193,7 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 				stringOrDash(item.ParentTaskID),
 				stringOrDash(string(item.Status)),
 				stringOrDash(formatTaskOwnership(item.Owner)),
-				stringOrDash(item.NetworkChannel),
+				stringOrDash(resolvedParticipationChannel(item.ResolvedNetworkParticipation)),
 				stringOrDash(item.Title),
 			}
 		},
@@ -201,7 +206,7 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 				item.ParentTaskID,
 				string(item.Status),
 				formatTaskOwnership(item.Owner),
-				item.NetworkChannel,
+				resolvedParticipationChannelRaw(item.ResolvedNetworkParticipation),
 				item.Title,
 			}
 		},

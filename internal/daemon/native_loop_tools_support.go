@@ -9,6 +9,7 @@ import (
 	core "github.com/compozy/agh/internal/api/core"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 	toolspkg "github.com/compozy/agh/internal/tools"
 )
@@ -176,12 +177,13 @@ type nativeLoopCreateInput struct {
 }
 
 type nativeLoopRunInput struct {
-	WorkspaceID     string              `json:"workspace_id,omitempty"`
-	Name            string              `json:"name"`
-	Inputs          map[string]any      `json:"inputs,omitempty"`
-	ParentLoopRunID string              `json:"parent_loop_run_id,omitempty"`
-	ConfigOverrides *looppkg.LoopConfig `json:"config_overrides,omitempty"`
-	Dry             bool                `json:"dry,omitempty"`
+	WorkspaceID          string                 `json:"workspace_id,omitempty"`
+	Name                 string                 `json:"name"`
+	Inputs               map[string]any         `json:"inputs,omitempty"`
+	ParentLoopRunID      string                 `json:"parent_loop_run_id,omitempty"`
+	ConfigOverrides      *looppkg.LoopConfig    `json:"config_overrides,omitempty"`
+	NetworkParticipation *participation.Request `json:"network_participation,omitempty"`
+	Dry                  bool                   `json:"dry,omitempty"`
 }
 
 type nativeLoopRunsInput struct {

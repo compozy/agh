@@ -321,7 +321,7 @@ func TestPromptOverlayUsesParticipationSpecificPublicAPIs(t *testing.T) {
 				t.Fatalf("PromptOverlay missing %q:\n%s", required, overlay)
 			}
 		}
-		for _, forbidden := range []string{"agh ch", "coordination_channel_id", "Channel communication"} {
+		for _, forbidden := range []string{"agh ch", "participation_channel", "coordination_channel_id", "Channel communication"} {
 			if strings.Contains(overlay, forbidden) {
 				t.Fatalf("PromptOverlay contains local-only forbidden guidance %q:\n%s", forbidden, overlay)
 			}
@@ -339,7 +339,7 @@ func TestPromptOverlayUsesParticipationSpecificPublicAPIs(t *testing.T) {
 				ChannelID: "ch-run-1", Source: participation.SourceExplicitRequest,
 			},
 		})
-		for _, required := range []string{"agh ch list|recv|send|reply", "coordination_channel_id: ch-run-1", "Channel communication"} {
+		for _, required := range []string{"agh ch list|recv|send|reply", "participation_channel: ch-run-1", "Channel communication"} {
 			if !strings.Contains(overlay, required) {
 				t.Fatalf("PromptOverlay missing %q:\n%s", required, overlay)
 			}

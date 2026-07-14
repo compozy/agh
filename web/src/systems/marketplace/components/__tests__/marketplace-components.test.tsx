@@ -900,7 +900,7 @@ describe("Bundle activation preview", () => {
     expect(mocks.preview).toHaveBeenCalledTimes(previewCalls + 1);
   });
 
-  it("Should submit the selected global scope and channel binding", async () => {
+  it("Should submit the selected global scope and Live network confirmation", async () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();
     render(
@@ -913,13 +913,13 @@ describe("Bundle activation preview", () => {
     );
 
     await user.click(screen.getByRole("radio", { name: /Global/ }));
-    await user.click(screen.getByRole("switch", { name: /^Bind primary channel as default/ }));
+    await user.click(screen.getByRole("switch", { name: "Confirm Live network participation" }));
     await user.click(screen.getByTestId("bundle-activate-confirm"));
 
     await waitFor(() =>
       expect(mocks.activate).toHaveBeenCalledWith(
         expect.objectContaining({
-          bind_primary_channel_as_default: true,
+          confirm_network_requirement: true,
           scope: "global",
         })
       )

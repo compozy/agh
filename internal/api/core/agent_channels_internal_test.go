@@ -113,7 +113,7 @@ func TestAgentChannelCoreHandlersUseIdentityAndCoordinationMetadata(t *testing.T
 			http.MethodPost,
 			"/agent/channels/builders/send",
 			[]byte(
-				`{"body":{"text":"status"},"metadata":{"task_id":"task-1","run_id":"run-1","workflow_id":"wf-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
+				`{"body":{"text":"status"},"metadata":{"task_id":"task-1","run_id":"run-1","workflow_id":"wf-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
 			),
 			agentCoreHeaders(),
 		)
@@ -180,7 +180,7 @@ func TestAgentChannelCoreHandlersUseIdentityAndCoordinationMetadata(t *testing.T
 			http.MethodPost,
 			"/agent/channels/reply",
 			[]byte(
-				`{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"","run_id":"","coordination_channel_id":"","message_kind":"","correlation_id":""}}`,
+				`{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"","run_id":"","channel_id":"","message_kind":"","correlation_id":""}}`,
 			),
 			agentCoreHeaders(),
 		)
@@ -220,7 +220,7 @@ func TestAgentChannelCoreHandlersUseIdentityAndCoordinationMetadata(t *testing.T
 			http.MethodPost,
 			"/agent/channels/reply",
 			[]byte(
-				`{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
+				`{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
 			),
 			agentCoreHeaders(),
 		)
@@ -288,7 +288,7 @@ func TestAgentChannelCoreHandlersUsePersistedReplySourceMetadata(t *testing.T) {
 			http.MethodPost,
 			"/agent/channels/reply",
 			[]byte(
-				`{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"","run_id":"","coordination_channel_id":"","message_kind":"","correlation_id":""}}`,
+				`{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"","run_id":"","channel_id":"","message_kind":"","correlation_id":""}}`,
 			),
 			agentCoreHeaders(),
 		)
@@ -310,7 +310,7 @@ func TestAgentChannelCoreHandlersUsePersistedReplySourceMetadata(t *testing.T) {
 		); metadata.MessageKind != contract.CoordinationMessageReply ||
 			metadata.TaskID != "task-1" ||
 			metadata.RunID != "run-1" ||
-			metadata.CoordinationChannelID != "builders" {
+			metadata.ChannelID != "builders" {
 			t.Fatalf("reply metadata = %#v, want inherited persisted metadata", metadata)
 		}
 	})
@@ -351,7 +351,7 @@ func TestAgentChannelCoreHandlersUsePersistedReplySourceMetadata(t *testing.T) {
 			http.MethodPost,
 			"/agent/channels/reply",
 			[]byte(
-				`{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"","run_id":"","coordination_channel_id":"","message_kind":"","correlation_id":""}}`,
+				`{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"","run_id":"","channel_id":"","message_kind":"","correlation_id":""}}`,
 			),
 			agentCoreHeaders(),
 		)
@@ -459,7 +459,7 @@ func TestAgentChannelCoreHandlersRejectInvalidIdentityAndClaimToken(t *testing.T
 			http.MethodPost,
 			"/agent/channels/builders/send",
 			[]byte(
-				`{"body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
+				`{"body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
 			),
 			map[string]string{},
 		)
@@ -473,7 +473,7 @@ func TestAgentChannelCoreHandlersRejectInvalidIdentityAndClaimToken(t *testing.T
 			http.MethodPost,
 			"/agent/channels/builders/send",
 			[]byte(
-				`{"body":{"claim_token":"secret"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
+				`{"body":{"claim_token":"secret"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`,
 			),
 			agentCoreHeaders(),
 		)
@@ -872,7 +872,6 @@ func agentCoreSessionManager(t *testing.T) sessionManagerStub {
 func agentCoreContextPayload(_ context.Context, info *session.Info) (contract.AgentContextPayload, error) {
 	channel := contract.CoordinationChannelPayload{
 		ID:          "builders",
-		Channel:     "builders",
 		DisplayName: "builders",
 		WorkspaceID: info.WorkspaceID,
 	}
@@ -884,22 +883,21 @@ func agentCoreContextPayload(_ context.Context, info *session.Info) (contract.Ag
 		},
 		Workspace: contract.AgentWorkspacePayload{ID: info.WorkspaceID, RootDir: info.Workspace},
 		Session: contract.AgentSessionPayload{
-			ID:        info.ID,
-			State:     info.State,
-			Channel:   info.NetworkParticipation.ChannelID,
-			Lineage:   contract.SessionLineagePayloadFromStore(info.Lineage),
-			CreatedAt: info.CreatedAt,
-			UpdatedAt: info.UpdatedAt,
+			ID:                           info.ID,
+			State:                        info.State,
+			ResolvedNetworkParticipation: participation.CloneSpec(info.NetworkParticipation),
+			Lineage:                      contract.SessionLineagePayloadFromStore(info.Lineage),
+			CreatedAt:                    info.CreatedAt,
+			UpdatedAt:                    info.UpdatedAt,
 		},
 		Task: contract.AgentTaskContextPayload{
 			Available: true,
 			Lease: &contract.TaskRunLeaseSummaryPayload{
-				TaskID:                "task-1",
-				RunID:                 "run-1",
-				Status:                taskpkg.TaskRunStatusRunning,
-				SessionID:             info.ID,
-				CoordinationChannelID: "builders",
-				CoordinationChannel:   &channel,
+				TaskID:              "task-1",
+				RunID:               "run-1",
+				Status:              taskpkg.TaskRunStatusRunning,
+				SessionID:           info.ID,
+				CoordinationChannel: &channel,
 			},
 		},
 		CoordinationChannel: contract.AgentCoordinationChannelContextPayload{
@@ -984,12 +982,12 @@ func agentCoreCoordinationMetadata(t *testing.T, kind contract.CoordinationMessa
 	t.Helper()
 
 	content, err := json.Marshal(contract.CoordinationMessageMetadataPayload{
-		TaskID:                "task-1",
-		RunID:                 "run-1",
-		WorkflowID:            "wf-1",
-		CoordinationChannelID: "builders",
-		MessageKind:           kind,
-		CorrelationID:         "run-1",
+		TaskID:        "task-1",
+		RunID:         "run-1",
+		WorkflowID:    "wf-1",
+		ChannelID:     "builders",
+		MessageKind:   kind,
+		CorrelationID: "run-1",
 	})
 	if err != nil {
 		t.Fatalf("json.Marshal(coordination metadata) error = %v", err)

@@ -76,9 +76,9 @@ func (g *TaskRunRepo) selectClaimableRunID(
 		where = append(where, "t.scope = ?")
 		args = append(args, string(taskpkg.ScopeGlobal))
 	}
-	if strings.TrimSpace(criteria.CoordinationChannelID) != "" {
+	if strings.TrimSpace(criteria.ParticipationChannel) != "" {
 		where = append(where, "tr.network_channel = ?")
-		args = append(args, criteria.CoordinationChannelID)
+		args = append(args, criteria.ParticipationChannel)
 	}
 	where, args = appendProfileClaimFilters(where, args, criteria)
 	if exactRunID != "" {
@@ -127,6 +127,7 @@ func baseClaimPredicates(criteria taskpkg.ClaimCriteria) ([]string, []any) {
 			SELECT 1 FROM ancestors WHERE COALESCE(paused, 0) = 1
 		)`,
 		"t.status NOT IN (?, ?, ?, ?)",
+		unresolvedTaskDependencyClaimPredicate,
 		`NOT EXISTS (
 			SELECT 1
 			  FROM task_blocks b
@@ -147,9 +148,9 @@ func baseClaimPredicates(criteria taskpkg.ClaimCriteria) ([]string, []any) {
 		string(taskpkg.TaskStatusBlocked),
 		string(taskpkg.TaskStatusNeedsAttention),
 		string(taskpkg.TaskStatusCanceled),
-		store.FormatTimestamp(criteria.Now),
-		criteria.PriorityMin,
 	}
+	args = append(args, unresolvedTaskDependencyClaimArgs()...)
+	args = append(args, store.FormatTimestamp(criteria.Now), criteria.PriorityMin)
 	args = append(args, missingCapabilityArgs(criteria.RequiredCapabilities)...)
 	return where, args
 }

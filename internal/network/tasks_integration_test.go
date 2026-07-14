@@ -90,13 +90,13 @@ func TestNetworkTaskIngressCreateAndEnqueueRun(t *testing.T) {
 		t.Fatalf("json.Unmarshal(storedRun.Metadata) error = %v", err)
 	}
 	for key, want := range map[string]string{
-		"client":             "kept",
-		"network_work_id":    "work_task_ingress",
-		"network_message_id": "req-enqueue-1",
-		"network_channel":    "ops",
-		"network_surface":    string(SurfaceThread),
-		"network_thread_id":  "thread_task_ingress",
-		"network_trace_id":   "trace-task-ingress",
+		"client":                "kept",
+		"network_work_id":       "work_task_ingress",
+		"network_message_id":    "req-enqueue-1",
+		"participation_channel": "ops",
+		"network_surface":       string(SurfaceThread),
+		"network_thread_id":     "thread_task_ingress",
+		"network_trace_id":      "trace-task-ingress",
 	} {
 		if got := metadata[key]; got != want {
 			t.Fatalf("storedRun.Metadata[%q] = %q, want %q in %s", key, got, want, storedRun.Metadata)

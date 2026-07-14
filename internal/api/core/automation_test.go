@@ -223,6 +223,34 @@ func TestAutomationJobWriteHandlersIgnoreNextRunLookupFailures(t *testing.T) {
 		Source:    automationpkg.JobSourceDynamic,
 	}
 
+	t.Run("Should reject removed participation fields before creating a job", func(t *testing.T) {
+		t.Parallel()
+
+		router := newAutomationCoreTestRouter(t, stubAutomationManager{
+			CreateJobFn: func(context.Context, automationpkg.Job) (automationpkg.Job, error) {
+				t.Fatal("CreateJob() should not run for a removed participation field")
+				return automationpkg.Job{}, nil
+			},
+		})
+		response := performAutomationCoreRequest(
+			t,
+			router,
+			http.MethodPost,
+			"/automation/jobs",
+			[]byte(
+				`{"scope":"global","name":"nightly-review","agent_name":"coder","prompt":"review repo","schedule":{"mode":"every","interval":"1h"},"task":{"title":"Review","network_channel":"builders"}}`,
+			),
+			nil,
+		)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusBadRequest, response.Body.String())
+		}
+		body := response.Body.String()
+		if !strings.Contains(body, "unknown_field") || !strings.Contains(body, "network_channel") {
+			t.Fatalf("body = %q, want unknown_field with removed field named", body)
+		}
+	})
+
 	t.Run("Should create a job even when next-run enrichment fails", func(t *testing.T) {
 		t.Parallel()
 

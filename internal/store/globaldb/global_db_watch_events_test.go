@@ -1950,15 +1950,20 @@ func appendCoordinatorWatchSummaryForTest(
 ) {
 	t.Helper()
 	content, err := json.Marshal(map[string]any{
-		watchEventsPayloadAgentNameKey:             "coordinator-agent",
-		watchEventsPayloadCoordinatorSessionIDKey:  coordinatorSessionID,
-		watchEventsPayloadCoordinationChannelIDKey: "default",
-		watchEventsPayloadWorkflowIDKey:            "wf-watch",
-		watchEventsPayloadProviderKey:              "mock",
-		watchEventsPayloadModelKey:                 "mock-model",
-		watchEventsPayloadDecisionKindKey:          "stop",
-		watchEventsPayloadDecisionKey:              "stop after verification",
-		watchEventsPayloadStopReasonKey:            "completed",
+		watchEventsPayloadAgentNameKey:            "coordinator-agent",
+		watchEventsPayloadCoordinatorSessionIDKey: coordinatorSessionID,
+		"resolved_network_participation": map[string]any{
+			"version":    "network-participation/v1",
+			"mode":       "live",
+			"channel_id": "default",
+			"source":     "explicit_request",
+		},
+		watchEventsPayloadWorkflowIDKey:   "wf-watch",
+		watchEventsPayloadProviderKey:     "mock",
+		watchEventsPayloadModelKey:        "mock-model",
+		watchEventsPayloadDecisionKindKey: "stop",
+		watchEventsPayloadDecisionKey:     "stop after verification",
+		watchEventsPayloadStopReasonKey:   "completed",
 	})
 	if err != nil {
 		t.Fatalf("Marshal(coordinator watch content) error = %v", err)

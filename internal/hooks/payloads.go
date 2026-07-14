@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 var (
@@ -818,16 +820,16 @@ type AutonomyObservationPatch struct {
 
 // CoordinatorContext carries the coordinator identifiers shared across coordinator hooks.
 type CoordinatorContext struct {
-	WorkspaceID           string `json:"workspace_id,omitempty"`
-	Workspace             string `json:"workspace,omitempty"`
-	AgentName             string `json:"agent_name,omitempty"`
-	CoordinatorSessionID  string `json:"coordinator_session_id,omitempty"`
-	TaskID                string `json:"task_id,omitempty"`
-	RunID                 string `json:"run_id,omitempty"`
-	WorkflowID            string `json:"workflow_id,omitempty"`
-	CoordinationChannelID string `json:"coordination_channel_id,omitempty"`
-	Provider              string `json:"provider,omitempty"`
-	Model                 string `json:"model,omitempty"`
+	WorkspaceID                  string              `json:"workspace_id,omitempty"`
+	Workspace                    string              `json:"workspace,omitempty"`
+	AgentName                    string              `json:"agent_name,omitempty"`
+	CoordinatorSessionID         string              `json:"coordinator_session_id,omitempty"`
+	TaskID                       string              `json:"task_id,omitempty"`
+	RunID                        string              `json:"run_id,omitempty"`
+	WorkflowID                   string              `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation,omitempty"`
+	Provider                     string              `json:"provider,omitempty"`
+	Model                        string              `json:"model,omitempty"`
 }
 
 // CoordinatorPreSpawnPayload is delivered before the daemon creates a coordinator session.
@@ -874,21 +876,20 @@ type CoordinatorObservationPatch = AutonomyObservationPatch
 
 // TaskContext carries task-level identifiers shared across task lifecycle hooks.
 type TaskContext struct {
-	TaskID                string `json:"task_id,omitempty"`
-	ParentTaskID          string `json:"parent_task_id,omitempty"`
-	WorkspaceID           string `json:"workspace_id,omitempty"`
-	WorkflowID            string `json:"workflow_id,omitempty"`
-	CoordinationChannelID string `json:"coordination_channel_id,omitempty"`
-	NetworkChannel        string `json:"network_channel,omitempty"`
-	AgentName             string `json:"agent_name,omitempty"`
-	ActorKind             string `json:"actor_kind,omitempty"`
-	ActorID               string `json:"actor_id,omitempty"`
-	OriginKind            string `json:"origin_kind,omitempty"`
-	OriginRef             string `json:"origin_ref,omitempty"`
-	TaskStatus            string `json:"task_status,omitempty"`
-	RunID                 string `json:"run_id,omitempty"`
-	ReleaseReason         string `json:"release_reason,omitempty"`
-	ClaimTokenHash        string `json:"claim_token_hash,omitempty"`
+	TaskID                       string              `json:"task_id,omitempty"`
+	ParentTaskID                 string              `json:"parent_task_id,omitempty"`
+	WorkspaceID                  string              `json:"workspace_id,omitempty"`
+	WorkflowID                   string              `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation,omitempty"`
+	AgentName                    string              `json:"agent_name,omitempty"`
+	ActorKind                    string              `json:"actor_kind,omitempty"`
+	ActorID                      string              `json:"actor_id,omitempty"`
+	OriginKind                   string              `json:"origin_kind,omitempty"`
+	OriginRef                    string              `json:"origin_ref,omitempty"`
+	TaskStatus                   string              `json:"task_status,omitempty"`
+	RunID                        string              `json:"run_id,omitempty"`
+	ReleaseReason                string              `json:"release_reason,omitempty"`
+	ClaimTokenHash               string              `json:"claim_token_hash,omitempty"`
 }
 
 // TaskStatusChangedPayload is delivered after a task status transition is committed.
@@ -937,24 +938,23 @@ type TaskObservationPatch = AutonomyObservationPatch
 
 // LoopContext carries identifiers shared by loop lifecycle hooks.
 type LoopContext struct {
-	LoopRunID             string `json:"loop_run_id,omitempty"`
-	ParentLoopRunID       string `json:"parent_loop_run_id,omitempty"`
-	WorkspaceID           string `json:"workspace_id,omitempty"`
-	LoopName              string `json:"loop_name,omitempty"`
-	Generation            int    `json:"generation,omitempty"`
-	TaskID                string `json:"task_id,omitempty"`
-	RunID                 string `json:"run_id,omitempty"`
-	RunKind               string `json:"run_kind,omitempty"`
-	NodeID                string `json:"node_id,omitempty"`
-	WorkflowID            string `json:"workflow_id,omitempty"`
-	CoordinationChannelID string `json:"coordination_channel_id,omitempty"`
-	NetworkChannel        string `json:"network_channel,omitempty"`
-	AgentName             string `json:"agent_name,omitempty"`
-	SessionID             string `json:"session_id,omitempty"`
-	ActorKind             string `json:"actor_kind,omitempty"`
-	ActorID               string `json:"actor_id,omitempty"`
-	OriginKind            string `json:"origin_kind,omitempty"`
-	OriginRef             string `json:"origin_ref,omitempty"`
+	LoopRunID                    string              `json:"loop_run_id,omitempty"`
+	ParentLoopRunID              string              `json:"parent_loop_run_id,omitempty"`
+	WorkspaceID                  string              `json:"workspace_id,omitempty"`
+	LoopName                     string              `json:"loop_name,omitempty"`
+	Generation                   int                 `json:"generation,omitempty"`
+	TaskID                       string              `json:"task_id,omitempty"`
+	RunID                        string              `json:"run_id,omitempty"`
+	RunKind                      string              `json:"run_kind,omitempty"`
+	NodeID                       string              `json:"node_id,omitempty"`
+	WorkflowID                   string              `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation,omitempty"`
+	AgentName                    string              `json:"agent_name,omitempty"`
+	SessionID                    string              `json:"session_id,omitempty"`
+	ActorKind                    string              `json:"actor_kind,omitempty"`
+	ActorID                      string              `json:"actor_id,omitempty"`
+	OriginKind                   string              `json:"origin_kind,omitempty"`
+	OriginRef                    string              `json:"origin_ref,omitempty"`
 }
 
 // LoopLifecyclePayload is shared by loop started and terminal events.
@@ -1045,23 +1045,23 @@ type PermissionSet struct {
 
 // SpawnContext carries spawn identifiers shared across spawn lifecycle hooks.
 type SpawnContext struct {
-	ParentSessionID       string `json:"parent_session_id,omitempty"`
-	RootSessionID         string `json:"root_session_id,omitempty"`
-	ChildSessionID        string `json:"child_session_id,omitempty"`
-	WorkspaceID           string `json:"workspace_id,omitempty"`
-	Workspace             string `json:"workspace,omitempty"`
-	AgentName             string `json:"agent_name,omitempty"`
-	SpawnRole             string `json:"spawn_role,omitempty"`
-	SpawnDepth            int    `json:"spawn_depth,omitempty"`
-	TTLSeconds            int64  `json:"ttl_seconds,omitempty"`
-	AutoStopOnParent      bool   `json:"auto_stop_on_parent,omitempty"`
-	TaskID                string `json:"task_id,omitempty"`
-	RunID                 string `json:"run_id,omitempty"`
-	WorkflowID            string `json:"workflow_id,omitempty"`
-	CoordinationChannelID string `json:"coordination_channel_id,omitempty"`
-	SoulSnapshotID        string `json:"soul_snapshot_id,omitempty"`
-	SoulDigest            string `json:"soul_digest,omitempty"`
-	ParentSoulDigest      string `json:"parent_soul_digest,omitempty"`
+	ParentSessionID              string              `json:"parent_session_id,omitempty"`
+	RootSessionID                string              `json:"root_session_id,omitempty"`
+	ChildSessionID               string              `json:"child_session_id,omitempty"`
+	WorkspaceID                  string              `json:"workspace_id,omitempty"`
+	Workspace                    string              `json:"workspace,omitempty"`
+	AgentName                    string              `json:"agent_name,omitempty"`
+	SpawnRole                    string              `json:"spawn_role,omitempty"`
+	SpawnDepth                   int                 `json:"spawn_depth,omitempty"`
+	TTLSeconds                   int64               `json:"ttl_seconds,omitempty"`
+	AutoStopOnParent             bool                `json:"auto_stop_on_parent,omitempty"`
+	TaskID                       string              `json:"task_id,omitempty"`
+	RunID                        string              `json:"run_id,omitempty"`
+	WorkflowID                   string              `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation,omitempty"`
+	SoulSnapshotID               string              `json:"soul_snapshot_id,omitempty"`
+	SoulDigest                   string              `json:"soul_digest,omitempty"`
+	ParentSoulDigest             string              `json:"parent_soul_digest,omitempty"`
 }
 
 // SpawnPreCreatePayload is delivered before a child session is created.

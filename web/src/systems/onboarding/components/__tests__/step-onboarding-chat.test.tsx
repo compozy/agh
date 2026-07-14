@@ -5,6 +5,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { OnboardingChatApi } from "../../hooks/use-onboarding-chat";
 import { StepOnboardingChat } from "../step-onboarding-chat";
 
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({
+    children,
+    to,
+    ...rest
+  }: {
+    children: ReactNode;
+    to: string;
+    [key: string]: unknown;
+  }) => (
+    <a href={to} {...(rest as Record<string, unknown>)}>
+      {children}
+    </a>
+  ),
+}));
+
 const mocks = vi.hoisted(() => ({
   append: vi.fn(),
   cancelSessionPrompt: vi.fn(),

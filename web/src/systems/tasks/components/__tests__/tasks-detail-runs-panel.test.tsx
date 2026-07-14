@@ -77,7 +77,12 @@ describe("TasksDetailRunsPanel", () => {
       <TasksDetailRunsPanel
         runs={[
           buildRun({
-            coordination_channel_id: "coord-task-001",
+            resolved_network_participation: {
+              version: "network-participation/v1",
+              mode: "live",
+              source: "explicit",
+              channel_id: "coord-task-001",
+            },
             coordination_channel: {
               id: "coord-task-001",
               display_name: "TASK-1 coordination",

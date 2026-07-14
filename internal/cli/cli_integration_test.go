@@ -225,7 +225,11 @@ func TestCLISessionChannelRoundTripIntegration(t *testing.T) {
 		"coder",
 		"--name",
 		"demo",
-		"--channel",
+		"--network",
+		"live",
+		"--network-channel-strategy",
+		"named",
+		"--network-channel",
 		"builders",
 		"--cwd",
 		h.workspace,
@@ -239,8 +243,12 @@ func TestCLISessionChannelRoundTripIntegration(t *testing.T) {
 	if err := json.Unmarshal([]byte(newOut), &created); err != nil {
 		t.Fatalf("json.Unmarshal(session new --channel) error = %v", err)
 	}
-	if created.Channel != "builders" {
-		t.Fatalf("created.Channel = %q, want %q", created.Channel, "builders")
+	if resolvedParticipationChannelID(created.ResolvedNetworkParticipation) != "builders" {
+		t.Fatalf(
+			"created.ResolvedNetworkParticipation = %#v, want channel %q",
+			created.ResolvedNetworkParticipation,
+			"builders",
+		)
 	}
 
 	listOut, _, err := executeRootCommand(t, h.deps, "session", "list", "--all", "-o", "json")
@@ -254,8 +262,12 @@ func TestCLISessionChannelRoundTripIntegration(t *testing.T) {
 	if got, want := len(listed.Sessions), 1; got != want {
 		t.Fatalf("len(listed) = %d, want %d", got, want)
 	}
-	if listed.Sessions[0].Channel != "builders" {
-		t.Fatalf("listed[0].Channel = %q, want %q", listed.Sessions[0].Channel, "builders")
+	if resolvedParticipationChannelID(listed.Sessions[0].ResolvedNetworkParticipation) != "builders" {
+		t.Fatalf(
+			"listed[0].ResolvedNetworkParticipation = %#v, want channel %q",
+			listed.Sessions[0].ResolvedNetworkParticipation,
+			"builders",
+		)
 	}
 
 	stopOut, _, err := executeRootCommand(t, h.deps, "session", "stop", created.ID, "-o", "json")
@@ -266,7 +278,8 @@ func TestCLISessionChannelRoundTripIntegration(t *testing.T) {
 	if err := json.Unmarshal([]byte(stopOut), &stopped); err != nil {
 		t.Fatalf("json.Unmarshal(session stop) error = %v", err)
 	}
-	if stopped.Channel != "builders" || stopped.State != session.StateStopped {
+	if resolvedParticipationChannelID(stopped.ResolvedNetworkParticipation) != "builders" ||
+		stopped.State != session.StateStopped {
 		t.Fatalf("stopped = %#v, want stopped builders session", stopped)
 	}
 
@@ -668,7 +681,11 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 		"coder",
 		"--name",
 		"net-demo",
-		"--channel",
+		"--network",
+		"live",
+		"--network-channel-strategy",
+		"named",
+		"--network-channel",
 		"builders",
 		"--cwd",
 		h.workspace,
@@ -691,7 +708,11 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 		"coder",
 		"--name",
 		"net-sender",
-		"--channel",
+		"--network",
+		"live",
+		"--network-channel-strategy",
+		"named",
+		"--network-channel",
 		"builders",
 		"--cwd",
 		h.workspace,
@@ -979,7 +1000,11 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 			"coder",
 			"--name",
 			name,
-			"--channel",
+			"--network",
+			"live",
+			"--network-channel-strategy",
+			"named",
+			"--network-channel",
 			"builders",
 			"--cwd",
 			h.workspace,
@@ -998,7 +1023,6 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 
 	sender := newSession("sender")
 	receiver := newSession("receiver")
-	senderPeerID := "coder." + sender.ID
 	receiverPeerID := "coder." + receiver.ID
 	directID, _, _, err := store.NetworkDirectRoomIdentity(sender.WorkspaceID, "builders", sender.ID, receiver.ID)
 	if err != nil {
@@ -1968,7 +1992,9 @@ func TestCLITaskCreateListGetIntegration(t *testing.T) {
 		"task", "create",
 		"--scope", "workspace",
 		"--workspace", "alpha",
-		"--channel", "builders",
+		"--network", "live",
+		"--network-channel-strategy", "named",
+		"--network-channel", "builders",
 		"--title", "Investigate flaky task runs",
 		"--description", "Capture root cause",
 		"--priority", "high",
@@ -1988,7 +2014,7 @@ func TestCLITaskCreateListGetIntegration(t *testing.T) {
 	if created.ID == "" ||
 		created.Scope != taskpkg.ScopeWorkspace ||
 		created.WorkspaceID == "" ||
-		created.NetworkChannel != "builders" ||
+		resolvedParticipationChannelID(created.ResolvedNetworkParticipation) != "builders" ||
 		created.Priority != taskpkg.PriorityHigh {
 		t.Fatalf("created task = %#v, want workspace task with id/channel", created)
 	}
@@ -2070,7 +2096,11 @@ func TestCLITaskRunLifecycleIntegration(t *testing.T) {
 		created.ID,
 		"--idempotency-key",
 		"idem-1",
-		"--channel",
+		"--network",
+		"live",
+		"--network-channel-strategy",
+		"named",
+		"--network-channel",
 		"builders",
 		"--metadata",
 		`{"schema":"agh.harness.detached.v1"}`,
@@ -2198,7 +2228,11 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 		"history-run-start-seed",
 		"--workspace",
 		"alpha",
-		"--channel",
+		"--network",
+		"live",
+		"--network-channel-strategy",
+		"named",
+		"--network-channel",
 		channel,
 		"-o",
 		"json",
@@ -2207,7 +2241,8 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 	if err := json.Unmarshal([]byte(seedOut), &seed); err != nil {
 		t.Fatalf("json.Unmarshal(session new) error = %v", err)
 	}
-	if seed.ID == "" || seed.State != session.StateActive || seed.Channel != channel {
+	if seed.ID == "" || seed.State != session.StateActive ||
+		resolvedParticipationChannelID(seed.ResolvedNetworkParticipation) != channel {
 		t.Fatalf("seed = %#v, want active seed session on %q", seed, channel)
 	}
 
@@ -2216,7 +2251,8 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 	if err := json.Unmarshal([]byte(stopSeedOut), &stoppedSeed); err != nil {
 		t.Fatalf("json.Unmarshal(session stop) error = %v", err)
 	}
-	if stoppedSeed.State != session.StateStopped || stoppedSeed.Channel != channel {
+	if stoppedSeed.State != session.StateStopped ||
+		resolvedParticipationChannelID(stoppedSeed.ResolvedNetworkParticipation) != channel {
 		t.Fatalf("stoppedSeed = %#v, want stopped seed session on %q", stoppedSeed, channel)
 	}
 
@@ -2259,7 +2295,11 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 		"workspace",
 		"--workspace",
 		"alpha",
-		"--channel",
+		"--network",
+		"live",
+		"--network-channel-strategy",
+		"named",
+		"--network-channel",
 		channel,
 		"--title",
 		"CLI historical run start restart",
@@ -2270,7 +2310,7 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
 		t.Fatalf("json.Unmarshal(task create) error = %v", err)
 	}
-	if created.ID == "" || created.NetworkChannel != channel {
+	if created.ID == "" || resolvedParticipationChannelID(created.ResolvedNetworkParticipation) != channel {
 		t.Fatalf("created = %#v, want historical task on %q", created, channel)
 	}
 
@@ -2283,7 +2323,11 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 		created.ID,
 		"--idempotency-key",
 		"idem-history-run-start",
-		"--channel",
+		"--network",
+		"live",
+		"--network-channel-strategy",
+		"named",
+		"--network-channel",
 		channel,
 		"-o",
 		"json",
@@ -2293,8 +2337,7 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 		t.Fatalf("json.Unmarshal(task run enqueue) error = %v", err)
 	}
 	if enqueued.Status != taskpkg.TaskRunStatusQueued ||
-		enqueued.NetworkChannel != channel ||
-		enqueued.CoordinationChannelID != channel {
+		resolvedParticipationChannelID(enqueued.ResolvedNetworkParticipation) != channel {
 		t.Fatalf("enqueued = %#v, want queued historical run", enqueued)
 	}
 
@@ -2321,8 +2364,7 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 		}
 		if !next.Claimed || next.Claim == nil || next.Claim.Run.ID != enqueued.ID ||
 			next.Claim.Run.Status != taskpkg.TaskRunStatusClaimed ||
-			next.Claim.Run.NetworkChannel != channel ||
-			next.Claim.Run.CoordinationChannelID != channel {
+			resolvedParticipationChannelID(next.Claim.Run.ResolvedNetworkParticipation) != channel {
 			t.Fatalf("task next = %#v, want exact claimed historical run", next)
 		}
 
@@ -2333,8 +2375,7 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 		}
 		if started.Status != taskpkg.TaskRunStatusRunning ||
 			started.SessionID == "" ||
-			started.NetworkChannel != channel ||
-			started.CoordinationChannelID != channel {
+			resolvedParticipationChannelID(started.ResolvedNetworkParticipation) != channel {
 			t.Fatalf("started = %#v, want running historical run with session", started)
 		}
 
@@ -2350,8 +2391,7 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 			t.Fatalf("len(detail.Runs) = %d, want %d", got, want)
 		}
 		if detail.Runs[0].SessionID != started.SessionID ||
-			detail.Runs[0].NetworkChannel != channel ||
-			detail.Runs[0].CoordinationChannelID != channel {
+			resolvedParticipationChannelID(detail.Runs[0].ResolvedNetworkParticipation) != channel {
 			t.Fatalf("detail.Runs[0] = %#v, want running historical run persisted", detail.Runs[0])
 		}
 
@@ -2373,8 +2413,7 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 		}
 		if completed.Status != taskpkg.TaskRunStatusCompleted ||
 			completed.SessionID != started.SessionID ||
-			completed.NetworkChannel != channel ||
-			completed.CoordinationChannelID != channel {
+			resolvedParticipationChannelID(completed.ResolvedNetworkParticipation) != channel {
 			t.Fatalf("completed = %#v, want completed historical run", completed)
 		}
 
@@ -2386,15 +2425,15 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 		if err := json.Unmarshal([]byte(getOut), &detail); err != nil {
 			t.Fatalf("json.Unmarshal(task get after complete) error = %v", err)
 		}
-		if detail.Task.Status != taskpkg.TaskStatusCompleted || detail.Task.NetworkChannel != channel {
+		if detail.Task.Status != taskpkg.TaskStatusCompleted ||
+			resolvedParticipationChannelID(detail.Task.ResolvedNetworkParticipation) != channel {
 			t.Fatalf("detail.Task = %#v, want completed historical task", detail.Task)
 		}
 		if got, want := len(detail.Runs), 1; got != want {
 			t.Fatalf("len(detail.Runs after complete) = %d, want %d", got, want)
 		}
 		if detail.Runs[0].Status != taskpkg.TaskRunStatusCompleted ||
-			detail.Runs[0].NetworkChannel != channel ||
-			detail.Runs[0].CoordinationChannelID != channel {
+			resolvedParticipationChannelID(detail.Runs[0].ResolvedNetworkParticipation) != channel {
 			t.Fatalf("detail.Runs[0] = %#v, want completed historical run", detail.Runs[0])
 		}
 
@@ -2752,7 +2791,11 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		"history-worker",
 		"--workspace",
 		"alpha",
-		"--channel",
+		"--network",
+		"live",
+		"--network-channel-strategy",
+		"named",
+		"--network-channel",
 		channel,
 		"-o",
 		"json",
@@ -2761,7 +2804,8 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 	if err := json.Unmarshal([]byte(sessionOut), &worker); err != nil {
 		t.Fatalf("json.Unmarshal(session new) error = %v", err)
 	}
-	if worker.ID == "" || worker.State != session.StateActive || worker.Channel != channel {
+	if worker.ID == "" || worker.State != session.StateActive ||
+		resolvedParticipationChannelID(worker.ResolvedNetworkParticipation) != channel {
 		t.Fatalf("worker = %#v, want active worker on %q", worker, channel)
 	}
 	agentSessionID := worker.ID
@@ -2771,7 +2815,8 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 	if err := json.Unmarshal([]byte(stopOut), &stopped); err != nil {
 		t.Fatalf("json.Unmarshal(session stop) error = %v", err)
 	}
-	if stopped.State != session.StateStopped || stopped.Channel != channel {
+	if stopped.State != session.StateStopped ||
+		resolvedParticipationChannelID(stopped.ResolvedNetworkParticipation) != channel {
 		t.Fatalf("stopped = %#v, want stopped worker on %q", stopped, channel)
 	}
 
@@ -2814,7 +2859,11 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		"workspace",
 		"--workspace",
 		"alpha",
-		"--channel",
+		"--network",
+		"live",
+		"--network-channel-strategy",
+		"named",
+		"--network-channel",
 		channel,
 		"--title",
 		"CLI historical restart claim",
@@ -2825,7 +2874,7 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
 		t.Fatalf("json.Unmarshal(task create) error = %v", err)
 	}
-	if created.ID == "" || created.NetworkChannel != channel {
+	if created.ID == "" || resolvedParticipationChannelID(created.ResolvedNetworkParticipation) != channel {
 		t.Fatalf("created = %#v, want historical channel task", created)
 	}
 
@@ -2838,7 +2887,11 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		created.ID,
 		"--idempotency-key",
 		"idem-cli-historical-restart",
-		"--channel",
+		"--network",
+		"live",
+		"--network-channel-strategy",
+		"named",
+		"--network-channel",
 		channel,
 		"-o",
 		"json",
@@ -2848,8 +2901,7 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		t.Fatalf("json.Unmarshal(task run enqueue) error = %v", err)
 	}
 	if enqueued.Status != taskpkg.TaskRunStatusQueued ||
-		enqueued.NetworkChannel != channel ||
-		enqueued.CoordinationChannelID != channel {
+		resolvedParticipationChannelID(enqueued.ResolvedNetworkParticipation) != channel {
 		t.Fatalf("enqueued = %#v, want queued run bound to historical channel", enqueued)
 	}
 
@@ -2885,7 +2937,11 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 			"history-worker-restarted",
 			"--workspace",
 			"alpha",
-			"--channel",
+			"--network",
+			"live",
+			"--network-channel-strategy",
+			"named",
+			"--network-channel",
 			channel,
 			"-o",
 			"json",
@@ -2894,7 +2950,8 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		if err := json.Unmarshal([]byte(resumeOut), &resumed); err != nil {
 			t.Fatalf("json.Unmarshal(session new after restart) error = %v", err)
 		}
-		if resumed.State != session.StateActive || resumed.Channel != channel {
+		if resumed.State != session.StateActive ||
+			resolvedParticipationChannelID(resumed.ResolvedNetworkParticipation) != channel {
 			t.Fatalf("resumed = %#v, want active restarted worker on %q", resumed, channel)
 		}
 		agentSessionID = resumed.ID
@@ -2910,14 +2967,14 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		if got, want := next.Claim.Run.ID, enqueued.ID; got != want {
 			t.Fatalf("next.Claim.Run.ID = %q, want %q", got, want)
 		}
-		if next.Claim.Run.NetworkChannel != channel || next.Claim.Run.CoordinationChannelID != channel {
+		if resolvedParticipationChannelID(next.Claim.Run.ResolvedNetworkParticipation) != channel {
 			t.Fatalf("next.Claim.Run = %#v, want historical channel preserved", next.Claim.Run)
 		}
 		if next.Claim.CoordinationChannel == nil {
 			t.Fatal("next.Claim.CoordinationChannel = nil, want historical coordination channel")
 		}
 		if got, want := firstCLIValue(
-			next.Claim.CoordinationChannel.Channel,
+			next.Claim.CoordinationChannel.ID,
 			next.Claim.CoordinationChannel.ID,
 		), channel; got != want {
 			t.Fatalf("coordination channel = %q, want %q", got, want)
@@ -2949,7 +3006,7 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		}
 		if completed.Status != taskpkg.TaskRunStatusCompleted ||
 			completed.RunID != enqueued.ID ||
-			completed.CoordinationChannelID != channel {
+			resolvedParticipationChannelID(completed.ResolvedNetworkParticipation) != channel {
 			t.Fatalf("completed = %#v, want completed historical lease", completed)
 		}
 	})
@@ -2960,7 +3017,8 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		if err := json.Unmarshal([]byte(getOut), &detail); err != nil {
 			t.Fatalf("json.Unmarshal(task get) error = %v", err)
 		}
-		if detail.Task.Status != taskpkg.TaskStatusCompleted || detail.Task.NetworkChannel != channel {
+		if detail.Task.Status != taskpkg.TaskStatusCompleted ||
+			resolvedParticipationChannelID(detail.Task.ResolvedNetworkParticipation) != channel {
 			t.Fatalf("detail.Task = %#v, want completed task on %q", detail.Task, channel)
 		}
 		if got, want := len(detail.Runs), 1; got != want {
@@ -2968,8 +3026,7 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		}
 		if detail.Runs[0].Status != taskpkg.TaskRunStatusCompleted ||
 			detail.Runs[0].SessionID != agentSessionID ||
-			detail.Runs[0].NetworkChannel != channel ||
-			detail.Runs[0].CoordinationChannelID != channel {
+			resolvedParticipationChannelID(detail.Runs[0].ResolvedNetworkParticipation) != channel {
 			t.Fatalf("detail.Runs[0] = %#v, want completed persisted historical run", detail.Runs[0])
 		}
 
@@ -2978,7 +3035,8 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		if err := json.Unmarshal([]byte(stopOut), &stoppedAfterResume); err != nil {
 			t.Fatalf("json.Unmarshal(session stop after resume) error = %v", err)
 		}
-		if stoppedAfterResume.State != session.StateStopped || stoppedAfterResume.Channel != channel {
+		if stoppedAfterResume.State != session.StateStopped ||
+			resolvedParticipationChannelID(stoppedAfterResume.ResolvedNetworkParticipation) != channel {
 			t.Fatalf("stoppedAfterResume = %#v, want stopped resumed worker on %q", stoppedAfterResume, channel)
 		}
 
@@ -3030,7 +3088,12 @@ func newIntegrationAgentCommandDeps(
 		args = append(args, "--cwd", h.workspace)
 	}
 	if channel != "" {
-		args = append(args, "--channel", channel)
+		args = append(
+			args,
+			"--network", "live",
+			"--network-channel-strategy", "named",
+			"--network-channel", channel,
+		)
 	}
 	args = append(args, "-o", "json")
 

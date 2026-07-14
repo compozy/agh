@@ -10,6 +10,7 @@ import (
 	core "github.com/compozy/agh/internal/api/core"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
+	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 	toolspkg "github.com/compozy/agh/internal/tools"
 )
@@ -262,9 +263,10 @@ func (n *daemonNativeTools) loopRun(
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)
 	}
 	response, err := n.loopService().RunLoop(ctx, workspaceID, name, contract.RunLoopRequest{
-		Inputs:          input.Inputs,
-		ParentLoopRunID: strings.TrimSpace(input.ParentLoopRunID),
-		ConfigOverrides: configOverrides,
+		Inputs:               input.Inputs,
+		ParentLoopRunID:      strings.TrimSpace(input.ParentLoopRunID),
+		ConfigOverrides:      configOverrides,
+		NetworkParticipation: participation.CloneRequest(input.NetworkParticipation),
 	}, dsl.StartNativeTool, actor, input.Dry)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeLoopToolError(req.ToolID, err)

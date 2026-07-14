@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -34,13 +35,13 @@ const (
 
 // TaskSummaryQuery filters the current task summary view.
 type TaskSummaryQuery struct {
-	Scope          taskpkg.Scope      `json:"scope,omitempty"`
-	WorkspaceID    string             `json:"workspace_id,omitempty"`
-	OwnerKind      taskpkg.OwnerKind  `json:"owner_kind,omitempty"`
-	OwnerRef       string             `json:"owner_ref,omitempty"`
-	NetworkChannel string             `json:"network_channel,omitempty"`
-	OriginKind     taskpkg.OriginKind `json:"origin_kind,omitempty"`
-	Search         string             `json:"search,omitempty"`
+	Scope                taskpkg.Scope      `json:"scope,omitempty"`
+	WorkspaceID          string             `json:"workspace_id,omitempty"`
+	OwnerKind            taskpkg.OwnerKind  `json:"owner_kind,omitempty"`
+	OwnerRef             string             `json:"owner_ref,omitempty"`
+	ParticipationChannel string             `json:"participation_channel,omitempty"`
+	OriginKind           taskpkg.OriginKind `json:"origin_kind,omitempty"`
+	Search               string             `json:"search,omitempty"`
 }
 
 // Validate ensures the summary query uses supported filters.
@@ -65,9 +66,9 @@ func (q TaskSummaryQuery) Validate() error {
 
 // TaskMetricsQuery filters audit-derived metrics and current queue metrics.
 type TaskMetricsQuery struct {
-	Since          time.Time          `json:"since"`
-	NetworkChannel string             `json:"network_channel,omitempty"`
-	OriginKind     taskpkg.OriginKind `json:"origin_kind,omitempty"`
+	Since                time.Time          `json:"since"`
+	ParticipationChannel string             `json:"participation_channel,omitempty"`
+	OriginKind           taskpkg.OriginKind `json:"origin_kind,omitempty"`
 }
 
 // Validate ensures the metrics query uses supported filters.
@@ -82,12 +83,12 @@ func (q TaskMetricsQuery) Validate() error {
 
 // TaskDashboardQuery filters the observer-backed task dashboard read model.
 type TaskDashboardQuery struct {
-	Scope          taskpkg.Scope      `json:"scope,omitempty"`
-	WorkspaceID    string             `json:"workspace_id,omitempty"`
-	OwnerKind      taskpkg.OwnerKind  `json:"owner_kind,omitempty"`
-	OwnerRef       string             `json:"owner_ref,omitempty"`
-	NetworkChannel string             `json:"network_channel,omitempty"`
-	OriginKind     taskpkg.OriginKind `json:"origin_kind,omitempty"`
+	Scope                taskpkg.Scope      `json:"scope,omitempty"`
+	WorkspaceID          string             `json:"workspace_id,omitempty"`
+	OwnerKind            taskpkg.OwnerKind  `json:"owner_kind,omitempty"`
+	OwnerRef             string             `json:"owner_ref,omitempty"`
+	ParticipationChannel string             `json:"participation_channel,omitempty"`
+	OriginKind           taskpkg.OriginKind `json:"origin_kind,omitempty"`
 }
 
 // Validate ensures the dashboard query uses supported filters.
@@ -107,44 +108,44 @@ func (q TaskDashboardQuery) Validate() error {
 
 func (q TaskDashboardQuery) summaryQuery() TaskSummaryQuery {
 	return TaskSummaryQuery{
-		Scope:          q.Scope,
-		WorkspaceID:    q.WorkspaceID,
-		OwnerKind:      q.OwnerKind,
-		OwnerRef:       q.OwnerRef,
-		NetworkChannel: q.NetworkChannel,
-		OriginKind:     q.OriginKind,
+		Scope:                q.Scope,
+		WorkspaceID:          q.WorkspaceID,
+		OwnerKind:            q.OwnerKind,
+		OwnerRef:             q.OwnerRef,
+		ParticipationChannel: q.ParticipationChannel,
+		OriginKind:           q.OriginKind,
 	}
 }
 
 func (q TaskDashboardQuery) metricsQuery(since time.Time) TaskMetricsQuery {
 	return TaskMetricsQuery{
-		Since:          since,
-		NetworkChannel: q.NetworkChannel,
-		OriginKind:     q.OriginKind,
+		Since:                since,
+		ParticipationChannel: q.ParticipationChannel,
+		OriginKind:           q.OriginKind,
 	}
 }
 
 // TaskStatusTotal reports one current task-count bucket.
 type TaskStatusTotal struct {
-	Scope          taskpkg.Scope  `json:"scope"`
-	Status         taskpkg.Status `json:"status"`
-	NetworkChannel string         `json:"network_channel,omitempty"`
-	Count          int            `json:"count"`
+	Scope     taskpkg.Scope  `json:"scope"`
+	Status    taskpkg.Status `json:"status"`
+	ChannelID string         `json:"channel_id,omitempty"`
+	Count     int            `json:"count"`
 }
 
 // TaskOriginTotal reports one current task-origin bucket.
 type TaskOriginTotal struct {
-	OriginKind     taskpkg.OriginKind `json:"origin_kind"`
-	NetworkChannel string             `json:"network_channel,omitempty"`
-	Count          int                `json:"count"`
+	OriginKind taskpkg.OriginKind `json:"origin_kind"`
+	ChannelID  string             `json:"channel_id,omitempty"`
+	Count      int                `json:"count"`
 }
 
 // TaskRunTotal reports one current task-run bucket.
 type TaskRunTotal struct {
-	Status         taskpkg.RunStatus  `json:"status"`
-	OriginKind     taskpkg.OriginKind `json:"origin_kind"`
-	NetworkChannel string             `json:"network_channel,omitempty"`
-	Count          int                `json:"count"`
+	Status     taskpkg.RunStatus  `json:"status"`
+	OriginKind taskpkg.OriginKind `json:"origin_kind"`
+	ChannelID  string             `json:"channel_id,omitempty"`
+	Count      int                `json:"count"`
 }
 
 // TaskOwnerTotal reports one current ownership bucket.
@@ -156,7 +157,7 @@ type TaskOwnerTotal struct {
 
 // TaskQueueDepth reports queued work by channel.
 type TaskQueueDepth struct {
-	NetworkChannel      string    `json:"network_channel,omitempty"`
+	ChannelID           string    `json:"channel_id,omitempty"`
 	Count               int       `json:"count"`
 	OldestQueuedAt      time.Time `json:"oldest_queued_at"`
 	OldestQueueAgeMilli int64     `json:"oldest_queue_age_ms"`
@@ -209,13 +210,13 @@ type TaskMetrics struct {
 
 // StuckTaskRun reports one run that exceeded the configured claimed/starting/running threshold.
 type StuckTaskRun struct {
-	TaskID         string             `json:"task_id"`
-	RunID          string             `json:"run_id"`
-	Status         taskpkg.RunStatus  `json:"status"`
-	OriginKind     taskpkg.OriginKind `json:"origin_kind"`
-	NetworkChannel string             `json:"network_channel,omitempty"`
-	SessionID      string             `json:"session_id,omitempty"`
-	AgeMillis      int64              `json:"age_ms"`
+	TaskID     string             `json:"task_id"`
+	RunID      string             `json:"run_id"`
+	Status     taskpkg.RunStatus  `json:"status"`
+	OriginKind taskpkg.OriginKind `json:"origin_kind"`
+	ChannelID  string             `json:"channel_id,omitempty"`
+	SessionID  string             `json:"session_id,omitempty"`
+	AgeMillis  int64              `json:"age_ms"`
 }
 
 // TaskHealth exposes the current operational task-health view.
@@ -350,26 +351,26 @@ type TaskDashboardActiveRuns struct {
 
 // TaskDashboardActiveRun exposes one recent active-run card payload.
 type TaskDashboardActiveRun struct {
-	TaskID         string             `json:"task_id"`
-	TaskIdentifier string             `json:"task_identifier,omitempty"`
-	TaskTitle      string             `json:"task_title"`
-	TaskStatus     taskpkg.Status     `json:"task_status"`
-	TaskPriority   taskpkg.Priority   `json:"task_priority,omitempty"`
-	TaskOwner      *taskpkg.Ownership `json:"task_owner,omitempty"`
-	Scope          taskpkg.Scope      `json:"scope"`
-	WorkspaceID    string             `json:"workspace_id,omitempty"`
-	LatestEventSeq int64              `json:"latest_event_seq"`
-	RunID          string             `json:"run_id"`
-	RunStatus      taskpkg.RunStatus  `json:"run_status"`
-	Attempt        int                `json:"attempt"`
-	MaxAttempts    int                `json:"max_attempts"`
-	SessionID      string             `json:"session_id,omitempty"`
-	NetworkChannel string             `json:"network_channel,omitempty"`
-	LastActivityAt time.Time          `json:"last_activity_at"`
-	AgeMilli       int64              `json:"age_ms"`
-	HealthStatus   string             `json:"health_status"`
-	Stuck          bool               `json:"stuck"`
-	Error          string             `json:"error,omitempty"`
+	TaskID                       string              `json:"task_id"`
+	TaskIdentifier               string              `json:"task_identifier,omitempty"`
+	TaskTitle                    string              `json:"task_title"`
+	TaskStatus                   taskpkg.Status      `json:"task_status"`
+	TaskPriority                 taskpkg.Priority    `json:"task_priority,omitempty"`
+	TaskOwner                    *taskpkg.Ownership  `json:"task_owner,omitempty"`
+	Scope                        taskpkg.Scope       `json:"scope"`
+	WorkspaceID                  string              `json:"workspace_id,omitempty"`
+	LatestEventSeq               int64               `json:"latest_event_seq"`
+	RunID                        string              `json:"run_id"`
+	RunStatus                    taskpkg.RunStatus   `json:"run_status"`
+	Attempt                      int                 `json:"attempt"`
+	MaxAttempts                  int                 `json:"max_attempts"`
+	SessionID                    string              `json:"session_id,omitempty"`
+	ResolvedNetworkParticipation *participation.Spec `json:"resolved_network_participation,omitempty"`
+	LastActivityAt               time.Time           `json:"last_activity_at"`
+	AgeMilli                     int64               `json:"age_ms"`
+	HealthStatus                 string              `json:"health_status"`
+	Stuck                        bool                `json:"stuck"`
+	Error                        string              `json:"error,omitempty"`
 }
 
 // TaskDashboardFreshness exposes the recency and stale-warning state of the dashboard snapshot.
@@ -415,7 +416,9 @@ func (o *Observer) QueryTaskMetrics(ctx context.Context, query TaskMetricsQuery)
 		return TaskMetrics{}, err
 	}
 
-	snapshot, err := o.loadTaskSnapshot(ctx, TaskSummaryQuery{NetworkChannel: query.NetworkChannel})
+	snapshot, err := o.loadTaskSnapshot(ctx, TaskSummaryQuery{
+		ParticipationChannel: query.ParticipationChannel,
+	})
 	if err != nil {
 		return TaskMetrics{}, err
 	}
@@ -1001,26 +1004,26 @@ func taskDashboardActiveRunItems(
 		}
 		_, stuck := stuckByID[run.ID]
 		activeRunItems = append(activeRunItems, TaskDashboardActiveRun{
-			TaskID:         taskItem.ID,
-			TaskIdentifier: taskItem.Identifier,
-			TaskTitle:      taskItem.Title,
-			TaskStatus:     taskItem.Status.Normalize(),
-			TaskPriority:   taskItem.Priority,
-			TaskOwner:      cloneOwnership(taskItem.Owner),
-			Scope:          taskItem.Scope.Normalize(),
-			WorkspaceID:    taskItem.WorkspaceID,
-			LatestEventSeq: taskItem.LatestEventSeq,
-			RunID:          run.ID,
-			RunStatus:      run.Status.Normalize(),
-			Attempt:        int(run.Attempt),
-			MaxAttempts:    taskItem.MaxAttempts,
-			SessionID:      strings.TrimSpace(run.SessionID),
-			NetworkChannel: taskRunParticipationChannel(run),
-			LastActivityAt: dashboardRunActivityAt(run),
-			AgeMilli:       dashboardRunAge(run, currentTime).Milliseconds(),
-			HealthStatus:   dashboardStatusForAny(stuck),
-			Stuck:          stuck,
-			Error:          strings.TrimSpace(run.Error),
+			TaskID:                       taskItem.ID,
+			TaskIdentifier:               taskItem.Identifier,
+			TaskTitle:                    taskItem.Title,
+			TaskStatus:                   taskItem.Status.Normalize(),
+			TaskPriority:                 taskItem.Priority,
+			TaskOwner:                    cloneOwnership(taskItem.Owner),
+			Scope:                        taskItem.Scope.Normalize(),
+			WorkspaceID:                  taskItem.WorkspaceID,
+			LatestEventSeq:               taskItem.LatestEventSeq,
+			RunID:                        run.ID,
+			RunStatus:                    run.Status.Normalize(),
+			Attempt:                      int(run.Attempt),
+			MaxAttempts:                  taskItem.MaxAttempts,
+			SessionID:                    strings.TrimSpace(run.SessionID),
+			ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
+			LastActivityAt:               dashboardRunActivityAt(run),
+			AgeMilli:                     dashboardRunAge(run, currentTime).Milliseconds(),
+			HealthStatus:                 dashboardStatusForAny(stuck),
+			Stuck:                        stuck,
+			Error:                        strings.TrimSpace(run.Error),
 		})
 	}
 	return activeRunItems
@@ -1082,7 +1085,7 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 		return taskSnapshot{}, fmt.Errorf("observe: list task runs for summary: %w", err)
 	}
 	taskChannels := taskParticipationChannels(tasks, runs)
-	tasks = filterTasksByNetworkChannel(tasks, taskChannels, query.NetworkChannel)
+	tasks = filterTasksByNetworkChannel(tasks, taskChannels, query.ParticipationChannel)
 	tasksByID, taskIDs := taskSummaryIndex(tasks)
 	runs = filterRuns(runs, taskIDs, query)
 
@@ -1105,7 +1108,7 @@ func (o *Observer) loadTaskSnapshot(ctx context.Context, query TaskSummaryQuery)
 	audits, err := o.registry.ListNetworkAudit(ctx, store.NetworkAuditQuery{
 		WorkspaceID: workspaceID,
 		Global:      workspaceID == "",
-		Channel:     strings.TrimSpace(query.NetworkChannel),
+		Channel:     strings.TrimSpace(query.ParticipationChannel),
 	})
 	if err != nil {
 		return taskSnapshot{}, fmt.Errorf("observe: list network audit for summary: %w", err)
@@ -1230,7 +1233,7 @@ func summarizeRuns(runs []taskpkg.Run) []TaskRunTotal {
 		current := counts[key]
 		current.Status = item.Status.Normalize()
 		current.OriginKind = item.Origin.Kind.Normalize()
-		current.NetworkChannel = channel
+		current.ChannelID = channel
 		current.Count++
 		counts[key] = current
 	}
@@ -1245,7 +1248,7 @@ func summarizeRuns(runs []taskpkg.Run) []TaskRunTotal {
 		if cmp := strings.Compare(string(left.OriginKind), string(right.OriginKind)); cmp != 0 {
 			return cmp
 		}
-		return strings.Compare(left.NetworkChannel, right.NetworkChannel)
+		return strings.Compare(left.ChannelID, right.ChannelID)
 	})
 	return rows
 }
@@ -1289,7 +1292,7 @@ func summarizeQueueDepth(runs []taskpkg.Run, now func() time.Time) []TaskQueueDe
 		}
 		channel := taskRunParticipationChannel(item)
 		current := counts[channel]
-		current.NetworkChannel = channel
+		current.ChannelID = channel
 		current.Count++
 		if current.OldestQueuedAt.IsZero() || item.QueuedAt.Before(current.OldestQueuedAt) {
 			current.OldestQueuedAt = item.QueuedAt
@@ -1303,7 +1306,7 @@ func summarizeQueueDepth(runs []taskpkg.Run, now func() time.Time) []TaskQueueDe
 		rows = append(rows, item)
 	}
 	slices.SortFunc(rows, func(left, right TaskQueueDepth) int {
-		return strings.Compare(left.NetworkChannel, right.NetworkChannel)
+		return strings.Compare(left.ChannelID, right.ChannelID)
 	})
 	return rows
 }
@@ -1421,13 +1424,13 @@ func findStuckRuns(runs []taskpkg.Run, now time.Time, cfg TaskHealthConfig) []St
 			continue
 		}
 		stuck = append(stuck, StuckTaskRun{
-			TaskID:         strings.TrimSpace(item.TaskID),
-			RunID:          strings.TrimSpace(item.ID),
-			Status:         item.Status.Normalize(),
-			OriginKind:     item.Origin.Kind.Normalize(),
-			NetworkChannel: taskRunParticipationChannel(item),
-			SessionID:      strings.TrimSpace(item.SessionID),
-			AgeMillis:      age.Milliseconds(),
+			TaskID:     strings.TrimSpace(item.TaskID),
+			RunID:      strings.TrimSpace(item.ID),
+			Status:     item.Status.Normalize(),
+			OriginKind: item.Origin.Kind.Normalize(),
+			ChannelID:  taskRunParticipationChannel(item),
+			SessionID:  strings.TrimSpace(item.SessionID),
+			AgeMillis:  age.Milliseconds(),
 		})
 	}
 	return stuck
@@ -1555,7 +1558,7 @@ func filterTasksByOrigin(tasks []taskpkg.Summary, origin taskpkg.OriginKind) []t
 
 func filterRuns(runs []taskpkg.Run, taskIDs map[string]struct{}, query TaskSummaryQuery) []taskpkg.Run {
 	normalizedOrigin := query.OriginKind.Normalize()
-	channel := strings.TrimSpace(query.NetworkChannel)
+	channel := strings.TrimSpace(query.ParticipationChannel)
 	filtered := make([]taskpkg.Run, 0, len(runs))
 	for _, item := range runs {
 		if _, ok := taskIDs[strings.TrimSpace(item.TaskID)]; !ok {
@@ -1604,7 +1607,7 @@ func filterTaskEvents(
 	query TaskMetricsQuery,
 ) []taskpkg.Event {
 	normalizedOrigin := query.OriginKind.Normalize()
-	channel := strings.TrimSpace(query.NetworkChannel)
+	channel := strings.TrimSpace(query.ParticipationChannel)
 	var filtered []taskpkg.Event
 	for i, item := range events {
 		accepted := true
@@ -1646,7 +1649,7 @@ func eventChannel(
 }
 
 func filterTaskIngressAudits(audits []store.NetworkAuditEntry, query TaskMetricsQuery) []store.NetworkAuditEntry {
-	channel := strings.TrimSpace(query.NetworkChannel)
+	channel := strings.TrimSpace(query.ParticipationChannel)
 	normalizedOrigin := query.OriginKind.Normalize()
 	var filtered []store.NetworkAuditEntry
 	for i, item := range audits {

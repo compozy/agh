@@ -20,7 +20,7 @@ function normalizeDashboardFilter(filters: TaskDashboardFilter = {}): TaskDashbo
     workspace: normalizeOptionalText(filters.workspace),
     owner_kind: filters.owner_kind,
     owner_ref: normalizeOptionalText(filters.owner_ref),
-    network_channel: normalizeOptionalText(filters.network_channel),
+    participation_channel: normalizeOptionalText(filters.participation_channel),
     origin_kind: filters.origin_kind,
   };
 }

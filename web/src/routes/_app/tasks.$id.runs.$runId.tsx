@@ -4,6 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Spinner } from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { useTaskRunPage } from "@/hooks/routes/use-task-run-page";
+import { TaskRunConversationPanel, TaskRunCoordinationInvitationHost } from "@/systems/network";
 import {
   TaskRunDetailHeader,
   TaskInspectDiagnosticsCard,
@@ -62,6 +63,10 @@ function TaskRunDetailRoute() {
   }
 
   const timelineItems = timelineQuery.data ?? [];
+  const record = run.run;
+  const participation = record.resolved_network_participation;
+  const designation = record.designation;
+  const workerCount = record.designation_group_id ? 2 : designation ? 1 : 0;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="tasks-run-detail-content">
@@ -93,6 +98,30 @@ function TaskRunDetailRoute() {
         className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-5"
         data-testid="tasks-run-detail-main"
       >
+        <div
+          className="rounded-md border border-border px-3 py-2 text-sm"
+          data-testid="tasks-run-participation-chip"
+        >
+          Participation: {participation?.mode ?? "local"}
+          {participation?.channel_id ? ` · ${participation.channel_id}` : ""}
+        </div>
+        <TaskRunCoordinationInvitationHost
+          hasActiveRun={record.status === "running" || record.status === "starting"}
+          isCoordinator={Boolean(designation && designation.index === 0)}
+          taskId={id}
+          workerCount={workerCount}
+        />
+        <TaskRunConversationPanel
+          boundsLabel={
+            participation?.mode
+              ? `Participation ${participation.mode}${
+                  participation.channel_id ? ` · ${participation.channel_id}` : ""
+                }`
+              : null
+          }
+          conversationEmpty
+          messageCount={0}
+        />
         <TaskRunTimelinePanel
           isLive={page.isLive}
           isLoading={timelineQuery.isLoading && timelineItems.length === 0}

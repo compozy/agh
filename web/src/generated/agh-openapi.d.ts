@@ -4336,6 +4336,41 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/network-coordination": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get workspace network coordination settings and invitation state */
+    get: operations["getNetworkCoordination"];
+    /** Enable or disable workspace network coordination conversations */
+    put: operations["putNetworkCoordination"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/network-coordination/invitation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** Dismiss or reset the coordination invitation for a scope */
+    put: operations["putNetworkCoordinationInvitation"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/network/channels": {
     parameters: {
       query?: never;
@@ -4605,6 +4640,23 @@ export interface paths {
     put?: never;
     /** Send one network message */
     post: operations["sendNetworkMessage"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/network/usage": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get workspace-scoped network wake usage from the ledger */
+    get: operations["getNetworkUsage"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -5139,7 +5191,6 @@ export interface operations {
                 | "result"
                 | "review_request"
               )[];
-              channel?: string;
               display_name: string;
               id: string;
               /** Format: date-time */
@@ -5269,7 +5320,7 @@ export interface operations {
           body: unknown;
           idempotency_key?: string;
           metadata: {
-            coordination_channel_id: string;
+            channel_id: string;
             correlation_id: string;
             ext?: {
               [key: string]: unknown;
@@ -5305,7 +5356,7 @@ export interface operations {
               from_session_id: string;
               message_id: string;
               metadata: {
-                coordination_channel_id: string;
+                channel_id: string;
                 correlation_id: string;
                 ext?: {
                   [key: string]: unknown;
@@ -5512,7 +5563,7 @@ export interface operations {
               from_session_id: string;
               message_id: string;
               metadata: {
-                coordination_channel_id: string;
+                channel_id: string;
                 correlation_id: string;
                 ext?: {
                   [key: string]: unknown;
@@ -5731,7 +5782,7 @@ export interface operations {
           body: unknown;
           idempotency_key?: string;
           metadata: {
-            coordination_channel_id: string;
+            channel_id: string;
             correlation_id: string;
             ext?: {
               [key: string]: unknown;
@@ -5766,7 +5817,7 @@ export interface operations {
               from_session_id: string;
               message_id: string;
               metadata: {
-                coordination_channel_id: string;
+                channel_id: string;
                 correlation_id: string;
                 ext?: {
                   [key: string]: unknown;
@@ -5984,7 +6035,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -6010,7 +6060,7 @@ export interface operations {
                     | "review_request";
                   message_id: string;
                   metadata: {
-                    coordination_channel_id: string;
+                    channel_id: string;
                     correlation_id: string;
                     ext?: {
                       [key: string]: unknown;
@@ -6071,7 +6121,6 @@ export interface operations {
                 session_id: string;
               };
               session: {
-                channel?: string;
                 /** Format: date-time */
                 created_at: string;
                 id: string;
@@ -6100,6 +6149,25 @@ export interface operations {
                   ttl_expires_at?: string | null;
                 } | null;
                 name?: string;
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
                 /** @enum {string} */
@@ -6581,7 +6649,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -6592,11 +6659,29 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   /** Format: date-time */
                   heartbeat_at?: string | null;
                   /** Format: date-time */
                   lease_until?: string | null;
+                  resolved_network_participation?: {
+                    bounds: {
+                      coalesce_window: string;
+                      /** Format: int64 */
+                      max_input_tokens: number;
+                      /** Format: int64 */
+                      max_output_tokens: number;
+                      max_total_wall_time: string;
+                      max_wake_depth: number;
+                      max_wake_wall_time: string;
+                      max_wakes: number;
+                    };
+                    channel_id?: string;
+                    channel_strategy?: string;
+                    mode: string;
+                    source: string;
+                    version: string;
+                    workspace_id?: string;
+                  } | null;
                   run_id: string;
                   session_id?: string;
                   /** @enum {string} */
@@ -6987,7 +7072,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -6998,11 +7082,29 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 /** Format: date-time */
                 heartbeat_at?: string | null;
                 /** Format: date-time */
                 lease_until?: string | null;
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 run_id: string;
                 session_id?: string;
                 /** @enum {string} */
@@ -7032,7 +7134,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -7069,7 +7170,6 @@ export interface operations {
                 session_id: string;
               };
               session: {
-                channel?: string;
                 /** Format: date-time */
                 created_at: string;
                 id: string;
@@ -7098,6 +7198,25 @@ export interface operations {
                   ttl_expires_at?: string | null;
                 } | null;
                 name?: string;
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
                 /** @enum {string} */
@@ -7817,7 +7936,6 @@ export interface operations {
                   name: string;
                 }[];
                 badge: string;
-                channel?: string;
                 /** Format: date-time */
                 created_at: string;
                 failure?: {
@@ -7883,6 +8001,25 @@ export interface operations {
                 provider: string;
                 /** @enum {string} */
                 reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 sandbox?: {
                   backend?: string;
                   instance_id?: string;
@@ -8113,7 +8250,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -8147,7 +8283,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -8158,11 +8293,29 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 /** Format: date-time */
                 heartbeat_at?: string | null;
                 /** Format: date-time */
                 lease_until?: string | null;
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 run_id: string;
                 session_id?: string;
                 /** @enum {string} */
@@ -8203,7 +8356,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -8214,7 +8366,6 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 designation?: {
                   brief?: string;
                   index: number;
@@ -8231,7 +8382,6 @@ export interface operations {
                 /** Format: date-time */
                 lease_until?: string | null;
                 metadata?: unknown;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -8249,6 +8399,25 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -8515,7 +8684,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -8526,11 +8694,29 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               /** Format: date-time */
               heartbeat_at?: string | null;
               /** Format: date-time */
               lease_until?: string | null;
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               run_id: string;
               session_id?: string;
               /** @enum {string} */
@@ -8775,7 +8961,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -8786,11 +8971,29 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               /** Format: date-time */
               heartbeat_at?: string | null;
               /** Format: date-time */
               lease_until?: string | null;
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               run_id: string;
               session_id?: string;
               /** @enum {string} */
@@ -9035,7 +9238,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -9046,11 +9248,29 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               /** Format: date-time */
               heartbeat_at?: string | null;
               /** Format: date-time */
               lease_until?: string | null;
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               run_id: string;
               session_id?: string;
               /** @enum {string} */
@@ -9294,7 +9514,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -9305,11 +9524,29 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               /** Format: date-time */
               heartbeat_at?: string | null;
               /** Format: date-time */
               lease_until?: string | null;
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               run_id: string;
               session_id?: string;
               /** @enum {string} */
@@ -21674,7 +21911,6 @@ export interface operations {
                 name: string;
                 provider?: string;
               }[];
-              bind_primary_channel_as_default: boolean;
               bridges?: {
                 display_name: string;
                 extension_name: string;
@@ -21709,6 +21945,9 @@ export interface operations {
                 id: string;
                 name: string;
               }[];
+              network_requirement_confirmed_at?: string;
+              network_requirement_confirmed_by?: string;
+              network_requirement_digest?: string;
               profile_description?: string;
               profile_name: string;
               scope: string;
@@ -21790,8 +22029,8 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          bind_primary_channel_as_default: boolean;
           bundle_name: string;
+          confirm_network_requirement?: boolean;
           extension_name: string;
           profile_name: string;
           scope?: string;
@@ -21817,7 +22056,6 @@ export interface operations {
                 name: string;
                 provider?: string;
               }[];
-              bind_primary_channel_as_default: boolean;
               bridges?: {
                 display_name: string;
                 extension_name: string;
@@ -21852,6 +22090,9 @@ export interface operations {
                 id: string;
                 name: string;
               }[];
+              network_requirement_confirmed_at?: string;
+              network_requirement_confirmed_by?: string;
+              network_requirement_digest?: string;
               profile_description?: string;
               profile_name: string;
               scope: string;
@@ -22051,7 +22292,6 @@ export interface operations {
                 name: string;
                 provider?: string;
               }[];
-              bind_primary_channel_as_default: boolean;
               bridges?: {
                 display_name: string;
                 extension_name: string;
@@ -22086,6 +22326,9 @@ export interface operations {
                 id: string;
                 name: string;
               }[];
+              network_requirement_confirmed_at?: string;
+              network_requirement_confirmed_by?: string;
+              network_requirement_digest?: string;
               profile_description?: string;
               profile_name: string;
               scope: string;
@@ -22291,7 +22534,7 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          bind_primary_channel_as_default: boolean;
+          confirm_network_requirement?: boolean;
         };
       };
     };
@@ -22313,7 +22556,6 @@ export interface operations {
                 name: string;
                 provider?: string;
               }[];
-              bind_primary_channel_as_default: boolean;
               bridges?: {
                 display_name: string;
                 extension_name: string;
@@ -22348,6 +22590,9 @@ export interface operations {
                 id: string;
                 name: string;
               }[];
+              network_requirement_confirmed_at?: string;
+              network_requirement_confirmed_by?: string;
+              network_requirement_digest?: string;
               profile_description?: string;
               profile_name: string;
               scope: string;
@@ -22600,7 +22845,6 @@ export interface operations {
         content: {
           "application/json": {
             network: {
-              configured_default_channel?: string;
               declared_channels?: {
                 activation_id?: string;
                 bundle_name?: string;
@@ -22611,8 +22855,6 @@ export interface operations {
                 profile_name?: string;
                 workspace_id?: string;
               }[];
-              effective_default_channel?: string;
-              effective_default_source?: string;
             };
           };
         };
@@ -22680,8 +22922,8 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          bind_primary_channel_as_default: boolean;
           bundle_name: string;
+          confirm_network_requirement?: boolean;
           extension_name: string;
           profile_name: string;
           scope?: string;
@@ -22707,7 +22949,6 @@ export interface operations {
                 name: string;
                 provider?: string;
               }[];
-              bind_primary_channel_as_default: boolean;
               bridges?: {
                 display_name: string;
                 extension_name: string;
@@ -22742,6 +22983,9 @@ export interface operations {
                 id: string;
                 name: string;
               }[];
+              network_requirement_confirmed_at?: string;
+              network_requirement_confirmed_by?: string;
+              network_requirement_digest?: string;
               profile_description?: string;
               profile_name: string;
               scope: string;
@@ -25063,7 +25307,9 @@ export interface operations {
           | "network.work.transitioned"
           | "network.work.closed"
           | "network.peer.joined"
-          | "network.peer.left";
+          | "network.peer.left"
+          | "network.participation.pre_resolve"
+          | "network.participation.resolved";
         /** @description Hook source */
         source?: "native" | "config" | "agent_definition" | "skill";
         /** @description Hook mode */
@@ -25091,12 +25337,12 @@ export interface operations {
                 agent_type?: string;
                 autonomy?: {
                   child_session_id?: string;
-                  coordination_channel_id?: string;
                   coordinator_session_id?: string;
                   loop_name?: string;
                   loop_run_id?: string;
                   node_id?: string;
                   parent_session_id?: string;
+                  participation_channel?: string;
                   release_reason?: string;
                   root_session_id?: string;
                   run_id?: string;
@@ -31113,7 +31359,6 @@ export interface operations {
           "application/json": {
             network: {
               channels?: number;
-              configured_default_channel?: string;
               /** Format: int64 */
               conversation_messages?: number;
               declared_channels?: {
@@ -31129,8 +31374,6 @@ export interface operations {
               delivery_workers?: number;
               /** Format: int64 */
               direct_resolves?: number;
-              effective_default_channel?: string;
-              effective_default_source?: string;
               enabled: boolean;
               /** Format: int64 */
               handoff_tagged_events?: number;
@@ -31934,8 +32177,8 @@ export interface operations {
           | "pool";
         /** @description Filter by owner reference */
         owner_ref?: string;
-        /** @description Filter by network channel */
-        network_channel?: string;
+        /** @description Filter by resolved participation channel */
+        participation_channel?: string;
         /** @description Filter by task origin kind */
         origin_kind?:
           | "cli"
@@ -31975,7 +32218,25 @@ export interface operations {
                   /** Format: int64 */
                   latest_event_seq: number;
                   max_attempts: number;
-                  network_channel?: string;
+                  resolved_network_participation?: {
+                    bounds: {
+                      coalesce_window: string;
+                      /** Format: int64 */
+                      max_input_tokens: number;
+                      /** Format: int64 */
+                      max_output_tokens: number;
+                      max_total_wall_time: string;
+                      max_wake_depth: number;
+                      max_wake_wall_time: string;
+                      max_wakes: number;
+                    };
+                    channel_id?: string;
+                    channel_strategy?: string;
+                    mode: string;
+                    source: string;
+                    version: string;
+                    workspace_id?: string;
+                  } | null;
                   run_id: string;
                   /** @enum {string} */
                   run_status:
@@ -32089,8 +32350,8 @@ export interface operations {
                 backlog_threshold_ms: number;
                 backlog_warning: boolean;
                 depth?: {
+                  channel_id?: string;
                   count: number;
-                  network_channel?: string;
                   /** Format: int64 */
                   oldest_queue_age_ms: number;
                   /** Format: date-time */
@@ -32349,7 +32610,6 @@ export interface operations {
                         | "daemon";
                       ref: string;
                     } | null;
-                    coordination_channel_id?: string;
                     /** Format: date-time */
                     ended_at?: string | null;
                     error?: string;
@@ -32363,6 +32623,25 @@ export interface operations {
                     previous_run_id?: string;
                     /** Format: date-time */
                     queued_at: string;
+                    resolved_network_participation?: {
+                      bounds: {
+                        coalesce_window: string;
+                        /** Format: int64 */
+                        max_input_tokens: number;
+                        /** Format: int64 */
+                        max_output_tokens: number;
+                        max_total_wall_time: string;
+                        max_wake_depth: number;
+                        max_wake_wall_time: string;
+                        max_wakes: number;
+                      };
+                      channel_id?: string;
+                      channel_strategy?: string;
+                      mode: string;
+                      source: string;
+                      version: string;
+                      workspace_id?: string;
+                    } | null;
                     session_id?: string;
                     /** Format: date-time */
                     started_at?: string | null;
@@ -34127,7 +34406,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -34138,7 +34416,6 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 designation?: {
                   brief?: string;
                   index: number;
@@ -34155,7 +34432,6 @@ export interface operations {
                 /** Format: date-time */
                 lease_until?: string | null;
                 metadata?: unknown;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -34173,6 +34449,25 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -34391,7 +34686,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -34402,7 +34696,6 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 designation?: {
                   brief?: string;
                   index: number;
@@ -34419,7 +34712,6 @@ export interface operations {
                 /** Format: date-time */
                 lease_until?: string | null;
                 metadata?: unknown;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -34437,6 +34729,25 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -34638,7 +34949,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -34649,7 +34959,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -34666,7 +34975,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -34684,6 +34992,25 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -35044,7 +35371,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -35055,7 +35381,6 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   designation?: {
                     brief?: string;
                     index: number;
@@ -35074,6 +35399,25 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  resolved_network_participation?: {
+                    bounds: {
+                      coalesce_window: string;
+                      /** Format: int64 */
+                      max_input_tokens: number;
+                      /** Format: int64 */
+                      max_output_tokens: number;
+                      max_total_wall_time: string;
+                      max_wake_depth: number;
+                      max_wake_wall_time: string;
+                      max_wakes: number;
+                    };
+                    channel_id?: string;
+                    channel_strategy?: string;
+                    mode: string;
+                    source: string;
+                    version: string;
+                    workspace_id?: string;
+                  } | null;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -35191,7 +35535,6 @@ export interface operations {
                   ref: string;
                 } | null;
                 needs_attention_reason?: string;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -35226,6 +35569,25 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
@@ -35404,7 +35766,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -35415,7 +35776,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -35432,7 +35792,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -35450,6 +35809,25 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -35492,7 +35870,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -35503,7 +35880,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -35520,7 +35896,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -35538,6 +35913,25 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -35787,7 +36181,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -35798,7 +36191,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -35815,7 +36207,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -35833,6 +36224,25 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -36081,7 +36491,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -36092,7 +36501,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -36109,7 +36517,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -36127,6 +36534,25 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -36169,7 +36595,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -36180,7 +36605,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -36197,7 +36621,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -36215,6 +36638,25 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -36574,7 +37016,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -36585,7 +37026,6 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   designation?: {
                     brief?: string;
                     index: number;
@@ -36602,7 +37042,6 @@ export interface operations {
                   /** Format: date-time */
                   lease_until?: string | null;
                   metadata?: unknown;
-                  network_channel?: string;
                   origin: {
                     /** @enum {string} */
                     kind:
@@ -36620,6 +37059,25 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  resolved_network_participation?: {
+                    bounds: {
+                      coalesce_window: string;
+                      /** Format: int64 */
+                      max_input_tokens: number;
+                      /** Format: int64 */
+                      max_output_tokens: number;
+                      max_total_wall_time: string;
+                      max_wake_depth: number;
+                      max_wake_wall_time: string;
+                      max_wakes: number;
+                    };
+                    channel_id?: string;
+                    channel_strategy?: string;
+                    mode: string;
+                    source: string;
+                    version: string;
+                    workspace_id?: string;
+                  } | null;
                   result?: unknown;
                   session_id?: string;
                   /** Format: date-time */
@@ -36663,7 +37121,6 @@ export interface operations {
                         | "result"
                         | "review_request"
                       )[];
-                      channel?: string;
                       display_name: string;
                       id: string;
                       /** Format: date-time */
@@ -36674,7 +37131,6 @@ export interface operations {
                       workflow_id?: string;
                       workspace_id?: string;
                     } | null;
-                    coordination_channel_id?: string;
                     designation?: {
                       brief?: string;
                       index: number;
@@ -36693,6 +37149,25 @@ export interface operations {
                     previous_run_id?: string;
                     /** Format: date-time */
                     queued_at: string;
+                    resolved_network_participation?: {
+                      bounds: {
+                        coalesce_window: string;
+                        /** Format: int64 */
+                        max_input_tokens: number;
+                        /** Format: int64 */
+                        max_output_tokens: number;
+                        max_total_wall_time: string;
+                        max_wake_depth: number;
+                        max_wake_wall_time: string;
+                        max_wakes: number;
+                      };
+                      channel_id?: string;
+                      channel_strategy?: string;
+                      mode: string;
+                      source: string;
+                      version: string;
+                      workspace_id?: string;
+                    } | null;
                     session_id?: string;
                     /** Format: date-time */
                     started_at?: string | null;
@@ -36810,7 +37285,6 @@ export interface operations {
                     ref: string;
                   } | null;
                   needs_attention_reason?: string;
-                  network_channel?: string;
                   origin: {
                     /** @enum {string} */
                     kind:
@@ -36845,6 +37319,25 @@ export interface operations {
                   paused_reason?: string;
                   /** @enum {string} */
                   priority?: "low" | "medium" | "high" | "urgent";
+                  resolved_network_participation?: {
+                    bounds: {
+                      coalesce_window: string;
+                      /** Format: int64 */
+                      max_input_tokens: number;
+                      /** Format: int64 */
+                      max_output_tokens: number;
+                      max_total_wall_time: string;
+                      max_wake_depth: number;
+                      max_wake_wall_time: string;
+                      max_wakes: number;
+                    };
+                    channel_id?: string;
+                    channel_strategy?: string;
+                    mode: string;
+                    source: string;
+                    version: string;
+                    workspace_id?: string;
+                  } | null;
                   /** @enum {string} */
                   scope: "global" | "workspace";
                   /** @enum {string} */
@@ -37504,7 +37997,6 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
-              channel?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -37570,6 +38062,25 @@ export interface operations {
               provider: string;
               /** @enum {string} */
               reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -37745,9 +38256,24 @@ export interface operations {
       content: {
         "application/json": {
           agent_name?: string;
-          channel?: string;
           model?: string;
           name?: string;
+          network_participation?: {
+            bounds?: {
+              coalesce_window?: string | null;
+              /** Format: int64 */
+              max_input_tokens?: number | null;
+              /** Format: int64 */
+              max_output_tokens?: number | null;
+              max_total_wall_time?: string | null;
+              max_wake_depth?: number | null;
+              max_wake_wall_time?: string | null;
+              max_wakes?: number | null;
+            } | null;
+            channel_id?: string | null;
+            channel_strategy?: string | null;
+            mode?: string | null;
+          } | null;
           provider?: string;
           /** @enum {string} */
           reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
@@ -37819,7 +38345,6 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
-              channel?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -37885,6 +38410,25 @@ export interface operations {
               provider: string;
               /** @enum {string} */
               reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -38174,7 +38718,6 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
-              channel?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -38240,6 +38783,25 @@ export interface operations {
               provider: string;
               /** @enum {string} */
               reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -39318,7 +39880,9 @@ export interface operations {
                   | "network.work.transitioned"
                   | "network.work.closed"
                   | "network.peer.joined"
-                  | "network.peer.left";
+                  | "network.peer.left"
+                  | "network.participation.pre_resolve"
+                  | "network.participation.resolved";
                 /** @enum {string} */
                 executor_kind?: "native" | "subprocess" | "wasm";
                 matcher: {
@@ -39327,12 +39891,12 @@ export interface operations {
                   agent_type?: string;
                   autonomy?: {
                     child_session_id?: string;
-                    coordination_channel_id?: string;
                     coordinator_session_id?: string;
                     loop_name?: string;
                     loop_run_id?: string;
                     node_id?: string;
                     parent_session_id?: string;
+                    participation_channel?: string;
                     release_reason?: string;
                     root_session_id?: string;
                     run_id?: string;
@@ -39582,7 +40146,9 @@ export interface operations {
                   | "network.work.transitioned"
                   | "network.work.closed"
                   | "network.peer.joined"
-                  | "network.peer.left";
+                  | "network.peer.left"
+                  | "network.participation.pre_resolve"
+                  | "network.participation.resolved";
                 /** @enum {string} */
                 executor_kind?: "native" | "subprocess" | "wasm";
                 matcher: {
@@ -39591,12 +40157,12 @@ export interface operations {
                   agent_type?: string;
                   autonomy?: {
                     child_session_id?: string;
-                    coordination_channel_id?: string;
                     coordinator_session_id?: string;
                     loop_name?: string;
                     loop_run_id?: string;
                     node_id?: string;
                     parent_session_id?: string;
+                    participation_channel?: string;
                     release_reason?: string;
                     root_session_id?: string;
                     run_id?: string;
@@ -40045,7 +40611,9 @@ export interface operations {
               | "network.work.transitioned"
               | "network.work.closed"
               | "network.peer.joined"
-              | "network.peer.left";
+              | "network.peer.left"
+              | "network.participation.pre_resolve"
+              | "network.participation.resolved";
             /** @enum {string} */
             executor_kind?: "native" | "subprocess" | "wasm";
             matcher: {
@@ -40054,12 +40622,12 @@ export interface operations {
               agent_type?: string;
               autonomy?: {
                 child_session_id?: string;
-                coordination_channel_id?: string;
                 coordinator_session_id?: string;
                 loop_name?: string;
                 loop_run_id?: string;
                 node_id?: string;
                 parent_session_id?: string;
+                participation_channel?: string;
                 release_reason?: string;
                 root_session_id?: string;
                 run_id?: string;
@@ -42513,7 +43081,6 @@ export interface operations {
             available_scopes: "global"[];
             config: {
               activation_top_k: number;
-              default_channel: string;
               delivery_structured_body_max_bytes: number;
               digest_flush_interval: string;
               digest_max_envelopes: number;
@@ -42596,7 +43163,6 @@ export interface operations {
         "application/json": {
           config: {
             activation_top_k: number;
-            default_channel: string;
             delivery_structured_body_max_bytes: number;
             digest_flush_interval: string;
             digest_max_envelopes: number;
@@ -46949,7 +47515,6 @@ export interface operations {
               http_port: number;
               network?: {
                 channels?: number;
-                configured_default_channel?: string;
                 /** Format: int64 */
                 conversation_messages?: number;
                 declared_channels?: {
@@ -46965,8 +47530,6 @@ export interface operations {
                 delivery_workers?: number;
                 /** Format: int64 */
                 direct_resolves?: number;
-                effective_default_channel?: string;
-                effective_default_source?: string;
                 enabled: boolean;
                 /** Format: int64 */
                 handoff_tagged_events?: number;
@@ -47251,8 +47814,8 @@ export interface operations {
                 owner_ref: string;
               }[];
               queue_depth?: {
+                channel_id?: string;
                 count: number;
-                network_channel?: string;
                 /** Format: int64 */
                 oldest_queue_age_ms: number;
                 /** Format: date-time */
@@ -47265,8 +47828,8 @@ export interface operations {
                 requeued: number;
               };
               run_totals?: {
+                channel_id?: string;
                 count: number;
-                network_channel?: string;
                 origin_kind: string;
                 status: string;
               }[];
@@ -47274,7 +47837,7 @@ export interface operations {
               stuck_runs?: {
                 /** Format: int64 */
                 age_ms: number;
-                network_channel?: string;
+                channel_id?: string;
                 origin_kind: string;
                 run_id: string;
                 session_id?: string;
@@ -47282,8 +47845,8 @@ export interface operations {
                 task_id: string;
               }[];
               task_totals?: {
+                channel_id?: string;
                 count: number;
-                network_channel?: string;
                 scope: string;
                 status: string;
               }[];
@@ -47949,7 +48512,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -47960,7 +48522,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -47977,7 +48538,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -47995,6 +48555,25 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -48249,7 +48828,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -48260,7 +48838,6 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 designation?: {
                   brief?: string;
                   index: number;
@@ -48277,7 +48854,6 @@ export interface operations {
                 /** Format: date-time */
                 lease_until?: string | null;
                 metadata?: unknown;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -48295,6 +48871,25 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -48313,7 +48908,6 @@ export interface operations {
               };
               session?: {
                 agent_name?: string;
-                channel?: string;
                 /** Format: date-time */
                 created_at: string;
                 name?: string;
@@ -48536,7 +49130,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -48547,7 +49140,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -48564,7 +49156,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -48582,6 +49173,25 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -48781,7 +49391,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -48792,7 +49401,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -48809,7 +49417,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -48827,6 +49434,25 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -49026,7 +49652,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -49037,7 +49662,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -49054,7 +49678,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -49072,6 +49695,25 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -49271,7 +49913,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -49282,7 +49923,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -49299,7 +49939,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -49317,6 +49956,25 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -50009,7 +50667,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -50020,7 +50677,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -50037,7 +50693,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -50055,6 +50710,25 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -50237,8 +50911,8 @@ export interface operations {
         owner_ref?: string;
         /** @description Filter by parent task ID */
         parent_task_id?: string;
-        /** @description Filter by network channel */
-        network_channel?: string;
+        /** @description Filter by resolved participation channel */
+        participation_channel?: string;
         /** @description Filter by task title or identifier */
         query?: string;
         /** @description Order by recent activity or priority */
@@ -50313,7 +50987,6 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 } | null;
-                coordination_channel_id?: string;
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
@@ -50327,6 +51000,25 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -50388,7 +51080,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -50417,6 +51108,25 @@ export interface operations {
               parent_task_id?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -50586,7 +51296,22 @@ export interface operations {
           identifier?: string;
           max_attempts?: number | null;
           metadata?: unknown;
-          network_channel?: string;
+          network_participation?: {
+            bounds?: {
+              coalesce_window?: string | null;
+              /** Format: int64 */
+              max_input_tokens?: number | null;
+              /** Format: int64 */
+              max_output_tokens?: number | null;
+              max_total_wall_time?: string | null;
+              max_wake_depth?: number | null;
+              max_wake_wall_time?: string | null;
+              max_wakes?: number | null;
+            } | null;
+            channel_id?: string | null;
+            channel_strategy?: string | null;
+            mode?: string | null;
+          } | null;
           owner?: {
             /** @enum {string} */
             kind: "human" | "agent_session" | "automation" | "extension" | "network_peer" | "pool";
@@ -50666,7 +51391,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -50701,6 +51425,25 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -50922,7 +51665,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -50933,7 +51675,6 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   designation?: {
                     brief?: string;
                     index: number;
@@ -50952,6 +51693,25 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  resolved_network_participation?: {
+                    bounds: {
+                      coalesce_window: string;
+                      /** Format: int64 */
+                      max_input_tokens: number;
+                      /** Format: int64 */
+                      max_output_tokens: number;
+                      max_total_wall_time: string;
+                      max_wake_depth: number;
+                      max_wake_wall_time: string;
+                      max_wakes: number;
+                    };
+                    channel_id?: string;
+                    channel_strategy?: string;
+                    mode: string;
+                    source: string;
+                    version: string;
+                    workspace_id?: string;
+                  } | null;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -51069,7 +51829,6 @@ export interface operations {
                   ref: string;
                 } | null;
                 needs_attention_reason?: string;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -51104,6 +51863,25 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
@@ -51243,7 +52021,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -51254,7 +52031,6 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 designation?: {
                   brief?: string;
                   index: number;
@@ -51271,7 +52047,6 @@ export interface operations {
                 /** Format: date-time */
                 lease_until?: string | null;
                 metadata?: unknown;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -51289,6 +52064,25 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -51332,7 +52126,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -51343,7 +52136,6 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   designation?: {
                     brief?: string;
                     index: number;
@@ -51362,6 +52154,25 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  resolved_network_participation?: {
+                    bounds: {
+                      coalesce_window: string;
+                      /** Format: int64 */
+                      max_input_tokens: number;
+                      /** Format: int64 */
+                      max_output_tokens: number;
+                      max_total_wall_time: string;
+                      max_wake_depth: number;
+                      max_wake_wall_time: string;
+                      max_wakes: number;
+                    };
+                    channel_id?: string;
+                    channel_strategy?: string;
+                    mode: string;
+                    source: string;
+                    version: string;
+                    workspace_id?: string;
+                  } | null;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -51479,7 +52290,6 @@ export interface operations {
                   ref: string;
                 } | null;
                 needs_attention_reason?: string;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -51514,6 +52324,25 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
@@ -51589,7 +52418,6 @@ export interface operations {
                   ref: string;
                 } | null;
                 needs_attention_reason?: string;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -51624,6 +52452,25 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
@@ -51891,7 +52738,22 @@ export interface operations {
           description?: string | null;
           max_attempts?: number | null;
           metadata?: unknown;
-          network_channel?: string | null;
+          network_participation?: {
+            bounds?: {
+              coalesce_window?: string | null;
+              /** Format: int64 */
+              max_input_tokens?: number | null;
+              /** Format: int64 */
+              max_output_tokens?: number | null;
+              max_total_wall_time?: string | null;
+              max_wake_depth?: number | null;
+              max_wake_wall_time?: string | null;
+              max_wakes?: number | null;
+            } | null;
+            channel_id?: string | null;
+            channel_strategy?: string | null;
+            mode?: string | null;
+          } | null;
           owner?: {
             /** @enum {string} */
             kind: "human" | "agent_session" | "automation" | "extension" | "network_peer" | "pool";
@@ -51967,7 +52829,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -52002,6 +52863,25 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -52167,7 +53047,22 @@ export interface operations {
         "application/json": {
           idempotency_key?: string;
           metadata?: unknown;
-          network_channel?: string;
+          network_participation?: {
+            bounds?: {
+              coalesce_window?: string | null;
+              /** Format: int64 */
+              max_input_tokens?: number | null;
+              /** Format: int64 */
+              max_output_tokens?: number | null;
+              max_total_wall_time?: string | null;
+              max_wake_depth?: number | null;
+              max_wake_wall_time?: string | null;
+              max_wakes?: number | null;
+            } | null;
+            channel_id?: string | null;
+            channel_strategy?: string | null;
+            mode?: string | null;
+          } | null;
         };
       };
     };
@@ -52205,7 +53100,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -52216,7 +53110,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -52233,7 +53126,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -52251,6 +53143,25 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -52323,7 +53234,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -52358,6 +53268,25 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -53176,7 +54105,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -53211,6 +54139,25 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -53383,7 +54330,22 @@ export interface operations {
           identifier?: string;
           max_attempts?: number | null;
           metadata?: unknown;
-          network_channel?: string;
+          network_participation?: {
+            bounds?: {
+              coalesce_window?: string | null;
+              /** Format: int64 */
+              max_input_tokens?: number | null;
+              /** Format: int64 */
+              max_output_tokens?: number | null;
+              max_total_wall_time?: string | null;
+              max_wake_depth?: number | null;
+              max_wake_wall_time?: string | null;
+              max_wakes?: number | null;
+            } | null;
+            channel_id?: string | null;
+            channel_strategy?: string | null;
+            mode?: string | null;
+          } | null;
           owner?: {
             /** @enum {string} */
             kind: "human" | "agent_session" | "automation" | "extension" | "network_peer" | "pool";
@@ -53463,7 +54425,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -53498,6 +54459,25 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -53728,7 +54708,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -53739,7 +54718,6 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   designation?: {
                     brief?: string;
                     index: number;
@@ -53758,6 +54736,25 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  resolved_network_participation?: {
+                    bounds: {
+                      coalesce_window: string;
+                      /** Format: int64 */
+                      max_input_tokens: number;
+                      /** Format: int64 */
+                      max_output_tokens: number;
+                      max_total_wall_time: string;
+                      max_wake_depth: number;
+                      max_wake_wall_time: string;
+                      max_wakes: number;
+                    };
+                    channel_id?: string;
+                    channel_strategy?: string;
+                    mode: string;
+                    source: string;
+                    version: string;
+                    workspace_id?: string;
+                  } | null;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -53875,7 +54872,6 @@ export interface operations {
                   ref: string;
                 } | null;
                 needs_attention_reason?: string;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -53910,6 +54906,25 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
@@ -54049,7 +55064,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -54060,7 +55074,6 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 designation?: {
                   brief?: string;
                   index: number;
@@ -54077,7 +55090,6 @@ export interface operations {
                 /** Format: date-time */
                 lease_until?: string | null;
                 metadata?: unknown;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -54095,6 +55107,25 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -54138,7 +55169,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -54149,7 +55179,6 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   designation?: {
                     brief?: string;
                     index: number;
@@ -54168,6 +55197,25 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  resolved_network_participation?: {
+                    bounds: {
+                      coalesce_window: string;
+                      /** Format: int64 */
+                      max_input_tokens: number;
+                      /** Format: int64 */
+                      max_output_tokens: number;
+                      max_total_wall_time: string;
+                      max_wake_depth: number;
+                      max_wake_wall_time: string;
+                      max_wakes: number;
+                    };
+                    channel_id?: string;
+                    channel_strategy?: string;
+                    mode: string;
+                    source: string;
+                    version: string;
+                    workspace_id?: string;
+                  } | null;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -54285,7 +55333,6 @@ export interface operations {
                   ref: string;
                 } | null;
                 needs_attention_reason?: string;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -54320,6 +55367,25 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
@@ -54395,7 +55461,6 @@ export interface operations {
                   ref: string;
                 } | null;
                 needs_attention_reason?: string;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -54430,6 +55495,25 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
@@ -54629,7 +55713,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -54640,7 +55723,6 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   designation?: {
                     brief?: string;
                     index: number;
@@ -54659,6 +55741,25 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  resolved_network_participation?: {
+                    bounds: {
+                      coalesce_window: string;
+                      /** Format: int64 */
+                      max_input_tokens: number;
+                      /** Format: int64 */
+                      max_output_tokens: number;
+                      max_total_wall_time: string;
+                      max_wake_depth: number;
+                      max_wake_wall_time: string;
+                      max_wakes: number;
+                    };
+                    channel_id?: string;
+                    channel_strategy?: string;
+                    mode: string;
+                    source: string;
+                    version: string;
+                    workspace_id?: string;
+                  } | null;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -54776,7 +55877,6 @@ export interface operations {
                   ref: string;
                 } | null;
                 needs_attention_reason?: string;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -54811,6 +55911,25 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
@@ -54950,7 +56069,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -54961,7 +56079,6 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 designation?: {
                   brief?: string;
                   index: number;
@@ -54978,7 +56095,6 @@ export interface operations {
                 /** Format: date-time */
                 lease_until?: string | null;
                 metadata?: unknown;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -54996,6 +56112,25 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -55039,7 +56174,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -55050,7 +56184,6 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   designation?: {
                     brief?: string;
                     index: number;
@@ -55069,6 +56202,25 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  resolved_network_participation?: {
+                    bounds: {
+                      coalesce_window: string;
+                      /** Format: int64 */
+                      max_input_tokens: number;
+                      /** Format: int64 */
+                      max_output_tokens: number;
+                      max_total_wall_time: string;
+                      max_wake_depth: number;
+                      max_wake_wall_time: string;
+                      max_wakes: number;
+                    };
+                    channel_id?: string;
+                    channel_strategy?: string;
+                    mode: string;
+                    source: string;
+                    version: string;
+                    workspace_id?: string;
+                  } | null;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -55186,7 +56338,6 @@ export interface operations {
                   ref: string;
                 } | null;
                 needs_attention_reason?: string;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -55221,6 +56372,25 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
@@ -55296,7 +56466,6 @@ export interface operations {
                   ref: string;
                 } | null;
                 needs_attention_reason?: string;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -55331,6 +56500,25 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
@@ -56240,7 +57428,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -56251,7 +57438,6 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   designation?: {
                     brief?: string;
                     index: number;
@@ -56270,6 +57456,25 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  resolved_network_participation?: {
+                    bounds: {
+                      coalesce_window: string;
+                      /** Format: int64 */
+                      max_input_tokens: number;
+                      /** Format: int64 */
+                      max_output_tokens: number;
+                      max_total_wall_time: string;
+                      max_wake_depth: number;
+                      max_wake_wall_time: string;
+                      max_wakes: number;
+                    };
+                    channel_id?: string;
+                    channel_strategy?: string;
+                    mode: string;
+                    source: string;
+                    version: string;
+                    workspace_id?: string;
+                  } | null;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -56387,7 +57592,6 @@ export interface operations {
                   ref: string;
                 } | null;
                 needs_attention_reason?: string;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -56422,6 +57626,25 @@ export interface operations {
                 paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 /** @enum {string} */
                 scope: "global" | "workspace";
                 /** @enum {string} */
@@ -57225,7 +58448,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -57260,6 +58482,25 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -57475,7 +58716,22 @@ export interface operations {
         "application/json": {
           idempotency_key?: string;
           metadata?: unknown;
-          network_channel?: string;
+          network_participation?: {
+            bounds?: {
+              coalesce_window?: string | null;
+              /** Format: int64 */
+              max_input_tokens?: number | null;
+              /** Format: int64 */
+              max_output_tokens?: number | null;
+              max_total_wall_time?: string | null;
+              max_wake_depth?: number | null;
+              max_wake_wall_time?: string | null;
+              max_wakes?: number | null;
+            } | null;
+            channel_id?: string | null;
+            channel_strategy?: string | null;
+            mode?: string | null;
+          } | null;
         };
       };
     };
@@ -57513,7 +58769,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -57524,7 +58779,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -57541,7 +58795,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -57559,6 +58812,25 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -57631,7 +58903,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -57666,6 +58937,25 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -57897,7 +59187,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -57932,6 +59221,25 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -58156,7 +59464,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -58191,6 +59498,25 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -58422,7 +59748,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -58457,6 +59782,25 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -58909,7 +60253,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -58920,7 +60263,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -58937,7 +60279,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -58955,6 +60296,25 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -59092,7 +60452,22 @@ export interface operations {
         "application/json": {
           idempotency_key?: string;
           metadata?: unknown;
-          network_channel?: string;
+          network_participation?: {
+            bounds?: {
+              coalesce_window?: string | null;
+              /** Format: int64 */
+              max_input_tokens?: number | null;
+              /** Format: int64 */
+              max_output_tokens?: number | null;
+              max_total_wall_time?: string | null;
+              max_wake_depth?: number | null;
+              max_wake_wall_time?: string | null;
+              max_wakes?: number | null;
+            } | null;
+            channel_id?: string | null;
+            channel_strategy?: string | null;
+            mode?: string | null;
+          } | null;
         };
       };
     };
@@ -59130,7 +60505,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -59141,7 +60515,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -59158,7 +60531,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -59176,6 +60548,25 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -59342,7 +60733,22 @@ export interface operations {
             metadata?: unknown;
           }[];
           idempotency_key?: string;
-          network_channel?: string;
+          network_participation?: {
+            bounds?: {
+              coalesce_window?: string | null;
+              /** Format: int64 */
+              max_input_tokens?: number | null;
+              /** Format: int64 */
+              max_output_tokens?: number | null;
+              max_total_wall_time?: string | null;
+              max_wake_depth?: number | null;
+              max_wake_wall_time?: string | null;
+              max_wakes?: number | null;
+            } | null;
+            channel_id?: string | null;
+            channel_strategy?: string | null;
+            mode?: string | null;
+          } | null;
         };
       };
     };
@@ -59381,7 +60787,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -59392,7 +60797,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -59409,7 +60813,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -59427,6 +60830,25 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -59589,7 +61011,22 @@ export interface operations {
         "application/json": {
           idempotency_key?: string;
           metadata?: unknown;
-          network_channel?: string;
+          network_participation?: {
+            bounds?: {
+              coalesce_window?: string | null;
+              /** Format: int64 */
+              max_input_tokens?: number | null;
+              /** Format: int64 */
+              max_output_tokens?: number | null;
+              max_total_wall_time?: string | null;
+              max_wake_depth?: number | null;
+              max_wake_wall_time?: string | null;
+              max_wakes?: number | null;
+            } | null;
+            channel_id?: string | null;
+            channel_strategy?: string | null;
+            mode?: string | null;
+          } | null;
         };
       };
     };
@@ -59627,7 +61064,6 @@ export interface operations {
                   | "result"
                   | "review_request"
                 )[];
-                channel?: string;
                 display_name: string;
                 id: string;
                 /** Format: date-time */
@@ -59638,7 +61074,6 @@ export interface operations {
                 workflow_id?: string;
                 workspace_id?: string;
               } | null;
-              coordination_channel_id?: string;
               designation?: {
                 brief?: string;
                 index: number;
@@ -59655,7 +61090,6 @@ export interface operations {
               /** Format: date-time */
               lease_until?: string | null;
               metadata?: unknown;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -59673,6 +61107,25 @@ export interface operations {
               previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               result?: unknown;
               session_id?: string;
               /** Format: date-time */
@@ -59745,7 +61198,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -59780,6 +61232,25 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -60008,7 +61479,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -60019,7 +61489,6 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 designation?: {
                   brief?: string;
                   index: number;
@@ -60038,6 +61507,25 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -60280,7 +61768,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -60291,7 +61778,6 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 designation?: {
                   brief?: string;
                   index: number;
@@ -60310,6 +61796,25 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -60519,7 +62024,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -60530,7 +62034,6 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   designation?: {
                     brief?: string;
                     index: number;
@@ -60549,6 +62052,25 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  resolved_network_participation?: {
+                    bounds: {
+                      coalesce_window: string;
+                      /** Format: int64 */
+                      max_input_tokens: number;
+                      /** Format: int64 */
+                      max_output_tokens: number;
+                      max_total_wall_time: string;
+                      max_wake_depth: number;
+                      max_wake_wall_time: string;
+                      max_wakes: number;
+                    };
+                    channel_id?: string;
+                    channel_strategy?: string;
+                    mode: string;
+                    source: string;
+                    version: string;
+                    workspace_id?: string;
+                  } | null;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -60634,7 +62156,6 @@ export interface operations {
                       | "result"
                       | "review_request"
                     )[];
-                    channel?: string;
                     display_name: string;
                     id: string;
                     /** Format: date-time */
@@ -60645,7 +62166,6 @@ export interface operations {
                     workflow_id?: string;
                     workspace_id?: string;
                   } | null;
-                  coordination_channel_id?: string;
                   designation?: {
                     brief?: string;
                     index: number;
@@ -60664,6 +62184,25 @@ export interface operations {
                   previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
+                  resolved_network_participation?: {
+                    bounds: {
+                      coalesce_window: string;
+                      /** Format: int64 */
+                      max_input_tokens: number;
+                      /** Format: int64 */
+                      max_output_tokens: number;
+                      max_total_wall_time: string;
+                      max_wake_depth: number;
+                      max_wake_wall_time: string;
+                      max_wakes: number;
+                    };
+                    channel_id?: string;
+                    channel_strategy?: string;
+                    mode: string;
+                    source: string;
+                    version: string;
+                    workspace_id?: string;
+                  } | null;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -65548,7 +67087,6 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
-              channel?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -65614,6 +67152,25 @@ export interface operations {
               provider: string;
               /** @enum {string} */
               reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -66001,7 +67558,9 @@ export interface operations {
           | "network.work.transitioned"
           | "network.work.closed"
           | "network.peer.joined"
-          | "network.peer.left";
+          | "network.peer.left"
+          | "network.participation.pre_resolve"
+          | "network.participation.resolved";
         /** @description Hook execution outcome */
         outcome?: "applied" | "denied" | "failed" | "skipped" | "dropped" | "rejected";
         /** @description Only runs recorded since this timestamp */
@@ -66184,6 +67743,25 @@ export interface operations {
               pause_requested: boolean;
               /** @enum {string} */
               reattempt_strategy: "failed_only" | "full_body";
+              resolved_network_participation: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               start_metadata?: {
                 [key: string]: unknown;
               };
@@ -66517,6 +68095,25 @@ export interface operations {
               pause_requested: boolean;
               /** @enum {string} */
               reattempt_strategy: "failed_only" | "full_body";
+              resolved_network_participation: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               start_metadata?: {
                 [key: string]: unknown;
               };
@@ -70337,6 +71934,22 @@ export interface operations {
           inputs?: {
             [key: string]: unknown;
           };
+          network_participation?: {
+            bounds?: {
+              coalesce_window?: string | null;
+              /** Format: int64 */
+              max_input_tokens?: number | null;
+              /** Format: int64 */
+              max_output_tokens?: number | null;
+              max_total_wall_time?: string | null;
+              max_wake_depth?: number | null;
+              max_wake_wall_time?: string | null;
+              max_wakes?: number | null;
+            } | null;
+            channel_id?: string | null;
+            channel_strategy?: string | null;
+            mode?: string | null;
+          } | null;
           parent_loop_run_id?: string;
         };
       };
@@ -70417,6 +72030,25 @@ export interface operations {
               resolved_inputs: {
                 [key: string]: unknown;
               };
+              resolved_network_participation: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
             } | null;
             run?: {
               active_gate_id?: string;
@@ -70443,6 +72075,25 @@ export interface operations {
               pause_requested: boolean;
               /** @enum {string} */
               reattempt_strategy: "failed_only" | "full_body";
+              resolved_network_participation: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               start_metadata?: {
                 [key: string]: unknown;
               };
@@ -70547,6 +72198,25 @@ export interface operations {
               resolved_inputs: {
                 [key: string]: unknown;
               };
+              resolved_network_participation: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
             } | null;
             run?: {
               active_gate_id?: string;
@@ -70573,6 +72243,25 @@ export interface operations {
               pause_requested: boolean;
               /** @enum {string} */
               reattempt_strategy: "failed_only" | "full_body";
+              resolved_network_participation: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               start_metadata?: {
                 [key: string]: unknown;
               };
@@ -71251,6 +72940,376 @@ export interface operations {
       };
     };
   };
+  getNetworkCoordination: {
+    parameters: {
+      query?: {
+        /** @description Optional task scope for invitation state */
+        task_id?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            coordination: {
+              enabled: boolean;
+              invitation?: {
+                dismissed: boolean;
+                /** Format: date-time */
+                dismissed_at?: string | null;
+                dismissed_by?: string;
+                scope: string;
+                task_id?: string;
+              } | null;
+              /** Format: int64 */
+              revision: number;
+              /** Format: date-time */
+              updated_at: string;
+              updated_by?: string;
+              workspace_id: string;
+            };
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  putNetworkCoordination: {
+    parameters: {
+      query?: {
+        /** @description Optional task scope for invitation state */
+        task_id?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          enabled: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            coordination: {
+              enabled: boolean;
+              invitation?: {
+                dismissed: boolean;
+                /** Format: date-time */
+                dismissed_at?: string | null;
+                dismissed_by?: string;
+                scope: string;
+                task_id?: string;
+              } | null;
+              /** Format: int64 */
+              revision: number;
+              /** Format: date-time */
+              updated_at: string;
+              updated_by?: string;
+              workspace_id: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid coordination request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Network participation unavailable */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  putNetworkCoordinationInvitation: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          dismissed: boolean;
+          scope: string;
+          task_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            coordination: {
+              enabled: boolean;
+              invitation?: {
+                dismissed: boolean;
+                /** Format: date-time */
+                dismissed_at?: string | null;
+                dismissed_by?: string;
+                scope: string;
+                task_id?: string;
+              } | null;
+              /** Format: int64 */
+              revision: number;
+              /** Format: date-time */
+              updated_at: string;
+              updated_by?: string;
+              workspace_id: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid invitation request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   listNetworkChannels: {
     parameters: {
       query?: {
@@ -71503,7 +73562,6 @@ export interface operations {
                   name: string;
                 }[];
                 badge: string;
-                channel?: string;
                 /** Format: date-time */
                 created_at: string;
                 failure?: {
@@ -71569,6 +73627,25 @@ export interface operations {
                 provider: string;
                 /** @enum {string} */
                 reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 sandbox?: {
                   backend?: string;
                   instance_id?: string;
@@ -71840,7 +73917,6 @@ export interface operations {
                   name: string;
                 }[];
                 badge: string;
-                channel?: string;
                 /** Format: date-time */
                 created_at: string;
                 failure?: {
@@ -71906,6 +73982,25 @@ export interface operations {
                 provider: string;
                 /** @enum {string} */
                 reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 sandbox?: {
                   backend?: string;
                   instance_id?: string;
@@ -72186,7 +74281,6 @@ export interface operations {
                   name: string;
                 }[];
                 badge: string;
-                channel?: string;
                 /** Format: date-time */
                 created_at: string;
                 failure?: {
@@ -72252,6 +74346,25 @@ export interface operations {
                 provider: string;
                 /** @enum {string} */
                 reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 sandbox?: {
                   backend?: string;
                   instance_id?: string;
@@ -73968,7 +76081,6 @@ export interface operations {
                 ref: string;
               } | null;
               needs_attention_reason?: string;
-              network_channel?: string;
               origin: {
                 /** @enum {string} */
                 kind:
@@ -74003,6 +76115,25 @@ export interface operations {
               paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               /** @enum {string} */
               scope: "global" | "workspace";
               /** @enum {string} */
@@ -74764,6 +76895,113 @@ export interface operations {
       };
     };
   };
+  getNetworkUsage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            details: {
+              channel: string;
+              charged_wall_time: string;
+              depth: number;
+              /** Format: int64 */
+              input_tokens: number;
+              /** Format: int64 */
+              output_tokens: number;
+              owner_key: string;
+              reason?: string;
+              /** Format: date-time */
+              reserved_at: string;
+              root_id: string;
+              /** Format: date-time */
+              settled_at?: string | null;
+              state: string;
+              task_run_id: string;
+              usage_state: string;
+              wake_id: string;
+              workspace_id: string;
+            }[];
+            total: {
+              actual_wake_count: number;
+              charged_wall_time: string;
+              /** Format: int64 */
+              input_tokens: number;
+              /** Format: int64 */
+              output_tokens: number;
+              reserved_wake_count: number;
+              unavailable_wake_count: number;
+              wake_count: number;
+            };
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   getNetworkWork: {
     parameters: {
       query?: never;
@@ -74987,7 +77225,6 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
-              channel?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -75053,6 +77290,25 @@ export interface operations {
               provider: string;
               /** @enum {string} */
               reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -75417,7 +77673,6 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
-              channel?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -75483,6 +77738,25 @@ export interface operations {
               provider: string;
               /** @enum {string} */
               reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+              resolved_network_participation?: {
+                bounds: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                channel_id?: string;
+                channel_strategy?: string;
+                mode: string;
+                source: string;
+                version: string;
+                workspace_id?: string;
+              } | null;
               sandbox?: {
                 backend?: string;
                 instance_id?: string;
@@ -78334,7 +80608,6 @@ export interface operations {
                     | "result"
                     | "review_request"
                   )[];
-                  channel?: string;
                   display_name: string;
                   id: string;
                   /** Format: date-time */
@@ -78345,7 +80618,6 @@ export interface operations {
                   workflow_id?: string;
                   workspace_id?: string;
                 } | null;
-                coordination_channel_id?: string;
                 designation?: {
                   brief?: string;
                   index: number;
@@ -78362,7 +80634,6 @@ export interface operations {
                 /** Format: date-time */
                 lease_until?: string | null;
                 metadata?: unknown;
-                network_channel?: string;
                 origin: {
                   /** @enum {string} */
                   kind:
@@ -78380,6 +80651,25 @@ export interface operations {
                 previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 result?: unknown;
                 session_id?: string;
                 /** Format: date-time */
@@ -78483,7 +80773,6 @@ export interface operations {
                   name: string;
                 }[];
                 badge: string;
-                channel?: string;
                 /** Format: date-time */
                 created_at: string;
                 failure?: {
@@ -78549,6 +80838,25 @@ export interface operations {
                 provider: string;
                 /** @enum {string} */
                 reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+                resolved_network_participation?: {
+                  bounds: {
+                    coalesce_window: string;
+                    /** Format: int64 */
+                    max_input_tokens: number;
+                    /** Format: int64 */
+                    max_output_tokens: number;
+                    max_total_wall_time: string;
+                    max_wake_depth: number;
+                    max_wake_wall_time: string;
+                    max_wakes: number;
+                  };
+                  channel_id?: string;
+                  channel_strategy?: string;
+                  mode: string;
+                  source: string;
+                  version: string;
+                  workspace_id?: string;
+                } | null;
                 sandbox?: {
                   backend?: string;
                   instance_id?: string;

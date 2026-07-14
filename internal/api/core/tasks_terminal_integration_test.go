@@ -209,7 +209,8 @@ func TestTaskRunTerminalHandlersProjectImmutableParticipationSnapshotsIntegratio
 			if payload.Run.Status != tc.wantStatus {
 				t.Fatalf("payload.Run.Status = %q, want %q", payload.Run.Status, tc.wantStatus)
 			}
-			if payload.Run.NetworkChannel != "builders" || payload.Run.CoordinationChannelID != "builders" {
+			if payload.Run.ResolvedNetworkParticipation == nil ||
+				payload.Run.ResolvedNetworkParticipation.ChannelID != "builders" {
 				t.Fatalf("payload.Run = %#v, want projected immutable participation snapshot", payload.Run)
 			}
 			if payload.Run.Origin.Ref != tc.wantOriginRef {

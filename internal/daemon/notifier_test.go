@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/agh/internal/acp"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	looppkg "github.com/compozy/agh/internal/loop"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/skills"
 	"github.com/compozy/agh/internal/store"
@@ -622,15 +623,17 @@ func coordinatorPayloadForWatchObserverTest(
 	return hookspkg.CoordinatorLifecyclePayload{
 		PayloadBase: hookspkg.PayloadBase{Event: event, Timestamp: now},
 		CoordinatorContext: hookspkg.CoordinatorContext{
-			WorkspaceID:           "ws-1",
-			AgentName:             "coordinator",
-			CoordinatorSessionID:  "sess-coordinator-phase-c",
-			TaskID:                "task-1",
-			RunID:                 "run-1",
-			WorkflowID:            "wf-1",
-			CoordinationChannelID: "chan-1",
-			Provider:              "mock",
-			Model:                 "mock-model",
+			WorkspaceID:          "ws-1",
+			AgentName:            "coordinator",
+			CoordinatorSessionID: "sess-coordinator-phase-c",
+			TaskID:               "task-1",
+			RunID:                "run-1",
+			WorkflowID:           "wf-1",
+			ResolvedNetworkParticipation: participation.CloneSpec(participation.Spec{
+				ChannelID: "chan-1",
+			}),
+			Provider: "mock",
+			Model:    "mock-model",
 		},
 		DecisionKind: "next_action",
 		Decision:     "continue",

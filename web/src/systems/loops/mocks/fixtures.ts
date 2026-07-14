@@ -124,6 +124,7 @@ function buildRun(
     budget_wall_sec: 3_600,
     budget_on_exceeded: "halt",
     reattempt_strategy: "failed_only",
+    resolved_network_participation: null,
     created_at: "2026-07-05T12:00:00Z",
     started_at: "2026-07-05T12:00:00Z",
     last_progress_at: "2026-07-05T12:18:00Z",

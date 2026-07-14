@@ -147,15 +147,19 @@ func NewService(store Store, extensions ExtensionInfoLister, loadExtension Exten
 }
 
 type ActivateRequest struct {
-	ExtensionName string
-	BundleName    string
-	ProfileName   string
-	Scope         Scope
-	Workspace     string
+	ExtensionName             string
+	BundleName                string
+	ProfileName               string
+	Scope                     Scope
+	Workspace                 string
+	ConfirmNetworkRequirement bool
+	ConfirmedBy               string
+	ConfirmedAt               string
 }
 
 type UpdateActivationRequest struct {
-	ID string
+	ID                        string
+	ConfirmNetworkRequirement bool
 }
 
 func (s *Service) Catalog(ctx context.Context) ([]CatalogEntry, error) {
@@ -193,6 +197,11 @@ func (s *Service) PreviewActivation(ctx context.Context, req ActivateRequest) (A
 	if err != nil {
 		return ActivationPreview{}, err
 	}
+	digest, digestErr := s.networkRequirementDigestForExtension(ctx, resolved.activation.ExtensionName)
+	if digestErr != nil {
+		return ActivationPreview{}, digestErr
+	}
+	resolved.activation = previewNetworkRequirement(resolved.activation, digest)
 	return ActivationPreview{
 		Activation: cloneActivation(resolved.activation),
 		Bundle:     cloneBundleSpec(resolved.bundle),
@@ -216,13 +225,25 @@ func (s *Service) Activate(ctx context.Context, req ActivateRequest) (Activation
 
 	existing, err := s.store.GetBundleActivation(ctx, resolved.activation.ID)
 	createNew := false
+	var existingPtr *Activation
 	switch {
 	case err == nil:
 		resolved.activation.CreatedAt = existing.CreatedAt
+		existingCopy := existing
+		existingPtr = &existingCopy
 	case errors.Is(err, ErrActivationNotFound):
 		createNew = true
 	default:
 		return ActivationPreview{}, err
+	}
+
+	if confirmErr := s.applyNetworkRequirementConfirmation(
+		ctx,
+		req,
+		existingPtr,
+		&resolved.activation,
+	); confirmErr != nil {
+		return ActivationPreview{}, confirmErr
 	}
 
 	if resolved.activation.CreatedAt.IsZero() {

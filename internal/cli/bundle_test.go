@@ -36,7 +36,7 @@ func TestBundleCommands(t *testing.T) {
 			"workspace",
 			"--workspace",
 			"ws-marketing",
-			"--bind-primary-channel-as-default",
+			"--confirm-network-requirement",
 			"--json",
 		)
 		if err != nil {
@@ -47,7 +47,7 @@ func TestBundleCommands(t *testing.T) {
 			captured.ProfileName != "default" ||
 			captured.Scope != "workspace" ||
 			captured.Workspace != "ws-marketing" ||
-			!captured.BindPrimaryChannelAsDefault {
+			!captured.ConfirmNetworkRequirement {
 			t.Fatalf("captured request = %#v", captured)
 		}
 
@@ -103,7 +103,7 @@ func TestBundleCommands(t *testing.T) {
 			captured.BundleName != "marketing" ||
 			captured.ProfileName != "default" ||
 			captured.Scope != "global" ||
-			captured.BindPrimaryChannelAsDefault {
+			captured.ConfirmNetworkRequirement {
 			t.Fatalf("captured preview request = %#v", captured)
 		}
 
@@ -203,7 +203,7 @@ func TestBundleCommands(t *testing.T) {
 		}
 	})
 
-	t.Run("Should update and clear default-channel binding explicitly", func(t *testing.T) {
+	t.Run("Should confirm network requirement on bundle update", func(t *testing.T) {
 		t.Parallel()
 
 		var captured UpdateBundleActivationRequest
@@ -218,7 +218,7 @@ func TestBundleCommands(t *testing.T) {
 				}
 				captured = request
 				item := sampleBundleActivationRecord()
-				item.BindPrimaryChannelAsDefault = request.BindPrimaryChannelAsDefault
+				item.NetworkRequirementConfirmedBy = "operator"
 				return item, nil
 			},
 		})
@@ -228,26 +228,35 @@ func TestBundleCommands(t *testing.T) {
 			"bundle",
 			"update",
 			"act_marketing",
-			"--clear-primary-channel-default",
+			"--confirm-network-requirement",
 			"--json",
 		); err != nil {
-			t.Fatalf("bundle update clear error = %v", err)
+			t.Fatalf("bundle update confirm error = %v", err)
 		}
-		if captured.BindPrimaryChannelAsDefault {
-			t.Fatalf("captured.BindPrimaryChannelAsDefault = true, want false")
+		if !captured.ConfirmNetworkRequirement {
+			t.Fatalf("captured.ConfirmNetworkRequirement = false, want true")
 		}
 	})
 
-	t.Run("Should reject ambiguous update flags before calling the client", func(t *testing.T) {
+	t.Run("Should reapply bundle spec without confirming an unchanged network requirement", func(t *testing.T) {
 		t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{})
-		_, _, err := executeRootCommand(t, deps, "bundle", "update", "act_marketing")
-		if err == nil {
-			t.Fatal("bundle update without flags error = nil, want validation error")
+		var captured UpdateBundleActivationRequest
+		deps := newTestDeps(t, &stubClient{
+			updateBundleActivationFn: func(
+				_ context.Context,
+				_ string,
+				request UpdateBundleActivationRequest,
+			) (BundleActivationRecord, error) {
+				captured = request
+				return sampleBundleActivationRecord(), nil
+			},
+		})
+		if _, _, err := executeRootCommand(t, deps, "bundle", "update", "act_marketing"); err != nil {
+			t.Fatalf("bundle update reapply error = %v", err)
 		}
-		if !strings.Contains(err.Error(), "--bind-primary-channel-as-default") {
-			t.Fatalf("bundle update error = %v, want flag guidance", err)
+		if captured.ConfirmNetworkRequirement {
+			t.Fatal("captured.ConfirmNetworkRequirement = true, want false")
 		}
 	})
 
@@ -284,9 +293,6 @@ func TestBundleCommands(t *testing.T) {
 		deps := newTestDeps(t, &stubClient{
 			bundleNetworkSettingsFn: func(context.Context) (BundleNetworkSettingsRecord, error) {
 				return BundleNetworkSettingsRecord{
-					ConfiguredDefaultChannel: "default",
-					EffectiveDefaultChannel:  "marketing",
-					EffectiveDefaultSource:   "bundle:act_marketing",
 					DeclaredChannels: []DeclaredNetworkChannelRecord{{
 						ActivationID: "act_marketing",
 						Name:         "marketing",
@@ -299,23 +305,22 @@ func TestBundleCommands(t *testing.T) {
 		if err != nil {
 			t.Fatalf("bundle network-settings error = %v", err)
 		}
-		if !strings.Contains(stdout, "bundle_network") || !strings.Contains(stdout, "marketing") {
-			t.Fatalf("stdout = %q, want bundle network toon output", stdout)
+		if !strings.Contains(stdout, "declared_channels") || !strings.Contains(stdout, "marketing") {
+			t.Fatalf("stdout = %q, want declared channels toon output", stdout)
 		}
 	})
 }
 
 func sampleBundleActivationRecord() BundleActivationRecord {
 	return BundleActivationRecord{
-		ID:                          "act_marketing",
-		ExtensionName:               "marketing-team",
-		BundleName:                  "marketing",
-		BundleDescription:           "Marketing team bundle",
-		ProfileName:                 "default",
-		ProfileDescription:          "Default profile",
-		Scope:                       "workspace",
-		WorkspaceID:                 "ws-marketing",
-		BindPrimaryChannelAsDefault: true,
+		ID:                 "act_marketing",
+		ExtensionName:      "marketing-team",
+		BundleName:         "marketing",
+		BundleDescription:  "Marketing team bundle",
+		ProfileName:        "default",
+		ProfileDescription: "Default profile",
+		Scope:              "workspace",
+		WorkspaceID:        "ws-marketing",
 		Channels: []BundleChannelRecord{{
 			Name:        "marketing",
 			Description: "Marketing coordination",

@@ -333,11 +333,11 @@ func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
 		WorkspaceID: "ws-1",
 	}
 	metadata := contract.CoordinationMessageMetadataPayload{
-		TaskID:                "task-1",
-		RunID:                 "run-1",
-		CoordinationChannelID: "builders",
-		MessageKind:           contract.CoordinationMessageStatus,
-		CorrelationID:         "run-1",
+		TaskID:        "task-1",
+		RunID:         "run-1",
+		ChannelID:     "builders",
+		MessageKind:   contract.CoordinationMessageStatus,
+		CorrelationID: "run-1",
 	}
 
 	tests := []struct {
@@ -426,7 +426,7 @@ func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
 						case req.Method == http.MethodGet && req.URL.Path == "/api/agent/channels":
 							return newHTTPResponse(
 								http.StatusOK,
-								`{"channels":[{"id":"builders","channel":"builders","display_name":"builders","workspace_id":"ws-1","allowed_message_kinds":["status","request","reply","blocker","handoff","result","review_request"]}]}`,
+								`{"channels":[{"id":"builders","display_name":"builders","workspace_id":"ws-1","allowed_message_kinds":["status","request","reply","blocker","handoff","result","review_request"]}]}`,
 							), nil
 						case req.Method == http.MethodGet && req.URL.Path == "/api/agent/channels/builders/recv":
 							if req.URL.Query().Get("wait") != "true" || req.URL.Query().Get("limit") != "3" {
@@ -434,7 +434,7 @@ func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
 							}
 							return newHTTPResponse(
 								http.StatusOK,
-								`{"messages":[{"message_id":"msg-1","channel_id":"builders","from_session_id":"sess-peer","body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"},"timestamp":"2026-04-03T12:00:00Z"}]}`,
+								`{"messages":[{"message_id":"msg-1","channel_id":"builders","from_session_id":"sess-peer","body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1"},"timestamp":"2026-04-03T12:00:00Z"}]}`,
 							), nil
 						case req.Method == http.MethodPost && req.URL.Path == "/api/agent/channels/builders/send":
 							body, err := io.ReadAll(req.Body)
@@ -447,7 +447,7 @@ func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
 							}
 							return newHTTPResponse(
 								http.StatusAccepted,
-								`{"message":{"message_id":"msg-send","channel_id":"builders","from_session_id":"sess-1","body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"},"timestamp":"2026-04-03T12:00:00Z"}}`,
+								`{"message":{"message_id":"msg-send","channel_id":"builders","from_session_id":"sess-1","body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"status","correlation_id":"run-1"},"timestamp":"2026-04-03T12:00:00Z"}}`,
 							), nil
 						case req.Method == http.MethodPost && req.URL.Path == "/api/agent/channels/reply":
 							body, err := io.ReadAll(req.Body)
@@ -459,7 +459,7 @@ func TestUnixSocketClientAgentChannelMethodsSendIdentityHeaders(t *testing.T) {
 							}
 							return newHTTPResponse(
 								http.StatusAccepted,
-								`{"message":{"message_id":"msg-reply","channel_id":"builders","from_session_id":"sess-1","to_session_id":"sess-peer","body":{"text":"ack"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"reply","correlation_id":"run-1"},"timestamp":"2026-04-03T12:00:00Z"}}`,
+								`{"message":{"message_id":"msg-reply","channel_id":"builders","from_session_id":"sess-1","to_session_id":"sess-peer","body":{"text":"ack"},"metadata":{"task_id":"task-1","run_id":"run-1","channel_id":"builders","message_kind":"reply","correlation_id":"run-1"},"timestamp":"2026-04-03T12:00:00Z"}}`,
 							), nil
 						default:
 							t.Fatalf("unexpected request = %s %s", req.Method, req.URL.Path)
@@ -704,7 +704,7 @@ func TestUnixSocketClientAgentTaskMethods(t *testing.T) {
 					}
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"claim":{"task":{"id":"task-1","title":"Run task","status":"in_progress","scope":"workspace","workspace_id":"ws-1"},"run":{"id":"run-1","task_id":"task-1","status":"claimed","attempt":1,"session_id":"sess-1","queued_at":"2026-04-03T12:00:00Z"},"lease":{"task_id":"task-1","run_id":"run-1","status":"claimed","session_id":"sess-1","coordination_channel_id":"builders","claim_token_hash":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"coordination_channel":{"id":"builders","channel":"builders","display_name":"Builders","allowed_message_kinds":["status"]}}}`,
+						`{"claim":{"task":{"id":"task-1","title":"Run task","status":"in_progress","scope":"workspace","workspace_id":"ws-1"},"run":{"id":"run-1","task_id":"task-1","status":"claimed","attempt":1,"session_id":"sess-1","queued_at":"2026-04-03T12:00:00Z"},"lease":{"task_id":"task-1","run_id":"run-1","status":"claimed","session_id":"sess-1","resolved_network_participation":{"version":"network-participation/v1","mode":"live","source":"explicit_request","channel_id":"builders"},"claim_token_hash":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"coordination_channel":{"id":"builders","display_name":"Builders","allowed_message_kinds":["status"]}}}`,
 					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/agent/tasks/run-1/heartbeat":
 					sawHeartbeat = true
@@ -945,7 +945,7 @@ func agentTaskLeaseHTTPResponse(status taskpkg.RunStatus) *http.Response {
 	return newHTTPResponse(
 		http.StatusOK,
 		`{"lease":{"task_id":"task-1","run_id":"run-1","status":"`+
-			status.String()+`","session_id":"sess-1","coordination_channel_id":"builders"}}`,
+			status.String()+`","session_id":"sess-1","resolved_network_participation":{"version":"network-participation/v1","mode":"live","source":"explicit_request","channel_id":"builders"}}}`,
 	)
 }
 
@@ -1439,7 +1439,8 @@ func TestUnixSocketClientTaskExecutionMethods(t *testing.T) {
 						if err := json.NewDecoder(req.Body).Decode(&request); err != nil {
 							t.Fatalf("decode task execution body: %v", err)
 						}
-						if request.IdempotencyKey != "idem-1" || request.NetworkChannel != "builders" {
+						if request.IdempotencyKey != "idem-1" ||
+							participationRequestChannelID(request.NetworkParticipation) != "builders" {
 							t.Fatalf("task execution request = %#v, want idempotency and channel", request)
 						}
 						return newHTTPResponse(http.StatusOK, string(mustJSON(t, sampleTaskExecutionRecord()))), nil
@@ -1451,9 +1452,9 @@ func TestUnixSocketClientTaskExecutionMethods(t *testing.T) {
 			},
 		}
 		request := TaskExecutionRequest{
-			IdempotencyKey: "idem-1",
-			NetworkChannel: "builders",
-			Metadata:       json.RawMessage(`{"source":"cli-test"}`),
+			IdempotencyKey:       "idem-1",
+			NetworkParticipation: testLiveNamedParticipationRequest("builders"),
+			Metadata:             json.RawMessage(`{"source":"cli-test"}`),
 		}
 
 		published, err := client.PublishTask(context.Background(), " task-1 ", request)
@@ -2814,8 +2815,8 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					if got := req.URL.Query().Get("parent_task_id"); got != "task-root" {
 						t.Fatalf("task parent_task_id query = %q, want %q", got, "task-root")
 					}
-					if got := req.URL.Query().Get("network_channel"); got != "builders" {
-						t.Fatalf("task network_channel query = %q, want %q", got, "builders")
+					if got := req.URL.Query().Get("participation_channel"); got != "builders" {
+						t.Fatalf("task participation_channel query = %q, want %q", got, "builders")
 					}
 					if got := req.URL.Query().Get("limit"); got != "3" {
 						t.Fatalf("task limit query = %q, want %q", got, "3")
@@ -2832,7 +2833,7 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					}
 					if payload.Scope != taskpkg.ScopeWorkspace ||
 						payload.Workspace != "alpha" ||
-						payload.NetworkChannel != "builders" ||
+						participationRequestChannelID(payload.NetworkParticipation) != "builders" ||
 						payload.Title != "Investigate flaky task runs" ||
 						payload.Owner == nil ||
 						payload.Owner.Kind != taskpkg.OwnerKindPool ||
@@ -2850,13 +2851,12 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 						t.Fatalf("json.Decode(update task body) error = %v", err)
 					}
 					if payload.Title == nil || *payload.Title != "Investigate resolved" ||
-						payload.NetworkChannel == nil ||
-						*payload.NetworkChannel != "ops" {
+						participationRequestChannelID(payload.NetworkParticipation) != "ops" {
 						t.Fatalf("update task payload = %#v", payload)
 					}
 					updated := sampleTaskRecord()
 					updated.Title = "Investigate resolved"
-					updated.NetworkChannel = "ops"
+					updated.ResolvedNetworkParticipation = testLiveResolvedParticipation("ops")
 					body := mustJSON(t, contract.TaskResponse{Task: updated})
 					return newHTTPResponse(http.StatusOK, string(body)), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/tasks/task-1/cancel":
@@ -2903,7 +2903,8 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 						t.Fatalf("json.Decode(enqueue run body) error = %v", err)
 					}
-					if payload.IdempotencyKey != "idem-1" || payload.NetworkChannel != "builders" {
+					if payload.IdempotencyKey != "idem-1" ||
+						participationRequestChannelID(payload.NetworkParticipation) != "builders" {
 						t.Fatalf("enqueue run payload = %#v", payload)
 					}
 					if got, want := string(payload.Metadata), `{"schema":"agh.harness.detached.v1"}`; got != want {
@@ -3006,14 +3007,14 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 
 	t.Run("Should list tasks", func(t *testing.T) {
 		tasks, err := client.ListTasks(ctx, TaskListQuery{
-			Scope:          taskpkg.CatalogScopeWorkspace,
-			Workspace:      "alpha",
-			Status:         taskpkg.TaskStatusReady,
-			OwnerKind:      taskpkg.OwnerKindPool,
-			OwnerRef:       "triage",
-			ParentTaskID:   "task-root",
-			NetworkChannel: "builders",
-			Limit:          3,
+			Scope:                taskpkg.CatalogScopeWorkspace,
+			Workspace:            "alpha",
+			Status:               taskpkg.TaskStatusReady,
+			OwnerKind:            taskpkg.OwnerKindPool,
+			OwnerRef:             "triage",
+			ParentTaskID:         "task-root",
+			ParticipationChannel: "builders",
+			Limit:                3,
 		})
 		if err != nil || len(tasks.Tasks) != 1 || tasks.Tasks[0].ID != "task-1" {
 			t.Fatalf("ListTasks() = %#v, %v", tasks, err)
@@ -3022,11 +3023,11 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 
 	t.Run("Should create get update and cancel tasks", func(t *testing.T) {
 		created, err := client.CreateTask(ctx, CreateTaskRequest{
-			Scope:          taskpkg.ScopeWorkspace,
-			Workspace:      "alpha",
-			NetworkChannel: "builders",
-			Title:          "Investigate flaky task runs",
-			Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
+			Scope:                taskpkg.ScopeWorkspace,
+			Workspace:            "alpha",
+			NetworkParticipation: testLiveNamedParticipationRequest("builders"),
+			Title:                "Investigate flaky task runs",
+			Owner:                &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
 		})
 		if err != nil || created.ID != "task-1" {
 			t.Fatalf("CreateTask() = %#v, %v", created, err)
@@ -3038,10 +3039,11 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 		}
 
 		updated, err := client.UpdateTask(ctx, "task-1", UpdateTaskRequest{
-			Title:          new("Investigate resolved"),
-			NetworkChannel: new("ops"),
+			Title:                new("Investigate resolved"),
+			NetworkParticipation: testLiveNamedParticipationRequest("ops"),
 		})
-		if err != nil || updated.Title != "Investigate resolved" || updated.NetworkChannel != "ops" {
+		if err != nil || updated.Title != "Investigate resolved" ||
+			resolvedParticipationChannelID(updated.ResolvedNetworkParticipation) != "ops" {
 			t.Fatalf("UpdateTask() = %#v, %v", updated, err)
 		}
 
@@ -3075,9 +3077,9 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 		}
 
 		enqueued, err := client.EnqueueTaskRun(ctx, "task-1", EnqueueTaskRunRequest{
-			IdempotencyKey: "idem-1",
-			NetworkChannel: "builders",
-			Metadata:       json.RawMessage(`{"schema":"agh.harness.detached.v1"}`),
+			IdempotencyKey:       "idem-1",
+			NetworkParticipation: testLiveNamedParticipationRequest("builders"),
+			Metadata:             json.RawMessage(`{"schema":"agh.harness.detached.v1"}`),
 		})
 		if err != nil || enqueued.Status != taskpkg.TaskRunStatusQueued {
 			t.Fatalf("EnqueueTaskRun() = %#v, %v", enqueued, err)
@@ -3590,15 +3592,15 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 	}
 
 	if got := taskValues(TaskListQuery{
-		Scope:          taskpkg.CatalogScopeWorkspace,
-		Workspace:      "alpha",
-		Status:         taskpkg.TaskStatusReady,
-		OwnerKind:      taskpkg.OwnerKindPool,
-		OwnerRef:       "triage",
-		ParentTaskID:   "task-root",
-		NetworkChannel: "builders",
-		Limit:          3,
-	}); got.Get("scope") != "workspace" || got.Get("workspace") != "alpha" || got.Get("status") != "ready" || got.Get("owner_kind") != "pool" || got.Get("owner_ref") != "triage" || got.Get("parent_task_id") != "task-root" || got.Get("network_channel") != "builders" || got.Get("limit") != "3" {
+		Scope:                taskpkg.CatalogScopeWorkspace,
+		Workspace:            "alpha",
+		Status:               taskpkg.TaskStatusReady,
+		OwnerKind:            taskpkg.OwnerKindPool,
+		OwnerRef:             "triage",
+		ParentTaskID:         "task-root",
+		ParticipationChannel: "builders",
+		Limit:                3,
+	}); got.Get("scope") != "workspace" || got.Get("workspace") != "alpha" || got.Get("status") != "ready" || got.Get("owner_kind") != "pool" || got.Get("owner_ref") != "triage" || got.Get("parent_task_id") != "task-root" || got.Get("participation_channel") != "builders" || got.Get("limit") != "3" {
 		t.Fatalf("taskValues() = %v, want all task filters", got)
 	}
 

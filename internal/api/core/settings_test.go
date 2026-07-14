@@ -1692,7 +1692,6 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			body: contract.UpdateSettingsNetworkRequest{
 				Config: contract.SettingsNetworkConfigPayload{
 					Enabled:                        true,
-					DefaultChannel:                 "builders",
 					Port:                           4222,
 					MaxPayload:                     1024,
 					GreetInterval:                  5,

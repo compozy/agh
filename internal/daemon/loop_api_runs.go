@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	core "github.com/compozy/agh/internal/api/core"
 	looppkg "github.com/compozy/agh/internal/loop"
+	"github.com/compozy/agh/internal/network/participation"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -337,12 +338,13 @@ func loopPlanPayload(plan *looppkg.PlanPreview) (*contract.LoopPlanPayload, erro
 		return nil, err
 	}
 	return &contract.LoopPlanPayload{
-		LoopName:        plan.LoopName,
-		ResolvedInputs:  resolvedInputs,
-		Generation:      plan.Generation,
-		Nodes:           loopPlanNodesPayload(plan.Nodes),
-		Contract:        loopContract,
-		EffectiveConfig: effective,
+		LoopName:                     plan.LoopName,
+		ResolvedInputs:               resolvedInputs,
+		Generation:                   plan.Generation,
+		Nodes:                        loopPlanNodesPayload(plan.Nodes),
+		Contract:                     loopContract,
+		EffectiveConfig:              effective,
+		ResolvedNetworkParticipation: participation.CloneSpec(plan.ResolvedNetworkParticipation),
 	}, nil
 }
 

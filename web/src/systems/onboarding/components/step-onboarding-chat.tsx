@@ -6,6 +6,7 @@ import { cancelSessionPrompt, SessionChatRuntimeProvider } from "@/systems/sessi
 import { Button, Spinner } from "@agh/ui";
 
 import { ONBOARDING_AGENT_NAME, type OnboardingChatApi } from "../hooks/use-onboarding-chat";
+import { OnboardingNetworkMention } from "./onboarding-network-mention";
 
 const KICKOFF_MESSAGE =
   "Help me set up the channels and agents for my workspace. Suggest a few sensible defaults first.";
@@ -164,6 +165,9 @@ function OnboardingChatPanel({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="onboarding-step-chat">
+      <div className="border-b border-line px-8 py-3">
+        <OnboardingNetworkMention />
+      </div>
       {recoveryMessage ? (
         <div className="border-b border-line bg-canvas-soft px-8 py-3">
           <div className="flex w-full min-w-0 flex-wrap items-center justify-between gap-3">

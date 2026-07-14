@@ -10,7 +10,6 @@ const envelope = {
   config: {
     enabled: true,
     port: 4222,
-    default_channel: "agh",
     greet_interval: 30,
     max_payload: 131072,
     max_queue_depth: 1024,
@@ -158,7 +157,10 @@ describe("NetworkSettingsPage", () => {
     );
     expect(screen.getByTestId("settings-page-network-runtime-local-peers")).toHaveTextContent("2");
     expect(screen.getByTestId("settings-page-network-runtime-channels")).toHaveTextContent("4");
-    expect(screen.getByTestId("settings-page-network-default-channel-input")).toHaveValue("agh");
+    expect(screen.getByTestId("settings-page-network-enrollment-note")).toHaveTextContent(
+      /do not opt/i
+    );
+    expect(screen.queryByTestId("settings-page-network-default-channel-input")).toBeNull();
     expect(screen.getByTestId("settings-page-network-port-input")).toHaveValue("4222");
     expect(screen.getByTestId("settings-page-network-max-queue-depth")).toHaveValue("1024");
     expect(screen.getByTestId("settings-page-network-activation-top-k")).toHaveValue("3");

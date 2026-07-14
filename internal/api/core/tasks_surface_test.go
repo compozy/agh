@@ -170,7 +170,6 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 			WorkspaceID: "ws-alpha",
 			AgentName:   "coder",
 			Name:        "Task Runner",
-			Channel:     "builders",
 			State:       "active",
 			CreatedAt:   now.Add(-9 * time.Minute),
 			UpdatedAt:   now,
@@ -255,7 +254,7 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 			Total: 1,
 			Depth: []observe.TaskQueueDepth{
 				{
-					NetworkChannel:      "builders",
+					ChannelID:           "builders",
 					Count:               1,
 					OldestQueuedAt:      now.Add(-5 * time.Minute),
 					OldestQueueAgeMilli: 300000,
@@ -276,24 +275,24 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 		ActiveRuns: observe.TaskDashboardActiveRuns{
 			Total: 1, Running: 1,
 			Items: []observe.TaskDashboardActiveRun{{
-				TaskID:         "task-1",
-				TaskIdentifier: "TASK-1",
-				TaskTitle:      "Review handlers",
-				TaskStatus:     taskpkg.TaskStatusInProgress,
-				TaskPriority:   taskpkg.PriorityHigh,
-				TaskOwner:      &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "reviewers"},
-				Scope:          taskpkg.ScopeWorkspace,
-				WorkspaceID:    "ws-alpha",
-				LatestEventSeq: 21,
-				RunID:          "run-1",
-				RunStatus:      taskpkg.TaskRunStatusRunning,
-				Attempt:        2,
-				MaxAttempts:    4,
-				SessionID:      "sess-1",
-				NetworkChannel: "builders",
-				LastActivityAt: lastActivity,
-				AgeMilli:       60000,
-				HealthStatus:   "healthy",
+				TaskID:                       "task-1",
+				TaskIdentifier:               "TASK-1",
+				TaskTitle:                    "Review handlers",
+				TaskStatus:                   taskpkg.TaskStatusInProgress,
+				TaskPriority:                 taskpkg.PriorityHigh,
+				TaskOwner:                    &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "reviewers"},
+				Scope:                        taskpkg.ScopeWorkspace,
+				WorkspaceID:                  "ws-alpha",
+				LatestEventSeq:               21,
+				RunID:                        "run-1",
+				RunStatus:                    taskpkg.TaskRunStatusRunning,
+				Attempt:                      2,
+				MaxAttempts:                  4,
+				SessionID:                    "sess-1",
+				ResolvedNetworkParticipation: &liveSpec,
+				LastActivityAt:               lastActivity,
+				AgeMilli:                     60000,
+				HealthStatus:                 "healthy",
 			}},
 		},
 		Freshness: observe.TaskDashboardFreshness{
@@ -305,7 +304,9 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 			Status:           "live",
 		},
 	})
-	if dashboardPayload.Queue.Depth[0].NetworkChannel != "builders" ||
+	if dashboardPayload.Queue.Depth[0].ChannelID != "builders" ||
+		dashboardPayload.ActiveRuns.Items[0].ResolvedNetworkParticipation == nil ||
+		dashboardPayload.ActiveRuns.Items[0].ResolvedNetworkParticipation.ChannelID != "builders" ||
 		dashboardPayload.ActiveRuns.Items[0].RunID != "run-1" ||
 		dashboardPayload.ActiveRuns.Items[0].LatestEventSeq != 21 ||
 		len(dashboardPayload.StatusBreakdown) != 1 ||
@@ -764,7 +765,6 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 					WorkspaceID: "ws-alpha",
 					AgentName:   "coder",
 					Name:        "Runner",
-					Channel:     "builders",
 					State:       "active",
 					CreatedAt:   now.Add(-9 * time.Minute),
 					UpdatedAt:   now,
@@ -1078,7 +1078,7 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/observe/tasks/dashboard?scope=workspace&workspace=alpha&owner_kind=human&owner_ref=alice&network_channel=builders&origin_kind=http",
+			"/observe/tasks/dashboard?scope=workspace&workspace=alpha&owner_kind=human&owner_ref=alice&participation_channel=builders&origin_kind=http",
 			nil,
 		)
 		if dashboardResp.Code != http.StatusOK {
