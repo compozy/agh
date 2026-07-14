@@ -3400,7 +3400,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		networkService := &nativeNetworkStub{
-			status:   &network.Status{Enabled: true, Status: network.StatusRunning, LocalPeers: 2},
+			status:   &network.Status{Enabled: true, Status: network.StatusActive, LocalPeers: 2},
 			channels: []network.ChannelInfo{{Channel: "builders", PeerCount: 2}},
 			inbox: []network.Envelope{{
 				ID:      "msg-1",
@@ -8031,7 +8031,7 @@ func (n *nativeNetworkStub) Status(context.Context) (*network.Status, error) {
 		status := *n.status
 		return &status, nil
 	}
-	return &network.Status{Enabled: true, Status: network.StatusRunning}, nil
+	return &network.Status{Enabled: true, Status: network.StatusReady}, nil
 }
 
 func (n *nativeNetworkStub) Inbox(_ context.Context, sessionID string) ([]network.Envelope, error) {

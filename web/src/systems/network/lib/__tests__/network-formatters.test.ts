@@ -11,7 +11,6 @@ import {
   getNetworkStatusTone,
   getPeerDisplayName,
   getPeerRecencyAt,
-  isNetworkRunning,
   toggleDraftAgent,
   toNetworkKindFilter,
   toNetworkPresenceState,
@@ -87,60 +86,13 @@ describe("createNetworkChannelDraft", () => {
 
 describe("getNetworkStatusTone", () => {
   it.each([
-    ["running", "success"],
-    ["online", "success"],
-    ["starting", "warning"],
-    ["degraded", "warning"],
-    ["stopped", "danger"],
-    ["offline", "danger"],
+    ["active", "success"],
+    ["ready", "info"],
+    ["disabled", "neutral"],
     ["unknown-state", "neutral"],
     [null, "neutral"],
   ] as const)("maps %s to %s tone", (status, tone) => {
     expect(getNetworkStatusTone(status)).toBe(tone);
-  });
-});
-
-describe("isNetworkRunning", () => {
-  it("treats enabled+running as running", () => {
-    expect(
-      isNetworkRunning({
-        channels: 1,
-        delivery_workers: 1,
-        enabled: true,
-        local_peers: 1,
-        messages_sent: 0,
-        queued_messages: 0,
-        remote_peers: 0,
-        status: "running",
-      })
-    ).toBe(true);
-  });
-
-  it("treats disabled or stopped network as not running", () => {
-    expect(
-      isNetworkRunning({
-        channels: 0,
-        delivery_workers: 0,
-        enabled: false,
-        local_peers: 0,
-        messages_sent: 0,
-        queued_messages: 0,
-        remote_peers: 0,
-        status: "running",
-      })
-    ).toBe(false);
-    expect(
-      isNetworkRunning({
-        channels: 0,
-        delivery_workers: 0,
-        enabled: true,
-        local_peers: 0,
-        messages_sent: 0,
-        queued_messages: 0,
-        remote_peers: 0,
-        status: "stopped",
-      })
-    ).toBe(false);
   });
 });
 

@@ -358,7 +358,7 @@ describe("NetworkSection", () => {
   it("renders the protocol walkthrough and supporting cards", () => {
     render(<NetworkSection />);
     expect(screen.getByText("Implemented commands")).toBeDefined();
-    expect(screen.getByText("NATS under the hood, JSON over the wire")).toBeDefined();
+    expect(screen.getByText("Commit first, dispatch in-process")).toBeDefined();
     expect(screen.getByText("Receipts are first-class")).toBeDefined();
     expect(screen.getByLabelText(/Pause walkthrough|Play walkthrough/)).toBeDefined();
   });

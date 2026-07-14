@@ -34,7 +34,7 @@ Packages and SDKs in scope (file:line citations are repo-absolute):
 | Host API             | `/Users/pedronauck/Dev/compozy/agh/internal/extension/host_api.go`             | `HostAPIRateLimitedCode = -32002` (`:36-37`), `HostAPIInvalidParamsCode` (`:42-43`), default rate-limit / dedup TTL constants (`:47-52`)                                                                                                                                                                           |
 | Managed install      | `/Users/pedronauck/Dev/compozy/agh/internal/extension/install_managed.go`      | Symlink hardening for runtime dependency copy (`:355-572`); cycle detection (`:536`); escape rejection (`:562`)                                                                                                                                                                                                    |
 | Bundles spec         | `/Users/pedronauck/Dev/compozy/agh/internal/extension/bundle.go`               | `BundleSpec` (`:27`), `BundleProfile` (`:35`), `BundleAgent` (`:46`), `BundleChannel` (`:66`), `BundleJob` (`:71`), `BundleTrigger` (`:84`), `BundleBridgePreset` (`:96-104`); bundle root resolve (`:741-750`)                                                                                                     |
-| Bundle service       | `/Users/pedronauck/Dev/compozy/agh/internal/bundles/service.go`                | `Activate` (`:220`), `Deactivate` (`:401`), `PreviewActivation` (`:203`), `reconcileLocked` rollback (`:268-287`, `:388-396`, `:416-425`), `validatePrimaryChannelClaim`, `joinRollbackFailure`                                                                                                                     |
+| Bundle service       | `/Users/pedronauck/Dev/compozy/agh/internal/bundles/service.go`                | `Activate` (`:220`), `Deactivate` (`:401`), `PreviewActivation` (`:203`), `reconcileLocked` rollback (`:268-287`, `:388-396`, `:416-425`), Network requirement confirmation, `joinRollbackFailure`                                                                                                              |
 | Bridge registry      | `/Users/pedronauck/Dev/compozy/agh/internal/bridges/registry.go`               | `Registry.CreateInstance`, `UpdateInstance`, `UpdateInstanceState`, `BuildRoutingKey`, `ResolveOrCreateRoute`                                                                                                                                                                                                      |
 | Bridge lifecycle     | `/Users/pedronauck/Dev/compozy/agh/internal/bridges/lifecycle.go`              | `ValidateInstanceStateTransition` (`:9`), `validateInstanceLifecycle` (`:43`), `transitionFromStarting/Ready/Degraded/AuthRequired/Error` (`:101+`)                                                                                                                                                                |
 | Bridge delivery      | `/Users/pedronauck/Dev/compozy/agh/internal/bridges/delivery_broker.go`        | `Broker.Deliver` (`:301`), `enqueueEventLocked` (`:334`/`:424`), bounded per-route queue (`:33,95,118-137`); defaults `defaultDeliveryQueueCapacity=4`, `defaultDeliveryRetryDelay=25ms`, `defaultDeliveryRequestTimeout=5s` (`internal/bridges/delivery_types.go:38-40`)                                          |
@@ -70,7 +70,7 @@ follow the openclaw lowercase dotted/dashed convention.
 | `bundle.activate.atomic`                    | Bundle `Activate` writes activation row + reconciles overlays atomically; if reconcile fails, the activation is fully rolled back via `joinRollbackFailure`. | `internal/bundles/service.go:220-290`                                                                                                                                                                                                                                                 |
 | `bundle.deactivate.clean`                   | Bundle `Deactivate` reverses every overlay (skills/tools/hooks/agents/triggers/bridges); on reconcile failure the activation is restored.                | `internal/bundles/service.go:401-427`                                                                                                                                                                                                                                                 |
 | `bundle.activate.no-leak`                   | Two bundles' activations never share state — uninstalling one cannot reach into the other's overlays.                                                    | `internal/bundles/service.go:200-330`                                                                                                                                                                                                                                                 |
-| `bundle.channel-conflict`                   | `validatePrimaryChannelClaim` rejects activation that would assign the effective default channel to two activations.                                     | `internal/bundles/service.go:248-290`                                                                                                                                                                                                                                                 |
+| `bundle.network-requirement-confirmation`   | An extension-declared Live requirement blocks activation until the operator confirms the current requirement digest; a changed digest clears confirmation. | `internal/bundles/network_requirement.go`                                                                                                                                                                                                                                             |
 | `bridge.lifecycle.transitions`              | Only the documented status transitions in `lifecycle.go` are accepted; e.g. `disabled → starting` only with `enabled=true`; nothing reaches `ready` without going through `starting`. | `internal/bridges/lifecycle.go:9-160`                                                                                                                                                                                                                                                 |
 | `bridge.delivery.bounded-queue`             | Per-route delivery queue is bounded (`defaultDeliveryQueueCapacity = 4`); overflow is reported via the broker's `DeliveryBacklog` metrics, not unbounded growth. | `internal/bridges/delivery_broker.go:33,95,221`; `internal/bridges/delivery_types.go:38`                                                                                                                                                                                              |
 | `bridge.delivery.ordering`                  | A delivery's start → delta(s) → terminal sequence is preserved per route under load (no out-of-order or token-delta partials leak past the terminal).    | `internal/bridges/delivery_broker.go:24-78`; matches openclaw `streaming-final-integrity` shape                                                                                                                                                                                       |
@@ -1149,38 +1149,39 @@ cleanup:
   - None.
 ```
 
-### EXT-20 — Two bundles try to claim the same primary channel; second activation rejected
+### EXT-20 — Bundle Live requirement needs explicit confirmation
 
 ```yaml qa-scenario
-id: ext-20-bundle-channel-conflict
-title: Activating bundle B as default channel when bundle A already holds it fails with ErrDefaultChannelBusy
+id: ext-20-bundle-network-requirement
+title: Activating a bundle with an unconfirmed Live requirement fails without partial state
 theme: bundles.network
 coverage:
   primary:
-    - bundle.channel-conflict
+    - bundle.network-requirement-confirmation
   secondary:
     - bundle.activate.atomic
 risk: medium
 live: false
 provider: mock-acp
 preconditions:
-  - Bundle A active with `BindPrimaryChannelAsDefault=true` (claims a
-    given channel).
-  - Bundle B prepared to activate with the same effective default.
+  - An extension manifest declares a Live Network participation requirement.
+  - No activation has confirmed the current requirement digest.
 code_refs:
-  - /Users/pedronauck/Dev/compozy/agh/internal/bundles/service.go:34
-  - /Users/pedronauck/Dev/compozy/agh/internal/bundles/service.go:248-290
+  - /Users/pedronauck/Dev/compozy/agh/internal/bundles/network_requirement.go
 steps:
-  - Activate B. Capture error.
+  - Activate without confirmation. Capture the error and activation inventory.
+  - Activate again with `confirm_network_requirement=true`.
 expected:
-  - `Activate` returns `ErrDefaultChannelBusy`; B's activation row is
-    not created.
+  - The first call returns `ErrNetworkRequirementConfirmationRequired`; no activation row or
+    projected resource is created.
+  - The confirmed call succeeds and records the exact digest, confirmer, and timestamp.
+  - Declared channels remain inventory only and do not enroll an execution.
 evidence:
-  - Captured error + `bundle_activations` snapshot.
+  - Captured error + activation and projected-resource snapshots.
 failure_signatures:
-  - Both bundles bind: invariant violated.
+  - Unconfirmed activation succeeds or leaves partial resources: invariant violated.
 cleanup:
-  - Deactivate A.
+  - Deactivate the confirmed activation.
 ```
 
 ## 9. Coverage matrix (this child)
@@ -1201,7 +1202,7 @@ cleanup:
 | `bundle.activate.atomic`                      | EXT-02, EXT-16, EXT-20                                                   |
 | `bundle.deactivate.clean`                     | EXT-03                                                                   |
 | `bundle.activate.no-leak`                     | EXT-03, EXT-12                                                           |
-| `bundle.channel-conflict`                     | EXT-20                                                                   |
+| `bundle.network-requirement-confirmation`     | EXT-20                                                                   |
 | `bridge.lifecycle.transitions`                | EXT-06, EXT-07, EXT-09, EXT-13, EXT-19                                   |
 | `bridge.delivery.bounded-queue`               | EXT-08                                                                   |
 | `bridge.delivery.ordering`                    | EXT-06, EXT-07, EXT-08, EXT-16                                           |

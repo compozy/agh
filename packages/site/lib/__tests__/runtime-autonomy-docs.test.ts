@@ -42,13 +42,14 @@ describe("runtime autonomy docs", () => {
     ]);
     expectIncludesAll(coordinator, [
       "Task creation alone does not start a coordinator",
-      "Manual control stays explicit",
-      "Global-scope runs do not auto-spawn a coordinator in the MVP",
+      "Manual sessions, task APIs, and run claims",
+      "Global-scope runs do not auto-start a coordinator",
+      "changing workspace coordination affects future coordinated runs only",
     ]);
     expectIncludesAll(config, [
       "[autonomy.coordinator]",
       "Task creation is not executable work",
-      "Publish, start, approval",
+      "Coordinator bootstrap is independent from Network participation",
       "Workspace `.agh/config.toml` override",
       "Global `$AGH_HOME/config.toml`",
       "bundled/default coordinator agent definition",
@@ -68,13 +69,12 @@ describe("runtime autonomy docs", () => {
       "Never send raw lease credentials through `agh ch send`",
     ]);
     expectIncludesAll(channels, [
-      "boundary",
-      "Task creation alone does not create claimable work",
-      "Channels are conversation, not ownership",
-      "Channel messages never own task status",
-      "`coordination_channel_id`",
-      "`correlation_id`",
-      "Raw lease credential fields are rejected",
+      "There is no channel bound to every run",
+      "`resolved_network_participation`",
+      "Conversation is not ownership",
+      "only authority even when every participant",
+      "directly addressed or explicitly mentioned",
+      "`usage_unavailable`",
     ]);
   });
 
@@ -500,9 +500,11 @@ describe("generated autonomy CLI references", () => {
       "--run-id",
       "--kind",
       "--correlation-id",
-      "--coordination-channel-id",
+      "--channel-id",
     ]);
-    expectIncludesAll(reply, ["--to-message", "--body", "--task-id", "--run-id"]);
+    expectIncludesAll(reply, ["--to-message", "--body", "--task-id", "--run-id", "--channel-id"]);
+    expectExcludesAll(send, ["--coordination-channel-id"]);
+    expectExcludesAll(reply, ["--coordination-channel-id"]);
     expectIncludesAll(spawn, [
       "--agent",
       "--ttl-seconds",

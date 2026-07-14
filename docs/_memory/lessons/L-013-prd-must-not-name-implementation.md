@@ -45,7 +45,7 @@ PRDs may name **product surfaces** (CLI verb, web route, doc page) when those ar
 
 ## Allowed exceptions
 
-- AGH Network protocol PRDs that are _about_ wire format (capability envelopes, NATS subjects). The protocol IS the user-observable surface for that PRD.
+- AGH Network protocol PRDs that are _about_ wire format (capability envelopes, carrier-neutral routing fields). The protocol IS the user-observable surface for that PRD.
 - AGENT.md / MEMORY.md / SKILL.md PRDs where the file format is the product.
 - PRDs scoped to a specific framework's ergonomics (e.g., a PRD about TanStack Query usage patterns inside `web/`).
 

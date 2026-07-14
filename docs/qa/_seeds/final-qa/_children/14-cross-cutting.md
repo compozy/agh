@@ -453,11 +453,11 @@ cleanup:
 ```
 
 ```markdown
-### XCT-06 — Two-instance network: claim_token_hash crosses, raw token never does, both transcripts share `root_session_id`
+### XCT-06 — Local/Live Network: one bounded wake preserves lineage and raw claim tokens never cross
 
 ```yaml qa-scenario
-id: xct-06-two-instance-network-claim-hash-correlation
-title: Instance A delegates a sub-task to Instance B's exposed agent via channel; B completes; both transcripts correlate via root_session_id; claim_token_hash crosses; raw claim_token never does
+id: xct-06-live-network-claim-hash-correlation
+title: A Local control stays disconnected while an explicitly Live session receives one addressed wake with task-run lineage and no raw claim token disclosure
 theme: cross-cutting
 composes:
   - NET-01
@@ -473,7 +473,7 @@ coverage:
   primary:
     - cross.network.delegate.claim-hash.lineage
   secondary:
-    - network.identity.proof
+    - network.participation.live
     - autonomy.lineage.correlation
     - security.claim-token.network-rejection
 live: true
@@ -483,43 +483,29 @@ modules: [network, agentidentity, task, session, transcript, observe]
 
 ```yaml qa-flow
 preconditions:
-  - Two labs `$LAB_A` and `$LAB_B` from `agh-qa-bootstrap` (separate AGH_HOME, ports, NATS profile per NET-10).
-  - Real Claude Code reachable on both.
-  - B exposes an agent over network channel `agh-qa-channel` (peer card, capabilities discoverable per NET-20).
+  - One fresh isolated lab from `agh-qa-bootstrap`; real Claude Code reachable under the manifest provider policy.
+  - Network available and channel `agh-qa-channel` created.
 steps:
-  - run: AGH_HOME=$LAB_A agh daemon start && AGH_HOME=$LAB_B agh daemon start && sleep 7
-  - run: AGH_HOME=$LAB_B agh network expose --agent claude-code --channel agh-qa-channel -o json | tee b_expose.json
-  - run: AGH_HOME=$LAB_A agh network whois agh-qa-channel -o json | tee a_whois.json
-  - run: AGH_HOME=$LAB_A agh sessions start --agent claude-code --workspace ./fixtures/xct06 -o json | tee a_sess.json
-  - set: A_SID=$(jq -r '.id' a_sess.json)
-  - run: AGH_HOME=$LAB_A agh sessions prompt $A_SID --message "Delegate to remote agent on channel agh-qa-channel: ask 'reply OK-XCT06'." -o json
-  - sleep: 8
-  - run: AGH_HOME=$LAB_A agh sessions transcript $A_SID -o json | tee a_transcript.json
-  - run: jq -r '.[] | .lineage.root_session_id' a_transcript.json | sort -u | tee a_root.txt
-  - run: AGH_HOME=$LAB_B agh sessions list -o json | jq '.[] | select(.lineage.root_session_id != null)' | tee b_sess.json
-  - run: jq -r '.lineage.root_session_id' b_sess.json | tee b_root.txt
-  - run: cmp a_root.txt b_root.txt
-  - run: AGH_HOME=$LAB_A agh observe events --session $A_SID --type network_send -o json | tee a_send.json
-  - run: AGH_HOME=$LAB_B agh observe events --type network_receive --since "$(date -d '5 minutes ago' --utc -Iseconds)" -o json | tee b_recv.json
-  - run: jq '.[] | {claim_token_hash, claim_token}' a_send.json b_recv.json   # both must show hash, never raw
-  - run: cat $LAB_A/logs/agh.log $LAB_B/logs/agh.log $LAB_A/logs/network.audit $LAB_B/logs/network.audit | grep -E '\bagh_claim_[A-Za-z0-9]+\b'; echo $?
+  - Create one Local control session with `agh session new --network local -o json` and save its resolved snapshot.
+  - Create one Live session with `agh session new --network live --network-channel-strategy named --network-channel agh-qa-channel -o json`.
+  - Send one addressed `say` with nonce `OK-XCT06` to the Live session through the structured Network surface.
+  - Wait for the bounded wake to settle, then read the conversation, wake task run, session transcript, Network usage, and correlated events.
+  - Read the Local control's prompt/environment/tool projection and prove it received no Network state or wake.
+  - Scan all captured bodies, events, transcripts, and logs for raw `agh_claim_*` values.
 expected_behavior:
-  - a_root.txt == b_root.txt (single non-empty `root_session_id` per OBS-02).
-  - b_sess.json contains a session with `parent_session_id` referencing A's session id.
-  - a_send.json + b_recv.json: every entry has `claim_token_hash`, none has `claim_token`.
-  - Greedy claim_token grep returns exit 1.
-  - B's transcript contains the literal "OK-XCT06" reply; A's transcript contains B's reply via the channel framing.
-  - Per NET-02 the proof-stripping defense classifies any verified-format identity without `proof` as `rejected` — verify by sending a synthetic stripped envelope (NET-02 sub-step) and asserting B audit row `decision: rejected`.
+  - The Local snapshot is immutable Local and has zero Network prompt, tools, wake, and usage delta.
+  - The Live transcript acknowledges `OK-XCT06` exactly once and shares the wake task run's `root_session_id`/`run_id` lineage.
+  - Conversation and recipient disposition are durable before the wake; usage is actual or `usage_unavailable`.
+  - Structured evidence may expose `claim_token_hash`; no response, event, transcript, or log exposes raw `claim_token`.
 evidence_to_capture:
-  - b_expose.json, a_whois.json, a_sess.json, a_transcript.json, b_sess.json, a_root.txt, b_root.txt.
-  - a_send.json, b_recv.json, both `network.audit` logs.
+  - local-session.json, live-session.json, conversation.json, wake-run.json, transcript.json, usage.json, events.json, forbidden-needles.txt.
 failure_signatures:
-  - a_root.txt != b_root.txt.
-  - Any `claim_token` field in a_send.json or b_recv.json.
-  - Any `agh_claim_…` literal in any log.
-  - B accepts a stripped-proof envelope.
+  - Local receives any Network affordance or activation.
+  - The nonce is absent or prompts more than once.
+  - Conversation, wake, transcript, and usage lineage disagree.
+  - Any raw `agh_claim_*` value appears.
 cleanup:
-  - AGH_HOME=$LAB_A agh sessions stop $A_SID && AGH_HOME=$LAB_A agh daemon stop && AGH_HOME=$LAB_B agh daemon stop
+  - Run the bootstrap manifest teardown command and retain `teardown.json` with `clean: true`.
 ```
 ```
 
@@ -1127,7 +1113,7 @@ These cross-module edges must be exercised as short asserts inside the cross-cut
 - **Settings hot-apply during an active prompt** — should NOT cancel the in-flight prompt (detached lifetime, L-001). Gate: cfg-04 + ACP-08 composition.
 - **`make codegen-check` after `make codegen` is idempotent** — running it twice in a row must not introduce drift. Gate as part of XCT-15.
 - **Web build with stale generated TS** — `web/src/generated/agh-openapi.d.ts` older than `internal/api/contract/*.go` mtime should make `make web-build` fail or `make codegen-check` catch it.
-- **Concurrent worktree QA** — L-009 deadlock risk: each lab MUST have unique `AGH_HOME`, daemon ports, NATS port, tmux-bridge socket; assert by reading `bootstrap-manifest.json` from two parallel labs and confirming no overlap.
+- **Concurrent worktree QA** — each lab MUST have unique `AGH_HOME`, daemon ports, UDS path, Web proxy target, and tmux-bridge socket; assert by reading two manifests and confirming no overlap.
 
 ## 6. Integration Surfaces
 
@@ -1146,7 +1132,7 @@ Cross-cutting obligations between modules. This is a different table from the pe
 | Greenfield-delete: no migration shims for "old state" | every package with persisted state, `docs/_memory/glossary.md` vocabulary | SD-002, L-006 |
 | Extensible + agent-manageable: every capability has CLI/HTTP/UDS parity AND extension surface | `internal/cli`, `internal/api/httpapi`, `internal/api/udsapi`, `internal/extension`, docs/site | SD-011 |
 | Real-scenario QA: every release pass has ≥1 live scenario per module | `final-qa/_children/*.md` | SD-005 |
-| Worktree isolation: unique AGH_HOME, ports, NATS, tmux-bridge socket | `agh-qa-bootstrap` skill, `agh-worktree-isolation` skill | L-009, CLAUDE.md worktree rule |
+| Worktree isolation: unique AGH_HOME, daemon/UDS/Web endpoints, tmux-bridge socket | `agh-qa-bootstrap` skill, `agh-worktree-isolation` skill | L-009, CLAUDE.md worktree rule |
 
 ## 7. DX Cliffs
 
@@ -1195,7 +1181,7 @@ Cross-cutting failures that, if shipped, indicate broken module composition. Eac
 
 Cross-cutting QA harness needs, in addition to single-module child requirements:
 
-- **Two-lab bootstrap**: `agh-qa-bootstrap` must support spawning a paired (LAB_A, LAB_B) lab pair with non-overlapping AGH_HOME, daemon ports, NATS profile ports, tmux-bridge sockets, and provider homes. Used by XCT-06.
+- **Parallel-lab bootstrap**: `agh-qa-bootstrap` must produce non-overlapping AGH_HOME, daemon/UDS/Web endpoints, tmux-bridge sockets, and provider homes. XCT-06 itself uses one fresh lab because Network delivery is installation-local.
 - **QA bridge fixture**: an in-process bridge (Slack-class) that emits `bridge_inbound`/`bridge_outbound` events with the same shape as the real Slack bridge; gated behind a build tag so production binary cannot ship it. Used by XCT-08, XCT-09 (CI default), with the live Slack lane optional.
 - **Long-tool fixture**: `xct__sleep` that sleeps configurable duration; required for XCT-08.
 - **Panic-extension fixture**: `xct11-ext-X` with a host-API call that triggers `panic("xct11")`; required for XCT-11. Build-tag-gated.
@@ -1276,7 +1262,7 @@ Rows = module that misbehaves silently. Columns = module that trusts the row. Ce
 | **tools** | tool-process registry orphans | session prompt has no tools | — | — | hook can't narrow capabilities | — | skill effective tools wrong | — | extension tool dispatch fails | automation triggers tool runs that never finish | — | tool_call events missing | tool APIs inconsistent | `agh tool list` lies | web tool inspector wrong |
 | **extension** | extension Stop never called → daemon leaks | session-create hook unstable | — | — | hooks fired but extension panics (XCT-11) | memory hook not invoked | skills/tools registered for dead extension | tool dispatch crashes daemon | — | automation can't use extension | network exposes broken extension | extension health events missing | extension APIs lie | `agh extension list` lies | web extensions panel wrong (XCT-07/XCT-11) |
 | **automation** | cron entries lock store on shutdown | sessions started without lineage | claim path orphan | scheduler wakeups doubled | hooks see wrong actor_kind | — | — | — | — | — | — | automation events missing | automation APIs inconsistent | `agh automation list` lies | web automation pane wrong |
-| **network** | shutdown blocks on NATS drain | network-driven sessions orphan | claim_token_hash mismatched (XCT-06) | — | — | — | — | — | — | — | — | network events missing audit row (NET-19) | network APIs lie | `agh network whois` lies | web network tile wrong |
+| **network** | shutdown leaves admitted wakes stuck | network-driven sessions orphan | claim_token_hash mismatched (XCT-06) | — | — | — | — | — | — | — | — | network events missing audit row (NET-19) | network APIs lie | `agh network status` lies | web network tile wrong |
 | **observe** | shutdown blocks broadcaster | session SSE silent | task lineage hidden | — | hook telemetry hidden | memory consolidation events hidden | — | tool_call events hidden (TOL-08) | extension health invisible | automation telemetry hidden | network audit hidden | — | `/api/observe/*` lies | `agh observe events` empty | web event stream silent (XCT-08) |
 | **api(http/uds)** | shutdown rejects refuse mid-shutdown wrong (DB-15) | session APIs unreachable | task APIs unreachable | scheduler unreachable | hook APIs unreachable | memory APIs unreachable | skills APIs unreachable | tools APIs unreachable | extension APIs unreachable | automation APIs unreachable | network APIs unreachable | observe APIs unreachable | — | cli loses transport | web loses transport |
 | **cli** | — | session verbs lie | task verbs lie | — | — | memory verbs lie | skill verbs lie | tool verbs lie | extension verbs lie | automation verbs lie | network verbs lie | observe verbs lie | UDS verbs unreachable | — | — |

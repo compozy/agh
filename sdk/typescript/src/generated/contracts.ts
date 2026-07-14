@@ -3066,14 +3066,8 @@ export interface NetworkKindMetricPayload {
 export interface NetworkStatusPayload {
   enabled: boolean;
   status: string;
-  listener_host?: string;
-  listener_port?: number;
   local_peers?: number;
-  remote_peers?: number;
   channels?: number;
-  queued_messages?: number;
-  queued_sessions?: number;
-  delivery_workers?: number;
   messages_sent?: number;
   messages_received?: number;
   messages_rejected?: number;
@@ -3086,7 +3080,6 @@ export interface NetworkStatusPayload {
   conversation_messages?: number;
   work_transitions?: number;
   direct_resolves?: number;
-  last_disconnect?: string;
   declared_channels?: DeclaredNetworkChannelPayload[];
   kind_metrics?: NetworkKindMetricPayload[];
 }

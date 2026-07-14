@@ -97,13 +97,13 @@ AGH then applies these additions:
 | `HOME` and XDG homes       | when `home_policy = "isolated"`                                  | provider-owned home/config/data/cache directories    |
 | Provider-specific homes    | known isolated providers                                         | `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, or similar        |
 | `PI_CODING_AGENT_DIR`      | native Pi isolated home or Pi-backed `bound_secret` sessions     | Pi auth/config directory                             |
-| `AGH_SESSION_CHANNEL`      | sessions created with a channel                                  | channel name                                         |
-| `AGH_PEER_ID`              | sessions created with a channel                                  | `<agentName>.<sessionID>`                            |
+| `AGH_SESSION_CHANNEL`      | sessions whose execution resolved as Live                        | immutable participation channel                      |
+| `AGH_PEER_ID`              | sessions whose execution resolved as Live                        | `<agentName>.<sessionID>`                            |
 | `AGH_BIN`                  | every spawned session when the daemon executable can be resolved | absolute path to the AGH binary                      |
 
 AGH also prepends the AGH binary directory to `PATH`, removing a duplicate entry if it already
-exists. Before setting channel values, stale `AGH_SESSION_CHANNEL` and `AGH_PEER_ID` values are
-cleared from the inherited environment.
+exists. Before setting Live participation values, stale `AGH_SESSION_CHANNEL` and `AGH_PEER_ID`
+values are cleared from the inherited environment. Local executions receive neither variable.
 
 Provider API keys are injected only when `auth_mode = "bound_secret"` through provider
 `credential_slots`. A slot maps a `secret_ref` into a target environment variable such as

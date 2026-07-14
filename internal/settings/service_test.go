@@ -77,11 +77,9 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 		},
 		NetworkRuntime: fakeNetworkRuntimeProvider{
 			status: NetworkRuntimeStatus{
-				Available:    true,
-				Enabled:      true,
-				Status:       "running",
-				ListenerHost: "127.0.0.1",
-				ListenerPort: 4222,
+				Available: true,
+				Enabled:   true,
+				Status:    "ready",
 			},
 		},
 		ObservabilityRuntime: fakeObservabilityRuntimeProvider{
@@ -195,7 +193,7 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				if got, want := envelope.Network.Config.Live.Defaults.MaxWakes, 12; got != want {
 					t.Fatalf("Network Live default max wakes = %d, want %d", got, want)
 				}
-				if got, want := envelope.Network.Runtime.Status, "running"; got != want {
+				if got, want := envelope.Network.Runtime.Status, "ready"; got != want {
 					t.Fatalf("Network runtime status = %q, want %q", got, want)
 				}
 			},

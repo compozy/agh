@@ -323,7 +323,6 @@ func StatusForBundleError(err error) int {
 	case errors.Is(err, bundlepkg.ErrAgentReferenceNotFound):
 		return http.StatusUnprocessableEntity
 	case errors.Is(err, bundlepkg.ErrWebhookUnsupported),
-		errors.Is(err, bundlepkg.ErrDefaultChannelRemoved),
 		errors.Is(err, bundlepkg.ErrNetworkRequirementConfirmationRequired):
 		return http.StatusBadRequest
 	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound),

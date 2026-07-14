@@ -31371,7 +31371,6 @@ export interface operations {
                 profile_name?: string;
                 workspace_id?: string;
               }[];
-              delivery_workers?: number;
               /** Format: int64 */
               direct_resolves?: number;
               enabled: boolean;
@@ -31388,9 +31387,6 @@ export interface operations {
                 /** Format: int64 */
                 sent?: number;
               }[];
-              last_disconnect?: string;
-              listener_host?: string;
-              listener_port?: number;
               local_peers?: number;
               /** Format: int64 */
               messages_delivered?: number;
@@ -31406,9 +31402,6 @@ export interface operations {
               open_threads?: number;
               /** Format: int64 */
               open_work_items?: number;
-              queued_messages?: number;
-              queued_sessions?: number;
-              remote_peers?: number;
               status: string;
               /** Format: int64 */
               work_transitions?: number;
@@ -43080,17 +43073,35 @@ export interface operations {
           "application/json": {
             available_scopes: "global"[];
             config: {
-              activation_top_k: number;
-              delivery_structured_body_max_bytes: number;
-              digest_flush_interval: string;
-              digest_max_envelopes: number;
               enabled: boolean;
               greet_interval: number;
-              max_payload: number;
+              live: {
+                defaults: {
+                  coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                };
+                limits: {
+                  max_coalesce_window: string;
+                  /** Format: int64 */
+                  max_input_tokens: number;
+                  /** Format: int64 */
+                  max_output_tokens: number;
+                  max_total_wall_time: string;
+                  max_wake_depth: number;
+                  max_wake_wall_time: string;
+                  max_wakes: number;
+                  min_coalesce_window: string;
+                };
+              };
               max_queue_depth: number;
               max_replay_age: number;
-              port: number;
-              response_guidance_max_bytes: number;
             };
             links?: {
               label: string;
@@ -43099,14 +43110,14 @@ export interface operations {
             runtime: {
               available: boolean;
               channels: number;
-              delivery_workers: number;
               enabled: boolean;
-              listener_host?: string;
-              listener_port?: number;
               local_peers: number;
-              queued_messages: number;
-              queued_sessions: number;
-              remote_peers: number;
+              /** Format: int64 */
+              messages_delivered: number;
+              /** Format: int64 */
+              messages_received: number;
+              /** Format: int64 */
+              messages_rejected: number;
               status?: string;
             };
             /** @enum {string} */
@@ -43162,17 +43173,35 @@ export interface operations {
       content: {
         "application/json": {
           config: {
-            activation_top_k: number;
-            delivery_structured_body_max_bytes: number;
-            digest_flush_interval: string;
-            digest_max_envelopes: number;
             enabled: boolean;
             greet_interval: number;
-            max_payload: number;
+            live: {
+              defaults: {
+                coalesce_window: string;
+                /** Format: int64 */
+                max_input_tokens: number;
+                /** Format: int64 */
+                max_output_tokens: number;
+                max_total_wall_time: string;
+                max_wake_depth: number;
+                max_wake_wall_time: string;
+                max_wakes: number;
+              };
+              limits: {
+                max_coalesce_window: string;
+                /** Format: int64 */
+                max_input_tokens: number;
+                /** Format: int64 */
+                max_output_tokens: number;
+                max_total_wall_time: string;
+                max_wake_depth: number;
+                max_wake_wall_time: string;
+                max_wakes: number;
+                min_coalesce_window: string;
+              };
+            };
             max_queue_depth: number;
             max_replay_age: number;
-            port: number;
-            response_guidance_max_bytes: number;
           };
         };
       };
@@ -47527,7 +47556,6 @@ export interface operations {
                   profile_name?: string;
                   workspace_id?: string;
                 }[];
-                delivery_workers?: number;
                 /** Format: int64 */
                 direct_resolves?: number;
                 enabled: boolean;
@@ -47544,9 +47572,6 @@ export interface operations {
                   /** Format: int64 */
                   sent?: number;
                 }[];
-                last_disconnect?: string;
-                listener_host?: string;
-                listener_port?: number;
                 local_peers?: number;
                 /** Format: int64 */
                 messages_delivered?: number;
@@ -47562,9 +47587,6 @@ export interface operations {
                 open_threads?: number;
                 /** Format: int64 */
                 open_work_items?: number;
-                queued_messages?: number;
-                queued_sessions?: number;
-                remote_peers?: number;
                 status: string;
                 /** Format: int64 */
                 work_transitions?: number;

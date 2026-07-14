@@ -117,7 +117,6 @@ export {
   getNetworkStatusTone,
   getPeerDisplayName,
   getPeerRecencyAt,
-  isNetworkRunning,
   isNetworkWorkState,
   isTerminalNetworkWorkState,
   shouldRenderNetworkWorkChip,

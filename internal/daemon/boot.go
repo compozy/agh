@@ -1752,10 +1752,8 @@ func daemonNetworkInfo(
 	}
 
 	return &NetworkInfo{
-		Enabled:      status.Enabled,
-		Status:       strings.TrimSpace(status.Status),
-		ListenerHost: strings.TrimSpace(status.ListenerHost),
-		ListenerPort: status.ListenerPort,
+		Enabled: status.Enabled,
+		Status:  strings.TrimSpace(status.Status),
 	}, nil
 }
 

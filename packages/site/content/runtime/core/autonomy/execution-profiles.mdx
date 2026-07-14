@@ -1,12 +1,13 @@
 ---
 title: Task Execution Profiles
-description: Typed task-owned overlays for coordinator guidance, worker selection, reviewer routing, participant policy, sandbox mode, and runtime evidence mode at session start.
+description: Typed task-owned overlays for coordinator guidance, worker selection, reviewer routing, Local or Live participation, sandbox mode, and runtime evidence.
 ---
 
 A task execution profile is a typed, task-owned overlay that shapes how the runtime executes one
 task without giving the profile any new authority. Profiles steer coordinator guidance, narrow which
 workers and reviewers are eligible, bound participant routing, and pick the session sandbox.
-Profiles can also opt into runtime evidence mode for browser, simulator, and local-app validation.
+Profiles can also request Local or bounded Live participation for future runs and opt into runtime
+evidence mode for browser, simulator, and local-app validation.
 Ownership, lease authority, terminal state, and review verdicts stay in `task.Service` exactly as
 described in [Task Runs and Leases](/runtime/core/autonomy/task-runs-and-leases) and
 [Coordinator Handoff](/runtime/core/autonomy/coordinator).
@@ -71,21 +72,31 @@ and selector side tables (no `metadata_json`):
   },
   "runtime": {
     "mode": "default"
+  },
+  "network_participation": {
+    "mode": "live",
+    "channel_strategy": "run",
+    "bounds": {
+      "max_wakes": 6,
+      "max_wake_depth": 2
+    }
   }
 }
 ```
 
-| Block          | Purpose                                                                                                                                                                       |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `coordinator`  | `inherit` keeps the workspace coordinator behavior. `guided` keeps the same daemon-managed coordinator but injects task-specific `agent_name`/`provider`/`model`/`guidance`.  |
-| `worker`       | `inherit` keeps workspace defaults. `select` narrows worker eligibility through `allowed_agent_names`, `preferred_agent_names`, and capability selectors.                     |
-| `review`       | Reviewer hints (agent/provider/model) plus reviewer routing selectors (channels, peers, agents, capabilities) consumed by the review gate.                                    |
-| `participants` | Upper-bound routing policy for coordination surfaces and review routing. Allowed lists narrow; preferred lists rank. Never a permission grant.                                |
-| `sandbox`      | `inherit` falls through to workspace defaults. `none` skips sandbox startup when the runtime allows it. `ref` resolves a named `[sandboxes.<name>]` profile at session start. |
-| `runtime`      | `default` keeps normal task-session behavior. `evidence` injects runtime evidence guidance and can widen approvals only with `sandbox.mode = "ref"`.                          |
+| Block                   | Purpose                                                                                                                                                                       |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `coordinator`           | `inherit` keeps the workspace coordinator behavior. `guided` keeps the same daemon-managed coordinator but injects task-specific `agent_name`/`provider`/`model`/`guidance`.  |
+| `worker`                | `inherit` keeps workspace defaults. `select` narrows worker eligibility through `allowed_agent_names`, `preferred_agent_names`, and capability selectors.                     |
+| `review`                | Reviewer hints (agent/provider/model) plus reviewer routing selectors (channels, peers, agents, capabilities) consumed by the review gate.                                    |
+| `participants`          | Upper-bound routing policy for coordination surfaces and review routing. Allowed lists narrow; preferred lists rank. Never a permission grant.                                |
+| `sandbox`               | `inherit` falls through to workspace defaults. `none` skips sandbox startup when the runtime allows it. `ref` resolves a named `[sandboxes.<name>]` profile at session start. |
+| `runtime`               | `default` keeps normal task-session behavior. `evidence` injects runtime evidence guidance and can widen approvals only with `sandbox.mode = "ref"`.                          |
+| `network_participation` | Optional Local/Live request for future runs. Live requires a channel strategy and resolves finite bounds under administrative ceilings.                                       |
 
-Persistence and validation live in `internal/task/profile.go` and the typed selector tables in
-`internal/store/globaldb`; they ship as a numbered migration, not a JSON column.
+Persistence and validation live in `internal/task/profile.go` and `internal/store/globaldb`.
+Selectors use typed tables; the participation request uses typed profile projections plus its
+canonical request JSON. A run persists a separate immutable resolved snapshot at enqueue time.
 
 ## Selector precedence and runtime selection
 
@@ -99,21 +110,24 @@ Effective behavior at runtime is the result of layering, not negotiation. The or
    `task.Service.SetExecutionProfile`, the service trims, deduplicates, and normalizes selectors,
    defaults missing modes to `inherit`, and validates the result against the config gates. The
    normalized profile is stored in `task_execution_profiles` plus the typed selector tables.
-3. **Claim eligibility.** `ClaimNextRun` consults the worker side of the persisted profile to
+3. **Participation resolution.** At enqueue, an explicit run request wins over the profile, then
+   workspace coordination, then built-in Local. The run stores the resolved mode, channel, source,
+   and finite bounds. Later profile edits do not mutate it.
+4. **Claim eligibility.** `ClaimNextRun` consults the worker side of the persisted profile to
    filter eligible sessions: exact `worker.agent_name`, `worker.allowed_agent_names`, and required
    capabilities are enforced as store-level claim filters before a session is allowed to claim the
    run.
-4. **Session start (load only).** When task service starts a worker session it loads the persisted
+5. **Session start (load only).** When task service starts a worker session it loads the persisted
    normalized profile (or the default `inherit` profile when none is stored) and passes it into
    `StartTaskSession`. The daemon session bridge then maps `worker.agent_name`, `worker.provider`,
    `worker.model`, the sandbox policy, and the runtime policy into `session.CreateOpts`. Session
    start does not re-run profile validation; provider and model still flow through
    `config.ResolveSessionAgentWithRuntime`, so profile values never bypass provider authorization,
    credential slots, or session validation.
-5. **Coordinator routing.** The daemon `ReviewRouter` and coordinator runtime read review and
+6. **Coordinator routing.** The daemon `ReviewRouter` and coordinator runtime read review and
    participant policies to pick reviewer sessions. The original worker is excluded; persisted
    `task.Service` is the only authority that records routing diagnostics or no-route verdicts.
-6. **Continuation runs.** When a review rejects a run, the continuation run uses the task's current
+7. **Continuation runs.** When a review rejects a run, the continuation run uses the task's current
    profile at enqueue time. Reviewed-run worker/participant fields are copied only when the new
    profile leaves the equivalent selector empty.
 
@@ -292,6 +306,8 @@ Profiles are configuration and selection input. They never become authority on t
   continuation-run creation.
 - `ParticipantPolicy` constrains routing only. Channel membership, peer authorization, and tool
   policy are still enforced by the network, bridge, tool, and review subsystems.
+- `network_participation` is selection input only. Availability, finite limits, admission, and the
+  immutable run snapshot remain runtime authority; the profile cannot make an existing run Live.
 - `SandboxPolicy` selects a sandbox; it never bypasses approval policy, tool allowlists, provider
   authorization, or session authorization.
 - `CoordinatorProfile.mode = "guided"` keeps the daemon-managed workspace coordinator and respects

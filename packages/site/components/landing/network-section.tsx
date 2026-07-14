@@ -40,7 +40,8 @@ export function NetworkSection() {
         }
         description={
           <>
-            Six message kinds over NATS: <code className="font-mono text-accent">greet</code>,{" "}
+            Six message kinds with commit-first delivery:{" "}
+            <code className="font-mono text-accent">greet</code>,{" "}
             <code className="font-mono text-accent">whois</code>,{" "}
             <code className="font-mono text-accent">say</code>,{" "}
             <code className="font-mono text-accent">capability</code>,{" "}
@@ -74,9 +75,9 @@ export function NetworkSection() {
           cite={{ href: "/runtime/guides/coordinate-agents-over-network", label: "Network guide" }}
         />
         <FeatureCard
-          eyebrow="Transport"
-          title="NATS under the hood, JSON over the wire"
-          description="Stand up a peer with a NATS URL, a shared key, and a channel name. No new infra to learn."
+          eyebrow="Delivery"
+          title="Commit first, dispatch in-process"
+          description="Accepted messages and recipient dispositions become durable together. Eligible local recipients are notified only after commit."
           cite={{ href: "/protocol/overview", label: "Protocol overview" }}
         />
         <FeatureCard
@@ -90,10 +91,9 @@ export function NetworkSection() {
       <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_minmax(0,480px)] lg:items-center">
         <div className="max-w-[60ch] text-sm leading-relaxed text-muted">
           <p>
-            Every other agent tool stops at the single-runtime boundary. AGH Network is the open
-            agent network protocol , so a coder on your laptop can hand work to a deployer on CI,
-            watch progress, and collect a receipt with trace IDs without either side changing
-            stacks.
+            AGH Network separates durable conversation from model activation. Local executions stay
+            disconnected by default; explicitly Live executions can coordinate inside finite wake,
+            depth, token, and wall-time bounds while tasks remain the authority for executable work.
           </p>
           <Link
             href="/protocol"

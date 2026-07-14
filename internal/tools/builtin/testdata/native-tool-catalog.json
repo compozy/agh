@@ -321,7 +321,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "7fc2f72a78b6b99a5fe8c79ad27f52dfad7bca035db2f9f72fdb0e551a4bbb54",
+    "input_schema_digest": "40b19db42ad9e5109d43be325a80ca14987cfab1ea9b6a18b668826f9593b136",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
     "required_capabilities": [
       "bundles.write"

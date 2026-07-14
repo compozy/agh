@@ -18,12 +18,11 @@ type bundleInfoInput struct {
 }
 
 type bundleActivateToolInput struct {
-	ExtensionName               string `json:"extension_name"`
-	BundleName                  string `json:"bundle_name"`
-	ProfileName                 string `json:"profile_name"`
-	Scope                       string `json:"scope"`
-	Workspace                   string `json:"workspace"`
-	BindPrimaryChannelAsDefault bool   `json:"bind_primary_channel_as_default"`
+	ExtensionName string `json:"extension_name"`
+	BundleName    string `json:"bundle_name"`
+	ProfileName   string `json:"profile_name"`
+	Scope         string `json:"scope"`
+	Workspace     string `json:"workspace"`
 }
 
 type resourceFilterInput struct {
@@ -117,9 +116,6 @@ func (n *daemonNativeTools) bundlesActivate(
 	var input bundleActivateToolInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
-	}
-	if input.BindPrimaryChannelAsDefault {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, bundlepkg.ErrDefaultChannelRemoved)
 	}
 	activationScope, workspaceID, err := nativeBundleActivationScope(req.ToolID, input, scope)
 	if err != nil {

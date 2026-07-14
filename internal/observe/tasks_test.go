@@ -301,7 +301,7 @@ func TestQueryTaskMetricsCountsDuplicateIngressAndChannelMismatch(t *testing.T) 
 		Actor:     taskActor(taskpkg.ActorKindNetworkPeer, "peer-ops"),
 		Origin:    taskOrigin(taskpkg.OriginKindNetwork, "peer:peer-ops/channel:ops"),
 		Timestamp: h.now.Add(2 * time.Minute),
-		Payload:   mustJSON(t, map[string]any{"network_channel": "ops", "idempotency_key": "idem-1"}),
+		Payload:   mustJSON(t, map[string]any{"idempotency_key": "idem-1"}),
 	})
 	createObserveNetworkChannel(t, h, "ops")
 	createObserveAudit(t, h, store.NetworkAuditEntry{

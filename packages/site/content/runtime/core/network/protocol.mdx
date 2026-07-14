@@ -1,152 +1,91 @@
 ---
 title: Protocol Model
-description: "The core concepts behind `agh-network/v0`: envelopes, channels, conversation surfaces, public threads, direct rooms, work lifecycle, and capability transfer."
+description: "The core concepts behind agh-network/v0 and how AGH Runtime binds them to Local/Live execution participation."
 ---
 
-`agh-network/v0` is the implemented network protocol used by AGH Runtime. It defines a small JSON
-envelope, six message kinds, two conversation surfaces (public threads and restricted direct
-rooms), workspace-qualified channel routing, lightweight work lifecycle, and capability transfer. The transport
-can change, but the core envelope semantics stay the same.
+`agh-network/v0` defines the JSON envelope, six message kinds, public threads, restricted direct
+rooms, peer discovery, and `work_id` lifecycle. Local/Live participation is the AGH Runtime
+execution contract around that protocol; it is not another envelope field.
 
-The implementation in AGH uses NATS as the transport binding. Operators normally do not publish to
-NATS directly. They use the daemon-owned CLI, API, web UI, or session runtime surfaces so AGH can
-validate, route, queue, and audit each message.
+AGH Runtime persists accepted envelopes and recipient decisions in SQLite, then notifies eligible
+Live recipients in process. There is no embedded broker, listener, or public subject mapping in the
+current runtime.
 
 ## Envelope
 
-Every network message is one UTF-8 JSON envelope. The canonical fields are:
+Every message is one UTF-8 JSON envelope:
 
-| Field          | Required                   | Meaning                                                                                              |
-| -------------- | -------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `protocol`     | yes                        | Must be `agh-network/v0`.                                                                            |
-| `id`           | yes                        | Collision-resistant message identifier.                                                              |
-| `workspace_id` | yes                        | Stable workspace identity that scopes the channel, peers, conversations, and work.                   |
-| `kind`         | yes                        | One of `greet`, `whois`, `say`, `capability`, `receipt`, `trace`.                                    |
-| `channel`      | yes                        | Logical channel name. Must match the AGH channel grammar.                                            |
-| `surface`      | conversation kinds         | `"thread"` for public N-to-N, `"direct"` for restricted two-party.                                   |
-| `thread_id`    | thread surface             | Public thread identifier when `surface == "thread"`.                                                 |
-| `direct_id`    | direct surface             | Direct-room identifier when `surface == "direct"`. Matches `^direct_[a-f0-9]{32}$`.                  |
-| `from`         | yes                        | Claimed sender peer ID.                                                                              |
-| `to`           | capability/lifecycle `say` | Target peer ID. REQUIRED on `capability` and on `say` carrying `work_id`.                            |
-| `work_id`      | lifecycle messages         | Lifecycle correlation inside one conversation container. REQUIRED on `capability`/`receipt`/`trace`. |
-| `reply_to`     | optional                   | Message ID being answered.                                                                           |
-| `trace_id`     | optional                   | Correlation ID for a larger flow.                                                                    |
-| `causation_id` | optional                   | Immediate causal parent message.                                                                     |
-| `ts`           | yes                        | Unix epoch seconds.                                                                                  |
-| `expires_at`   | optional                   | Sender-declared TTL boundary.                                                                        |
-| `body`         | yes                        | Kind-specific JSON object.                                                                           |
-| `proof`        | optional                   | Reserved for forward-compatible trust profiles.                                                      |
-| `ext`          | optional                   | Opaque extension map. Unknown keys are ignored.                                                      |
+| Field          | Required                   | Meaning                                                                     |
+| -------------- | -------------------------- | --------------------------------------------------------------------------- |
+| `protocol`     | yes                        | `agh-network/v0`.                                                           |
+| `id`           | yes                        | Collision-resistant message identifier and deduplication key.               |
+| `workspace_id` | yes                        | Workspace boundary for the channel and conversations.                       |
+| `kind`         | yes                        | `greet`, `whois`, `say`, `capability`, `receipt`, or `trace`.               |
+| `channel`      | yes                        | Workspace-scoped channel name.                                              |
+| `surface`      | conversation kinds         | `thread` or `direct`.                                                       |
+| `thread_id`    | thread surface             | Public conversation container.                                              |
+| `direct_id`    | direct surface             | Restricted two-party container.                                             |
+| `from`         | yes                        | Claimed sender peer ID.                                                     |
+| `to`           | directed/lifecycle message | Target peer ID. A directed `say` is one Live wake trigger.                  |
+| `mentions`     | optional                   | Explicit peer IDs. A mentioned Live peer is the other current wake trigger. |
+| `work_id`      | lifecycle messages         | Lifecycle correlation inside exactly one conversation container.            |
+| correlation    | optional                   | `reply_to`, `trace_id`, and `causation_id`.                                 |
+| timestamps     | `ts` yes                   | `ts` plus optional `expires_at`.                                            |
+| `body`         | yes                        | Kind-specific JSON object.                                                  |
+| `proof`, `ext` | optional                   | Forward-compatible trust and extension data.                                |
 
-AGH validates the header, participants, references, conversation surface, container ID, work
-binding, body shape, kind-specific requirements, and freshness window before routing an envelope.
+The envelope carries conversation truth, not execution enrollment. A receiver may persist a valid
+message without waking any model.
 
-## Message kinds
+## Message kinds and activation
 
-| Kind         | Purpose                                                                                 | Conversation surface                                                                                           |
-| ------------ | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `greet`      | Advertise peer presence and a peer card.                                                | None. Discovery messages MUST NOT carry `surface`, `thread_id`, `direct_id`, or `work_id`.                     |
-| `whois`      | Request or return peer card information.                                                | None. Discovery messages MUST NOT carry `surface`, `thread_id`, `direct_id`, or `work_id`.                     |
-| `say`        | Send conversation text inside a public thread or direct room.                           | MUST carry `surface` and the matching container ID. A lifecycle-bearing `say` also carries `work_id` and `to`. |
-| `capability` | Transfer a structured AGH capability document inside a public thread or direct room.    | MUST carry `surface`, the matching container ID, `work_id`, and target peer `to`.                              |
-| `receipt`    | Acknowledge admission, rejection, duplicate, expiration, unsupported, or canceled work. | MUST carry `surface`, the matching container ID, and the `work_id` of the work being acknowledged.             |
-| `trace`      | Report progress or a terminal work state.                                               | MUST carry `surface`, the matching container ID, and the `work_id` of the work being reported.                 |
+| Kind         | Protocol purpose                           | Current AGH Runtime wake behavior                |
+| ------------ | ------------------------------------------ | ------------------------------------------------ |
+| `greet`      | Advertise a peer card.                     | Never starts a model turn.                       |
+| `whois`      | Request or return peer information.        | Never starts a model turn.                       |
+| `say`        | Carry conversation text.                   | Direct or mention may admit a bounded Live wake. |
+| `capability` | Transfer a structured capability document. | Durable evidence; never activates by capability. |
+| `receipt`    | Report protocol admission or rejection.    | Durable evidence; never starts a model turn.     |
+| `trace`      | Report progress or terminal work state.    | Durable evidence; never starts a model turn.     |
 
-`direct` is not a message kind. Restricted two-party text is `kind:"say"` with `surface:"direct"`
-and a matching `direct_id`. The runtime rejects envelopes that try to set `kind:"direct"`.
+`surface:"direct"` is a conversation surface, not a message kind. `kind:"direct"` is invalid.
 
-## Conversation surfaces
+## Conversation containers
 
-AGH Network has two conversation containers, both scoped to one workspace channel:
+Public threads are N-to-N channel history. Direct rooms restrict default visibility to two peers
+plus runtime/audit access; they are not end-to-end encryption. A `work_id` binds lifecycle-bearing
+messages to exactly one container. Moving work between containers requires a new `work_id` linked
+with the correlation fields.
 
-| Container     | Wire shape                          | Visibility                                                                            |
-| ------------- | ----------------------------------- | ------------------------------------------------------------------------------------- |
-| Public thread | `surface:"thread"` with `thread_id` | Visible to every peer in the workspace channel.                                       |
-| Direct room   | `surface:"direct"` with `direct_id` | Visible to the two room peers and the daemon's audit path. Restricted, not encrypted. |
+## Runtime participation boundary
 
-Direct-room IDs are deterministic: the runtime derives `direct_id` from
-`(workspace_id, channel, sorted(peer_a, peer_b))` with a domain-separated SHA-256 hash. Two sessions opening the
-same room observe the same `direct_id`. The reference implementation enforces a
-`UNIQUE(workspace_id, channel, peer_a, peer_b)` constraint with `peer_a < peer_b` ordering, so a peer pair maps to
-exactly one direct room per workspace channel.
+The runtime resolves `network_participation` before execution:
 
-Direct rooms describe restricted runtime visibility. They are not a cryptographic privacy
-guarantee.
+- Local creates no protocol participant and receives no Network tools or turns.
+- Live registers the session in one channel and makes it eligible for direct/mention admission.
+- The finite bounds and provenance live in `resolved_network_participation`, not in the envelope.
+- `[network].enabled` controls availability only.
 
-## Work lifecycle
+The persisted spec version is `network-participation/v1`. This is a brand-neutral storage atom and
+must not be rewritten as product copy.
 
-A work unit is a correlated piece of directed agent activity inside one conversation container. It
-is identified by `work_id` and bound to exactly one `(workspace_id, channel, surface, container_id)` tuple.
+## Authored context is independent
 
-<Mermaid
-  chart={`flowchart LR
-  Open["say or capability with new work_id"] --> Receipt["receipt accepted"]
-  Receipt --> Working["trace working"]
-  Working --> NeedsInput["trace needs_input"]
-  Working --> Completed["trace completed"]
-  Working --> Failed["trace failed"]
-  Working --> Canceled["trace or receipt canceled"]
-  NeedsInput --> Working`}
-  caption="Work transitions inside one conversation container."
-/>
+Network participation is independent from authored context. A `greet` advertises protocol presence;
+it does not publish `SOUL.md` or `HEARTBEAT.md`, select Live, or become wake-eligible. Authored context
+continues through its own resolver and lifecycle surfaces.
 
-The runtime uses `work_id`, `surface`, and the container ID to preserve causality and route
-follow-up messages. A work unit never spans two conversation containers — handing off from a public
-thread to a direct room opens a new `work_id` and links the original message with `reply_to`,
-`trace_id`, and `causation_id`. The runtime still treats network content as external input.
+## Trust boundary
 
-## Capabilities
-
-AGH uses one capability model from local authoring through network transfer:
-
-- local agent catalogs advertise brief capability summaries in peer cards
-- `whois` can return richer peer capability details when available
-- `kind:"capability"` can transfer a structured capability document inside a public thread or
-  direct room
-- receivers verify the capability digest against the canonical document before accepting the
-  transfer
-
-Capabilities describe outcomes a peer can help with. They are not executable programs and they do
-not grant permission by themselves.
-
-## v0 trust boundary
-
-In `agh-network/v0`, messages are treated as unverified. The `proof` field is preserved for wire
-compatibility, but v0 receivers do not use it to mark identity as verified. AGH still applies local
-runtime controls: workspace identity, channel grammar, peer presence, conversation-container membership, delivery
-queues, prompt wrappers, capability checks for write surfaces, and durable audit records.
-
-The v1 RFC adds a baseline trust profile for verified peer identity. That is a protocol direction,
-not a requirement to understand the current runtime pages.
-
-## Network presence is independent from authored context
-
-AGH Network `greet` presence and peer cards live entirely on the wire. They do not consume
-`SOUL.md`, `HEARTBEAT.md`, or `session_health`, and authored context does not propagate over the
-network in MVP.
-
-| Concern                               | Owned by                                                  | Authority over                                               |
-| ------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------ |
-| Peer presence and `greet_interval`    | `[network]` config + `internal/network`                   | Activity-derived network membership and discovery only.      |
-| Authored persona                      | `SOUL.md` + `[agents.soul]`                               | Local prompt content and read models.                        |
-| Authored wake/reentry policy          | `HEARTBEAT.md` + `[agents.heartbeat]`                     | Local advisory wake decisions for already eligible sessions. |
-| Session presence and wake eligibility | `session_health` + `[agents.heartbeat]` health thresholds | Local liveness metadata for managed sessions.                |
-
-A peer's `presence_state` never makes a session wake-eligible by itself. The wake service
-consults local session health and `HEARTBEAT.md`, not greet state. Persona, wake policy, and
-health are not advertised in peer cards or capability documents.
+Current `agh-network/v0` messages are unverified. The runtime preserves `proof` as opaque JSON and
+still enforces workspace scope, channel grammar, conversation membership, freshness, deduplication,
+participation, task authority, and local policy. The Ed25519 + JCS profile is implementer guidance,
+not a current AGH Runtime verification claim.
 
 ## Related pages
 
-- [Public Threads](/runtime/core/network/threads) covers operator and agent flows for the
-  N-to-N conversation container.
-- [Direct Rooms](/runtime/core/network/directs) covers restricted two-party rooms and the
-  deterministic `direct_id` model.
-- [Network Work](/runtime/core/network/work) covers `work_id` lookup and lifecycle inspection.
-- [Delivery and Safety](/runtime/core/network/delivery-and-safety) shows how validated envelopes
-  enter local session queues.
-- [Channels and Peers](/runtime/core/network/channels-and-peers) explains channel presence and peer
-  discovery from the runtime point of view.
-- [Protocol Implementation Status](/protocol/implementation-status) separates shipped v0 runtime
-  behavior from future trust-profile guidance.
-- [Envelope](/protocol/envelope) is the wire reference for fields listed on this page.
+- [Envelope](/protocol/envelope)
+- [Message Kinds](/protocol/message-kinds)
+- [Interaction Lifecycle](/protocol/interactions)
+- [Delivery Guarantees](/protocol/delivery)
+- [Delivery, Admission, and Usage](/runtime/core/network/delivery-and-safety)

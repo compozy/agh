@@ -271,17 +271,14 @@ func (s *settingsRuntimeSurface) NetworkRuntimeStatus(
 	}
 
 	return settingspkg.NetworkRuntimeStatus{
-		Available:       true,
-		Enabled:         runtimeStatus.Enabled,
-		Status:          strings.TrimSpace(runtimeStatus.Status),
-		ListenerHost:    strings.TrimSpace(runtimeStatus.ListenerHost),
-		ListenerPort:    runtimeStatus.ListenerPort,
-		LocalPeers:      runtimeStatus.LocalPeers,
-		RemotePeers:     runtimeStatus.RemotePeers,
-		Channels:        runtimeStatus.Channels,
-		QueuedMessages:  runtimeStatus.QueuedMessages,
-		QueuedSessions:  runtimeStatus.QueuedSessions,
-		DeliveryWorkers: runtimeStatus.DeliveryWorkers,
+		Available:         true,
+		Enabled:           runtimeStatus.Enabled,
+		Status:            strings.TrimSpace(runtimeStatus.Status),
+		LocalPeers:        runtimeStatus.LocalPeers,
+		Channels:          runtimeStatus.Channels,
+		MessagesReceived:  runtimeStatus.MessagesReceived,
+		MessagesDelivered: runtimeStatus.MessagesDelivered,
+		MessagesRejected:  runtimeStatus.MessagesRejected,
 	}, nil
 }
 

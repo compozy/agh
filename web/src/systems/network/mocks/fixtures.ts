@@ -264,12 +264,9 @@ function directMessage(
 
 export const networkStatusFixture: NetworkStatus = {
   enabled: true,
-  status: "running",
+  status: "active",
   channels: 10,
   local_peers: 6,
-  remote_peers: 2,
-  delivery_workers: 5,
-  queued_messages: 3,
   messages_sent: 418,
 };
 

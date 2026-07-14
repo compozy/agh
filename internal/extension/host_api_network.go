@@ -437,14 +437,8 @@ func hostAPINetworkStatusPayload(status *network.Status) apicontract.NetworkStat
 	return apicontract.NetworkStatusPayload{
 		Enabled:              status.Enabled,
 		Status:               strings.TrimSpace(status.Status),
-		ListenerHost:         strings.TrimSpace(status.ListenerHost),
-		ListenerPort:         status.ListenerPort,
 		LocalPeers:           status.LocalPeers,
-		RemotePeers:          status.RemotePeers,
 		Channels:             status.Channels,
-		QueuedMessages:       status.QueuedMessages,
-		QueuedSessions:       status.QueuedSessions,
-		DeliveryWorkers:      status.DeliveryWorkers,
 		MessagesSent:         status.MessagesSent,
 		MessagesReceived:     status.MessagesReceived,
 		MessagesRejected:     status.MessagesRejected,
@@ -457,7 +451,6 @@ func hostAPINetworkStatusPayload(status *network.Status) apicontract.NetworkStat
 		ConversationMessages: status.ConversationMessages,
 		WorkTransitions:      status.WorkTransitions,
 		DirectResolves:       status.DirectResolves,
-		LastDisconnect:       strings.TrimSpace(status.LastDisconnect),
 		KindMetrics:          kindMetrics,
 	}
 }

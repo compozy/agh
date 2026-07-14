@@ -41,22 +41,15 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 
 		status := &network.Status{
 			Enabled:              true,
-			Status:               network.StatusRunning,
-			ListenerHost:         "127.0.0.1",
-			ListenerPort:         4222,
+			Status:               network.StatusActive,
 			LocalPeers:           1,
-			RemotePeers:          2,
 			Channels:             1,
-			QueuedMessages:       3,
-			QueuedSessions:       1,
-			DeliveryWorkers:      1,
 			MessagesSent:         4,
 			MessagesReceived:     5,
 			MessagesRejected:     1,
 			MessagesDelivered:    3,
 			WorkflowTaggedEvents: 2,
 			HandoffTaggedEvents:  1,
-			LastDisconnect:       "transport lost",
 			KindMetrics: []network.KindMetric{{
 				Kind:      network.KindSay,
 				Sent:      4,
@@ -1259,22 +1252,15 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 		StatusFn: func(context.Context) (*network.Status, error) {
 			return &network.Status{
 				Enabled:              true,
-				Status:               network.StatusRunning,
-				ListenerHost:         "127.0.0.1",
-				ListenerPort:         4222,
+				Status:               network.StatusActive,
 				LocalPeers:           1,
-				RemotePeers:          1,
 				Channels:             1,
-				QueuedMessages:       2,
-				QueuedSessions:       1,
-				DeliveryWorkers:      1,
 				MessagesSent:         4,
 				MessagesReceived:     5,
 				MessagesRejected:     1,
 				MessagesDelivered:    3,
 				WorkflowTaggedEvents: 2,
 				HandoffTaggedEvents:  1,
-				LastDisconnect:       "transport lost",
 				KindMetrics: []network.KindMetric{{
 					Kind:      network.KindSay,
 					Sent:      4,
@@ -1488,7 +1474,7 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 
 		var statusPayload contract.NetworkStatusResponse
 		testutil.DecodeJSONResponse(t, statusResp, &statusPayload)
-		if statusPayload.Network.Channels != 1 || statusPayload.Network.QueuedMessages != 2 ||
+		if statusPayload.Network.Channels != 1 || statusPayload.Network.MessagesDelivered != 3 ||
 			len(statusPayload.Network.KindMetrics) != 1 {
 			t.Fatalf("status payload = %#v", statusPayload.Network)
 		}

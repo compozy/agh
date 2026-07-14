@@ -88,19 +88,26 @@ Local-first runtime for real agent work.
 
 AGH keeps agent sessions durable, replayable where supported by the event model, observable, resumable, and controllable through the same surfaces humans and agents use.
 
+### Network Mode Naming
+
+Use **Local** and **Live** in product copy. Local is the default and creates no Network participation.
+Live is explicit, channel-scoped, and finitely bounded. Configuration can make Live available, but
+availability never opts an execution in. In code and structured payloads, preserve the canonical
+`local` and `live` values and the stored `network-participation/v1` version atom.
+
 ### Proof Pillars
 
 Every major copy surface should draw from one or more proof pillars.
 
-| Pillar                   | Claim Shape                                                                       | Proof to Prefer                                                                         |
-| ------------------------ | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| AGH Network              | Agents discover peers, send typed envelopes, and collect receipts.                | `agh network` commands, protocol docs, message kinds, NATS-backed runtime, audit trail. |
-| Durable Runtime          | Sessions survive beyond one terminal interaction and remain inspectable.          | Session CLI, event DBs, SSE, UDS/HTTP parity, web session views.                        |
-| Agent-Manageable Control | Agents operate AGH through structured surfaces, not hidden UI-only paths.         | CLI `-o json`, HTTP/UDS endpoints, tool registry, hosted MCP projection.                |
-| Autonomy Kernel          | Work ownership is token-fenced, leased, and recoverable.                          | Task claim, heartbeat, complete/fail/release, coordinator state, safe spawn.            |
-| Tool Registry            | One canonical tool surface spans native tools, MCP, and extensions.               | `agh tool list/search/info/invoke`, policy decisions, toolsets.                         |
-| Memory                   | Memory is typed, scoped, file-backed, and inspectable.                            | `agh memory` commands, memory taxonomy, operation history, health.                      |
-| Extensibility            | Extensions, hooks, skills, bridges, capabilities, and SDKs plug into the runtime. | Host API, hook dispatch, capability catalog, bridge adapters, SDK docs.                 |
+| Pillar                   | Claim Shape                                                                       | Proof to Prefer                                                                                 |
+| ------------------------ | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| AGH Network              | Explicitly Live agents exchange typed envelopes and collect receipts.             | Local/Live controls, `agh network` commands, message kinds, commit-first delivery, audit trail. |
+| Durable Runtime          | Sessions survive beyond one terminal interaction and remain inspectable.          | Session CLI, event DBs, SSE, UDS/HTTP parity, web session views.                                |
+| Agent-Manageable Control | Agents operate AGH through structured surfaces, not hidden UI-only paths.         | CLI `-o json`, HTTP/UDS endpoints, tool registry, hosted MCP projection.                        |
+| Autonomy Kernel          | Work ownership is token-fenced, leased, and recoverable.                          | Task claim, heartbeat, complete/fail/release, coordinator state, safe spawn.                    |
+| Tool Registry            | One canonical tool surface spans native tools, MCP, and extensions.               | `agh tool list/search/info/invoke`, policy decisions, toolsets.                                 |
+| Memory                   | Memory is typed, scoped, file-backed, and inspectable.                            | `agh memory` commands, memory taxonomy, operation history, health.                              |
+| Extensibility            | Extensions, hooks, skills, bridges, capabilities, and SDKs plug into the runtime. | Host API, hook dispatch, capability catalog, bridge adapters, SDK docs.                         |
 
 ### Feature Priority by Surface
 
@@ -314,7 +321,7 @@ Use:
 
 Avoid:
 
-- leading with ACP, JSON-RPC, stdio, UDS, NATS, SQLite, or internal package names.
+- leading with ACP, JSON-RPC, stdio, UDS, SQLite, delivery internals, or package names.
 - making runtime and network sound like two unrelated products.
 - generic "agent OS" claims without proof.
 

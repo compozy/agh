@@ -550,14 +550,8 @@ type HookEventPayload struct {
 type NetworkStatusPayload struct {
 	Enabled              bool                            `json:"enabled"`
 	Status               string                          `json:"status"`
-	ListenerHost         string                          `json:"listener_host,omitempty"`
-	ListenerPort         int                             `json:"listener_port,omitempty"`
 	LocalPeers           int                             `json:"local_peers,omitempty"`
-	RemotePeers          int                             `json:"remote_peers,omitempty"`
 	Channels             int                             `json:"channels,omitempty"`
-	QueuedMessages       int                             `json:"queued_messages,omitempty"`
-	QueuedSessions       int                             `json:"queued_sessions,omitempty"`
-	DeliveryWorkers      int                             `json:"delivery_workers,omitempty"`
 	MessagesSent         int64                           `json:"messages_sent,omitempty"`
 	MessagesReceived     int64                           `json:"messages_received,omitempty"`
 	MessagesRejected     int64                           `json:"messages_rejected,omitempty"`
@@ -570,7 +564,6 @@ type NetworkStatusPayload struct {
 	ConversationMessages int64                           `json:"conversation_messages,omitempty"`
 	WorkTransitions      int64                           `json:"work_transitions,omitempty"`
 	DirectResolves       int64                           `json:"direct_resolves,omitempty"`
-	LastDisconnect       string                          `json:"last_disconnect,omitempty"`
 	DeclaredChannels     []DeclaredNetworkChannelPayload `json:"declared_channels,omitempty"`
 	KindMetrics          []NetworkKindMetricPayload      `json:"kind_metrics,omitempty"`
 }

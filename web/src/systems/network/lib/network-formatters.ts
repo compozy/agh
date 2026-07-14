@@ -7,7 +7,6 @@ import type {
   NetworkPresenceState,
   NetworkPeerSummary,
   NetworkSignalTone,
-  NetworkStatus,
 } from "../types";
 
 const NETWORK_SUPPORTED_KINDS: ReadonlyArray<Exclude<NetworkKindFilter, "all">> = [
@@ -178,25 +177,13 @@ function formatNetworkAgeSeconds(value: number): string {
 
 export function getNetworkStatusTone(status?: string | null): NetworkSignalTone {
   switch (status?.trim()) {
-    case "online":
-    case "running":
+    case "active":
       return "success";
-    case "starting":
-    case "degraded":
-      return "warning";
-    case "offline":
-    case "stopped":
-      return "danger";
+    case "ready":
+      return "info";
     default:
       return "neutral";
   }
-}
-
-export function isNetworkRunning(status?: NetworkStatus | null): boolean {
-  if (!status) {
-    return false;
-  }
-  return status.enabled === true && (status.status === "running" || status.status === "online");
 }
 
 export function formatNetworkKindLabel(kind: string): string {

@@ -670,10 +670,10 @@
   function closeMcp(){ document.getElementById("mcp-scrim").classList.add("hide"); mcpItem=null; if(lastInvoker&&lastInvoker.focus) lastInvoker.focus(); }
 
   // ---------- Bundle activation (real controls, R-003) ----------
-  var bundleScope="workspace", bundleProfileIdx=0, bundleBind=false;
+  var bundleScope="workspace", bundleProfileIdx=0;
   function openBundle(item, invoker){
     bundleItem=item; lastInvoker=invoker||document.activeElement;
-    bundleScope="workspace"; bundleProfileIdx=0; bundleBind=false;
+    bundleScope="workspace"; bundleProfileIdx=0;
     document.getElementById("bundle-title").textContent = "Activate "+item.name;
     document.getElementById("bundle-scrim").classList.remove("hide");
     renderBundleBody();
@@ -693,17 +693,12 @@
     var scopeField='<div class="field"><div class="field__label">Scope</div>'
       +'<div class="scope"><label><input type="radio" name="bscope" value="workspace"'+(bundleScope==="workspace"?' checked':'')+' /><div><b>Workspace</b><span>Activate in this workspace only.</span></div></label>'
       +'<label><input type="radio" name="bscope" value="global"'+(bundleScope==="global"?' checked':'')+' /><div><b>Global</b><span>Activate across workspaces on this daemon.</span></div></label></div></div>';
-    var pf=profs[bundleProfileIdx];
-    var bindField='<div class="field"><div class="switch-field"><div class="switch-field__txt"><b>Bind primary channel as default</b><span>Route new sessions from this bundle through <span class="mono" style="color:var(--fg)">'+esc(pf.primary_channel||"—")+'</span>.</span></div>'
-      +'<button type="button" class="switch" role="switch" id="bundle-bind" aria-checked="'+(bundleBind?"true":"false")+'" aria-label="Bind primary channel as default"></button></div></div>';
-    body.innerHTML = profField + scopeField + bindField
+    body.innerHTML = profField + scopeField
       +'<div class="field__label" style="margin:4px 0 10px">What changes</div><div id="bundle-preview"></div>';
     submit.disabled=true; submit.textContent="Activate"; submit.classList.remove("btn--spin");
     loadPreview();
     body.querySelectorAll('[name="bprof"]').forEach(function(r){ r.addEventListener("change", function(){ bundleProfileIdx=parseInt(this.value,10); renderBundleBody(); }); });
     body.querySelectorAll('[name="bscope"]').forEach(function(r){ r.addEventListener("change", function(){ bundleScope=this.value; loadPreview(); }); });
-    var bind=document.getElementById("bundle-bind");
-    if(bind) bind.addEventListener("click", function(){ bundleBind=!bundleBind; this.setAttribute("aria-checked", bundleBind?"true":"false"); });
   }
   function loadPreview(){
     var host=document.getElementById("bundle-preview"), submit=document.getElementById("bundle-submit");

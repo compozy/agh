@@ -552,7 +552,7 @@ func networkDiagnosticItem(status *contract.NetworkStatusPayload) contract.Diagn
 		evidence = map[string]any{
 			"status":   status.Status,
 			"channels": status.Channels,
-			"peers":    status.LocalPeers + status.RemotePeers,
+			"peers":    status.LocalPeers,
 		}
 	}
 	if status == nil || !status.Enabled {

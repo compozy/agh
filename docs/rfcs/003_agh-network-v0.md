@@ -3,21 +3,22 @@
 - **Status:** Current runtime contract
 - **Authors:** AGH Core Team
 - **Created:** 2026-04-08
-- **Updated:** 2026-07-11
+- **Updated:** 2026-07-14
 - **Future profile:** [RFC 004: AGH Network v1](004_agh-network-v1.md) adds auth/proofs/trust-profile behavior; it is not implemented by the current runtime.
 
 ---
 
-> This RFC is the current AGH Runtime Network contract. The workspace isolation hard cut lives in
-> `agh-network/v0`: every envelope carries `workspace_id`, every channel is scoped by that
-> workspace, and every NATS subject is workspace-qualified.
+> This RFC is the current AGH Runtime Network contract. Every envelope carries `workspace_id`, every
+> channel is scoped by that workspace, and the reference runtime accepts messages with a durable
+> commit before dispatching eligible work in-process.
 
 ## Abstract
 
 `AGH Network v0` is the first implementable iteration of the AGH Network protocol and remains the
 current runtime contract. It defines the core envelope, six message kinds, workspace-scoped channels,
-conversation containers, work lifecycle signaling, NATS transport binding, and operational delivery
-semantics.
+conversation containers, work lifecycle signaling, and operational delivery semantics. The wire
+contract is carrier-neutral. The current AGH Runtime has no remote carrier: it commits accepted
+messages durably and then dispatches eligible local recipients in-process.
 
 The conversation model is explicit:
 
@@ -39,7 +40,7 @@ envelope reserves `proof` so a v0 peer can preserve future proof payloads as opa
 ### 1.1 Problem
 
 The agent ecosystem lacks a lightweight open agent network protocol that is practical to implement,
-transport-aware, artifact-aware, and operationally observable without becoming a workflow engine or a
+portable, artifact-aware, and operationally observable without becoming a workflow engine or a
 telemetry platform.
 
 > **Scope note (ADR-001):** "not a workflow engine" is scoped to the network wire. The AGH *runtime*
@@ -58,7 +59,7 @@ v0 delivers:
 6. A lightweight work lifecycle keyed by `work_id`.
 7. Minimal discovery through `greet` and `whois`.
 8. Peer Card, capability discovery, and capability transfer signaling.
-9. The normative workspace-qualified NATS transport binding.
+9. Commit-first acceptance and in-process reference-runtime dispatch.
 10. Delivery semantics, error model, and reason codes.
 
 v0 does not deliver:
@@ -68,7 +69,7 @@ v0 does not deliver:
 3. The Baseline Trust Profile.
 4. Formal conformance levels for third-party interoperability.
 5. Normative extension namespacing; v0 uses `ext` with RECOMMENDED conventions.
-6. NATS request/reply mechanics.
+6. A normative remote carrier or request/reply binding.
 7. Workflow graph semantics, durable task ownership, or task-run leasing.
 8. Private group threads or direct rooms with more than two peers.
 9. Cryptographic privacy for direct rooms.
@@ -107,7 +108,7 @@ base contract for that future v1 profile.
 1. Cryptographic identity verification.
 2. Formal conformance levels for third-party interoperability.
 3. Normative extension namespacing.
-4. NATS request/reply mechanics.
+4. A normative remote carrier or request/reply binding.
 5. Organization-wide federation, trust roots, or revocation.
 6. Workflow execution semantics.
 7. Cross-container work units.
@@ -127,22 +128,23 @@ A `peer_id` value used in `from`, `to`, and Peer Card MUST match `[a-z0-9][a-z0-
 ### 3.2 Workspace ID
 
 A `workspace_id` is the stable workspace identifier from `.agh/workspace.toml`. It scopes every
-Network channel, conversation container, work unit, peer listing, recent item, pin, last-read marker,
-and transport subject. It is not the daemon registry row ID, a filesystem path, or a display name.
+Network channel, conversation container, work unit, peer listing, recent item, pin, and last-read
+marker. It is not the daemon registry row ID, a filesystem path, or a display name.
 
-A `workspace_id` MUST be non-empty and MUST NOT contain dots, spaces, NATS wildcards (`*`, `>`), or
-control characters. These restrictions make the value safe for JSON envelopes and NATS subjects.
+A `workspace_id` MUST be non-empty and MUST NOT contain dots, spaces, wildcard metacharacters (`*`,
+`>`), or control characters. These restrictions keep identifiers unambiguous in JSON envelopes and
+future carrier adapters.
 
 ### 3.3 Channel
 
 A `channel` is a logical communication namespace inside one workspace. It is the audience, discovery,
 and permission scope above public threads and direct rooms. The same channel slug in two different
-workspaces denotes two different channels. A transport profile decides how workspace channels map to
-transport primitives.
+workspaces denotes two different channels. A future carrier profile may define how workspace channels
+map to remote routing primitives without changing the core identity.
 
 A `channel` value MUST match `[a-z0-9][a-z0-9_-]{0,63}`. Characters outside this set, including dots,
-whitespace, and NATS wildcard tokens (`>`, `*`), are forbidden because channel values are interpolated into
-transport subjects.
+whitespace, and wildcard metacharacters (`>`, `*`), are forbidden so channel identities remain
+portable across future carrier adapters.
 
 ### 3.4 Public thread
 
@@ -207,7 +209,7 @@ identity.
 
 ### 3.10 Profile
 
-A named extension of the core that defines transport behavior, trust mechanics, or another interoperability
+A named extension of the core that defines carrier behavior, trust mechanics, or another interoperability
 layer.
 
 ---
@@ -216,10 +218,10 @@ layer.
 
 ### 4.1 Layer model
 
-v0 defines two normative layers:
+v0 defines one normative wire layer and one reference-runtime delivery contract:
 
 1. `AGH Network Core`
-2. `AGH Network over NATS`
+2. `AGH Runtime In-Process Delivery`
 
 ```mermaid
 flowchart TD
@@ -231,10 +233,10 @@ flowchart TD
         D["Discovery"]
     end
 
-    subgraph L2["AGH Network over NATS"]
-        SM["Subject Mapping"]
-        SR["Sending Rules"]
-        RP["Reliability Posture"]
+    subgraph L2["AGH Runtime In-Process Delivery"]
+        AC["Durable Acceptance"]
+        RD["Recipient Dispositions"]
+        DP["Local Dispatch"]
     end
 
     L1 --> L2
@@ -256,22 +258,25 @@ The core defines:
 The core does not define:
 
 - cryptographic identity verification
-- NATS subject grammar
-- broker topology
+- remote carrier routing
+- carrier topology
 - retry policy details
 - replay backends
 - runtime telemetry pipelines
 - AGH daemon behavior
 - sandbox execution or scheduling
 
-### 4.3 AGH Network over NATS
+### 4.3 AGH Runtime in-process delivery
 
-The NATS profile defines:
+The current reference runtime defines:
 
-- subject mapping
-- broadcast and peer-targeted transport delivery
-- operational behavior specific to NATS
-- profile-specific constraints on delivery behavior
+- durable acceptance of the envelope and recipient dispositions in one transaction
+- dispatch only after the acceptance transaction commits
+- direct/mention `say` as the only model-wake path
+- finite wake bounds, coalescing, restart recovery, and truthful usage settlement
+
+This runtime contract is not a remote interoperability profile. A future external-interaction program
+must specify and test a carrier against real remote recipients before one becomes normative.
 
 ### 4.4 Product boundary
 
@@ -830,8 +835,8 @@ The core does not guarantee:
 - exactly-once delivery
 - durable replay
 - total ordering
-- transport-level acknowledgements
-- broker-backed persistence
+- carrier-level acknowledgements
+- carrier-managed persistence
 - cryptographic privacy
 
 Those belong to transport, runtime, or trust profiles.
@@ -870,116 +875,54 @@ Implementations MAY define namespaced reason codes under `ext`.
 
 ---
 
-## 10. AGH Network over NATS
+## 10. AGH Runtime in-process delivery
 
 ### 10.1 Scope
 
-This profile defines the normative v0 mapping of the core onto NATS Core. Durable replay and JetStream semantics
-are out of scope for this profile.
+This section defines the current reference-runtime mapping from a validated envelope to durable local
+acceptance and dispatch. It does not define a remote carrier.
 
-### 10.2 Subject prefix
-
-The required subject prefix is:
-
-`agh.network.v0`
-
-### 10.3 Route token
-
-Each NATS peer MUST derive a subject-safe route token.
-
-The route token for a peer MUST be the first 32 lowercase hex characters of `SHA-256(peer_id UTF-8 bytes)`.
-
-When sending a message with `to != null`, the sender MUST derive the target's route token using the same
-algorithm applied to the `to` field value. The `to` field MUST contain the target's canonical `peer_id`, not a
-display name or alias.
-
-### 10.3.1 Maximum envelope size
+### 10.2 Maximum envelope size
 
 Implementations MUST support envelopes up to 1 MB (1,048,576 bytes) after JSON serialization. Senders SHOULD
 NOT emit envelopes exceeding this limit. For rich `whois` catalogs or `kind:"capability"` transfers that
 approach this threshold, senders SHOULD narrow the payload to the smallest relevant capability set instead of
 inventing an out-of-band artifact format.
 
-### 10.4 Subject mapping
+### 10.3 Acceptance order
 
-| Core intent                      | NATS subject                                                 |
-| -------------------------------- | ------------------------------------------------------------ |
-| Broadcast to a workspace channel | `agh.network.v0.<workspace_id>.<channel>.broadcast`          |
-| Peer-targeted transport delivery | `agh.network.v0.<workspace_id>.<channel>.peer.<route_token>` |
+The AGH Runtime processes a valid local message in this order:
 
-```mermaid
-sequenceDiagram
-    participant A as Peer A
-    participant NATS as NATS
-    participant B as Peer B
-    participant C as Peer C
+1. validate the envelope, workspace, channel, sender, and conversation container
+2. compute recipient dispositions from the pre-message participant snapshot
+3. commit the conversation row and dispositions atomically
+4. notify eligible local recipients after commit
+5. admit at most one bounded wake per owner according to the immutable Live participation snapshot
 
-    Note over A,NATS: workspace = ws_alpha, channel = builders
-    A->>NATS: PUB agh.network.v0.ws_alpha.builders.broadcast
-    NATS-->>B: deliver greet
-    NATS-->>C: deliver greet
+The durable commit is acceptance. An in-process notification failure cannot erase the committed
+conversation; restart recovery resumes admitted work from durable state.
 
-    A->>NATS: PUB agh.network.v0.ws_alpha.builders.peer.b_token
-    NATS-->>B: deliver say in direct room
+### 10.4 Participation and activation
 
-    B->>NATS: PUB agh.network.v0.ws_alpha.builders.peer.a_token
-    NATS-->>A: deliver trace
-```
+Network availability never enrolls an execution. Local is the default and receives no Network prompt,
+environment, coordination tools, or wakes. An explicitly Live execution may receive in-process dispatch,
+but only an addressed or mentioned `say` may wake the model. Discovery, capability, receipt, trace, and
+unaddressed conversation messages may persist without activation.
 
-NATS peer-targeted subjects are transport routing subjects. They do not define `surface:"direct"` by themselves.
-An envelope published to a peer subject still carries its explicit `surface` and container ID when it is
-conversation-bearing.
+Wake admission is finite. Implementations MUST expose coalescing, depth, total-budget, deadline, and
+exhaustion outcomes rather than fabricating delivery or usage. Actual usage is reported when available;
+otherwise the runtime reports `usage_unavailable`.
 
-### 10.5 Joining a channel
-
-A peer joins a workspace channel by subscribing to the required NATS subjects and announcing its presence:
-
-1. Subscribe to `agh.network.v0.<workspace_id>.<channel>.broadcast`.
-2. Subscribe to its own peer-targeted subject `agh.network.v0.<workspace_id>.<channel>.peer.<own_route_token>`.
-3. SHOULD send a `greet` message to the broadcast subject.
-
-A peer SHOULD send `greet` upon joining a channel and after reconnecting to NATS following a connection loss.
-
-#### Presence through periodic greet
-
-Periodic `greet` re-announcement serves as an implicit heartbeat. The RECOMMENDED interval is 30 seconds.
-Receivers SHOULD maintain a local peer cache keyed by `peer_id` and expire entries that have not re-greeted
-within 2x the expected interval (RECOMMENDED: 60 seconds).
-
-### 10.6 Sending rules
-
-- messages with `to = null` MUST be published to the broadcast subject
-- messages with `to != null` MUST be published to the target peer subject
-- `greet` SHOULD be broadcast
-- targeted `whois`, `capability`, `receipt`, `trace`, and targeted `say` SHOULD use peer subjects
-- `surface:"direct"` messages SHOULD use peer subjects for the other direct-room participant
-- `surface:"thread"` messages MAY use peer subjects for targeted delivery without changing thread visibility
-
-### 10.7 Reliability posture
-
-This profile assumes NATS Core style behavior:
-
-- best-effort delivery
-- no mandatory persistence
-- no broker-managed replay
-
-Application-level `receipt` is therefore the normative acknowledgement mechanism at the protocol layer.
-
-### 10.8 Timeouts and retries
-
-The profile allows local retry policy, but the policy is implementation-defined.
+### 10.5 Retries and deduplication
 
 If a sender retries a logical message, it SHOULD preserve the same `id` so receivers can deduplicate it.
+The reference runtime performs acceptance idempotently and does not create a second wake for the same
+accepted message or coalesced causal burst.
 
-### 10.9 Out of scope
+### 10.6 Remote delivery
 
-This v0 NATS profile does not define:
-
-- JetStream durability classes
-- dead-letter semantics
-- broker cluster topology
-- account, tenancy, or ACL standards
-- NATS request/reply correlation
+Remote delivery, federation, offline addressing, and carrier-specific routing are outside v0 runtime
+support. A future profile may add them without changing the core envelope or conversation semantics.
 
 ---
 
@@ -991,7 +934,7 @@ The core is designed around least-trust assumptions:
 
 - messages may be duplicated
 - senders may be unknown
-- transport authentication is not assumed
+- carrier authentication is not assumed
 - direct-room visibility restricts routing and runtime access but does not encrypt content
 
 ### 11.2 Replay and duplication
@@ -1013,7 +956,7 @@ If `expires_at` is present and in the past, receivers SHOULD reject the message 
 ### 11.4 Identity in v0
 
 v0 does not verify sender identity. The `from` field is trusted at face value. Deployments requiring identity
-assurance SHOULD use transport-level security or upgrade to v1.
+assurance SHOULD use a verified trust profile; the current runtime does not claim remote carrier security.
 
 ### 11.5 Capability confusion
 
@@ -1026,7 +969,7 @@ Peer Card or returned through capability discovery.
 A direct room is not an end-to-end encrypted private channel. It is a protocol/runtime visibility boundary:
 
 - only the two room peers should receive and render the conversation by default
-- runtime audit, persistence, operator access, and transport operators may still observe envelope content
+- runtime audit, persistence, and operator access may still observe envelope content
 - deployments that require cryptographic privacy need a future trust or encryption profile
 
 ---
@@ -1041,8 +984,6 @@ v1 adds:
 - proof-stripping detection
 - formal conformance levels
 - normative extension namespacing
-- NATS request/reply correlation
-- fingerprint-based route token for verified peers
 - a v1 protocol/profile identifier for verified-mode peers
 
 The current AGH Runtime protocol remains `agh-network/v0` until that future v1 profile ships.
@@ -1406,7 +1347,7 @@ sequenceDiagram
 - six core message kinds
 - public-thread and direct-room conversation containers
 - work lifecycle signaling
-- NATS transport binding
+- commit-first in-process reference-runtime delivery
 - discovery and capability signaling
 - delivery semantics and error model
 

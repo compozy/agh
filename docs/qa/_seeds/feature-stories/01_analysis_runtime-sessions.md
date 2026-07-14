@@ -139,7 +139,7 @@ The dominant architectural truth for testing: **execution is detached from the r
 - Is there a CLI verb (`internal/cli/*`, out of this slice's read scope) that wraps provider login (e.g. `agh provider login`) to make RT-027 a real in-product flow? The parent should confirm with the CLI/agent-tools slice before classifying RT-027 as a gap vs. an existing CLI-backed flow.
 - Does the web session-create dialog actually expose all three runtime overrides (provider/model/reasoning) together, or is reasoning gated by provider capability? I confirmed the backend contract and the existence of the three command-select components but did not read `use-session-create-dialog.ts` in full.
 - Is `daytona` selectable but disabled when no Daytona config exists, or always selectable (allowing creation of unusable profiles)? `sandbox.tsx` always lists it as an option; backend gating not confirmed.
-- The session-create-dialog/agent-create-dialog default-channel resolution (`defaultSessionChannel`) — what is the default channel and does it require the network feature enabled? Not fully traced.
+- The session-create-dialog/agent-create-dialog Network participation controls were not fully traced in this historical survey; current behavior must be checked against the Local/Live execution contract.
 
 ## Evidence
 

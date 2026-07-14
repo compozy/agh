@@ -101,7 +101,8 @@ var networkTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDNetworkChannelUpdate,
 		"network_channel_update",
 		"Network Channel Update",
-		"Update one AGH network channel purpose, fanout policy, or coordinator peer.",
+		"Update one AGH network channel purpose, routing metadata, or coordinator peer. "+
+			"Channel metadata never enrolls or wakes executions.",
 		networkChannelUpdateInputSchema,
 		toolspkg.RiskMutating,
 		false,
@@ -109,7 +110,7 @@ var networkTools = []toolspkg.Descriptor{
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
 		[]string{networkNetworkKey, networkChannelsKey, descriptorKeywordUpdate},
-		[]string{"update channel", "channel fanout policy"},
+		[]string{"update channel", "channel routing policy"},
 	),
 	nativeDescriptor(
 		toolspkg.ToolIDNetworkSubscriptions,

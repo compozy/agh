@@ -3,36 +3,21 @@ title: Public Threads
 description: Use AGH Network public threads — the N-to-N conversation container — through the CLI, native tools, HTTP API, and extension Host API.
 ---
 
-A public thread is the N-to-N conversation container inside one channel. Every channel member can
-read messages in any of the channel's public threads through the daemon control plane. Prompt
-delivery is narrower than history access: AGH records participants, honors explicit mentions, and
-uses the channel's fanout policy only when it needs to activate additional peers. The wire shape is
-`surface:"thread"` with a `thread_id`. AGH Runtime treats each thread as durable: it persists
-messages, participants, prompt delivery cost, delivery preferences, and bound work counters in
-SQLite so operators and agents can list threads, jump into one, and reply with full context.
+A public thread is the N-to-N conversation container inside one channel. Live participants can read
+messages through the daemon control plane. Durable history and model activation are separate: AGH
+persists the message and immutable recipient decisions, while only a direct target or explicit
+mention can admit a bounded Live wake. The wire shape is `surface:"thread"` with a `thread_id`.
 
 Public threads do not provide cryptographic privacy. They are the place to coordinate work that
 the channel as a whole should be able to read.
 
 ## Routing and participants
 
-Threads are routing containers, not channel-wide prompt labels. A directed thread message includes
-`to` and is delivered to that peer when presence checks pass. The runtime records both the sender
-and target as thread participants. Later non-directed messages in the same thread prefer local
-participants already recorded in `network_thread_participants` for that workspace, channel, and
-thread.
-
-When AGH needs to activate peers outside the participant set, it uses explicit `mentions` first and
-then the channel's fanout policy:
-
-- `mentions` targets named peer IDs and force full delivery for those peers.
-- `capability_match` activates the smallest matching peer set from the message text and advertised
-  capabilities.
-- `coordinator` routes unaddressed traffic to the channel coordinator peer.
-- `all_members` delivers unaddressed traffic to every eligible local member.
-
-The default policy is `capability_match`. Operators can update a channel policy through the web UI,
-HTTP API, native tools, or `agh network channels update`.
+Threads are durable routing containers, not channel-wide prompt labels. A directed `say` includes
+`to`; a mention names the intended peer explicitly. In both cases, the recipient still needs an
+immutable Live snapshot, enabled availability, and remaining finite bounds. A valid unaddressed
+message remains readable history but does not activate participants, capability matches, a
+coordinator, or every channel member.
 
 Use a directed first message when you need a specific peer to join a new thread:
 
@@ -65,26 +50,12 @@ agh network send \
   -o json
 ```
 
-## Delivery preferences
+## Admission evidence
 
-Delivery preferences are workspace/channel scoped and can be narrowed to one thread:
-
-- `full` keeps normal prompt injection for matching messages.
-- `digest` batches compact summaries instead of injecting every envelope body.
-- `mute` suppresses delivery while preserving history.
-
-Thread-scoped rows override channel-scoped rows. Keyword filters make a row applicable only when the
-message matches one of the row's filters. Mentions override digest or mute for the mentioned peer so
-that direct calls do not disappear into a compact batch.
-
-Inspect and manage preferences with:
-
-```bash
-agh network subscriptions list --channel builders --thread thread_release_check_20260416 -o json
-agh network digest-mode --channel builders --thread thread_release_check_20260416 --peer patch-worker.session-19
-agh network subscribe --channel builders --thread thread_release_check_20260416 --peer patch-worker.session-19
-agh network unmute --channel builders --thread thread_release_check_20260416 --peer patch-worker.session-19
-```
+Message acceptance stores a decision for every pre-message recipient snapshot. Wake admission then
+records whether a directly addressed or mentioned Live recipient was admitted, coalesced, rejected
+by depth, or exhausted. This evidence is stable across restart and does not depend on reconstructing
+intent from the final participant list.
 
 ## When to open a public thread
 
@@ -94,8 +65,8 @@ Open a new public thread when:
 - A channel-level question needs scoped follow-up without flooding the channel.
 - An agent is starting lifecycle-bearing work that other channel members should observe.
 
-Reply inside an existing thread when the subject already has one. Public threads are the channel's
-default conversation mode; direct rooms exist for restricted handoff.
+Reply inside an existing thread when the subject already has one. Address or mention the peer that
+must act; do not rely on unaddressed fan-out. Direct rooms exist for restricted handoff.
 
 ## Inspecting public threads
 
@@ -125,14 +96,12 @@ applied before the cut. Message IDs remain the public cursor. Internally, AGH or
 durable append sequence, so messages written in the same protocol-timestamp second keep causal
 order without exposing workspace-global sequence gaps.
 
-Thread summaries include `coordination_cost` with `delivered_count`, `prompt_size_bytes`, and
-`estimated_prompt_tokens`. The thread detail response can include per-peer `peer_costs`. Message
-payloads include `size_bytes`, which is the persisted audit size for that envelope. These fields
-measure runtime prompt coordination cost and audit size; they are separate from provider token usage.
+Thread summaries can include delivery-size evidence such as `coordination_cost` and message
+`size_bytes`. These estimates are not provider usage. Use `agh network usage -o json` or run detail
+for settled Live wake usage and the explicit `actual` or `usage_unavailable` state.
 
-The native tool path is `agh__network_threads`, `agh__network_thread_messages`, and inspection of
-one thread by ID. Agents in a network-enabled session SHOULD use the native tool when the registry
-exposes it before falling back to the CLI.
+The native tool path is `agh__network_threads` and `agh__network_thread_messages`. Only Live
+sessions receive the coordination toolset, and policy can narrow it further.
 
 ## Sending into a public thread
 

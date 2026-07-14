@@ -30,7 +30,6 @@ var (
 	ErrWebhookUnsupported     = errors.New("bundles: bundle webhook triggers are not supported")
 	ErrAgentConflict          = errors.New("bundles: bundle agent conflicts with an existing agent")
 	ErrAgentReferenceNotFound = errors.New("bundles: bundle automation references an unavailable agent")
-	ErrDefaultChannelRemoved  = errors.New("bundles: default-channel binding is no longer supported")
 )
 
 type Scope = modelpkg.Scope

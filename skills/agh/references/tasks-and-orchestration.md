@@ -10,7 +10,7 @@ Task inspection, task pause/resume, forced run recovery, scheduler pause/resume/
 
 ## Catalog And Inbox Reads
 
-Use `agh task list -o json`, HTTP/UDS `GET /api/tasks`, or native `agh__task_list`. Filters cover scope/workspace, canonical status, priority, draft inclusion, approval state, owner kind/reference, parent task, network channel, title/identifier search, sort (`recent` or `priority`), cursor, and limit. CLI omits draft/approval filters, requires both owner fields together, and spells parent/channel/search as `--parent`/`--channel`/`--query`; HTTP uses `workspace`/`query`, while native uses `workspace_id`/`search`.
+Use `agh task list -o json`, HTTP/UDS `GET /api/tasks`, or native `agh__task_list`. Filters cover scope/workspace, canonical status, priority, draft inclusion, approval state, owner kind/reference, parent task, title/identifier search, sort (`recent` or `priority`), cursor, and limit. CLI omits draft/approval filters, requires both owner fields together, and spells parent/search as `--parent`/`--query`; HTTP uses `workspace`/`query`, while native uses `workspace_id`/`search`.
 
 The catalog returns lean `tasks`, exact fully filtered `facets.statuses/owners`, and counted `page` (`total`, normalized `limit`, `has_more`, `next_cursor`). Canonical status is derived before filtering. Pages default to 50, cap at 200, and sort by latest durable activity or by priority then activity. Opaque cursors bind normalized scope, workspace, filters, and sort, but not limit; use task get/inspect for dependency, pause/block, and other rich detail omitted from list rows.
 
@@ -67,7 +67,7 @@ A claimable run that no eligible session claims past `[autonomy.scheduler].min_q
 Use this guidance only inside a daemon-managed coordinator session.
 
 1. Read agh me context or the provided task context bundle first.
-2. Identify task id, run id, workflow id, execution profile, review policy, coordination channel, and latest events.
+2. Identify task id, run id, workflow id, execution profile, review policy, immutable resolved Network participation, and latest events.
 3. Inspect ambiguous task/run ids with `agh task inspect <id> -o json` before routing.
 4. Break the objective into bounded worker prompts with acceptance criteria.
 5. Create child tasks only when durable task intent is needed. Creation alone is not execution.
@@ -141,7 +141,7 @@ Rejected verdicts must include bounded missing_work and actionable next_round_gu
 
 ## Communication Discipline
 
-Use coordination channels for clarification and handoff only. Keep messages short and operational: run id, state, blocker, next action, and relevant persisted ids.
+Use a Live coordination conversation for clarification and handoff only when the run's immutable snapshot permits it. Local coordinators use task state and normal session surfaces without creating Network state. Keep messages short and operational: run id, state, blocker, next action, and relevant persisted ids.
 
 If a direct room produced a conclusion, summarize back to the public thread without leaking private details or raw tokens.
 

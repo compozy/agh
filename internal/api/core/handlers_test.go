@@ -3278,13 +3278,10 @@ func TestDaemonStatusIncludesNetworkDiagnosticsWithoutCredentials(t *testing.T) 
 		fixture.Handlers.Network = testutil.StubNetworkService{
 			StatusFn: func(context.Context) (*network.Status, error) {
 				return &network.Status{
-					Enabled:      true,
-					Status:       network.StatusRunning,
-					ListenerHost: "127.0.0.1",
-					ListenerPort: 4222,
-					LocalPeers:   1,
-					RemotePeers:  2,
-					Channels:     3,
+					Enabled:    true,
+					Status:     network.StatusActive,
+					LocalPeers: 1,
+					Channels:   3,
 				}, nil
 			},
 		}
@@ -3301,11 +3298,8 @@ func TestDaemonStatusIncludesNetworkDiagnosticsWithoutCredentials(t *testing.T) 
 		if payload.Daemon.Network == nil {
 			t.Fatal("daemon network payload = nil, want diagnostics")
 		}
-		if got, want := payload.Daemon.Network.ListenerPort, 4222; got != want {
-			t.Fatalf("daemon network listener port = %d, want %d", got, want)
-		}
-		if got, want := payload.Daemon.Network.RemotePeers, 2; got != want {
-			t.Fatalf("daemon network remote peers = %d, want %d", got, want)
+		if got, want := payload.Daemon.Network.LocalPeers, 1; got != want {
+			t.Fatalf("daemon network Live participants = %d, want %d", got, want)
 		}
 		if got, want := payload.Daemon.Network.Channels, 3; got != want {
 			t.Fatalf("daemon network channels = %d, want %d", got, want)

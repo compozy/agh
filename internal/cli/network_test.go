@@ -48,22 +48,15 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 			networkStatusFn: func(context.Context) (NetworkStatusRecord, error) {
 				return NetworkStatusRecord{
 					Enabled:              true,
-					Status:               "running",
-					ListenerHost:         "127.0.0.1",
-					ListenerPort:         4222,
+					Status:               "active",
 					LocalPeers:           1,
-					RemotePeers:          2,
 					Channels:             1,
-					QueuedMessages:       3,
-					QueuedSessions:       1,
-					DeliveryWorkers:      1,
 					MessagesSent:         4,
 					MessagesReceived:     5,
 					MessagesRejected:     1,
 					MessagesDelivered:    3,
 					WorkflowTaggedEvents: 2,
 					HandoffTaggedEvents:  1,
-					LastDisconnect:       "transport lost",
 					KindMetrics: []NetworkKindMetricRecord{{
 						Kind:      "say",
 						Sent:      4,
@@ -178,7 +171,7 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 		if err != nil {
 			t.Fatalf("network status error = %v", err)
 		}
-		if !strings.Contains(statusOut, "Network") || !strings.Contains(statusOut, "Queued Messages") ||
+		if !strings.Contains(statusOut, "Network") || !strings.Contains(statusOut, "Live Participants") ||
 			!strings.Contains(statusOut, "Kind Metrics") {
 			t.Fatalf("network status output = %q, want summary and metrics", statusOut)
 		}

@@ -10,9 +10,8 @@ const FIXTURES: Record<string, unknown> = {
   "/api/network/status": {
     network: {
       enabled: true,
-      status: "ok",
+      status: "active",
       local_peers: 2,
-      remote_peers: 3,
       channels: 4,
     },
   },
@@ -30,7 +29,7 @@ const FIXTURES: Record<string, unknown> = {
 const EXPECTED_COUNTS: Record<NavCountKey, number> = {
   tasks: 14,
   jobs: 3,
-  network: 9,
+  network: 6,
   triggers: 2,
   agents: 4,
   knowledge: 1,

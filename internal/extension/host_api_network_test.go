@@ -423,7 +423,7 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 	service := &hostAPINetworkServiceStub{
 		status: &network.Status{
 			Enabled:         true,
-			Status:          network.StatusRunning,
+			Status:          network.StatusActive,
 			Channels:        2,
 			OpenThreads:     1,
 			OpenDirectRooms: 1,
@@ -484,8 +484,8 @@ func TestHostAPIHandlerNetworkReadMethodsShouldUseRuntimeAndStore(t *testing.T) 
 	}
 	var status apicontract.NetworkStatusPayload
 	decodeResult(t, statusResult, &status)
-	if status.Status != network.StatusRunning || len(status.KindMetrics) != 1 {
-		t.Fatalf("network/status = %#v, want running status with kind metrics", status)
+	if status.Status != network.StatusActive || len(status.KindMetrics) != 1 {
+		t.Fatalf("network/status = %#v, want active status with kind metrics", status)
 	}
 
 	channelsResult, err := handler.Handle(
@@ -992,7 +992,7 @@ func (s *hostAPINetworkServiceStub) Status(context.Context) (*network.Status, er
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.status == nil {
-		return &network.Status{Enabled: true, Status: network.StatusRunning}, nil
+		return &network.Status{Enabled: true, Status: network.StatusActive}, nil
 	}
 	copyStatus := *s.status
 	return &copyStatus, nil

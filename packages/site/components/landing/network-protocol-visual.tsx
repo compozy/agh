@@ -26,39 +26,39 @@ const STEPS: Step[] = [
     kind: "greet",
     direction: "->",
     payload: `{ agent: "coder", caps: ["code","review"] }`,
-    hint: "Coder announces itself on the channel.",
+    hint: "A Live coder announces itself inside the current daemon.",
   },
   {
     from: "NET",
     to: "A",
     kind: "greet",
     direction: "<-",
-    payload: `{ agents: 12, peers: 3 }`,
-    hint: "Network responds with visible membership.",
+    payload: `{ local_agents: 2, channel: "release" }`,
+    hint: "The daemon returns the workspace-qualified local membership.",
   },
   {
     from: "A",
     to: "NET",
     kind: "whois",
     direction: "->",
-    payload: `{ need: "deploy staging" }`,
-    hint: "Coder asks for a peer that can deploy.",
+    payload: `{ need: "review release" }`,
+    hint: "Coder asks for a local session that can review the release.",
   },
   {
     from: "NET",
     to: "A",
     kind: "whois",
     direction: "<-",
-    payload: `{ match: "deployer@ci-runner-03" }`,
-    hint: "Network resolves a matching peer.",
+    payload: `{ match: "reviewer@session-b" }`,
+    hint: "The daemon resolves an eligible Live session in-process.",
   },
   {
     from: "A",
     to: "B",
     kind: "say",
     direction: "->",
-    payload: `{ surface: "direct", direct_id: "direct_...", work_id: "work_deploy_staging", to: "deployer", body: { text: "deploy staging" } }`,
-    hint: "Structured task is delegated peer-to-peer in a restricted direct room.",
+    payload: `{ surface: "direct", direct_id: "direct_...", to: "reviewer", body: { text: "review release" } }`,
+    hint: "The direct message commits before the daemon wakes the addressed Live session.",
   },
   {
     from: "B",
@@ -66,15 +66,15 @@ const STEPS: Step[] = [
     kind: "trace",
     direction: "..",
     payload: `{ status: "running", step: 2/4 }`,
-    hint: "Deployer streams progress back to coder.",
+    hint: "Reviewer records progress without turning conversation into task authority.",
   },
   {
     from: "B",
     to: "A",
     kind: "receipt",
     direction: "<-",
-    payload: `{ ok: true, url: "https://staging.agh..." }`,
-    hint: "Delegation completes with an auditable receipt.",
+    payload: `{ ok: true, usage: { input: 1820, output: 306 } }`,
+    hint: "The collaboration closes with a durable receipt and truthful usage.",
   },
 ];
 
@@ -104,9 +104,9 @@ function reducer(state: State, action: Action): State {
 }
 
 function fromLabel(lane: Lane) {
-  if (lane === "A") return "Coder · desk-01";
-  if (lane === "B") return "Deployer · ci-runner-03";
-  return "AGH Network";
+  if (lane === "A") return "Coder · session-a";
+  if (lane === "B") return "Reviewer · session-b";
+  return "AGH daemon";
 }
 
 function directionGlyph(d: Direction, from: Lane, to: Lane) {
@@ -174,14 +174,14 @@ function Inner({ active, reducedMotion }: { active: boolean; reducedMotion: bool
       tabIndex={0}
       role="group"
       aria-roledescription="protocol walkthrough"
-      aria-label="agh-network/v0 seven-step delegation sequence"
+      aria-label="agh-network/v0 seven-step in-process collaboration sequence"
       className="min-w-0 max-w-full overflow-hidden rounded-diagram border border-line bg-rail outline-none focus-visible:ring-2 focus-visible:ring-accent"
     >
       {/* Header , lane labels */}
       <div className="grid grid-cols-3 gap-2 border-b border-line bg-canvas-soft p-3 sm:gap-4 sm:px-4 md:px-6">
-        <LaneHeader title="Agent A" subtitle="coder · desk-01" />
-        <LaneHeader title="AGH Network" subtitle="agh-network/v0 · nats" accent />
-        <LaneHeader title="Agent B" subtitle="deployer · ci-runner-03" />
+        <LaneHeader title="Session A" subtitle="coder · Live" />
+        <LaneHeader title="AGH daemon" subtitle="agh-network/v0 · in-process" accent />
+        <LaneHeader title="Session B" subtitle="reviewer · Live" />
       </div>
 
       {/* Body */}

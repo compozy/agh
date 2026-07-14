@@ -194,7 +194,7 @@ const Definition: Page = () => (
           agh-network/v0
         </span>
         <br />
-        Open agent wire protocol.
+        Open agent coordination protocol.
       </h2>
 
       <p
@@ -209,9 +209,9 @@ const Definition: Page = () => (
           margin: "64px 0 0",
         }}
       >
-        Stand up a peer with a NATS URL, a shared key, and a channel name. A coder on your laptop
-        hands work to a deployer on CI, watches progress, and collects a receipt with trace IDs —
-        without either side changing stacks.
+        Start two explicit Live sessions on one daemon. Accepted messages commit to SQLite before an
+        addressed or mentioned recipient is notified in-process, while finite wake, depth, token,
+        and wall-time bounds keep collaboration accountable.
       </p>
 
       <div
@@ -223,7 +223,7 @@ const Definition: Page = () => (
           flexWrap: "wrap",
         }}
       >
-        {["Open protocol", "NATS under the hood", "Implementable outside AGH"].map(t => (
+        {["Open protocol", "Commit-first runtime", "Bounded Live opt-in"].map(t => (
           <span
             key={t}
             style={{

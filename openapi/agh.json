@@ -71504,9 +71504,6 @@
                           },
                           "type": "array"
                         },
-                        "delivery_workers": {
-                          "type": "integer"
-                        },
                         "direct_resolves": {
                           "format": "int64",
                           "type": "integer"
@@ -71548,15 +71545,6 @@
                           },
                           "type": "array"
                         },
-                        "last_disconnect": {
-                          "type": "string"
-                        },
-                        "listener_host": {
-                          "type": "string"
-                        },
-                        "listener_port": {
-                          "type": "integer"
-                        },
                         "local_peers": {
                           "type": "integer"
                         },
@@ -71586,15 +71574,6 @@
                         },
                         "open_work_items": {
                           "format": "int64",
-                          "type": "integer"
-                        },
-                        "queued_messages": {
-                          "type": "integer"
-                        },
-                        "queued_sessions": {
-                          "type": "integer"
-                        },
-                        "remote_peers": {
                           "type": "integer"
                         },
                         "status": {
@@ -102320,52 +102299,112 @@
                     },
                     "config": {
                       "properties": {
-                        "activation_top_k": {
-                          "type": "integer"
-                        },
-                        "delivery_structured_body_max_bytes": {
-                          "type": "integer"
-                        },
-                        "digest_flush_interval": {
-                          "type": "string"
-                        },
-                        "digest_max_envelopes": {
-                          "type": "integer"
-                        },
                         "enabled": {
                           "type": "boolean"
                         },
                         "greet_interval": {
                           "type": "integer"
                         },
-                        "max_payload": {
-                          "type": "integer"
+                        "live": {
+                          "properties": {
+                            "defaults": {
+                              "properties": {
+                                "coalesce_window": {
+                                  "type": "string"
+                                },
+                                "max_input_tokens": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "max_output_tokens": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "max_total_wall_time": {
+                                  "type": "string"
+                                },
+                                "max_wake_depth": {
+                                  "type": "integer"
+                                },
+                                "max_wake_wall_time": {
+                                  "type": "string"
+                                },
+                                "max_wakes": {
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "coalesce_window",
+                                "max_input_tokens",
+                                "max_output_tokens",
+                                "max_total_wall_time",
+                                "max_wake_depth",
+                                "max_wake_wall_time",
+                                "max_wakes"
+                              ],
+                              "type": "object"
+                            },
+                            "limits": {
+                              "properties": {
+                                "max_coalesce_window": {
+                                  "type": "string"
+                                },
+                                "max_input_tokens": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "max_output_tokens": {
+                                  "format": "int64",
+                                  "type": "integer"
+                                },
+                                "max_total_wall_time": {
+                                  "type": "string"
+                                },
+                                "max_wake_depth": {
+                                  "type": "integer"
+                                },
+                                "max_wake_wall_time": {
+                                  "type": "string"
+                                },
+                                "max_wakes": {
+                                  "type": "integer"
+                                },
+                                "min_coalesce_window": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "max_coalesce_window",
+                                "max_input_tokens",
+                                "max_output_tokens",
+                                "max_total_wall_time",
+                                "max_wake_depth",
+                                "max_wake_wall_time",
+                                "max_wakes",
+                                "min_coalesce_window"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "defaults",
+                            "limits"
+                          ],
+                          "type": "object"
                         },
                         "max_queue_depth": {
                           "type": "integer"
                         },
                         "max_replay_age": {
                           "type": "integer"
-                        },
-                        "port": {
-                          "type": "integer"
-                        },
-                        "response_guidance_max_bytes": {
-                          "type": "integer"
                         }
                       },
                       "required": [
-                        "activation_top_k",
-                        "delivery_structured_body_max_bytes",
-                        "digest_flush_interval",
-                        "digest_max_envelopes",
                         "enabled",
                         "greet_interval",
-                        "max_payload",
+                        "live",
                         "max_queue_depth",
-                        "max_replay_age",
-                        "port",
-                        "response_guidance_max_bytes"
+                        "max_replay_age"
                       ],
                       "type": "object"
                     },
@@ -102395,28 +102434,22 @@
                         "channels": {
                           "type": "integer"
                         },
-                        "delivery_workers": {
-                          "type": "integer"
-                        },
                         "enabled": {
                           "type": "boolean"
-                        },
-                        "listener_host": {
-                          "type": "string"
-                        },
-                        "listener_port": {
-                          "type": "integer"
                         },
                         "local_peers": {
                           "type": "integer"
                         },
-                        "queued_messages": {
+                        "messages_delivered": {
+                          "format": "int64",
                           "type": "integer"
                         },
-                        "queued_sessions": {
+                        "messages_received": {
+                          "format": "int64",
                           "type": "integer"
                         },
-                        "remote_peers": {
+                        "messages_rejected": {
+                          "format": "int64",
                           "type": "integer"
                         },
                         "status": {
@@ -102426,12 +102459,11 @@
                       "required": [
                         "available",
                         "channels",
-                        "delivery_workers",
                         "enabled",
                         "local_peers",
-                        "queued_messages",
-                        "queued_sessions",
-                        "remote_peers"
+                        "messages_delivered",
+                        "messages_received",
+                        "messages_rejected"
                       ],
                       "type": "object"
                     },
@@ -102550,52 +102582,112 @@
                 "properties": {
                   "config": {
                     "properties": {
-                      "activation_top_k": {
-                        "type": "integer"
-                      },
-                      "delivery_structured_body_max_bytes": {
-                        "type": "integer"
-                      },
-                      "digest_flush_interval": {
-                        "type": "string"
-                      },
-                      "digest_max_envelopes": {
-                        "type": "integer"
-                      },
                       "enabled": {
                         "type": "boolean"
                       },
                       "greet_interval": {
                         "type": "integer"
                       },
-                      "max_payload": {
-                        "type": "integer"
+                      "live": {
+                        "properties": {
+                          "defaults": {
+                            "properties": {
+                              "coalesce_window": {
+                                "type": "string"
+                              },
+                              "max_input_tokens": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "max_output_tokens": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "max_total_wall_time": {
+                                "type": "string"
+                              },
+                              "max_wake_depth": {
+                                "type": "integer"
+                              },
+                              "max_wake_wall_time": {
+                                "type": "string"
+                              },
+                              "max_wakes": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "coalesce_window",
+                              "max_input_tokens",
+                              "max_output_tokens",
+                              "max_total_wall_time",
+                              "max_wake_depth",
+                              "max_wake_wall_time",
+                              "max_wakes"
+                            ],
+                            "type": "object"
+                          },
+                          "limits": {
+                            "properties": {
+                              "max_coalesce_window": {
+                                "type": "string"
+                              },
+                              "max_input_tokens": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "max_output_tokens": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "max_total_wall_time": {
+                                "type": "string"
+                              },
+                              "max_wake_depth": {
+                                "type": "integer"
+                              },
+                              "max_wake_wall_time": {
+                                "type": "string"
+                              },
+                              "max_wakes": {
+                                "type": "integer"
+                              },
+                              "min_coalesce_window": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "max_coalesce_window",
+                              "max_input_tokens",
+                              "max_output_tokens",
+                              "max_total_wall_time",
+                              "max_wake_depth",
+                              "max_wake_wall_time",
+                              "max_wakes",
+                              "min_coalesce_window"
+                            ],
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "defaults",
+                          "limits"
+                        ],
+                        "type": "object"
                       },
                       "max_queue_depth": {
                         "type": "integer"
                       },
                       "max_replay_age": {
                         "type": "integer"
-                      },
-                      "port": {
-                        "type": "integer"
-                      },
-                      "response_guidance_max_bytes": {
-                        "type": "integer"
                       }
                     },
                     "required": [
-                      "activation_top_k",
-                      "delivery_structured_body_max_bytes",
-                      "digest_flush_interval",
-                      "digest_max_envelopes",
                       "enabled",
                       "greet_interval",
-                      "max_payload",
+                      "live",
                       "max_queue_depth",
-                      "max_replay_age",
-                      "port",
-                      "response_guidance_max_bytes"
+                      "max_replay_age"
                     ],
                     "type": "object"
                   }
@@ -113961,9 +114053,6 @@
                               },
                               "type": "array"
                             },
-                            "delivery_workers": {
-                              "type": "integer"
-                            },
                             "direct_resolves": {
                               "format": "int64",
                               "type": "integer"
@@ -114005,15 +114094,6 @@
                               },
                               "type": "array"
                             },
-                            "last_disconnect": {
-                              "type": "string"
-                            },
-                            "listener_host": {
-                              "type": "string"
-                            },
-                            "listener_port": {
-                              "type": "integer"
-                            },
                             "local_peers": {
                               "type": "integer"
                             },
@@ -114043,15 +114123,6 @@
                             },
                             "open_work_items": {
                               "format": "int64",
-                              "type": "integer"
-                            },
-                            "queued_messages": {
-                              "type": "integer"
-                            },
-                            "queued_sessions": {
-                              "type": "integer"
-                            },
-                            "remote_peers": {
                               "type": "integer"
                             },
                             "status": {

@@ -34,16 +34,16 @@ agh ch send <channel> [flags]
 ### Options
 
 ```
-      --body string                      Raw JSON body for the channel message
-      --coordination-channel-id string   Coordination channel id; defaults to channel
-      --correlation-id string            Correlation id; defaults to run id
-  -h, --help                             help for send
-      --idempotency-key string           Optional idempotency key/message id
-      --kind string                      Coordination message kind (default "status")
-      --metadata-ext string              Optional JSON object for coordination metadata ext
-      --run-id string                    Run id for coordination metadata
-      --task-id string                   Task id for coordination metadata
-      --workflow-id string               Workflow id for coordination metadata
+      --body string              Raw JSON body for the channel message
+      --channel-id string        Channel id; defaults to channel
+      --correlation-id string    Correlation id; defaults to run id
+  -h, --help                     help for send
+      --idempotency-key string   Optional idempotency key/message id
+      --kind string              Coordination message kind (default "status")
+      --metadata-ext string      Optional JSON object for coordination metadata ext
+      --run-id string            Run id for coordination metadata
+      --task-id string           Task id for coordination metadata
+      --workflow-id string       Workflow id for coordination metadata
 ```
 
 ### Options inherited from parent commands

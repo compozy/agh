@@ -105,7 +105,6 @@ func TestStatusForBundleErrorAndChannelHelpers(t *testing.T) {
 		{name: "bundle missing", err: bundlepkg.ErrBundleNotFound, want: http.StatusNotFound},
 		{name: "profile missing", err: bundlepkg.ErrProfileNotFound, want: http.StatusNotFound},
 		{name: "extension missing", err: extensionpkg.ErrExtensionNotFound, want: http.StatusNotFound},
-		{name: "default channel removed", err: bundlepkg.ErrDefaultChannelRemoved, want: http.StatusBadRequest},
 		{name: "agent conflict", err: bundlepkg.ErrAgentConflict, want: http.StatusConflict},
 		{
 			name: "agent reference missing",

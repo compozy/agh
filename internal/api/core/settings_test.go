@@ -1188,17 +1188,14 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					Live:          aghconfig.DefaultNetworkConfig().Live,
 				},
 				Runtime: settingspkg.NetworkRuntimeStatus{
-					Available:       true,
-					Enabled:         true,
-					Status:          "running",
-					ListenerHost:    "127.0.0.1",
-					ListenerPort:    4222,
-					LocalPeers:      1,
-					RemotePeers:     2,
-					Channels:        3,
-					QueuedMessages:  4,
-					QueuedSessions:  5,
-					DeliveryWorkers: 2,
+					Available:         true,
+					Enabled:           true,
+					Status:            "active",
+					LocalPeers:        1,
+					Channels:          3,
+					MessagesReceived:  4,
+					MessagesDelivered: 2,
+					MessagesRejected:  1,
 				},
 				Links: []settingspkg.OperationalLink{{Label: "network", Path: "/network"}},
 			},
@@ -1691,17 +1688,31 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			path: "/api/settings/network",
 			body: contract.UpdateSettingsNetworkRequest{
 				Config: contract.SettingsNetworkConfigPayload{
-					Enabled:                        true,
-					Port:                           4222,
-					MaxPayload:                     1024,
-					GreetInterval:                  5,
-					MaxReplayAge:                   10,
-					MaxQueueDepth:                  32,
-					ActivationTopK:                 4,
-					DigestFlushInterval:            "30s",
-					DigestMaxEnvelopes:             10,
-					ResponseGuidanceMaxBytes:       1024,
-					DeliveryStructuredBodyMaxBytes: 2048,
+					Enabled:       true,
+					GreetInterval: 5,
+					MaxReplayAge:  10,
+					MaxQueueDepth: 32,
+					Live: contract.SettingsNetworkLiveConfigPayload{
+						Defaults: contract.SettingsNetworkLiveDefaultsPayload{
+							MaxWakes:         8,
+							MaxWakeWallTime:  "5m",
+							MaxTotalWallTime: "30m",
+							MaxInputTokens:   200_000,
+							MaxOutputTokens:  50_000,
+							MaxWakeDepth:     3,
+							CoalesceWindow:   "500ms",
+						},
+						Limits: contract.SettingsNetworkLiveLimitsPayload{
+							MaxWakes:          64,
+							MaxWakeWallTime:   "15m",
+							MaxTotalWallTime:  "2h",
+							MaxInputTokens:    1_000_000,
+							MaxOutputTokens:   200_000,
+							MaxWakeDepth:      5,
+							MinCoalesceWindow: "100ms",
+							MaxCoalesceWindow: "5s",
+						},
+					},
 				},
 			},
 			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
@@ -2882,8 +2893,8 @@ func TestInstallSettingsMCPServerMapsStrictRequestAndRedactedResponse(t *testing
 			t.Fatalf("override status = %d, want %d; body=%s", got, want, response.Body.String())
 		}
 		body := response.Body.String()
-		if !strings.Contains(body, "unknown field") || !strings.Contains(body, "command") {
-			t.Fatalf("override response = %s, want unknown command field detail", body)
+		if !strings.Contains(body, "unknown_field") || !strings.Contains(body, "command") {
+			t.Fatalf("override response = %s, want normalized unknown_field with command detail", body)
 		}
 		if service.InstallMCPCatalogCalls != 0 {
 			t.Fatalf("InstallMCPCatalogCalls = %d, want 0 after strict decode failure", service.InstallMCPCatalogCalls)

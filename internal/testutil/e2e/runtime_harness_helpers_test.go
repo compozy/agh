@@ -1213,7 +1213,6 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				Enabled:           true,
 				Status:            "running",
 				LocalPeers:        1,
-				RemotePeers:       1,
 				Channels:          1,
 				MessagesSent:      3,
 				MessagesDelivered: 2,

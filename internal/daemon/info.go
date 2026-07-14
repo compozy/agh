@@ -21,10 +21,8 @@ type Info struct {
 
 // NetworkInfo is the persisted daemon-safe network diagnostics snapshot.
 type NetworkInfo struct {
-	Enabled      bool   `json:"enabled"`
-	Status       string `json:"status"`
-	ListenerHost string `json:"listener_host,omitempty"`
-	ListenerPort int    `json:"listener_port,omitempty"`
+	Enabled bool   `json:"enabled"`
+	Status  string `json:"status"`
 }
 
 // Validate ensures the persisted daemon info remains usable for discovery.
@@ -49,9 +47,6 @@ func (i Info) Validate() error {
 func (n NetworkInfo) Validate() error {
 	if strings.TrimSpace(n.Status) == "" {
 		return errors.New("daemon: network status is required")
-	}
-	if n.ListenerPort < 0 || n.ListenerPort > 65535 {
-		return fmt.Errorf("daemon: network listener port must be between 0 and 65535: %d", n.ListenerPort)
 	}
 	return nil
 }

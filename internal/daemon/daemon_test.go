@@ -136,10 +136,8 @@ func TestInfoWriteReadAndRemoveRoundTrip(t *testing.T) {
 		Port:      2123,
 		StartedAt: now,
 		Network: &NetworkInfo{
-			Enabled:      true,
-			Status:       network.StatusRunning,
-			ListenerHost: "127.0.0.1",
-			ListenerPort: 4222,
+			Enabled: true,
+			Status:  network.StatusActive,
 		},
 	}
 
@@ -618,11 +616,8 @@ func TestBootEnabledNetworkLateBindsSessionCallbacksAndPersistsSafeDiagnostics(t
 	if !info.Network.Enabled {
 		t.Fatal("daemon info network enabled = false, want true")
 	}
-	if got, want := info.Network.Status, network.StatusRunning; got != want {
+	if got, want := info.Network.Status, network.StatusReady; got != want {
 		t.Fatalf("daemon info network status = %q, want %q", got, want)
-	}
-	if info.Network.ListenerPort != 0 {
-		t.Fatalf("daemon info network listener port = %d, want zero without a broker", info.Network.ListenerPort)
 	}
 
 	rawInfo, err := os.ReadFile(homePaths.DaemonInfo)
@@ -4158,10 +4153,7 @@ func TestDaemonNetworkInfoHelpersValidateAndRedactRuntimeStatus(t *testing.T) {
 	if err := (NetworkInfo{}).Validate(); err == nil {
 		t.Fatal("NetworkInfo.Validate() error = nil, want non-nil")
 	}
-	if err := (NetworkInfo{Status: network.StatusRunning, ListenerPort: 65536}).Validate(); err == nil {
-		t.Fatal("NetworkInfo.Validate(invalid port) error = nil, want non-nil")
-	}
-	if err := (NetworkInfo{Status: network.StatusRunning, ListenerPort: 4222}).Validate(); err != nil {
+	if err := (NetworkInfo{Status: network.StatusActive}).Validate(); err != nil {
 		t.Fatalf("NetworkInfo.Validate(valid) error = %v", err)
 	}
 
@@ -4182,10 +4174,8 @@ func TestDaemonNetworkInfoHelpersValidateAndRedactRuntimeStatus(t *testing.T) {
 
 	info, err := daemonNetworkInfo(ctx, aghconfig.NetworkConfig{Enabled: true}, &fakeNetworkRuntime{
 		status: &network.Status{
-			Enabled:      true,
-			Status:       " running ",
-			ListenerHost: " 127.0.0.1 ",
-			ListenerPort: 4222,
+			Enabled: true,
+			Status:  " active ",
 		},
 	})
 	if err != nil {
@@ -4195,9 +4185,8 @@ func TestDaemonNetworkInfoHelpersValidateAndRedactRuntimeStatus(t *testing.T) {
 		t.Fatal("daemonNetworkInfo(runtime status) = nil, want populated diagnostics")
 		return
 	}
-	if !info.Enabled || info.Status != network.StatusRunning || info.ListenerHost != "127.0.0.1" ||
-		info.ListenerPort != 4222 {
-		t.Fatalf("daemonNetworkInfo(runtime status) = %#v, want trimmed listener diagnostics", info)
+	if !info.Enabled || info.Status != network.StatusActive {
+		t.Fatalf("daemonNetworkInfo(runtime status) = %#v, want trimmed active diagnostics", info)
 	}
 }
 
@@ -4569,7 +4558,6 @@ func testTaskRuntimeDetachedHarnessSubmissionAllowsProcessedReentryMetadata(t *t
 		Scope:          taskpkg.ScopeWorkspace,
 		WorkspaceID:    workspace.ID,
 		Summary:        "Processed detached work",
-		NetworkChannel: "builders",
 		WakeTarget: detachedHarnessWakeTargetInput{
 			SessionID: "sess-wake",
 		},
@@ -5064,7 +5052,6 @@ func seedDetachedHarnessRecoveryRunForTest(
 		WakeTarget: detachedHarnessWakeTarget{
 			SessionID:   "sess-wake",
 			SessionType: string(session.SessionTypeSystem),
-			Channel:     "builders",
 		},
 	})
 	if err != nil {
@@ -5079,7 +5066,6 @@ func seedDetachedHarnessRecoveryRunForTest(
 		WakeTarget: detachedHarnessWakeTarget{
 			SessionID:   "sess-wake",
 			SessionType: string(session.SessionTypeSystem),
-			Channel:     "builders",
 		},
 	})
 	if err != nil {

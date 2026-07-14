@@ -1,140 +1,70 @@
 ---
 title: Protocol Overview
-description: Understand what AGH Network is, why it exists, how it differs from AGH Runtime, and where it fits in the agent protocol landscape.
+description: Understand the transport-neutral AGH Network envelope, how it differs from AGH Runtime, and where Local/Live participation fits.
 icon: Compass
 ---
 
-AGH Network is the open coordination boundary for agents that need to work with other agents. It
-defines how a peer announces itself, how another peer finds it, how work is delegated, how progress
-is reported, and how both sides keep a shared record of responsibility.
-
-The point is not to move every agent into one runtime. The point is to give different runtimes a
-small common boundary — the open agent network protocol — that any of them can speak.
+AGH Network defines how peers identify a conversation, exchange structured messages, and correlate
+work. It gives independent runtimes a small common boundary without prescribing their scheduler,
+storage, process model, or transport.
 
 <OperatorNote>MCP connects agents to tools. AGH Network connects agents to agents.</OperatorNote>
 
-## Why it exists
+## Runtime versus protocol
 
-Most agent systems start local. A runtime owns sessions, logs, prompts, permissions, memory, and
-operator controls. That works until teams add specialized agents: a planner, a reviewer, a migration
-worker, a release coordinator, or an incident responder. At that point, the hard part is no longer
-running one agent. The hard part is making agents find each other, hand off work, report status, and
-finish without inventing a new integration for every pair.
+| Layer       | Responsibility                                                                                         |
+| ----------- | ------------------------------------------------------------------------------------------------------ |
+| AGH Network | Envelope, message kinds, workspace/channel scope, conversations, lifecycle, freshness, and extensions. |
+| AGH Runtime | Sessions, Local/Live resolution, SQLite persistence, wake admission, usage, CLI/API/UI, and policy.    |
 
-AGH Network gives that coordination a wire format. It lets a runtime say:
-
-- "This peer exists, and these are the profiles and capabilities it claims."
-- "Open a thread or direct room in this channel and send this peer a request."
-- "This work is accepted, rejected, working, waiting for input, completed, failed, or canceled."
-- "Here is a reusable capability artifact another agent can inspect, adapt, or run."
-
-That boundary is deliberately smaller than a workflow engine and larger than a raw chat message. It
-is enough structure for interoperable work without forcing a universal orchestration model.
-
-## Runtime vs protocol
-
-AGH Runtime and AGH Network solve different problems.
-
-| Layer       | Responsibility                                                                                                                                                                                           | Example                                                                                                                                                                             |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| AGH Runtime | Runs local agent sessions, stores events, exposes CLI/API/UI surfaces, manages workspace state, and bridges messages into prompts.                                                                       | A local daemon starts a Claude Code, OpenClaw, or Hermes session and records its events in SQLite.                                                                                  |
-| AGH Network | The open agent network protocol — defines the envelope, message kinds, peer discovery, conversation containers, work lifecycle, delivery expectations, and transport profile that any runtime can speak. | A `say` message inside a public thread opens lifecycle-bearing work with a target peer; `receipt` and `trace` messages bound to the same `thread_id` and `work_id` report progress. |
-
-AGH Runtime is the reference implementation of the protocol. It is not a prerequisite for speaking
-the protocol. Another runtime can adopt the same envelope and message semantics, then map inbound
-messages to its own session model.
+`network_participation` is an AGH Runtime execution contract. It is not an envelope field and does
+not change protocol conformance. Another runtime may map a valid envelope to its own execution model.
 
 ## Protocol at a glance
 
-| Concept               | What it does                                                                 | v0 shape                                                                                                                                                                       |
-| --------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Envelope              | Wraps every message in a stable JSON wire format.                            | `protocol`, `id`, `workspace_id`, `kind`, `channel`, `surface`, `thread_id`, `direct_id`, `from`, `to`, `work_id`, timestamps, correlation fields, `body`, `proof`, and `ext`. |
-| Peer                  | Identifies an agent runtime participant inside a workspace channel.          | Peer IDs use lowercase letters, digits, dots, underscores, and hyphens.                                                                                                        |
-| Channel               | Scopes discovery, routing, and conversation containers inside a workspace.   | Channel names match `[a-z0-9][a-z0-9_-]{0,63}`; the same slug in different workspaces is distinct.                                                                             |
-| Conversation surfaces | Carry conversation messages with explicit visibility.                        | `surface:"thread"` with `thread_id` for public N-to-N threads; `surface:"direct"` with `direct_id` for restricted two-party direct rooms.                                      |
-| Message kinds         | Define the six protocol actions.                                             | `greet`, `whois`, `say`, `capability`, `receipt`, `trace`.                                                                                                                     |
-| Work lifecycle        | Correlates directed work and progress inside one conversation container.     | `work_id` scopes receipts, follow-up messages, and trace updates within a single `(workspace_id, channel, surface, container_id)` tuple.                                       |
-| Discovery             | Lets peers announce and query capability claims.                             | `greet` advertises a Peer Card with brief capabilities; `whois` asks for matching peers and optionally the rich catalog.                                                       |
-| Delivery              | Defines expectations without pretending to guarantee exactly-once messaging. | Receivers deduplicate, expire stale messages, and use receipts where useful.                                                                                                   |
-| Transport             | Binds the core envelope to a carrier.                                        | The v0 reference transport profile uses NATS subjects.                                                                                                                         |
-| Trust                 | Leaves room for stronger verification later.                                 | v0 treats identity and capability claims as unverified; `proof` is reserved for future trust processing.                                                                       |
+| Concept               | v0 shape                                                                                                |
+| --------------------- | ------------------------------------------------------------------------------------------------------- |
+| Envelope              | `protocol`, IDs, workspace, channel, kind, peers, timestamps, correlation, `body`, `proof`, and `ext`.  |
+| Message kinds         | `greet`, `whois`, `say`, `capability`, `receipt`, and `trace`.                                          |
+| Public thread         | `surface:"thread"` with `thread_id`.                                                                    |
+| Direct room           | `surface:"direct"` with deterministic `direct_id`; restricted, not encrypted.                           |
+| Work lifecycle        | `work_id` bound to exactly one conversation container.                                                  |
+| Delivery expectations | Validate, reject stale content, deduplicate, preserve terminal state, and report receipts where useful. |
+| Trust                 | v0 treats claims as unverified; the Ed25519 + JCS profile is optional implementer guidance.             |
 
 ## Layer model
 
 <Mermaid
   chart={`flowchart TD
-    Runtime[AGH Runtime or another agent runtime]
-    Adapter[Runtime adapter: sessions, inboxes, prompts]
-    Core[AGH Network core: envelope, kinds, interactions, discovery]
-    Profile[NATS transport profile]
-    Broker[NATS server or compatible transport]
+    Runtime[Agent runtime]
+    Adapter[Runtime adapter: storage, policy, execution]
+    Core[AGH Network core: envelope, kinds, interactions]
+    Carrier[Implementation-owned carrier]
 
     Runtime --> Adapter
     Adapter --> Core
-    Core --> Profile
-    Profile --> Broker
+    Core --> Carrier`}
 
-    Core -. transport independent .-> Profile`}
-
-caption="AGH Network core semantics are separate from the reference NATS transport profile."
+caption="The core protocol does not require a particular broker, listener, or process boundary."
 />
 
-The core contract is the envelope and the behavior attached to each message kind. The NATS profile
-is the first transport binding. A compatible implementation can keep the same core semantics while
-binding them to another carrier later.
-
-## Where it fits
-
-AGH Network is designed for a specific gap:
-
-- MCP connects an agent to external tools and resources.
-- Agent Client Protocol connects clients and agent runtimes.
-- AGH Network connects agents to other agents across runtime boundaries.
-
-That difference matters. Tool calls are usually local to one agent's execution context. Agent-to-agent
-work needs discovery, delegation, receipt, progress, cancellation, capability claims, and delivery
-semantics that survive beyond one prompt.
+AGH Runtime currently stores accepted messages and recipient decisions atomically, enqueues any
+admitted wake as a normal `task_run`, and sends an in-process notification after commit. That is a
+reference-runtime guarantee, not a new wire profile.
 
 ## Adoption path
 
-You can adopt the protocol incrementally, but that is not the same thing as claiming full
-conformance on day one.
+1. Produce and validate the canonical envelope.
+2. Implement the message kinds your role emits or receives.
+3. Preserve conversation-container and `work_id` lifecycle rules.
+4. Add freshness, deduplication, receipts, and extension behavior.
+5. Add the trust profile only if you can pass its full verification contract.
+6. Bind the protocol to a carrier owned and tested by your implementation.
 
-### Minimal useful subset
-
-Start here when you want working interop quickly:
-
-1. Map your runtime's agents to Peer IDs and Peer Cards.
-2. Accept and emit the canonical envelope.
-3. Implement `greet`, `whois`, `say`, and the `surface:"direct"` conversation rules.
-
-### Lifecycle-complete coordination
-
-Add these when you need explicit responsibility and progress:
-
-4. Add `receipt` and `trace`.
-5. Add `capability` when agents need to transfer portable, reusable capability artifacts.
-
-### Conformance claim
-
-Choose a transport profile and test coverage that match the claim you want to make.
-
-Conformance uses a stricter bar than the staged adoption path above. A minimal implementation can
-still be useful, but [Conformance](/protocol/conformance/) defines what is required before you claim
-Core, Trust, or Full support.
-
-The durable boundary is the protocol. The runtime, transport, UI, and trust layer can evolve around
-it.
+Conformance claims name protocol behavior and optional trust, not a retired AGH transport binding.
 
 ## What it is not
 
-AGH Network is not a workflow engine. It does not define a scheduler, planner, retry controller, or
-global orchestration service.
-
-AGH Network is not a global service registry. Discovery is scoped and minimal by design.
-
-AGH Network is not a proof that a peer is trustworthy. v0 Peer Cards are capability claims, not
-cryptographic evidence.
-
-AGH Network is not NATS. NATS is the reference v0 transport profile, while the core protocol is the
-wire contract runtimes share.
+AGH Network is not a workflow engine, task queue, global registry, scheduler, trust federation, or
+permission grant. It also does not make a runtime's channel membership or availability policy part
+of the wire contract.

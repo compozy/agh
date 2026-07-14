@@ -1551,18 +1551,6 @@ func automationSettingsFromPayload(
 	}, nil
 }
 
-func networkConfigFromPayload(payload contract.SettingsNetworkConfigPayload) (aghconfig.NetworkConfig, error) {
-	value := aghconfig.DefaultNetworkConfig()
-	value.Enabled = payload.Enabled
-	value.GreetInterval = payload.GreetInterval
-	value.MaxReplayAge = payload.MaxReplayAge
-	value.MaxQueueDepth = payload.MaxQueueDepth
-	if err := value.Validate(); err != nil {
-		return aghconfig.NetworkConfig{}, NewSettingsValidationError(err)
-	}
-	return value, nil
-}
-
 func observabilityConfigFromPayload(
 	payload contract.SettingsObservabilityConfigPayload,
 ) (aghconfig.ObservabilityConfig, error) {

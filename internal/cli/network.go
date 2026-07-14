@@ -279,13 +279,13 @@ func newNetworkChannelsCreateCommand(deps commandDeps, workspaceRef *string) *co
 		&flags.fanoutPolicy,
 		"fanout-policy",
 		"",
-		"Delivery activation policy: capability_match, coordinator, or all_members",
+		"Channel routing metadata: capability_match, coordinator, or all_members; never enrolls or wakes executions",
 	)
 	cmd.Flags().StringVar(
 		&flags.coordinatorPeerID,
 		"coordinator-peer-id",
 		"",
-		"Coordinator peer id for coordinator fanout",
+		"Coordinator peer id for coordinator routing metadata",
 	)
 	cmd.Flags().StringArrayVar(
 		&flags.agentNames,
@@ -309,7 +309,7 @@ func newNetworkChannelsUpdateCommand(deps commandDeps, workspaceRef *string) *co
 	var flags networkUpdateChannelFlags
 	cmd := &cobra.Command{
 		Use:   "update [channel]",
-		Short: "Update a runtime channel delivery policy",
+		Short: "Update runtime channel routing metadata",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -341,7 +341,7 @@ func newNetworkChannelsUpdateCommand(deps commandDeps, workspaceRef *string) *co
 		&flags.fanoutPolicy,
 		"fanout-policy",
 		"",
-		"Delivery activation policy: capability_match, coordinator, or all_members",
+		"Channel routing metadata: capability_match, coordinator, or all_members; never enrolls or wakes executions",
 	)
 	cmd.Flags().StringVar(
 		&flags.coordinatorPeerID,
@@ -1087,44 +1087,31 @@ func networkStatusBundle(status NetworkStatusRecord) outputBundle {
 	rows := []keyValue{
 		{Label: networkEnabledValue, Value: strconv.FormatBool(status.Enabled)},
 		{Label: networkStatusValue, Value: stringOrDash(status.Status)},
-		{Label: "Listener", Value: stringOrDash(networkListener(&status))},
-		{Label: "Local Peers", Value: strconv.Itoa(status.LocalPeers)},
-		{Label: "Remote Peers", Value: strconv.Itoa(status.RemotePeers)},
+		{Label: "Live Participants", Value: strconv.Itoa(status.LocalPeers)},
 		{Label: "Channels", Value: strconv.Itoa(status.Channels)},
-		{Label: "Queued Messages", Value: strconv.Itoa(status.QueuedMessages)},
-		{Label: "Queued Sessions", Value: strconv.Itoa(status.QueuedSessions)},
-		{Label: "Delivery Workers", Value: strconv.Itoa(status.DeliveryWorkers)},
 		{Label: "Messages Sent", Value: strconv.FormatInt(status.MessagesSent, 10)},
 		{Label: "Messages Received", Value: strconv.FormatInt(status.MessagesReceived, 10)},
 		{Label: "Messages Rejected", Value: strconv.FormatInt(status.MessagesRejected, 10)},
 		{Label: "Messages Delivered", Value: strconv.FormatInt(status.MessagesDelivered, 10)},
 		{Label: "Workflow Tagged", Value: strconv.FormatInt(status.WorkflowTaggedEvents, 10)},
 		{Label: "Handoff Tagged", Value: strconv.FormatInt(status.HandoffTaggedEvents, 10)},
-		{Label: "Last Disconnect", Value: stringOrDash(status.LastDisconnect)},
 	}
 	fields := []string{
-		networkEnabledKey, networkStatusKey, "listener", "local_peers", "remote_peers", networkChannelsKey,
-		"queued_messages", "queued_sessions", "delivery_workers", "messages_sent",
+		networkEnabledKey, networkStatusKey, "local_peers", networkChannelsKey, "messages_sent",
 		"messages_received", "messages_rejected", "messages_delivered",
-		"workflow_tagged_events", "handoff_tagged_events", "last_disconnect",
+		"workflow_tagged_events", "handoff_tagged_events",
 	}
 	values := []string{
 		strconv.FormatBool(status.Enabled),
 		status.Status,
-		networkListener(&status),
 		strconv.Itoa(status.LocalPeers),
-		strconv.Itoa(status.RemotePeers),
 		strconv.Itoa(status.Channels),
-		strconv.Itoa(status.QueuedMessages),
-		strconv.Itoa(status.QueuedSessions),
-		strconv.Itoa(status.DeliveryWorkers),
 		strconv.FormatInt(status.MessagesSent, 10),
 		strconv.FormatInt(status.MessagesReceived, 10),
 		strconv.FormatInt(status.MessagesRejected, 10),
 		strconv.FormatInt(status.MessagesDelivered, 10),
 		strconv.FormatInt(status.WorkflowTaggedEvents, 10),
 		strconv.FormatInt(status.HandoffTaggedEvents, 10),
-		status.LastDisconnect,
 	}
 
 	return outputBundle{

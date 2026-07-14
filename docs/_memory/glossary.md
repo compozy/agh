@@ -73,7 +73,8 @@ including agent-local `skills/` overlays and `skills.disabled`. Draft fields suc
 
 ### Peer Card
 
-The AGH Network discovery artifact: a peer's identity, addressable transport hints, and `peer_card.capabilities` index, optionally with `peer_card.ext["agh.capabilities_brief"]` for AGH-specific projection.
+The AGH Network discovery artifact: a peer's identity and `peer_card.capabilities` index, optionally
+with `peer_card.ext["agh.capabilities_brief"]` for AGH-specific projection.
 
 **vs A2A Agent Card:** A2A Agent Cards are an external industry standard. Peer Cards are AGH-Network specific but could be generated FROM an AGENT.md definition (RFC 001 §3.3 is open on the mapping). Today they are not unified.
 
@@ -83,20 +84,13 @@ The AGH Network discovery artifact: a peer's identity, addressable transport hin
 
 ### `peer_id`
 
-A network-scoped identifier matching `[a-z0-9][a-z0-9._-]{0,127}`. Deterministic — used to derive route tokens.
+A network-scoped identifier matching `[a-z0-9][a-z0-9._-]{0,127}`.
 
 ### `nickname@fingerprint`
 
 The verified-format identity in AGH Network v1. `nickname` matches `[a-z0-9_-]{1,32}`; `fingerprint` is the first 32 lowercase hex of `SHA-256(pubkey)`.
 
 **Critical:** A `nickname@fingerprint`-shaped identity arriving WITHOUT a valid `proof` MUST classify as `rejected`, NOT `unverified`. This is the proof-stripping defense from RFC 004 §3.3.
-
-### `route_token`
-
-NATS subject suffix derived from peer identity:
-
-- Unverified peers: first 32 hex of `SHA-256(peer_id)`.
-- Verified peers: fingerprint suffix.
 
 ### Caller Identity (operational)
 
@@ -173,14 +167,6 @@ Future-RFC kinds explicitly NOT in MVP: `contract-net`, `multi-home`, `vote`, `r
 RFC 004 signed content includes `surface`, `thread_id`, `direct_id`, and `work_id` when present. A receiver must
 verify canonical bytes before injecting defaults.
 
-### NATS Subject Mapping (v0)
-
-- `agh.network.v0.<workspace_id>.<channel>.broadcast`
-- `agh.network.v0.<workspace_id>.<channel>.peer.<route_token>`
-
-NATS peer subjects are transport routing subjects. They do not replace `surface:"direct"` and they do not create
-direct-room membership.
-
 ### Replay Defense
 
 Bounded replay window via `id`. Recommended 300-second clock-skew rejection when `expires_at` is null.
@@ -220,7 +206,7 @@ Default write scope is declared per agent in `memory.scope`.
 
 ### `task_run`
 
-The single durable work-queue row. Carries `claim_token`, `lease_until`, `heartbeat_at`, `coordination_channel_id`, plus owning `session_id`. **Never duplicated by a parallel queue.**
+The single durable work-queue row. Carries `claim_token`, `lease_until`, `heartbeat_at`, the owning `session_id`, and the execution's immutable resolved Network participation snapshot. A `run_kind = "network_wake"` row is taskless and identifies the wake, owner execution, and target session explicitly. **Never duplicated by a parallel queue.**
 
 ### `claim_token` / `claim_token_hash`
 
@@ -232,7 +218,9 @@ The single authoritative claim primitive. Lives in `internal/task`. The mechanic
 
 ### Coordinator
 
-A managed AGH session whose semantic role is to orchestrate coordinated runs in a workspace. Auto-spawn is conservative (only when no healthy active coordinator AND a coordinated run is enqueued AND `coordination_channel_id` is stable AND auto-start is enabled AND spawn caps allow).
+A managed AGH session whose semantic role is to orchestrate executable workspace runs. Auto-spawn
+is conservative: a run must be enqueued, coordinator auto-start enabled, no healthy active
+coordinator present, and spawn caps available. Network participation is not a bootstrap condition.
 
 ### Mechanical Scheduler
 
@@ -240,13 +228,17 @@ Daemon-owned operational-safety component (`internal/scheduler`). Idle registry,
 
 ### Coordination Channel
 
-The single durable network channel bound to every workspace-scoped coordinated run via `coordination_channel_id`. "Bind always, speak when useful." Messages carry typed correlation but channels are NOT an ownership/status authority.
+The workspace-scoped conversation channel created only when a task run's immutable
+`resolved_network_participation` snapshot is Live. Local runs create no channel. Explicit run intent
+wins over the task execution profile, then workspace coordination, then built-in Local. Enabling
+workspace coordination affects future runs only. Conversation evidence is never task ownership or
+status authority.
 
 ### Task Execution Profile
 
 The task-owned typed overlay that selects the runtime shape of orchestration for one task. Persisted under `task_execution_profiles` plus selector side tables (never in `metadata_json`). Configured under `[task.orchestration.profile]` and managed through `agh task profile inspect|update|delete`, `/api/tasks/{id}/profile`, native task tools, and the operator web UI Orchestration tab.
 
-The profile carries `CoordinatorProfile` (`mode = "inherit" | "guided"`), `WorkerProfile` (worker agent/provider/model + worker eligibility selectors), `ReviewProfile` (reviewer selectors), `ParticipantPolicy` (allowed/preferred channels, peers, agents, capabilities), and `SandboxPolicy` (`mode = "inherit" | "none" | "ref"`). Validation runs at write time in `task.Service.SetExecutionProfile`; session start loads the persisted profile without re-running validation. PUT replaces the entire profile — omitted blocks normalize to defaults.
+The profile carries `CoordinatorProfile` (`mode = "inherit" | "guided"`), `WorkerProfile` (worker agent/provider/model + worker eligibility selectors), `ReviewProfile` (reviewer selectors), `ParticipantPolicy` (allowed/preferred channels, peers, agents, capabilities), `SandboxPolicy` (`mode = "inherit" | "none" | "ref"`), and an optional `network_participation` request for future runs. Validation runs at write time in `task.Service.SetExecutionProfile`; session start loads the persisted profile without re-running validation. PUT replaces the entire profile — omitted blocks normalize to defaults.
 
 The profile is **not** runtime authority: task ownership remains in `task_runs`, worker mutation remains session-bound, review verdict authority remains `task.Service.RecordRunReview`, sandbox policy does not bypass tool/approval policy, and coordinator guidance does not create queue or terminal-state authority.
 
@@ -325,5 +317,5 @@ For positioning consistency on the marketing site and in docs:
 - File names: kebab-case for code/config, snake_case for memory files.
 - Identifiers in code: Go conventions (`PascalCase` exported, `camelCase` unexported).
 - Capability/skill IDs: kebab-case.
-- Network subjects: dot-segmented, lowercase.
+- Network channel IDs: lowercase alphanumeric with optional underscores or hyphens.
 - Commit prefixes: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `build:` only.

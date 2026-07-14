@@ -31,7 +31,6 @@ type detachedHarnessWakeTarget struct {
 	SessionID   string `json:"session_id"`
 	SessionType string `json:"session_type,omitempty"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
-	Channel     string `json:"channel,omitempty"`
 }
 
 type detachedHarnessTaskMetadata struct {
@@ -43,7 +42,6 @@ type detachedHarnessTaskMetadata struct {
 	OwnerSessionID       string                    `json:"owner_session_id"`
 	OwnerSessionType     string                    `json:"owner_session_type,omitempty"`
 	OwnerWorkspaceID     string                    `json:"owner_workspace_id,omitempty"`
-	OwnerChannel         string                    `json:"owner_channel,omitempty"`
 	WakeTarget           detachedHarnessWakeTarget `json:"wake_target"`
 }
 
@@ -56,7 +54,6 @@ type detachedHarnessRunMetadata struct {
 	OwnerSessionID       string                    `json:"owner_session_id"`
 	OwnerSessionType     string                    `json:"owner_session_type,omitempty"`
 	OwnerWorkspaceID     string                    `json:"owner_workspace_id,omitempty"`
-	OwnerChannel         string                    `json:"owner_channel,omitempty"`
 	WakeTarget           detachedHarnessWakeTarget `json:"wake_target"`
 	Reentry              *detachedHarnessReentry   `json:"reentry,omitempty"`
 }
@@ -74,7 +71,6 @@ type detachedHarnessSubmitRequest struct {
 	WorkspaceID    string
 	Summary        string
 	Description    string
-	NetworkChannel string
 	TurnSource     session.TurnSource
 	WakeTarget     detachedHarnessWakeTargetInput
 }
@@ -103,12 +99,10 @@ type normalizedDetachedHarnessSubmitRequest struct {
 	WorkspaceID      string
 	Summary          string
 	Description      string
-	NetworkChannel   string
 	TurnSource       session.TurnSource
 	OwnerSessionID   string
 	OwnerSessionType string
 	OwnerWorkspaceID string
-	OwnerChannel     string
 	WakeTarget       detachedHarnessWakeTarget
 }
 
@@ -249,17 +243,14 @@ func (b *harnessDetachedWorkBridge) normalizeSubmitRequest(
 		WorkspaceID:      workspaceID,
 		Summary:          detachedHarnessSummary(req.Summary),
 		Description:      strings.TrimSpace(req.Description),
-		NetworkChannel:   detachedHarnessChannel(req.NetworkChannel, ""),
 		TurnSource:       normalizeDetachedHarnessTurnSource(req.TurnSource),
 		OwnerSessionID:   strings.TrimSpace(ownerInfo.ID),
 		OwnerSessionType: string(ownerInfo.Type),
 		OwnerWorkspaceID: strings.TrimSpace(ownerInfo.WorkspaceID),
-		OwnerChannel:     strings.TrimSpace(ownerInfo.NetworkParticipation.ChannelID),
 		WakeTarget: detachedHarnessWakeTarget{
 			SessionID:   strings.TrimSpace(wakeInfo.ID),
 			SessionType: string(wakeInfo.Type),
 			WorkspaceID: strings.TrimSpace(wakeInfo.WorkspaceID),
-			Channel:     strings.TrimSpace(wakeInfo.NetworkParticipation.ChannelID),
 		},
 	}, nil
 }
@@ -409,7 +400,6 @@ func buildDetachedHarnessTaskMetadata(req normalizedDetachedHarnessSubmitRequest
 		OwnerSessionID:       req.OwnerSessionID,
 		OwnerSessionType:     req.OwnerSessionType,
 		OwnerWorkspaceID:     req.OwnerWorkspaceID,
-		OwnerChannel:         req.OwnerChannel,
 		WakeTarget:           req.WakeTarget,
 	}
 }
@@ -424,7 +414,6 @@ func buildDetachedHarnessRunMetadata(req normalizedDetachedHarnessSubmitRequest)
 		OwnerSessionID:       req.OwnerSessionID,
 		OwnerSessionType:     req.OwnerSessionType,
 		OwnerWorkspaceID:     req.OwnerWorkspaceID,
-		OwnerChannel:         req.OwnerChannel,
 		WakeTarget:           req.WakeTarget,
 		Reentry:              nil,
 	}
@@ -605,14 +594,6 @@ func detachedHarnessSummary(summary string) string {
 		return defaultDetachedHarnessSummary
 	}
 	return trimmed
-}
-
-func detachedHarnessChannel(requested string, ownerChannel string) string {
-	trimmed := strings.TrimSpace(requested)
-	if trimmed != "" {
-		return trimmed
-	}
-	return strings.TrimSpace(ownerChannel)
 }
 
 func normalizeDetachedHarnessTurnSource(source session.TurnSource) session.TurnSource {

@@ -1,51 +1,46 @@
 ---
 title: Task Ingress
-description: How AGH lets authenticated network peers create and advance task work while enforcing channel and capability boundaries.
+description: How Network-originated task writes remain separate from execution participation, conversations, and task-run ownership.
 ---
 
-Task ingress is the controlled write path from AGH Network into the task domain. It exists for peer
-coordination: a visible peer can ask AGH to create a task, update a task, cancel a task, or enqueue a
-run, but only after the runtime proves that the request belongs to the peer and channel it claims.
+Task ingress is a controlled write path from a validated Network peer into the task domain. It is
+not the same thing as Live participation:
 
-This is separate from ordinary message delivery. A `say` envelope inside a public thread or direct
-room can ask an agent to do work. Task ingress asks the daemon to mutate task state in the
-authoritative task domain.
+- participation decides whether an AGH execution joins a conversation and can receive bounded wakes
+- ingress decides whether a peer may invoke a task mutation
+- `task_runs` and claim tokens remain the only task ownership authority
 
 ## Gate checks
 
-Before AGH accepts a task-ingress write, the network manager checks:
+Before accepting an ingress write, AGH validates the workspace, peer, channel, request ID,
+conversation metadata, current peer registration, and `task.write` capability. The actor identity
+is derived from runtime-owned peer context; the request body cannot choose it.
 
-1. The ingress context has a valid peer ID, channel, and request ID.
-2. The task service is wired into the network manager.
-3. The peer is currently visible as a remote peer in the requested channel.
-4. The peer advertises the `task.write` capability.
-5. The requested task channel is empty or matches the ingress channel.
-6. Existing channel-bound tasks are only mutated from the same channel.
-7. Rejections are written to the network audit sinks with a reason code.
+Supported operations remain task-service calls:
 
-The actor context is derived from runtime-owned metadata:
+| Action      | Runtime method       | Authority after ingress                                      |
+| ----------- | -------------------- | ------------------------------------------------------------ |
+| Create task | `CreateTaskFromPeer` | Creates durable intent only.                                 |
+| Update task | `UpdateTaskFromPeer` | Uses normal task validation and actor policy.                |
+| Cancel task | `CancelTaskFromPeer` | Uses the task service's cancellation transition.             |
+| Enqueue run | `EnqueueRunFromPeer` | Resolves and persists that run's own participation snapshot. |
 
-```text
-peer:<peer_id>/channel:<channel>
-```
+The ingress channel is correlation evidence. It is not copied into a legacy task channel field and
+does not infer the new run's mode. A run without an explicit/profile/workspace Live request resolves
+Local.
 
-The sender does not get to choose its actor identity from the payload.
+## Conversation and task authority
 
-## Supported actions
+A Network message may request work, but its text cannot claim a run, extend a lease, mark a task
+complete, or submit a review verdict. The receiving execution must use the session-bound task APIs.
 
-| Action      | Runtime method       | Channel rule                                                               |
-| ----------- | -------------------- | -------------------------------------------------------------------------- |
-| Create task | `CreateTaskFromPeer` | `network_channel`, when present, must match the ingress channel.           |
-| Update task | `UpdateTaskFromPeer` | A channel-bound task can only be updated from the same channel.            |
-| Cancel task | `CancelTaskFromPeer` | A channel-bound task can only be canceled from the same channel.           |
-| Enqueue run | `EnqueueRunFromPeer` | The task binding and requested run channel must match the ingress channel. |
+`work_id` and `task_runs.id` are intentionally distinct. Ingress stores conversation correlation in
+typed metadata without reusing Network lifecycle identity as task ownership identity.
 
-If a stored task has a stale channel value that no longer validates, update is only allowed to clear
-or repair that channel binding. Unrelated updates remain rejected until the stale binding is fixed.
+## Thread promotion
 
-## Thread promotion and fan-out
-
-AGH can promote a public-thread message into a draft task without starting a run:
+Promoting a public-thread message creates a draft task and a durable origin link. It does not start
+execution or force the task Live:
 
 ```bash
 agh network threads promote \
@@ -56,68 +51,24 @@ agh network threads promote \
   -o json
 ```
 
-The task keeps a durable origin row with the workspace, channel, thread, origin message, digest, and
-source message IDs. Thread detail responses include the same link as `task_links`.
-
-After a task exists, operators and agents can enqueue designated sibling runs:
+Start the task separately and choose participation explicitly when needed:
 
 ```bash
-agh task fan-out task_123 \
-  --channel builders \
-  --designation "Inspect migration schema and rollback path" \
-  --designation "Validate UI and docs impact" \
-  --designation "Review release evidence" \
+agh task start task-123 \
+  --network live \
+  --network-channel-strategy run \
   -o json
 ```
 
-Each run receives a `designation_group_id` plus a zero-based `designation.index` and
-`designation.brief`. The worker prompt includes only that worker's assignment brief. When a
-network-origin task has an origin thread, terminal run state is summarized back to the origin thread
-from the reserved runtime peer `agh.runtime`, and AGH recomputes a compact group rollup for the
-thread/task link.
+## Rejection evidence
 
-## Why task ingress is strict
-
-AGH Network is a coordination protocol, not a blanket permission grant. A peer can be visible and
-still be unable to write task state. Visibility answers "who is in the channel?" Capability and
-channel checks answer "is this peer allowed to perform this write here?"
-
-That split keeps task state tied to the channel where the coordination happened. It also gives
-operators a durable audit trail for accepted and rejected ingress attempts.
-
-The network-side `work_id` and the task domain's `task_runs.id` are intentionally separate. AGH
-correlates network work to task ingress through `trace_id`, `causation_id`, and queue-neutral
-metadata; the network never reuses `work_id` as a `task_runs.id` value. Public APIs surface the
-correlation through `task_runs.metadata_json.network_work_id` for operators that need to join the
-two views.
-
-## Audit reasons
-
-Rejected task ingress records a normalized reason. Common reasons include:
-
-| Reason                     | Meaning                                                              |
-| -------------------------- | -------------------------------------------------------------------- |
-| `channel_mismatch`         | Requested or stored task channel does not match the ingress channel. |
-| `stale_channel`            | Existing task channel no longer validates under the current grammar. |
-| `capability_denied`        | Peer did not advertise `task.write`.                                 |
-| `peer_not_found`           | Peer is not currently visible in the channel.                        |
-| `task_ingress_unavailable` | Network was not wired to the task service.                           |
-| `task_not_found`           | Referenced task does not exist.                                      |
-| `validation_failed`        | Task payload failed task-domain validation.                          |
-| `permission_denied`        | Task manager denied the derived actor.                               |
-| `invalid_request`          | Ingress metadata or channel fields were malformed.                   |
-
-Accepted task ingress records the action, peer ID, channel, request ID, and the resulting task or
-run identifiers. This makes network-originated task writes inspectable without reading session
-transcripts.
+Rejected writes use deterministic reasons such as `capability_denied`, `peer_not_found`,
+`task_ingress_unavailable`, `task_not_found`, `validation_failed`, `permission_denied`, and
+`invalid_request`. The audit record includes the workspace, peer, channel, action, and request ID;
+it never includes a raw claim token.
 
 ## Related pages
 
-- [Channels and Peers](/runtime/core/network/channels-and-peers) explains the visibility check task
-  ingress depends on.
-- [Delivery and Safety](/runtime/core/network/delivery-and-safety) covers ordinary message delivery
-  before a peer asks the daemon to mutate task state.
-- [Task Runs and Leases](/runtime/core/autonomy/task-runs-and-leases) explains the task-run ownership
-  model that ingress can enqueue into.
-- [Message Kinds](/protocol/message-kinds) documents the network envelopes peers use before they
-  reach runtime task ingress.
+- [Participation, Channels, and Peers](/runtime/core/network/channels-and-peers)
+- [Task Runs and Leases](/runtime/core/autonomy/task-runs-and-leases)
+- [Task-Run Coordination Conversations](/runtime/core/autonomy/coordination-channels)

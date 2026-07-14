@@ -43,7 +43,7 @@ The QA philosophy AGH is adopting is the synthesis of the openclaw QA framework 
 3. **Tri-state liveness.** Every scenario declares `live: true | false | conditional`. Live runs that need credentials use a pooled credential broker (openclaw pattern, AGH-local SQLite-backed implementation per `08-extensions-bridges.md` §6).
 4. **Evidence is the artifact.** Every scenario lists what to capture: log path, db query, SSE stream snapshot, HAR (web), screenshots (web), goroutine snapshot (where goleak is asserted). Without evidence, "passed" is a claim, not a proof.
 5. **`file:line` citations are mandatory.** Every behavioral claim in this plan and its children cites the implementation it's proving. If the citation rots, the citation rots in the plan, not in a hidden test.
-6. **Hermetic by default, but never against the provider contract.** Every run uses an isolated `AGH_HOME`, isolated NATS port, and isolated UDS socket path. Bound-secret, brokered, and explicitly isolated-home lanes use isolated `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`; `native_cli` lanes with `home_policy=operator` preserve the operator `HOME` / native login state unless the scenario explicitly validates isolated provider-home behavior. The bootstrap manifest is the source of truth (see §8).
+6. **Hermetic by default, but never against the provider contract.** Every run uses an isolated `AGH_HOME`, daemon port, UDS socket, and Web proxy target. Bound-secret, brokered, and explicitly isolated-home lanes use isolated `PROVIDER_HOME` / `PROVIDER_CODEX_HOME`; `native_cli` lanes with `home_policy=operator` preserve the operator `HOME` / native login state unless the scenario explicitly validates isolated provider-home behavior. The bootstrap manifest is the source of truth (see §8).
 7. **Truthful UI.** UI elements that the daemon doesn't actually serve must NOT render. The web QA includes a positive audit (`UI-19`) and the cross-cutting plan elevates this into a build-rejecting gate (`XCT-14`).
 8. **Greenfield posture.** No backward-compatibility shims. No "soft" assertions. Failure means we delete the offending code or the offending test, not both.
 9. **Two-touch rule.** If a child surfaces the same defect twice during execution, the third encounter triggers a TechSpec, not a third patch.
@@ -77,7 +77,7 @@ The two together give AGH a balanced execution model: openclaw-style scenarios w
 | 07 | tools-sandbox | tool registry + dispatch, toolruntime interrupts, sandbox profiles, MCP sidecars, path-security | hook deny/narrow (→ 04), skill provenance (→ 06) |
 | 08 | extensions-bridges | extension manifest + install + host API, bundle activation, bridges (Slack/Telegram), bridge SDK | skills VerifyContent on extension load (→ 06), workspace scoping (→ 02) |
 | 09 | automation-cron | cron expressions, webhook ingress, scheduled triggers, durable scheduler state, DST/timezone | task_run dispatch (→ 04), session spawn lineage (→ 03) |
-| 10 | network-identity | AGH Network channels/peers/wire, embedded NATS, identity proof, agentidentity proof | task delegation between instances (→ 04), bridge cross-instance (→ 08) |
+| 10 | network-identity | Local/Live participation, durable conversations, bounded wakes, usage, identity authorization | task-run wake substrate (→ 04), public-surface parity (→ 11/12) |
 | 11 | api-cli-parity | contract types, BaseHandlers, HTTP, UDS, CLI cobra, SSE replay, codegen | every endpoint's underlying domain (→ 01..10) |
 | 12 | web-ui | React 19 SPA, TanStack Router, assistant-ui, Playwright e2e, accessibility, COPY.md adherence | API contract (→ 11), settings projection (→ 02) |
 | 13 | docs-site | Fumadocs static export, MDX pipeline, OpenAPI doc rendering, CLI reference rendering, COPY.md/DESIGN.md adherence | OpenAPI source (→ 11), CLI source (→ 11) |
@@ -112,7 +112,7 @@ Approximately 180 scenarios. Examples (read each child for the complete list):
 
 ### 3.2 Live OpenClaw (`live: conditional` — opt in via credential)
 
-Selected parity scenarios where openclaw must drive the same path as Claude Code: ACP-02, EXT-15 (Slack ↔ openclaw), NET-12 (cross-instance with openclaw).
+Selected parity scenarios where openclaw must drive the same path as Claude Code: ACP-02, EXT-15 (Slack ↔ openclaw), NET-12 (daemon-authoritative identity with openclaw).
 
 ### 3.3 Live Hermes (`live: conditional`)
 
@@ -230,7 +230,6 @@ Every QA run starts with `agh-qa-bootstrap`. It produces a `bootstrap-manifest.j
 - `AGH_HOME` — unique directory under `.tmp/qa/<run-id>/agh-home`
 - `AGH_DAEMON_PORT` — free port allocated for the run
 - `AGH_UDS_SOCKET` — unique socket path
-- `AGH_NATS_PORT` — unique embedded NATS port
 - `AGH_TMUX_SOCKET` — unique tmux-bridge socket path (bridge tests)
 - `AGH_WEB_API_PROXY_TARGET` — derived from above for isolated Web QA
 - `PROVIDER_HOME` — isolated provider state root for bound-secret, brokered, and explicitly isolated-home lanes
@@ -316,7 +315,7 @@ These three exercise the same runtime surface from different angles. Run in para
 
 10. `08-extensions-bridges.md` (EXT-01..20) — bridges live: conditional
 11. `09-automation-cron.md` (CRN-01..22) — DST scenarios pinned to fixed clock
-12. `10-network-identity.md` (NET-01..21) — two AGH instances on isolated ports
+12. `10-network-identity.md` (NET-01..21) — Local/Live, commit-first delivery, bounds, identity, isolation
 
 ### Lane E — Surface adherence (parallel after B+C)
 

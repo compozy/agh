@@ -23,23 +23,18 @@ const (
 const (
 	// StatusDisabled reports that the network runtime is intentionally disabled.
 	StatusDisabled = "disabled"
-	// StatusRunning reports a healthy in-process network runtime.
-	StatusRunning = "running"
+	// StatusReady reports that Network is available with no Live participants.
+	StatusReady = "ready"
+	// StatusActive reports that Network is available with at least one Live participant.
+	StatusActive = "active"
 )
 
 // Status is the manager-facing diagnostics snapshot.
 type Status struct {
 	Enabled              bool
 	Status               string
-	ListenerHost         string
-	ListenerPort         int
 	LocalPeers           int
-	RemotePeers          int
 	Channels             int
-	QueuedMessages       int
-	QueuedSessions       int
-	DeliveryWorkers      int
-	DeliveryQueueDepth   int
 	MessagesSent         int64
 	MessagesReceived     int64
 	MessagesRejected     int64
@@ -52,7 +47,6 @@ type Status struct {
 	ConversationMessages int64
 	WorkTransitions      int64
 	DirectResolves       int64
-	LastDisconnect       string
 	KindMetrics          []KindMetric
 	Metrics              []MetricSample
 }
@@ -281,11 +275,14 @@ func (m *Manager) Status(ctx context.Context) (*Status, error) {
 	enabled := m.Enabled()
 	status := StatusDisabled
 	if enabled {
-		status = StatusRunning
+		status = StatusReady
+		if localPeers > 0 {
+			status = StatusActive
+		}
 	}
 	return &Status{
 		Enabled: enabled, Status: status, LocalPeers: localPeers,
-		RemotePeers: len(peers) - localPeers, Channels: len(channels),
+		Channels:     len(channels),
 		MessagesSent: stats.MessagesSent, MessagesReceived: stats.MessagesReceived,
 		MessagesRejected: stats.MessagesRejected, MessagesDelivered: stats.MessagesDelivered,
 		WorkflowTaggedEvents: stats.WorkflowTaggedEvents, HandoffTaggedEvents: stats.HandoffTaggedEvents,

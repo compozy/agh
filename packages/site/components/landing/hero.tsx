@@ -14,7 +14,7 @@ const featuredAgentDetail =
 const signalItems = [
   {
     label: "agh-network/v0, alpha runtime",
-    detail: "Seven message kinds. NATS-backed wire. Audited delivery.",
+    detail: "Seven message kinds. Commit-first delivery. Audited outcomes.",
   },
   {
     label: `${SUPPORTED_AGENT_COUNT} ACP drivers supported`,

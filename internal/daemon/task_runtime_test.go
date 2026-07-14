@@ -1723,7 +1723,6 @@ func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotenc
 		WorkspaceID:    workspace.ID,
 		Summary:        "Workspace detached audit",
 		Description:    "Review the queued harness work.",
-		NetworkChannel: "builders",
 		TurnSource:     session.TurnSourceNetwork,
 		WakeTarget: detachedHarnessWakeTargetInput{
 			SessionID: "sess-wake",
@@ -1806,12 +1805,10 @@ func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotenc
 		OwnerSessionID:       "sess-owner",
 		OwnerSessionType:     string(session.SessionTypeSystem),
 		OwnerWorkspaceID:     workspace.ID,
-		OwnerChannel:         "builders",
 		WakeTarget: detachedHarnessWakeTarget{
 			SessionID:   "sess-wake",
 			SessionType: string(session.SessionTypeSystem),
 			WorkspaceID: workspace.ID,
-			Channel:     "builders",
 		},
 	}); got != want {
 		t.Fatalf("task metadata = %#v, want %#v", got, want)
@@ -1847,12 +1844,10 @@ func TestTaskRuntimeDetachedHarnessSubmissionPersistsMetadataAndReusesIdempotenc
 		OwnerSessionID:       "sess-owner",
 		OwnerSessionType:     string(session.SessionTypeSystem),
 		OwnerWorkspaceID:     workspace.ID,
-		OwnerChannel:         "builders",
 		WakeTarget: detachedHarnessWakeTarget{
 			SessionID:   "sess-wake",
 			SessionType: string(session.SessionTypeSystem),
 			WorkspaceID: workspace.ID,
-			Channel:     "builders",
 		},
 	}); got != want {
 		t.Fatalf("run metadata = %#v, want %#v", got, want)
@@ -1996,7 +1991,6 @@ func TestRecoverTaskRunsOnBootPreservesDetachedHarnessMetadata(t *testing.T) {
 		Scope:          taskpkg.ScopeWorkspace,
 		WorkspaceID:    workspace.ID,
 		Summary:        "Recover detached harness run",
-		NetworkChannel: "builders",
 		TurnSource:     session.TurnSourceSynthetic,
 		WakeTarget: detachedHarnessWakeTargetInput{
 			SessionID: "sess-wake",
@@ -2102,7 +2096,6 @@ func TestRecoverTaskRunsOnBootTracksAllRecoveryOutcomes(t *testing.T) {
 			Scope:          taskpkg.ScopeWorkspace,
 			WorkspaceID:    workspace.ID,
 			Summary:        "Recover " + key,
-			NetworkChannel: "builders",
 			TurnSource:     session.TurnSourceSynthetic,
 			WakeTarget: detachedHarnessWakeTargetInput{
 				SessionID: "sess-wake",
@@ -2222,9 +2215,6 @@ func TestDetachedHarnessWorkBridgeHelperValidation(t *testing.T) {
 	if got, want := detachedHarnessSummary("   "), defaultDetachedHarnessSummary; got != want {
 		t.Fatalf("detachedHarnessSummary(blank) = %q, want %q", got, want)
 	}
-	if got, want := detachedHarnessChannel("", " owners "), "owners"; got != want {
-		t.Fatalf("detachedHarnessChannel(owner fallback) = %q, want %q", got, want)
-	}
 	if got, want := normalizeDetachedHarnessTurnSource(
 		session.TurnSource("unexpected"),
 	), session.TurnSourceUser; got != want {
@@ -2263,7 +2253,6 @@ func TestTaskRuntimeDetachedHarnessSubmissionRejectsExistingMismatches(t *testin
 		Scope:          taskpkg.ScopeWorkspace,
 		WorkspaceID:    workspace.ID,
 		Summary:        "Original detached work",
-		NetworkChannel: "builders",
 		WakeTarget: detachedHarnessWakeTargetInput{
 			SessionID: "sess-wake",
 		},
@@ -2278,7 +2267,6 @@ func TestTaskRuntimeDetachedHarnessSubmissionRejectsExistingMismatches(t *testin
 		Scope:          taskpkg.ScopeWorkspace,
 		WorkspaceID:    workspace.ID,
 		Summary:        "Changed detached work",
-		NetworkChannel: "builders",
 		WakeTarget: detachedHarnessWakeTargetInput{
 			SessionID: "sess-wake",
 		},
@@ -2299,12 +2287,10 @@ func TestTaskRuntimeDetachedHarnessSubmissionRejectsExistingMismatches(t *testin
 		OwnerSessionID:       "sess-owner",
 		OwnerSessionType:     string(session.SessionTypeSystem),
 		OwnerWorkspaceID:     workspace.ID,
-		OwnerChannel:         "builders",
 		WakeTarget: detachedHarnessWakeTarget{
 			SessionID:   "sess-wake",
 			SessionType: string(session.SessionTypeSystem),
 			WorkspaceID: workspace.ID,
-			Channel:     "builders",
 		},
 	})
 	if err != nil {
@@ -2339,7 +2325,6 @@ func TestTaskRuntimeDetachedHarnessSubmissionRejectsExistingMismatches(t *testin
 		Scope:          taskpkg.ScopeWorkspace,
 		WorkspaceID:    workspace.ID,
 		Summary:        "Expected detached work",
-		NetworkChannel: "builders",
 		WakeTarget: detachedHarnessWakeTargetInput{
 			SessionID: "sess-wake",
 		},
@@ -2353,7 +2338,6 @@ func TestTaskRuntimeDetachedHarnessSubmissionRejectsExistingMismatches(t *testin
 		Scope:          taskpkg.ScopeWorkspace,
 		WorkspaceID:    workspace.ID,
 		Summary:        "Missing wake target",
-		NetworkChannel: "builders",
 		WakeTarget: detachedHarnessWakeTargetInput{
 			SessionID: "sess-missing",
 		},
@@ -2407,17 +2391,14 @@ func TestDetachedHarnessMatchValidatorsRejectConflicts(t *testing.T) {
 		WorkspaceID:      "ws-1",
 		Summary:          "Validator task",
 		Description:      "Ensure helper coverage",
-		NetworkChannel:   "builders",
 		TurnSource:       session.TurnSourceSynthetic,
 		OwnerSessionID:   "sess-owner",
 		OwnerSessionType: string(session.SessionTypeSystem),
 		OwnerWorkspaceID: "ws-1",
-		OwnerChannel:     "builders",
 		WakeTarget: detachedHarnessWakeTarget{
 			SessionID:   "sess-wake",
 			SessionType: string(session.SessionTypeSystem),
 			WorkspaceID: "ws-1",
-			Channel:     "builders",
 		},
 	}
 	actor, err := detachedHarnessActorContext(req.OwnerSessionID)

@@ -1,11 +1,11 @@
 ---
 title: Autonomy
-description: "The local autonomy MVP: explicit operator control, coordinator handoff, task leases, coordination channels, and safe spawn."
+description: "Explicit operator control, coordinator handoff, task leases, optional Live coordination conversations, and safe spawn."
 ---
 
-Autonomy in AGH is the runtime path that lets managed agent sessions discover work, coordinate
-through task-bound channels, and delegate bounded child sessions. It is additive: the same tasks,
-runs, sessions, hooks, and network channels are used by manual and autonomous flows.
+Autonomy in AGH lets managed agent sessions discover work, coordinate when a run explicitly resolves
+Live, and delegate bounded child sessions. Task execution is independent from Network
+participation: Local remains the default and uses the same task, lease, review, and spawn authority.
 
 <OperatorNote>
   Creating a task records intent only. It does not enqueue claimable work, start execution, or spawn
@@ -61,9 +61,9 @@ runs, sessions, hooks, and network channels are used by manual and autonomous fl
   <RouteRow
     href="/runtime/core/autonomy/coordination-channels"
     label="Channels"
-    title="Task-run coordination channels"
-    description="Use channel messages for conversation and correlation while keeping task ownership and terminal status in the task service."
-    meta="Conversation"
+    title="Task-run coordination conversations"
+    description="Opt future coordinated runs into bounded Live conversation while keeping task ownership and terminal status in the task service."
+    meta="Optional Live"
   />
   <RouteRow
     href="/runtime/core/autonomy/safe-spawn"
@@ -76,13 +76,13 @@ runs, sessions, hooks, and network channels are used by manual and autonomous fl
 
 ## The MVP flow
 
-| Step                                                                                  | What happens                                                                                              | Starts execution?            | Starts a coordinator?                                                                 |
-| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------- |
-| `agh task create` or API create                                                       | Stores durable task intent. The task can be draft, blocked, or ready.                                     | No                           | No                                                                                    |
-| `agh task publish`, `agh task start`, `agh task approve`, UI start, or equivalent API | Enqueues an executable task run. Workspace-scoped coordinated runs receive a stable coordination channel. | Yes                          | Yes, if coordinator auto-start is enabled and no healthy workspace coordinator exists |
-| `agh task next`                                                                       | A managed agent session atomically claims one eligible queued run and receives a safe lease summary.      | It owns the claimed run      | No                                                                                    |
-| `agh ch send`, `agh ch recv`, `agh ch reply`                                          | Agents exchange status, requests, blockers, handoffs, results, and review requests.                       | No                           | No                                                                                    |
-| `agh spawn`                                                                           | A validated parent session asks the daemon to create a bounded child session.                             | Creates a child session only | No coordinator child sessions in the MVP                                              |
+| Step                                                                                  | What happens                                                                                         | Starts execution?            | Starts a coordinator?                                                                 |
+| ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------- |
+| `agh task create` or API create                                                       | Stores durable task intent. The task can be draft, blocked, or ready.                                | No                           | No                                                                                    |
+| `agh task publish`, `agh task start`, `agh task approve`, UI start, or equivalent API | Enqueues a run and persists its resolved Local or Live participation snapshot.                       | Yes                          | Yes, if coordinator auto-start is enabled and no healthy workspace coordinator exists |
+| `agh task next`                                                                       | A managed agent session atomically claims one eligible queued run and receives a safe lease summary. | It owns the claimed run      | No                                                                                    |
+| Live Network conversation surfaces                                                    | Addressed participants exchange requests, blockers, handoffs, results, and review evidence.          | May admit a bounded wake     | No                                                                                    |
+| `agh spawn`                                                                           | A validated parent session asks the daemon to create a bounded child session.                        | Creates a child session only | No coordinator child sessions in the MVP                                              |
 
 The durable execution boundary is the run enqueue boundary, not task creation. The same boundary is
 used by manual operator starts, publish/approval flows, automation approvals, and coordinator-created
@@ -93,13 +93,13 @@ follow-up tasks.
 The autonomy surface is exposed both as the dedicated `agh__autonomy` tool family and as the
 parallel `agh task` CLI. Both routes call the same task service writers.
 
-| Surface                                                                                            | Use it for                                                                                                                  | Do not use it for                                             |
-| -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `agh me` and `agh me context`                                                                      | Inspect the caller session, workspace, capabilities, active leases, active coordination channel, inbox summary, and limits. | Claiming or changing task-run state.                          |
-| `agh__task_run_claim_next` (CLI: `agh task next`)                                                  | Atomically claim the next eligible run for the current managed session.                                                     | Listing arbitrary tasks or announcing progress to peers.      |
-| `agh__task_run_heartbeat`, `agh__task_run_complete`, `agh__task_run_fail`, `agh__task_run_release` | Extend or finish the current session-bound claim by `run_id`.                                                               | Conversation, review requests, or handoffs.                   |
-| `agh ch list`, `recv`, `send`, `reply`                                                             | Operational conversation in channels visible to the current session.                                                        | Task ownership, lease extension, or terminal task status.     |
-| `agh spawn`                                                                                        | Create a narrowed child session with TTL and lineage.                                                                       | Starting a second coordinator or widening parent permissions. |
+| Surface                                                                                            | Use it for                                                                                      | Do not use it for                                             |
+| -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `agh me` and `agh me context`                                                                      | Inspect the caller session, workspace, capabilities, active leases, and resolved participation. | Claiming or changing task-run state.                          |
+| `agh__task_run_claim_next` (CLI: `agh task next`)                                                  | Atomically claim the next eligible run for the current managed session.                         | Listing arbitrary tasks or announcing progress to peers.      |
+| `agh__task_run_heartbeat`, `agh__task_run_complete`, `agh__task_run_fail`, `agh__task_run_release` | Extend or finish the current session-bound claim by `run_id`.                                   | Conversation, review requests, or handoffs.                   |
+| Live Network tools or audited CLI                                                                  | Conversation for an explicitly participating session.                                           | Enrolling a Local execution or changing task status.          |
+| `agh spawn`                                                                                        | Create a narrowed child session with TTL and lineage.                                           | Starting a second coordinator or widening parent permissions. |
 
 ## Manual and autonomous work coexist
 
@@ -107,9 +107,9 @@ Operators can still create tasks, start sessions, prompt sessions directly, and 
 without involving autonomy. User-started sessions are normal root sessions. They may claim work when
 their capabilities match, but they can also be prompted directly through the session surface.
 
-Coordinator sessions and spawned worker sessions are also normal managed sessions with additional
-lineage and TTL metadata. They do not bypass task-run leases, hooks, session permissions, workspace
-boundaries, or network-channel access rules.
+Coordinator sessions and spawned worker sessions are normal managed sessions with additional
+lineage and TTL metadata. They do not bypass task-run leases, hooks, permissions, workspace
+boundaries, or the immutable participation snapshot.
 
 ## What is not in the MVP
 

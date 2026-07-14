@@ -1841,15 +1841,6 @@ func settingsAutomationConfigPayload(value settingspkg.AutomationSettings) contr
 	}
 }
 
-func settingsNetworkConfigPayload(value aghconfig.NetworkConfig) contract.SettingsNetworkConfigPayload {
-	return contract.SettingsNetworkConfigPayload{
-		Enabled:       value.Enabled,
-		GreetInterval: value.GreetInterval,
-		MaxReplayAge:  value.MaxReplayAge,
-		MaxQueueDepth: value.MaxQueueDepth,
-	}
-}
-
 func settingsObservabilityConfigPayload(
 	value aghconfig.ObservabilityConfig,
 ) contract.SettingsObservabilityConfigPayload {
@@ -1907,22 +1898,6 @@ func settingsAutomationRuntimePayload(
 		TriggerEnabled:   value.TriggerEnabled,
 		NextFire:         cloneTimePointer(value.NextFire),
 		LastSyncedAt:     cloneTimePointer(value.LastSyncedAt),
-	}
-}
-
-func settingsNetworkRuntimePayload(value settingspkg.NetworkRuntimeStatus) contract.SettingsNetworkRuntimePayload {
-	return contract.SettingsNetworkRuntimePayload{
-		Available:       value.Available,
-		Enabled:         value.Enabled,
-		Status:          strings.TrimSpace(value.Status),
-		ListenerHost:    strings.TrimSpace(value.ListenerHost),
-		ListenerPort:    value.ListenerPort,
-		LocalPeers:      value.LocalPeers,
-		RemotePeers:     value.RemotePeers,
-		Channels:        value.Channels,
-		QueuedMessages:  value.QueuedMessages,
-		QueuedSessions:  value.QueuedSessions,
-		DeliveryWorkers: value.DeliveryWorkers,
 	}
 }
 

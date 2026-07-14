@@ -10,8 +10,11 @@
         "status",
         "subscribe",
         "unmute",
+        "usage",
         "channels",
+        "coordination",
         "directs",
+        "invitation",
         "subscriptions",
         "threads",
         "work"

@@ -558,7 +558,7 @@ func (s *agentCoreNetworkService) ListChannels(ctx context.Context, workspaceID 
 }
 
 func (s *agentCoreNetworkService) Status(context.Context) (*network.Status, error) {
-	return &network.Status{Enabled: true, Status: network.StatusRunning}, nil
+	return &network.Status{Enabled: true, Status: network.StatusReady}, nil
 }
 
 func (s *agentCoreNetworkService) Inbox(ctx context.Context, sessionID string) ([]network.Envelope, error) {

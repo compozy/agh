@@ -266,7 +266,7 @@ func newChannelReplyCommand(deps commandDeps) *cobra.Command {
     --to-message msg-123 \
     --task-id task-123 \
     --run-id run-123 \
-    --coordination-channel-id coord-run-123 \
+    --channel-id coord-run-123 \
     --correlation-id run-123 \
     --body '{"answer":"ready for review"}'`,
 		RunE: func(cmd *cobra.Command, _ []string) error {

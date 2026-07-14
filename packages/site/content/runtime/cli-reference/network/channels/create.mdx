@@ -27,8 +27,8 @@ agh network channels create [channel] [flags]
 ```
       --agent stringArray            Agent definition name to launch in the channel (repeatable)
       --channel string               Channel name when not passed as an argument
-      --coordinator-peer-id string   Coordinator peer id for coordinator fanout
-      --fanout-policy string         Delivery activation policy: capability_match, coordinator, or all_members
+      --coordinator-peer-id string   Coordinator peer id for coordinator routing metadata
+      --fanout-policy string         Channel routing metadata: capability_match, coordinator, or all_members; never enrolls or wakes executions
   -h, --help                         help for create
       --purpose string               Human-readable channel purpose
 ```

@@ -30,15 +30,18 @@ agh session new [flags]
 ### Options
 
 ```
-      --agent string              Agent definition name (defaults to config default)
-      --channel string            Optional network channel opt-in for the session
-      --cwd string                Absolute workspace directory to auto-register
-  -h, --help                      help for new
-      --model string              Optional model override for this session
-      --name string               Optional session label
-      --provider string           Optional provider override for this session
-      --reasoning-effort string   Optional reasoning effort (none|minimal|low|medium|high|xhigh|max); the active adapter must advertise it
-      --workspace string          Registered workspace name or ID
+      --agent string                      Agent definition name (defaults to config default)
+      --cwd string                        Absolute workspace directory to auto-register
+  -h, --help                              help for new
+      --model string                      Optional model override for this session
+      --name string                       Optional session label
+      --network string                    Network participation mode: local or live
+      --network-bounds string             JSON object for live participation bounds (one object, not flag explosion)
+      --network-channel string            Named channel id when strategy is named
+      --network-channel-strategy string   Live channel strategy: named, run, or loop_run
+      --provider string                   Optional provider override for this session
+      --reasoning-effort string           Optional reasoning effort (none|minimal|low|medium|high|xhigh|max); the active adapter must advertise it
+      --workspace string                  Registered workspace name or ID
 ```
 
 ### Options inherited from parent commands
