@@ -106,11 +106,11 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	})
 
 	startupResolved, err := daemonInstance.harnessResolver.ResolveStartup(session.StartupPromptContext{
-		SessionType: created.Info().Type,
-		Channel:     created.Info().NetworkParticipation.ChannelID,
-		WorkspaceID: created.Info().WorkspaceID,
-		Workspace:   created.Info().Workspace,
-		AgentName:   created.Info().AgentName,
+		SessionType:          created.Info().Type,
+		NetworkParticipation: created.Info().NetworkParticipation,
+		WorkspaceID:          created.Info().WorkspaceID,
+		Workspace:            created.Info().Workspace,
+		AgentName:            created.Info().AgentName,
 	})
 	if err != nil {
 		t.Fatalf("ResolveStartup() error = %v", err)

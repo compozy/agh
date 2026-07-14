@@ -16,7 +16,14 @@ func (g *NetworkRepo) GetNetworkAvailability(ctx context.Context) (store.Network
 	if err := g.checkReady(ctx, "get network availability"); err != nil {
 		return store.NetworkAvailability{}, err
 	}
-	row, err := g.queries.GetNetworkAvailability(ctx)
+	return getNetworkAvailabilityWithExecutor(ctx, g.db)
+}
+
+func getNetworkAvailabilityWithExecutor(
+	ctx context.Context,
+	exec networkSQLExecutor,
+) (store.NetworkAvailability, error) {
+	row, err := sqlcgen.New(exec).GetNetworkAvailability(ctx)
 	if err != nil {
 		return store.NetworkAvailability{}, fmt.Errorf("store: get network availability: %w", err)
 	}

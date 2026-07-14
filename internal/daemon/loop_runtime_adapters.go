@@ -12,6 +12,7 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/gate"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/tools"
@@ -71,6 +72,10 @@ func (r *loopGateJudgeRunner) Judge(
 		ContractOverlay:              contractOverlay,
 		Type:                         session.SessionTypeSystem,
 	}
+	opts.NetworkOwnerKey = participation.OwnerKey(participation.OwnerRef{
+		Kind: participation.OwnerKindLoopRun,
+		ID:   req.LoopRunID,
+	})
 	if workspaceID := strings.TrimSpace(req.WorkspaceID); workspaceID != "" {
 		opts.Workspace = workspaceID
 	} else if strings.TrimSpace(r.globalWorkspacePath) != "" {

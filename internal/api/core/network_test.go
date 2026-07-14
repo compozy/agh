@@ -4423,6 +4423,63 @@ func TestBaseHandlersNetworkErrorsAndDisabledMode(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject unsafe send content before the Network service", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			networkTestSessionManager("ws-workspace", "sess-a"),
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			SendFn: func(context.Context, network.SendRequest) (string, error) {
+				t.Fatal("Network.Send should not be called for unsafe public payloads")
+				return "", nil
+			},
+		}
+
+		const rawToken = "agh_claim_HTTP_SECURITY_123"
+		tests := []struct {
+			name       string
+			body       string
+			want       string
+			mustRedact string
+		}{
+			{
+				name:       "raw claim token",
+				body:       `{"session_id":"sess-a","channel":"builders","surface":"thread","thread_id":"thread_token_rejected","kind":"say","body":{"claim_token":"` + rawToken + `"}}`,
+				want:       "network_raw_token_rejected",
+				mustRedact: rawToken,
+			},
+			{
+				name: "caller supplied verified-format identity",
+				body: `{"session_id":"sess-a","channel":"builders","surface":"thread","thread_id":"thread_identity_rejected","kind":"say","from":"alice@39f713d0a644253f04529421b9f51b9b","body":{"text":"spoof"}}`,
+				want: "sender identity and proof are daemon-derived",
+			},
+		}
+		for _, test := range tests {
+			t.Run("Should reject "+test.name, func(t *testing.T) {
+				resp := performRequest(
+					t,
+					fixture.Engine,
+					http.MethodPost,
+					"/workspaces/ws-workspace/network/send",
+					[]byte(test.body),
+				)
+				if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), test.want) {
+					t.Fatalf("unsafe send status/body = %d/%s, want %q", resp.Code, resp.Body.String(), test.want)
+				}
+				if test.mustRedact != "" && strings.Contains(resp.Body.String(), test.mustRedact) {
+					t.Fatalf("unsafe send response leaked raw credential: %s", resp.Body.String())
+				}
+			})
+		}
+	})
+
 	t.Run("Should map send target not found to 404", func(t *testing.T) {
 		t.Parallel()
 

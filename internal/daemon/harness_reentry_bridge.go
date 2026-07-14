@@ -15,6 +15,7 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	eventspkg "github.com/compozy/agh/internal/events"
 	"github.com/compozy/agh/internal/heartbeat"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -58,13 +59,13 @@ type harnessReentrySessionManager interface {
 }
 
 type harnessWakeTargetSnapshot struct {
-	SessionID   string
-	AgentName   string
-	Type        session.Type
-	State       session.State
-	WorkspaceID string
-	Channel     string
-	Missing     bool
+	SessionID            string
+	AgentName            string
+	Type                 session.Type
+	State                session.State
+	WorkspaceID          string
+	NetworkParticipation participation.Spec
+	Missing              bool
 }
 
 type harnessReentryDecision struct {
@@ -487,11 +488,11 @@ func (b *harnessReentryBridge) resolveWakeTargetSnapshot(
 	metadata detachedHarnessRunMetadata,
 ) harnessWakeTargetSnapshot {
 	target := harnessWakeTargetSnapshot{
-		SessionID:   strings.TrimSpace(metadata.WakeTarget.SessionID),
-		Type:        session.Type(strings.TrimSpace(metadata.WakeTarget.SessionType)),
-		WorkspaceID: strings.TrimSpace(metadata.WakeTarget.WorkspaceID),
-		Channel:     strings.TrimSpace(metadata.WakeTarget.Channel),
-		Missing:     true,
+		SessionID:            strings.TrimSpace(metadata.WakeTarget.SessionID),
+		Type:                 session.Type(strings.TrimSpace(metadata.WakeTarget.SessionType)),
+		WorkspaceID:          strings.TrimSpace(metadata.WakeTarget.WorkspaceID),
+		NetworkParticipation: participation.LocalSpec(),
+		Missing:              true,
 	}
 
 	info, err := b.sessions.Status(b.operationContext(), target.SessionID)
@@ -503,9 +504,7 @@ func (b *harnessReentryBridge) resolveWakeTargetSnapshot(
 		if workspaceID := strings.TrimSpace(info.WorkspaceID); workspaceID != "" {
 			target.WorkspaceID = workspaceID
 		}
-		if channel := strings.TrimSpace(info.NetworkParticipation.ChannelID); channel != "" {
-			target.Channel = channel
-		}
+		target.NetworkParticipation = info.NetworkParticipation
 		target.Missing = false
 	case errors.Is(err, session.ErrSessionNotFound):
 		target.Missing = true
@@ -543,9 +542,9 @@ func (b *harnessReentryBridge) evaluateDecision(
 	input := HarnessResolutionInput{
 		Surface: ResolutionSurfaceTurn,
 		Session: HarnessSessionInput{
-			Type:        target.Type,
-			Channel:     target.Channel,
-			WorkspaceID: target.WorkspaceID,
+			Type:                 target.Type,
+			NetworkParticipation: target.NetworkParticipation,
+			WorkspaceID:          target.WorkspaceID,
 		},
 		Turn: HarnessTurnRequest{
 			Source: session.TurnSourceSynthetic,

@@ -23,6 +23,10 @@
                             "trust": "untrusted"
                         }
                     },
+                    "usage": {
+                        "input_tokens": 17,
+                        "output_tokens": 5
+                    },
                     "steps": [
                         {
                             "kind": "assistant",
@@ -97,6 +101,10 @@
                             "trace_id": "trace_ops_patch_42",
                             "trust": "untrusted"
                         }
+                    },
+                    "usage": {
+                        "input_tokens": 15,
+                        "output_tokens": 5
                     },
                     "steps": [
                         {
@@ -233,6 +241,10 @@
                             "trust": "untrusted"
                         }
                     },
+                    "usage": {
+                        "input_tokens": 13,
+                        "output_tokens": 4
+                    },
                     "steps": [
                         {
                             "kind": "assistant",
@@ -255,6 +267,10 @@
                             "causation_id": "msg_capability_01",
                             "trust": "untrusted"
                         }
+                    },
+                    "usage": {
+                        "input_tokens": 12,
+                        "output_tokens": 4
                     },
                     "steps": [
                         {

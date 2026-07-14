@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
@@ -110,6 +111,11 @@ func (b *taskSessionBridge) StartTaskSession(
 		ResolvedNetworkParticipation: participationSnapshotPointer(spec.Run.NetworkSpecSnapshot()),
 		Type:                         session.SessionTypeSystem,
 	}
+	owner := participation.OwnerRef{Kind: participation.OwnerKindTaskRun, ID: spec.Run.ID}
+	if strings.TrimSpace(spec.Run.LoopRunID) != "" {
+		owner = participation.OwnerRef{Kind: participation.OwnerKindLoopRun, ID: spec.Run.LoopRunID}
+	}
+	opts.NetworkOwnerKey = participation.OwnerKey(owner)
 	applyTaskSessionWorkerProfile(&opts, spec.ExecutionProfile)
 	policy := sessionPolicyFromTaskExecutionProfile(spec.ExecutionProfile)
 	applySessionSandboxPolicy(&opts, policy)

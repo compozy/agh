@@ -43,6 +43,7 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 			daemon:              d,
 			state:               state,
 			networkAvailability: networkAvailability,
+			networkWakeRunner:   state.networkWakeRunner,
 		},
 		ProviderSecrets:            settingsProviderVaultDependency(state.providerVault),
 		EventSummaries:             state.registry,

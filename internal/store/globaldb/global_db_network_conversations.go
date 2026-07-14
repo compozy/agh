@@ -76,68 +76,65 @@ func (g *NetworkRepo) WriteConversationMessage(
 		ctx,
 		"write network conversation message",
 		func(exec networkSQLExecutor) error {
-			inserted, sequence, insertErr := insertNetworkTimelineMessageWithExecutor(ctx, exec, normalized)
-			if insertErr != nil {
-				return insertErr
-			}
-			if !inserted {
-				result.Duplicate = true
-				result.LastActivityAt = lookupNetworkMessageTimestamp(
-					ctx,
-					exec,
-					normalized.WorkspaceID,
-					normalized.MessageID,
-				)
-				return nil
-			}
-			normalized.Sequence = sequence
-
-			opened, ensureErr := ensureNetworkConversationContainer(ctx, exec, normalized)
-			if ensureErr != nil {
-				return ensureErr
-			}
-			result.ConversationOpened = opened
-
-			work, workErr := applyNetworkWorkMutation(ctx, exec, normalized)
-			if workErr != nil {
-				return workErr
-			}
-			result.WorkOpened = work.opened
-			result.WorkTransitioned = work.transitioned
-			result.WorkState = work.state
-			if projectionErr := persistNetworkTimelineWorkProjection(
-				ctx,
-				exec,
-				normalized,
-				work,
-			); projectionErr != nil {
-				return projectionErr
-			}
-
-			if normalized.Surface == store.NetworkSurfaceThread {
-				if participantErr := upsertNetworkThreadParticipantsForMessage(
-					ctx,
-					exec,
-					normalized,
-				); participantErr != nil {
-					return participantErr
-				}
-			}
-			if summaryErr := refreshNetworkConversationSummary(ctx, exec, normalized); summaryErr != nil {
-				return summaryErr
-			}
-			auditEntry := auditEntryForConversationMessage(normalized)
-			if auditErr := insertNetworkAuditWithExecutor(ctx, exec, auditEntry); auditErr != nil {
-				return auditErr
-			}
-
-			result.LastActivityAt = normalized.Timestamp
-			return nil
+			persisted, _, persistErr := persistNetworkConversationMessageWithExecutor(ctx, exec, normalized)
+			result = persisted
+			return persistErr
 		},
 	); err != nil {
 		return store.NetworkConversationWriteResult{}, err
 	}
 	return result, nil
+}
+
+func persistNetworkConversationMessageWithExecutor(
+	ctx context.Context,
+	exec networkSQLExecutor,
+	message store.NetworkConversationMessage,
+) (store.NetworkConversationWriteResult, int64, error) {
+	result := store.NetworkConversationWriteResult{MessageID: message.MessageID}
+	inserted, sequence, err := insertNetworkTimelineMessageWithExecutor(ctx, exec, message)
+	if err != nil {
+		return store.NetworkConversationWriteResult{}, 0, err
+	}
+	if !inserted {
+		sequence, result.LastActivityAt, err = lookupNetworkMessageAcceptance(
+			ctx,
+			exec,
+			message.WorkspaceID,
+			message.MessageID,
+		)
+		result.Duplicate = true
+		return result, sequence, err
+	}
+	message.Sequence = sequence
+
+	result.ConversationOpened, err = ensureNetworkConversationContainer(ctx, exec, message)
+	if err != nil {
+		return store.NetworkConversationWriteResult{}, 0, err
+	}
+	work, err := applyNetworkWorkMutation(ctx, exec, message)
+	if err != nil {
+		return store.NetworkConversationWriteResult{}, 0, err
+	}
+	result.WorkOpened = work.opened
+	result.WorkTransitioned = work.transitioned
+	result.WorkState = work.state
+	if err := persistNetworkTimelineWorkProjection(ctx, exec, message, work); err != nil {
+		return store.NetworkConversationWriteResult{}, 0, err
+	}
+	if message.Surface == store.NetworkSurfaceThread {
+		if err := upsertNetworkThreadParticipantsForMessage(ctx, exec, message); err != nil {
+			return store.NetworkConversationWriteResult{}, 0, err
+		}
+	}
+	if err := refreshNetworkConversationSummary(ctx, exec, message); err != nil {
+		return store.NetworkConversationWriteResult{}, 0, err
+	}
+	if err := insertNetworkAuditWithExecutor(ctx, exec, auditEntryForConversationMessage(message)); err != nil {
+		return store.NetworkConversationWriteResult{}, 0, err
+	}
+	result.LastActivityAt = message.Timestamp
+	return result, sequence, nil
 }
 
 func upsertNetworkThreadParticipantsForMessage(

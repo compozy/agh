@@ -14,6 +14,7 @@ var (
 	ErrBoundsExceedCeiling     = errors.New("network_bounds_exceed_ceiling")
 	ErrLoopRequiresLive        = errors.New("loop_requires_live")
 	ErrLiveUnsupported         = errors.New("network_live_unsupported")
+	ErrNotParticipating        = errors.New("not_participating")
 )
 
 type contractError struct {

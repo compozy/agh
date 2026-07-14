@@ -25,6 +25,7 @@ type sessionStartSpec struct {
 	workspace               workspacepkg.ResolvedWorkspace
 	cwd                     string
 	networkParticipation    participation.Spec
+	networkOwnerKey         string
 	promptOverlay           string
 	contractOverlay         string
 	runtimeMode             string

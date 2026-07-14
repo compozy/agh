@@ -228,6 +228,32 @@ func TestNetworkSendRequestRejectsLegacyConversationFields(t *testing.T) {
 			}`,
 			want: "kind direct",
 		},
+		{
+			name: "Should reject caller supplied verified-format identity",
+			raw: `{
+				"session_id":"sess-a",
+				"channel":"builders",
+				"surface":"thread",
+				"thread_id":"thread_launch_db",
+				"kind":"say",
+				"from":"alice@39f713d0a644253f04529421b9f51b9b",
+				"body":{"text":"hello"}
+			}`,
+			want: "sender identity and proof are daemon-derived",
+		},
+		{
+			name: "Should reject caller supplied proof",
+			raw: `{
+				"session_id":"sess-a",
+				"channel":"builders",
+				"surface":"thread",
+				"thread_id":"thread_launch_db",
+				"kind":"say",
+				"proof":{"profile":"agh-network.trust.ed25519-jcs/v1"},
+				"body":{"text":"hello"}
+			}`,
+			want: "sender identity and proof are daemon-derived",
+		},
 	}
 
 	for _, tt := range tests {

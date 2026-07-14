@@ -30,6 +30,7 @@ func (s *Session) Info() *Info {
 		WorkspaceID:          s.WorkspaceID,
 		Workspace:            s.Workspace,
 		NetworkParticipation: s.NetworkParticipation,
+		NetworkOwnerKey:      s.NetworkOwnerKey,
 		Type:                 normalizeSessionType(s.Type),
 		Lineage:              store.NormalizeSessionLineage(s.ID, s.Lineage),
 		State:                s.State,

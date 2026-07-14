@@ -5846,6 +5846,7 @@ func mustStoredPromptEvent(t *testing.T, id string, sequence int64, event acp.Ag
 type promptSessionManagerStub struct {
 	promptFn func(context.Context, string, string) (<-chan acp.AgentEvent, error)
 	eventsFn func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
+	statusFn func(context.Context, string) (*session.Info, error)
 }
 
 func (s promptSessionManagerStub) Create(context.Context, session.CreateOpts) (*session.Session, error) {
@@ -5856,7 +5857,10 @@ func (s promptSessionManagerStub) ListAll(context.Context) ([]*session.Info, err
 	return nil, errors.New("unexpected list call")
 }
 
-func (s promptSessionManagerStub) Status(context.Context, string) (*session.Info, error) {
+func (s promptSessionManagerStub) Status(ctx context.Context, id string) (*session.Info, error) {
+	if s.statusFn != nil {
+		return s.statusFn(ctx, id)
+	}
 	return nil, errors.New("unexpected status call")
 }
 

@@ -46,6 +46,7 @@ type SessionCreationProfile struct {
 type SessionCreationOptions struct {
 	SessionID            string             `json:"session_id"`
 	Name                 string             `json:"name,omitempty"`
+	NetworkOwnerKey      string             `json:"network_owner_key"`
 	NetworkParticipation participation.Spec `json:"network_participation"`
 	SessionType          string             `json:"session_type"`
 }
@@ -145,12 +146,16 @@ func (p SessionCreationProfile) CreationDigest(opts SessionCreationOptions) (str
 	}
 	opts.SessionID = strings.TrimSpace(opts.SessionID)
 	opts.Name = strings.TrimSpace(opts.Name)
+	opts.NetworkOwnerKey = strings.TrimSpace(opts.NetworkOwnerKey)
 	opts.SessionType = strings.TrimSpace(opts.SessionType)
 	if opts.SessionID == "" || opts.SessionType == "" {
 		return "", fmt.Errorf("store: session creation digest requires session_id and session_type")
 	}
 	if err := participation.ValidateSpec(opts.NetworkParticipation); err != nil {
 		return "", fmt.Errorf("store: validate session creation participation: %w", err)
+	}
+	if err := participation.ValidateOwnerKey(opts.NetworkOwnerKey); err != nil {
+		return "", fmt.Errorf("store: validate session creation network owner: %w", err)
 	}
 	creationJSON, err := json.Marshal(opts)
 	if err != nil {

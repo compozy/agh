@@ -439,7 +439,7 @@ func TestChannelSendPreservesCoordinationMetadataAndRejectsClaimToken(t *testing
 				name: "Should reject raw claim token in body",
 				args: []string{
 					"ch", "send", "builders",
-					"--body", `{"claim_token":"secret"}`,
+					"--body", `{"claim_token":"agh_claim_CLI_CHANNEL_123"}`,
 					"--task-id", "task-1",
 					"--run-id", "run-1",
 				},
@@ -451,7 +451,7 @@ func TestChannelSendPreservesCoordinationMetadataAndRejectsClaimToken(t *testing
 					"--body", `{"text":"ok"}`,
 					"--task-id", "task-1",
 					"--run-id", "run-1",
-					"--metadata-ext", `{"claim_token":"secret"}`,
+					"--metadata-ext", `{"claim_token":"agh_claim_CLI_CHANNEL_123"}`,
 				},
 			},
 		} {
@@ -473,7 +473,34 @@ func TestChannelSendPreservesCoordinationMetadataAndRejectsClaimToken(t *testing
 				if !errors.Is(err, contract.ErrRawClaimTokenMetadata) {
 					t.Fatalf("agh ch send error = %v, want ErrRawClaimTokenMetadata", err)
 				}
+				if strings.Contains(err.Error(), "agh_claim_CLI_CHANNEL_123") {
+					t.Fatalf("agh ch send error leaked raw claim token: %v", err)
+				}
 			})
+		}
+
+		identityClient := &stubClient{
+			agentChannelSendFn: func(
+				context.Context,
+				string,
+				AgentChannelSendRequest,
+				agentidentity.Credentials,
+			) (AgentChannelMessageRecord, error) {
+				t.Fatal("AgentChannelSend should not be called for an unsupported caller identity flag")
+				return AgentChannelMessageRecord{}, errors.New("unexpected")
+			},
+		}
+		_, _, err := executeRootCommand(
+			t,
+			newAgentCommandTestDeps(t, identityClient),
+			"ch", "send", "builders",
+			"--body", `{"text":"spoof"}`,
+			"--task-id", "task-1",
+			"--run-id", "run-1",
+			"--from", "alice@39f713d0a644253f04529421b9f51b9b",
+		)
+		if err == nil || !strings.Contains(err.Error(), "unknown flag: --from") {
+			t.Fatalf("agh ch send caller identity error = %v, want unsupported identity field rejection", err)
 		}
 	})
 }

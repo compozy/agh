@@ -1,7 +1,9 @@
 package globaldb
 
 import (
+	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"strconv"
@@ -10,9 +12,921 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
+	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
 )
+
+func TestGlobalDBAcceptNetworkMessage(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should atomically accept a direct wake and return only committed notifications", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		now := time.Date(2026, 7, 14, 2, 0, 0, 0, time.UTC)
+		globalDB.now = func() time.Time { return now }
+		req := networkWakeAcceptanceRequest(t, "msg-accept-1", "wake-1", "run-wake-1", now)
+
+		result, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage() error = %v", err)
+		}
+		if result.AcceptanceSeq <= 0 || result.Duplicate || result.AvailabilityEpoch != 1 {
+			t.Fatalf("acceptance result = %#v, want new acceptance at availability epoch 1", result)
+		}
+		if len(result.Admitted) != 1 || result.Admitted[0].TaskRunID != "run-wake-1" ||
+			result.Admitted[0].OwnerKey != "session:reviewer.sess-xyz" {
+			t.Fatalf("admitted wakes = %#v, want one durable reservation", result.Admitted)
+		}
+		if len(result.Notify) != 1 || result.Notify[0].TaskRunID != "run-wake-1" ||
+			result.Notify[0].AcceptanceSeq != result.AcceptanceSeq {
+			t.Fatalf("committed notifications = %#v, want admitted task run", result.Notify)
+		}
+		run, err := globalDB.GetTaskRun(testutil.Context(t), "run-wake-1")
+		if err != nil {
+			t.Fatalf("GetTaskRun(network wake) error = %v", err)
+		}
+		if !run.IsNetworkWake() || run.TaskID != "" || run.Status != taskpkg.TaskRunStatusQueued {
+			t.Fatalf("network wake run = %#v, want queued taskless wake", run)
+		}
+		wakeID, targetSessionID, ownerKey := run.NetworkWakeCorrelation()
+		if wakeID != "wake-1" || targetSessionID != "reviewer.sess-xyz" ||
+			ownerKey != "session:reviewer.sess-xyz" {
+			t.Fatalf("network wake correlation = (%q, %q, %q)", wakeID, targetSessionID, ownerKey)
+		}
+		assertNetworkAcceptanceRowCounts(t, globalDB, "msg-accept-1", "session:reviewer.sess-xyz", 1, 1)
+
+		duplicate, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage(duplicate) error = %v", err)
+		}
+		if !duplicate.Duplicate || duplicate.AcceptanceSeq != result.AcceptanceSeq ||
+			len(duplicate.Notify) != 0 || len(duplicate.Dispositions) != 1 {
+			t.Fatalf("duplicate acceptance = %#v, want durable evidence without notification", duplicate)
+		}
+		assertNetworkAcceptanceRowCounts(t, globalDB, "msg-accept-1", "session:reviewer.sess-xyz", 1, 1)
+	})
+
+	t.Run("Should coalesce only while the open wake is queued and inside its window", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		base := time.Date(2026, 7, 14, 2, 10, 0, 0, time.UTC)
+		globalDB.now = func() time.Time { return base }
+		first := networkWakeAcceptanceRequest(t, "msg-coalesce-1", "wake-coalesced", "run-coalesced", base)
+		if _, err := globalDB.AcceptNetworkMessage(testutil.Context(t), first); err != nil {
+			t.Fatalf("AcceptNetworkMessage(first) error = %v", err)
+		}
+
+		second := networkWakeAcceptanceRequest(
+			t,
+			"msg-coalesce-2",
+			"wake-unused-2",
+			"run-unused-2",
+			base.Add(100*time.Millisecond),
+		)
+		second.Admissions[0].RootID = first.Admissions[0].RootID
+		coalesced, err := globalDB.AcceptNetworkMessage(testutil.Context(t), second)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage(coalesced) error = %v", err)
+		}
+		if len(coalesced.Admitted) != 0 || len(coalesced.Notify) != 0 || len(coalesced.Skipped) != 1 ||
+			coalesced.Skipped[0].Reason != store.NetworkWakeSkipCoalesced ||
+			coalesced.Skipped[0].WakeID != "wake-coalesced" {
+			t.Fatalf("coalesced acceptance = %#v", coalesced)
+		}
+		assertNetworkAcceptanceRowCounts(t, globalDB, "msg-coalesce-2", "session:reviewer.sess-xyz", 1, 2)
+
+		third := networkWakeAcceptanceRequest(
+			t,
+			"msg-coalesce-3",
+			"wake-unused-3",
+			"run-unused-3",
+			base.Add(time.Second),
+		)
+		third.Admissions[0].RootID = first.Admissions[0].RootID
+		accumulated, err := globalDB.AcceptNetworkMessage(testutil.Context(t), third)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage(after cutoff) error = %v", err)
+		}
+		if len(accumulated.Skipped) != 1 || accumulated.Skipped[0].Reason != store.NetworkWakeSkipInFlight {
+			t.Fatalf("after-cutoff acceptance = %#v, want in_flight skip", accumulated)
+		}
+		assertNetworkAcceptanceRowCounts(t, globalDB, "msg-coalesce-3", "session:reviewer.sess-xyz", 1, 2)
+	})
+
+	t.Run("Should stop coalescing as soon as the canonical wake run is claimed", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		base := time.Date(2026, 7, 14, 2, 15, 0, 0, time.UTC)
+		first := networkWakeAcceptanceRequest(t, "msg-claimed-1", "wake-claimed", "run-claimed", base)
+		if _, err := globalDB.AcceptNetworkMessage(testutil.Context(t), first); err != nil {
+			t.Fatalf("AcceptNetworkMessage(first) error = %v", err)
+		}
+		if _, err := globalDB.ClaimNextRun(testutil.Context(t), taskpkg.ClaimCriteria{
+			RunID: "run-claimed", RunKind: taskpkg.RunKindNetworkWake,
+			TargetSessionID: "reviewer.sess-xyz", ClaimerSessionID: "reviewer.sess-xyz", Now: base,
+		}); err != nil {
+			t.Fatalf("ClaimNextRun(network wake) error = %v", err)
+		}
+		second := networkWakeAcceptanceRequest(
+			t,
+			"msg-claimed-2",
+			"wake-unused-claimed",
+			"run-unused-claimed",
+			base.Add(100*time.Millisecond),
+		)
+		second.Admissions[0].RootID = first.Admissions[0].RootID
+		result, err := globalDB.AcceptNetworkMessage(testutil.Context(t), second)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage(after claim) error = %v", err)
+		}
+		if len(result.Skipped) != 1 || result.Skipped[0].Reason != store.NetworkWakeSkipInFlight {
+			t.Fatalf("after-claim acceptance = %#v, want in_flight", result)
+		}
+		got := networkRowCount(
+			t,
+			globalDB,
+			"network_wake_sources",
+			"owner_key",
+			first.Admissions[0].OwnerKey,
+		)
+		if got != 1 {
+			t.Fatalf("after-claim wake source count = %d, want 1", got)
+		}
+	})
+
+	t.Run("Should roll back every acceptance row when a recipient is outside the workspace", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		foreignWorkspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"network-foreign-recipient",
+			filepath.Join(t.TempDir(), "foreign-workspace"),
+		)
+		now := time.Date(2026, 7, 14, 2, 20, 0, 0, time.UTC)
+		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+			ID: "sess-foreign-recipient", AgentName: "coder", Provider: "claude",
+			WorkspaceID: foreignWorkspaceID, State: "active", CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("RegisterSession(foreign) error = %v", err)
+		}
+		req := networkWakeAcceptanceRequest(t, "msg-foreign-recipient", "wake-foreign", "run-foreign", now)
+		req.Dispositions[0].RecipientSessionID = "sess-foreign-recipient"
+		req.Admissions[0].RecipientSessionID = "sess-foreign-recipient"
+
+		if _, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req); err == nil {
+			t.Fatal("AcceptNetworkMessage(foreign recipient) error = nil, want non-nil")
+		}
+		assertNoTimelineOrAuditRows(t, globalDB, req.Message.MessageID)
+		if got := networkRowCount(t, globalDB, "task_runs", "id", "run-foreign"); got != 0 {
+			t.Fatalf("rolled-back wake run count = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should reject raw claim tokens at the accept boundary before durable writes", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name   string
+			mutate func(*store.AcceptNetworkMessageRequest, string)
+		}{
+			{
+				name: "nested body metadata",
+				mutate: func(req *store.AcceptNetworkMessageRequest, token string) {
+					req.Message.Body = json.RawMessage(`{"metadata":{"claim_token":"` + token + `"}}`)
+				},
+			},
+			{
+				name: "extension metadata",
+				mutate: func(req *store.AcceptNetworkMessageRequest, token string) {
+					req.Message.ExtJSON = json.RawMessage(`{"agh.metadata":{"claim_token":"` + token + `"}}`)
+				},
+			},
+		}
+		for index, test := range tests {
+			t.Run("Should reject "+test.name, func(t *testing.T) {
+				t.Parallel()
+
+				globalDB := openNetworkConversationRepositoryTestDB(t)
+				token := "agh_claim_ACCEPT_SECRET_" + strconv.Itoa(index)
+				req := networkWakeAcceptanceRequest(
+					t,
+					"msg-unsafe-accept-"+strconv.Itoa(index),
+					"wake-unsafe-accept-"+strconv.Itoa(index),
+					"run-unsafe-accept-"+strconv.Itoa(index),
+					time.Date(2026, 7, 14, 2, 25+index, 0, 0, time.UTC),
+				)
+				test.mutate(&req, token)
+				_, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+				if err == nil {
+					t.Fatal("AcceptNetworkMessage(raw claim token) error = nil, want rejection")
+				}
+				if strings.Contains(err.Error(), token) {
+					t.Fatalf("AcceptNetworkMessage() error leaked raw token: %v", err)
+				}
+				assertNoTimelineOrAuditRows(t, globalDB, req.Message.MessageID)
+				if got := networkRowCount(t, globalDB, "task_runs", "id", req.Admissions[0].TaskRunID); got != 0 {
+					t.Fatalf("unsafe accept wake run count = %d, want 0", got)
+				}
+			})
+		}
+	})
+
+	t.Run("Should apply structural eligibility, depth, and address gates before admission", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name   string
+			mutate func(*store.AcceptNetworkMessageRequest)
+			reason string
+		}{
+			{
+				name: "control message",
+				mutate: func(req *store.AcceptNetworkMessageRequest) {
+					req.Admissions[0].Eligible = false
+					req.Admissions[0].Addressed = false
+					req.Admissions[0].Trigger = store.NetworkWakeTriggerNone
+					req.Admissions[0].WakeID = ""
+					req.Admissions[0].TaskRunID = ""
+					req.Admissions[0].RootID = ""
+				},
+				reason: store.NetworkWakeSkipNotEligible,
+			},
+			{
+				name: "unaddressed say",
+				mutate: func(req *store.AcceptNetworkMessageRequest) {
+					req.Admissions[0].Addressed = false
+					req.Admissions[0].Trigger = store.NetworkWakeTriggerNone
+					req.Admissions[0].WakeID = ""
+					req.Admissions[0].TaskRunID = ""
+					req.Admissions[0].RootID = ""
+				},
+				reason: store.NetworkWakeSkipNotAddressed,
+			},
+			{
+				name: "depth cap",
+				mutate: func(req *store.AcceptNetworkMessageRequest) {
+					req.Admissions[0].Depth = req.Admissions[0].Spec.Bounds.MaxWakeDepth
+				},
+				reason: store.NetworkWakeSkipDepthExceeded,
+			},
+		}
+		for index, test := range tests {
+			t.Run("Should skip "+test.name, func(t *testing.T) {
+				t.Parallel()
+
+				globalDB := openNetworkConversationRepositoryTestDB(t)
+				now := time.Date(2026, 7, 14, 2, 50+index, 0, 0, time.UTC)
+				req := networkWakeAcceptanceRequest(
+					t,
+					"msg-gate-"+strconv.Itoa(index),
+					"wake-gate-"+strconv.Itoa(index),
+					"run-gate-"+strconv.Itoa(index),
+					now,
+				)
+				test.mutate(&req)
+				result, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+				if err != nil {
+					t.Fatalf("AcceptNetworkMessage() error = %v", err)
+				}
+				if len(result.Skipped) != 1 || result.Skipped[0].Reason != test.reason ||
+					len(result.Admitted) != 0 || len(result.Notify) != 0 {
+					t.Fatalf("gated acceptance = %#v, want %q skip", result, test.reason)
+				}
+				got := networkRowCount(
+					t,
+					globalDB,
+					"network_live_wakes",
+					"owner_key",
+					req.Admissions[0].OwnerKey,
+				)
+				if got != 0 {
+					t.Fatalf("gated wake count = %d, want 0", got)
+				}
+			})
+		}
+	})
+
+	t.Run("Should linearize disable and never readmit an accumulated envelope after re-enable", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		now := time.Date(2026, 7, 14, 3, 0, 0, 0, time.UTC)
+		disabled, err := globalDB.SetNetworkAvailability(testutil.Context(t), false, "test:disable")
+		if err != nil {
+			t.Fatalf("SetNetworkAvailability(false) error = %v", err)
+		}
+		req := networkWakeAcceptanceRequest(t, "msg-disabled", "wake-disabled", "run-disabled", now)
+		result, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage(disabled) error = %v", err)
+		}
+		if result.AvailabilityEpoch != disabled.Epoch || len(result.Skipped) != 1 ||
+			result.Skipped[0].Reason != store.NetworkWakeSkipNetworkDisabled {
+			t.Fatalf("disabled acceptance = %#v, want epoch %d network_disabled", result, disabled.Epoch)
+		}
+		if _, err := globalDB.SetNetworkAvailability(testutil.Context(t), true, "test:enable"); err != nil {
+			t.Fatalf("SetNetworkAvailability(true) error = %v", err)
+		}
+		replayed, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage(re-enabled replay) error = %v", err)
+		}
+		if !replayed.Duplicate || len(replayed.Admitted) != 0 || len(replayed.Notify) != 0 {
+			t.Fatalf("re-enabled replay = %#v, want duplicate evidence only", replayed)
+		}
+		if got := networkRowCount(t, globalDB, "task_runs", "id", "run-disabled"); got != 0 {
+			t.Fatalf("disabled replay wake run count = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should linearize concurrent disable and admissions by persisted epoch", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		now := time.Date(2026, 7, 14, 3, 5, 0, 0, time.UTC)
+		const workers = 8
+		requests := make([]store.AcceptNetworkMessageRequest, workers)
+		connections := make([]*GlobalDB, workers+1)
+		for index := range connections {
+			connection, err := OpenGlobalDB(testutil.Context(t), globalDB.Path())
+			if err != nil {
+				t.Fatalf("OpenGlobalDB(concurrent %d) error = %v", index, err)
+			}
+			connections[index] = connection
+			t.Cleanup(func() {
+				if closeErr := connection.Close(context.Background()); closeErr != nil {
+					t.Errorf("Close(concurrent %d) error = %v", index, closeErr)
+				}
+			})
+		}
+		for index := range workers {
+			requests[index] = networkWakeAcceptanceRequest(
+				t,
+				"msg-disable-race-"+strconv.Itoa(index),
+				"wake-disable-race-"+strconv.Itoa(index),
+				"run-disable-race-"+strconv.Itoa(index),
+				now,
+			)
+			requests[index].Admissions[0].RootID = "root-disable-race-" + strconv.Itoa(index)
+		}
+
+		type admissionOutcome struct {
+			index  int
+			result store.AcceptNetworkMessageResult
+			err    error
+		}
+		start := make(chan struct{})
+		admissions := make(chan admissionOutcome, workers)
+		disableResult := make(chan struct {
+			availability store.NetworkAvailability
+			err          error
+		}, 1)
+		var waitGroup sync.WaitGroup
+		waitGroup.Add(workers + 1)
+		go func() {
+			defer waitGroup.Done()
+			<-start
+			availability, err := connections[workers].SetNetworkAvailability(
+				context.Background(),
+				false,
+				"test:concurrent-disable",
+			)
+			disableResult <- struct {
+				availability store.NetworkAvailability
+				err          error
+			}{availability: availability, err: err}
+		}()
+		for index := range workers {
+			go func(index int) {
+				defer waitGroup.Done()
+				<-start
+				result, err := connections[index].AcceptNetworkMessage(
+					context.Background(),
+					requests[index],
+				)
+				admissions <- admissionOutcome{index: index, result: result, err: err}
+			}(index)
+		}
+		close(start)
+		waitGroup.Wait()
+		close(admissions)
+		disabled := <-disableResult
+		if disabled.err != nil {
+			t.Fatalf("SetNetworkAvailability(concurrent disable) error = %v", disabled.err)
+		}
+		if disabled.availability.Enabled || disabled.availability.Epoch != 2 {
+			t.Fatalf("concurrent disabled availability = %#v, want disabled epoch 2", disabled.availability)
+		}
+
+		for outcome := range admissions {
+			if outcome.err != nil {
+				t.Fatalf("AcceptNetworkMessage(concurrent %d) error = %v", outcome.index, outcome.err)
+			}
+			switch outcome.result.AvailabilityEpoch {
+			case 1:
+				if len(outcome.result.Skipped) == 1 &&
+					outcome.result.Skipped[0].Reason == store.NetworkWakeSkipNetworkDisabled {
+					t.Fatalf("epoch-1 admission %d observed network_disabled: %#v", outcome.index, outcome.result)
+				}
+			case disabled.availability.Epoch:
+				if len(outcome.result.Admitted) != 0 || len(outcome.result.Skipped) != 1 ||
+					outcome.result.Skipped[0].Reason != store.NetworkWakeSkipNetworkDisabled {
+					t.Fatalf("epoch-%d admission %d = %#v, want network_disabled accumulation",
+						disabled.availability.Epoch,
+						outcome.index,
+						outcome.result,
+					)
+				}
+			default:
+				t.Fatalf("admission %d availability epoch = %d, want 1 or %d",
+					outcome.index,
+					outcome.result.AvailabilityEpoch,
+					disabled.availability.Epoch,
+				)
+			}
+		}
+
+		enabled, err := globalDB.SetNetworkAvailability(testutil.Context(t), true, "test:concurrent-enable")
+		if err != nil {
+			t.Fatalf("SetNetworkAvailability(re-enable) error = %v", err)
+		}
+		if !enabled.Enabled || enabled.Epoch != 3 {
+			t.Fatalf("re-enabled availability = %#v, want enabled epoch 3", enabled)
+		}
+		wakeCount := networkRowCount(
+			t,
+			globalDB,
+			"network_live_wakes",
+			"owner_key",
+			"session:reviewer.sess-xyz",
+		)
+		for index, req := range requests {
+			replayed, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+			if err != nil {
+				t.Fatalf("AcceptNetworkMessage(replay %d) error = %v", index, err)
+			}
+			if !replayed.Duplicate || len(replayed.Admitted) != 0 || len(replayed.Notify) != 0 {
+				t.Fatalf("re-enabled replay %d = %#v, want durable duplicate only", index, replayed)
+			}
+		}
+		if got := networkRowCount(
+			t,
+			globalDB,
+			"network_live_wakes",
+			"owner_key",
+			"session:reviewer.sess-xyz",
+		); got != wakeCount {
+			t.Fatalf("wake count after replays = %d, want unchanged %d", got, wakeCount)
+		}
+	})
+
+	t.Run("Should serialize a burst into one wake and durable coalesced sources", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		now := time.Date(2026, 7, 14, 3, 10, 0, 0, time.UTC)
+		const workers = 10
+		requests := make([]store.AcceptNetworkMessageRequest, workers)
+		for index := range workers {
+			requests[index] = networkWakeAcceptanceRequest(
+				t,
+				"msg-burst-"+strconv.Itoa(index),
+				"wake-burst-"+strconv.Itoa(index),
+				"run-burst-"+strconv.Itoa(index),
+				now,
+			)
+			requests[index].Admissions[0].RootID = "root-burst"
+		}
+		results := make(chan store.AcceptNetworkMessageResult, workers)
+		errs := make(chan error, workers)
+		var waitGroup sync.WaitGroup
+		for index := range workers {
+			waitGroup.Add(1)
+			go func(index int) {
+				defer waitGroup.Done()
+				result, err := globalDB.AcceptNetworkMessage(context.Background(), requests[index])
+				if err != nil {
+					errs <- err
+					return
+				}
+				results <- result
+			}(index)
+		}
+		waitGroup.Wait()
+		close(results)
+		close(errs)
+		for err := range errs {
+			if err != nil {
+				t.Fatalf("AcceptNetworkMessage(concurrent) error = %v", err)
+			}
+		}
+		admitted := 0
+		coalesced := 0
+		for result := range results {
+			admitted += len(result.Admitted)
+			if len(result.Skipped) == 1 && result.Skipped[0].Reason == store.NetworkWakeSkipCoalesced {
+				coalesced++
+			}
+		}
+		if admitted != 1 || coalesced != workers-1 {
+			t.Fatalf("burst outcomes admitted=%d coalesced=%d, want 1 and %d", admitted, coalesced, workers-1)
+		}
+		ownerKey := "session:reviewer.sess-xyz"
+		if got := networkRowCount(t, globalDB, "network_live_wakes", "owner_key", ownerKey); got != 1 {
+			t.Fatalf("burst wake count = %d, want 1", got)
+		}
+		if got := networkRowCount(t, globalDB, "network_wake_sources", "owner_key", ownerKey); got != workers {
+			t.Fatalf("burst source count = %d, want %d", got, workers)
+		}
+	})
+
+	t.Run("Should linearize a coalesce attempt racing the canonical run claim", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		claimDB, err := OpenGlobalDB(testutil.Context(t), globalDB.Path())
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(claim connection) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := claimDB.Close(context.Background()); closeErr != nil {
+				t.Errorf("Close(claim connection) error = %v", closeErr)
+			}
+		})
+		base := time.Date(2026, 7, 14, 3, 15, 0, 0, time.UTC)
+		first := networkWakeAcceptanceRequest(t, "msg-claim-race-1", "wake-claim-race", "run-claim-race", base)
+		if _, err := globalDB.AcceptNetworkMessage(testutil.Context(t), first); err != nil {
+			t.Fatalf("AcceptNetworkMessage(first) error = %v", err)
+		}
+		second := networkWakeAcceptanceRequest(
+			t,
+			"msg-claim-race-2",
+			"wake-claim-race-unused",
+			"run-claim-race-unused",
+			base.Add(50*time.Millisecond),
+		)
+		second.Admissions[0].RootID = first.Admissions[0].RootID
+
+		start := make(chan struct{})
+		acceptResult := make(chan store.AcceptNetworkMessageResult, 1)
+		claimResult := make(chan taskpkg.ClaimResult, 1)
+		errs := make(chan error, 2)
+		var waitGroup sync.WaitGroup
+		waitGroup.Add(2)
+		go func() {
+			defer waitGroup.Done()
+			<-start
+			result, err := globalDB.AcceptNetworkMessage(context.Background(), second)
+			if err != nil {
+				errs <- err
+				return
+			}
+			acceptResult <- result
+		}()
+		go func() {
+			defer waitGroup.Done()
+			<-start
+			result, err := claimDB.ClaimNextRun(context.Background(), taskpkg.ClaimCriteria{
+				RunID: "run-claim-race", RunKind: taskpkg.RunKindNetworkWake,
+				TargetSessionID: "reviewer.sess-xyz", ClaimerSessionID: "reviewer.sess-xyz",
+				LeaseDuration: time.Minute, Now: base.Add(50 * time.Millisecond),
+			})
+			if err != nil {
+				errs <- err
+				return
+			}
+			claimResult <- result
+		}()
+		close(start)
+		waitGroup.Wait()
+		close(errs)
+		for err := range errs {
+			if err != nil {
+				t.Fatalf("claim/coalesce race error = %v", err)
+			}
+		}
+		accepted := <-acceptResult
+		claimed := <-claimResult
+		if claimed.Run.ID != "run-claim-race" || claimed.Run.Status != taskpkg.TaskRunStatusClaimed {
+			t.Fatalf("claimed wake = %#v, want run-claim-race claimed", claimed.Run)
+		}
+		if len(accepted.Admitted) != 0 || len(accepted.Skipped) != 1 {
+			t.Fatalf("racing acceptance = %#v, want one accumulation outcome", accepted)
+		}
+		sourceCount := networkRowCount(
+			t,
+			globalDB,
+			"network_wake_sources",
+			"owner_key",
+			"session:reviewer.sess-xyz",
+		)
+		switch accepted.Skipped[0].Reason {
+		case store.NetworkWakeSkipCoalesced:
+			if sourceCount != 2 {
+				t.Fatalf("coalesced race source count = %d, want 2", sourceCount)
+			}
+		case store.NetworkWakeSkipInFlight:
+			if sourceCount != 1 {
+				t.Fatalf("claimed-first race source count = %d, want 1", sourceCount)
+			}
+		default:
+			t.Fatalf("racing acceptance skip = %q, want coalesced or in_flight", accepted.Skipped[0].Reason)
+		}
+		if got := networkRowCount(
+			t,
+			globalDB,
+			"network_live_wakes",
+			"owner_key",
+			"session:reviewer.sess-xyz",
+		); got != 1 {
+			t.Fatalf("claim/coalesce race wake count = %d, want 1", got)
+		}
+	})
+
+	t.Run("Should give one concurrent last-wake winner across distinct roots", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		now := time.Date(2026, 7, 14, 3, 20, 0, 0, time.UTC)
+		const workers = 10
+		requests := make([]store.AcceptNetworkMessageRequest, workers)
+		for index := range workers {
+			requests[index] = networkWakeAcceptanceRequest(
+				t,
+				"msg-last-wake-"+strconv.Itoa(index),
+				"wake-last-wake-"+strconv.Itoa(index),
+				"run-last-wake-"+strconv.Itoa(index),
+				now,
+			)
+			requests[index].Admissions[0].Spec.Bounds.MaxWakes = 1
+			requests[index].Admissions[0].RootID = "root-last-wake-" + strconv.Itoa(index)
+		}
+		results := make(chan store.AcceptNetworkMessageResult, workers)
+		errs := make(chan error, workers)
+		var waitGroup sync.WaitGroup
+		for index := range workers {
+			waitGroup.Add(1)
+			go func(index int) {
+				defer waitGroup.Done()
+				result, err := globalDB.AcceptNetworkMessage(context.Background(), requests[index])
+				if err != nil {
+					errs <- err
+					return
+				}
+				results <- result
+			}(index)
+		}
+		waitGroup.Wait()
+		close(results)
+		close(errs)
+		for err := range errs {
+			if err != nil {
+				t.Fatalf("AcceptNetworkMessage(concurrent last wake) error = %v", err)
+			}
+		}
+		admitted := 0
+		exhausted := 0
+		for result := range results {
+			admitted += len(result.Admitted)
+			if len(result.Skipped) == 1 && result.Skipped[0].Reason == store.NetworkWakeSkipBudgetExhausted {
+				exhausted++
+			}
+		}
+		if admitted != 1 || exhausted != workers-1 {
+			t.Fatalf("last-wake outcomes admitted=%d exhausted=%d, want 1 and %d", admitted, exhausted, workers-1)
+		}
+		ownerKey := "session:reviewer.sess-xyz"
+		if got := networkRowCount(t, globalDB, "network_live_wakes", "owner_key", ownerKey); got != 1 {
+			t.Fatalf("last-wake ledger count = %d, want 1", got)
+		}
+		if got := networkRowCount(t, globalDB, "network_wake_sources", "owner_key", ownerKey); got != 1 {
+			t.Fatalf("last-wake source count = %d, want one winning source", got)
+		}
+	})
+}
+
+func TestGlobalDBSettleNetworkWake(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should replace reservations with actual usage exactly once", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		now := time.Date(2026, 7, 14, 2, 30, 0, 0, time.UTC)
+		globalDB.now = func() time.Time { return now }
+		accepted, err := globalDB.AcceptNetworkMessage(
+			testutil.Context(t),
+			networkWakeAcceptanceRequest(t, "msg-settle", "wake-settle", "run-settle", now),
+		)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage() error = %v", err)
+		}
+		reservation := accepted.Admitted[0]
+		outcome := store.NetworkWakeOutcome{
+			State: store.NetworkWakeStateSucceeded, ActualWallTime: 40 * time.Millisecond,
+			ActualInputTokens: 100, ActualOutputTokens: 50, UsageState: store.NetworkWakeUsageActual,
+		}
+		if err := globalDB.SettleNetworkWake(testutil.Context(t), reservation, outcome); err != nil {
+			t.Fatalf("SettleNetworkWake() error = %v", err)
+		}
+		assertNetworkWakeUsage(t, globalDB, "wake-settle", "succeeded", 40, 100, 50, "actual")
+		assertNetworkWakeBudget(t, globalDB, reservation.OwnerKey, 1, 40, 100, 50)
+
+		outcome.ActualInputTokens = 900
+		outcome.ActualOutputTokens = 900
+		if err := globalDB.SettleNetworkWake(testutil.Context(t), reservation, outcome); err != nil {
+			t.Fatalf("SettleNetworkWake(duplicate) error = %v", err)
+		}
+		assertNetworkWakeUsage(t, globalDB, "wake-settle", "succeeded", 40, 100, 50, "actual")
+		assertNetworkWakeBudget(t, globalDB, reservation.OwnerKey, 1, 40, 100, 50)
+	})
+
+	t.Run("Should keep conservative reservations when usage is unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		now := time.Date(2026, 7, 14, 2, 40, 0, 0, time.UTC)
+		accepted, err := globalDB.AcceptNetworkMessage(
+			testutil.Context(t),
+			networkWakeAcceptanceRequest(t, "msg-unknown-usage", "wake-unknown", "run-unknown", now),
+		)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage() error = %v", err)
+		}
+		if err := globalDB.SettleNetworkWake(testutil.Context(t), accepted.Admitted[0], store.NetworkWakeOutcome{
+			State: store.NetworkWakeStateFailed, UsageState: store.NetworkWakeUsageUnavailable,
+			Reason: "provider usage unavailable",
+		}); err != nil {
+			t.Fatalf("SettleNetworkWake(unavailable) error = %v", err)
+		}
+		assertNetworkWakeUsage(t, globalDB, "wake-unknown", "failed", 500, 1000, 1000, "usage_unavailable")
+		assertNetworkWakeBudget(t, globalDB, accepted.Admitted[0].OwnerKey, 1, 500, 1000, 1000)
+	})
+
+	t.Run("Should charge canceled usage once and never readmit its source envelope", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		now := time.Date(2026, 7, 14, 2, 41, 0, 0, time.UTC)
+		req := networkWakeAcceptanceRequest(t, "msg-canceled", "wake-canceled", "run-canceled", now)
+		accepted, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage() error = %v", err)
+		}
+		if err := globalDB.SettleNetworkWake(testutil.Context(t), accepted.Admitted[0], store.NetworkWakeOutcome{
+			State: store.NetworkWakeStateCanceled, ActualWallTime: 25 * time.Millisecond,
+			ActualInputTokens: 20, ActualOutputTokens: 10, UsageState: store.NetworkWakeUsageActual,
+			Reason: "availability disabled",
+		}); err != nil {
+			t.Fatalf("SettleNetworkWake(canceled) error = %v", err)
+		}
+		assertNetworkWakeUsage(t, globalDB, "wake-canceled", "canceled", 25, 20, 10, "actual")
+		assertNetworkWakeBudget(t, globalDB, accepted.Admitted[0].OwnerKey, 1, 25, 20, 10)
+
+		replayed, err := globalDB.AcceptNetworkMessage(testutil.Context(t), req)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage(canceled replay) error = %v", err)
+		}
+		if !replayed.Duplicate || len(replayed.Admitted) != 0 || len(replayed.Notify) != 0 {
+			t.Fatalf("canceled replay = %#v, want durable duplicate without re-admission", replayed)
+		}
+	})
+
+	t.Run("Should aggregate usage by workspace channel and owner run from ledger detail", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		now := time.Date(2026, 7, 14, 2, 42, 0, 0, time.UTC)
+		const ownerRunID = "parent-run-usage"
+		first := networkWakeAcceptanceRequest(t, "msg-usage-1", "wake-usage-1", "run-usage-1", now)
+		first.Admissions[0].OwnerKey = "task_run:" + ownerRunID
+		accepted, err := globalDB.AcceptNetworkMessage(testutil.Context(t), first)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage(first usage) error = %v", err)
+		}
+		if err := globalDB.SettleNetworkWake(testutil.Context(t), accepted.Admitted[0], store.NetworkWakeOutcome{
+			State: store.NetworkWakeStateSucceeded, ActualWallTime: 40 * time.Millisecond,
+			ActualInputTokens: 100, ActualOutputTokens: 50, UsageState: store.NetworkWakeUsageActual,
+		}); err != nil {
+			t.Fatalf("SettleNetworkWake(first usage) error = %v", err)
+		}
+		second := networkWakeAcceptanceRequest(
+			t,
+			"msg-usage-2",
+			"wake-usage-2",
+			"run-usage-2",
+			now.Add(time.Second),
+		)
+		second.Admissions[0].OwnerKey = "task_run:" + ownerRunID
+		accepted, err = globalDB.AcceptNetworkMessage(testutil.Context(t), second)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage(second usage) error = %v", err)
+		}
+		if err := globalDB.SettleNetworkWake(testutil.Context(t), accepted.Admitted[0], store.NetworkWakeOutcome{
+			State: store.NetworkWakeStateFailed, UsageState: store.NetworkWakeUsageUnavailable,
+		}); err != nil {
+			t.Fatalf("SettleNetworkWake(second usage) error = %v", err)
+		}
+
+		report, err := globalDB.GetNetworkUsage(testutil.Context(t), store.NetworkUsageQuery{
+			WorkspaceID: networkStoreTestWorkspaceID,
+			Channel:     "builders",
+			RunID:       ownerRunID,
+		})
+		if err != nil {
+			t.Fatalf("GetNetworkUsage() error = %v", err)
+		}
+		if len(report.Details) != 2 {
+			t.Fatalf("GetNetworkUsage().Details length = %d, want 2", len(report.Details))
+		}
+		if report.Total.WakeCount != 2 || report.Total.ActualWakeCount != 1 ||
+			report.Total.UnavailableWakeCount != 1 || report.Total.ReservedWakeCount != 0 ||
+			report.Total.ChargedWallTime != 540*time.Millisecond ||
+			report.Total.InputTokens != 1000 || report.Total.OutputTokens != 1000 {
+			t.Fatalf("GetNetworkUsage().Total = %#v", report.Total)
+		}
+		var detailWall time.Duration
+		var detailInput int64
+		var detailOutput int64
+		for _, detail := range report.Details {
+			detailWall += detail.ChargedWallTime
+			detailInput += detail.InputTokens
+			detailOutput += detail.OutputTokens
+		}
+		if detailWall != report.Total.ChargedWallTime || detailInput != report.Total.InputTokens ||
+			detailOutput != report.Total.OutputTokens {
+			t.Fatalf(
+				"usage aggregate = %#v, details = (%s, %d, %d)",
+				report.Total,
+				detailWall,
+				detailInput,
+				detailOutput,
+			)
+		}
+
+		empty, err := globalDB.GetNetworkUsage(testutil.Context(t), store.NetworkUsageQuery{
+			WorkspaceID: "workspace-with-zero-participation",
+		})
+		if err != nil {
+			t.Fatalf("GetNetworkUsage(empty workspace) error = %v", err)
+		}
+		if len(empty.Details) != 0 || empty.Total != (store.NetworkUsageSummary{}) {
+			t.Fatalf("GetNetworkUsage(empty workspace) = %#v, want zero", empty)
+		}
+	})
+
+	t.Run("Should persist budget exhaustion and accumulate later eligible messages", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openNetworkConversationRepositoryTestDB(t)
+		now := time.Date(2026, 7, 14, 2, 45, 0, 0, time.UTC)
+		first := networkWakeAcceptanceRequest(t, "msg-budget-1", "wake-budget-1", "run-budget-1", now)
+		first.Admissions[0].Spec.Bounds.MaxWakes = 1
+		accepted, err := globalDB.AcceptNetworkMessage(testutil.Context(t), first)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage(first) error = %v", err)
+		}
+		if err := globalDB.SettleNetworkWake(testutil.Context(t), accepted.Admitted[0], store.NetworkWakeOutcome{
+			State: store.NetworkWakeStateSucceeded, ActualWallTime: 10 * time.Millisecond,
+			UsageState: store.NetworkWakeUsageActual,
+		}); err != nil {
+			t.Fatalf("SettleNetworkWake(first) error = %v", err)
+		}
+		second := networkWakeAcceptanceRequest(
+			t,
+			"msg-budget-2",
+			"wake-budget-2",
+			"run-budget-2",
+			now.Add(time.Second),
+		)
+		second.Admissions[0].Spec.Bounds.MaxWakes = 1
+		result, err := globalDB.AcceptNetworkMessage(testutil.Context(t), second)
+		if err != nil {
+			t.Fatalf("AcceptNetworkMessage(exhausted) error = %v", err)
+		}
+		if len(result.Skipped) != 1 || result.Skipped[0].Reason != store.NetworkWakeSkipBudgetExhausted {
+			t.Fatalf("exhausted acceptance = %#v, want budget_exhausted", result)
+		}
+		var exhaustedReason string
+		if err := globalDB.db.QueryRowContext(
+			testutil.Context(t),
+			`SELECT exhausted_reason FROM network_participation_budgets WHERE owner_key = ?`,
+			first.Admissions[0].OwnerKey,
+		).Scan(&exhaustedReason); err != nil {
+			t.Fatalf("query exhausted budget error = %v", err)
+		}
+		if exhaustedReason != networkWakeExhaustionMaxWakes {
+			t.Fatalf("exhausted_reason = %q, want max_wakes", exhaustedReason)
+		}
+	})
+}
 
 func TestGlobalDBResolveDirectRoom(t *testing.T) {
 	t.Parallel()
@@ -1226,6 +2140,19 @@ func TestGlobalDBWriteConversationMessageWorkReceiptTransitions(t *testing.T) {
 		if got, want := resumedWork.State, store.NetworkWorkStateWorking; got != want {
 			t.Fatalf("resumedWork.State = %q, want %q", got, want)
 		}
+
+		reopened := openGlobalDBForTest(t, globalDB.path)
+		reopenedWork, err := reopened.GetWork(
+			testutil.Context(t),
+			networkStoreTestWorkspaceID,
+			"work_needs_input",
+		)
+		if err != nil {
+			t.Fatalf("GetWork(reopened) error = %v", err)
+		}
+		if got, want := reopenedWork.State, store.NetworkWorkStateWorking; got != want {
+			t.Fatalf("reopened work state = %q, want durable %q", got, want)
+		}
 	})
 }
 
@@ -1719,6 +2646,141 @@ func threadMessage(
 		PreviewText: text,
 		Body:        []byte(`{"text":"` + text + `"}`),
 		Timestamp:   timestamp,
+	}
+}
+
+func networkWakeAcceptanceRequest(
+	t *testing.T,
+	messageID string,
+	wakeID string,
+	taskRunID string,
+	timestamp time.Time,
+) store.AcceptNetworkMessageRequest {
+	t.Helper()
+
+	directID, _, _, err := store.NetworkDirectRoomIdentity(
+		networkStoreTestWorkspaceID,
+		"builders",
+		"coder.sess-abc",
+		"reviewer.sess-xyz",
+	)
+	if err != nil {
+		t.Fatalf("NetworkDirectRoomIdentity() error = %v", err)
+	}
+	spec := participation.Spec{
+		Version: participation.SpecVersion, Mode: participation.ModeLive,
+		WorkspaceID: networkStoreTestWorkspaceID, ChannelStrategy: participation.StrategyNamed,
+		ChannelID: "builders", Source: participation.SourceExplicitRequest,
+		Bounds: participation.Bounds{
+			MaxWakes: 3, MaxWakeWallTime: "500ms", MaxTotalWallTime: "2s",
+			MaxInputTokens: 1000, MaxOutputTokens: 1000, MaxWakeDepth: 3,
+			CoalesceWindow: "250ms",
+		},
+	}
+	return store.AcceptNetworkMessageRequest{
+		Message: store.NetworkConversationMessage{
+			MessageID: messageID, SessionID: "coder.sess-abc",
+			WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders",
+			Surface: store.NetworkSurfaceDirect, DirectID: directID,
+			Direction: "sent", PeerFrom: "coder.sess-abc", PeerTo: "reviewer.sess-xyz",
+			Kind: store.NetworkKindSay, Text: "Please review", PreviewText: "Please review",
+			Body: []byte(`{"text":"Please review"}`), Timestamp: timestamp,
+		},
+		Dispositions: []store.NetworkMessageDisposition{{
+			RecipientSessionID: "reviewer.sess-xyz", Decision: store.NetworkDispositionDeliver,
+		}},
+		Admissions: []store.NetworkWakeAdmissionInput{{
+			RecipientSessionID: "reviewer.sess-xyz", OwnerKey: "session:reviewer.sess-xyz",
+			Spec: spec, Trigger: store.NetworkWakeTriggerDirect, Eligible: true, Addressed: true,
+			RootID: messageID, Depth: 0, WakeID: wakeID, TaskRunID: taskRunID,
+		}},
+	}
+}
+
+func assertNetworkAcceptanceRowCounts(
+	t *testing.T,
+	globalDB *GlobalDB,
+	messageID string,
+	ownerKey string,
+	wakeCount int,
+	sourceCount int,
+) {
+	t.Helper()
+
+	if got := networkRowCount(t, globalDB, "network_timeline_log", "message_id", messageID); got != 1 {
+		t.Fatalf("timeline count for %q = %d, want 1", messageID, got)
+	}
+	if got := networkRowCount(t, globalDB, "network_message_dispositions", "message_id", messageID); got != 1 {
+		t.Fatalf("disposition count for %q = %d, want 1", messageID, got)
+	}
+	if got := networkRowCount(t, globalDB, "network_live_wakes", "owner_key", ownerKey); got != wakeCount {
+		t.Fatalf("wake count for %q = %d, want %d", ownerKey, got, wakeCount)
+	}
+	if got := networkRowCount(t, globalDB, "network_wake_sources", "owner_key", ownerKey); got != sourceCount {
+		t.Fatalf("wake source count for %q = %d, want %d", ownerKey, got, sourceCount)
+	}
+}
+
+func assertNetworkWakeUsage(
+	t *testing.T,
+	globalDB *GlobalDB,
+	wakeID string,
+	wantState string,
+	wantWallMS int64,
+	wantInput int64,
+	wantOutput int64,
+	wantUsageState string,
+) {
+	t.Helper()
+
+	var state string
+	var wallMS, inputTokens, outputTokens int64
+	var usageState string
+	if err := globalDB.db.QueryRowContext(
+		testutil.Context(t),
+		`SELECT state, actual_wall_ms, input_tokens, output_tokens, usage_state
+FROM network_live_wakes WHERE wake_id = ?`,
+		wakeID,
+	).Scan(&state, &wallMS, &inputTokens, &outputTokens, &usageState); err != nil {
+		t.Fatalf("query network wake usage error = %v", err)
+	}
+	if state != wantState || wallMS != wantWallMS || inputTokens != wantInput ||
+		outputTokens != wantOutput || usageState != wantUsageState {
+		t.Fatalf(
+			"wake usage = (%q, %d, %d, %d, %q), want (%q, %d, %d, %d, %q)",
+			state, wallMS, inputTokens, outputTokens, usageState,
+			wantState, wantWallMS, wantInput, wantOutput, wantUsageState,
+		)
+	}
+}
+
+func assertNetworkWakeBudget(
+	t *testing.T,
+	globalDB *GlobalDB,
+	ownerKey string,
+	wantWakes int,
+	wantWallMS int64,
+	wantInput int64,
+	wantOutput int64,
+) {
+	t.Helper()
+
+	var wakes int
+	var wallMS, inputTokens, outputTokens int64
+	if err := globalDB.db.QueryRowContext(
+		testutil.Context(t),
+		`SELECT wakes_used, wall_ms_used, input_tokens_used, output_tokens_used
+FROM network_participation_budgets WHERE owner_key = ?`,
+		ownerKey,
+	).Scan(&wakes, &wallMS, &inputTokens, &outputTokens); err != nil {
+		t.Fatalf("query network wake budget error = %v", err)
+	}
+	if wakes != wantWakes || wallMS != wantWallMS || inputTokens != wantInput || outputTokens != wantOutput {
+		t.Fatalf(
+			"wake budget = (%d, %d, %d, %d), want (%d, %d, %d, %d)",
+			wakes, wallMS, inputTokens, outputTokens,
+			wantWakes, wantWallMS, wantInput, wantOutput,
+		)
 	}
 }
 

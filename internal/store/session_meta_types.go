@@ -118,6 +118,14 @@ func (m SessionMeta) NetworkSpecSnapshot() participation.Spec {
 	return *m.NetworkParticipation
 }
 
+// NetworkOwnerKeySnapshot returns the immutable budget owner stored in creation metadata.
+func (m SessionMeta) NetworkOwnerKeySnapshot() string {
+	if m.CreationOptions != nil && strings.TrimSpace(m.CreationOptions.NetworkOwnerKey) != "" {
+		return strings.TrimSpace(m.CreationOptions.NetworkOwnerKey)
+	}
+	return participation.OwnerKey(participation.OwnerRef{Kind: participation.OwnerKindSession, ID: m.ID})
+}
+
 func validateSessionCreationMetadata(meta SessionMeta) error {
 	identity := SessionCreationIdentity{
 		CreationProfileRef: meta.CreationProfileRef,

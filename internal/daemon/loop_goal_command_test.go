@@ -431,6 +431,7 @@ context_nudge_ratio = 0.0
 	sessionID := "session-goal-command"
 	creationDigest, err := profile.CreationDigest(store.SessionCreationOptions{
 		SessionID:            sessionID,
+		NetworkOwnerKey:      "session:" + sessionID,
 		NetworkParticipation: participation.LocalSpec(),
 		SessionType:          string(session.SessionTypeUser),
 	})

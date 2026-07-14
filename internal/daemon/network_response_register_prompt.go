@@ -39,7 +39,7 @@ func renderNetworkResponseRegisterStartupSection(startup session.StartupPromptCo
 		"Threads decide and discuss; actionable work is promoted to tasks before execution. " +
 			"When network prompts arrive, reply briefly only when addressed, mentioned, activated, or adding value.",
 	)
-	if channel := strings.TrimSpace(startup.Channel); channel != "" {
+	if channel := strings.TrimSpace(startup.NetworkParticipation.ChannelID); channel != "" {
 		builder.WriteString(" Current channel: `")
 		builder.WriteString(channel)
 		builder.WriteString("`.")

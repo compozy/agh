@@ -14,6 +14,7 @@ import (
 	extensioncontract "github.com/compozy/agh/internal/extension/contract"
 	"github.com/compozy/agh/internal/network"
 	"github.com/compozy/agh/internal/network/participation"
+	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/testutil"
@@ -87,6 +88,7 @@ func TestHostAPIHandlerNetworkSendShouldPreservePublicValidationParity(t *testin
 		name     string
 		payload  json.RawMessage
 		fragment string
+		secret   string
 	}{
 		{
 			name: "ShouldRejectLegacyInteractionID",
@@ -127,6 +129,21 @@ func TestHostAPIHandlerNetworkSendShouldPreservePublicValidationParity(t *testin
 				"body":{"claim_token":"agh_claim_secret"}
 			}`),
 			fragment: "raw claim_token",
+			secret:   "agh_claim_secret",
+		},
+		{
+			name: "ShouldRejectCallerSuppliedVerifiedFormatIdentity",
+			payload: json.RawMessage(`{
+				"workspace_id":"ws-host-network",
+				"session_id":"sess-local",
+				"channel":"builders",
+				"surface":"thread",
+				"thread_id":"thread_alpha01",
+				"kind":"say",
+				"from":"alice@39f713d0a644253f04529421b9f51b9b",
+				"body":{"text":"hello"}
+			}`),
+			fragment: "sender identity and proof are daemon-derived",
 		},
 		{
 			name: "ShouldRejectConversationFieldsWithoutSurface",
@@ -172,9 +189,10 @@ func TestHostAPIHandlerNetworkSendShouldPreservePublicValidationParity(t *testin
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			service := &hostAPINetworkServiceStub{}
 			handler, _ := newAuthorizedHostAPINetworkHandler(
 				t,
-				&hostAPINetworkServiceStub{},
+				service,
 				nil,
 				[]string{string(extensioncontract.HostAPIMethodNetworkSend)},
 				[]string{"network.write"},
@@ -188,8 +206,58 @@ func TestHostAPIHandlerNetworkSendShouldPreservePublicValidationParity(t *testin
 			)
 			assertRPCErrorCode(t, err, HostAPIInvalidParamsCode)
 			assertErrorContains(t, err, tt.fragment)
+			if tt.secret != "" && strings.Contains(err.Error(), tt.secret) {
+				t.Fatalf("Host API validation error leaked raw credential: %v", err)
+			}
+			if got := len(service.sentRequests()); got != 0 {
+				t.Fatalf("Network.Send calls = %d, want 0 for invalid Host API send", got)
+			}
 		})
 	}
+}
+
+func TestHostAPIHandlerNetworkSendShouldRejectLocalSession(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return not_participating before dispatching a Local send", func(t *testing.T) {
+		t.Parallel()
+
+		service := &hostAPINetworkServiceStub{}
+		handler, checker := newHostAPINetworkTestHandler(t, service, nil)
+		handler.sessions = promptSessionManagerStub{
+			statusFn: func(context.Context, string) (*session.Info, error) {
+				return &session.Info{
+					ID:                   "sess-local",
+					WorkspaceID:          hostAPINetworkWorkspaceID,
+					NetworkParticipation: participation.LocalSpec(),
+				}, nil
+			},
+		}
+		checker.Register("ext-network", SourceUser, &Manifest{
+			Actions:  ActionsConfig{Requires: []string{string(extensioncontract.HostAPIMethodNetworkSend)}},
+			Security: SecurityConfig{Capabilities: []string{"network.write"}},
+		})
+
+		_, err := handler.Handle(
+			t.Context(),
+			"ext-network",
+			string(extensioncontract.HostAPIMethodNetworkSend),
+			json.RawMessage(`{
+				"workspace_id":"ws-host-network",
+				"session_id":"sess-local",
+				"channel":"builders",
+				"surface":"thread",
+				"thread_id":"thread_alpha01",
+				"kind":"say",
+				"body":{"text":"hello"}
+			}`),
+		)
+		assertRPCErrorCode(t, err, HostAPIUnavailableCode)
+		assertErrorContains(t, err, participation.ErrNotParticipating.Error())
+		if got := len(service.sentRequests()); got != 0 {
+			t.Fatalf("Network.Send calls = %d, want 0", got)
+		}
+	})
 }
 
 func TestHostAPIHandlerNetworkSendShouldForwardValidPayload(t *testing.T) {
@@ -972,7 +1040,39 @@ func newHostAPINetworkTestHandler(
 	if networkStore != nil {
 		options = append(options, WithHostAPINetworkStore(networkStore))
 	}
-	return NewHostAPIHandler(nil, nil, nil, nil, options...), checker
+	sessions := promptSessionManagerStub{
+		statusFn: func(ctx context.Context, id string) (*session.Info, error) {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			sessionID := strings.TrimSpace(id)
+			if sessionID == "" {
+				return nil, session.ErrSessionNotFound
+			}
+			return &session.Info{
+				ID:                   sessionID,
+				WorkspaceID:          hostAPINetworkWorkspaceID,
+				NetworkParticipation: hostAPINetworkLiveSpec("builders"),
+			}, nil
+		},
+	}
+	return NewHostAPIHandler(sessions, nil, nil, nil, options...), checker
+}
+
+func hostAPINetworkLiveSpec(channel string) participation.Spec {
+	return participation.Spec{
+		Version:         participation.SpecVersion,
+		Mode:            participation.ModeLive,
+		WorkspaceID:     hostAPINetworkWorkspaceID,
+		ChannelStrategy: participation.StrategyNamed,
+		ChannelID:       strings.TrimSpace(channel),
+		Source:          participation.SourceExplicitRequest,
+		Bounds: participation.Bounds{
+			MaxWakes: 4, MaxWakeWallTime: "1m", MaxTotalWallTime: "5m",
+			MaxInputTokens: 1000, MaxOutputTokens: 1000, MaxWakeDepth: 2,
+			CoalesceWindow: "1s",
+		},
+	}
 }
 
 func openHostAPINetworkTestStore(t testing.TB) *globaldb.GlobalDB {

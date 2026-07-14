@@ -50,8 +50,12 @@ func taskRoleCreateOpts(activation taskRoleActivation) (session.CreateOpts, erro
 		Model:                        activation.Model,
 		Name:                         taskRoleSessionName(activation),
 		ResolvedNetworkParticipation: activation.NetworkParticipation,
-		PromptOverlay:                taskRolePromptOverlay(activation),
-		Type:                         session.SessionTypeSystem,
+		NetworkOwnerKey: participation.OwnerKey(participation.OwnerRef{
+			Kind: participation.OwnerKindTaskRun,
+			ID:   activation.RunID,
+		}),
+		PromptOverlay: taskRolePromptOverlay(activation),
+		Type:          session.SessionTypeSystem,
 	}
 	policy := sessionPolicyFromTaskExecutionProfile(activation.Profile)
 	applySessionSandboxPolicy(&opts, policy)

@@ -9,6 +9,7 @@ import (
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	looppkg "github.com/compozy/agh/internal/loop"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 )
@@ -70,9 +71,13 @@ func (b *loopActionSessionBinder) baseCreateOptions(
 		CWD:                          strings.TrimSpace(req.CWD),
 		Name:                         loopRuntimeSessionName(kind, agent, req.Handle),
 		ResolvedNetworkParticipation: req.NetworkParticipation,
-		PromptOverlay:                strings.TrimSpace(req.ContractBlock),
-		ContractOverlay:              strings.TrimSpace(req.ContractBlock),
-		Type:                         session.SessionTypeSystem,
+		NetworkOwnerKey: participation.OwnerKey(participation.OwnerRef{
+			Kind: participation.OwnerKindLoopRun,
+			ID:   string(req.LoopRunID),
+		}),
+		PromptOverlay:   strings.TrimSpace(req.ContractBlock),
+		ContractOverlay: strings.TrimSpace(req.ContractBlock),
+		Type:            session.SessionTypeSystem,
 	}
 	if workspaceID := strings.TrimSpace(string(req.WorkspaceID)); workspaceID != "" {
 		opts.Workspace = workspaceID
@@ -98,11 +103,15 @@ func createOptionsFromProfile(
 		Name:                         loopRuntimeSessionName(loopManagedGoalKind, profile.AgentName, req.Handle),
 		Workspace:                    profile.WorkspaceID,
 		ResolvedNetworkParticipation: req.NetworkParticipation,
-		PromptOverlay:                profile.PromptOverlay,
-		ContractOverlay:              profile.ContractOverlay,
-		RuntimeMode:                  profile.RuntimeMode,
-		Type:                         session.SessionTypeSystem,
-		AllowedToolsOverride:         append([]string(nil), profile.AllowedTools...),
+		NetworkOwnerKey: participation.OwnerKey(participation.OwnerRef{
+			Kind: participation.OwnerKindLoopRun,
+			ID:   string(req.LoopRunID),
+		}),
+		PromptOverlay:        profile.PromptOverlay,
+		ContractOverlay:      profile.ContractOverlay,
+		RuntimeMode:          profile.RuntimeMode,
+		Type:                 session.SessionTypeSystem,
+		AllowedToolsOverride: append([]string(nil), profile.AllowedTools...),
 	}
 }
 
@@ -157,6 +166,7 @@ func bindingCreationIdentity(
 	creationDigest, err := profile.CreationDigest(store.SessionCreationOptions{
 		SessionID:            sessionID,
 		Name:                 opts.Name,
+		NetworkOwnerKey:      opts.NetworkOwnerKey,
 		NetworkParticipation: networkParticipation,
 		SessionType:          string(opts.Type),
 	})

@@ -348,6 +348,7 @@ func creationOptionsForSpec(spec *sessionStartSpec) *store.SessionCreationOption
 	return &store.SessionCreationOptions{
 		SessionID:            strings.TrimSpace(spec.sessionID),
 		Name:                 strings.TrimSpace(spec.sessionName),
+		NetworkOwnerKey:      strings.TrimSpace(spec.networkOwnerKey),
 		NetworkParticipation: spec.networkParticipation,
 		SessionType:          string(normalizeSessionType(spec.sessionType)),
 	}
@@ -366,8 +367,15 @@ func validateRequestedCreationIdentity(opts CreateOpts) error {
 	spec := &sessionStartSpec{
 		sessionID:            strings.TrimSpace(opts.DesiredSessionID),
 		sessionName:          strings.TrimSpace(opts.Name),
+		networkOwnerKey:      strings.TrimSpace(opts.NetworkOwnerKey),
 		networkParticipation: networkParticipation,
 		sessionType:          normalizeSessionType(opts.Type),
+	}
+	if spec.networkOwnerKey == "" {
+		spec.networkOwnerKey = participation.OwnerKey(participation.OwnerRef{
+			Kind: participation.OwnerKindSession,
+			ID:   spec.sessionID,
+		})
 	}
 	computed, err := identityForCreationProfile(*profile, spec)
 	if err != nil {

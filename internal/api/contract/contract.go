@@ -3,8 +3,6 @@ package contract
 
 import (
 	"encoding/json"
-	"errors"
-	"strings"
 	"time"
 
 	hookspkg "github.com/compozy/agh/internal/hooks"
@@ -607,28 +605,6 @@ type NetworkSendRequest struct {
 	ExpiresAt   *int64                     `json:"expires_at,omitempty"`
 	ID          string                     `json:"id,omitempty"`
 	Ext         map[string]json.RawMessage `json:"ext,omitempty"`
-}
-
-// UnmarshalJSON rejects legacy public network send fields during request decoding.
-func (r *NetworkSendRequest) UnmarshalJSON(data []byte) error {
-	type networkSendRequestAlias NetworkSendRequest
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	if _, ok := raw["interaction_id"]; ok {
-		return errors.New("network send request rejects interaction_id; use work_id")
-	}
-
-	var decoded networkSendRequestAlias
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		return err
-	}
-	if strings.TrimSpace(decoded.Kind) == contractDirectKey {
-		return errors.New("network send request rejects kind direct; use surface direct with kind say")
-	}
-	*r = NetworkSendRequest(decoded)
-	return nil
 }
 
 // NetworkSendPayload is the shared daemon network send response payload.

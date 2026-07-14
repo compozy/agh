@@ -2,7 +2,6 @@ package network
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	sessionpkg "github.com/compozy/agh/internal/session"
@@ -13,7 +12,6 @@ const (
 	whoisCapabilityIDsExtKey          = "agh.capability_ids"
 	whoisCapabilityCatalogExtKey      = "agh.capability_catalog"
 	whoisCapabilityCatalogIncludeItem = "capability_catalog"
-	maxProtocolEnvelopeBytes          = 1 << 20
 )
 
 type whoisCapabilityDiscoveryRequest struct {
@@ -57,27 +55,6 @@ func parseWhoisCapabilityDiscoveryRequest(ext ExtensionMap) whoisCapabilityDisco
 		request.capabilityIDs = []string{}
 	}
 	return request
-}
-
-func buildWhoisCapabilityCatalogResponseExt(
-	request whoisCapabilityDiscoveryRequest,
-	capabilityCatalog []sessionpkg.NetworkPeerCapability,
-) (ExtensionMap, error) {
-	if !request.includeCapabilityCatalog {
-		return nil, nil
-	}
-
-	payload := whoisCapabilityCatalogPayload{
-		Capabilities: projectWhoisCapabilityCatalog(capabilityCatalog, request.capabilityIDs),
-	}
-	raw, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("network: marshal whois capability catalog: %w", err)
-	}
-
-	return ExtensionMap{
-		whoisCapabilityCatalogExtKey: raw,
-	}, nil
 }
 
 func projectWhoisCapabilityCatalog(
@@ -294,20 +271,4 @@ func decodeExtensionStringList(ext ExtensionMap, key string) []string {
 		return nil
 	}
 	return normalizeStringList(values)
-}
-
-func ensureEnvelopeSizeLimit(envelope Envelope) error {
-	payload, err := json.Marshal(envelope)
-	if err != nil {
-		return fmt.Errorf("network: marshal envelope for size check: %w", err)
-	}
-	if len(payload) > maxProtocolEnvelopeBytes {
-		return fmt.Errorf(
-			"%w: envelope size %d exceeds protocol limit %d",
-			ErrEnvelopeTooLarge,
-			len(payload),
-			maxProtocolEnvelopeBytes,
-		)
-	}
-	return nil
 }

@@ -243,24 +243,27 @@ func insertNetworkTimelineMessageWithExecutor(
 	return true, sequence, nil
 }
 
-func lookupNetworkMessageTimestamp(
+func lookupNetworkMessageAcceptance(
 	ctx context.Context,
 	exec networkSQLExecutor,
 	workspaceID string,
 	messageID string,
-) time.Time {
-	timestampRaw, err := sqlcgen.New(exec).GetNetworkMessageTimestamp(
-		ctx,
-		sqlcgen.GetNetworkMessageTimestampParams{WorkspaceID: workspaceID, MessageID: messageID},
-	)
-	if err != nil {
-		return time.Time{}
+) (int64, time.Time, error) {
+	// dynamic-sql: this exact identity lookup is intentionally scoped by workspace and message id.
+	const query = `
+SELECT sequence, timestamp
+FROM network_timeline_log
+WHERE workspace_id = ? AND message_id = ?`
+	var sequence int64
+	var timestampRaw string
+	if err := exec.QueryRowContext(ctx, query, workspaceID, messageID).Scan(&sequence, &timestampRaw); err != nil {
+		return 0, time.Time{}, fmt.Errorf("store: lookup network message acceptance: %w", err)
 	}
 	timestamp, err := store.ParseTimestamp(timestampRaw)
 	if err != nil {
-		return time.Time{}
+		return 0, time.Time{}, fmt.Errorf("store: parse network message acceptance timestamp: %w", err)
 	}
-	return timestamp
+	return sequence, timestamp, nil
 }
 
 func ensureNetworkConversationContainer(

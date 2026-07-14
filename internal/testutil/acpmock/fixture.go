@@ -199,27 +199,6 @@ func (o SessionConfigOptionFixture) Validate(path string) error {
 	return nil
 }
 
-// Validate ensures the turn fixture is usable.
-func (t TurnFixture) Validate(path string) error {
-	if err := t.Match.Validate(path + ".match"); err != nil {
-		return err
-	}
-	if len(t.Steps) == 0 {
-		return fmt.Errorf("acpmock: %s.steps must contain at least one step", path)
-	}
-	for idx, step := range t.Steps {
-		if err := step.Validate(fmt.Sprintf("%s.steps[%d]", path, idx)); err != nil {
-			return err
-		}
-	}
-	if stopReason := strings.TrimSpace(t.StopReason); stopReason != "" {
-		if err := validatePromptStopReason(path, stopReason); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // Validate ensures the turn match contains at least one supported stable selector.
 func (m TurnMatch) Validate(path string) error {
 	normalized := m.Normalize()
@@ -601,7 +580,7 @@ func (d DriverControlStep) Validate(path string) error {
 		return fmt.Errorf("acpmock: %s.delay_ms must be >= 0", path)
 	}
 	switch d.Action {
-	case DriverControlDisconnect, DriverControlBlockUntilCancel:
+	case DriverControlDisconnect, DriverControlBlockUntilCancel, DriverControlDelay:
 		if strings.TrimSpace(d.RawJSONRPC) != "" {
 			return fmt.Errorf("acpmock: %s.raw_jsonrpc is only valid for write_raw_jsonrpc", path)
 		}
@@ -614,6 +593,14 @@ func (d DriverControlStep) Validate(path string) error {
 	}
 	if d.Async && d.Action == DriverControlBlockUntilCancel {
 		return fmt.Errorf("acpmock: %s.async is invalid for block_until_cancel", path)
+	}
+	if d.Action == DriverControlDelay {
+		if d.DelayMS == 0 {
+			return fmt.Errorf("acpmock: %s.delay_ms must be > 0 for delay", path)
+		}
+		if d.Async {
+			return fmt.Errorf("acpmock: %s.async is invalid for delay", path)
+		}
 	}
 	return nil
 }

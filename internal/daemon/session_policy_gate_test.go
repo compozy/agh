@@ -159,15 +159,16 @@ func TestSessionPolicyGateBuildsConcreteTaskRoleCreateOpts(t *testing.T) {
 			t.Fatalf("taskRoleCreateOpts() error = %v", err)
 		}
 		want := session.CreateOpts{
-			AgentName:      "frontend-engineer",
-			Provider:       "claude",
-			Model:          "sonnet",
-			SandboxRef:     "evidence-lab",
-			DisableSandbox: false,
-			Permissions:    aghconfig.PermissionModeApproveAll,
-			Name:           "task-role:frontend-engineer:run-parity:63e604975a4c215d",
-			Workspace:      "ws-parity",
-			WorkspacePath:  "",
+			AgentName:       "frontend-engineer",
+			Provider:        "claude",
+			Model:           "sonnet",
+			SandboxRef:      "evidence-lab",
+			DisableSandbox:  false,
+			Permissions:     aghconfig.PermissionModeApproveAll,
+			Name:            "task-role:frontend-engineer:run-parity:63e604975a4c215d",
+			Workspace:       "ws-parity",
+			WorkspacePath:   "",
+			NetworkOwnerKey: "task_run:run-parity",
 			ResolvedNetworkParticipation: participationSnapshotPointer(
 				daemonTestLiveParticipation("ws-parity", "design-review"),
 			),

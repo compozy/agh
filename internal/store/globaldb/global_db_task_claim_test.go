@@ -1348,6 +1348,24 @@ func TestGlobalDBClaimLeaseLifecycleFencing(t *testing.T) {
 	if !storedRaw.Valid || storedRaw.String != claim.ClaimToken {
 		t.Fatalf("stored raw claim_token = %#v, want internal active lease token", storedRaw)
 	}
+	lifecycleRun, err := globalDB.GetTaskRun(ctx, claim.Run.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun(before lifecycle update) error = %v", err)
+	}
+	lifecycleRun.Status = taskpkg.TaskRunStatusStarting
+	if err := globalDB.UpdateTaskRun(ctx, lifecycleRun); err != nil {
+		t.Fatalf("UpdateTaskRun(starting) error = %v", err)
+	}
+	if err := globalDB.db.QueryRowContext(ctx, `SELECT claim_token FROM task_runs WHERE id = ?`, claim.Run.ID).
+		Scan(&storedRaw); err != nil {
+		t.Fatalf("query lifecycle claim_token error = %v", err)
+	}
+	if !storedRaw.Valid || storedRaw.String != claim.ClaimToken {
+		t.Fatalf(
+			"lifecycle stored raw claim_token = %#v, want unchanged internal active lease token",
+			storedRaw,
+		)
+	}
 
 	secondRun := taskRunForTest("run-lease-lifecycle-second", taskRecord.ID)
 	secondRun.QueuedAt = firstRun.QueuedAt.Add(time.Second)

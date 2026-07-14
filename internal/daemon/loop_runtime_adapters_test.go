@@ -51,6 +51,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 
 		binding, err := binder.BindActionSession(context.Background(), looppkg.ActionSessionBindRequest{
 			WorkspaceID:          looppkg.WorkspaceID("ws-loop"),
+			LoopRunID:            looppkg.RunID("loop-run-policy"),
 			Agent:                "task-worker",
 			Handle:               "execute_task",
 			AllowedTools:         []string{allowedTools[1], allowedTools[0], allowedTools[0]},
@@ -78,6 +79,9 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		}
 		if got := participationSnapshotValue(createCall.ResolvedNetworkParticipation); got != loopParticipation {
 			t.Fatalf("CreateOpts participation = %#v, want owner-bound %#v", got, loopParticipation)
+		}
+		if got, want := createCall.NetworkOwnerKey, "loop_run:loop-run-policy"; got != want {
+			t.Fatalf("CreateOpts.NetworkOwnerKey = %q, want %q", got, want)
 		}
 		if !slices.Equal(createCall.AllowedToolsOverride, allowedTools) {
 			t.Fatalf(
@@ -193,6 +197,7 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		_, err := runner.Judge(context.Background(), gate.JudgeRequest{
 			GateID:               "quality-gate",
 			CriterionID:          "review",
+			LoopRunID:            "loop-run-judge",
 			Attempt:              2,
 			CorrelationID:        "goal-judge:stable-attempt",
 			WorkspaceID:          "ws-loop",
@@ -212,6 +217,9 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		}
 		if got := participationSnapshotValue(createCall.ResolvedNetworkParticipation); got != loopParticipation {
 			t.Fatalf("CreateOpts participation = %#v, want owner-bound %#v", got, loopParticipation)
+		}
+		if got, want := createCall.NetworkOwnerKey, "loop_run:loop-run-judge"; got != want {
+			t.Fatalf("CreateOpts.NetworkOwnerKey = %q, want %q", got, want)
 		}
 		if got, want := sessions.stopCount(), 1; got != want {
 			t.Fatalf("Stop call count = %d, want %d", got, want)

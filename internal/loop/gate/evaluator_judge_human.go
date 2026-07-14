@@ -48,6 +48,7 @@ func (e *Evaluator) evaluateAgentJudge(
 		model = strings.TrimSpace(in.JudgeModel)
 	}
 	response, err := e.judges.Judge(ctx, JudgeRequest{
+		LoopRunID:            strings.TrimSpace(in.LoopRunID),
 		GateID:               gate.ID,
 		CriterionID:          criterion.ID,
 		Attempt:              in.Revision + 1,

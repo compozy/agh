@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 func networkPeerCapabilities(catalog *aghconfig.CapabilityCatalog) []NetworkPeerCapability {
@@ -84,14 +85,18 @@ func newNetworkPeerJoin(
 	workspaceID string,
 	displayName string,
 	channel string,
+	ownerKey string,
+	networkParticipation participation.Spec,
 	capabilities []NetworkPeerCapability,
 ) NetworkPeerJoin {
 	return NetworkPeerJoin{
-		SessionID:    strings.TrimSpace(sessionID),
-		PeerID:       strings.TrimSpace(peerID),
-		WorkspaceID:  strings.TrimSpace(workspaceID),
-		DisplayName:  strings.TrimSpace(displayName),
-		Channel:      strings.TrimSpace(channel),
-		Capabilities: cloneNetworkPeerCapabilities(capabilities),
+		SessionID:            strings.TrimSpace(sessionID),
+		PeerID:               strings.TrimSpace(peerID),
+		WorkspaceID:          strings.TrimSpace(workspaceID),
+		DisplayName:          strings.TrimSpace(displayName),
+		Channel:              strings.TrimSpace(channel),
+		OwnerKey:             strings.TrimSpace(ownerKey),
+		NetworkParticipation: networkParticipation,
+		Capabilities:         cloneNetworkPeerCapabilities(capabilities),
 	}
 }

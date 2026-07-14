@@ -27,6 +27,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.spawnReaper = state.spawnReaper
 	d.scheduler = state.scheduler
 	d.network = state.network
+	d.networkWakeRunner = state.networkWakeRunner
 	d.toolRegistry = state.toolRegistry
 	d.hooks = state.hooks
 	d.extensions = state.currentExtensionRuntime()

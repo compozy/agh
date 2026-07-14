@@ -769,6 +769,48 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 		t.Fatal("timed out waiting for blocked session prompt")
 	}
 
+	agentDeps := h.deps
+	agentDeps.getenv = func(key string) string {
+		switch key {
+		case agentidentity.EnvSessionID:
+			return sender.ID
+		case agentidentity.EnvAgent:
+			return sender.AgentName
+		default:
+			return ""
+		}
+	}
+	const channelRawToken = "agh_claim_CLI_CHANNEL_INTEGRATION_123"
+	stdout, stderr, err := executeRootCommand(
+		t,
+		agentDeps,
+		"ch", "send", "builders",
+		"--body", `{"claim_token":"`+channelRawToken+`"}`,
+		"--task-id", "task-security",
+		"--run-id", "run-security",
+		"--kind", string(contract.CoordinationMessageStatus),
+		"-o", "json",
+	)
+	if !errors.Is(err, contract.ErrRawClaimTokenMetadata) {
+		t.Fatalf("ch send raw claim-token error = %v, want ErrRawClaimTokenMetadata", err)
+	}
+	for _, output := range []string{stdout, stderr, err.Error()} {
+		if strings.Contains(output, channelRawToken) {
+			t.Fatalf("ch send validation output leaked raw claim token: %s", output)
+		}
+	}
+	if _, _, err := executeRootCommand(
+		t,
+		agentDeps,
+		"ch", "send", "builders",
+		"--body", `{"text":"spoof"}`,
+		"--task-id", "task-security",
+		"--run-id", "run-security",
+		"--from", "alice@39f713d0a644253f04529421b9f51b9b",
+	); err == nil || !strings.Contains(err.Error(), "unknown flag: --from") {
+		t.Fatalf("ch send caller identity error = %v, want unsupported identity field rejection", err)
+	}
+
 	if _, _, err := executeRootCommand(t, h.deps,
 		"network", "send",
 		"--session", sender.ID,
@@ -958,7 +1000,7 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 	receiver := newSession("receiver")
 	senderPeerID := "coder." + sender.ID
 	receiverPeerID := "coder." + receiver.ID
-	directID, _, _, err := network.DirectRoomIdentity(sender.WorkspaceID, "builders", senderPeerID, receiverPeerID)
+	directID, _, _, err := store.NetworkDirectRoomIdentity(sender.WorkspaceID, "builders", sender.ID, receiver.ID)
 	if err != nil {
 		t.Fatalf("DirectRoomIdentity() error = %v", err)
 	}
@@ -1199,7 +1241,7 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 	}
 	receiver = newSession("receiver-reconnect")
 	receiverPeerID = "coder." + receiver.ID
-	directID, _, _, err = network.DirectRoomIdentity(sender.WorkspaceID, "builders", senderPeerID, receiverPeerID)
+	directID, _, _, err = store.NetworkDirectRoomIdentity(sender.WorkspaceID, "builders", sender.ID, receiver.ID)
 	if err != nil {
 		t.Fatalf("DirectRoomIdentity(reconnected receiver) error = %v", err)
 	}
@@ -3806,7 +3848,6 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 	networkManager, err := network.NewManager(
 		ctx,
 		d.cfg.Network,
-		manager,
 		d.homePaths.NetworkAuditFile,
 		registry,
 		network.WithManagerLogger(discardLogger()),

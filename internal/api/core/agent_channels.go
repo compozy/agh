@@ -231,11 +231,7 @@ func (h *BaseHandlers) AgentChannelReply(c *gin.Context) {
 		return
 	}
 	targetPeer := strings.TrimSpace(source.From)
-	sendReq, err := agentChannelReplySendRequest(caller, source, req, ext)
-	if err != nil {
-		h.respondError(c, StatusForNetworkError(err), err)
-		return
-	}
+	sendReq := agentChannelReplySendRequest(caller, source, req, ext)
 	if idempotencyKey := strings.TrimSpace(req.IdempotencyKey); idempotencyKey != "" {
 		sendReq.ID = ptrString(idempotencyKey)
 	}
@@ -285,21 +281,15 @@ func agentChannelReplySendRequest(
 	source network.Envelope,
 	req decodedAgentChannelReplyRequest,
 	ext map[string]json.RawMessage,
-) (network.SendRequest, error) {
-	callerPeerID := agentCallerPeerID(caller)
+) network.SendRequest {
 	workspaceID := strings.TrimSpace(caller.Session.WorkspaceID)
 	sourceChannel := strings.TrimSpace(source.Channel)
 	targetPeerID := strings.TrimSpace(source.From)
-	directID, _, _, err := network.DirectRoomIdentity(workspaceID, sourceChannel, callerPeerID, targetPeerID)
-	if err != nil {
-		return network.SendRequest{}, err
-	}
 	sendReq := network.SendRequest{
 		SessionID:   strings.TrimSpace(caller.Session.ID),
 		WorkspaceID: workspaceID,
 		Channel:     sourceChannel,
 		Surface:     new(network.SurfaceDirect),
-		DirectID:    ptrString(directID),
 		Kind:        network.KindSay,
 		To:          ptrString(targetPeerID),
 		ReplyTo:     ptrString(req.ReplyToMessageID),
@@ -312,16 +302,7 @@ func agentChannelReplySendRequest(
 	if source.TraceID != nil && strings.TrimSpace(*source.TraceID) != "" {
 		sendReq.TraceID = ptrString(*source.TraceID)
 	}
-	return sendReq, nil
-}
-
-func agentCallerPeerID(caller agentidentity.Caller) string {
-	agentName := strings.ToLower(strings.TrimSpace(caller.Session.AgentName))
-	sessionID := strings.TrimSpace(caller.Session.ID)
-	if agentName == "" {
-		return sessionID
-	}
-	return agentName + "." + sessionID
+	return sendReq
 }
 
 type sourceCoordinationMetadata struct {

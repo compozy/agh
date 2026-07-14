@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
@@ -300,8 +301,7 @@ func newNetworkTaskIngressManager(
 
 	manager, err := NewManager(
 		ctx,
-		testManagerConfig(),
-		newFakeDeliveryPrompter(),
+		aghconfig.DefaultNetworkConfig(),
 		filepath.Join(t.TempDir(), "network.audit"),
 		auditStore,
 		WithManagerLogger(discardManagerLogger()),

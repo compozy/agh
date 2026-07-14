@@ -262,8 +262,8 @@ func TestComposedAssemblerAssembleStartupUsesEligibleSectionOrdering(t *testing.
 		t,
 		assembler,
 		session.StartupPromptContext{
-			SessionType: session.SessionTypeUser,
-			Channel:     "builders",
+			SessionType:          session.SessionTypeUser,
+			NetworkParticipation: daemonTestLiveParticipation("ws-1", "builders"),
 		},
 		testPromptAgent("Base prompt."),
 		t.TempDir(),
@@ -477,8 +477,8 @@ func TestComposedAssemblerDeduplicatesEligibleSectionNames(t *testing.T) {
 		t,
 		assembler,
 		session.StartupPromptContext{
-			SessionType: session.SessionTypeUser,
-			Channel:     "builders",
+			SessionType:          session.SessionTypeUser,
+			NetworkParticipation: daemonTestLiveParticipation("ws-1", "builders"),
 		},
 		testPromptAgent("Base prompt."),
 		t.TempDir(),
@@ -508,8 +508,8 @@ func TestComposedAssemblerAssembleStartupLoadsNetworkResponseRegisterSection(t *
 			t,
 			assembler,
 			session.StartupPromptContext{
-				SessionType: session.SessionTypeUser,
-				Channel:     "builders",
+				SessionType:          session.SessionTypeUser,
+				NetworkParticipation: daemonTestLiveParticipation("ws-1", "builders"),
 			},
 			testPromptAgent("Base prompt."),
 			t.TempDir(),

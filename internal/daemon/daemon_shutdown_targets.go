@@ -15,6 +15,7 @@ type shutdownTargets struct {
 	tasks               *taskRuntime
 	sessions            SessionManager
 	network             networkRuntime
+	networkWakeRunner   *networkWakeRunner
 	hooks               hookRuntime
 	extensions          extensionRuntime
 	automation          automationRuntime

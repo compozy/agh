@@ -155,12 +155,11 @@ type hostAPISessionManager interface {
 	ExecSandbox(ctx context.Context, req session.SandboxExecRequest) (session.SandboxExecResult, error)
 }
 
-type hostAPINetworkPromptSessionManager interface {
-	PromptNetwork(
+type hostAPIBridgePromptSessionManager interface {
+	PromptWithOpts(
 		ctx context.Context,
 		id string,
-		msg string,
-		meta ...acp.PromptNetworkMeta,
+		opts session.PromptOpts,
 	) (<-chan acp.AgentEvent, error)
 }
 

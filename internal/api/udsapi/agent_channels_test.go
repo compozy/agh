@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -167,19 +168,26 @@ func TestAgentChannelSendUsesCallerIdentityAndRejectsRawClaimToken(t *testing.T)
 	}
 
 	for _, tt := range []struct {
-		name string
-		body []byte
+		name       string
+		body       []byte
+		mustRedact string
 	}{
 		{
-			name: "payload body",
-			body: []byte(`{"body":{"claim_token":"secret"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`),
+			name:       "payload body",
+			body:       []byte(`{"body":{"claim_token":"agh_claim_UDS_CHANNEL_123"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"}}`),
+			mustRedact: "agh_claim_UDS_CHANNEL_123",
 		},
 		{
-			name: "metadata ext",
-			body: []byte(`{"body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1","ext":{"claim_token":"secret"}}}`),
+			name:       "metadata ext",
+			body:       []byte(`{"body":{"text":"ok"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1","ext":{"claim_token":"agh_claim_UDS_CHANNEL_123"}}}`),
+			mustRedact: "agh_claim_UDS_CHANNEL_123",
+		},
+		{
+			name: "caller supplied verified-format identity",
+			body: []byte(`{"body":{"text":"spoof"},"metadata":{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"builders","message_kind":"status","correlation_id":"run-1"},"from":"alice@39f713d0a644253f04529421b9f51b9b"}`),
 		},
 	} {
-		t.Run("Should reject raw claim_token in "+tt.name, func(t *testing.T) {
+		t.Run("Should reject unsafe "+tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			handlers := newAgentChannelHandlers(t, stubNetworkService{
@@ -198,6 +206,9 @@ func TestAgentChannelSendUsesCallerIdentityAndRejectsRawClaimToken(t *testing.T)
 			)
 			if resp.Code != http.StatusBadRequest {
 				t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusBadRequest, resp.Body.String())
+			}
+			if tt.mustRedact != "" && strings.Contains(resp.Body.String(), tt.mustRedact) {
+				t.Fatalf("unsafe send response leaked raw credential: %s", resp.Body.String())
 			}
 		})
 	}
@@ -359,10 +370,6 @@ func TestAgentChannelReplyResolvesSourceMessageMetadata(t *testing.T) {
 		directID := "direct_reply_01"
 		source.Surface = new(network.SurfaceDirect)
 		source.DirectID = &directID
-		wantDirectID, _, _, err := network.DirectRoomIdentity("ws-1", "builders", "coder.sess-agent", source.From)
-		if err != nil {
-			t.Fatalf("DirectRoomIdentity() error = %v", err)
-		}
 		handlers := newAgentChannelHandlers(t, stubNetworkService{
 			InboxFn: func(_ context.Context, sessionID string) ([]network.Envelope, error) {
 				if sessionID != "sess-agent" {
@@ -393,8 +400,7 @@ func TestAgentChannelReplyResolvesSourceMessageMetadata(t *testing.T) {
 			seen.Kind != network.KindSay ||
 			seen.Surface == nil ||
 			*seen.Surface != network.SurfaceDirect ||
-			seen.DirectID == nil ||
-			*seen.DirectID != wantDirectID ||
+			seen.DirectID != nil ||
 			seen.To == nil ||
 			*seen.To != "reviewer.sess-peer" ||
 			seen.ReplyTo == nil ||

@@ -246,9 +246,10 @@ func TestContextForSessionBoundsListsAndIncludesTaskChannelProvenance(t *testing
 			SpawnDepth:      1,
 			SpawnRole:       "worker",
 		},
-		State:     session.StateActive,
-		CreatedAt: fixedTime(),
-		UpdatedAt: fixedTime(),
+		State:                session.StateActive,
+		NetworkParticipation: situationLiveSpec("coord-structured"),
+		CreatedAt:            fixedTime(),
+		UpdatedAt:            fixedTime(),
 	})
 	if err != nil {
 		t.Fatalf("ContextForSession() error = %v", err)

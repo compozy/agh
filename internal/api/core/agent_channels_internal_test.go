@@ -174,16 +174,6 @@ func TestAgentChannelCoreHandlersUseIdentityAndCoordinationMetadata(t *testing.T
 		if len(queuedMessages.Messages) != 1 || queuedMessages.Messages[0].MessageID != "msg-source" {
 			t.Fatalf("queued messages = %#v, want source inbox message", queuedMessages.Messages)
 		}
-		wantDirectID, _, _, err := network.DirectRoomIdentity(
-			"ws-1",
-			"builders",
-			"coder.sess-agent",
-			"reviewer.sess-peer",
-		)
-		if err != nil {
-			t.Fatalf("DirectRoomIdentity() error = %v", err)
-		}
-
 		replyResp := performAgentCoreRequest(
 			t,
 			engine,
@@ -208,8 +198,7 @@ func TestAgentChannelCoreHandlersUseIdentityAndCoordinationMetadata(t *testing.T
 			sent[1].Surface == nil ||
 			*sent[1].Surface != network.SurfaceDirect ||
 			sent[1].Channel != "builders" ||
-			sent[1].DirectID == nil ||
-			*sent[1].DirectID != wantDirectID ||
+			sent[1].DirectID != nil ||
 			sent[1].To == nil ||
 			*sent[1].To != "reviewer.sess-peer" ||
 			sent[1].ReplyTo == nil ||

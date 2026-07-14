@@ -434,6 +434,11 @@ func TestLoadFixtureAndParseFixtureValidationErrors(t *testing.T) {
 			want: "stop_reason",
 		},
 		{
+			name: "Should reject negative scripted usage",
+			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"usage":{"input_tokens":-1,"output_tokens":2},"steps":[{"kind":"assistant","text":"hi"}]}]}]}`,
+			want: "input_tokens must be >= 0",
+		},
+		{
 			name: "Should reject invalid permission decision",
 			raw:  `{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{"match":{"turn_source":"user","user_text":"hi"},"steps":[{"kind":"permission","tool_call_id":"perm-1","tool_kind":"edit","expect_decision":"maybe"}]}]}]}`,
 			want: "expect_decision",
@@ -458,6 +463,28 @@ func TestLoadFixtureAndParseFixtureValidationErrors(t *testing.T) {
 				t.Fatalf("ParseFixture(%s) error = %v, want substring %q", tc.name, err, tc.want)
 			}
 		})
+	}
+}
+
+func TestParseFixtureAcceptsScriptedUsage(t *testing.T) {
+	t.Parallel()
+
+	fixture, err := ParseFixture([]byte(
+		`{"version":2,"agents":[{"name":"alpha","provider":"claude","turns":[{` +
+			`"match":{"turn_source":"user","user_text":"hi"},` +
+			`"usage":{"input_tokens":13,"output_tokens":5},` +
+			`"steps":[{"kind":"assistant","text":"hi"}]}]}]}`,
+	))
+	if err != nil {
+		t.Fatalf("ParseFixture(scripted usage) error = %v", err)
+	}
+	agent, err := fixture.Agent("alpha")
+	if err != nil {
+		t.Fatalf("Fixture.Agent(alpha) error = %v", err)
+	}
+	if agent.Turns[0].Usage == nil || agent.Turns[0].Usage.InputTokens != 13 ||
+		agent.Turns[0].Usage.OutputTokens != 5 {
+		t.Fatalf("scripted usage = %#v, want input=13 output=5", agent.Turns[0].Usage)
 	}
 }
 
@@ -1128,6 +1155,15 @@ func TestValidationAndDriverHelpers(t *testing.T) {
 		}
 		if (DriverControlStep{Action: DriverControlBlockUntilCancel, Async: true}).Validate("driver_control") == nil {
 			t.Fatal("DriverControlStep.Validate(async block_until_cancel) error = nil, want non-nil")
+		}
+		if (DriverControlStep{Action: DriverControlDelay}).Validate("driver_control") == nil {
+			t.Fatal("DriverControlStep.Validate(delay without delay_ms) error = nil, want non-nil")
+		}
+		if (DriverControlStep{Action: DriverControlDelay, DelayMS: 1, Async: true}).Validate("driver_control") == nil {
+			t.Fatal("DriverControlStep.Validate(async delay) error = nil, want non-nil")
+		}
+		if err := (DriverControlStep{Action: DriverControlDelay, DelayMS: 1}).Validate("driver_control"); err != nil {
+			t.Fatalf("DriverControlStep.Validate(delay) error = %v", err)
 		}
 		if (TurnFixture{}).Validate("turn") == nil {
 			t.Fatal("TurnFixture.Validate(no steps) error = nil, want non-nil")

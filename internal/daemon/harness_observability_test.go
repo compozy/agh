@@ -38,10 +38,10 @@ func TestSectionSelectorQueuesStartupSummariesUntilSessionCreated(t *testing.T) 
 	)
 
 	startup := session.StartupPromptContext{
-		SessionID:   "sess-startup",
-		AgentName:   "coder",
-		SessionType: session.SessionTypeUser,
-		Channel:     "builders",
+		SessionID:            "sess-startup",
+		AgentName:            "coder",
+		SessionType:          session.SessionTypeUser,
+		NetworkParticipation: daemonTestLiveParticipation("ws-1", "builders"),
 	}
 	selected, _, err := selector.Select(startup, descriptors)
 	if err != nil {

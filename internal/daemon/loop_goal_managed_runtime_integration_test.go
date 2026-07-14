@@ -49,9 +49,11 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 
 		aggregate, err := looppkg.NewService(
 			fixture.goalStore,
-			looppkg.DefinitionResolverFunc(func(context.Context, looppkg.WorkspaceID, string) (*looppkg.ResolvedDefinition, error) {
-				return nil, looppkg.ErrDefinitionNotFound
-			}),
+			looppkg.DefinitionResolverFunc(
+				func(context.Context, looppkg.WorkspaceID, string) (*looppkg.ResolvedDefinition, error) {
+					return nil, looppkg.ErrDefinitionNotFound
+				},
+			),
 			managedTestGoalRunPolicyResolver(),
 			looppkg.WithClock(time.Now),
 		)

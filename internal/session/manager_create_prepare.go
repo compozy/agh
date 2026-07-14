@@ -10,6 +10,7 @@ import (
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/network/participation"
 )
 
 func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sessionStartSpec, error) {
@@ -51,13 +52,8 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
-	networkParticipation, err := m.resolveCreateParticipation(
-		ctx,
-		resolvedWorkspace.ID,
-		sessionID,
-		opts.NetworkParticipation,
-		opts.ResolvedNetworkParticipation,
-		opts.NetworkAuthority,
+	networkParticipation, networkOwnerKey, err := m.prepareCreateParticipation(
+		ctx, opts, resolvedWorkspace.ID, sessionID,
 	)
 	if err != nil {
 		return sessionStartSpec{}, err
@@ -76,6 +72,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		workspace:               resolvedWorkspace,
 		cwd:                     cwd,
 		networkParticipation:    networkParticipation,
+		networkOwnerKey:         networkOwnerKey,
 		promptOverlay:           strings.TrimSpace(opts.PromptOverlay),
 		contractOverlay:         strings.TrimSpace(opts.ContractOverlay),
 		runtimeMode:             strings.TrimSpace(opts.RuntimeMode),
@@ -91,6 +88,36 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		startAction:             sessionStartActionCreate,
 		cleanupSessionDir:       true,
 	}, nil
+}
+
+func (m *Manager) prepareCreateParticipation(
+	ctx context.Context,
+	opts CreateOpts,
+	workspaceID string,
+	sessionID string,
+) (participation.Spec, string, error) {
+	spec, err := m.resolveCreateParticipation(
+		ctx,
+		workspaceID,
+		sessionID,
+		opts.NetworkParticipation,
+		opts.ResolvedNetworkParticipation,
+		opts.NetworkAuthority,
+	)
+	if err != nil {
+		return participation.Spec{}, "", err
+	}
+	ownerKey := strings.TrimSpace(opts.NetworkOwnerKey)
+	if ownerKey == "" {
+		ownerKey = participation.OwnerKey(participation.OwnerRef{
+			Kind: participation.OwnerKindSession,
+			ID:   sessionID,
+		})
+	}
+	if err := participation.ValidateOwnerKey(ownerKey); err != nil {
+		return participation.Spec{}, "", fmt.Errorf("session: validate network owner key: %w", err)
+	}
+	return spec, ownerKey, nil
 }
 
 func (m *Manager) createSessionID(desired string) (string, error) {

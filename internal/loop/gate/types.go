@@ -84,6 +84,7 @@ func GateFromContract(id string, contract dsl.Contract, maxRevisions int) Gate {
 //
 //revive:disable-next-line:exported // GateInput is the TechSpec contract name.
 type GateInput struct {
+	LoopRunID                string
 	Placement                Placement
 	Contract                 dsl.Contract
 	TemplateData             map[string]any
@@ -248,6 +249,7 @@ type JudgeRunner interface {
 
 // JudgeRequest is the rendered agent-judge invocation.
 type JudgeRequest struct {
+	LoopRunID            string
 	GateID               string
 	CriterionID          string
 	Attempt              int

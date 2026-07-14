@@ -176,7 +176,11 @@ func (h *HostAPIHandler) resolveHostAPINetworkPeerSessionID(
 			channel,
 		))
 	}
-	return strings.TrimSpace(*peer.SessionID), nil
+	sessionID := strings.TrimSpace(*peer.SessionID)
+	if err := h.requireHostAPINetworkParticipant(ctx, workspaceID, sessionID, channel); err != nil {
+		return "", err
+	}
+	return sessionID, nil
 }
 
 func hostAPINetworkConversationMessageQuery(

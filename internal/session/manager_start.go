@@ -57,6 +57,7 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 		permissions:             aghconfig.PermissionMode(strings.TrimSpace(meta.EffectivePermissions)),
 		workspace:               resolvedWorkspace,
 		networkParticipation:    meta.NetworkSpecSnapshot(),
+		networkOwnerKey:         meta.NetworkOwnerKeySnapshot(),
 		cwd:                     resumeSessionCWD(meta, resolvedWorkspace.RootDir),
 		sessionType:             normalizeSessionType(Type(meta.SessionType)),
 		lineage:                 store.NormalizeSessionLineage(meta.ID, meta.Lineage),
@@ -308,17 +309,17 @@ func (s *sessionStartSpec) startupSessionContext(updatedAt time.Time) hookspkg.S
 func (s *sessionStartSpec) startupPromptContext(updatedAt time.Time) StartupPromptContext {
 	ref := workref.NewRoot(s.workspace.ID, s.workspace.RootDir)
 	return StartupPromptContext{
-		SessionID:    strings.TrimSpace(s.sessionID),
-		SessionName:  strings.TrimSpace(s.sessionName),
-		AgentName:    strings.TrimSpace(s.agentName),
-		Provider:     strings.TrimSpace(s.provider),
-		WorkspaceID:  ref.WorkspaceID,
-		Workspace:    ref.Workspace,
-		Channel:      strings.TrimSpace(s.networkParticipation.ChannelID),
-		SessionType:  normalizeSessionType(s.sessionType),
-		SoulSnapshot: cloneSoulSnapshotPointer(s.soulSnapshot),
-		CreatedAt:    s.createdAt,
-		UpdatedAt:    updatedAt,
+		SessionID:            strings.TrimSpace(s.sessionID),
+		SessionName:          strings.TrimSpace(s.sessionName),
+		AgentName:            strings.TrimSpace(s.agentName),
+		Provider:             strings.TrimSpace(s.provider),
+		WorkspaceID:          ref.WorkspaceID,
+		Workspace:            ref.Workspace,
+		NetworkParticipation: s.networkParticipation,
+		SessionType:          normalizeSessionType(s.sessionType),
+		SoulSnapshot:         cloneSoulSnapshotPointer(s.soulSnapshot),
+		CreatedAt:            s.createdAt,
+		UpdatedAt:            updatedAt,
 	}
 }
 

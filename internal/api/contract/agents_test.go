@@ -282,6 +282,20 @@ func TestCoordinationMessageMetadataValidationRejectsRawClaimTokens(t *testing.T
 		})
 	}
 
+	for _, field := range []string{"from", "proof"} {
+		t.Run("Should reject caller supplied "+field+" on agent channel send", func(t *testing.T) {
+			t.Parallel()
+
+			raw := `{"body":{"text":"safe"},"metadata":` + string(validJSON) +
+				`,"` + field + `":"alice@39f713d0a644253f04529421b9f51b9b"}`
+			var request AgentChannelSendRequest
+			err := json.Unmarshal([]byte(raw), &request)
+			if err == nil || !strings.Contains(err.Error(), "sender identity and proof are daemon-derived") {
+				t.Fatalf("json.Unmarshal(agent send %s) error = %v, want daemon-derived identity rejection", field, err)
+			}
+		})
+	}
+
 	var invalidKind CoordinationMessageMetadataPayload
 	err := json.Unmarshal(
 		[]byte(

@@ -270,26 +270,9 @@ func (s *Service) ContextForSession(
 		Provenance:   s.provenance(),
 	}
 
-	taskContext, channelContext, activeChannel, err := s.taskAndChannelContext(ctx, info.ID, workspaceSnapshot)
-	if err != nil {
+	if err := s.populateSessionRuntimeContext(ctx, info, workspaceSnapshot, workspaceSection.ID, &payload); err != nil {
 		return contract.AgentContextPayload{}, err
 	}
-	payload.Task = taskContext
-	payload.CoordinationChannel = channelContext
-
-	networkChannel := firstTrimmed(activeChannel, info.NetworkParticipation.ChannelID)
-	inbox, peers, err := s.networkSections(
-		ctx,
-		info.ID,
-		workspaceSection.ID,
-		networkChannel,
-		coordinationChannelID(channelContext),
-	)
-	if err != nil {
-		return contract.AgentContextPayload{}, err
-	}
-	payload.InboxSummary = inbox
-	payload.PeerRoster = peers
 
 	normalized := contract.NormalizeAgentContextPayload(&payload)
 	return normalized, nil
@@ -836,18 +819,6 @@ func (s *Service) soulPayload(ctx context.Context, info *session.Info) (contract
 		}, nil
 	}
 	return soulPayloadFromSnapshot(&snapshot), nil
-}
-
-func startupSessionPayload(startup session.StartupPromptContext) contract.AgentSessionPayload {
-	return contract.AgentSessionPayload{
-		ID:        strings.TrimSpace(startup.SessionID),
-		Name:      strings.TrimSpace(startup.SessionName),
-		Type:      startup.SessionType,
-		State:     session.StateStarting,
-		Channel:   strings.TrimSpace(startup.Channel),
-		CreatedAt: startup.CreatedAt.UTC(),
-		UpdatedAt: startup.UpdatedAt.UTC(),
-	}
 }
 
 func sessionPayload(info *session.Info) contract.AgentSessionPayload {

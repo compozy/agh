@@ -924,7 +924,8 @@ func TestTaskManagerPlainWorkspaceStartPersistsLocalParticipationIntegration(t *
 	if err := db.DB().QueryRowContext(
 		ctx,
 		"SELECT (SELECT COUNT(*) FROM network_timeline_log) + (SELECT COUNT(*) FROM network_threads) + (SELECT COUNT(*) FROM network_direct_rooms)",
-	).Scan(&conversationRows); err != nil {
+	).
+		Scan(&conversationRows); err != nil {
 		t.Fatalf("count network conversation rows: %v", err)
 	}
 	if conversationRows != 0 {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/sandbox"
 	skillspkg "github.com/compozy/agh/internal/skills"
@@ -55,12 +56,14 @@ type NetworkPeerCapability struct {
 // NetworkPeerJoin describes one daemon-local peer registration request for the
 // late-bound network lifecycle.
 type NetworkPeerJoin struct {
-	SessionID    string
-	PeerID       string
-	WorkspaceID  string
-	DisplayName  string
-	Channel      string
-	Capabilities []NetworkPeerCapability
+	SessionID            string
+	PeerID               string
+	WorkspaceID          string
+	DisplayName          string
+	Channel              string
+	OwnerKey             string
+	NetworkParticipation participation.Spec
+	Capabilities         []NetworkPeerCapability
 }
 
 // NetworkPeerLifecycle is the late-bound network join/leave surface consumed by

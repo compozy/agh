@@ -50,18 +50,15 @@ func (e *RunAgentActionExecutor) Execute(
 		contract = *in.Contract
 	}
 	contractBlock := RenderContractBlock(contract)
-	model := strings.TrimSpace(spec.Model)
-	if model == "" {
-		model = strings.TrimSpace(in.WorkerModel)
-	}
 	binding, err := e.binder.BindActionSession(runCtx, ActionSessionBindRequest{
 		WorkspaceID:          in.WorkspaceID,
+		LoopRunID:            in.LoopRunID,
 		Agent:                strings.TrimSpace(spec.Agent),
 		CWD:                  strings.TrimSpace(spec.CWD),
 		Handle:               actionSessionHandle(node.Session),
 		ItemIndex:            in.ItemIndex,
 		Isolated:             node.Session != nil && node.Session.Isolated,
-		Model:                model,
+		Model:                runAgentModel(spec.Model, in.WorkerModel),
 		AllowedTools:         append([]string(nil), spec.AllowedTools...),
 		MaxTurns:             spec.MaxTurns,
 		ContractBlock:        contractBlock,
@@ -99,6 +96,13 @@ func (e *RunAgentActionExecutor) Execute(
 	}
 	second.TokensUsed = tokensUsed
 	return rawFromPromptResult(binding, second, structured), nil
+}
+
+func runAgentModel(nodeModel string, workerModel string) string {
+	if model := strings.TrimSpace(nodeModel); model != "" {
+		return model
+	}
+	return strings.TrimSpace(workerModel)
 }
 
 // Harvest returns the run-agent prompt result.

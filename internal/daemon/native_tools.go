@@ -354,8 +354,8 @@ func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
 	return nativeToolAvailabilitySet{
 		registry: n.registryAvailability(),
 		skills:   n.dependencyAvailability(func() bool { return n.deps.Skills != nil }),
-		network:  n.dependencyAvailability(func() bool { return n.deps.Network != nil }),
-		networkRead: n.dependencyAvailability(func() bool {
+		network:  n.networkParticipationAvailability(func() bool { return n.deps.Network != nil }),
+		networkRead: n.networkParticipationAvailability(func() bool {
 			return n.deps.Network != nil && n.deps.NetworkStore != nil
 		}),
 		sessions: n.dependencyAvailability(func() bool { return n.deps.Sessions != nil }),

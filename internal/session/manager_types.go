@@ -34,6 +34,9 @@ type CreateOpts struct {
 	// ResolvedNetworkParticipation binds an internal worker session to the immutable owner snapshot.
 	// Callers must not set it together with NetworkParticipation.
 	ResolvedNetworkParticipation *participation.Spec
+	// NetworkOwnerKey binds an internal worker session to its task or loop budget owner.
+	// Empty values default to the session's own identity.
+	NetworkOwnerKey string
 	// NetworkAuthority carries the concrete delegated channel scope for child-owned resolution.
 	NetworkAuthority *participation.AuthorityScope
 	PromptOverlay    string

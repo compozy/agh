@@ -230,7 +230,8 @@ func TestStartRuntimeHarnessRefusesLegacyDatabaseBeforeReadiness(t *testing.T) {
 		if exitErr == nil {
 			t.Fatal("legacy daemon exit error = nil, want non-zero exit")
 		}
-		if harness.process == nil || harness.process.ProcessState == nil || harness.process.ProcessState.ExitCode() == 0 {
+		if harness.process == nil || harness.process.ProcessState == nil ||
+			harness.process.ProcessState.ExitCode() == 0 {
 			t.Fatalf("legacy daemon process state = %#v, want non-zero exit", harness.process)
 		}
 

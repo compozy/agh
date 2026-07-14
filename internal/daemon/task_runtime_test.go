@@ -65,6 +65,7 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 		wantPath      string
 		wantChannel   string
 		wantAgentName string
+		wantOwnerKey  string
 	}{
 		{
 			name: "Should use the workspace identifier for workspace-scoped tasks",
@@ -89,6 +90,7 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 			wantWorkspace: "ws-123",
 			wantChannel:   "coord-builders",
 			wantAgentName: "frontend-engineer-agent",
+			wantOwnerKey:  "task_run:run-1",
 		},
 		{
 			name: "Should use the global workspace path for global tasks",
@@ -106,8 +108,30 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 				RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: daemonTestLiveParticipation("", "builders")},
 				QueuedAt:        time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
 			},
-			wantPath:    globalPath,
-			wantChannel: "builders",
+			wantPath:     globalPath,
+			wantChannel:  "builders",
+			wantOwnerKey: "task_run:run-1",
+		},
+		{
+			name: "Should bind a loop-correlated task session to the loop owner",
+			taskRecord: taskpkg.Task{
+				ID:          "task-loop-worker",
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: "ws-loop-owner",
+				Title:       "Loop Worker Task",
+			},
+			run: taskpkg.Run{
+				ID:        "run-loop-worker",
+				TaskID:    "task-loop-worker",
+				LoopRunID: "loop-run-owner",
+				Status:    taskpkg.TaskRunStatusStarting,
+				Attempt:   1,
+				Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "loop-run-owner"},
+				QueuedAt:  time.Date(2026, 4, 14, 18, 0, 0, 0, time.UTC),
+			},
+			wantWorkspace: "ws-loop-owner",
+			wantChannel:   "loop-builders",
+			wantOwnerKey:  "loop_run:loop-run-owner",
 		},
 	}
 
@@ -157,6 +181,9 @@ func TestTaskSessionBridgeStartTaskSessionUsesDedicatedSystemSessions(t *testing
 			}
 			if got, want := createCall.AgentName, tc.wantAgentName; got != want {
 				t.Fatalf("createCall.AgentName = %q, want %q", got, want)
+			}
+			if got := createCall.NetworkOwnerKey; got != tc.wantOwnerKey {
+				t.Fatalf("createCall.NetworkOwnerKey = %q, want %q", got, tc.wantOwnerKey)
 			}
 			if got, want := createCall.Workspace, tc.wantWorkspace; got != want {
 				t.Fatalf("createCall.Workspace = %q, want %q", got, want)

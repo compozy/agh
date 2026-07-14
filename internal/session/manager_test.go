@@ -648,11 +648,22 @@ func TestCreateAndResumePreserveNetworkParticipation(t *testing.T) {
 	}
 
 	wantSpec := testLiveParticipation(h.workspaceID, "builders")
+	wantOwnerKey := "session:" + session.ID
 	if got := session.Info().NetworkParticipation; got != wantSpec {
 		t.Fatalf("Create() participation = %#v, want %#v", got, wantSpec)
 	}
-	if meta := readMeta(t, session.MetaPath()); meta.NetworkSpecSnapshot() != wantSpec {
-		t.Fatalf("meta participation = %#v, want %#v", meta.NetworkSpecSnapshot(), wantSpec)
+	if got := session.Info().NetworkOwnerKey; got != wantOwnerKey {
+		t.Fatalf("Create() owner key = %q, want %q", got, wantOwnerKey)
+	}
+	if meta := readMeta(t, session.MetaPath()); meta.NetworkSpecSnapshot() != wantSpec ||
+		meta.NetworkOwnerKeySnapshot() != wantOwnerKey {
+		t.Fatalf(
+			"meta network identity = (%#v, %q), want (%#v, %q)",
+			meta.NetworkSpecSnapshot(),
+			meta.NetworkOwnerKeySnapshot(),
+			wantSpec,
+			wantOwnerKey,
+		)
 	}
 
 	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
@@ -678,8 +689,18 @@ func TestCreateAndResumePreserveNetworkParticipation(t *testing.T) {
 	if got := resumed.Info().NetworkParticipation; got != wantSpec {
 		t.Fatalf("Resume() participation = %#v, want %#v", got, wantSpec)
 	}
-	if meta := readMeta(t, resumed.MetaPath()); meta.NetworkSpecSnapshot() != wantSpec {
-		t.Fatalf("resumed meta participation = %#v, want %#v", meta.NetworkSpecSnapshot(), wantSpec)
+	if got := resumed.Info().NetworkOwnerKey; got != wantOwnerKey {
+		t.Fatalf("Resume() owner key = %q, want immutable %q", got, wantOwnerKey)
+	}
+	if meta := readMeta(t, resumed.MetaPath()); meta.NetworkSpecSnapshot() != wantSpec ||
+		meta.NetworkOwnerKeySnapshot() != wantOwnerKey {
+		t.Fatalf(
+			"resumed meta network identity = (%#v, %q), want (%#v, %q)",
+			meta.NetworkSpecSnapshot(),
+			meta.NetworkOwnerKeySnapshot(),
+			wantSpec,
+			wantOwnerKey,
+		)
 	}
 }
 
@@ -2466,7 +2487,7 @@ func TestPromptNetworkAugmenterPreservesStoredUserMessageAndAugmentsDriverDispat
 	) (string, error) {
 		return message + "\n\nNETWORK AUGMENT", nil
 	}))
-	session := createSession(t, h)
+	session := createLiveNetworkSession(t, h)
 	t.Cleanup(func() {
 		_ = h.manager.Stop(testutil.Context(t), session.ID)
 	})
@@ -2560,7 +2581,7 @@ func TestPromptWithOptsTracksTurnSourceAndClearsAfterPrompt(t *testing.T) {
 	t.Parallel()
 
 	h := newHarness(t)
-	session := createSession(t, h)
+	session := createLiveNetworkSession(t, h)
 	t.Cleanup(func() {
 		_ = h.manager.Stop(testutil.Context(t), session.ID)
 	})
@@ -4116,7 +4137,7 @@ func TestCreateInvokesStartupPromptOverlayWhenConfigured(t *testing.T) {
 				prompt string,
 			) (string, error) {
 				called = true
-				gotChannel = startup.Channel
+				gotChannel = startup.NetworkParticipation.ChannelID
 				gotType = startup.SessionType
 				gotWorkspace = startup.Workspace
 				return prompt + "\n\noverlay block", nil
@@ -4179,7 +4200,7 @@ func TestCreateWithChannelAppendsBundledNetworkSkillAfterPromptAssembly(t *testi
 						t.Fatalf("assembler workspace = %q, want %q", got, want)
 					}
 					prompt := agent.Prompt + "\n\nmemory block"
-					if strings.TrimSpace(startup.Channel) == "" {
+					if startup.NetworkParticipation.Mode != participation.ModeLive {
 						return prompt, nil
 					}
 					return prompt + "\n\n" + networkSkill, nil
@@ -4606,7 +4627,7 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 			startupPromptAssemblerFunc(
 				func(_ context.Context, startup StartupPromptContext, agent aghconfig.AgentDef, _ *workspacepkg.ResolvedWorkspace) (string, error) {
 					prompt := strings.TrimSpace(agent.Prompt)
-					if strings.TrimSpace(startup.Channel) == "" {
+					if startup.NetworkParticipation.Mode != participation.ModeLive {
 						return prompt, nil
 					}
 					networkSkill, err := skillbundled.LoadResource(testBundledAghSkillName, testBundledNetworkReference)
@@ -4686,6 +4707,21 @@ func createSession(t *testing.T, h *harness) *Session {
 	})
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
+	}
+	return session
+}
+
+func createLiveNetworkSession(t *testing.T, h *harness) *Session {
+	t.Helper()
+
+	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		AgentName:                    "coder",
+		Name:                         "network-session",
+		Workspace:                    h.workspaceID,
+		ResolvedNetworkParticipation: testLiveParticipationPtr(h.workspaceID, "builders"),
+	})
+	if err != nil {
+		t.Fatalf("Create(live network session) error = %v", err)
 	}
 	return session
 }

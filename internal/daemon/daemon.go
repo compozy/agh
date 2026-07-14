@@ -187,6 +187,7 @@ type networkBindableSessionManager interface {
 		message string,
 		meta ...acp.PromptNetworkMeta,
 	) (<-chan acp.AgentEvent, error)
+	CancelPrompt(ctx context.Context, sessionID string) error
 	IsPrompting(sessionID string) bool
 	SetNetworkPeerLifecycle(session.NetworkPeerLifecycle)
 	SetTurnEndNotifier(session.TurnEndNotifier)
@@ -319,6 +320,7 @@ type Daemon struct {
 	spawnReaper                  *spawnReaper
 	scheduler                    *schedulerRuntime
 	network                      networkRuntime
+	networkWakeRunner            *networkWakeRunner
 	toolRegistry                 toolspkg.Registry
 	hooks                        hookRuntime
 	extensions                   extensionRuntime
@@ -1032,6 +1034,7 @@ func (d *Daemon) detachShutdownTargets() shutdownTargets {
 		tasks:               d.tasks,
 		sessions:            d.sessions,
 		network:             d.network,
+		networkWakeRunner:   d.networkWakeRunner,
 		hooks:               d.hooks,
 		extensions:          d.extensions,
 		automation:          d.automation,
@@ -1103,6 +1106,7 @@ func (d *Daemon) resetRuntimeStateLocked() {
 	d.goalOutboxDone = nil
 	d.bridges = nil
 	d.network = nil
+	d.networkWakeRunner = nil
 	d.toolRegistry = nil
 }
 
@@ -1112,73 +1116,6 @@ func (d *Daemon) shutdownDetached(ctx context.Context, targets shutdownTargets) 
 	d.shutdownServersAndHooks(ctx, targets, &errs)
 	d.shutdownPersistentResources(ctx, targets, &errs)
 	return errors.Join(errs...)
-}
-
-func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets shutdownTargets, errs *[]error) {
-	if targets.dreamRuntime != nil {
-		targets.dreamRuntime.Shutdown()
-	}
-	if targets.memoryExtractor != nil {
-		appendWrappedError(errs, "daemon: shutdown memory extractor", targets.memoryExtractor.Close(ctx))
-	}
-	if targets.memoryStore != nil {
-		appendWrappedError(
-			errs,
-			"daemon: shutdown recall signal recorders",
-			targets.memoryStore.CloseRecallSignalRecorders(ctx),
-		)
-	}
-	if targets.modelCatalog != nil {
-		appendWrappedError(errs, "daemon: shutdown model catalog", targets.modelCatalog.Shutdown(ctx))
-	}
-	appendWrappedError(
-		errs,
-		"daemon: stop skills watcher",
-		stopSkillsWatcher(ctx, targets.skillsCancel, targets.skillsDone),
-	)
-	appendWrappedError(
-		errs,
-		"daemon: stop loops watcher",
-		stopLoopWatcher(ctx, targets.loopsCancel, targets.loopsDone),
-	)
-	appendWrappedError(
-		errs,
-		"daemon: stop Goal session outbox relay",
-		stopGoalSessionOutboxRelay(ctx, targets.goalOutboxCancel, targets.goalOutboxDone),
-	)
-	if targets.resourceReconcile != nil {
-		appendWrappedError(errs, "daemon: close resource reconcile driver", targets.resourceReconcile.Close(ctx))
-	}
-	if targets.extensions != nil {
-		appendWrappedError(errs, "daemon: stop extensions", targets.extensions.Stop(ctx))
-	}
-	if targets.automation != nil {
-		appendWrappedError(errs, "daemon: shutdown automation", targets.automation.Shutdown(ctx))
-	}
-	if targets.retention != nil {
-		appendWrappedError(errs, "daemon: shutdown observability retention", targets.retention.ShutdownRetention(ctx))
-	}
-	if targets.scheduler != nil {
-		appendWrappedError(errs, "daemon: shutdown scheduler", targets.scheduler.stopLoop(ctx))
-	}
-	if targets.spawnReaper != nil {
-		appendWrappedError(errs, "daemon: shutdown spawn reaper", targets.spawnReaper.shutdown(ctx))
-	}
-	if targets.coordinator != nil {
-		appendWrappedError(errs, "daemon: shutdown coordinator runtime", targets.coordinator.shutdown(ctx))
-	}
-	if targets.scheduler != nil {
-		appendWrappedError(errs, "daemon: shutdown scheduler wake dispatcher", targets.scheduler.shutdownWaker(ctx))
-	}
-	if targets.tasks != nil {
-		appendWrappedError(errs, "daemon: shutdown task runtime", targets.tasks.shutdown(ctx))
-	}
-	if err := d.stopSessions(ctx, targets.sessions); err != nil {
-		*errs = append(*errs, err)
-	}
-	if targets.localMemoryProvider != nil {
-		appendWrappedError(errs, "daemon: shutdown local memory provider", targets.localMemoryProvider.Shutdown(ctx))
-	}
 }
 
 func (d *Daemon) shutdownServersAndHooks(ctx context.Context, targets shutdownTargets, errs *[]error) {

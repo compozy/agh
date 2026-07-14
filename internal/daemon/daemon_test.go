@@ -202,8 +202,11 @@ func TestBootWithNetworkDisabledKeepsDaemonOperational(t *testing.T) {
 		}
 	})
 
-	if d.network != nil {
-		t.Fatal("boot() network runtime = non-nil, want nil when disabled")
+	if d.network == nil {
+		t.Fatal("boot() network runtime = nil, want paused manager when disabled")
+	}
+	if d.networkWakeRunner == nil {
+		t.Fatal("boot() network wake runner = nil, want paused runner when disabled")
 	}
 	if d.info.Network == nil {
 		t.Fatal("boot() daemon info network = nil, want disabled diagnostics")
@@ -618,8 +621,8 @@ func TestBootEnabledNetworkLateBindsSessionCallbacksAndPersistsSafeDiagnostics(t
 	if got, want := info.Network.Status, network.StatusRunning; got != want {
 		t.Fatalf("daemon info network status = %q, want %q", got, want)
 	}
-	if info.Network.ListenerPort <= 0 {
-		t.Fatalf("daemon info network listener port = %d, want positive", info.Network.ListenerPort)
+	if info.Network.ListenerPort != 0 {
+		t.Fatalf("daemon info network listener port = %d, want zero without a broker", info.Network.ListenerPort)
 	}
 
 	rawInfo, err := os.ReadFile(homePaths.DaemonInfo)
@@ -4625,14 +4628,16 @@ func testHarnessReentryBridgeRecoverOrdersEqualTimestampsByTerminalSequence(t *t
 				AgentName:            "coder",
 				Type:                 session.SessionTypeSystem,
 				State:                session.StateActive,
-				NetworkParticipation: daemonTestLiveParticipation("", "builders"),
+				WorkspaceID:          "ws-1",
+				NetworkParticipation: daemonTestLiveParticipation("ws-1", "builders"),
 			},
 			{
 				ID:                   "sess-wake",
 				AgentName:            "coder",
 				Type:                 session.SessionTypeSystem,
 				State:                session.StateActive,
-				NetworkParticipation: daemonTestLiveParticipation("", "builders"),
+				WorkspaceID:          "ws-1",
+				NetworkParticipation: daemonTestLiveParticipation("ws-1", "builders"),
 			},
 		},
 	}
@@ -6495,6 +6500,35 @@ func (r *recordingRegistry) SetNetworkAvailability(
 	r.networkAvailability.UpdatedBy = strings.TrimSpace(updatedBy)
 	r.networkAvailabilityWrites = append(r.networkAvailabilityWrites, enabled)
 	return r.networkAvailability, nil
+}
+
+func (*recordingRegistry) AcceptNetworkMessage(
+	context.Context,
+	store.AcceptNetworkMessageRequest,
+) (store.AcceptNetworkMessageResult, error) {
+	return store.AcceptNetworkMessageResult{}, nil
+}
+
+func (*recordingRegistry) SettleNetworkWake(
+	context.Context,
+	store.WakeReservation,
+	store.NetworkWakeOutcome,
+) error {
+	return nil
+}
+
+func (*recordingRegistry) ListQueuedNetworkWakes(
+	context.Context,
+	int,
+) ([]store.CommittedNetworkNotification, error) {
+	return nil, nil
+}
+
+func (*recordingRegistry) LoadNetworkWake(
+	context.Context,
+	string,
+) (store.WakeReservation, []store.NetworkMessageEntry, error) {
+	return store.WakeReservation{}, nil, nil
 }
 
 func (r *recordingRegistry) Get(

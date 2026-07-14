@@ -95,6 +95,7 @@ type bootState struct {
 	scheduler              *schedulerRuntime
 	coordinator            *coordinatorRuntime
 	network                networkRuntime
+	networkWakeRunner      *networkWakeRunner
 	participationResolver  participation.Resolver
 	toolRegistry           toolspkg.Registry
 	toolsets               core.ToolsetRegistry
@@ -1129,47 +1130,6 @@ func (d *Daemon) bootResourceReconcile(
 	cleanup.add(func(ctx context.Context) error {
 		return driver.Close(ctx)
 	})
-	return nil
-}
-
-func (d *Daemon) bootNetwork(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
-	if state == nil {
-		return errors.New("daemon: boot network state is required")
-	}
-	if !state.cfg.Network.Enabled {
-		return nil
-	}
-	if state.sessions == nil {
-		return errors.New("daemon: session manager is required before booting network")
-	}
-
-	bindable, ok := state.sessions.(networkBindableSessionManager)
-	if !ok {
-		return errMissingNetworkBindingSurface
-	}
-
-	manager, err := network.NewManager(
-		ctx,
-		state.cfg.Network,
-		bindable,
-		d.homePaths.NetworkAuditFile,
-		state.registry,
-		network.WithManagerLogger(state.logger),
-		network.WithManagerTaskService(state.deps.Tasks),
-		network.WithManagerHookDispatcher(state.notifier),
-	)
-	if err != nil {
-		return fmt.Errorf("daemon: create network manager: %w", err)
-	}
-
-	bindable.SetNetworkPeerLifecycle(manager)
-	bindable.SetTurnEndNotifier(manager.OnTurnEnd)
-	cleanup.add(func(ctx context.Context) error {
-		return manager.Shutdown(ctx)
-	})
-
-	state.network = manager
-	state.deps.Network = manager
 	return nil
 }
 

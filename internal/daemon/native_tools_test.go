@@ -31,6 +31,7 @@ import (
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/network/participation"
 	"github.com/compozy/agh/internal/notifications"
 	"github.com/compozy/agh/internal/observe"
 	"github.com/compozy/agh/internal/resources"
@@ -118,7 +119,11 @@ func nativeNetworkTestSessionManager(workspaceID string) apitest.StubSessionMana
 			if sessionID == "" {
 				return nil, session.ErrSessionNotFound
 			}
-			return &session.Info{ID: sessionID, WorkspaceID: workspaceID}, nil
+			return &session.Info{
+				ID:                   sessionID,
+				WorkspaceID:          workspaceID,
+				NetworkParticipation: daemonTestLiveParticipation(workspaceID, "builders"),
+			}, nil
 		},
 	}
 }
@@ -152,6 +157,36 @@ func TestDaemonNativeTools(t *testing.T) {
 				t.Fatalf("structuredNetworkResult() leaked %q: %#v", secret, result)
 			}
 		}
+	})
+
+	t.Run("Should reject coordination tools for a Local caller with not_participating", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := apitest.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) {
+				return &session.Info{
+					ID:                   "sess-local",
+					WorkspaceID:          nativeNetworkTestWorkspaceID,
+					NetworkParticipation: participation.LocalSpec(),
+				}, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Network:  apitest.StubNetworkService{},
+			Sessions: sessions,
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-local", WorkspaceID: nativeNetworkTestWorkspaceID},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDNetworkStatus},
+		)
+		requireToolReason(
+			t,
+			err,
+			toolspkg.ErrToolUnavailable,
+			toolspkg.ReasonNetworkNotParticipating,
+		)
 	})
 
 	t.Run("Should dispatch skill catalog tools through the real skill registry", func(t *testing.T) {
@@ -3592,6 +3627,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Network:      networkService,
 			NetworkStore: storeStub,
+			Sessions:     nativeNetworkTestSessionManager(nativeNetworkTestWorkspaceID),
 			Workspaces:   nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
@@ -3836,6 +3872,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 					Network:      networkService,
 					NetworkStore: apitest.StubNetworkStore{},
+					Sessions:     nativeNetworkTestSessionManager(nativeNetworkTestWorkspaceID),
 					Workspaces:   nativeNetworkTestWorkspaceService(t),
 				}, nativeApproveAllPolicyInputs())
 				_, err := registry.Call(t.Context(), tc.scope, toolspkg.CallRequest{ToolID: tc.id, Input: tc.input})
@@ -3859,6 +3896,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Network:      networkService,
 			NetworkStore: apitest.StubNetworkStore{},
+			Sessions:     nativeNetworkTestSessionManager(nativeNetworkTestWorkspaceID),
 			Workspaces:   nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 		_, err := registry.Call(
@@ -3926,21 +3964,46 @@ func TestDaemonNativeTools(t *testing.T) {
 			Workspaces: nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
-		_, err := registry.Call(
-			t.Context(),
-			toolspkg.Scope{SessionID: "sess-scope"},
-			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDNetworkSend,
-				Input: json.RawMessage(
-					`{"workspace_id":"ws-native-network","session_id":"sess-scope","channel":"default","surface":"thread","thread_id":"thread_claim_token","kind":"say","body":{"claim_token":"agh_claim_SECRET123"}}`,
+		const rawToken = "agh_claim_NATIVE_SECURITY_123"
+		tests := []struct {
+			name       string
+			input      json.RawMessage
+			wantReason toolspkg.ReasonCode
+			secret     string
+		}{
+			{
+				name: "raw claim token",
+				input: json.RawMessage(
+					`{"workspace_id":"ws-native-network","session_id":"sess-scope","channel":"default","surface":"thread","thread_id":"thread_claim_token","kind":"say","body":{"claim_token":"` + rawToken + `"}}`,
 				),
+				wantReason: toolspkg.ReasonNetworkRawTokenRejected,
+				secret:     rawToken,
 			},
-		)
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) ||
-			toolErr.Code != toolspkg.ErrorCodeInvalidInput ||
-			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonNetworkRawTokenRejected) {
-			t.Fatalf("Registry.Call(network_send) error = %#v, want network_raw_token_rejected", err)
+			{
+				name: "caller supplied verified-format identity",
+				input: json.RawMessage(
+					`{"workspace_id":"ws-native-network","session_id":"sess-scope","channel":"default","surface":"thread","thread_id":"thread_identity","kind":"say","from":"alice@39f713d0a644253f04529421b9f51b9b","body":{"text":"spoof"}}`,
+				),
+				wantReason: toolspkg.ReasonSchemaInvalid,
+			},
+		}
+		for _, test := range tests {
+			t.Run("Should reject "+test.name, func(t *testing.T) {
+				_, err := registry.Call(
+					t.Context(),
+					toolspkg.Scope{SessionID: "sess-scope"},
+					toolspkg.CallRequest{ToolID: toolspkg.ToolIDNetworkSend, Input: test.input},
+				)
+				var toolErr *toolspkg.ToolError
+				if !errors.As(err, &toolErr) ||
+					toolErr.Code != toolspkg.ErrorCodeInvalidInput ||
+					!slices.Contains(toolErr.ReasonCodes, test.wantReason) {
+					t.Fatalf("Registry.Call(network_send) error = %#v, want reason %q", err, test.wantReason)
+				}
+				if test.secret != "" && strings.Contains(err.Error(), test.secret) {
+					t.Fatalf("native validation error leaked raw credential: %v", err)
+				}
+			})
 		}
 		if networkService.sendCalls != 0 {
 			t.Fatalf("Network.Send calls = %d, want 0", networkService.sendCalls)
@@ -4031,6 +4094,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Network:      networkService,
 			NetworkStore: apitest.StubNetworkStore{},
+			Sessions:     nativeNetworkTestSessionManager("ws-1"),
 			Workspaces:   nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 		executable, err := os.Executable()
@@ -6523,11 +6587,12 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 					switch strings.TrimSpace(id) {
 					case "sess-coord":
 						return &session.Info{
-							ID:          "sess-coord",
-							AgentName:   "coordinator",
-							Type:        session.SessionTypeCoordinator,
-							State:       session.StateActive,
-							WorkspaceID: "ws-coord",
+							ID:                   "sess-coord",
+							AgentName:            "coordinator",
+							Type:                 session.SessionTypeCoordinator,
+							State:                session.StateActive,
+							WorkspaceID:          "ws-coord",
+							NetworkParticipation: daemonTestLiveParticipation("ws-coord", "ch-run-1"),
 							Lineage: &store.SessionLineage{
 								ParentSessionID: "sess-root",
 								RootSessionID:   "sess-root",

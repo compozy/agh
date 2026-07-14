@@ -49,13 +49,14 @@ func TestNetworkHandlersValidateRequestsAndMapErrors(t *testing.T) {
 	}
 
 	t.Run("Should reject raw claim tokens before sending network messages", func(t *testing.T) {
+		const rawToken = "agh_claim_UDS_SECURITY_123"
 		rawTokenResp := performRequest(
 			t,
 			engine,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/network/send",
 			[]byte(
-				`{"session_id":"sess-a","channel":"builders","kind":"say","body":{"claim_token":"agh_claim_uds"}}`,
+				`{"session_id":"sess-a","channel":"builders","kind":"say","body":{"claim_token":"`+rawToken+`"}}`,
 			),
 		)
 		if rawTokenResp.Code != http.StatusBadRequest {
@@ -69,8 +70,34 @@ func TestNetworkHandlersValidateRequestsAndMapErrors(t *testing.T) {
 		if !strings.Contains(rawTokenResp.Body.String(), "network_raw_token_rejected") {
 			t.Fatalf("raw token send body = %q, want network_raw_token_rejected", rawTokenResp.Body.String())
 		}
+		if strings.Contains(rawTokenResp.Body.String(), rawToken) {
+			t.Fatalf("raw token send response leaked credential: %s", rawTokenResp.Body.String())
+		}
 		if sendCalls != 0 {
 			t.Fatalf("Network.Send calls = %d, want 0 for invalid send requests", sendCalls)
+		}
+	})
+
+	t.Run("Should reject caller supplied verified-format identity before sending", func(t *testing.T) {
+		identityResp := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/workspaces/ws-workspace/network/send",
+			[]byte(
+				`{"session_id":"sess-a","channel":"builders","surface":"thread","thread_id":"thread_identity_rejected","kind":"say","from":"alice@39f713d0a644253f04529421b9f51b9b","body":{"text":"spoof"}}`,
+			),
+		)
+		if identityResp.Code != http.StatusBadRequest ||
+			!strings.Contains(identityResp.Body.String(), "sender identity and proof are daemon-derived") {
+			t.Fatalf(
+				"identity send status/body = %d/%s, want daemon-derived identity rejection",
+				identityResp.Code,
+				identityResp.Body.String(),
+			)
+		}
+		if sendCalls != 0 {
+			t.Fatalf("Network.Send calls = %d, want 0 for caller-supplied identity", sendCalls)
 		}
 	})
 }

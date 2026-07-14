@@ -88,6 +88,7 @@ func runtimeGateInput(
 		humanDecisions = map[string]gate.HumanDecision{}
 	}
 	return gate.GateInput{
+		LoopRunID:            string(run.ID),
 		Placement:            placement,
 		Contract:             resolved.Definition.Contract,
 		TemplateData:         namespace,

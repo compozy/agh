@@ -335,7 +335,7 @@ func TestPromptNetworkUsesNetworkInputClass(t *testing.T) {
 		}
 
 		h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
-		session := createSession(t, h)
+		session := createLiveNetworkSession(t, h)
 		t.Cleanup(func() {
 			_ = h.manager.Stop(testutil.Context(t), session.ID)
 		})

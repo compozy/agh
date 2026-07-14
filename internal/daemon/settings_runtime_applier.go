@@ -15,6 +15,7 @@ type daemonSettingsRuntimeApplier struct {
 	daemon              *Daemon
 	state               *bootState
 	networkAvailability store.NetworkAvailabilityStore
+	networkWakeRunner   interface{ SetNetworkEnabled(bool) }
 }
 
 func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
@@ -45,6 +46,12 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 			"Network availability sync failed",
 		); failure != nil {
 			return a.rollbackRuntimeDependencies(ctx, &previous, []settingspkg.ApplyFailure{*failure})
+		}
+		if a.networkWakeRunner != nil {
+			a.networkWakeRunner.SetNetworkEnabled(next.Network.Enabled)
+		}
+		if networkRuntime, ok := a.state.network.(interface{ SetEnabled(bool) }); ok {
+			networkRuntime.SetEnabled(next.Network.Enabled)
 		}
 	}
 

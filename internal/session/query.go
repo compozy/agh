@@ -422,6 +422,7 @@ func sessionInfoFromMeta(meta store.SessionMeta) *Info {
 		ReasoningEffort:      strings.TrimSpace(meta.ReasoningEffort),
 		WorkspaceID:          meta.WorkspaceID,
 		NetworkParticipation: meta.NetworkSpecSnapshot(),
+		NetworkOwnerKey:      meta.NetworkOwnerKeySnapshot(),
 		Type:                 normalizeSessionType(Type(meta.SessionType)),
 		Lineage:              store.NormalizeSessionLineage(meta.ID, meta.Lineage),
 		State:                State(meta.State),
