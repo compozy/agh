@@ -73,6 +73,8 @@ export {
   createLoopTargetJobDraft,
   createLoopTargetTriggerDraft,
   emptyLoopTarget,
+  bindLoopTargetWorkspace,
+  loopTargetWorkspaceId,
   normalizeAutomationRetry,
   retryDraftForStrategy,
   setJobTargetMode,

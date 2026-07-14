@@ -4,10 +4,12 @@ import {
   automationJobToDraft,
   automationTargetMode,
   automationTriggerToDraft,
+  bindLoopTargetWorkspace,
   createAutomationJobDraft,
   createAutomationTriggerDraft,
   emptyJobTask,
   jobOutputMode,
+  loopTargetWorkspaceId,
   normalizeAutomationRetry,
   retryDraftForStrategy,
   setJobTargetMode,
@@ -212,5 +214,31 @@ describe("automation target mode helpers", () => {
     expect(job.target_kind).toBe("loop");
     expect(job.loop_target).toMatchObject({ workspace_id: "ws_alpha", loop_name: "" });
     expect(setJobTargetMode(job, "agent").loop_target).toBeUndefined();
+  });
+
+  it("Should resolve one authoritative Loop workspace from scope and explicit target state", () => {
+    const loopDraft = setJobTargetMode(createAutomationJobDraft("ws_alpha"), "loop");
+    const workspaceDraft = {
+      ...loopDraft,
+      loop_target: { ...loopDraft.loop_target!, workspace_id: "ws_stale" },
+    };
+    expect(loopTargetWorkspaceId(workspaceDraft, "ws_fallback")).toBe("ws_alpha");
+
+    const globalDraft = { ...workspaceDraft, scope: "global" as const, workspace_id: undefined };
+    expect(loopTargetWorkspaceId(globalDraft, "ws_fallback")).toBe("ws_stale");
+    expect(loopTargetWorkspaceId({ ...globalDraft, loop_target: undefined }, "ws_fallback")).toBe(
+      "ws_fallback"
+    );
+  });
+
+  it("Should bind only an existing Loop target branch", () => {
+    const agentJob = createAutomationJobDraft("ws_alpha");
+    expect(bindLoopTargetWorkspace(agentJob, "ws_beta")).toBe(agentJob);
+
+    const loopJob = setJobTargetMode(agentJob, "loop");
+    expect(bindLoopTargetWorkspace(loopJob, "ws_beta")).toMatchObject({
+      workspace_id: "ws_alpha",
+      loop_target: { workspace_id: "ws_beta" },
+    });
   });
 });

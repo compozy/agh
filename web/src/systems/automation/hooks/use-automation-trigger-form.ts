@@ -9,10 +9,10 @@ import {
 
 import {
   automationTargetMode,
-  bindTriggerLoopWorkspace,
+  bindLoopTargetWorkspace,
   retryDraftForStrategy,
   setTriggerTargetMode,
-  triggerLoopWorkspaceId,
+  loopTargetWorkspaceId,
   type AutomationTargetMode,
 } from "../lib/automation-drafts";
 import {
@@ -108,7 +108,7 @@ export function useAutomationTriggerForm({
     inputs: {},
     input_mapping: {},
   };
-  const loopWorkspaceId = triggerLoopWorkspaceId(draft, activeWorkspaceId);
+  const loopWorkspaceId = loopTargetWorkspaceId(draft, activeWorkspaceId);
   const requiredStartKind: LoopAutomationStartKind = isWebhook ? "webhook" : "trigger";
   const loopCatalog = useLoopTargetCatalog(
     loopWorkspaceId,
@@ -146,7 +146,7 @@ export function useAutomationTriggerForm({
     const fallback = draft.workspace_id ?? activeWorkspaceId ?? resolvedWorkspaces[0]?.id;
     const workspaceId = fallback ?? "";
     onChange(
-      bindTriggerLoopWorkspace(
+      bindLoopTargetWorkspace(
         { ...draft, scope: "workspace", workspace_id: workspaceId || undefined },
         workspaceId
       )
@@ -223,7 +223,7 @@ export function useAutomationTriggerForm({
     onName: (name: string) => patch({ name }),
     onScopeChange: handleScopeChange,
     onWorkspaceChange: (workspace_id: string) =>
-      onChange(bindTriggerLoopWorkspace({ ...draft, workspace_id }, workspace_id)),
+      onChange(bindLoopTargetWorkspace({ ...draft, workspace_id }, workspace_id)),
     onSelectEvent: handleSelectEvent,
     onSubConfigChange: handleSubConfigChange,
     onFilterChange: (filter: AutomationTriggerFilter) => patch({ filter }),

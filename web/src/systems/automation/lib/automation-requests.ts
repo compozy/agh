@@ -43,12 +43,29 @@ export function normalizeAutomationSchedule(
   };
 }
 
+type LoopTargetRequest = Pick<
+  CreateAutomationTriggerRequest,
+  "loop_target" | "scope" | "target_kind" | "workspace_id"
+>;
+
+function normalizedAutomationLoopTarget(draft: LoopTargetRequest) {
+  if (automationTargetMode(draft) !== "loop" || !draft.loop_target) {
+    return draft.loop_target;
+  }
+  return {
+    ...draft.loop_target,
+    workspace_id:
+      draft.scope === "workspace" ? (draft.workspace_id ?? "") : draft.loop_target.workspace_id,
+  };
+}
+
 /** Exact Job request normalization shared by displayed preview and route submission. */
 export function buildAutomationJobRequest(
   draft: CreateAutomationJobRequest
 ): CreateAutomationJobRequest {
   return {
     ...draft,
+    loop_target: normalizedAutomationLoopTarget(draft),
     retry: normalizeAutomationRetry(draft.retry ?? undefined),
     schedule: normalizeAutomationSchedule(draft.schedule),
   };
@@ -58,20 +75,9 @@ export function buildAutomationJobRequest(
 export function buildAutomationTriggerRequest(
   draft: CreateAutomationTriggerRequest
 ): CreateAutomationTriggerRequest {
-  const loopTarget =
-    automationTargetMode(draft) === "loop" && draft.loop_target
-      ? {
-          ...draft.loop_target,
-          workspace_id:
-            draft.scope === "workspace"
-              ? (draft.workspace_id ?? "")
-              : draft.loop_target.workspace_id,
-        }
-      : draft.loop_target;
-
   return {
     ...draft,
-    loop_target: loopTarget,
+    loop_target: normalizedAutomationLoopTarget(draft),
     retry: normalizeAutomationRetry(draft.retry ?? undefined),
   };
 }

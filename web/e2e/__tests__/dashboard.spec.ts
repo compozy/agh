@@ -5,6 +5,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
+import type { Page } from "@playwright/test";
+
 import { sessionLifecycleTestIds } from "../fixtures/selectors";
 import { reloadDaemonServedPage } from "../fixtures/navigation";
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
@@ -304,7 +306,7 @@ test("workspace-scoped Dashboard metrics change when the active workspace change
 
   await useGlobalWorkspaceIfPrompted(workspaceShell(appPage));
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
-  await appPage.getByTestId(`workspace-avatar-${beta.id}`).click();
+  await selectDashboardWorkspace(appPage, beta.id);
 
   const betaSnapshot = await captureDashboardSnapshot(runtime, beta);
   const betaActiveSessions = betaSnapshot.sessions.sessions.filter(session =>
@@ -320,7 +322,7 @@ test("workspace-scoped Dashboard metrics change when the active workspace change
   );
   await expect(appPage.getByTestId("home-metric-active-sessions")).toContainText(`in ${beta.name}`);
 
-  await appPage.getByTestId(`workspace-avatar-${alpha.id}`).click();
+  await selectDashboardWorkspace(appPage, alpha.id);
   const alphaSnapshot = await captureDashboardSnapshot(runtime, alpha);
   const alphaActiveSessions = alphaSnapshot.sessions.sessions.filter(session =>
     activeSessionStates.has(session.state)
@@ -337,6 +339,13 @@ test("workspace-scoped Dashboard metrics change when the active workspace change
     `in ${alpha.name}`
   );
 });
+
+async function selectDashboardWorkspace(appPage: Page, workspaceID: string): Promise<void> {
+  const switcher = appPage.getByTestId("workspace-switcher");
+  await switcher.click();
+  await appPage.getByTestId(`workspace-command-item-${workspaceID}`).click();
+  await expect(switcher).toHaveAttribute("aria-expanded", "false");
+}
 
 async function prepareDashboardRuntime(runtime: BrowserRuntime): Promise<WorkspacePayload> {
   if (!runtime.paths?.homeDir) {

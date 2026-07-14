@@ -207,6 +207,50 @@ describe("AutomationJobForm", () => {
     expect(select).not.toHaveTextContent("reviews-watch");
   });
 
+  it("Should preserve the explicit Loop workspace when a Job becomes global", () => {
+    const { onChange } = renderJobForm();
+
+    fireEvent.click(screen.getByTestId("job-scope-global"));
+    fireEvent.click(screen.getByTestId("job-target-loop"));
+    fireEvent.change(screen.getByTestId("loop-target-select"), {
+      target: { value: "software-delivery" },
+    });
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        scope: "global",
+        workspace_id: undefined,
+        loop_target: expect.objectContaining({
+          workspace_id: WORKSPACE_ID,
+          loop_name: "software-delivery",
+        }),
+      })
+    );
+    expect(screen.getByTestId("automation-request-payload")).toHaveTextContent(
+      `"workspace_id": "${WORKSPACE_ID}"`
+    );
+  });
+
+  it("Should atomically rebind a workspace Job and its Loop target", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderJobForm();
+
+    fireEvent.click(screen.getByTestId("job-target-loop"));
+    await user.click(screen.getByTestId("job-workspace-select"));
+    await user.click(screen.getByTestId("job-workspace-item-ws_beta"));
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        scope: "workspace",
+        workspace_id: "ws_beta",
+        loop_target: expect.objectContaining({ workspace_id: "ws_beta" }),
+      })
+    );
+    expect(screen.getByTestId("automation-request-payload")).toHaveTextContent(
+      '"workspace_id": "ws_beta"'
+    );
+  });
+
   it("Should preserve an incompatible edit target while blocking its preview and submit", () => {
     const { onSubmit } = renderJobForm({
       mode: "edit",

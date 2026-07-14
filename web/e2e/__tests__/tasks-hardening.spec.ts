@@ -631,8 +631,8 @@ test("task detail renders blocked_reasons chips for dependency, approval, and bl
 // SSE frame — isolating the SSE round-trip from the acting tab's own invalidation.
 test("task detail exposes the needs_attention badge and a Recover action that clears it live", async ({
   appPage,
+  browser,
   browserArtifacts,
-  context,
   runtime,
 }) => {
   const ui = tasksOperatorSelectors(appPage);
@@ -657,11 +657,11 @@ test("task detail exposes the needs_attention badge and a Recover action that cl
   await expect(recover).toBeVisible();
   await browserArtifacts.captureScreenshot("tasks-needs-attention-badge", appPage);
 
-  // Observer tab on the same task in the same context. It never issues the
-  // recover mutation, so its badge can only clear through the live
-  // `task.recovered` SSE frame — isolating the SSE path from the acting tab's
-  // own query invalidation.
-  const observerPage = await context.newPage();
+  // The observer never issues the mutation, so its badge can only clear from
+  // the live `task.recovered` frame. Its independent browser context avoids
+  // sharing the six-connection HTTP/1.1 pool with the acting page's three SSEs.
+  const observerContext = await browser.newContext();
+  const observerPage = await observerContext.newPage();
   try {
     const observerStreamReady = observerPage.waitForResponse(response => {
       const url = new URL(response.url());
@@ -690,7 +690,7 @@ test("task detail exposes the needs_attention badge and a Recover action that cl
     await expect(recover).toBeHidden();
     await expect(observerBadge).toBeHidden();
   } finally {
-    await observerPage.close();
+    await observerContext.close();
   }
 
   await expect
