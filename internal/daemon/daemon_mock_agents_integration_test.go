@@ -18,6 +18,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/agh/internal/acp"
 	aghcontract "github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
 	eventspkg "github.com/compozy/agh/internal/events"
 	mcppkg "github.com/compozy/agh/internal/mcp"
 	"github.com/compozy/agh/internal/store/globaldb"
@@ -122,7 +123,17 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		})
 	}
 
-	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{MockAgents: specs})
+	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *aghconfig.Config) {
+			for _, providerName := range []string{"claude", "codex"} {
+				provider := cfg.Providers[providerName]
+				provider.AuthMode = aghconfig.ProviderAuthModeNone
+				provider.NoneSecurity = aghconfig.ProviderNoneSecurityLocalTransport
+				cfg.Providers[providerName] = provider
+			}
+		}},
+		MockAgents: specs,
+	})
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	// not parallel: subtests share one runtime harness and per-agent diagnostics files.

@@ -811,9 +811,7 @@ func mergeProvider(base ProviderConfig, override ProviderConfig) ProviderConfig 
 	if strings.TrimSpace(override.BaseURL) != "" {
 		merged.BaseURL = override.BaseURL
 	}
-	if override.AuthMode != "" {
-		merged.AuthMode = override.AuthMode
-	}
+	applyProviderAuthModeOverride(&merged, override)
 	if override.EnvPolicy != "" {
 		merged.EnvPolicy = override.EnvPolicy
 	}
