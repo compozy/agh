@@ -213,7 +213,7 @@ For a long-lived bridge, terminate TLS at a stable domain and reverse-proxy only
 provider paths. This Caddy example keeps every provider listener on loopback and preserves the full
 request path:
 
-```caddyfile
+```text
 bridge.example.com {
   @slack path /slack /slack/*
   reverse_proxy @slack 127.0.0.1:18081
