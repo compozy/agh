@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-24
 expected: Job and trigger modals create valid Loop-target definitions, updates survive refresh, write-only webhook secrets are redacted from the request preview, disabled definitions do not fire, re-enabled definitions fire one real Loop run, and deletion removes only the chosen dynamic definition.
 entry_points: web /jobs; web /triggers; web Loop Start bindings
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260713-loop-automation-shown-as-agent;BUG-20260713-loop-automation-start-mismatch-late;BUG-20260713-automation-delete-no-confirmation;BUG-20260713-workspace-trigger-loop-submit-inert;BUG-20260713-loop-watch-poll-error-stuck
 fix_status: fixed
 retest_status: pass
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-automation-loop-job-target-fixed.dom.txt;/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-automation-loop-job-history-fixed.dom.txt;/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-automation-job-delete-confirmation-fixed.dom.txt;/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-automation-trigger-workspace-loop-fixed-created-final.dom.txt;/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/ch-trigger-system-stop-dispatch.dom.txt;/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/trigger-loop-generation-zero-dispatch.dom.txt;/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/trigger-deleted-after-generation-zero-proof.dom.txt;/Users/pedronauck/dev/qa-labs/agh-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/trigger-loop-generation-zero-replay-0714.dom.txt
-last_report: docs/qa/reports/2026-07-13-automation-features.md
+last_report: docs/qa/reports/2026-07-14-consumer-saas-growth.md
 overlaps: LP-034;TA-065
 ---
 
@@ -29,3 +29,7 @@ Exercise schedule and event trigger types plus invalid/empty payload mappings.
 2026-07-14 fresh control: a newly created workspace Trigger matched one real stopped user session and delegated one Loop run. It terminalized at generation zero with the typed watch-source cause/recovery before the first refresh, stayed terminal after reload, and both disposable Trigger and session were deleted through their modals.
 
 QA impact 2026-07-14: the Trigger request preview now redacts write-only webhook secret values while preserving the submitted draft. Planning update only; reset to untested without a QA replay.
+
+QA impact 2026-07-14: Job Loop-target catalog lookup, scope transitions, validation, preview, and submission now share one workspace resolver. Reset remains untested pending global-explicit and workspace-rebind Browser controls.
+
+2026-07-14 final-worktree control: global and workspace Jobs preserved Loop targets and typed inputs across create/read/update/list/delete; a mismatched workspace target was rejected. The complete Web E2E gate also passed typed Job and Trigger deletion. Retest promoted to pass.

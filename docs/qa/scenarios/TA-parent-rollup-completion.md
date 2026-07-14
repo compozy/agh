@@ -11,8 +11,8 @@ bug_ids: BUG-20260713-parent-task-rollup-missing
 fix_status: fixed
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/agh71-parent-after-first-child.dom.txt;/Users/pedronauck/dev/qa-labs/agh-automation-features-20260713-20260713-044543-173594-lab/qa-artifacts/qa/screenshots/agh71-all-children-completed-parent-stuck.dom.txt;/Users/pedronauck/dev/qa-labs/agh-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/agh71-faithful-parent-run.dom.txt;/Users/pedronauck/dev/qa-labs/agh-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/screenshots/agh71-faithful-parent-children.dom.txt
-last_report: docs/qa/reports/2026-07-13-automation-features.md
+evidence: /Users/pedronauck/dev/qa-labs/agh-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/task-rollup/; /Users/pedronauck/dev/qa-labs/agh-consumer-saas-growth-20260714-194637-422214-lab/qa-artifacts/qa/screenshots/task-parent-rollup-completed.png
+last_report: docs/qa/reports/2026-07-14-consumer-saas-growth.md
 overlaps: LP-042;TA-012
 ---
 
@@ -21,3 +21,7 @@ Linear issue AGH-71 is the named regression target.
 2026-07-13: Owner clearing, recovery, task-role activation, and exactly-once child completion are fixed and passed. An earlier child correctly left the parent non-terminal, but after the final two real Cursor completions all three children are Completed while the parent remains Ready / Needs Attention. This is the direct AGH-71 failure.
 
 2026-07-14 retest: fresh parent `task-a2b46ce593b5e75b` had no bound session and stayed nonterminal after child A. Child B's one real completion atomically settled the existing parent run and Task. Reload plus the Children tab showed one Completed parent run and both children Completed. AGH-71 passes; the separately tracked matching-Loop wake remains pending.
+
+QA impact 2026-07-14: post-commit settlement publication now uses a bounded detached context and attempts parent completion effects after reconciliation errors. Reset pending a final-worktree replay.
+
+2026-07-14 final-worktree control: the parent remained nonterminal before child C completed, then fresh reads showed one completed parent transition after the final child settlement. Retest promoted to pass.

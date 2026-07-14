@@ -45,6 +45,8 @@ Clear correctly revokes the active session Goal and records `goal_control_revoke
 - The Goal disappeared, the judge settled `stopped/user_canceled`, active system-session count returned to zero, and the Run retained generation 1 with no successor. Run detail rendered `goal_control_revoked_in_flight` as “Goal control revoked the in-flight turn.” with recovery “Start a new Goal to continue the objective.”
 - Evidence: `/Users/pedronauck/dev/qa-labs/agh-automation-features-post-onboarding-fix-20260713-20260713-203513-816377-lab/qa-artifacts/qa/network/catalog-global-goal-acceptance.json`, `qa/screenshots/goal-clear-typed-third-during-judge-before.png`, `qa/screenshots/goal-clear-typed-third-after.png`, and `qa/screenshots/goal-clear-typed-run-detail.png` in the same lab.
 
-## Re-found (2026-07-13)
+## Intermediate re-find (2026-07-13; superseded by the final replay above)
 
 Clear was invoked while the second live judge was active for `looprun-e6830bc6fd4a086f`. The button remained Loading, Pause stayed disabled, and turn 3 was admitted and dispatched after the Clear request. That continuation performed multiple Goal/Loop tool calls while the control remained pending. Even after `Stop generation` made the sessions idle/stopped, the connected Goal chip stayed active with Clear still Loading; reconnecting the permalink timed out. The typed historical failure projection cannot be accepted because the earlier control invariant is violated: Clear did not fence the successor turn or converge the live UI.
+
+This intermediate failure reopened the bug and drove the later final real-provider replay documented in Verification. That later replay is the historical basis for `Status: verified`; the rebased judge-routing change resets GL-019 to `untested` until a new final-worktree replay.
