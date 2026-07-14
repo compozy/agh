@@ -25,7 +25,7 @@ Two independent AGH-71 child runs reproduced the same behavior. This blocks real
 3. Open the agent's Sessions tab and the new `task-role:general:coord-run-*` session.
 4. Inspect the task run after repeated scheduler cycles and then after the session TTL.
 
-**Expected:** Once the Cursor ACP transport connects, AGH starts a turn using the task-role prompt overlay. The worker calls `agh task next --wait -o json`, claims and attaches the queued run, and completes or fails it through the lease contract. If startup fails, the run and session surface an actionable typed cause promptly.  
+**Expected:** Once the Cursor ACP transport connects, AGH starts a turn using the task-role prompt overlay. The worker calls `agh task next --wait -o json`, claims and attaches the queued run, and completes or fails it through the lease contract. If startup fails, the run and session surface an actionable typed cause promptly.
 **Actual:** Session `sess-fbc0f0f9edf012ea` connected in about 4.2 seconds and logged `daemon: starvation worker spawned`, but its ledger contains only `session.post_create`; no prompt, agent turn, or tool call exists. Run `run-0dc2db2a608bf620` stayed queued/unbound, and the session ended only as `spawn_reaper:ttl_expired`. Session `sess-c6d3ba0f7edea93b` reproduced the same outcome for the second child.
 
 ## Evidence

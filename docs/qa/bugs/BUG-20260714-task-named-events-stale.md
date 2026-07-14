@@ -20,7 +20,7 @@ The Task detail EventSource listened to only part of the durable Task stream voc
 3. Observe whether the detail renders the paused state and reason without reload.
 4. Resume the Task through the same agent-operable surface and observe the inverse transition.
 
-**Expected:** Every persisted named Task event wakes the owning detail cache; pause and resume appear immediately without reload.  
+**Expected:** Every persisted named Task event wakes the owning detail cache; pause and resume appear immediately without reload.
 **Actual:** Event families missing from `TASK_STREAM_EVENT_TYPES` never reached the Web handler, so their durable state could remain stale.
 
 ## Fix
@@ -36,4 +36,3 @@ The Task detail EventSource listened to only part of the durable Task stream voc
 - Browser Task `task-5a7465009a4f277a` remained open while UDS-backed `agh task pause` emitted sequence 385. The page rendered `Paused`, the exact reason, and `Resume` in 380 ms without reload.
 - UDS-backed `agh task resume` emitted sequence 386. The same page removed the paused reason and restored `Pause` in 322 ms without reload.
 - The Task's pending run was canceled through the UI and the named Delete modal then removed the Task with `Task deleted.`
-

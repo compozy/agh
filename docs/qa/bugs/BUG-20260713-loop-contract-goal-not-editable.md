@@ -19,7 +19,7 @@ The workspace Loop builder can add and configure a graph `goal` action, but it e
 3. Open Configure and inspect the structural-boundary explanation.
 4. Try to clear or replace the contract goal and definition of done.
 
-**Expected:** The writable builder exposes contract goal and definition-of-done authoring, including an intentional way to clear an optional goal, validates it with the shared linter, and publishes it under CAS.  
+**Expected:** The writable builder exposes contract goal and definition-of-done authoring, including an intentional way to clear an optional goal, validates it with the shared linter, and publishes it under CAS.
 **Actual:** Only graph nodes are editable; the contract is visible only in read-only DSL/detail/run projections.
 
 ## Evidence

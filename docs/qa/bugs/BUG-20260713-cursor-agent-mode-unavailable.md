@@ -23,7 +23,7 @@ Bruno successfully started Cursor with Grok 4.5 and asked it to inspect existing
 3. Observe the provider response and inspect the session/runtime controls.
 4. Assign a queued Task to the same exact session and ask it to claim/complete via AGH tools.
 
-**Expected:** A session intended for agent work starts in a writable mode or exposes the provider's supported mode selector before/after creation.  
+**Expected:** A session intended for agent work starts in a writable mode or exposes the provider's supported mode selector before/after creation.
 **Actual:** Cursor reports that Ask mode prevents the requested write and tells the user to switch modes, but AGH offers no such control.
 
 ## Evidence

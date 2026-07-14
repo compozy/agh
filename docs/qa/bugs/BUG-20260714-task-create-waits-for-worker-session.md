@@ -20,7 +20,7 @@ Creating an already-ready Task assigned to the `general` pool left the creation 
 3. Submit the form while Cursor/Grok 4.5 is the configured runtime.
 4. Observe route navigation and correlate the Task/run requests with session provisioning.
 
-**Expected:** Durable Task and run creation return immediately; the Task detail opens while worker activation continues and reports waiting/running truthfully.  
+**Expected:** Durable Task and run creation return immediately; the Task detail opens while worker activation continues and reports waiting/running truthfully.
 **Actual:** `POST /api/tasks/:id/runs` held its 201 response until the worker session was fully provisioned, keeping the Browser on `/tasks/new` for about 20 seconds.
 
 ## Evidence

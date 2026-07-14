@@ -20,7 +20,7 @@ The Delete session modal promised to remove the transcript and history, but ever
 3. Open the stopped session and confirm Delete session.
 4. Retry through the public session DELETE endpoint.
 
-**Expected:** The stopped session, transcript/catalog truth, permission history, and token statistics are removed atomically; unrelated sessions remain intact.  
+**Expected:** The stopped session, transcript/catalog truth, permission history, and token statistics are removed atomically; unrelated sessions remain intact.
 **Actual:** Both the UI and HTTP endpoint returned 500 with a SQLite foreign-key violation.
 
 ## Evidence

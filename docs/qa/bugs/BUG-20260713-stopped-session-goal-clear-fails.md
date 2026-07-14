@@ -20,7 +20,7 @@ A durable blocked Goal remains attached when its owning session is stopped, and 
 3. Click `Clear goal`.
 4. Observe the toast and reload the Goal status.
 
-**Expected:** An exposed Clear control durably clears the attached Goal regardless of the stopped runtime process, or the UI truthfully withholds the control and presents the supported recovery action.  
+**Expected:** An exposed Clear control durably clears the attached Goal regardless of the stopped runtime process, or the UI truthfully withholds the control and presents the supported recovery action.
 **Actual:** The control calls the active-session path, returns `session is not active ... (stopped)`, and leaves the Goal blocked and attached.
 
 ## Evidence

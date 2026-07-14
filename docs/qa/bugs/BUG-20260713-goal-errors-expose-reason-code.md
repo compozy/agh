@@ -19,7 +19,7 @@ Bare `/goal` and an oversized objective are rejected without side effects, but t
 2. Submit a `/goal` objective longer than the supported maximum.
 3. Inspect each chat error and confirm no Goal Run or snapshot is created.
 
-**Expected:** The UI explains what is wrong, how to recover, and the relevant limit while preserving a stable machine reason code outside the primary message.  
+**Expected:** The UI explains what is wrong, how to recover, and the relevant limit while preserving a stable machine reason code outside the primary message.
 **Actual:** The entire user-facing message is the raw underscore-delimited reason code.
 
 ## Evidence

@@ -22,7 +22,7 @@ After the daemon returned HTTP 201 and the destination session route/composer wa
 2. Select Cursor Agent and `Grok 4.5 (High, Fast)`.
 3. Click `Start session` once and measure the POST, route readiness, composer readiness, and dialog lifetime separately.
 
-**Expected:** Pending feedback remains visible while ACP startup is genuinely in flight. After HTTP 201, the dialog releases its overlay/focus trap before destination navigation begins and does not remount while route loaders settle.  
+**Expected:** Pending feedback remains visible while ACP startup is genuinely in flight. After HTTP 201, the dialog releases its overlay/focus trap before destination navigation begins and does not remount while route loaders settle.
 **Actual before fix:** The daemon returned HTTP 201 in 5.255 seconds and the session route/composer existed at 5.545 seconds, but the blocking modal remained until 22.940 seconds.
 
 ## Evidence

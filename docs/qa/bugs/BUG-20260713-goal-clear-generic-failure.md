@@ -20,7 +20,7 @@ Clear correctly revokes the active session Goal and records `goal_control_revoke
 3. Click `Clear goal` while that continuation is in flight.
 4. Open the historical Run and compare its top-level failure alert with the Goal turn timeline.
 
-**Expected:** Clear settles exactly once, cancels the in-flight work, and projects the durable control-revocation cause plus actionable recovery without implying an unexpected infrastructure failure.  
+**Expected:** Clear settles exactly once, cancels the in-flight work, and projects the durable control-revocation cause plus actionable recovery without implying an unexpected infrastructure failure.
 **Actual:** The session Goal disappears and the turn records `goal_control_revoked_in_flight`, but the Run-level alert is a generic action failure.
 
 ## Evidence

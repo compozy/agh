@@ -23,7 +23,7 @@ Two live Cursor/Grok 4.5 user sessions were running simultaneously in the launch
 3. Use the launch-workspace return link. Confirm its exact session ID, title, and reciprocal `bench-ops` badge.
 4. Click the `bench-ops` return link.
 
-**Expected:** The workspace selection, session permalink, banner identity, transcript, and loading lifecycle reconcile to `sess-40e90687024bfb24`; the page remains responsive.  
+**Expected:** The workspace selection, session permalink, banner identity, transcript, and loading lifecycle reconcile to `sess-40e90687024bfb24`; the page remains responsive.
 **Actual:** The URL and selected workspace become `bench-ops` / `sess-40e90687024bfb24`, while the banner keeps the launch-workspace title from `sess-5ec18f5f2a13fe16`; `main` remains `Loading` for more than 12 seconds and subsequent reload/navigation commands hang.
 
 ## Evidence

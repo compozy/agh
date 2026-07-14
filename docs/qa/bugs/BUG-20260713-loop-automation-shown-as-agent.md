@@ -25,7 +25,7 @@ Bruno created a Job from `software-delivery`'s Add schedule action, with `Run lo
 5. Choose Run now and inspect the Loop Runs catalog.
 6. Open Create trigger, select `Run loop` and `software-delivery`, and inspect its Live preview.
 
-**Expected:** Every create/edit/detail/read surface labels the target as Loop, names `software-delivery`, shows the typed input mapping, and correlates delegated automation runs with their `loop_run_id`.  
+**Expected:** Every create/edit/detail/read surface labels the target as Loop, names `software-delivery`, shows the typed input mapping, and correlates delegated automation runs with their `loop_run_id`.
 **Actual:** Preview/detail surfaces describe an agent with empty agent/prompt and omit Loop target fields, while the runtime still delegates to `looprun-aeb24d4f17cf1feb`.
 
 ## Evidence

@@ -25,7 +25,7 @@ Webhook correctly forces Global scope and explains that constraint. Switching ba
 5. Inspect the live Loop target and normalized request.
 6. Activate the enabled Create trigger action once and inspect the list/modal/log surfaces.
 
-**Expected:** A workspace-scoped Trigger binds its Loop target to the selected workspace. Preview and request agree, and enabled submit either creates the Trigger or exposes an actionable error. Global/webhook semantics remain distinct.  
+**Expected:** A workspace-scoped Trigger binds its Loop target to the selected workspace. Preview and request agree, and enabled submit either creates the Trigger or exposes an actionable error. Global/webhook semantics remain distinct.
 **Actual:** The first replay reported `Not selected`, an empty nested workspace, and a silent no-op; the intermediate Web-only repair reached HTTP 500. After the complete fix, one UI submission created `qa-workspace-loop-trigger-fixed`. Fresh detail reads show `session.stopped`, `data.session_type=system`, `reviews-watch`, `ws_06366aad69887872`, `{ "pr": 2 }`, ENABLED, and zero runs before its first matching event.
 
 ## Evidence

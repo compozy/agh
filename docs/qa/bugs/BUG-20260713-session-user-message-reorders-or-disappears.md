@@ -22,7 +22,7 @@ All authored user messages could lose their original position while the live tra
 5. Reload the exact session permalink.
 6. Compare the authored inputs, response order, and durable transcript.
 
-**Expected:** Every authored user message renders exactly once, remains immediately before the work it initiated, and survives reconciliation and reload with its exact text.  
+**Expected:** Every authored user message renders exactly once, remains immediately before the work it initiated, and survives reconciliation and reload with its exact text.
 **Actual:** Ordinary user messages temporarily duplicated and moved after their responses. The `/goal` message also moved after its response, then disappeared on reload.
 
 ## Evidence

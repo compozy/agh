@@ -22,7 +22,7 @@ Lea submitted a valid plain `/goal` objective from a live Cursor/Grok session. N
 2. Submit `/goal Produce a complete launch go/no-go decision with evidence ...`.
 3. Observe the inline result and inspect the session for an active Goal chip/Run.
 
-**Expected:** A valid objective starts one session-scoped Goal with the configured canonical judge, or a typed failure identifies the unavailable judge/configuration and gives a concrete recovery with no side effect.  
+**Expected:** A valid objective starts one session-scoped Goal with the configured canonical judge, or a typed failure identifies the unavailable judge/configuration and gives a concrete recovery with no side effect.
 **Actual:** The composer renders only `goal_judge_unavailable`; no Goal begins and the operator cannot determine how to recover.
 
 ## Evidence

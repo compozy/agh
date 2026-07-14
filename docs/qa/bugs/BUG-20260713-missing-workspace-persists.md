@@ -26,7 +26,7 @@ Bruno registered the lab-owned `ghost-prune-probe` folder through the Add worksp
 6. Switch to another valid workspace and refresh again.
 7. Read `GET /api/workspaces` and the removed workspace by ID.
 
-**Expected:** The next reconciliation prunes the missing registration, selects a valid fallback workspace, removes the ghost from all public catalogs, and makes an old selection recover without manual deletion.  
+**Expected:** The next reconciliation prunes the missing registration, selects a valid fallback workspace, removes the ghost from all public catalogs, and makes an old selection recover without manual deletion.
 **Actual:** The active workspace fails with `workspace root directory no longer exists`; manual switching recovers the dashboard, but `ghost-prune-probe` remains in the switcher, the count remains four, `GET /api/workspaces` retains `ws_73db983811b21119`, and its direct read returns HTTP 410.
 
 ## Evidence

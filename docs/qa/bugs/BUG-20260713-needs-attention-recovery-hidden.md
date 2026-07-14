@@ -22,7 +22,7 @@ Activating `Start run` does not create a continuation because the needs-attentio
 3. Return to the Task detail and inspect the active run plus primary action.
 4. Activate `Start run`, then inspect the run count and active run again.
 
-**Expected:** The Task and run details expose one `Recover` action for the active needs-attention run. Recovery terminalizes that run and queues one continuation, with pending/idempotent feedback.  
+**Expected:** The Task and run details expose one `Recover` action for the active needs-attention run. Recovery terminalizes that run and queues one continuation, with pending/idempotent feedback.
 **Actual:** Neither detail exposes `Recover`. Task detail shows an ineffective `Start run`; the existing run remains active and no continuation is created.
 
 ## Evidence

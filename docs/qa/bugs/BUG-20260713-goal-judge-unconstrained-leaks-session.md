@@ -20,7 +20,7 @@ The command judge for a session-origin Goal runs as an unrestricted `general` Cu
 3. Observe the agent command-judge session and its transcript/tool activity.
 4. Repeat once after Resume and inspect the agent live-session list after both criteria finish.
 
-**Expected:** Each judge attempt has a verdict-only contract, no unrelated tool capability, one schema-valid JSON result or one bounded typed failure, and mandatory temporary-session cleanup on every terminal path.  
+**Expected:** Each judge attempt has a verdict-only contract, no unrelated tool capability, one schema-valid JSON result or one bounded typed failure, and mandatory temporary-session cleanup on every terminal path.
 **Actual:** Both judge sessions performed broad workspace/tool work, produced malformed output, and remained system/ACTIVE.
 
 ## Evidence

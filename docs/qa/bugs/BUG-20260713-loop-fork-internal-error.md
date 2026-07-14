@@ -23,8 +23,8 @@ Bruno clicked `Fork & edit` on the bundled read-only `software-delivery` Loop. T
 3. Click `Fork & edit`.
 4. Observe the page and refresh the Loops catalog independently.
 
-**Expected:** AGH atomically creates a workspace-owned fork and opens it in the builder so the graph/contract can be edited and published under CAS without mutating the bundled source.  
-**Actual (initial):** `POST /api/workspaces/:workspace_id/loops` returned HTTP 500 in 3 ms; the page stayed on the read-only Loop and exposed only `Internal Server Error`.  
+**Expected:** AGH atomically creates a workspace-owned fork and opens it in the builder so the graph/contract can be edited and published under CAS without mutating the bundled source.
+**Actual (initial):** `POST /api/workspaces/:workspace_id/loops` returned HTTP 500 in 3 ms; the page stayed on the read-only Loop and exposed only `Internal Server Error`.
 **Actual (first-fix replay):** `reviews-watch` forked into `/loops/reviews-watch/editor`; a valid Watch spec edit passed validation, but Publish rejected the v0 CAS with `loop: validation failed: expected_version is required`.
 
 ## Evidence

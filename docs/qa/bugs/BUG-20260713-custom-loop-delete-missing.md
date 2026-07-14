@@ -19,7 +19,7 @@ After publishing workspace-owned `reviews-watch` v1, Bruno could configure, edit
 3. Open the builder and inspect its toolbar.
 4. Try to remove only the workspace shadow.
 
-**Expected:** A destructive-action modal requires intentional confirmation, deletes only the workspace-owned definition, returns to the catalog, and reveals the bundled read-only source after refresh.  
+**Expected:** A destructive-action modal requires intentional confirmation, deletes only the workspace-owned definition, returns to the catalog, and reveals the bundled read-only source after refresh.
 **Actual:** No Delete action or confirmation modal is reachable.
 
 ## Evidence

@@ -22,7 +22,7 @@ The structured HTTP/UDS contract already has an explicit `clear_owner` path, so 
 4. Confirm that Owner reference becomes disabled, then choose Save changes.
 5. Inspect the detail and reopen Edit.
 
-**Expected:** The PATCH expresses the owner-clear operation, the detail shows Owner Unassigned, and an eligible task-role worker can claim the queued run.  
+**Expected:** The PATCH expresses the owner-clear operation, the detail shows Owner Unassigned, and an eligible task-role worker can claim the queued run.
 **Actual:** Save closes without error, but the exact-session owner remains persisted on every fresh read.
 
 ## Evidence

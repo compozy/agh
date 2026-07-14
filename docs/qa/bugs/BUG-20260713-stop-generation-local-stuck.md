@@ -20,7 +20,7 @@ When a prompt is optimistic and submitted in assistant-ui but has not reached th
 3. Click `Stop generation`.
 4. Observe the local composer and the authoritative session state.
 
-**Expected:** Stop cancels the local assistant-ui run first, removes the optimistic working state, and restores the composer even when no daemon prompt was admitted. The existing daemon cancellation control still runs when applicable.  
+**Expected:** Stop cancels the local assistant-ui run first, removes the optimistic working state, and restores the composer even when no daemon prompt was admitted. The existing daemon cancellation control still runs when applicable.
 **Actual:** The backend callback has nothing to cancel, while assistant-ui remains submitted and the visible controls never recover.
 
 ## Evidence

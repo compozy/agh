@@ -23,7 +23,7 @@ Bruno filled the title and description in the Simple Create task modal, then cha
 3. Select `Break into steps`.
 4. Inspect the contract fields and submit state.
 
-**Expected:** Changing a template preserves operator-authored title/description and changes only template-controlled defaults, or explicitly asks before discarding input.  
+**Expected:** Changing a template preserves operator-authored title/description and changes only template-controlled defaults, or explicitly asks before discarding input.
 **Actual:** Title and description are silently emptied and the action becomes disabled.
 
 ## Evidence

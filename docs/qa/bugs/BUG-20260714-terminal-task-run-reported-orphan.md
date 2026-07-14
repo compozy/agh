@@ -19,7 +19,7 @@ The Task and run are durably Completed, but Task inspect still emits the live er
 2. Wait for the session to stop.
 3. Reload the completed Task detail and inspect diagnostics.
 
-**Expected:** A terminal run emits no active orphan diagnostic or recovery command.  
+**Expected:** A terminal run emits no active orphan diagnostic or recovery command.
 **Actual:** Completed `run-df8c1dd9a1b8b5f8` is reported as `task_run_orphan` because stopped session `sess-64f9badf5a65dd2f` remains bound.
 
 ## Evidence

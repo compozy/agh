@@ -20,7 +20,7 @@ The repaired activation path sends the first correlated synthetic turn, but when
 3. Have the provider return without claiming the run; the live case was blocked by Cursor Ask mode.
 4. Leave the run queued and revisit the same session transcript after scheduler cycles.
 
-**Expected:** At most one initial activation prompt is delivered for a `(session_id, run_id)` assignment. A completed turn that does not claim remains observable and requires an explicit recovery/re-dispatch policy; scheduler polling does not spend the provider again.  
+**Expected:** At most one initial activation prompt is delivered for a `(session_id, run_id)` assignment. A completed turn that does not claim remains observable and requires an explicit recovery/re-dispatch policy; scheduler polling does not spend the provider again.
 **Actual:** The same session produced 14 assistant responses about the same run. The first response took 21 seconds; 13 later responses repeated the Ask-mode blocker with no user action.
 
 ## Evidence

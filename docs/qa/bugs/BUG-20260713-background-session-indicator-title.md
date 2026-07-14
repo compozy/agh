@@ -23,7 +23,7 @@ Théo left a live Cursor/Grok turn running in the launch workspace and switched 
 3. Wait for the redirect toast to expire and inspect both workspace buttons and the scoped Agents count.
 4. Return to the owning workspace, reopen the session, and inspect the transcript and title after completion.
 
-**Expected:** The non-active workspace button shows the exact live-session count/state, provides a durable return affordance, and the first meaningful task generates one concise title used consistently in topbar and lists.  
+**Expected:** The non-active workspace button shows the exact live-session count/state, provides a durable return affordance, and the first meaningful task generates one concise title used consistently in topbar and lists.
 **Actual:** Background execution survived and the owning workspace later showed `Agents 1/4`, but the neighboring workspace exposed no persistent signal after the toast expired. The title remained the generic agent name/raw session id after two completed turns.
 
 ## Evidence

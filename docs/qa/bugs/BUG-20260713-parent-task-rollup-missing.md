@@ -20,7 +20,7 @@ All three children of one parent completed through the real UI and Cursor/Grok t
 3. Assign and recover child `task-a090a4e5ba779d61`; let its one real task-role session complete its continuation.
 4. Refresh the parent detail and open the Children tab.
 
-**Expected:** The first child completion leaves the parent non-terminal. The final child completion settles the parent exactly once, exposes that state after refresh through every structured surface, and emits at most one downstream wake/event.  
+**Expected:** The first child completion leaves the parent non-terminal. The final child completion settles the parent exactly once, exposes that state after refresh through every structured surface, and emits at most one downstream wake/event.
 **Actual:** All three children render Completed, but the parent remains Ready with Needs Attention on `run-27fa29c0b0feca21`.
 
 ## Evidence

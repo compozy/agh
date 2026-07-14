@@ -23,7 +23,7 @@ The in-app Browser retained an onboarding workspace selection created against an
 3. Continue to Workspaces and observe daemon A's folder under `Selected workspaces`.
 4. Click the exact Remove control for that folder.
 
-**Expected:** The stale selection is reconciled with daemon B or can be removed locally without requiring a successful lookup of an identity that daemon B never owned.  
+**Expected:** The stale selection is reconciled with daemon B or can be removed locally without requiring a successful lookup of an identity that daemon B never owned.
 **Actual:** The wizard displays `workspace: lookup workspace "ws_06366aad69887872" by name fallback: workspace not found`, and the stale selected folder remains.
 
 ## Evidence

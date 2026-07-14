@@ -23,7 +23,7 @@ Lea received a substantial real Cursor/Grok response and clicked `Use as Goal`. 
 3. Activate the same control with keyboard Enter.
 4. Inspect the composer, session header, route, notifications, and Goal state.
 
-**Expected:** The action creates or prefills a truthful Goal draft from the selected response, gives immediate visible feedback, and leaves no hidden Goal when cancelled.  
+**Expected:** The action creates or prefills a truthful Goal draft from the selected response, gives immediate visible feedback, and leaves no hidden Goal when cancelled.
 **Actual:** The action only receives focus; every visible and durable Goal surface remains unchanged and no error is explained.
 
 ## Evidence

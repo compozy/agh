@@ -20,7 +20,7 @@ Task creation with human-in-the-loop approval already enqueues one gated run. Ap
 3. Open Inbox and approve the Task.
 4. Inspect the toast, Task status, run count, run ID, and eventual task-role worker.
 
-**Expected:** Approval makes the existing gated run claimable. The Task retains one run and one attempt, and the worker claims that same run without an error.  
+**Expected:** Approval makes the existing gated run claimable. The Task retains one run and one attempt, and the worker claims that same run without an error.
 **Actual:** The original path attempted a second enqueue after the Task became Ready and returned an invalid transition. The first correction then returned an idempotency-origin mismatch for the existing run.
 
 ## Evidence

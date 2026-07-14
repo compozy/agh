@@ -21,7 +21,7 @@ Immediately after a fresh Cursor/Grok 4.5 session becomes usable, the first prom
 4. Observe the optimistic message and `Working…` state for more than 60 seconds.
 5. Compare the durable session inspection, Goal, and transcript reads.
 
-**Expected:** The first prompt reaches the daemon exactly once, becomes a durable Goal command, and either completes or returns a truthful runtime failure.  
+**Expected:** The first prompt reaches the daemon exactly once, becomes a durable Goal command, and either completes or returns a truthful runtime failure.
 **Actual:** No prompt request reaches the daemon. The session inspection reports `active_prompt=false`, the Goal read returns `null`, and the transcript contains only the two session-creation hook events.
 
 ## Evidence

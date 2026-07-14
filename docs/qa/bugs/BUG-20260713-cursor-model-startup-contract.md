@@ -24,7 +24,7 @@ Bruno selected Cursor Agent and Grok 4.5 through the New session runtime selecto
 4. Reopen the resulting failed session from the agent's Sessions tab.
 5. Repeat with the exact descriptor copied from the error: `grok-4.5[effort=high,fast=true]`.
 
-**Expected:** The provider filter exposes Cursor's live model choices, one click selects a valid canonical value, validation fails before spawning when invalid, and a valid session gives immediate progress feedback then reaches a composer within the power-user patience budget.  
+**Expected:** The provider filter exposes Cursor's live model choices, one click selects a valid canonical value, validation fails before spawning when invalid, and a valid session gives immediate progress feedback then reaches a composer within the power-user patience budget.
 **Actual:** The checked Cursor filter initially showed OpenCode matches, accepted values that Cursor later rejected, persisted two failed sessions, and surfaced the mismatch only after long waits. The hidden canonical descriptor worked, but startup still took about 18.4 seconds.
 
 ## Evidence

@@ -25,7 +25,7 @@ Bruno saved `software-delivery` with an iteration cap of 3, `full-body` re-attem
 5. Choose Run Loop, expand Advanced, and inspect What will run without entering per-run overrides.
 6. Start the run with a missing task-set slug and inspect its effective facts.
 
-**Expected:** Detail and run preview resolve the saved per-Loop configuration, distinguish inherited defaults from per-run overrides, and describe the same effective cap/strategy that the runtime applies.  
+**Expected:** Detail and run preview resolve the saved per-Loop configuration, distinguish inherited defaults from per-run overrides, and describe the same effective cap/strategy that the runtime applies.
 **Actual:** Detail and preview show authored defaults (`50` generations and empty/halt Advanced state), while run `looprun-acb65149c8fc91a5` applies the saved `3` generation cap and `full-body` strategy.
 
 ## Evidence

@@ -22,7 +22,7 @@ The runtime correctly rejects the invalid binding, but the user-facing validatio
 4. Choose Create job.
 5. Repeat the inverse in Create Trigger with schedule-only `software-delivery`.
 
-**Expected:** The modal uses the authoritative Loop start contract to exclude or clearly disable incompatible targets before submit. An existing automation whose Loop becomes incompatible remains inspectable but cannot be saved or fired without a truthful explanation.  
+**Expected:** The modal uses the authoritative Loop start contract to exclude or clearly disable incompatible targets before submit. An existing automation whose Loop becomes incompatible remains inspectable but cannot be saved or fired without a truthful explanation.
 **Actual:** The preview and enabled submit action present the incompatible binding as valid; the backend then rejects it with `start_kind_not_allowed`.
 
 ## Evidence

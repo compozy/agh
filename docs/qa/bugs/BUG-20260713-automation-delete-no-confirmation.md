@@ -18,7 +18,7 @@ The Job detail Delete action is an immediate destructive mutation. One click rem
 2. Open its detail page and choose Delete once.
 3. Observe that the Job disappears immediately and the catalog reports zero Jobs.
 
-**Expected:** A destructive confirmation modal identifies the selected automation, Cancel preserves it, and an explicit Delete confirmation removes only that dynamic definition.  
+**Expected:** A destructive confirmation modal identifies the selected automation, Cancel preserves it, and an explicit Delete confirmation removes only that dynamic definition.
 **Actual:** The first click performs the irreversible deletion with no confirmation state.
 
 ## Evidence

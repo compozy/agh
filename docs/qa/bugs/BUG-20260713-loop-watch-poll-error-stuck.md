@@ -20,7 +20,7 @@ Stopping the real task-role `system` session correctly fired the workspace Trigg
 3. Open the delegated Loop run from Trigger history.
 4. Let the watch poll fail in a workspace without git metadata and observe the run for at least two polling windows.
 
-**Expected:** A deterministic coordinator/watch-poll failure terminalizes the run once with a typed bounded cause and recovery, or truthfully enters a retry/watch state with visible timing and diagnostics. It cannot remain falsely Running with no generation.  
+**Expected:** A deterministic coordinator/watch-poll failure terminalizes the run once with a typed bounded cause and recovery, or truthfully enters a retry/watch state with visible timing and diagnostics. It cannot remain falsely Running with no generation.
 **Actual:** `looprun-56929015a03ab48d` stayed Running at generation 0 for more than two minutes. The daemon logged `scheduler.cycle.error` with the watch-poll failure immediately. Operator Stop finally marked it Failed but the UI still rendered no cause.
 
 ## Evidence

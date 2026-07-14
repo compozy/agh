@@ -25,7 +25,7 @@ Lea started the bundled `software-delivery` Loop with a slug that had no matchin
 5. Inspect the expanded failed generation and the live event rail.
 6. Independently read the persisted run through `GET /api/workspaces/:workspace_id/loop-runs/:run_id`.
 
-**Expected:** The run detail preserves the backend failure reason for `load_tasks`, identifies the missing or unmatched task pattern, and offers enough recovery guidance to correct the input before retrying.  
+**Expected:** The run detail preserves the backend failure reason for `load_tasks`, identifies the missing or unmatched task pattern, and offers enough recovery guidance to correct the input before retrying.
 **Actual:** The UI shows `Failed` twice and `Stalled`; the persisted node output is only `loop_action_failed`, while the daemon log reduces the failure to `tool \"ext__dev_cycle__import_tasks\" backend failed`.
 
 ## Evidence
