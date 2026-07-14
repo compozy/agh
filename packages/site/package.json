@@ -10,6 +10,7 @@
         "generate:content": "bun run source:generate && bun run content:generate",
         "generate": "bun run generate:openapi && bun run generate:content",
         "predev": "bun run generate",
+        "prebuild": "bun run generate",
         "dev": "next dev",
         "build": "next build",
         "start": "next start",
