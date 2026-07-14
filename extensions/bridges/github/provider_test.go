@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
@@ -20,14 +19,14 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 	"unsafe"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -162,10 +161,12 @@ func TestMapGitHubWebhookCommentsAndThreadIDs(t *testing.T) {
 func TestDetermineGitHubInitialStateValidatesPATAndAppModes(t *testing.T) {
 	t.Parallel()
 
-	provider := &githubProvider{
-		apiFactory: func(_ resolvedInstanceConfig) githubAPI {
-			return &fakeGitHubAPI{viewer: &githubViewer{ID: 77, Login: "bridge-bot"}}
-		},
+	provider, err := newGitHubProvider(io.Discard)
+	if err != nil {
+		t.Fatalf("newGitHubProvider() error = %v", err)
+	}
+	provider.apiFactory = func(_ resolvedInstanceConfig) githubAPI {
+		return &fakeGitHubAPI{viewer: &githubViewer{ID: 77, Login: "bridge-bot"}}
 	}
 
 	ctx := context.Background()
@@ -358,10 +359,10 @@ func TestGitHubProviderRejectsSharedPathWebhookSignedForDifferentInstance(t *tes
 		switch method {
 		case "bridges/messages/ingest":
 			ingested = append(ingested, params.(bridgepkg.InboundMessageEnvelope))
-			*(result.(*extensioncontract.BridgesMessagesIngestResult)) = extensioncontract.BridgesMessagesIngestResult{}
+			*(result.(*bridgepkg.BridgesMessagesIngestResult)) = bridgepkg.BridgesMessagesIngestResult{}
 			return nil
 		case "bridges/instances/report_state":
-			report := params.(extensioncontract.BridgesInstancesReportStateParams)
+			report := params.(bridgepkg.BridgesInstancesReportStateParams)
 			*(result.(*bridgepkg.BridgeInstance)) = bridgepkg.BridgeInstance{
 				ID:     report.BridgeInstanceID,
 				Status: report.Status,
@@ -372,42 +373,34 @@ func TestGitHubProviderRejectsSharedPathWebhookSignedForDifferentInstance(t *tes
 		}
 	})
 
-	provider := &githubProvider{
-		stderr:  io.Discard,
-		env:     markerEnv{},
-		now:     func() time.Time { return now },
-		session: session,
-		routes: map[string]resolvedInstanceConfig{
-			"brg-github-1": {
-				managed:       managed[0],
-				instanceID:    "brg-github-1",
-				repoOwner:     "acme",
-				repoName:      "app-one",
-				repoFullName:  "acme/app-one",
-				webhookPath:   "/github/shared",
-				webhookSecret: "secret-one",
-				botLogin:      "bridge-bot",
-				dedup:         bridgesdk.NewDedupCache(5*time.Minute, 100),
-			},
-			"brg-github-2": {
-				managed:       managed[1],
-				instanceID:    "brg-github-2",
-				repoOwner:     "acme",
-				repoName:      "app-two",
-				repoFullName:  "acme/app-two",
-				webhookPath:   "/github/shared",
-				webhookSecret: "secret-two",
-				botLogin:      "bridge-bot",
-				dedup:         bridgesdk.NewDedupCache(5*time.Minute, 100),
-			},
+	provider := newGitHubProviderForTest(t, session)
+	provider.now = func() time.Time { return now }
+	provider.routes.Replace(map[string]resolvedInstanceConfig{
+		"brg-github-1": {
+			managed:       managed[0],
+			instanceID:    "brg-github-1",
+			repoOwner:     "acme",
+			repoName:      "app-one",
+			repoFullName:  "acme/app-one",
+			webhookPath:   "/github/shared",
+			webhookSecret: "secret-one",
+			botLogin:      "bridge-bot",
+			dedup:         bridgesdk.NewDedupCache(5*time.Minute, 100),
 		},
-		deliveries:        make(map[string]deliveryState),
-		reportedStatus:    make(map[string]bridgepkg.BridgeStatus),
-		installationCache: make(map[string]int64),
-		rateLimiter:       bridgesdk.NewFixedWindowRateLimiter(20, time.Minute),
-		inFlightLimiter:   bridgesdk.NewInFlightLimiter(4),
-		stopCh:            make(chan struct{}),
-	}
+		"brg-github-2": {
+			managed:       managed[1],
+			instanceID:    "brg-github-2",
+			repoOwner:     "acme",
+			repoName:      "app-two",
+			repoFullName:  "acme/app-two",
+			webhookPath:   "/github/shared",
+			webhookSecret: "secret-two",
+			botLogin:      "bridge-bot",
+			dedup:         bridgesdk.NewDedupCache(5*time.Minute, 100),
+		},
+	}, nil)
+	provider.rateLimiter = bridgesdk.NewFixedWindowRateLimiter(20, time.Minute)
+	provider.inFlightLimiter = bridgesdk.NewInFlightLimiter(4)
 
 	body := mustJSON(t, githubIssuePayload{
 		Action: "created",
@@ -603,8 +596,16 @@ func TestGitHubClientPATAndAppRequests(t *testing.T) {
 	requests := make([]recordedRequest, 0)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		bodyBytes, _ := io.ReadAll(r.Body)
-		_ = r.Body.Close()
+		bodyBytes, readErr := io.ReadAll(r.Body)
+		closeErr := r.Body.Close()
+		if closeErr != nil {
+			t.Errorf("close GitHub API request body: %v", closeErr)
+		}
+		if readErr != nil {
+			t.Errorf("read GitHub API request body: %v", readErr)
+			http.Error(w, "read request body", http.StatusBadRequest)
+			return
+		}
 		mu.Lock()
 		requests = append(requests, recordedRequest{
 			Method: r.Method,
@@ -616,13 +617,21 @@ func TestGitHubClientPATAndAppRequests(t *testing.T) {
 
 		switch r.URL.Path {
 		case "/user":
-			_, _ = io.WriteString(w, `{"id":1,"login":"bridge-bot"}`)
+			if _, err := io.WriteString(w, `{"id":1,"login":"bridge-bot"}`); err != nil {
+				t.Errorf("write GitHub viewer response: %v", err)
+			}
 		case "/app/installations/9001/access_tokens":
-			_, _ = io.WriteString(w, `{"token":"inst-token","expires_at":"2026-04-15T23:00:00Z"}`)
+			if _, err := io.WriteString(w, `{"token":"inst-token","expires_at":"2026-04-15T23:00:00Z"}`); err != nil {
+				t.Errorf("write GitHub installation token response: %v", err)
+			}
 		case "/repos/acme/app/issues/42/comments":
-			_, _ = io.WriteString(w, `{"id":501,"body":"hello"}`)
+			if _, err := io.WriteString(w, `{"id":501,"body":"hello"}`); err != nil {
+				t.Errorf("write GitHub issue comment response: %v", err)
+			}
 		case "/repos/acme/app/pulls/42/comments/200/replies":
-			_, _ = io.WriteString(w, `{"id":601,"body":"review"}`)
+			if _, err := io.WriteString(w, `{"id":601,"body":"review"}`); err != nil {
+				t.Errorf("write GitHub review reply response: %v", err)
+			}
 		default:
 			http.NotFound(w, r)
 		}
@@ -812,6 +821,161 @@ func TestGitHubClientClassifiesHTTPFailures(t *testing.T) {
 		if !errors.As(err, &permanentErr) {
 			t.Fatalf("CreateIssueComment() error = %#v, want permanent error", err)
 		}
+		if committedErr, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); ok && committedErr != nil {
+			t.Fatalf("CreateIssueComment() error = %#v, want pre-commit rejection", err)
+		}
+	}
+
+	for _, testCase := range []struct {
+		name       string
+		statusCode int
+	}{
+		{name: "Should refuse a credentialed 301 redirect", statusCode: http.StatusMovedPermanently},
+		{name: "Should refuse a credentialed 302 redirect", statusCode: http.StatusFound},
+		{name: "Should refuse a credentialed 303 redirect", statusCode: http.StatusSeeOther},
+		{name: "Should refuse a credentialed 307 redirect", statusCode: http.StatusTemporaryRedirect},
+		{name: "Should refuse a credentialed 308 redirect", statusCode: http.StatusPermanentRedirect},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			var targetHits atomic.Int32
+			target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				targetHits.Add(1)
+				if err := json.NewEncoder(w).Encode(githubIssueComment{ID: 901}); err != nil {
+					t.Errorf("encode redirect target GitHub response: %v", err)
+				}
+			}))
+			defer target.Close()
+
+			redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Location", target.URL)
+				w.WriteHeader(testCase.statusCode)
+				if _, err := io.WriteString(w, `{"message":"redirect refused"}`); err != nil {
+					t.Errorf("write redirect GitHub response: %v", err)
+				}
+				if got, want := r.Method, http.MethodPost; got != want {
+					t.Errorf("redirect source method = %q, want %q", got, want)
+				}
+			}))
+			defer redirect.Close()
+
+			client := &githubClient{
+				cfg: resolvedInstanceConfig{
+					mode:       githubModePAT,
+					apiBaseURL: redirect.URL,
+					repoOwner:  "acme",
+					repoName:   "app",
+					token:      "ghp-test",
+				},
+				httpClient: redirect.Client(),
+			}
+			_, err := client.CreateIssueComment(t.Context(), 42, "hello", 0)
+			var permanentErr *bridgesdk.PermanentError
+			if !errors.As(err, &permanentErr) {
+				t.Fatalf(
+					"CreateIssueComment(%d) error = %T %v, want first-response PermanentError",
+					testCase.statusCode,
+					err,
+					err,
+				)
+			}
+			if bridgesdk.IsCommittedMutation(err) {
+				t.Fatalf("CreateIssueComment(%d) error = %v, want pre-commit rejection", testCase.statusCode, err)
+			}
+			if got := targetHits.Load(); got != 0 {
+				t.Fatalf("redirect target hits = %d, want 0", got)
+			}
+		})
+	}
+
+	t.Run("Should preserve rate-limit classification when the error body read fails", func(t *testing.T) {
+		t.Parallel()
+
+		readErr := errors.New("GitHub error body read failed")
+		body := &githubPartialErrorResponseBody{
+			content: []byte(`{"message":"GitHub rate limit exceeded"}`),
+			readErr: readErr,
+		}
+		client := &githubClient{
+			cfg: resolvedInstanceConfig{
+				mode:       githubModePAT,
+				apiBaseURL: "https://api.github.test",
+				repoOwner:  "acme",
+				repoName:   "app",
+				token:      "ghp-test",
+			},
+			httpClient: githubHTTPDoerFunc(func(req *http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusTooManyRequests,
+					Header:     http.Header{"Retry-After": []string{"4"}},
+					Body:       body,
+					Request:    req,
+				}, nil
+			}),
+		}
+
+		_, err := client.CreateIssueComment(t.Context(), 42, "hello", 0)
+		if !errors.Is(err, readErr) {
+			t.Fatalf("CreateIssueComment() error = %v, want response body read failure", err)
+		}
+		var rateLimitErr *bridgesdk.RateLimitError
+		if !errors.As(err, &rateLimitErr) || rateLimitErr.RetryAfter != 4*time.Second {
+			t.Fatalf("CreateIssueComment() error = %v, want rate limit with four-second retry", err)
+		}
+		if got, want := bridgesdk.ClassifyError(err).Class, bridgesdk.ErrorClassRateLimit; got != want {
+			t.Fatalf("CreateIssueComment() error class = %q, want %q", got, want)
+		}
+		if !strings.Contains(rateLimitErr.Error(), "GitHub rate limit exceeded") {
+			t.Fatalf("CreateIssueComment() rate-limit error = %q, want partial provider body", rateLimitErr.Error())
+		}
+		if bridgesdk.IsCommittedMutation(err) {
+			t.Fatalf("CreateIssueComment() error = %v, want pre-commit rejection", err)
+		}
+		if !body.closed {
+			t.Fatal("response body closed = false after error classification")
+		}
+	})
+
+	for _, testCase := range []struct {
+		name string
+		body string
+	}{
+		{name: "Should not retry a committed create with truncated JSON", body: `{"id":`},
+		{name: "Should not retry a committed create without a comment id", body: `{}`},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			attempts := 0
+			committedClient := &githubClient{
+				cfg: resolvedInstanceConfig{
+					mode:       githubModePAT,
+					apiBaseURL: "https://api.github.test",
+					repoOwner:  "acme",
+					repoName:   "app",
+					token:      "ghp-test",
+				},
+				httpClient: githubHTTPDoerFunc(func(*http.Request) (*http.Response, error) {
+					attempts++
+					return &http.Response{
+						StatusCode: http.StatusCreated,
+						Header:     make(http.Header),
+						Body:       io.NopCloser(strings.NewReader(testCase.body)),
+					}, nil
+				}),
+			}
+
+			_, err := committedClient.CreateIssueComment(context.Background(), 42, "hello", 0)
+			if err == nil {
+				t.Fatal("CreateIssueComment(committed result unavailable) error = nil, want non-nil")
+			}
+			var committedErr *bridgesdk.CommittedMutationError
+			if !errors.As(err, &committedErr) {
+				t.Fatalf("CreateIssueComment() error = %T, want CommittedMutationError", err)
+			}
+			if got, want := attempts, 1; got != want {
+				t.Fatalf("mutation attempts = %d, want %d", got, want)
+			}
+		})
 	}
 }
 
@@ -869,7 +1033,7 @@ func TestGitHubProviderAfterInitializeSyncsOwnedInstancesAndReportsState(t *test
 		},
 	}
 
-	reported := make([]extensioncontract.BridgesInstancesReportStateParams, 0)
+	reported := make([]bridgepkg.BridgesInstancesReportStateParams, 0)
 	session := newGitHubTestSession(t, managed, func(_ context.Context, method string, params any, result any) error {
 		switch method {
 		case "bridges/instances/list":
@@ -881,7 +1045,7 @@ func TestGitHubProviderAfterInitializeSyncsOwnedInstancesAndReportsState(t *test
 			*target = items
 			return nil
 		case "bridges/instances/get":
-			targetParams := params.(extensioncontract.BridgeInstanceTargetParams)
+			targetParams := params.(bridgepkg.BridgeInstanceTargetParams)
 			for _, item := range managed {
 				if item.Instance.ID == targetParams.BridgeInstanceID {
 					*(result.(*bridgepkg.BridgeInstance)) = item.Instance
@@ -890,7 +1054,7 @@ func TestGitHubProviderAfterInitializeSyncsOwnedInstancesAndReportsState(t *test
 			}
 			return errors.New("missing instance")
 		case "bridges/instances/report_state":
-			report := params.(extensioncontract.BridgesInstancesReportStateParams)
+			report := params.(bridgepkg.BridgesInstancesReportStateParams)
 			reported = append(reported, report)
 			*(result.(*bridgepkg.BridgeInstance)) = bridgepkg.BridgeInstance{
 				ID:            report.BridgeInstanceID,
@@ -907,40 +1071,40 @@ func TestGitHubProviderAfterInitializeSyncsOwnedInstancesAndReportsState(t *test
 		}
 	})
 
-	provider := &githubProvider{
-		stderr:            io.Discard,
-		env:               markerEnv{},
-		now:               func() time.Time { return now },
-		routes:            make(map[string]resolvedInstanceConfig),
-		deliveries:        make(map[string]deliveryState),
-		reportedStatus:    make(map[string]bridgepkg.BridgeStatus),
-		installationCache: make(map[string]int64),
-		rateLimiter:       bridgesdk.NewFixedWindowRateLimiter(10, time.Minute),
-		inFlightLimiter:   bridgesdk.NewInFlightLimiter(4),
-		stopCh:            make(chan struct{}),
-		apiFactory: func(cfg resolvedInstanceConfig) githubAPI {
-			return &fakeGitHubAPI{viewer: &githubViewer{Login: cfg.repoName + "-bot"}}
-		},
+	provider, err := newGitHubProvider(io.Discard)
+	if err != nil {
+		t.Fatalf("newGitHubProvider() error = %v", err)
+	}
+	provider.now = func() time.Time { return now }
+	provider.apiFactory = func(cfg resolvedInstanceConfig) githubAPI {
+		return &fakeGitHubAPI{viewer: &githubViewer{Login: cfg.repoName + "-bot"}}
 	}
 	t.Cleanup(func() {
-		provider.stop()
-		if provider.server != nil {
-			_ = provider.server.Close()
+		provider.lifecycle.Stop()
+		if err := provider.http.Shutdown(context.Background()); err != nil {
+			t.Errorf("Shutdown() error = %v", err)
 		}
 	})
 
-	provider.afterInitialize(session)
+	if err := provider.lifecycle.Initialize(context.Background(), session); err != nil {
+		t.Fatalf("Initialize() error = %v", err)
+	}
+	select {
+	case <-provider.lifecycle.Initialized():
+	case <-t.Context().Done():
+		t.Fatal("provider initialization did not finish")
+	}
 
-	if got, want := len(provider.routes), 2; got != want {
+	if got, want := len(provider.routes.Snapshot()), 2; got != want {
 		t.Fatalf("len(provider.routes) = %d, want %d", got, want)
 	}
 	if got, want := len(reported), 2; got != want {
 		t.Fatalf("len(reported) = %d, want %d", got, want)
 	}
-	if provider.server == nil {
-		t.Fatal("provider.server = nil, want started webhook server")
+	if provider.http.Address() == "" {
+		t.Fatal("provider HTTP address is empty after initialization")
 	}
-	if cfg, ok := provider.routes["brg-github-2"]; !ok {
+	if cfg, ok := provider.routes.Get("brg-github-2"); !ok {
 		t.Fatal("provider.routes missing brg-github-2")
 	} else if got, want := cfg.botLogin, "app-two-bot"; got != want {
 		t.Fatalf("resolved bot login = %q, want %q", got, want)
@@ -969,13 +1133,13 @@ func TestGitHubProviderServeWebhookHTTPSharedEndpointIngestsMultipleInstances(t 
 	}
 
 	ingested := make([]bridgepkg.InboundMessageEnvelope, 0)
-	reported := make([]extensioncontract.BridgesInstancesReportStateParams, 0)
+	reported := make([]bridgepkg.BridgesInstancesReportStateParams, 0)
 	session := newGitHubTestSession(t, managed, func(_ context.Context, method string, params any, result any) error {
 		switch method {
 		case "bridges/messages/ingest":
 			envelope := params.(bridgepkg.InboundMessageEnvelope)
 			ingested = append(ingested, envelope)
-			*(result.(*extensioncontract.BridgesMessagesIngestResult)) = extensioncontract.BridgesMessagesIngestResult{
+			*(result.(*bridgepkg.BridgesMessagesIngestResult)) = bridgepkg.BridgesMessagesIngestResult{
 				SessionID: "sess-" + envelope.BridgeInstanceID,
 				RoutingKey: bridgepkg.RoutingKey{
 					Scope:            envelope.Scope,
@@ -987,7 +1151,7 @@ func TestGitHubProviderServeWebhookHTTPSharedEndpointIngestsMultipleInstances(t 
 			}
 			return nil
 		case "bridges/instances/report_state":
-			report := params.(extensioncontract.BridgesInstancesReportStateParams)
+			report := params.(bridgepkg.BridgesInstancesReportStateParams)
 			reported = append(reported, report)
 			*(result.(*bridgepkg.BridgeInstance)) = bridgepkg.BridgeInstance{
 				ID:     report.BridgeInstanceID,
@@ -999,42 +1163,34 @@ func TestGitHubProviderServeWebhookHTTPSharedEndpointIngestsMultipleInstances(t 
 		}
 	})
 
-	provider := &githubProvider{
-		stderr:  io.Discard,
-		env:     markerEnv{},
-		now:     func() time.Time { return now },
-		session: session,
-		routes: map[string]resolvedInstanceConfig{
-			"brg-github-1": {
-				managed:       managed[0],
-				instanceID:    "brg-github-1",
-				repoOwner:     "acme",
-				repoName:      "app-one",
-				repoFullName:  "acme/app-one",
-				webhookPath:   "/github/app-one",
-				webhookSecret: "secret",
-				botLogin:      "bridge-bot",
-				dedup:         bridgesdk.NewDedupCache(5*time.Minute, 100),
-			},
-			"brg-github-2": {
-				managed:       managed[1],
-				instanceID:    "brg-github-2",
-				repoOwner:     "acme",
-				repoName:      "app-two",
-				repoFullName:  "acme/app-two",
-				webhookPath:   "/github/app-two",
-				webhookSecret: "secret",
-				botLogin:      "bridge-bot",
-				dedup:         bridgesdk.NewDedupCache(5*time.Minute, 100),
-			},
+	provider := newGitHubProviderForTest(t, session)
+	provider.now = func() time.Time { return now }
+	provider.routes.Replace(map[string]resolvedInstanceConfig{
+		"brg-github-1": {
+			managed:       managed[0],
+			instanceID:    "brg-github-1",
+			repoOwner:     "acme",
+			repoName:      "app-one",
+			repoFullName:  "acme/app-one",
+			webhookPath:   "/github/app-one",
+			webhookSecret: "secret",
+			botLogin:      "bridge-bot",
+			dedup:         bridgesdk.NewDedupCache(5*time.Minute, 100),
 		},
-		deliveries:        make(map[string]deliveryState),
-		reportedStatus:    make(map[string]bridgepkg.BridgeStatus),
-		installationCache: make(map[string]int64),
-		rateLimiter:       bridgesdk.NewFixedWindowRateLimiter(20, time.Minute),
-		inFlightLimiter:   bridgesdk.NewInFlightLimiter(4),
-		stopCh:            make(chan struct{}),
-	}
+		"brg-github-2": {
+			managed:       managed[1],
+			instanceID:    "brg-github-2",
+			repoOwner:     "acme",
+			repoName:      "app-two",
+			repoFullName:  "acme/app-two",
+			webhookPath:   "/github/app-two",
+			webhookSecret: "secret",
+			botLogin:      "bridge-bot",
+			dedup:         bridgesdk.NewDedupCache(5*time.Minute, 100),
+		},
+	}, nil)
+	provider.rateLimiter = bridgesdk.NewFixedWindowRateLimiter(20, time.Minute)
+	provider.inFlightLimiter = bridgesdk.NewInFlightLimiter(4)
 
 	first := mustJSON(t, githubIssuePayload{
 		Action: "created",
@@ -1159,16 +1315,16 @@ func TestGitHubProviderDefaultAPIFactoryReusesClientPerInstance(t *testing.T) {
 func TestGitHubProviderReconcileAllowsSharedWebhookPaths(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv(githubListenAddrEnv, "127.0.0.1:0")
-	t.Setenv(adapterStartsEnv, filepath.Join(tmpDir, "starts.log"))
+	t.Setenv(bridgesdk.AdapterStartsPathEnv, filepath.Join(tmpDir, "starts.log"))
 
 	provider, err := newGitHubProvider(io.Discard)
 	if err != nil {
 		t.Fatalf("newGitHubProvider() error = %v", err)
 	}
 	t.Cleanup(func() {
-		provider.stop()
-		if provider.server != nil {
-			_ = provider.server.Close()
+		provider.lifecycle.Stop()
+		if err := provider.http.Shutdown(context.Background()); err != nil {
+			t.Errorf("provider HTTP shutdown error = %v", err)
 		}
 	})
 	provider.apiFactory = func(cfg resolvedInstanceConfig) githubAPI {
@@ -1246,6 +1402,26 @@ func TestGitHubProviderReconcileAllowsSharedWebhookPaths(t *testing.T) {
 	if configs[1].configError != nil {
 		t.Fatalf("configs[1].configError = %v, want nil for shared webhook path", configs[1].configError)
 	}
+
+	duplicateRepository := second
+	duplicateRepository.Instance.ID = "brg-github-duplicate"
+	duplicateRepository.Instance.ProviderConfig = mustJSON(t, map[string]any{
+		"mode": "pat",
+		"webhook": map[string]any{
+			"path": "/duplicate-repository",
+		},
+		"repository": map[string]any{
+			"full_name": "acme/app-one",
+		},
+	})
+	configs = provider.reconcileInstanceConfigs(
+		context.Background(),
+		session,
+		[]subprocess.InitializeBridgeManagedInstance{first, duplicateRepository},
+	)
+	if got := configs[1].configError; got == nil || !strings.Contains(got.Error(), "already owned") {
+		t.Fatalf("duplicate repository configError = %v, want ownership conflict", got)
+	}
 }
 
 func TestGitHubProviderHandleBridgesDeliverReportsReadyAndErrors(t *testing.T) {
@@ -1260,12 +1436,12 @@ func TestGitHubProviderHandleBridgesDeliverReportsReadyAndErrors(t *testing.T) {
 			},
 		},
 	}
-	reported := make([]extensioncontract.BridgesInstancesReportStateParams, 0)
+	reported := make([]bridgepkg.BridgesInstancesReportStateParams, 0)
 	session := newGitHubTestSession(t, managed, func(_ context.Context, method string, params any, result any) error {
 		if method != "bridges/instances/report_state" {
 			return errors.New("unexpected method: " + method)
 		}
-		report := params.(extensioncontract.BridgesInstancesReportStateParams)
+		report := params.(bridgepkg.BridgesInstancesReportStateParams)
 		reported = append(reported, report)
 		*(result.(*bridgepkg.BridgeInstance)) = bridgepkg.BridgeInstance{
 			ID:     report.BridgeInstanceID,
@@ -1275,30 +1451,21 @@ func TestGitHubProviderHandleBridgesDeliverReportsReadyAndErrors(t *testing.T) {
 	})
 
 	successAPI := &fakeGitHubAPI{nextIssueCommentID: 800}
-	provider := &githubProvider{
-		stderr:  io.Discard,
-		env:     markerEnv{},
-		now:     func() time.Time { return time.Date(2026, 4, 15, 21, 30, 0, 0, time.UTC) },
-		session: session,
-		routes: map[string]resolvedInstanceConfig{
-			"brg-github": {
-				managed:       managed[0],
-				instanceID:    "brg-github",
-				mode:          githubModePAT,
-				repoOwner:     "acme",
-				repoName:      "app",
-				repoFullName:  "acme/app",
-				webhookSecret: "secret",
-				token:         "ghp-token",
-			},
+	provider := newGitHubProviderForTest(t, session)
+	provider.now = func() time.Time { return time.Date(2026, 4, 15, 21, 30, 0, 0, time.UTC) }
+	provider.routes.Replace(map[string]resolvedInstanceConfig{
+		"brg-github": {
+			managed:       managed[0],
+			instanceID:    "brg-github",
+			mode:          githubModePAT,
+			repoOwner:     "acme",
+			repoName:      "app",
+			repoFullName:  "acme/app",
+			webhookSecret: "secret",
+			token:         "ghp-token",
 		},
-		deliveries:     make(map[string]deliveryState),
-		reportedStatus: map[string]bridgepkg.BridgeStatus{"brg-github": bridgepkg.BridgeStatusStarting},
-		stopCh:         make(chan struct{}),
-		apiFactory: func(resolvedInstanceConfig) githubAPI {
-			return successAPI
-		},
-	}
+	}, nil)
+	provider.apiFactory = func(resolvedInstanceConfig) githubAPI { return successAPI }
 
 	req := bridgepkg.DeliveryRequest{
 		Event: bridgepkg.DeliveryEvent{
@@ -1333,19 +1500,9 @@ func TestGitHubProviderHandleBridgesDeliverReportsReadyAndErrors(t *testing.T) {
 		t.Fatalf("reported statuses = %#v, want trailing ready state", reported)
 	}
 
-	errorProvider := &githubProvider{
-		stderr:         io.Discard,
-		env:            markerEnv{},
-		now:            provider.now,
-		session:        session,
-		routes:         provider.routes,
-		deliveries:     make(map[string]deliveryState),
-		reportedStatus: map[string]bridgepkg.BridgeStatus{"brg-github": bridgepkg.BridgeStatusReady},
-		stopCh:         make(chan struct{}),
-		apiFactory: func(resolvedInstanceConfig) githubAPI {
-			return &fakeGitHubAPI{validateErr: &bridgesdk.AuthError{Err: errors.New("bad auth")}}
-		},
-	}
+	errorProvider := newGitHubProviderForTest(t, session)
+	errorProvider.now = provider.now
+	errorProvider.routes.Replace(provider.routes.Snapshot(), nil)
 	errorProvider.apiFactory = func(resolvedInstanceConfig) githubAPI {
 		return &fakeGitHubErrorAPI{err: &bridgesdk.AuthError{Err: errors.New("bad auth")}}
 	}
@@ -1355,79 +1512,44 @@ func TestGitHubProviderHandleBridgesDeliverReportsReadyAndErrors(t *testing.T) {
 	if got, want := errorProvider.lastError, "bad auth"; !strings.Contains(got, want) {
 		t.Fatalf("lastError = %q, want substring %q", got, want)
 	}
+
+	t.Run("Should evict delivery state after a committed provider mutation", func(t *testing.T) {
+		t.Parallel()
+
+		committedAPI := &fakeGitHubAPI{
+			updateErr: &bridgesdk.CommittedMutationError{Err: errors.New("github result unavailable")},
+		}
+		committedProvider := newGitHubProviderForTest(t, nil)
+		committedProvider.routes.Replace(provider.routes.Snapshot(), nil)
+		committedProvider.apiFactory = func(resolvedInstanceConfig) githubAPI { return committedAPI }
+
+		committedRequest := req
+		committedRequest.Event.DeliveryID = "delivery-committed"
+		committedRequest.Event.Seq = 2
+		committedRequest.Event.EventType = bridgepkg.DeliveryEventTypeFinal
+		committedRequest.Event.Final = true
+		key := deliveryStateKey("brg-github", committedRequest.Event.DeliveryID)
+		committedProvider.deliveries.Store(key, deliveryState{
+			LastSeq:         1,
+			RemoteMessageID: "issue:700",
+		})
+
+		_, err := committedProvider.handleBridgesDeliver(context.Background(), nil, committedRequest)
+		var committedErr *bridgesdk.CommittedMutationError
+		if !errors.As(err, &committedErr) {
+			t.Fatalf("handleBridgesDeliver() error = %T, want CommittedMutationError", err)
+		}
+		if got, want := len(committedAPI.issueUpdates), 1; got != want {
+			t.Fatalf("provider mutations = %d, want %d", got, want)
+		}
+		if state, ok := committedProvider.deliveries.Load(key); ok {
+			t.Fatalf("deliveries[%q] = %#v, want evicted", key, state)
+		}
+	})
 }
 
-func TestGitHubMarkerAndUtilityHelpers(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	t.Setenv(adapterHandshakeEnv, filepath.Join(tmpDir, "handshake.json"))
-	t.Setenv(adapterOwnershipEnv, filepath.Join(tmpDir, "ownership.json"))
-	t.Setenv(adapterStateEnv, filepath.Join(tmpDir, "state.jsonl"))
-	t.Setenv(adapterDeliveryEnv, filepath.Join(tmpDir, "delivery.jsonl"))
-	t.Setenv(adapterIngestEnv, filepath.Join(tmpDir, "ingest.jsonl"))
-	t.Setenv(adapterStartsEnv, filepath.Join(tmpDir, "starts.log"))
-	t.Setenv(adapterShutdownEnv, filepath.Join(tmpDir, "shutdown.log"))
-	t.Setenv(adapterCrashOnceEnv, filepath.Join(tmpDir, "crash-once.json"))
-
-	env := markerEnvFromProcess()
-	if got, want := env.handshakePath, filepath.Join(tmpDir, "handshake.json"); got != want {
-		t.Fatalf("handshake path = %q, want %q", got, want)
-	}
-	if got, want := env.shutdownPath, filepath.Join(tmpDir, "shutdown.log"); got != want {
-		t.Fatalf("shutdown path = %q, want %q", got, want)
-	}
-
-	if err := appendMarkerLine(env.startsPath, "  first "); err != nil {
-		t.Fatalf("appendMarkerLine(first) error = %v", err)
-	}
-	if err := appendMarkerLine(env.startsPath, "second"); err != nil {
-		t.Fatalf("appendMarkerLine(second) error = %v", err)
-	}
-	startsRaw, err := os.ReadFile(env.startsPath)
-	if err != nil {
-		t.Fatalf("os.ReadFile(starts) error = %v", err)
-	}
-	if got, want := string(startsRaw), "first\nsecond\n"; got != want {
-		t.Fatalf("starts marker = %q, want %q", got, want)
-	}
-
-	if err := appendJSONLine(env.deliveryPath, map[string]any{"id": 1, "kind": "delivery"}); err != nil {
-		t.Fatalf("appendJSONLine() error = %v", err)
-	}
-	deliveryRaw, err := os.ReadFile(env.deliveryPath)
-	if err != nil {
-		t.Fatalf("os.ReadFile(delivery) error = %v", err)
-	}
-	if !strings.Contains(string(deliveryRaw), `"kind":"delivery"`) {
-		t.Fatalf("delivery marker = %s, want delivery json", deliveryRaw)
-	}
-
-	if err := writeJSONFile(env.handshakePath, map[string]any{"ok": true}); err != nil {
-		t.Fatalf("writeJSONFile() error = %v", err)
-	}
-	handshakeRaw, err := os.ReadFile(env.handshakePath)
-	if err != nil {
-		t.Fatalf("os.ReadFile(handshake) error = %v", err)
-	}
-	if got, want := strings.TrimSpace(string(handshakeRaw)), `{"ok":true}`; got != want {
-		t.Fatalf("handshake marker = %q, want %q", got, want)
-	}
-
-	var stderr bytes.Buffer
-	reportSideEffectError(&stderr, " marker write ", errors.New("boom"))
-	if got := stderr.String(); !strings.Contains(got, "github: marker write: boom") {
-		t.Fatalf("stderr = %q, want side-effect error", got)
-	}
-
-	if !shouldCrashOnce(env.crashOncePath) {
-		t.Fatal("shouldCrashOnce(missing) = false, want true")
-	}
-	if err := os.WriteFile(env.crashOncePath, []byte(`{"crashed":true}`), 0o600); err != nil {
-		t.Fatalf("os.WriteFile(crashOnce) error = %v", err)
-	}
-	if shouldCrashOnce(env.crashOncePath) {
-		t.Fatal("shouldCrashOnce(existing) = true, want false")
-	}
+func TestGitHubUtilityHelpers(t *testing.T) {
+	t.Parallel()
 
 	if got, want := installationIDFromMetadata(
 		mustJSON(t, map[string]any{"installation_id": 77}),
@@ -1489,13 +1611,6 @@ func TestGitHubMarkerAndUtilityHelpers(t *testing.T) {
 	if _, err := parseGitHubRemoteCommentRef("note:1"); err == nil {
 		t.Fatal("parseGitHubRemoteCommentRef(bad kind) error = nil, want non-nil")
 	}
-
-	if !isNotInitializedRPCError(&subprocess.RPCError{Code: rpcCodeNotInitialized}) {
-		t.Fatal("isNotInitializedRPCError(valid) = false, want true")
-	}
-	if isNotInitializedRPCError(errors.New("boom")) {
-		t.Fatal("isNotInitializedRPCError(non-rpc) = true, want false")
-	}
 }
 
 func TestGitHubClientUpdateDeleteAndCredentialValidation(t *testing.T) {
@@ -1513,7 +1628,9 @@ func TestGitHubClientUpdateDeleteAndCredentialValidation(t *testing.T) {
 		switch r.URL.Path {
 		case "/repos/acme/app/issues/comments/700":
 			if r.Method == http.MethodPatch {
-				_, _ = io.WriteString(w, `{}`)
+				if _, err := io.WriteString(w, `{}`); err != nil {
+					t.Errorf("write GitHub issue update response: %v", err)
+				}
 				return
 			}
 			if r.Method == http.MethodDelete {
@@ -1521,11 +1638,15 @@ func TestGitHubClientUpdateDeleteAndCredentialValidation(t *testing.T) {
 				return
 			}
 		case "/app/installations/9001/access_tokens":
-			_, _ = io.WriteString(w, `{"token":"inst-token","expires_at":"2026-04-15T23:00:00Z"}`)
+			if _, err := io.WriteString(w, `{"token":"inst-token","expires_at":"2026-04-15T23:00:00Z"}`); err != nil {
+				t.Errorf("write refreshed GitHub installation token response: %v", err)
+			}
 			return
 		case "/repos/acme/app/pulls/comments/800":
 			if r.Method == http.MethodPatch {
-				_, _ = io.WriteString(w, `{}`)
+				if _, err := io.WriteString(w, `{}`); err != nil {
+					t.Errorf("write GitHub review update response: %v", err)
+				}
 				return
 			}
 			if r.Method == http.MethodDelete {
@@ -1623,9 +1744,9 @@ func TestGitHubProviderLifecycleRunAndRetryHelpers(t *testing.T) {
 	shutdownPath := filepath.Join(tmpDir, "shutdown.log")
 	startsPath := filepath.Join(tmpDir, "starts.log")
 
-	t.Setenv(adapterHandshakeEnv, handshakePath)
-	t.Setenv(adapterShutdownEnv, shutdownPath)
-	t.Setenv(adapterStartsEnv, startsPath)
+	t.Setenv(bridgesdk.AdapterHandshakePathEnv, handshakePath)
+	t.Setenv(bridgesdk.AdapterShutdownPathEnv, shutdownPath)
+	t.Setenv(bridgesdk.AdapterStartsPathEnv, startsPath)
 
 	provider, err := newGitHubProvider(io.Discard)
 	if err != nil {
@@ -1639,10 +1760,14 @@ func TestGitHubProviderLifecycleRunAndRetryHelpers(t *testing.T) {
 		*(result.(*[]bridgepkg.BridgeInstance)) = nil
 		return nil
 	})
-	if err := provider.handleInitialize(context.Background(), session); err != nil {
-		t.Fatalf("handleInitialize() error = %v", err)
+	if err := provider.lifecycle.Initialize(context.Background(), session); err != nil {
+		t.Fatalf("Initialize() error = %v", err)
 	}
-	provider.wg.Wait()
+	select {
+	case <-provider.lifecycle.Initialized():
+	case <-t.Context().Done():
+		t.Fatal("provider initialization did not finish")
+	}
 
 	handshakeRaw, err := os.ReadFile(handshakePath)
 	if err != nil {
@@ -1663,12 +1788,12 @@ func TestGitHubProviderLifecycleRunAndRetryHelpers(t *testing.T) {
 	if err := provider.startServer("127.0.0.1:0"); err != nil {
 		t.Fatalf("startServer() error = %v", err)
 	}
-	if err := provider.handleShutdown(
+	if err := provider.lifecycle.Shutdown(
 		context.Background(),
 		session,
 		subprocess.ShutdownRequest{DeadlineMS: 250},
 	); err != nil {
-		t.Fatalf("handleShutdown() error = %v", err)
+		t.Fatalf("Shutdown() error = %v", err)
 	}
 	shutdownRaw, err := os.ReadFile(shutdownPath)
 	if err != nil {
@@ -1687,34 +1812,12 @@ func TestGitHubProviderLifecycleRunAndRetryHelpers(t *testing.T) {
 	if err := runServe(strings.NewReader(""), io.Discard, io.Discard); err != nil {
 		t.Fatalf("runServe(empty stdin) error = %v, want nil", err)
 	}
-
-	retryProvider := &githubProvider{stopCh: make(chan struct{})}
-	attempts := 0
-	if err := retryProvider.retryHostCall(context.Background(), func(context.Context) error {
-		attempts++
-		if attempts < 3 {
-			return &subprocess.RPCError{Code: rpcCodeNotInitialized}
-		}
-		return nil
-	}); err != nil {
-		t.Fatalf("retryHostCall(recover) error = %v", err)
-	}
-	if got, want := attempts, 3; got != want {
-		t.Fatalf("retryHostCall attempts = %d, want %d", got, want)
-	}
 }
 
 func TestGitHubProviderResolveDeliveryInstallationAndWebhookBranches(t *testing.T) {
 	t.Parallel()
 
-	provider := &githubProvider{
-		stderr:            io.Discard,
-		routes:            make(map[string]resolvedInstanceConfig),
-		deliveries:        make(map[string]deliveryState),
-		reportedStatus:    make(map[string]bridgepkg.BridgeStatus),
-		installationCache: make(map[string]int64),
-		stopCh:            make(chan struct{}),
-	}
+	provider := newGitHubProviderForTest(t, nil)
 
 	cfg := resolvedInstanceConfig{
 		instanceID:   "brg-github",
@@ -1780,13 +1883,13 @@ func TestGitHubProviderResolveDeliveryInstallationAndWebhookBranches(t *testing.
 			return errors.New("unexpected method: " + method)
 		}
 		envelope := params.(bridgepkg.InboundMessageEnvelope)
-		*(result.(*extensioncontract.BridgesMessagesIngestResult)) = extensioncontract.BridgesMessagesIngestResult{
+		*(result.(*bridgepkg.BridgesMessagesIngestResult)) = bridgepkg.BridgesMessagesIngestResult{
 			SessionID: "sess-" + envelope.BridgeInstanceID,
 		}
 		return nil
 	})
-	provider.session = session
-	provider.routes["brg-github"] = resolvedInstanceConfig{
+	setUnexportedField(t, provider.lifecycle, "session", session)
+	webhookConfig := resolvedInstanceConfig{
 		managed: subprocess.InitializeBridgeManagedInstance{
 			Instance: bridgepkg.BridgeInstance{ID: "brg-github", Scope: bridgepkg.ScopeWorkspace, WorkspaceID: "ws-1"},
 		},
@@ -1799,6 +1902,9 @@ func TestGitHubProviderResolveDeliveryInstallationAndWebhookBranches(t *testing.
 		botLogin:      "bridge-bot",
 		dedup:         bridgesdk.NewDedupCache(5*time.Minute, 100),
 	}
+	provider.routes.Replace(map[string]resolvedInstanceConfig{
+		"brg-github": webhookConfig,
+	}, nil)
 
 	writeWebhook := func(event string, payload any) (int, string, error) {
 		body, err := json.Marshal(payload)
@@ -1813,11 +1919,11 @@ func TestGitHubProviderResolveDeliveryInstallationAndWebhookBranches(t *testing.
 			strings.NewReader(string(body)),
 		)
 		req.Header.Set("X-GitHub-Event", event)
-		req.Header.Set("X-Hub-Signature-256", signGitHubTestBody(provider.routes["brg-github"].webhookSecret, body))
+		req.Header.Set("X-Hub-Signature-256", signGitHubTestBody(webhookConfig.webhookSecret, body))
 		err = provider.handleWebhookRequest(
 			recorder,
 			req,
-			[]resolvedInstanceConfig{provider.routes["brg-github"]},
+			[]resolvedInstanceConfig{webhookConfig},
 			bridgesdk.WebhookRequest{
 				Body:       body,
 				ReceivedAt: time.Date(2026, 4, 15, 21, 50, 0, 0, time.UTC),
@@ -1902,7 +2008,7 @@ func TestGitHubProviderResolveDeliveryInstallationAndWebhookBranches(t *testing.
 	if err := provider.handleWebhookRequest(
 		recorder,
 		req,
-		[]resolvedInstanceConfig{provider.routes["brg-github"]},
+		[]resolvedInstanceConfig{webhookConfig},
 		bridgesdk.WebhookRequest{
 			Body:       []byte("{"),
 			ReceivedAt: time.Date(2026, 4, 15, 21, 50, 0, 0, time.UTC),
@@ -2005,21 +2111,19 @@ func TestGitHubAdditionalHelpersAndErrorClassification(t *testing.T) {
 	if got, want := extractGitHubErrorMessage(`{"error":"bad input"}`), "bad input"; got != want {
 		t.Fatalf("extractGitHubErrorMessage(error field) = %q, want %q", got, want)
 	}
-	if got := readResponseBody(errReader{}); got != "" {
-		t.Fatalf("readResponseBody(errReader) = %q, want empty", got)
+	if got, err := readGitHubResponseBody(errReader{}); err == nil {
+		t.Fatal("readGitHubResponseBody(errReader) error = nil, want non-nil")
+	} else if got != "" {
+		t.Fatalf("readGitHubResponseBody(errReader) = %q, want empty", got)
 	}
 
-	waitProvider := &githubProvider{
-		routes:    map[string]resolvedInstanceConfig{},
-		stopCh:    make(chan struct{}),
-		initReady: make(chan struct{}),
-	}
+	waitProvider := newGitHubProviderForTest(t, nil)
 	go func() {
 		time.Sleep(20 * time.Millisecond)
-		waitProvider.mu.Lock()
-		waitProvider.routes["brg-github"] = resolvedInstanceConfig{instanceID: "brg-github"}
-		waitProvider.mu.Unlock()
-		waitProvider.markInitializationReady()
+		waitProvider.routes.Replace(map[string]resolvedInstanceConfig{
+			"brg-github": {instanceID: "brg-github"},
+		}, nil)
+		waitProvider.lifecycle.MarkRoutesReady()
 	}()
 	waitCtx, waitCancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer waitCancel()
@@ -2031,27 +2135,17 @@ func TestGitHubAdditionalHelpersAndErrorClassification(t *testing.T) {
 		t.Fatalf("waitForInstanceConfig(available later) = (%#v, %v), want brg-github", cfg, err)
 	}
 
-	stopProvider := &githubProvider{
-		routes:    map[string]resolvedInstanceConfig{},
-		stopCh:    make(chan struct{}),
-		initReady: make(chan struct{}),
-	}
-	close(stopProvider.stopCh)
+	stopProvider := newGitHubProviderForTest(t, nil)
+	stopProvider.lifecycle.Stop()
 	stopCtx, stopCancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer stopCancel()
 	if _, err := stopProvider.waitForInstanceConfig(stopCtx, "missing"); err == nil {
 		t.Fatal("waitForInstanceConfig(stopped) error = nil, want non-nil")
 	}
-
-	degradation := &bridgepkg.BridgeDegradation{Reason: bridgepkg.BridgeDegradationReasonAuthFailed, Message: "boom"}
-	cloned := cloneDegradation(degradation)
-	if cloned == degradation || cloned.Message != degradation.Message {
-		t.Fatalf("cloneDegradation() = %#v, want cloned copy", cloned)
-	}
 }
 
 func TestGitHubProviderStoreDeliveryStateEvictsTerminalEntries(t *testing.T) {
-	provider := &githubProvider{deliveries: make(map[string]deliveryState)}
+	provider := newGitHubProviderForTest(t, nil)
 	startEvent := bridgepkg.DeliveryEvent{EventType: bridgepkg.DeliveryEventTypeStart}
 	finalEvent := bridgepkg.DeliveryEvent{EventType: bridgepkg.DeliveryEventTypeFinal}
 
@@ -2076,9 +2170,34 @@ func TestGitHubProviderStoreDeliveryStateEvictsTerminalEntries(t *testing.T) {
 	}
 }
 
+func TestGitHubListenErrorsProjectOnlyOntoValidConfigs(t *testing.T) {
+	t.Run("Should report missing and failed listener startup without replacing prior errors", func(t *testing.T) {
+		t.Parallel()
+
+		provider := newGitHubProviderForTest(t, nil)
+		prior := errors.New("prior config error")
+		configs := []resolvedInstanceConfig{{instanceID: "brg-valid"}, {instanceID: "brg-invalid", configError: prior}}
+		provider.applyGitHubListenErrors(configs, "")
+		if configs[0].configError == nil || !strings.Contains(configs[0].configError.Error(), "listen address") {
+			t.Fatalf("missing listener error = %v", configs[0].configError)
+		}
+		if !errors.Is(configs[1].configError, prior) {
+			t.Fatalf("prior config error = %v, want preserved", configs[1].configError)
+		}
+
+		configs = []resolvedInstanceConfig{{instanceID: "brg-valid"}}
+		provider.applyGitHubListenErrors(configs, "invalid-listen-address")
+		if configs[0].configError == nil || !strings.Contains(configs[0].configError.Error(), "listen") {
+			t.Fatalf("listener startup error = %v", configs[0].configError)
+		}
+	})
+}
+
 func signGitHubTestBody(secret string, body []byte) string {
 	mac := hmac.New(sha256.New, []byte(secret))
-	_, _ = mac.Write(body)
+	if _, err := mac.Write(body); err != nil {
+		panic("write GitHub signature body: " + err.Error())
+	}
 	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
 }
 
@@ -2114,7 +2233,8 @@ func newGitHubTestSession(
 		},
 		Runtime: subprocess.InitializeRuntime{
 			Bridge: &subprocess.InitializeBridgeRuntime{
-				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion1,
+				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion2,
+				Purpose:          subprocess.BridgeRuntimePurposeService,
 				Provider:         "github",
 				Platform:         "github",
 				ManagedInstances: managed,
@@ -2129,6 +2249,25 @@ func newGitHubTestSession(
 	setUnexportedField(t, session, "cache", bridgesdk.NewInstanceCache(request.Runtime.Bridge))
 	setUnexportedField(t, session, "now", func() time.Time { return time.Date(2026, 4, 15, 21, 0, 0, 0, time.UTC) })
 	return session
+}
+
+func newGitHubProviderForTest(t *testing.T, session *bridgesdk.Session) *githubProvider {
+	t.Helper()
+
+	provider, err := newGitHubProvider(io.Discard)
+	if err != nil {
+		t.Fatalf("newGitHubProvider() error = %v", err)
+	}
+	if session != nil {
+		setUnexportedField(t, provider.lifecycle, "session", session)
+	}
+	t.Cleanup(func() {
+		provider.lifecycle.Stop()
+		if err := provider.http.Shutdown(context.Background()); err != nil {
+			t.Errorf("provider HTTP shutdown error = %v", err)
+		}
+	})
+	return provider
 }
 
 func setUnexportedField(t *testing.T, target any, fieldName string, value any) {
@@ -2178,6 +2317,7 @@ func equalInt64s(got []int64, want []int64) bool {
 type fakeGitHubAPI struct {
 	viewer                  *githubViewer
 	validateErr             error
+	updateErr               error
 	nextIssueCommentID      int64
 	nextReviewCommentID     int64
 	issueUpdates            []int64
@@ -2224,6 +2364,9 @@ func (f *fakeGitHubAPI) UpdateIssueComment(
 	_ int64,
 ) (*githubIssueComment, error) {
 	f.issueUpdates = append(f.issueUpdates, commentID)
+	if f.updateErr != nil {
+		return nil, f.updateErr
+	}
 	return &githubIssueComment{ID: commentID}, nil
 }
 
@@ -2255,6 +2398,26 @@ type errReader struct{}
 
 func (errReader) Read(_ []byte) (int, error) {
 	return 0, errors.New("boom")
+}
+
+type githubPartialErrorResponseBody struct {
+	content []byte
+	readErr error
+	reads   int
+	closed  bool
+}
+
+func (b *githubPartialErrorResponseBody) Read(buffer []byte) (int, error) {
+	b.reads++
+	if b.reads > 1 {
+		return 0, io.EOF
+	}
+	return copy(buffer, b.content), b.readErr
+}
+
+func (b *githubPartialErrorResponseBody) Close() error {
+	b.closed = true
+	return nil
 }
 
 func (f *fakeGitHubErrorAPI) ValidateAuth(context.Context, int64) (*githubViewer, error) {

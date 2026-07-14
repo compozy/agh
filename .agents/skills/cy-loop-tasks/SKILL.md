@@ -13,13 +13,13 @@ Filesystem state still resumes cleanly if the session ends mid-loop.
 
 The loop is a five-phase state machine:
 
-| Phase | Action | Executor |
-|-------|--------|----------|
-| 0 | bootstrap | orchestrator |
-| B | one task or slice + one CodeRabbit review + checkpoint commit | orchestrator, or herdr frontend worker |
-| C | `qa_report`, then `qa_execution` | Fable 5 herdr worker, then orchestrator |
-| D | `cy-impl-peer-review` rounds until SHIP + checkpoint commit per round | orchestrator |
-| E | done-signature | orchestrator |
+| Phase | Action                                                                | Executor                                |
+| ----- | --------------------------------------------------------------------- | --------------------------------------- |
+| 0     | bootstrap                                                             | orchestrator                            |
+| B     | one task or slice + one CodeRabbit review + checkpoint commit         | orchestrator, or herdr frontend worker  |
+| C     | `qa_report`, then `qa_execution`                                      | Fable 5 herdr worker, then orchestrator |
+| D     | `cy-impl-peer-review` rounds until SHIP + checkpoint commit per round | orchestrator                            |
+| E     | done-signature                                                        | orchestrator                            |
 
 Compatible with `~/dev/ai/codex-loop-plugin` goal mode; the plugin itself
 is never modified. Prefer in-session **continue** over waiting for a
@@ -44,14 +44,14 @@ Bundled under `.agents/skills/cy-loop-tasks/scripts/` — stdlib-only
 Python 3.11+, no network, no model calls. Invoke by the explicit repo-root
 paths shown in the workflow steps.
 
-| Script | Role | Phase |
-|--------|------|-------|
-| `_state_io.py` | private strict state codec (imported, not invoked) | all state helpers |
-| `init-state.py` | bootstrap (mutating once) | 0 |
-| `detect-phase.py` | read-only | every iteration |
-| `update-state.py` | mutating | every iteration |
-| `commit-checkpoint.py` | mutating (git commit) | B, D |
-| `test_scripts.py` | read-only self-test | skill maintenance only |
+| Script                 | Role                                               | Phase                  |
+| ---------------------- | -------------------------------------------------- | ---------------------- |
+| `_state_io.py`         | private strict state codec (imported, not invoked) | all state helpers      |
+| `init-state.py`        | bootstrap (mutating once)                          | 0                      |
+| `detect-phase.py`      | read-only                                          | every iteration        |
+| `update-state.py`      | mutating                                           | every iteration        |
+| `commit-checkpoint.py` | mutating (git commit)                              | B, D                   |
+| `test_scripts.py`      | read-only self-test                                | skill maintenance only |
 
 ## Herdr delegation lanes
 
@@ -66,7 +66,7 @@ Two lanes dispatch work to herdr worker TUIs. Before any dispatch, read
   orchestration mode and never implements frontend work itself.
 - **QA-report lane (Phase C)** — always active. `qa_report` is produced by a
   Claude Fable 5 worker (`claude --permission-mode auto --model
-  claude-fable-5`), launched direct — never plan-first. The orchestrator runs
+claude-fable-5`), launched direct — never plan-first. The orchestrator runs
   `qa_execution` itself.
 
 ## Workflow
@@ -186,7 +186,7 @@ has a recorded disposition, and post-remediation `cy-final-verify` passed.
 9. Run `python3 .agents/skills/cy-loop-tasks/scripts/commit-checkpoint.py <slug> --task <stem>`.
    Stdout is a commit SHA or `SKIP: no changes`; copy it into the iteration
    summary. On exit 1, record `--verify-fail --blocker
-   "checkpoint-commit-failed: <stderr summary>"` via update-state and stop —
+"checkpoint-commit-failed: <stderr summary>"` via update-state and stop —
    never retry with `--no-verify`.
 
 Done when: task frontmatter, memory, `state.yaml`, and the checkpoint result
@@ -219,8 +219,8 @@ all reflect the same completed task.
    checklist entry, add `--deliverables-complete` to the step 9 call.
 9. Run `python3 .agents/skills/cy-loop-tasks/scripts/update-state.py <slug> --phase B --complete-progress "<slice text>" [--deliverables-complete] --action "slice <text>" --outcome completed --memory-written "memory/free-iter-<NNN>.md,memory/MEMORY.md" --verify-pass`.
 10. Run `python3 .agents/skills/cy-loop-tasks/scripts/commit-checkpoint.py <slug> --slice "<slice text>"`
-   with the exact step 3 text — same SKIP / exit-1 semantics as mode=tasks
-   step 9.
+    with the exact step 3 text — same SKIP / exit-1 semantics as mode=tasks
+    step 9.
 
 Done when: the slice's checklist entry is `completed` and the checkpoint
 result is recorded.
@@ -385,7 +385,7 @@ The canonical `[[CODEX_LOOP ...]]` header, the manual invocation text, and
   A later invocation re-detects the same phase. Two consecutive verify
   failures in one phase → declare a blocker (two-touch rule).
 - **`commit-checkpoint.py` exit 1** — record `--verify-fail --blocker
-  "checkpoint-commit-failed: <stderr summary>"`, print the summary, and stop;
+"checkpoint-commit-failed: <stderr summary>"`, print the summary, and stop;
   never bypass the hook. `SKIP: no changes` on stdout is success, not failure.
 - **Worker launch or delegation failure** — the pane shows raw JSON instead
   of a TUI banner, `rtk herdr agent list` stays `unknown`, or the status wait

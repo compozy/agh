@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -26,6 +26,7 @@ func TestRuntimeRefacs(t *testing.T) {
 				Name:    "telegram-adapter",
 				Version: "1.0.0",
 			},
+			Check: testCheckHandler,
 			Initialize: func(context.Context, *Session) error {
 				if got := runtime.Session(); got != nil {
 					return errors.New("runtime session visible before initialize commit")
@@ -75,6 +76,7 @@ func TestRuntimeRefacs(t *testing.T) {
 				Name:    "telegram-adapter",
 				Version: "1.0.0",
 			},
+			Check: testCheckHandler,
 			Deliver: func(_ context.Context, session *Session, request bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error) {
 				return session.AckDelivery(request, "remote-1", "")
 			},
@@ -132,6 +134,7 @@ func TestRuntimeRefacs(t *testing.T) {
 					Name:    "telegram-adapter",
 					Version: "1.0.0",
 				},
+				Check: testCheckHandler,
 				Deliver: func(_ context.Context, session *Session, request bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error) {
 					return session.AckDelivery(request, "remote-1", "")
 				},
@@ -177,6 +180,17 @@ func TestRuntimeRefacs(t *testing.T) {
 			if got, want := shutdownCalls, 1; got != want {
 				t.Fatalf("shutdownCalls during concurrent shutdown = %d, want %d", got, want)
 			}
+			_, err = runtime.handleHealthCheck(t.Context(), nil)
+			if !errors.As(err, &rpcErr) {
+				t.Fatalf("handleHealthCheck() during shutdown error = %v, want *subprocess.RPCError", err)
+			}
+			if rpcErr.Code != bridgeSDKRPCCodeShutdownRunning {
+				t.Fatalf(
+					"handleHealthCheck() during shutdown code = %d, want %d",
+					rpcErr.Code,
+					bridgeSDKRPCCodeShutdownRunning,
+				)
+			}
 
 			releaseOnce.Do(func() {
 				close(release)
@@ -217,6 +231,7 @@ func TestRuntimeRefacs(t *testing.T) {
 				Name:    "telegram-adapter",
 				Version: "1.0.0",
 			},
+			Check: testCheckHandler,
 			Initialize: func(context.Context, *Session) error {
 				cancel()
 				return nil

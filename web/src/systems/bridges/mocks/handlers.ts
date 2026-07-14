@@ -8,8 +8,11 @@ import {
   bridgeRoutesFixture,
   bridgeSecretBindingsFixture,
   bridgeTargetsFixture,
+  bridgeVerifyFixture,
   bridgesListFixture,
   createBridgeFixture,
+  sendBridgeTestFixture,
+  slackBridgeManifestFixture,
   testBridgeDeliveryFixture,
   updateBridgeFixture,
 } from "./fixtures";
@@ -44,6 +47,14 @@ export const handlers: HttpHandler[] = [
   aghApiMock.get("/api/bridges/providers", () =>
     HttpResponse.json({ providers: bridgeProvidersFixture })
   ),
+  aghApiMock.get("/api/bridges/providers/slack/manifest", ({ request }) => {
+    const instanceID = new URL(request.url).searchParams.get("instance");
+    if (instanceID !== bridgeDetailFixture.bridge.id) {
+      return HttpResponse.json({ error: "Slack bridge instance not found" }, { status: 404 });
+    }
+
+    return HttpResponse.json(slackBridgeManifestFixture);
+  }),
   aghApiMock.get("/api/bridges/health/stream", ({ response }) =>
     response.untyped(createBridgeHealthStreamResponse())
   ),
@@ -163,7 +174,10 @@ export const handlers: HttpHandler[] = [
   }),
   aghApiMock.post("/api/bridges", async ({ request }) => {
     const body = (await request.json()) as {
+      delivery_defaults?: (typeof createBridgeFixture.bridge)["delivery_defaults"];
       display_name?: string;
+      enabled?: boolean;
+      provider_config?: (typeof createBridgeFixture.bridge)["provider_config"];
       scope?: "global" | "workspace";
       workspace_id?: string;
     };
@@ -173,9 +187,17 @@ export const handlers: HttpHandler[] = [
         ...createBridgeFixture,
         bridge: {
           ...createBridgeFixture.bridge,
+          delivery_defaults: body.delivery_defaults,
           display_name: body.display_name?.trim() || createBridgeFixture.bridge.display_name,
+          enabled: body.enabled ?? false,
+          provider_config: body.provider_config,
           scope: body.scope ?? createBridgeFixture.bridge.scope,
+          status: body.enabled ? createBridgeFixture.bridge.status : "disabled",
           workspace_id: body.workspace_id ?? createBridgeFixture.bridge.workspace_id,
+        },
+        health: {
+          ...createBridgeFixture.health,
+          status: body.enabled ? createBridgeFixture.health.status : "disabled",
         },
       },
       { status: 201 }
@@ -191,6 +213,7 @@ export const handlers: HttpHandler[] = [
     const body = (await request.json()) as {
       display_name?: string | null;
       dm_policy?: "open" | "allowlist" | "pairing";
+      delivery_defaults?: (typeof updateBridgeFixture.bridge)["delivery_defaults"] | null;
       provider_config?: Record<string, unknown> | null;
       routing_policy?: {
         include_group: boolean;
@@ -203,6 +226,7 @@ export const handlers: HttpHandler[] = [
       ...updateBridgeFixture,
       bridge: {
         ...updateBridgeFixture.bridge,
+        delivery_defaults: body.delivery_defaults ?? undefined,
         display_name: body.display_name ?? updateBridgeFixture.bridge.display_name,
         dm_policy: body.dm_policy ?? updateBridgeFixture.bridge.dm_policy,
         provider_config: body.provider_config ?? updateBridgeFixture.bridge.provider_config,
@@ -283,5 +307,21 @@ export const handlers: HttpHandler[] = [
     }
 
     return HttpResponse.json(testBridgeDeliveryFixture);
+  }),
+  aghApiMock.post("/api/bridges/{id}/verify", ({ params }) => {
+    const id = String(params.id);
+    if (id !== bridgeDetailFixture.bridge.id) {
+      return HttpResponse.json({ error: `Bridge not found: ${id}` }, { status: 404 });
+    }
+
+    return HttpResponse.json(bridgeVerifyFixture);
+  }),
+  aghApiMock.post("/api/bridges/{id}/send-test", ({ params }) => {
+    const id = String(params.id);
+    if (id !== bridgeDetailFixture.bridge.id) {
+      return HttpResponse.json({ error: `Bridge not found: ${id}` }, { status: 404 });
+    }
+
+    return HttpResponse.json(sendBridgeTestFixture);
   }),
 ];

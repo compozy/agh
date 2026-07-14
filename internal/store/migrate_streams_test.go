@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	atlasschema "ariga.io/atlas/sql/schema"
+	atlassqlite "ariga.io/atlas/sql/sqlite"
 	"github.com/compozy/agh/internal/memory"
 	memoryschema "github.com/compozy/agh/internal/memory/schema"
 	"github.com/compozy/agh/internal/store"
@@ -151,8 +153,18 @@ func TestProductionMigrationStreams(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Status(%s) error = %v", stream.Name, err)
 			}
-			if status.Version != 1 || status.AppliedCount != 1 {
-				t.Fatalf("Status(%s) = %#v, want baseline v1", stream.Name, status)
+			wantVersion := int64(1)
+			if stream.Name == "global" {
+				wantVersion = 2
+			}
+			if status.Version != wantVersion || status.AppliedCount != int(wantVersion) {
+				t.Fatalf(
+					"Status(%s) = %#v, want version %d with %d applied migrations",
+					stream.Name,
+					status,
+					wantVersion,
+					wantVersion,
+				)
 			}
 		}
 		if !sqliteTableExists(t, db, "memory_events") {
@@ -173,18 +185,109 @@ func TestMigrationSchemaEquivalence(t *testing.T) {
 			}
 			schemaDB := openStreamTestDB(t, item.name+"-schema.db")
 			executeDeclarativeSchema(t, schemaDB, item.schemaFS, item.declarativeSource)
-			got := normalizedSQLiteSchema(t, migrationDB, item.stream.VersionTable)
-			want := normalizedSQLiteSchema(t, schemaDB, "")
-			if got != want {
-				t.Fatalf(
-					"%s migrations schema differs from declarative schema\n--- migrations ---\n%s\n--- declarative ---\n%s",
-					item.name,
-					got,
-					want,
-				)
-			}
+			assertMigrationSchemaEquivalent(t, item.name, migrationDB, schemaDB, item.stream.VersionTable)
 		})
 	}
+}
+
+func assertMigrationSchemaEquivalent(
+	t *testing.T,
+	streamName string,
+	migrationDB *sql.DB,
+	declarativeDB *sql.DB,
+	versionTable string,
+) {
+	t.Helper()
+	ctx := testutil.Context(t)
+	migrationDriver, err := atlassqlite.Open(migrationDB)
+	if err != nil {
+		t.Fatalf("open %s migration schema inspector: %v", streamName, err)
+	}
+	declarativeDriver, err := atlassqlite.Open(declarativeDB)
+	if err != nil {
+		t.Fatalf("open %s declarative schema inspector: %v", streamName, err)
+	}
+	migrationRealm, err := migrationDriver.InspectRealm(ctx, nil)
+	if err != nil {
+		t.Fatalf("inspect %s migration schema: %v", streamName, err)
+	}
+	declarativeRealm, err := declarativeDriver.InspectRealm(ctx, nil)
+	if err != nil {
+		t.Fatalf("inspect %s declarative schema: %v", streamName, err)
+	}
+	removeSchemaTable(migrationRealm, versionTable)
+	normalizeSQLiteAutoIndexes(migrationRealm)
+	normalizeSQLiteAutoIndexes(declarativeRealm)
+	changes, err := migrationDriver.RealmDiff(
+		migrationRealm,
+		declarativeRealm,
+		atlasschema.DiffNormalized(),
+	)
+	if err != nil {
+		t.Fatalf("diff %s migration and declarative schemas: %v", streamName, err)
+	}
+	if len(changes) != 0 {
+		t.Fatalf(
+			"%s migrations schema differs structurally from declarative schema\n--- migrations ---\n%s\n--- declarative ---\n%s",
+			streamName,
+			normalizedSQLiteSchema(t, migrationDB, versionTable),
+			normalizedSQLiteSchema(t, declarativeDB, ""),
+		)
+	}
+
+	gotNonAtlas := normalizedSQLiteObjects(t, migrationDB, "trigger", "view")
+	wantNonAtlas := normalizedSQLiteObjects(t, declarativeDB, "trigger", "view")
+	if gotNonAtlas != wantNonAtlas {
+		t.Fatalf(
+			"%s migration triggers/views differ from declarative schema\n--- migrations ---\n%s\n--- declarative ---\n%s",
+			streamName,
+			gotNonAtlas,
+			wantNonAtlas,
+		)
+	}
+}
+
+func removeSchemaTable(realm *atlasschema.Realm, tableName string) {
+	for _, schemaObject := range realm.Schemas {
+		tables := schemaObject.Tables[:0]
+		for _, table := range schemaObject.Tables {
+			if table.Name != tableName {
+				tables = append(tables, table)
+			}
+		}
+		schemaObject.Tables = tables
+	}
+}
+
+func normalizeSQLiteAutoIndexes(realm *atlasschema.Realm) {
+	for _, schemaObject := range realm.Schemas {
+		for _, table := range schemaObject.Tables {
+			for _, index := range table.Indexes {
+				if !strings.HasPrefix(index.Name, "sqlite_autoindex_") || sqliteIndexOrigin(index) != "u" {
+					continue
+				}
+				parts := make([]string, 0, len(index.Parts)+1)
+				parts = append(parts, table.Name)
+				for _, part := range index.Parts {
+					if part.C != nil {
+						parts = append(parts, part.C.Name)
+					}
+				}
+				if len(parts) > 1 {
+					index.Name = strings.Join(parts, "_")
+				}
+			}
+		}
+	}
+}
+
+func sqliteIndexOrigin(index *atlasschema.Index) string {
+	for _, attribute := range index.Attrs {
+		if origin, ok := attribute.(*atlassqlite.IndexOrigin); ok {
+			return origin.O
+		}
+	}
+	return ""
 }
 
 func schemaOwnedTables(t *testing.T, schemaFS fs.FS, source string) map[string]bool {
@@ -305,6 +408,40 @@ func normalizedSQLiteSchema(t *testing.T, db *sql.DB, excludedVersionTable strin
 	return strings.Join(objects, "\n")
 }
 
+func normalizedSQLiteObjects(t *testing.T, db *sql.DB, objectTypes ...string) string {
+	t.Helper()
+	wanted := make(map[string]bool, len(objectTypes))
+	for _, objectType := range objectTypes {
+		wanted[objectType] = true
+	}
+	rows, err := db.QueryContext(testutil.Context(t), `SELECT type, name, sql FROM sqlite_master
+		WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' ORDER BY type, name`)
+	if err != nil {
+		t.Fatalf("query sqlite_master objects: %v", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			t.Errorf("close sqlite_master object rows: %v", err)
+		}
+	}()
+	objects := make([]string, 0)
+	for rows.Next() {
+		var kind string
+		var name string
+		var statement string
+		if err := rows.Scan(&kind, &name, &statement); err != nil {
+			t.Fatalf("scan sqlite_master object: %v", err)
+		}
+		if wanted[kind] {
+			objects = append(objects, fmt.Sprintf("%s|%s|%s", kind, name, normalizeSchemaSQL(statement)))
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate sqlite_master objects: %v", err)
+	}
+	return strings.Join(objects, "\n")
+}
+
 func sqliteTableExists(t *testing.T, db *sql.DB, table string) bool {
 	t.Helper()
 	var exists bool
@@ -319,5 +456,5 @@ func sqliteTableExists(t *testing.T, db *sql.DB, table string) bool {
 }
 
 func normalizeSchemaSQL(statement string) string {
-	return strings.Join(strings.Fields(statement), " ")
+	return strings.Join(strings.Fields(strings.ReplaceAll(statement, "`", "")), " ")
 }

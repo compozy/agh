@@ -280,6 +280,7 @@ type recordingSessionCatalog struct {
 	sessions      map[string]store.SessionInfo
 	updateErr     error
 	attachErr     error
+	deleteErr     error
 	strictUpdates bool
 }
 
@@ -320,6 +321,19 @@ func (c *recordingSessionCatalog) UpdateSessionState(_ context.Context, update s
 	current.Sandbox = cloneSessionSandboxMeta(update.Sandbox)
 	current.UpdatedAt = update.UpdatedAt
 	c.sessions[update.ID] = current
+	return nil
+}
+
+func (c *recordingSessionCatalog) DeleteSession(_ context.Context, id string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.deleteErr != nil {
+		return c.deleteErr
+	}
+	if _, ok := c.sessions[id]; !ok {
+		return store.ErrSessionNotFound
+	}
+	delete(c.sessions, id)
 	return nil
 }
 
@@ -405,6 +419,12 @@ func (c *recordingSessionCatalog) setAttachErr(err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.attachErr = err
+}
+
+func (c *recordingSessionCatalog) setDeleteErr(err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.deleteErr = err
 }
 
 func (c *recordingSessionCatalog) requireExistingUpdates() {

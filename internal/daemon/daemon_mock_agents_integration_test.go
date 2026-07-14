@@ -5,6 +5,8 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,6 +18,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/agh/internal/acp"
 	aghcontract "github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
 	eventspkg "github.com/compozy/agh/internal/events"
 	mcppkg "github.com/compozy/agh/internal/mcp"
 	"github.com/compozy/agh/internal/store/globaldb"
@@ -99,6 +102,7 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 	}{
 		{name: "reasoning-claude-max", provider: "claude"},
 		{name: "reasoning-claude-agent-default", fixtureAgent: "reasoning-claude-max", provider: "claude"},
+		{name: "reasoning-claude-concurrent", fixtureAgent: "reasoning-claude-max", provider: "claude"},
 		{name: "reasoning-codex-max", provider: "codex"},
 		{name: "reasoning-codex-unavailable", fixtureAgent: "reasoning-codex-max", provider: "codex"},
 		{name: "reasoning-codex-unsupported", fixtureAgent: "reasoning-codex-max", provider: "codex"},
@@ -119,9 +123,20 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		})
 	}
 
-	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{MockAgents: specs})
+	harness := e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
+		ConfigSeed: e2etest.ConfigSeedOptions{Mutate: func(cfg *aghconfig.Config) {
+			for _, providerName := range []string{"claude", "codex"} {
+				provider := cfg.Providers[providerName]
+				provider.AuthMode = aghconfig.ProviderAuthModeNone
+				provider.NoneSecurity = aghconfig.ProviderNoneSecurityLocalTransport
+				cfg.Providers[providerName] = provider
+			}
+		}},
+		MockAgents: specs,
+	})
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
+	// not parallel: subtests share one runtime harness and per-agent diagnostics files.
 
 	t.Run("Should resolve the AGENT reasoning default before the first prompt", func(t *testing.T) {
 		registration, ok := harness.MockAgentRegistration("reasoning-claude-agent-default")
@@ -148,7 +163,7 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 		}
 		assertReasoningProtocolSequence(
 			t,
-			acpmock.ProtocolDiagnostics(records),
+			acpmock.ProtocolDiagnostics(acpmock.DiagnosticsForAGHSession(records, sessionPayload.ID)),
 			"sonnet",
 			"effort",
 			"max",
@@ -225,13 +240,87 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 			}
 			assertReasoningProtocolSequence(
 				t,
-				acpmock.ProtocolDiagnostics(records),
+				acpmock.ProtocolDiagnostics(acpmock.DiagnosticsForAGHSession(records, sessionPayload.ID)),
 				tt.transportModel,
 				tt.reasoningOptionID,
 				string(tt.effort),
 			)
 		})
 	}
+
+	t.Run("Should isolate concurrent sessions when process-local ACP session IDs collide", func(t *testing.T) {
+		registration, ok := harness.MockAgentRegistration("reasoning-claude-concurrent")
+		if !ok {
+			t.Fatal("MockAgentRegistration(reasoning-claude-concurrent) = missing")
+		}
+
+		sessions := make([]aghcontract.SessionPayload, 0, 2)
+		for index := 0; index < 2; index++ {
+			sessionPayload, err := harness.CreateSession(ctx, aghcontract.CreateSessionRequest{
+				AgentName:       "reasoning-claude-concurrent",
+				Provider:        "claude",
+				Model:           "claude-sonnet-5",
+				ReasoningEffort: "max",
+				WorkspacePath:   harness.WorkspaceRoot,
+			})
+			if err != nil {
+				t.Fatalf("CreateSession(concurrent %d) error = %v", index, err)
+			}
+			sessions = append(sessions, sessionPayload)
+		}
+		if sessions[0].ID == sessions[1].ID {
+			t.Fatalf("concurrent AGH session IDs = %q, want distinct owners", sessions[0].ID)
+		}
+
+		promptResults := make(chan error, len(sessions))
+		for _, sessionPayload := range sessions {
+			sessionID := sessionPayload.ID
+			go func() {
+				_, err := harness.PromptSession(ctx, sessionID, "claude max")
+				if err != nil {
+					err = fmt.Errorf("PromptSession(%q): %w", sessionID, err)
+				}
+				promptResults <- err
+			}()
+		}
+		var promptErr error
+		for range sessions {
+			promptErr = errors.Join(promptErr, <-promptResults)
+		}
+		if promptErr != nil {
+			t.Fatal(promptErr)
+		}
+
+		records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+		if err != nil {
+			t.Fatalf("ReadDiagnostics(concurrent) error = %v", err)
+		}
+		for index, record := range records {
+			if strings.TrimSpace(record.AGHSessionID) == "" {
+				t.Fatalf("diagnostics[%d] = %#v, want a daemon-owned AGH session ID", index, record)
+			}
+		}
+
+		owned := make([][]acpmock.DiagnosticsRecord, 0, len(sessions))
+		for _, sessionPayload := range sessions {
+			sessionRecords := acpmock.DiagnosticsForAGHSession(records, sessionPayload.ID)
+			for index, record := range sessionRecords {
+				if record.AGHSessionID != sessionPayload.ID {
+					t.Fatalf("owned diagnostics[%d] = %#v, want owner %q", index, record, sessionPayload.ID)
+				}
+			}
+			protocol := acpmock.ProtocolDiagnostics(sessionRecords)
+			assertReasoningProtocolSequence(t, protocol, "sonnet", "effort", "max")
+			owned = append(owned, protocol)
+		}
+		if got := owned[0][0].SessionID; got == "" || got != owned[1][0].SessionID {
+			t.Fatalf(
+				"process-local ACP session IDs = (%q, %q), want one non-empty collision",
+				got,
+				owned[1][0].SessionID,
+			)
+		}
+	})
 
 	t.Run("Should return reasoning_option_missing before the first prompt", func(t *testing.T) {
 		registration, ok := harness.MockAgentRegistration("reasoning-codex-missing")

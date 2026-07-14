@@ -6,8 +6,11 @@ export {
   bridgeRoutesFixture,
   bridgeSecretBindingsFixture,
   bridgeTargetsFixture,
+  bridgeVerifyFixture,
   bridgesListFixture,
   createBridgeFixture,
+  sendBridgeTestFixture,
+  slackBridgeManifestFixture,
   testBridgeDeliveryFixture,
   updateBridgeFixture,
 } from "./fixtures";

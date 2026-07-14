@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -120,13 +121,14 @@ func (s *CatalogService) refreshAllProviders(
 			continue
 		}
 
+		snapshot := &sourceRefreshSnapshot{Source: source}
 		for _, providerID := range providers {
 			providerOpts := opts
 			providerOpts.ProviderID = providerID
 			providerOpts.SourceID = source.ID()
 			scopeKey := refreshFlightScopeKey(providerID, providerOpts)
 			sourceStatuses, err := s.withRefreshFlight(ctx, providerID, scopeKey, func() ([]SourceStatus, error) {
-				return s.refreshSources(ctx, []Source{source}, providerOpts, now)
+				return s.refreshSources(ctx, []Source{snapshot}, providerOpts, now)
 			})
 			statuses = append(statuses, sourceStatuses...)
 			if err != nil {
@@ -148,6 +150,36 @@ func (s *CatalogService) refreshAllProviders(
 		return statuses, firstErr
 	}
 	return statuses, nil
+}
+
+type sourceRefreshSnapshot struct {
+	Source
+	once sync.Once
+	rows []ModelRow
+	err  error
+}
+
+var _ Source = (*sourceRefreshSnapshot)(nil)
+
+func (s *sourceRefreshSnapshot) ProviderIDs() []string {
+	return sourceProviders(s.Source)
+}
+
+func (s *sourceRefreshSnapshot) TTL() time.Duration {
+	provider, ok := s.Source.(sourceTTLProvider)
+	if !ok {
+		return 0
+	}
+	return provider.TTL()
+}
+
+func (s *sourceRefreshSnapshot) ListModels(ctx context.Context, opts ListOptions) ([]ModelRow, error) {
+	s.once.Do(func() {
+		globalOpts := opts
+		globalOpts.ProviderID = ""
+		s.rows, s.err = s.Source.ListModels(ctx, globalOpts)
+	})
+	return filterRowsByProvider(cloneModelRows(s.rows), opts.ProviderID), s.err
 }
 
 type refreshOutcome int

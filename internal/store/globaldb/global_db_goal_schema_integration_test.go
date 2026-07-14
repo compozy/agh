@@ -17,7 +17,7 @@ func TestGoalDurableStateSchemaConstraintsIntegration(t *testing.T) {
 	t.Run("Should preserve null token truth and reject invalid turn terminal shapes", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-schema")
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-schema")
 		insertGoalSchemaLoopRun(t, globalDB, "run-turns", "ws-goal-schema", "catalog", nil)
 		ctx := testutil.Context(t)
 		startedAt := store.FormatTimestamp(time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC))
@@ -133,7 +133,7 @@ func TestGoalDurableStateSchemaConstraintsIntegration(t *testing.T) {
 	t.Run("Should enforce checkpoint judge binding queue run and outbox checks", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-controls")
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-controls")
 		originSession := "origin-session"
 		insertGoalSchemaLoopRun(t, globalDB, "run-controls", "ws-goal-controls", "session", &originSession)
 		ctx := testutil.Context(t)

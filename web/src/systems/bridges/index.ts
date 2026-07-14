@@ -1,9 +1,11 @@
 export type {
   BridgeCreateDraft,
+  BridgeCheckStatus,
   BridgeCatalogFilter,
   BridgeSecretBinding,
   BridgeDeliveryDefaults,
   BridgeDeliveryMode,
+  BridgeDeliveryTargetDefaults,
   BridgeDetailResponse,
   BridgeDmPolicy,
   BridgeHealth,
@@ -14,6 +16,11 @@ export type {
   BridgeProviderConfig,
   BridgeProviderConfigSchemaHint,
   BridgeProviderSecretSlot,
+  BridgeProgressConfig,
+  BridgeProgressGrouping,
+  BridgeProgressMode,
+  BridgeVerifyCheck,
+  BridgeVerifyResponse,
   BridgeResolveTargetRequest,
   BridgeResolveTargetResponse,
   BridgeRoute,
@@ -35,10 +42,15 @@ export type {
   EnableBridgeResponse,
   PutBridgeSecretBindingRequest,
   RestartBridgeResponse,
+  SendBridgeTestRequest,
+  SendBridgeTestResponse,
+  SlackBridgeManifest,
+  SlackBridgeManifestResponse,
   TestBridgeDeliveryRequest,
   TestBridgeDeliveryResponse,
   UpdateBridgeRequest,
   UpdateBridgeResponse,
+  BridgeWebhookRegistrationResponse,
 } from "./types";
 
 export {
@@ -61,6 +73,13 @@ export {
 } from "./adapters/bridges-api";
 
 export {
+  getSlackBridgeManifest,
+  registerBridgeWebhook,
+  sendBridgeTest,
+  verifyBridge,
+} from "./adapters/bridge-setup-api";
+
+export {
   bridgeSecretBindingVaultRef,
   buildBridgeCreateRequest,
   buildBridgeSecretBindingRequest,
@@ -71,6 +90,18 @@ export {
   parseBridgeDmPolicy,
   parseBridgeProviderConfig,
 } from "./lib/bridge-drafts";
+export {
+  getBridgeSetupProfile,
+  projectBridgeSetup,
+  type BridgeSetupChecklistItem,
+  type BridgeSetupChecklistItemId,
+  type BridgeSetupFacts,
+  type BridgeSetupProfile,
+  type BridgeSetupProfileIssue,
+  type BridgeSetupProjection,
+  type BridgeSetupProjectionInput,
+  type BridgeSetupState,
+} from "./lib/bridge-setup";
 export {
   bridgeScopeTone,
   bridgeStatusLabel,
@@ -88,6 +119,7 @@ export {
   describeBridgeTargetCapabilities,
   describeBridgeTargetQualifier,
   findBridgeProviderByKey,
+  fingerprintBridgeProviderConfig,
   formatBridgeProviderConfig,
   formatBridgeDateTime,
   formatBridgeRelativeTime,
@@ -116,6 +148,7 @@ export {
   bridgeProvidersOptions,
   bridgeRoutesOptions,
   bridgeSecretBindingsOptions,
+  slackBridgeManifestOptions,
   bridgeTargetsOptions,
   bridgesListOptions,
 } from "./lib/query-options";
@@ -126,6 +159,7 @@ export {
   useBridgeRoutes,
   useBridgeSecretBindings,
   useBridgeTargets,
+  useSlackBridgeManifest,
 } from "./hooks/use-bridges";
 export {
   useCreateBridge,
@@ -138,6 +172,11 @@ export {
   useTestBridgeDelivery,
   useUpdateBridge,
 } from "./hooks/use-bridge-actions";
+export {
+  useRegisterBridgeWebhook,
+  useSendBridgeTest,
+  useVerifyBridge,
+} from "./hooks/use-bridge-setup-actions";
 export { applyBridgeHealthSnapshot, useBridgeHealthStream } from "./hooks/use-bridge-health-stream";
 export { BridgeCreateDialog } from "./components/bridge-create-dialog";
 export { BridgeDetailPanel } from "./components/bridge-detail-panel";

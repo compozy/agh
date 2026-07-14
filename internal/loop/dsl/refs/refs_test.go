@@ -463,12 +463,5 @@ func requireRefCode(t *testing.T, err error, code string) {
 }
 
 func pathString(path []string) string {
-	out := ""
-	for idx, item := range path {
-		if idx > 0 {
-			out += "."
-		}
-		out += item
-	}
-	return out
+	return strings.Join(path, ".")
 }

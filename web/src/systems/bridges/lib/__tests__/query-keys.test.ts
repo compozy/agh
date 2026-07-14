@@ -35,6 +35,7 @@ describe("bridgeKeys", () => {
     expect(bridgeKeys.routes("")).toEqual(["bridges", "routes", ""]);
     expect(bridgeKeys.targets("")).toEqual(["bridges", "targets", "", "", ""]);
     expect(bridgeKeys.secretBindings("")).toEqual(["bridges", "secret-bindings", ""]);
+    expect(bridgeKeys.slackManifest("   ")).toEqual(["bridges", "manifest", "slack", ""]);
   });
 
   it("includes bridge ids in detail and route query keys", () => {
@@ -55,6 +56,12 @@ describe("bridgeKeys", () => {
     expect(bridgeKeys.secretBindings("brg_support")).toEqual([
       "bridges",
       "secret-bindings",
+      "brg_support",
+    ]);
+    expect(bridgeKeys.slackManifest(" brg_support ")).toEqual([
+      "bridges",
+      "manifest",
+      "slack",
       "brg_support",
     ]);
   });

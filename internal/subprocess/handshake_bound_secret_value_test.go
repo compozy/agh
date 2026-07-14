@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/bridges"
+	bridges "github.com/compozy/agh/internal/bridges/contract"
 )
 
 func TestInitializeBridgeBoundSecretValuePreservation(t *testing.T) {
@@ -40,7 +40,8 @@ func TestInitializeBridgeBoundSecretValuePreservation(t *testing.T) {
 func testBridgeRuntimeWithBoundSecretValue(value string) InitializeBridgeRuntime {
 	now := time.Date(2026, 5, 16, 20, 35, 0, 0, time.UTC)
 	return InitializeBridgeRuntime{
-		RuntimeVersion: InitializeBridgeRuntimeVersion1,
+		RuntimeVersion: InitializeBridgeRuntimeVersion2,
+		Purpose:        BridgeRuntimePurposeService,
 		Provider:       "discord-reference",
 		Platform:       "discord",
 		ManagedInstances: []InitializeBridgeManagedInstance{{

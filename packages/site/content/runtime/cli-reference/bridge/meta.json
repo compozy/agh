@@ -10,9 +10,13 @@
         "resolve",
         "restart",
         "routes",
+        "send-test",
         "targets",
         "test-delivery",
         "update",
-        "secret-bindings"
+        "verify",
+        "manifest",
+        "secret-bindings",
+        "setup"
     ]
 }

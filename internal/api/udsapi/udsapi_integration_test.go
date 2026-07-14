@@ -2282,6 +2282,7 @@ func cloneIntegrationToolRecords(records []resources.Record[toolspkg.Tool]) []re
 
 func cloneIntegrationTool(spec toolspkg.Tool) toolspkg.Tool {
 	cloned := spec
+	cloned.ToolPresentation = toolspkg.CloneToolPresentation(spec.ToolPresentation)
 	if len(spec.InputSchema) > 0 {
 		cloned.InputSchema = append([]byte(nil), spec.InputSchema...)
 	}
@@ -2551,6 +2552,30 @@ func (s *integrationBridgeService) ListProviders(context.Context) ([]bridgepkg.B
 	providers := make([]bridgepkg.BridgeProvider, 0, len(s.providers))
 	providers = append(providers, s.providers...)
 	return providers, nil
+}
+
+func (s *integrationBridgeService) CheckBridge(
+	context.Context,
+	string,
+	bridgepkg.BridgeCheckRequest,
+) (bridgepkg.BridgeCheckResponse, error) {
+	return bridgepkg.BridgeCheckResponse{}, bridgepkg.ErrBridgeControlTransportUnavailable
+}
+
+func (s *integrationBridgeService) RegisterBridgeWebhook(
+	context.Context,
+	string,
+	bridgepkg.BridgeWebhookRegistrationRequest,
+) (bridgepkg.BridgeWebhookRegistrationResponse, error) {
+	return bridgepkg.BridgeWebhookRegistrationResponse{}, bridgepkg.ErrBridgeControlTransportUnavailable
+}
+
+func (s *integrationBridgeService) DeliverBridge(
+	context.Context,
+	string,
+	bridgepkg.DeliveryRequest,
+) (bridgepkg.DeliveryAck, error) {
+	return bridgepkg.DeliveryAck{}, bridgepkg.ErrDeliveryTransportUnavailable
 }
 
 func (s *integrationBridgeService) ListSecretBindings(

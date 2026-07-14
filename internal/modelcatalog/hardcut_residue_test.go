@@ -138,7 +138,7 @@ func skipResidueGuardFile(rel string) bool {
 		return true
 	}
 	switch strings.ToLower(filepath.Ext(base)) {
-	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".avif":
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".avif", ".tsbuildinfo":
 		return true
 	}
 	return strings.Contains(rel, "/__tests__/") || strings.Contains(rel, "/testdata/")

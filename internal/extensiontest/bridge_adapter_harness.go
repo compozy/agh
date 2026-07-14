@@ -10,17 +10,16 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/compozy/agh/internal/acp"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
 	extensionpkg "github.com/compozy/agh/internal/extension"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	observepkg "github.com/compozy/agh/internal/observe"
 	sandboxlocal "github.com/compozy/agh/internal/sandbox/local"
 	"github.com/compozy/agh/internal/session"
@@ -150,9 +149,9 @@ type StateRecord struct {
 
 // IngestRecord captures one fake inbound update mapped into a normalized ingest.
 type IngestRecord struct {
-	Envelope bridgepkg.InboundMessageEnvelope              `json:"envelope"`
-	Result   extensioncontract.BridgesMessagesIngestResult `json:"result"`
-	Error    string                                        `json:"error,omitempty"`
+	Envelope bridgepkg.InboundMessageEnvelope           `json:"envelope"`
+	Result   bridgecontract.BridgesMessagesIngestResult `json:"result"`
+	Error    string                                     `json:"error,omitempty"`
 }
 
 // ConformanceReport is the collected adapter evidence used by the validator.
@@ -266,7 +265,7 @@ func validateHandshakeRuntime(
 	expectedByID map[string]ManagedInstanceExpectation,
 ) []ConformanceIssue {
 	issues := make([]ConformanceIssue, 0)
-	if got, want := strings.TrimSpace(runtime.RuntimeVersion), subprocess.InitializeBridgeRuntimeVersion1; got != want {
+	if got, want := strings.TrimSpace(runtime.RuntimeVersion), subprocess.InitializeBridgeRuntimeVersion2; got != want {
 		issues = append(issues, ConformanceIssue{
 			Code:    "wrong_runtime_version",
 			Message: fmt.Sprintf("initialize runtime bridge version = %q, want %q", got, want),
@@ -571,9 +570,16 @@ func validateDeliveryConformance(
 
 	lastSeq := make(map[string]int64)
 	pendingAckResume := make(map[deliveryAckKey]struct{})
+	remoteMessageSeen := make(map[string]bool)
 	sawResume := false
 	for _, record := range deliveries {
-		deliveryIssues, resumed := validateDeliveryRecord(record, expectedByID, lastSeq, pendingAckResume)
+		deliveryIssues, resumed := validateDeliveryRecord(
+			record,
+			expectedByID,
+			lastSeq,
+			pendingAckResume,
+			remoteMessageSeen,
+		)
 		issues = append(issues, deliveryIssues...)
 		sawResume = sawResume || resumed
 	}
@@ -602,6 +608,7 @@ func validateDeliveryRecord(
 	expectedByID map[string]ManagedInstanceExpectation,
 	lastSeq map[string]int64,
 	pendingAckResume map[deliveryAckKey]struct{},
+	remoteMessageSeen map[string]bool,
 ) ([]ConformanceIssue, bool) {
 	issues := make([]ConformanceIssue, 0)
 	event := record.Request.Event
@@ -656,7 +663,7 @@ func validateDeliveryRecord(
 		lastSeq[deliveryID] = event.Seq
 	}
 
-	ackIssues := validateDeliveryAck(record, deliveryID, eventType, pendingAckResume)
+	ackIssues := validateDeliveryAck(record, deliveryID, eventType, pendingAckResume, remoteMessageSeen)
 	issues = append(issues, ackIssues...)
 	return issues, sawResume
 }
@@ -664,8 +671,9 @@ func validateDeliveryRecord(
 func validateDeliveryAck(
 	record DeliveryRecord,
 	deliveryID string,
-	eventType string,
+	eventType bridgepkg.DeliveryEventType,
 	pendingAckResume map[deliveryAckKey]struct{},
+	remoteMessageSeen map[string]bool,
 ) []ConformanceIssue {
 	event := record.Request.Event
 	ackKey := deliveryAckKey{deliveryID: deliveryID, seq: event.Seq}
@@ -682,13 +690,16 @@ func validateDeliveryAck(
 		})
 	}
 	delete(pendingAckResume, ackKey)
-	if event.Seq > 0 && strings.TrimSpace(record.Ack.RemoteMessageID) == "" {
+	noopAck := eventType == bridgepkg.DeliveryEventTypeProgress || event.IsLifecycleOnlyFinal()
+	if event.Seq > 0 && !noopAck &&
+		strings.TrimSpace(record.Ack.RemoteMessageID) == "" {
 		issues = append(issues, ConformanceIssue{
 			Code:    "missing_remote_message_id",
 			Message: fmt.Sprintf("delivery %q sequence %d did not return remote_message_id", deliveryID, event.Seq),
 		})
 	}
-	if event.Seq > 1 && eventType != bridgepkg.DeliveryEventTypeResume &&
+	if remoteMessageSeen[deliveryID] && eventType != bridgepkg.DeliveryEventTypeResume &&
+		!noopAck &&
 		strings.TrimSpace(record.Ack.ReplaceRemoteMessageID) == "" {
 		issues = append(issues, ConformanceIssue{
 			Code: "missing_replace_remote_message_id",
@@ -698,6 +709,9 @@ func validateDeliveryAck(
 				event.Seq,
 			),
 		})
+	}
+	if eventType != bridgepkg.DeliveryEventTypeProgress && strings.TrimSpace(record.Ack.RemoteMessageID) != "" {
+		remoteMessageSeen[deliveryID] = true
 	}
 	return issues
 }
@@ -741,141 +755,15 @@ func validateIngestConformance(
 	return issues
 }
 
-// ScriptedPromptEvent is one deterministic agent event emitted by the harness
-// driver when the host creates a session prompt.
-type ScriptedPromptEvent struct {
-	Type  string
-	Text  string
-	Error string
-	Delay time.Duration
-}
-
-// ScriptedPromptDriver is a deterministic in-process session driver used by
-// the adapter harness instead of a real ACP subprocess.
-type ScriptedPromptDriver struct {
-	now       time.Time
-	script    []ScriptedPromptEvent
-	processes map[*session.AgentProcess]*scriptedPromptProcess
-	prompts   []acp.PromptRequest
-	mu        sync.Mutex
-	startSeq  atomic.Int64
-}
-
-type scriptedPromptProcess struct {
-	done sync.Once
-	ch   chan struct{}
-}
-
-// NewScriptedPromptDriver constructs a session driver that replays the provided
-// agent events for every prompt.
-func NewScriptedPromptDriver(now time.Time, script []ScriptedPromptEvent) *ScriptedPromptDriver {
-	return &ScriptedPromptDriver{
-		now:       now,
-		script:    append([]ScriptedPromptEvent(nil), script...),
-		processes: make(map[*session.AgentProcess]*scriptedPromptProcess),
-	}
-}
-
-// Start implements session.AgentDriver.
-func (d *ScriptedPromptDriver) Start(_ context.Context, opts acp.StartOpts) (*session.AgentProcess, error) {
-	seq := d.startSeq.Add(1)
-	procState := &scriptedPromptProcess{ch: make(chan struct{})}
-	proc := session.NewAgentProcess(session.AgentProcessOptions{
-		PID:       int(seq),
-		AgentName: opts.AgentName,
-		Command:   opts.Command,
-		Cwd:       opts.Cwd,
-		SessionID: fmt.Sprintf("acp-%d", seq),
-		StartedAt: d.now.Add(time.Duration(seq) * time.Millisecond),
-		Done:      procState.ch,
-		Wait: func() error {
-			<-procState.ch
-			return nil
-		},
-	})
-
-	d.mu.Lock()
-	d.processes[proc] = procState
-	d.mu.Unlock()
-	return proc, nil
-}
-
-// Prompt implements session.AgentDriver.
-func (d *ScriptedPromptDriver) Prompt(
-	ctx context.Context,
-	_ *session.AgentProcess,
-	req acp.PromptRequest,
-) (<-chan acp.AgentEvent, error) {
-	d.mu.Lock()
-	d.prompts = append(d.prompts, req)
-	script := d.script
-	startedAt := d.now
-	d.mu.Unlock()
-
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	events := make(chan acp.AgentEvent, len(script))
-	go func() {
-		defer close(events)
-		for idx, item := range script {
-			if item.Delay > 0 {
-				timer := time.NewTimer(item.Delay)
-				select {
-				case <-timer.C:
-				case <-ctx.Done():
-					if !timer.Stop() {
-						select {
-						case <-timer.C:
-						default:
-						}
-					}
-					return
-				}
-			}
-			event := acp.AgentEvent{
-				Type:      item.Type,
-				TurnID:    req.TurnID,
-				Timestamp: startedAt.Add(time.Duration(idx+1) * time.Millisecond),
-				Text:      item.Text,
-				Error:     item.Error,
-			}
-			select {
-			case events <- event:
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-	return events, nil
-}
-
-// Cancel implements session.AgentDriver.
-func (d *ScriptedPromptDriver) Cancel(context.Context, *session.AgentProcess) error {
-	return nil
-}
-
-// Stop implements session.AgentDriver.
-func (d *ScriptedPromptDriver) Stop(_ context.Context, proc *session.AgentProcess) error {
-	d.mu.Lock()
-	state := d.processes[proc]
-	d.mu.Unlock()
-	if state == nil {
-		return nil
-	}
-	state.done.Do(func() { close(state.ch) })
-	return nil
-}
-
 // ManagedInstanceConfig configures one provider-owned bridge instance created by the harness.
 type ManagedInstanceConfig struct {
-	ID             string
-	DisplayName    string
-	DMPolicy       bridgepkg.BridgeDMPolicy
-	RoutingPolicy  bridgepkg.RoutingPolicy
-	ProviderConfig map[string]any
-	BoundSecrets   []subprocess.InitializeBridgeBoundSecret
+	ID               string
+	DisplayName      string
+	DMPolicy         bridgepkg.BridgeDMPolicy
+	RoutingPolicy    bridgepkg.RoutingPolicy
+	ProviderConfig   map[string]any
+	DeliveryDefaults map[string]any
+	BoundSecrets     []subprocess.InitializeBridgeBoundSecret
 }
 
 // HarnessConfig configures one subprocess-backed bridge adapter test harness.
@@ -1122,7 +1010,7 @@ func createHarnessManagedInstances(
 		}
 		instances = append(instances, *instance)
 		managedRuntime = append(managedRuntime, subprocess.InitializeBridgeManagedInstance{
-			Instance:     *instance,
+			Instance:     bridgepkg.BridgeInstanceToContract(*instance),
 			BoundSecrets: cloneBoundSecrets(managedCfg.BoundSecrets),
 		})
 	}
@@ -1151,19 +1039,32 @@ func harnessCreateInstanceRequest(
 		}
 		providerConfig = encodedProviderConfig
 	}
+	var deliveryDefaults json.RawMessage
+	if managedCfg.DeliveryDefaults != nil {
+		encodedDeliveryDefaults, err := json.Marshal(managedCfg.DeliveryDefaults)
+		if err != nil {
+			return bridgepkg.CreateInstanceRequest{}, fmt.Errorf(
+				"json.Marshal(delivery_defaults for %q): %w",
+				managedCfg.ID,
+				err,
+			)
+		}
+		deliveryDefaults = encodedDeliveryDefaults
+	}
 
 	createReq := bridgepkg.CreateInstanceRequest{
-		ID:             firstNonEmpty(managedCfg.ID, fmt.Sprintf("brg-%d", seq)),
-		Scope:          bridgepkg.ScopeWorkspace,
-		WorkspaceID:    harnessWorkspaceID(workspace),
-		Platform:       firstNonEmpty(cfg.Platform, "telegram"),
-		ExtensionName:  extensionName,
-		DisplayName:    firstNonEmpty(managedCfg.DisplayName, cfg.DisplayName, "Telegram Reference"),
-		Enabled:        true,
-		Status:         bridgepkg.BridgeStatusStarting,
-		DMPolicy:       managedCfg.DMPolicy,
-		RoutingPolicy:  managedCfg.RoutingPolicy,
-		ProviderConfig: providerConfig,
+		ID:               firstNonEmpty(managedCfg.ID, fmt.Sprintf("brg-%d", seq)),
+		Scope:            bridgepkg.ScopeWorkspace,
+		WorkspaceID:      harnessWorkspaceID(workspace),
+		Platform:         firstNonEmpty(cfg.Platform, "telegram"),
+		ExtensionName:    extensionName,
+		DisplayName:      firstNonEmpty(managedCfg.DisplayName, cfg.DisplayName, "Telegram Reference"),
+		Enabled:          true,
+		Status:           bridgepkg.BridgeStatusStarting,
+		DMPolicy:         managedCfg.DMPolicy,
+		RoutingPolicy:    managedCfg.RoutingPolicy,
+		ProviderConfig:   providerConfig,
+		DeliveryDefaults: deliveryDefaults,
 	}
 	if createReq.RoutingPolicy == (bridgepkg.RoutingPolicy{}) {
 		createReq.RoutingPolicy = bridgepkg.RoutingPolicy{IncludePeer: true}
@@ -1203,7 +1104,8 @@ func buildHarnessRuntime(
 		extensionpkg.WithBridgeRuntimeResolver(&stubBridgeRuntimeResolver{
 			runtimes: map[string]*subprocess.InitializeBridgeRuntime{
 				extensionName: {
-					RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion1,
+					RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion2,
+					Purpose:          subprocess.BridgeRuntimePurposeService,
 					Provider:         extensionName,
 					Platform:         instances[0].Platform,
 					ManagedInstances: cloneManagedRuntime(managedRuntime),
@@ -1725,50 +1627,6 @@ func appendJSONLine(t testing.TB, path string, value any) {
 	}
 }
 
-func recordHostStateTransition(
-	t testing.TB,
-	path string,
-	params json.RawMessage,
-	result any,
-	callErr error,
-) {
-	t.Helper()
-
-	record := StateRecord{}
-
-	var request extensioncontract.BridgesInstancesReportStateParams
-	if err := json.Unmarshal(params, &request); err == nil {
-		record.BridgeInstanceID = strings.TrimSpace(request.BridgeInstanceID)
-		record.Status = request.Status.Normalize()
-		record.Instance = bridgepkg.BridgeInstance{
-			ID:          record.BridgeInstanceID,
-			Status:      request.Status.Normalize(),
-			Degradation: cloneBridgeDegradation(request.Degradation),
-		}
-	}
-
-	switch typed := result.(type) {
-	case *bridgepkg.BridgeInstance:
-		if typed != nil {
-			record.Instance = copyBridgeInstance(*typed)
-		}
-	case bridgepkg.BridgeInstance:
-		record.Instance = copyBridgeInstance(typed)
-	}
-
-	if record.BridgeInstanceID == "" {
-		record.BridgeInstanceID = strings.TrimSpace(record.Instance.ID)
-	}
-	if record.Status == "" {
-		record.Status = record.Instance.Status.Normalize()
-	}
-	if callErr != nil {
-		record.Error = callErr.Error()
-	}
-
-	appendJSONLine(t, path, record)
-}
-
 func cloneBridgeDegradation(degradation *bridgepkg.BridgeDegradation) *bridgepkg.BridgeDegradation {
 	if degradation == nil {
 		return nil
@@ -1797,8 +1655,8 @@ func waitForCondition(t testing.TB, timeout time.Duration, label string, fn func
 	t.Fatalf("%s did not satisfy condition before timeout", label)
 }
 
-func normalizeEventType(eventType string) string {
-	return strings.ToLower(strings.TrimSpace(eventType))
+func normalizeEventType(eventType bridgepkg.DeliveryEventType) bridgepkg.DeliveryEventType {
+	return bridgepkg.DeliveryEventType(strings.ToLower(strings.TrimSpace(string(eventType))))
 }
 
 func firstNonEmpty(values ...string) string {

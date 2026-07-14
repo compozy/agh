@@ -40,6 +40,10 @@ interface SessionEnvelope {
   session: SessionPayload;
 }
 
+interface SessionListEnvelope {
+  sessions: SessionPayload[];
+}
+
 interface SessionEventEnvelope {
   events: unknown[];
 }
@@ -446,7 +450,7 @@ async function listSessionsViaCLI(runtime: BrowserRuntime): Promise<SessionPaylo
     ["session", "list", "--all", "-o", "json"],
     { env: cliEnv(runtime.paths) }
   );
-  return JSON.parse(stdout) as SessionPayload[];
+  return (JSON.parse(stdout) as SessionListEnvelope).sessions;
 }
 
 async function repairSessionViaCLI(runtime: BrowserRuntime, sessionID: string): Promise<unknown> {

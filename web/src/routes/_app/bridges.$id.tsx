@@ -16,6 +16,10 @@ export const Route = createFileRoute("/_app/bridges/$id")({
 
 function BridgeDetailRoute() {
   const { id } = Route.useParams();
+  return <BridgeDetailRouteContent id={id} key={id} />;
+}
+
+function BridgeDetailRouteContent({ id }: { id: string }) {
   const page = useBridgeDetailPage(id);
 
   return (
@@ -23,6 +27,7 @@ function BridgeDetailRoute() {
       <BridgeDetailPanel {...page.detailPanelProps} />
       <BridgeEditDialog {...page.editDialogProps} />
       <BridgeTestDeliveryDialog {...page.testDeliveryDialogProps} />
+      <BridgeTestDeliveryDialog {...page.sendTestDialogProps} />
     </>
   );
 }

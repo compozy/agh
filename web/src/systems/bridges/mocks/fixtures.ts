@@ -4,9 +4,12 @@ import type {
   BridgeResolveTargetResponse,
   BridgeRoute,
   BridgeSecretBinding,
+  BridgeVerifyResponse,
   BridgeTargetsResponse,
   BridgesListResponse,
   CreateBridgeResponse,
+  SendBridgeTestResponse,
+  SlackBridgeManifestResponse,
   TestBridgeDeliveryResponse,
   UpdateBridgeResponse,
 } from "../types";
@@ -63,8 +66,12 @@ export const bridgesListFixture: BridgesListResponse = {
       notification_suppress: false,
       platform: "slack",
       provider_config: {
+        webhook: {
+          public_url: "https://bridge.example.test/slack/launch-room",
+        },
         workspace: "northstar-launch",
       },
+      webhook_public_url: "https://bridge.example.test/slack/launch-room",
       routing_policy: {
         include_group: true,
         include_peer: true,
@@ -78,6 +85,12 @@ export const bridgesListFixture: BridgesListResponse = {
       delivery_defaults: {
         mode: "reply",
         group_id: "slack_launch_room",
+        progress: {
+          grouping: "accumulate",
+          reactions: true,
+          tool_progress: "new",
+          typing: true,
+        },
       },
     },
   ],
@@ -215,4 +228,84 @@ export const testBridgeDeliveryFixture: TestBridgeDeliveryResponse = {
   },
   message: "Delivery target resolved for the selected launch-room Slack bridge.",
   status: "ready",
+};
+
+export const slackBridgeManifestFixture: SlackBridgeManifestResponse = {
+  manifest: {
+    _metadata: {
+      major_version: 1,
+      minor_version: 1,
+    },
+    display_information: {
+      background_color: "#E8572A",
+      description: "AGH bridge for Launch room dispatch",
+      name: "Launch room dispatch",
+    },
+    features: {
+      bot_user: {
+        always_online: false,
+        display_name: "Launch room dispatch",
+      },
+      slash_commands: [
+        {
+          command: "/agh",
+          description: "Send a command to AGH",
+          should_escape: false,
+          url: "https://bridge.example.test/slack/launch-room",
+          usage_hint: "<command>",
+        },
+      ],
+    },
+    oauth_config: {
+      scopes: {
+        bot: ["app_mentions:read", "chat:write"],
+      },
+    },
+    settings: {
+      event_subscriptions: {
+        bot_events: ["app_mention"],
+        request_url: "https://bridge.example.test/slack/launch-room",
+      },
+      interactivity: {
+        is_enabled: true,
+        request_url: "https://bridge.example.test/slack/launch-room",
+      },
+      org_deploy_enabled: false,
+      socket_mode_enabled: false,
+      token_rotation_enabled: false,
+    },
+  },
+};
+
+export const bridgeVerifyFixture: BridgeVerifyResponse = {
+  bridge_instance_id: "brg_launch_room",
+  checks: [
+    {
+      check: "provider.identity",
+      remediation: "",
+      status: "pass",
+    },
+    {
+      check: "webhook.signing_secret",
+      remediation: "",
+      status: "pass",
+    },
+    {
+      check: "webhook.reachability",
+      remediation: "",
+      status: "pass",
+    },
+  ],
+};
+
+export const sendBridgeTestFixture: SendBridgeTestResponse = {
+  bridge_instance_id: "brg_launch_room",
+  delivery_id: "delivery_test_launch_room",
+  delivery_target: {
+    bridge_instance_id: "brg_launch_room",
+    group_id: "slack_launch_room",
+    mode: "reply",
+  },
+  remote_message_id: "1713367800.123456",
+  status: "delivered",
 };

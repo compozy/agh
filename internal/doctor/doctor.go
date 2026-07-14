@@ -191,11 +191,14 @@ func normalizeFilterSet(values []string) map[string]struct{} {
 func (f runFilters) allows(probe Probe) bool {
 	id := probe.ID()
 	category := probe.Category()
+	_, idSelected := f.only[id]
+	_, categorySelected := f.only[category]
+	if category == contract.CategoryBridge && !idSelected && !categorySelected {
+		return false
+	}
 	if len(f.only) > 0 {
-		if _, ok := f.only[id]; !ok {
-			if _, ok := f.only[category]; !ok {
-				return false
-			}
+		if !idSelected && !categorySelected {
+			return false
 		}
 	}
 	if _, ok := f.exclude[id]; ok {

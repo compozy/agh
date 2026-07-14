@@ -2,7 +2,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import { closeSkillMarketplaceServer, startSkillMarketplaceServer } from "../runtime";
+import {
+  closeSkillMarketplaceServer,
+  resolveBrowserRuntimeEnv,
+  startSkillMarketplaceServer,
+} from "../runtime";
 import { stopBrowserDaemonProcess, stopRegisteredDaemon } from "../runtime-process";
 import {
   assertDaemonServedHTML,
@@ -15,6 +19,29 @@ import {
 } from "../runtime-helpers";
 
 describe("runtime helpers", () => {
+  it("preserves lane control variables without leaking unrelated ambient variables", () => {
+    expect(
+      resolveBrowserRuntimeEnv(
+        {
+          AGH_TEST_TELEGRAM_TOKEN: "telegram-bot-token",
+          PATH: "/runtime/bin",
+        },
+        {
+          AGH_TEST_ACPMOCK_DRIVER_BIN: "/lane/acpmock-driver",
+          AGH_TEST_DAEMON_BIN: "/lane/agh",
+          AGH_WEB_DIST_DIR: "/lane/web-dist",
+          OPERATOR_SECRET: "must-not-propagate",
+        }
+      )
+    ).toEqual({
+      AGH_TEST_ACPMOCK_DRIVER_BIN: "/lane/acpmock-driver",
+      AGH_TEST_DAEMON_BIN: "/lane/agh",
+      AGH_TEST_TELEGRAM_TOKEN: "telegram-bot-token",
+      AGH_WEB_DIST_DIR: "/lane/web-dist",
+      PATH: "/runtime/bin",
+    });
+  });
+
   it("stops the registered restart replacement before the originally spawned daemon", async () => {
     const calls: string[] = [];
     const child = {} as Parameters<typeof stopBrowserDaemonProcess>[0];
@@ -108,6 +135,17 @@ describe("runtime helpers", () => {
         socketPath: "/tmp/agh.sock",
       })
     ).toContain("[network]\nenabled = true\n");
+  });
+
+  it("renders models.dev disablement when a browser scenario requires offline catalog refresh", () => {
+    expect(
+      renderRuntimeConfig({
+        host: "127.0.0.1",
+        modelsDevEnabled: false,
+        port: 4321,
+        socketPath: "/tmp/agh.sock",
+      })
+    ).toContain("[model_catalog.sources.models_dev]\nenabled = false\n");
   });
 
   it("renders network disablement when requested by the browser runtime", () => {

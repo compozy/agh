@@ -11,10 +11,9 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -114,7 +113,8 @@ func TestTelegramReferenceAuthStatus(t *testing.T) {
 		}
 		session := runtime.sdk.Session()
 		session.Cache().Reset(&subprocess.InitializeBridgeRuntime{
-			RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion1,
+			RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion2,
+			Purpose:          subprocess.BridgeRuntimePurposeService,
 			Provider:         "telegram-reference",
 			Platform:         "telegram",
 			ManagedInstances: []subprocess.InitializeBridgeManagedInstance{managed},
@@ -239,7 +239,7 @@ func handleTelegramRuntimeLifecycle(
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -287,8 +287,8 @@ func recordTelegramRuntimeIngests(
 
 func telegramRuntimeIngestResult(
 	envelope bridgepkg.InboundMessageEnvelope,
-) extensioncontract.BridgesMessagesIngestResult {
-	return extensioncontract.BridgesMessagesIngestResult{
+) bridgepkg.BridgesMessagesIngestResult {
+	return bridgepkg.BridgesMessagesIngestResult{
 		SessionID:    "sess-" + envelope.BridgeInstanceID,
 		RouteCreated: true,
 		RoutingKey: bridgepkg.RoutingKey{

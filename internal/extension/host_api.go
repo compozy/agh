@@ -290,14 +290,6 @@ type hostAPITaskManager interface {
 	) (*taskpkg.Run, error)
 }
 
-type hostAPIDeliveryBroker interface {
-	RegisterPromptDelivery(
-		ctx context.Context,
-		reg bridgepkg.PromptDeliveryRegistration,
-	) (*bridgepkg.DeliverySnapshot, error)
-	ProjectEvent(ctx context.Context, sessionID string, event bridgepkg.DeliveryProjectionEvent) error
-}
-
 type hostAPISkillsRegistry interface {
 	List() []*skillspkg.Skill
 	ForWorkspace(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*skillspkg.Skill, error)
@@ -844,16 +836,6 @@ type hostAPIResourcesListParams = extensioncontract.ResourcesListParams
 type hostAPIResourceGetParams = extensioncontract.ResourceGetParams
 
 type hostAPIResourcesSnapshotParams = extensioncontract.ResourcesSnapshotParams
-
-type hostAPIBridgesMessagesIngestParams = extensioncontract.BridgesMessagesIngestParams
-
-type hostAPIBridgesMessagesIngestResult = extensioncontract.BridgesMessagesIngestResult
-
-type hostAPIBridgeInstanceTargetParams = extensioncontract.BridgeInstanceTargetParams
-
-type hostAPIBridgesInstancesReportStateParams = extensioncontract.BridgesInstancesReportStateParams
-
-type hostAPIBridgeInstance = bridgepkg.BridgeInstance
 
 type hostAPIResourceRecord = extensioncontract.ResourceRecord
 
@@ -1853,14 +1835,14 @@ func promptProjectionEventFromStoredEvent(storedEvent store.SessionEvent) (bridg
 		decoded.Timestamp = storedEvent.Timestamp
 	}
 
-	return bridgepkg.DeliveryProjectionEvent{
-		Type:        decoded.Type,
-		TurnID:      decoded.TurnID,
-		Timestamp:   decoded.Timestamp,
-		Text:        decoded.Text,
-		Error:       decoded.Error,
-		Fingerprint: strings.TrimSpace(storedEvent.Content),
-	}, nil
+	fingerprint, err := canonicalProjectionFingerprint(storedEvent.Content)
+	if err != nil {
+		return bridgepkg.DeliveryProjectionEvent{}, fmt.Errorf(
+			"extension: fingerprint prompt seed event: %w",
+			err,
+		)
+	}
+	return projectionEventFromCanonicalAgentEvent(&decoded, fingerprint), nil
 }
 
 func (h *HostAPIHandler) latestSessionSequence(ctx context.Context, sessionID string) (int64, error) {

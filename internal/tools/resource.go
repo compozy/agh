@@ -25,11 +25,16 @@ func validateToolSpec(_ context.Context, scope resources.ResourceScope, spec Too
 	if err := normalizedScope.Validate("scope"); err != nil {
 		return Tool{}, err
 	}
+	presentation := spec.Presentation()
 
 	normalized := Tool{
-		ID:                  ToolID(strings.TrimSpace(spec.ID.String())),
-		Backend:             normalizeBackendRef(spec.Backend),
-		DisplayTitle:        strings.TrimSpace(spec.DisplayTitle),
+		ID:           ToolID(strings.TrimSpace(spec.ID.String())),
+		Backend:      normalizeBackendRef(spec.Backend),
+		DisplayTitle: strings.TrimSpace(spec.DisplayTitle),
+		ToolPresentation: NewToolPresentation(
+			strings.TrimSpace(presentation.FriendlyVerb),
+			strings.TrimSpace(presentation.Preview),
+		),
 		Description:         strings.TrimSpace(spec.Description),
 		InputSchema:         cloneRawMessage(spec.InputSchema),
 		OutputSchema:        cloneRawMessage(spec.OutputSchema),

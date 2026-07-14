@@ -10,10 +10,9 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -78,7 +77,7 @@ func TestWebhookIngressTimeout(t *testing.T) {
 				case <-ctx.Done():
 					return nil, ctx.Err()
 				case <-release:
-					return extensioncontract.BridgesMessagesIngestResult{
+					return bridgepkg.BridgesMessagesIngestResult{
 						SessionID:    "sess-" + envelope.BridgeInstanceID,
 						RouteCreated: true,
 						RoutingKey: bridgepkg.RoutingKey{
@@ -106,7 +105,7 @@ func TestWebhookIngressTimeout(t *testing.T) {
 		waitForLinearCondition(t, func() bool {
 			runtime.mu.RLock()
 			defer runtime.mu.RUnlock()
-			return strings.TrimSpace(runtime.serverAddr) != ""
+			return strings.TrimSpace(runtime.http.Address()) != ""
 		})
 
 		webhookURL := "http://" + linearRuntimeServerAddr(runtime) + "/linear"

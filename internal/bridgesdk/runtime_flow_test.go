@@ -8,8 +8,7 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -34,6 +33,7 @@ func TestRuntimeServeInitializeDeliverHealthShutdownAndSync(t *testing.T) {
 			SDKName:    "bridgesdk",
 			SDKVersion: "test",
 		},
+		Check: testCheckHandler,
 		Initialize: func(_ context.Context, session *Session) error {
 			if session.BridgeRuntime() == nil {
 				t.Fatal("session.BridgeRuntime() = nil, want non-nil")
@@ -75,7 +75,7 @@ func TestRuntimeServeInitializeDeliverHealthShutdownAndSync(t *testing.T) {
 		if err := json.Unmarshal(raw, &envelope); err != nil {
 			return nil, err
 		}
-		return extensioncontract.BridgesMessagesIngestResult{
+		return bridgepkg.BridgesMessagesIngestResult{
 			SessionID:    "sess-1",
 			RouteCreated: true,
 			RoutingKey: bridgepkg.RoutingKey{
@@ -130,14 +130,12 @@ func TestRuntimeServeInitializeDeliverHealthShutdownAndSync(t *testing.T) {
 		t.Fatalf("IngestBridgeMessage().SessionID = %q, want %q", got, want)
 	}
 
-	var health struct {
-		OK bool `json:"ok"`
-	}
+	var health subprocess.HealthCheckResponse
 	if err := hostPeer.Call(ctx, "health_check", nil, &health); err != nil {
 		t.Fatalf("hostPeer.Call(health_check) error = %v", err)
 	}
-	if !health.OK {
-		t.Fatal("health.OK = false, want true")
+	if !health.Healthy {
+		t.Fatal("health.Healthy = false, want true")
 	}
 
 	var ack bridgepkg.DeliveryAck
@@ -200,6 +198,7 @@ func TestRuntimeServeRejectsDeliveryBeforeInitialize(t *testing.T) {
 			Name:    "telegram-adapter",
 			Version: "1.0.0",
 		},
+		Check: testCheckHandler,
 		Deliver: func(_ context.Context, session *Session, request bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error) {
 			return session.AckDelivery(request, "remote-1", "")
 		},
@@ -240,6 +239,7 @@ func TestRuntimeServeRejectsInvalidInitializePayload(t *testing.T) {
 			Name:    "telegram-adapter",
 			Version: "1.0.0",
 		},
+		Check: testCheckHandler,
 		Deliver: func(_ context.Context, session *Session, request bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error) {
 			return session.AckDelivery(request, "remote-1", "")
 		},

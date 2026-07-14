@@ -391,7 +391,7 @@ func waitForBridgeHealth(
 func findDeliveryRecord(
 	t *testing.T,
 	records []extensiontest.DeliveryRecord,
-	eventType string,
+	eventType bridgepkg.DeliveryEventType,
 ) extensiontest.DeliveryRecord {
 	t.Helper()
 
@@ -405,6 +405,6 @@ func findDeliveryRecord(
 	return extensiontest.DeliveryRecord{}
 }
 
-func normalizeDeliveryEventType(value string) string {
-	return strings.ToLower(strings.TrimSpace(value))
+func normalizeDeliveryEventType(value bridgepkg.DeliveryEventType) bridgepkg.DeliveryEventType {
+	return bridgepkg.DeliveryEventType(strings.ToLower(strings.TrimSpace(string(value))))
 }

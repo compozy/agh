@@ -22,7 +22,7 @@ import (
 	automationpkg "github.com/compozy/agh/internal/automation"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	aghconfig "github.com/compozy/agh/internal/config"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/memory/consolidation"
@@ -40,6 +40,18 @@ import (
 )
 
 const daemonSessionStopHelperEnvKey = "AGH_TEST_DAEMON_SESSION_STOP_HELPER"
+
+type daemonMigrationExpectation struct {
+	stream  store.MigrationStream
+	version int64
+}
+
+func daemonMigrationExpectations() []daemonMigrationExpectation {
+	return []daemonMigrationExpectation{
+		{stream: globaldb.MigrationStream(), version: 2},
+		{stream: memory.MigrationStream(), version: 1},
+	}
+}
 
 func installExtensionForDaemonIntegration(
 	t *testing.T,
@@ -2246,13 +2258,19 @@ func TestBootInitializesMemoryStoreAndAssemblerIntegration(t *testing.T) {
 	if !ok {
 		t.Fatalf("registry type = %T, want *globaldb.GlobalDB", d.registry)
 	}
-	for _, stream := range []store.MigrationStream{globaldb.MigrationStream(), memory.MigrationStream()} {
-		status, err := store.Status(testutil.Context(t), registry.DB(), stream)
+	for _, expectation := range daemonMigrationExpectations() {
+		status, err := store.Status(testutil.Context(t), registry.DB(), expectation.stream)
 		if err != nil {
-			t.Fatalf("Status(%s after boot) error = %v", stream.Name, err)
+			t.Fatalf("Status(%s after boot) error = %v", expectation.stream.Name, err)
 		}
-		if status.Version != 1 || status.AppliedCount != 1 {
-			t.Fatalf("Status(%s after boot) = %#v, want version/applied count 1", stream.Name, status)
+		if status.Version != expectation.version || status.AppliedCount != int(expectation.version) {
+			t.Fatalf(
+				"Status(%s after boot) = %#v, want version %d with %d applied migrations",
+				expectation.stream.Name,
+				status,
+				expectation.version,
+				expectation.version,
+			)
 		}
 	}
 	if capturedDeps.PromptAssembler == nil {
@@ -2347,16 +2365,22 @@ func TestBootLoadsBundledSkillsIntoPromptAssemblerInSkillsOnlyMode(t *testing.T)
 		if !ok {
 			t.Fatalf("registry type = %T, want *globaldb.GlobalDB", d.registry)
 		}
-		for _, stream := range []store.MigrationStream{globaldb.MigrationStream(), memory.MigrationStream()} {
-			status, statusErr := store.Status(testutil.Context(t), registry.DB(), stream)
+		for _, expectation := range daemonMigrationExpectations() {
+			status, statusErr := store.Status(testutil.Context(t), registry.DB(), expectation.stream)
 			if statusErr != nil {
-				t.Fatalf("Status(%s after memory-disabled boot) error = %v", stream.Name, statusErr)
-			}
-			if status.Version != 1 || status.AppliedCount != 1 {
 				t.Fatalf(
-					"Status(%s after memory-disabled boot) = %#v, want version/applied count 1",
-					stream.Name,
+					"Status(%s after memory-disabled boot) error = %v",
+					expectation.stream.Name,
+					statusErr,
+				)
+			}
+			if status.Version != expectation.version || status.AppliedCount != int(expectation.version) {
+				t.Fatalf(
+					"Status(%s after memory-disabled boot) = %#v, want version %d with %d applied migrations",
+					expectation.stream.Name,
 					status,
+					expectation.version,
+					expectation.version,
 				)
 			}
 		}

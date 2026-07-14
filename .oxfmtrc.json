@@ -22,6 +22,7 @@
         ".old_project/**",
         ".claude/skills/**",
         ".agents/skills/**",
+        "internal/bridges/testdata/slack-manifest-schema-v0.5.0/manifest.schema.1.0.0.json",
         "**/routeTree.gen.ts",
         ".compozy/tasks/**",
         "docs/**"

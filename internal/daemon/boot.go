@@ -2147,38 +2147,6 @@ func resolveDaemonPort(defaultPort int, server Server) int {
 	return defaultPort
 }
 
-func (d *Daemon) composeBridgeRuntime(state *bootState, cleanup *bootCleanup) *bridgeRuntime {
-	if state == nil || state.registry == nil {
-		return nil
-	}
-
-	store, ok := state.registry.(bridgeRuntimeStore)
-	if !ok {
-		if state.logger != nil {
-			state.logger.Debug(
-				"daemon: skipping bridge runtime because registry does not expose bridge persistence",
-			)
-		}
-		return nil
-	}
-
-	resolver := d.bridgeSecretResolver
-	if !d.bridgeSecretResolverExplicit && state.providerVault != nil {
-		resolver = vaultBridgeSecretResolver{service: state.providerVault}
-	}
-	runtime := newBridgeRuntime(store, state.logger, d.now, resolver)
-	if runtime == nil {
-		return nil
-	}
-	if cleanup != nil {
-		cleanup.add(func(context.Context) error {
-			runtime.Close()
-			return nil
-		})
-	}
-	return runtime
-}
-
 func (d *Daemon) bootNotificationPresets(ctx context.Context, state *bootState) error {
 	if state == nil || state.registry == nil {
 		return nil

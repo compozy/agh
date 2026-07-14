@@ -10,6 +10,8 @@ import (
 type registryTestProvider struct {
 	source      SourceRef
 	descriptors []Descriptor
+	list        func() []Descriptor
+	listScoped  func(Scope) []Descriptor
 	handles     map[ToolID]Handle
 	resolveErr  map[ToolID]error
 }
@@ -20,7 +22,13 @@ func (p registryTestProvider) ID() SourceRef {
 	return p.source
 }
 
-func (p registryTestProvider) List(_ context.Context, _ Scope) ([]Descriptor, error) {
+func (p registryTestProvider) List(_ context.Context, scope Scope) ([]Descriptor, error) {
+	if p.listScoped != nil {
+		return append([]Descriptor(nil), p.listScoped(scope)...), nil
+	}
+	if p.list != nil {
+		return append([]Descriptor(nil), p.list()...), nil
+	}
 	return append([]Descriptor(nil), p.descriptors...), nil
 }
 
@@ -104,6 +112,180 @@ func TestRuntimeRegistryIndexingAndCollisions(t *testing.T) {
 		}
 		if len(sessionViews) != 0 {
 			t.Fatalf("sessionViews = %#v, want empty", sessionViews)
+		}
+	})
+
+	t.Run("Should replace descriptor metadata after a provider reindex", func(t *testing.T) {
+		t.Parallel()
+
+		first := validDescriptor()
+		first.ToolPresentation = NewToolPresentation("Reading skill", "arg:name")
+		second := validDescriptor()
+		second.ID = "agh__skill_search"
+		second.Backend.NativeName = "skill_search"
+		second.ToolPresentation = NewToolPresentation("Searching skills", "query")
+		descriptors := []Descriptor{first, second}
+		provider := registryTestProvider{
+			source: first.Source,
+			list: func() []Descriptor {
+				return descriptors
+			},
+		}
+		registry, err := NewRegistry(WithProviders(provider))
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+		if _, err := registry.DiagnosticProjection(ctx, Scope{Operator: true}); err != nil {
+			t.Fatalf("DiagnosticProjection(initial) error = %v", err)
+		}
+		metadata, ok := registry.LookupToolMetadata("", second.ID.String())
+		if !ok {
+			t.Fatal("LookupToolMetadata(initial) ok = false, want true")
+		}
+		secondPresentation := second.Presentation()
+		if got, want := metadata.FriendlyVerb, secondPresentation.FriendlyVerb; got != want {
+			t.Fatalf("LookupToolMetadata(initial).FriendlyVerb = %q, want %q", got, want)
+		}
+
+		descriptors = []Descriptor{first}
+		if _, err := registry.DiagnosticProjection(ctx, Scope{Operator: true}); err != nil {
+			t.Fatalf("DiagnosticProjection(reindex) error = %v", err)
+		}
+		if metadata, ok := registry.LookupToolMetadata("", second.ID.String()); ok {
+			t.Fatalf("LookupToolMetadata(removed) = %#v, true; want zero, false", metadata)
+		}
+	})
+
+	t.Run("Should isolate descriptor metadata across concurrent workspace reindexes", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDescriptor()
+		removedFromWorkspaceA := false
+		provider := registryTestProvider{
+			source: descriptor.Source,
+			listScoped: func(scope Scope) []Descriptor {
+				scoped := cloneDescriptor(descriptor)
+				switch scope.WorkspaceID {
+				case "":
+					scoped.ToolPresentation = NewToolPresentation("Global lookup", "arg:query")
+					scoped.Source.Scope = "global"
+				case "ws-a":
+					if removedFromWorkspaceA {
+						return nil
+					}
+					scoped.ToolPresentation = NewToolPresentation("Workspace A lookup", "arg:a")
+					scoped.Source.Scope = "workspace"
+					scoped.Source.WorkspaceID = "ws-a"
+				case "ws-b":
+					scoped.ToolPresentation = NewToolPresentation("Workspace B lookup", "arg:b")
+					scoped.Source.Scope = "workspace"
+					scoped.Source.WorkspaceID = "ws-b"
+				default:
+					return nil
+				}
+				return []Descriptor{scoped}
+			},
+		}
+		registry, err := NewRegistry(WithProviders(provider))
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+		if _, err := registry.DiagnosticProjection(ctx, Scope{Operator: true}); err != nil {
+			t.Fatalf("DiagnosticProjection(global) error = %v", err)
+		}
+
+		type projectionResult struct {
+			workspaceID string
+			err         error
+		}
+		start := make(chan struct{})
+		results := make(chan projectionResult, 2)
+		for _, scope := range []Scope{{WorkspaceID: "ws-a"}, {WorkspaceID: "ws-b"}} {
+			go func() {
+				<-start
+				_, projectionErr := registry.DiagnosticProjection(ctx, scope)
+				results <- projectionResult{workspaceID: scope.WorkspaceID, err: projectionErr}
+			}()
+		}
+		close(start)
+		for range 2 {
+			result := <-results
+			if result.err != nil {
+				t.Fatalf("DiagnosticProjection(%s) error = %v", result.workspaceID, result.err)
+			}
+		}
+
+		for _, expected := range []struct {
+			workspaceID  string
+			friendlyVerb string
+		}{
+			{workspaceID: "ws-a", friendlyVerb: "Workspace A lookup"},
+			{workspaceID: "ws-b", friendlyVerb: "Workspace B lookup"},
+			{workspaceID: "ws-c", friendlyVerb: "Global lookup"},
+		} {
+			metadata, ok := registry.LookupToolMetadata(expected.workspaceID, descriptor.ID.String())
+			if !ok {
+				t.Fatalf("LookupToolMetadata(%s) ok = false, want true", expected.workspaceID)
+			}
+			if got := metadata.FriendlyVerb; got != expected.friendlyVerb {
+				t.Fatalf(
+					"LookupToolMetadata(%s).FriendlyVerb = %q, want %q",
+					expected.workspaceID,
+					got,
+					expected.friendlyVerb,
+				)
+			}
+		}
+
+		removedFromWorkspaceA = true
+		if _, err := registry.DiagnosticProjection(ctx, Scope{WorkspaceID: "ws-a"}); err != nil {
+			t.Fatalf("DiagnosticProjection(ws-a removal) error = %v", err)
+		}
+		if metadata, ok := registry.LookupToolMetadata("ws-a", descriptor.ID.String()); ok {
+			t.Fatalf("LookupToolMetadata(ws-a removed) = %#v, true; want zero, false", metadata)
+		}
+		metadata, ok := registry.LookupToolMetadata("ws-b", descriptor.ID.String())
+		if !ok || metadata.FriendlyVerb != "Workspace B lookup" {
+			t.Fatalf("LookupToolMetadata(ws-b after ws-a removal) = %#v, %v", metadata, ok)
+		}
+	})
+
+	t.Run("Should exclude workspace metadata from the global fallback", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDescriptor()
+		descriptor.ToolPresentation = NewToolPresentation("Workspace A secret lookup", "arg:private")
+		descriptor.Source.Scope = "workspace"
+		descriptor.Source.WorkspaceID = "ws-a"
+		registry, err := NewRegistry(WithProviders(registryTestProvider{
+			source:      descriptor.Source,
+			descriptors: []Descriptor{descriptor},
+		}))
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+		if _, err := registry.DiagnosticProjection(ctx, Scope{Operator: true}); err != nil {
+			t.Fatalf("DiagnosticProjection(global) error = %v", err)
+		}
+		for _, workspaceID := range []string{"ws-a", "ws-b"} {
+			if metadata, ok := registry.LookupToolMetadata(workspaceID, descriptor.ID.String()); ok {
+				t.Fatalf(
+					"LookupToolMetadata(%s before scoped index) = %#v, true; want zero, false",
+					workspaceID,
+					metadata,
+				)
+			}
+		}
+
+		if _, err := registry.DiagnosticProjection(ctx, Scope{WorkspaceID: "ws-a"}); err != nil {
+			t.Fatalf("DiagnosticProjection(ws-a) error = %v", err)
+		}
+		metadata, ok := registry.LookupToolMetadata("ws-a", descriptor.ID.String())
+		if !ok || metadata.FriendlyVerb != "Workspace A secret lookup" {
+			t.Fatalf("LookupToolMetadata(ws-a after scoped index) = %#v, %v", metadata, ok)
+		}
+		if metadata, ok := registry.LookupToolMetadata("ws-b", descriptor.ID.String()); ok {
+			t.Fatalf("LookupToolMetadata(ws-b) = %#v, true; want zero, false", metadata)
 		}
 	})
 

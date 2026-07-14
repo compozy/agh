@@ -8,11 +8,10 @@ import (
 	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
-func openFreshLoopTestGlobalDB(t *testing.T, workspaceIDs ...string) *GlobalDB {
+func openLoopTestGlobalDB(t *testing.T, workspaceIDs ...string) *GlobalDB {
 	t.Helper()
 
-	globalDB := openFreshTestGlobalDB(t)
-	openMemoryCatalogForGlobalDBTest(t, globalDB)
+	globalDB := openTestGlobalDB(t)
 	if len(workspaceIDs) == 0 {
 		workspaceIDs = []string{"ws-1"}
 	}

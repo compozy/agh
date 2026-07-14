@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	toolspkg "github.com/compozy/agh/internal/tools"
 )
 

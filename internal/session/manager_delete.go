@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/compozy/agh/internal/store"
 )
 
 // Delete removes one session from active runtime state and persisted history.
@@ -29,11 +31,35 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 	}
 
 	sessionDir := filepath.Join(m.homePaths.SessionsDir, target)
-	if _, err := os.Stat(sessionDir); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+	_, statErr := os.Stat(sessionDir)
+	if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
+		return fmt.Errorf("session: stat session directory %q: %w", sessionDir, statErr)
+	}
+	resumeQueries, err := m.quiesceSessionQueries(ctx, target, sessionDir)
+	if err != nil {
+		return fmt.Errorf("session: quiesce stored readers for %q: %w", target, err)
+	}
+	defer resumeQueries()
+
+	catalogDeleted := false
+	if m.sessionCatalog != nil {
+		err := m.sessionCatalog.DeleteSession(ctx, target)
+		switch {
+		case err == nil:
+			catalogDeleted = true
+		case errors.Is(err, store.ErrSessionNotFound):
+			// A prior attempt can commit catalog deletion before filesystem removal fails.
+		case err != nil:
+			return fmt.Errorf("session: delete catalog state for %q: %w", target, err)
+		}
+	}
+
+	if errors.Is(statErr, os.ErrNotExist) {
+		if !catalogDeleted {
 			return fmt.Errorf("%w: %s", ErrSessionNotFound, target)
 		}
-		return fmt.Errorf("session: stat session directory %q: %w", sessionDir, err)
+		m.remove(target)
+		return nil
 	}
 
 	if err := os.RemoveAll(sessionDir); err != nil {
@@ -42,6 +68,17 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 
 	m.remove(target)
 	return nil
+}
+
+func (m *Manager) quiesceSessionQueries(
+	ctx context.Context,
+	target string,
+	sessionDir string,
+) (func(), error) {
+	if m.queryStoreRuntime == nil {
+		return func() {}, nil
+	}
+	return m.queryStoreRuntime.Quiesce(ctx, target, store.SessionDBFile(sessionDir))
 }
 
 func stopSessionBeforeDelete(

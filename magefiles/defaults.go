@@ -17,7 +17,6 @@ const (
 	goUnitTestTimeout         = "30m"
 	goIntegrationPackageLimit = "2"
 	goIntegrationTestTimeout  = "30m"
-	goplsModernizeVersion     = "v0.22.0"
 	gotestsumVersion          = "v1.13.0"
 	binDir                    = "bin"
 	cliBinary                 = "agh"

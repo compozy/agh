@@ -1,13 +1,12 @@
 package bridges
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
+
+	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
 )
 
 // RoutingKey is the canonical identity used to resolve bridge traffic to one ACP session.
@@ -23,32 +22,16 @@ type RoutingKey struct {
 // BuildRoutingKey constructs the canonical routing key for one instance using
 // the instance's fixed base identity and policy-selected routing dimensions.
 func BuildRoutingKey(instance BridgeInstance, dims RoutingDimensions) (RoutingKey, error) {
-	normalizedInstance := instance.normalize()
-	if err := normalizedInstance.Validate(); err != nil {
+	key, err := bridgecontract.BuildRoutingKey(
+		BridgeInstanceToContract(instance),
+		bridgecontract.RoutingDimensions{
+			PeerID: dims.PeerID, ThreadID: dims.ThreadID, GroupID: dims.GroupID,
+		},
+	)
+	if err != nil {
 		return RoutingKey{}, err
 	}
-
-	normalizedDims := dims.normalize()
-	if err := validateRoutingDimensions(normalizedInstance.RoutingPolicy, normalizedDims); err != nil {
-		return RoutingKey{}, err
-	}
-
-	key := RoutingKey{
-		Scope:            normalizedInstance.Scope,
-		WorkspaceID:      normalizedInstance.WorkspaceID,
-		BridgeInstanceID: normalizedInstance.ID,
-	}
-	if normalizedInstance.RoutingPolicy.IncludePeer {
-		key.PeerID = normalizedDims.PeerID
-	}
-	if normalizedInstance.RoutingPolicy.IncludeThread {
-		key.ThreadID = normalizedDims.ThreadID
-	}
-	if normalizedInstance.RoutingPolicy.IncludeGroup {
-		key.GroupID = normalizedDims.GroupID
-	}
-
-	return key.normalize(), nil
+	return routingKeyFromContract(key), nil
 }
 
 // CanonicalizeRoutingKey rebuilds the supplied routing key under the instance's
@@ -62,50 +45,17 @@ func CanonicalizeRoutingKey(instance BridgeInstance, key RoutingKey) (RoutingKey
 
 // Validate reports whether the routing key carries the required base identity.
 func (k RoutingKey) Validate() error {
-	normalized := k.normalize()
-	if err := ValidateScopeWorkspaceID(normalized.Scope, normalized.WorkspaceID); err != nil {
-		return err
-	}
-	return requireField(normalized.BridgeInstanceID, "routing key bridge instance id")
+	return routingKeyToContract(k).Validate()
 }
 
 // Serialize returns the stable serialized representation used for routing-key hashing.
 func (k RoutingKey) Serialize() (string, error) {
-	normalized := k.normalize()
-	if err := normalized.Validate(); err != nil {
-		return "", err
-	}
-
-	payload, err := json.Marshal(struct {
-		Scope            Scope  `json:"scope"`
-		WorkspaceID      string `json:"workspace_id"`
-		BridgeInstanceID string `json:"bridge_instance_id"`
-		PeerID           string `json:"peer_id"`
-		ThreadID         string `json:"thread_id"`
-		GroupID          string `json:"group_id"`
-	}{
-		Scope:            normalized.Scope.Normalize(),
-		WorkspaceID:      normalized.WorkspaceID,
-		BridgeInstanceID: normalized.BridgeInstanceID,
-		PeerID:           normalized.PeerID,
-		ThreadID:         normalized.ThreadID,
-		GroupID:          normalized.GroupID,
-	})
-	if err != nil {
-		return "", err
-	}
-
-	return string(payload), nil
+	return routingKeyToContract(k).Serialize()
 }
 
 // Hash returns the stable SHA-256 hash for the serialized routing key.
 func (k RoutingKey) Hash() (string, error) {
-	serialized, err := k.Serialize()
-	if err != nil {
-		return "", err
-	}
-	sum := sha256.Sum256([]byte(serialized))
-	return hex.EncodeToString(sum[:]), nil
+	return routingKeyToContract(k).Hash()
 }
 
 // BridgeRoute persists the canonical routing-key to ACP-session mapping.
@@ -219,14 +169,7 @@ func CanonicalizeRoute(instance BridgeInstance, route BridgeRoute) (BridgeRoute,
 }
 
 func (k RoutingKey) normalize() RoutingKey {
-	normalized := k
-	normalized.Scope = normalized.Scope.Normalize()
-	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
-	normalized.BridgeInstanceID = strings.TrimSpace(normalized.BridgeInstanceID)
-	normalized.PeerID = strings.TrimSpace(normalized.PeerID)
-	normalized.ThreadID = strings.TrimSpace(normalized.ThreadID)
-	normalized.GroupID = strings.TrimSpace(normalized.GroupID)
-	return normalized
+	return routingKeyFromContract(bridgecontract.NormalizeRoutingKey(routingKeyToContract(k)))
 }
 
 func (r BridgeRoute) normalize() BridgeRoute {

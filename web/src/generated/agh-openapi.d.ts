@@ -715,6 +715,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/bridges/providers/slack/manifest": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Generate a Slack app manifest for one bridge instance */
+    get: operations["getSlackBridgeManifest"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/bridges/{id}": {
     parameters: {
       query?: never;
@@ -853,6 +870,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/bridges/{id}/send-test": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Send one real message through the bridge provider */
+    post: operations["sendBridgeTest"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/bridges/{id}/targets": {
     parameters: {
       query?: never;
@@ -881,6 +915,40 @@ export interface paths {
     put?: never;
     /** Resolve a typed outbound delivery target for a bridge instance */
     post: operations["testBridgeDelivery"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/bridges/{id}/verify": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Run live provider checks without changing bridge lifecycle state */
+    post: operations["verifyBridge"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/bridges/{id}/webhook/register": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Register the configured provider webhook */
+    post: operations["registerBridgeWebhook"];
     delete?: never;
     options?: never;
     head?: never;
@@ -17412,13 +17480,36 @@ export interface operations {
                   | "provider_timeout"
                   | "tenant_config_invalid";
               } | null;
-              delivery_defaults?: {
-                group_id?: string;
-                /** @enum {string} */
-                mode?: "direct-send" | "reply";
-                peer_id?: string;
-                thread_id?: string;
-              } | null;
+              delivery_defaults?:
+                | ({
+                    group_id?: string;
+                    /** @enum {string} */
+                    mode?: "direct-send" | "reply";
+                    peer_id?: string;
+                    progress?: {
+                      /** @enum {string} */
+                      grouping: "accumulate" | "separate";
+                      reactions?: boolean;
+                      /** @enum {string} */
+                      tool_progress: "off" | "new" | "all" | "verbose";
+                      typing?: boolean;
+                    };
+                    thread_id?: string;
+                  } & {
+                    [key: string]:
+                      | string
+                      | ("direct-send" | "reply")
+                      | {
+                          /** @enum {string} */
+                          grouping: "accumulate" | "separate";
+                          reactions?: boolean;
+                          /** @enum {string} */
+                          tool_progress: "off" | "new" | "all" | "verbose";
+                          typing?: boolean;
+                        }
+                      | undefined;
+                  })
+                | null;
               display_name: string;
               /** @enum {string} */
               dm_policy?: "open" | "allowlist" | "pairing";
@@ -17443,6 +17534,7 @@ export interface operations {
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
               updated_at: string;
+              webhook_public_url?: string;
               workspace_id?: string;
             }[];
             facets: {
@@ -17605,13 +17697,36 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          delivery_defaults?: {
-            group_id?: string;
-            /** @enum {string} */
-            mode?: "direct-send" | "reply";
-            peer_id?: string;
-            thread_id?: string;
-          } | null;
+          delivery_defaults?:
+            | ({
+                group_id?: string;
+                /** @enum {string} */
+                mode?: "direct-send" | "reply";
+                peer_id?: string;
+                progress?: {
+                  /** @enum {string} */
+                  grouping: "accumulate" | "separate";
+                  reactions?: boolean;
+                  /** @enum {string} */
+                  tool_progress: "off" | "new" | "all" | "verbose";
+                  typing?: boolean;
+                };
+                thread_id?: string;
+              } & {
+                [key: string]:
+                  | string
+                  | ("direct-send" | "reply")
+                  | {
+                      /** @enum {string} */
+                      grouping: "accumulate" | "separate";
+                      reactions?: boolean;
+                      /** @enum {string} */
+                      tool_progress: "off" | "new" | "all" | "verbose";
+                      typing?: boolean;
+                    }
+                  | undefined;
+              })
+            | null;
           display_name: string;
           /** @enum {string} */
           dm_policy?: "open" | "allowlist" | "pairing";
@@ -17654,13 +17769,36 @@ export interface operations {
                   | "provider_timeout"
                   | "tenant_config_invalid";
               } | null;
-              delivery_defaults?: {
-                group_id?: string;
-                /** @enum {string} */
-                mode?: "direct-send" | "reply";
-                peer_id?: string;
-                thread_id?: string;
-              } | null;
+              delivery_defaults?:
+                | ({
+                    group_id?: string;
+                    /** @enum {string} */
+                    mode?: "direct-send" | "reply";
+                    peer_id?: string;
+                    progress?: {
+                      /** @enum {string} */
+                      grouping: "accumulate" | "separate";
+                      reactions?: boolean;
+                      /** @enum {string} */
+                      tool_progress: "off" | "new" | "all" | "verbose";
+                      typing?: boolean;
+                    };
+                    thread_id?: string;
+                  } & {
+                    [key: string]:
+                      | string
+                      | ("direct-send" | "reply")
+                      | {
+                          /** @enum {string} */
+                          grouping: "accumulate" | "separate";
+                          reactions?: boolean;
+                          /** @enum {string} */
+                          tool_progress: "off" | "new" | "all" | "verbose";
+                          typing?: boolean;
+                        }
+                      | undefined;
+                  })
+                | null;
               display_name: string;
               /** @enum {string} */
               dm_policy?: "open" | "allowlist" | "pairing";
@@ -17685,6 +17823,7 @@ export interface operations {
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
               updated_at: string;
+              webhook_public_url?: string;
               workspace_id?: string;
             };
             health: {
@@ -18153,6 +18292,172 @@ export interface operations {
       };
     };
   };
+  getSlackBridgeManifest: {
+    parameters: {
+      query: {
+        /** @description Slack bridge instance id */
+        instance: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            manifest: {
+              _metadata: {
+                major_version: number;
+                minor_version: number;
+              };
+              display_information: {
+                background_color: string;
+                description: string;
+                name: string;
+              };
+              features: {
+                bot_user: {
+                  always_online: boolean;
+                  display_name: string;
+                };
+                slash_commands: {
+                  command: string;
+                  description: string;
+                  should_escape: boolean;
+                  url: string;
+                  usage_hint: string;
+                }[];
+              };
+              oauth_config: {
+                scopes: {
+                  bot: string[];
+                };
+              };
+              settings: {
+                event_subscriptions: {
+                  bot_events: string[];
+                  request_url: string;
+                };
+                interactivity: {
+                  is_enabled: boolean;
+                  request_url: string;
+                };
+                org_deploy_enabled: boolean;
+                socket_mode_enabled: boolean;
+                token_rotation_enabled: boolean;
+              };
+            };
+          };
+        };
+      };
+      /** @description Invalid Slack bridge manifest request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Slack bridge instance or provider not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Bridge service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   getBridge: {
     parameters: {
       query?: never;
@@ -18185,13 +18490,36 @@ export interface operations {
                   | "provider_timeout"
                   | "tenant_config_invalid";
               } | null;
-              delivery_defaults?: {
-                group_id?: string;
-                /** @enum {string} */
-                mode?: "direct-send" | "reply";
-                peer_id?: string;
-                thread_id?: string;
-              } | null;
+              delivery_defaults?:
+                | ({
+                    group_id?: string;
+                    /** @enum {string} */
+                    mode?: "direct-send" | "reply";
+                    peer_id?: string;
+                    progress?: {
+                      /** @enum {string} */
+                      grouping: "accumulate" | "separate";
+                      reactions?: boolean;
+                      /** @enum {string} */
+                      tool_progress: "off" | "new" | "all" | "verbose";
+                      typing?: boolean;
+                    };
+                    thread_id?: string;
+                  } & {
+                    [key: string]:
+                      | string
+                      | ("direct-send" | "reply")
+                      | {
+                          /** @enum {string} */
+                          grouping: "accumulate" | "separate";
+                          reactions?: boolean;
+                          /** @enum {string} */
+                          tool_progress: "off" | "new" | "all" | "verbose";
+                          typing?: boolean;
+                        }
+                      | undefined;
+                  })
+                | null;
               display_name: string;
               /** @enum {string} */
               dm_policy?: "open" | "allowlist" | "pairing";
@@ -18216,6 +18544,7 @@ export interface operations {
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
               updated_at: string;
+              webhook_public_url?: string;
               workspace_id?: string;
             };
             health: {
@@ -18376,13 +18705,36 @@ export interface operations {
               | "provider_timeout"
               | "tenant_config_invalid";
           } | null;
-          delivery_defaults?: {
-            group_id?: string;
-            /** @enum {string} */
-            mode?: "direct-send" | "reply";
-            peer_id?: string;
-            thread_id?: string;
-          } | null;
+          delivery_defaults?:
+            | ({
+                group_id?: string;
+                /** @enum {string} */
+                mode?: "direct-send" | "reply";
+                peer_id?: string;
+                progress?: {
+                  /** @enum {string} */
+                  grouping: "accumulate" | "separate";
+                  reactions?: boolean;
+                  /** @enum {string} */
+                  tool_progress: "off" | "new" | "all" | "verbose";
+                  typing?: boolean;
+                };
+                thread_id?: string;
+              } & {
+                [key: string]:
+                  | string
+                  | ("direct-send" | "reply")
+                  | {
+                      /** @enum {string} */
+                      grouping: "accumulate" | "separate";
+                      reactions?: boolean;
+                      /** @enum {string} */
+                      tool_progress: "off" | "new" | "all" | "verbose";
+                      typing?: boolean;
+                    }
+                  | undefined;
+              })
+            | null;
           display_name?: string | null;
           /** @enum {string|null} */
           dm_policy?: "open" | "allowlist" | "pairing" | null;
@@ -18419,13 +18771,36 @@ export interface operations {
                   | "provider_timeout"
                   | "tenant_config_invalid";
               } | null;
-              delivery_defaults?: {
-                group_id?: string;
-                /** @enum {string} */
-                mode?: "direct-send" | "reply";
-                peer_id?: string;
-                thread_id?: string;
-              } | null;
+              delivery_defaults?:
+                | ({
+                    group_id?: string;
+                    /** @enum {string} */
+                    mode?: "direct-send" | "reply";
+                    peer_id?: string;
+                    progress?: {
+                      /** @enum {string} */
+                      grouping: "accumulate" | "separate";
+                      reactions?: boolean;
+                      /** @enum {string} */
+                      tool_progress: "off" | "new" | "all" | "verbose";
+                      typing?: boolean;
+                    };
+                    thread_id?: string;
+                  } & {
+                    [key: string]:
+                      | string
+                      | ("direct-send" | "reply")
+                      | {
+                          /** @enum {string} */
+                          grouping: "accumulate" | "separate";
+                          reactions?: boolean;
+                          /** @enum {string} */
+                          tool_progress: "off" | "new" | "all" | "verbose";
+                          typing?: boolean;
+                        }
+                      | undefined;
+                  })
+                | null;
               display_name: string;
               /** @enum {string} */
               dm_policy?: "open" | "allowlist" | "pairing";
@@ -18450,6 +18825,7 @@ export interface operations {
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
               updated_at: string;
+              webhook_public_url?: string;
               workspace_id?: string;
             };
             health: {
@@ -18642,13 +19018,36 @@ export interface operations {
                   | "provider_timeout"
                   | "tenant_config_invalid";
               } | null;
-              delivery_defaults?: {
-                group_id?: string;
-                /** @enum {string} */
-                mode?: "direct-send" | "reply";
-                peer_id?: string;
-                thread_id?: string;
-              } | null;
+              delivery_defaults?:
+                | ({
+                    group_id?: string;
+                    /** @enum {string} */
+                    mode?: "direct-send" | "reply";
+                    peer_id?: string;
+                    progress?: {
+                      /** @enum {string} */
+                      grouping: "accumulate" | "separate";
+                      reactions?: boolean;
+                      /** @enum {string} */
+                      tool_progress: "off" | "new" | "all" | "verbose";
+                      typing?: boolean;
+                    };
+                    thread_id?: string;
+                  } & {
+                    [key: string]:
+                      | string
+                      | ("direct-send" | "reply")
+                      | {
+                          /** @enum {string} */
+                          grouping: "accumulate" | "separate";
+                          reactions?: boolean;
+                          /** @enum {string} */
+                          tool_progress: "off" | "new" | "all" | "verbose";
+                          typing?: boolean;
+                        }
+                      | undefined;
+                  })
+                | null;
               display_name: string;
               /** @enum {string} */
               dm_policy?: "open" | "allowlist" | "pairing";
@@ -18673,6 +19072,7 @@ export interface operations {
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
               updated_at: string;
+              webhook_public_url?: string;
               workspace_id?: string;
             };
             health: {
@@ -18865,13 +19265,36 @@ export interface operations {
                   | "provider_timeout"
                   | "tenant_config_invalid";
               } | null;
-              delivery_defaults?: {
-                group_id?: string;
-                /** @enum {string} */
-                mode?: "direct-send" | "reply";
-                peer_id?: string;
-                thread_id?: string;
-              } | null;
+              delivery_defaults?:
+                | ({
+                    group_id?: string;
+                    /** @enum {string} */
+                    mode?: "direct-send" | "reply";
+                    peer_id?: string;
+                    progress?: {
+                      /** @enum {string} */
+                      grouping: "accumulate" | "separate";
+                      reactions?: boolean;
+                      /** @enum {string} */
+                      tool_progress: "off" | "new" | "all" | "verbose";
+                      typing?: boolean;
+                    };
+                    thread_id?: string;
+                  } & {
+                    [key: string]:
+                      | string
+                      | ("direct-send" | "reply")
+                      | {
+                          /** @enum {string} */
+                          grouping: "accumulate" | "separate";
+                          reactions?: boolean;
+                          /** @enum {string} */
+                          tool_progress: "off" | "new" | "all" | "verbose";
+                          typing?: boolean;
+                        }
+                      | undefined;
+                  })
+                | null;
               display_name: string;
               /** @enum {string} */
               dm_policy?: "open" | "allowlist" | "pairing";
@@ -18896,6 +19319,7 @@ export interface operations {
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
               updated_at: string;
+              webhook_public_url?: string;
               workspace_id?: string;
             };
             health: {
@@ -19346,13 +19770,36 @@ export interface operations {
                   | "provider_timeout"
                   | "tenant_config_invalid";
               } | null;
-              delivery_defaults?: {
-                group_id?: string;
-                /** @enum {string} */
-                mode?: "direct-send" | "reply";
-                peer_id?: string;
-                thread_id?: string;
-              } | null;
+              delivery_defaults?:
+                | ({
+                    group_id?: string;
+                    /** @enum {string} */
+                    mode?: "direct-send" | "reply";
+                    peer_id?: string;
+                    progress?: {
+                      /** @enum {string} */
+                      grouping: "accumulate" | "separate";
+                      reactions?: boolean;
+                      /** @enum {string} */
+                      tool_progress: "off" | "new" | "all" | "verbose";
+                      typing?: boolean;
+                    };
+                    thread_id?: string;
+                  } & {
+                    [key: string]:
+                      | string
+                      | ("direct-send" | "reply")
+                      | {
+                          /** @enum {string} */
+                          grouping: "accumulate" | "separate";
+                          reactions?: boolean;
+                          /** @enum {string} */
+                          tool_progress: "off" | "new" | "all" | "verbose";
+                          typing?: boolean;
+                        }
+                      | undefined;
+                  })
+                | null;
               display_name: string;
               /** @enum {string} */
               dm_policy?: "open" | "allowlist" | "pairing";
@@ -19377,6 +19824,7 @@ export interface operations {
               status: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
               /** Format: date-time */
               updated_at: string;
+              webhook_public_url?: string;
               workspace_id?: string;
             };
             health: {
@@ -20031,6 +20479,186 @@ export interface operations {
       };
     };
   };
+  sendBridgeTest: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Bridge instance id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          message: string;
+          target: {
+            bridge_instance_id?: string;
+            group_id?: string;
+            /** @enum {string} */
+            mode?: "direct-send" | "reply";
+            peer_id?: string;
+            thread_id?: string;
+          };
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            bridge_instance_id: string;
+            delivery_id: string;
+            delivery_target: {
+              bridge_instance_id: string;
+              group_id?: string;
+              /** @enum {string} */
+              mode?: "direct-send" | "reply";
+              peer_id?: string;
+              thread_id?: string;
+            };
+            error?: {
+              message: string;
+            } | null;
+            remote_message_id?: string;
+            /** @enum {string} */
+            status: "delivered" | "committed_result_unavailable";
+          };
+        };
+      };
+      /** @description Invalid send-test request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Bridge instance not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Bridge instance is unavailable */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Bridge service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
   listBridgeTargets: {
     parameters: {
       query?: {
@@ -20254,6 +20882,215 @@ export interface operations {
       };
       /** @description Bridge instance is unavailable */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Bridge service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  verifyBridge: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Bridge instance id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            bridge_instance_id: string;
+            checks: {
+              check: string;
+              remediation: string;
+              /** @enum {string} */
+              status: "pass" | "warn" | "fail" | "skipped";
+            }[];
+          };
+        };
+      };
+      /** @description Bridge instance not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Bridge service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  registerBridgeWebhook: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Bridge instance id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            bridge_instance_id: string;
+            remediation: string;
+            /** @enum {string} */
+            status: "pass" | "warn" | "fail" | "skipped";
+          };
+        };
+      };
+      /** @description Bridge instance not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -58669,6 +59506,7 @@ export interface operations {
                 description: string;
                 destructive: boolean;
                 display_title?: string;
+                friendly_verb?: string;
                 input_schema: unknown;
                 input_schema_digest: string;
                 /** Format: int64 */
@@ -58676,6 +59514,7 @@ export interface operations {
                 open_world: boolean;
                 output_schema?: unknown;
                 output_schema_digest?: string;
+                preview?: string;
                 read_only: boolean;
                 requires_interaction: boolean;
                 /** @enum {string} */
@@ -58963,6 +59802,7 @@ export interface operations {
                 description: string;
                 destructive: boolean;
                 display_title?: string;
+                friendly_verb?: string;
                 input_schema: unknown;
                 input_schema_digest: string;
                 /** Format: int64 */
@@ -58970,6 +59810,7 @@ export interface operations {
                 open_world: boolean;
                 output_schema?: unknown;
                 output_schema_digest?: string;
+                preview?: string;
                 read_only: boolean;
                 requires_interaction: boolean;
                 /** @enum {string} */
@@ -59336,6 +60177,7 @@ export interface operations {
                 description: string;
                 destructive: boolean;
                 display_title?: string;
+                friendly_verb?: string;
                 input_schema: unknown;
                 input_schema_digest: string;
                 /** Format: int64 */
@@ -59343,6 +60185,7 @@ export interface operations {
                 open_world: boolean;
                 output_schema?: unknown;
                 output_schema_digest?: string;
+                preview?: string;
                 read_only: boolean;
                 requires_interaction: boolean;
                 /** @enum {string} */
@@ -77097,6 +77940,7 @@ export interface operations {
                 description: string;
                 destructive: boolean;
                 display_title?: string;
+                friendly_verb?: string;
                 input_schema: unknown;
                 input_schema_digest: string;
                 /** Format: int64 */
@@ -77104,6 +77948,7 @@ export interface operations {
                 open_world: boolean;
                 output_schema?: unknown;
                 output_schema_digest?: string;
+                preview?: string;
                 read_only: boolean;
                 requires_interaction: boolean;
                 /** @enum {string} */
@@ -77396,6 +78241,7 @@ export interface operations {
                 description: string;
                 destructive: boolean;
                 display_title?: string;
+                friendly_verb?: string;
                 input_schema: unknown;
                 input_schema_digest: string;
                 /** Format: int64 */
@@ -77403,6 +78249,7 @@ export interface operations {
                 open_world: boolean;
                 output_schema?: unknown;
                 output_schema_digest?: string;
+                preview?: string;
                 read_only: boolean;
                 requires_interaction: boolean;
                 /** @enum {string} */

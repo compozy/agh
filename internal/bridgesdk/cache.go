@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -16,8 +16,10 @@ import (
 type InstanceCache struct {
 	mu             sync.RWMutex
 	runtimeVersion string
+	purpose        subprocess.BridgeRuntimePurpose
 	provider       string
 	platform       string
+	allowedMethods []string
 	managed        map[string]subprocess.InitializeBridgeManagedInstance
 }
 
@@ -41,8 +43,10 @@ func (c *InstanceCache) Reset(runtime *subprocess.InitializeBridgeRuntime) {
 
 	c.managed = make(map[string]subprocess.InitializeBridgeManagedInstance)
 	c.runtimeVersion = ""
+	c.purpose = ""
 	c.provider = ""
 	c.platform = ""
+	c.allowedMethods = nil
 
 	if runtime == nil {
 		return
@@ -54,8 +58,10 @@ func (c *InstanceCache) Reset(runtime *subprocess.InitializeBridgeRuntime) {
 	}
 
 	c.runtimeVersion = cloned.RuntimeVersion
+	c.purpose = cloned.Purpose
 	c.provider = cloned.Provider
 	c.platform = cloned.Platform
+	c.allowedMethods = append([]string(nil), cloned.AllowedMethods...)
 	for _, managed := range cloned.ManagedInstances {
 		c.managed[strings.TrimSpace(managed.Instance.ID)] = managed
 	}
@@ -72,8 +78,10 @@ func (c *InstanceCache) Snapshot() *subprocess.InitializeBridgeRuntime {
 
 	runtime := &subprocess.InitializeBridgeRuntime{
 		RuntimeVersion:   c.runtimeVersion,
+		Purpose:          c.purpose,
 		Provider:         c.provider,
 		Platform:         c.platform,
+		AllowedMethods:   append([]string(nil), c.allowedMethods...),
 		ManagedInstances: make([]subprocess.InitializeBridgeManagedInstance, 0, len(c.managed)),
 	}
 	for _, id := range c.idsLocked() {

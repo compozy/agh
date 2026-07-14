@@ -332,17 +332,34 @@ func TestShouldValidateDescriptorAndRefBranches(t *testing.T) {
 		t.Parallel()
 
 		descriptor := validDescriptor()
+		descriptor.ToolPresentation = NewToolPresentation("Reading", "arg:name")
+		sourcePresentation := descriptor.ToolPresentation
 		cold := descriptor.Tool()
 		if err := cold.Validate(); err != nil {
 			t.Fatalf("Tool.Validate() error = %v", err)
 		}
 		descriptor.InputSchema[0] = '['
+		sourcePresentation.FriendlyVerb = "Changed"
 		if got, want := string(cold.InputSchema), `{"type":"object"}`; got != want {
 			t.Fatalf("cold.InputSchema = %s, want %s", got, want)
+		}
+		coldPresentation := cold.Presentation()
+		if got, want := coldPresentation.FriendlyVerb, "Reading"; got != want {
+			t.Fatalf("cold presentation friendly verb = %q, want %q", got, want)
 		}
 		roundTrip := cold.Descriptor()
 		if got, want := roundTrip.Source.Kind.String(), "builtin"; got != want {
 			t.Fatalf("SourceKind.String() = %q, want %q", got, want)
+		}
+		roundTripPresentation := roundTrip.Presentation()
+		if got, want := roundTripPresentation.FriendlyVerb, "Reading"; got != want {
+			t.Fatalf("round-trip friendly verb = %q, want %q", got, want)
+		}
+		if got, want := roundTripPresentation.Preview, "arg:name"; got != want {
+			t.Fatalf("round-trip preview = %q, want %q", got, want)
+		}
+		if got := (Descriptor{}).Presentation(); got != (ToolPresentation{}) {
+			t.Fatalf("zero descriptor presentation = %#v, want zero value", got)
 		}
 	})
 
@@ -544,10 +561,12 @@ func TestToolResultValidation(t *testing.T) {
 	t.Run("Should reject secret metadata keys", func(t *testing.T) {
 		t.Parallel()
 
-		result := ToolResult{
-			Metadata: map[string]json.RawMessage{"access_token": json.RawMessage(`"secret"`)},
+		for _, key := range []string{"access_token", "PKCE", "Bearer"} {
+			result := ToolResult{
+				Metadata: map[string]json.RawMessage{key: json.RawMessage(`"secret"`)},
+			}
+			requireReason(t, result.Validate(64), ReasonSecretMetadata)
 		}
-		requireReason(t, result.Validate(64), ReasonSecretMetadata)
 	})
 
 	resultTests := []struct {

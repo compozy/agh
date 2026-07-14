@@ -284,7 +284,7 @@ test("operator creates edits disables enables triggers and deletes a dynamic job
   const afterDelete = await automationCLI<JobsResponse>(runtime, [
     "automation",
     "jobs",
-    "--last",
+    "--limit",
     "50",
   ]);
   expect(afterDelete.jobs.some(job => job.id === created.id)).toBe(false);

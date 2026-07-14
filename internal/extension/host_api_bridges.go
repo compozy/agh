@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
@@ -51,13 +52,6 @@ const (
 	hostAPIBridgePromptRetryWindow   = 5 * time.Second
 )
 
-type hostAPIBridgeIngressContext struct {
-	params     hostAPIBridgesMessagesIngestParams
-	instance   *bridgepkg.BridgeInstance
-	routingKey bridgepkg.RoutingKey
-	lockKey    string
-}
-
 func (h *HostAPIHandler) handleBridgesInstancesList(ctx context.Context, raw json.RawMessage) (any, error) {
 	if h.bridges == nil {
 		return nil, unavailableRPCError(errors.New("bridge registry is not configured"))
@@ -72,7 +66,7 @@ func (h *HostAPIHandler) handleBridgesInstancesList(ctx context.Context, raw jso
 	if err != nil {
 		return nil, err
 	}
-	return instances, nil
+	return bridgeInstancesContract(instances), nil
 }
 
 func (h *HostAPIHandler) handleBridgesInstancesGet(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -80,7 +74,7 @@ func (h *HostAPIHandler) handleBridgesInstancesGet(ctx context.Context, raw json
 		return nil, unavailableRPCError(errors.New("bridge registry is not configured"))
 	}
 
-	var params hostAPIBridgeInstanceTargetParams
+	var params bridgecontract.BridgeInstanceTargetParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
 	}
@@ -94,7 +88,7 @@ func (h *HostAPIHandler) handleBridgesInstancesGet(ctx context.Context, raw json
 	if err != nil {
 		return nil, err
 	}
-	return *instance, nil
+	return bridgepkg.BridgeInstanceToContract(*instance), nil
 }
 
 func (h *HostAPIHandler) handleBridgesInstancesReportState(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -102,7 +96,7 @@ func (h *HostAPIHandler) handleBridgesInstancesReportState(ctx context.Context, 
 		return nil, unavailableRPCError(errors.New("bridge registry is not configured"))
 	}
 
-	var params hostAPIBridgesInstancesReportStateParams
+	var params bridgecontract.BridgesInstancesReportStateParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
 	}
@@ -113,7 +107,7 @@ func (h *HostAPIHandler) handleBridgesInstancesReportState(ctx context.Context, 
 	if err := params.Status.Validate(); err != nil {
 		return nil, invalidParamsRPCError(err)
 	}
-	if params.Status.Normalize() == bridgepkg.BridgeStatusDisabled {
+	if params.Status.Normalize() == bridgecontract.BridgeStatusDisabled {
 		return nil, invalidParamsRPCError(errors.New("bridge status disabled is operator-controlled"))
 	}
 	if params.ClearDegradation && params.Degradation != nil && !params.Degradation.IsZero() {
@@ -133,8 +127,8 @@ func (h *HostAPIHandler) handleBridgesInstancesReportState(ctx context.Context, 
 	updated, err := h.bridges.UpdateInstanceState(ctx, bridgepkg.UpdateInstanceStateRequest{
 		ID:               instance.ID,
 		Enabled:          instance.Enabled,
-		Status:           params.Status,
-		Degradation:      params.Degradation,
+		Status:           bridgeStatusDomain(params.Status),
+		Degradation:      bridgeDegradationDomain(params.Degradation),
 		ClearDegradation: params.ClearDegradation,
 		UpdatedAt:        h.now(),
 	})
@@ -152,7 +146,7 @@ func (h *HostAPIHandler) handleBridgesInstancesReportState(ctx context.Context, 
 			}
 		}
 	}
-	return *updated, nil
+	return bridgepkg.BridgeInstanceToContract(*updated), nil
 }
 
 func (h *HostAPIHandler) handleBridgesMessagesIngest(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -184,11 +178,14 @@ func (h *HostAPIHandler) handleBridgesMessagesIngest(ctx context.Context, raw js
 		return nil, err
 	}
 	if suppressed {
-		return hostAPIBridgesMessagesIngestResult{
+		return bridgecontract.BridgesMessagesIngestResult{
 			SessionID:    suppressedRoute.SessionID,
 			RouteCreated: false,
-			RoutingKey:   ingress.routingKey,
+			RoutingKey:   bridgeRoutingKeyContract(ingress.routingKey),
 		}, nil
+	}
+	if err := h.checkPromptDeliveryAdmission(ctx); err != nil {
+		return nil, err
 	}
 
 	route, routeCreated, err := h.resolveBridgeIngressRoute(ctx, *ingress.instance, ingress.routingKey)
@@ -212,24 +209,39 @@ func (h *HostAPIHandler) handleBridgesMessagesIngest(ctx context.Context, raw js
 		return nil, err
 	}
 
-	return hostAPIBridgesMessagesIngestResult{
+	return bridgecontract.BridgesMessagesIngestResult{
 		SessionID:    route.SessionID,
 		RouteCreated: routeCreated,
-		RoutingKey:   ingress.routingKey,
+		RoutingKey:   bridgeRoutingKeyContract(ingress.routingKey),
 	}, nil
+}
+
+func (h *HostAPIHandler) checkPromptDeliveryAdmission(ctx context.Context) error {
+	if h.deliveryBroker == nil {
+		return nil
+	}
+	checker, ok := h.deliveryBroker.(hostAPIDeliveryAdmissionChecker)
+	if !ok {
+		return nil
+	}
+	if err := checker.CheckPromptDeliveryAdmission(ctx); err != nil {
+		return unavailableRPCError(fmt.Errorf("extension: bridge delivery admission: %w", err))
+	}
+	return nil
 }
 
 func (h *HostAPIHandler) prepareBridgeIngress(
 	ctx context.Context,
 	raw json.RawMessage,
 ) (hostAPIBridgeIngressContext, error) {
-	var params hostAPIBridgesMessagesIngestParams
-	if err := decodeHostAPIParams(raw, &params); err != nil {
+	var wireParams bridgecontract.InboundMessageEnvelope
+	if err := decodeHostAPIParams(raw, &wireParams); err != nil {
 		return hostAPIBridgeIngressContext{}, err
 	}
-	if err := params.Validate(); err != nil {
+	if err := wireParams.Validate(); err != nil {
 		return hostAPIBridgeIngressContext{}, invalidParamsRPCError(err)
 	}
+	params := bridgeInboundEnvelopeDomain(wireParams)
 
 	instance, err := h.authorizedBridgeInstance(ctx, params.BridgeInstanceID)
 	if err != nil {
@@ -698,9 +710,13 @@ func bridgePromptNetworkMeta(envelope bridgepkg.InboundMessageEnvelope) acp.Prom
 	if family == "" {
 		family = bridgepkg.InboundEventFamilyMessage
 	}
+	messageID := strings.TrimSpace(envelope.PlatformMessageID)
+	if family == bridgepkg.InboundEventFamilyEdit && envelope.Edit != nil {
+		messageID = strings.TrimSpace(envelope.Edit.MessageID)
+	}
 
 	meta := acp.PromptNetworkMeta{
-		MessageID: envelope.PlatformMessageID,
+		MessageID: messageID,
 		Kind:      string(family),
 		From:      strings.TrimSpace(envelope.PeerID),
 	}
@@ -745,6 +761,7 @@ func (h *HostAPIHandler) registerPromptDelivery(
 		ExtensionName:  strings.TrimSpace(instance.ExtensionName),
 		RoutingKey:     routingKey,
 		DeliveryTarget: target,
+		Progress:       bridgepkg.ResolveProgressConfig(&instance, instance.Platform),
 		SeedEvents:     submission.SeedEvents,
 	}); err != nil {
 		return fmt.Errorf("extension: register prompt delivery: %w", err)
@@ -783,11 +800,6 @@ func (h *HostAPIHandler) replayPromptDeliveryEvents(ctx context.Context, session
 			projected, err := promptProjectionEventFromStoredEvent(storedEvent)
 			if err != nil {
 				return err
-			}
-			switch projected.Type {
-			case acp.EventTypeAgentMessage, acp.EventTypeDone, acp.EventTypeError:
-			default:
-				continue
 			}
 			if err := h.deliveryBroker.ProjectEvent(ctx, sessionID, projected); err != nil {
 				return err
@@ -961,162 +973,6 @@ func bridgeRouteForRoutingKey(
 		LastActivityAt:   activityAt,
 		UpdatedAt:        activityAt,
 	}
-}
-
-func renderInboundMessagePrompt(envelope bridgepkg.InboundMessageEnvelope) string {
-	family := envelope.EventFamily.Normalize()
-	if family == "" {
-		family = bridgepkg.InboundEventFamilyMessage
-	}
-
-	lines := renderInboundMessageFamilyLines(family, envelope)
-	if !envelope.ReceivedAt.IsZero() {
-		lines = append(lines, "Received at: "+envelope.ReceivedAt.UTC().Format(time.RFC3339Nano))
-	}
-	if sender := summarizeInboundSender(envelope.Sender); sender != "" {
-		lines = append(lines, "Sender: "+sender)
-	}
-	if peerID := strings.TrimSpace(envelope.PeerID); peerID != "" {
-		lines = append(lines, "Peer ID: "+peerID)
-	}
-	if threadID := strings.TrimSpace(envelope.ThreadID); threadID != "" {
-		lines = append(lines, "Provider Thread ID: "+threadID)
-	}
-	if groupID := strings.TrimSpace(envelope.GroupID); groupID != "" {
-		lines = append(lines, "Group ID: "+groupID)
-	}
-	if ref, ok, err := envelope.NetworkConversationRef(); err == nil && ok {
-		lines = append(
-			lines,
-			"AGH Network Channel: "+ref.Channel,
-			"AGH Network Surface: "+string(ref.Surface),
-		)
-		switch ref.Surface {
-		case bridgepkg.NetworkConversationSurfaceThread:
-			lines = append(lines, "AGH Thread ID: "+ref.ThreadID)
-		case bridgepkg.NetworkConversationSurfaceDirect:
-			lines = append(lines, "AGH Direct ID: "+ref.DirectID)
-		}
-		if workID := strings.TrimSpace(ref.WorkID); workID != "" {
-			lines = append(lines, "AGH Work ID: "+workID)
-		}
-	}
-
-	if family == bridgepkg.InboundEventFamilyMessage {
-		body := strings.TrimSpace(envelope.Content.Text)
-		if body == "" {
-			body = "[No text body]"
-		}
-		lines = append(lines, "", body)
-
-		if len(envelope.Attachments) > 0 {
-			lines = append(lines, "", "Attachments:")
-			for _, attachment := range envelope.Attachments {
-				lines = append(lines, "- "+summarizeInboundAttachment(attachment))
-			}
-		}
-	}
-
-	return strings.TrimSpace(strings.Join(lines, "\n"))
-}
-
-func renderInboundMessageFamilyLines(
-	family bridgepkg.InboundEventFamily,
-	envelope bridgepkg.InboundMessageEnvelope,
-) []string {
-	switch family {
-	case bridgepkg.InboundEventFamilyCommand:
-		return renderInboundCommandLines(envelope)
-	case bridgepkg.InboundEventFamilyAction:
-		return renderInboundActionLines(envelope)
-	case bridgepkg.InboundEventFamilyReaction:
-		return renderInboundReactionLines(envelope)
-	default:
-		return []string{
-			"Inbound bridge message",
-			"Platform message ID: " + strings.TrimSpace(envelope.PlatformMessageID),
-		}
-	}
-}
-
-func renderInboundCommandLines(envelope bridgepkg.InboundMessageEnvelope) []string {
-	lines := []string{
-		"Inbound bridge command",
-		"Command: " + strings.TrimSpace(envelope.Command.Command),
-	}
-	if text := strings.TrimSpace(envelope.Command.Text); text != "" {
-		lines = append(lines, "Arguments: "+text)
-	}
-	if triggerID := strings.TrimSpace(envelope.Command.TriggerID); triggerID != "" {
-		lines = append(lines, "Trigger ID: "+triggerID)
-	}
-	return lines
-}
-
-func renderInboundActionLines(envelope bridgepkg.InboundMessageEnvelope) []string {
-	lines := []string{
-		"Inbound bridge action",
-		"Action ID: " + strings.TrimSpace(envelope.Action.ActionID),
-	}
-	if messageID := strings.TrimSpace(envelope.Action.MessageID); messageID != "" {
-		lines = append(lines, "Message ID: "+messageID)
-	}
-	if value := strings.TrimSpace(envelope.Action.Value); value != "" {
-		lines = append(lines, "Value: "+value)
-	}
-	if triggerID := strings.TrimSpace(envelope.Action.TriggerID); triggerID != "" {
-		lines = append(lines, "Trigger ID: "+triggerID)
-	}
-	return lines
-}
-
-func renderInboundReactionLines(envelope bridgepkg.InboundMessageEnvelope) []string {
-	lines := []string{
-		"Inbound bridge reaction",
-		"Message ID: " + strings.TrimSpace(envelope.Reaction.MessageID),
-		"Emoji: " + strings.TrimSpace(envelope.Reaction.Emoji),
-	}
-	if rawEmoji := strings.TrimSpace(envelope.Reaction.RawEmoji); rawEmoji != "" {
-		lines = append(lines, "Raw emoji: "+rawEmoji)
-	}
-	if envelope.Reaction.Added {
-		return append(lines, "Change: added")
-	}
-	return append(lines, "Change: removed")
-}
-
-func summarizeInboundSender(sender bridgepkg.MessageSender) string {
-	parts := make([]string, 0, 3)
-	if displayName := strings.TrimSpace(sender.DisplayName); displayName != "" {
-		parts = append(parts, displayName)
-	}
-	if username := strings.TrimSpace(sender.Username); username != "" {
-		parts = append(parts, "@"+username)
-	}
-	if id := strings.TrimSpace(sender.ID); id != "" {
-		parts = append(parts, "id="+id)
-	}
-	return strings.TrimSpace(strings.Join(parts, " "))
-}
-
-func summarizeInboundAttachment(attachment bridgepkg.MessageAttachment) string {
-	parts := make([]string, 0, 4)
-	if name := strings.TrimSpace(attachment.Name); name != "" {
-		parts = append(parts, name)
-	}
-	if mimeType := strings.TrimSpace(attachment.MIMEType); mimeType != "" {
-		parts = append(parts, "type="+mimeType)
-	}
-	if id := strings.TrimSpace(attachment.ID); id != "" {
-		parts = append(parts, "id="+id)
-	}
-	if url := strings.TrimSpace(attachment.URL); url != "" {
-		parts = append(parts, "url="+url)
-	}
-	if len(parts) == 0 {
-		return "attachment"
-	}
-	return strings.Join(parts, " ")
 }
 
 func mapBridgeLookupError(instanceID string, err error) error {

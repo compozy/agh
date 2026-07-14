@@ -160,16 +160,7 @@ type DaemonClient interface {
 	) (BundleActivationRecord, error)
 	DeactivateBundle(ctx context.Context, id string) error
 	BundleNetworkSettings(ctx context.Context) (BundleNetworkSettingsRecord, error)
-	ListBridges(ctx context.Context, query BridgeListQuery) (BridgeListRecord, error)
-	CreateBridge(ctx context.Context, request CreateBridgeRequest) (BridgeRecord, error)
-	GetBridge(ctx context.Context, id string) (BridgeRecord, error)
-	UpdateBridge(ctx context.Context, id string, request UpdateBridgeRequest) (BridgeRecord, error)
-	EnableBridge(ctx context.Context, id string) (BridgeRecord, error)
-	DisableBridge(ctx context.Context, id string) (BridgeRecord, error)
-	RestartBridge(ctx context.Context, id string) (BridgeRecord, error)
-	BridgeRoutes(ctx context.Context, id string) ([]BridgeRouteRecord, error)
-	BridgeTargets(ctx context.Context, id string, query string, limit int) (BridgeTargetsRecord, error)
-	ResolveBridgeTarget(ctx context.Context, id string, name string) (BridgeResolveTargetRecord, error)
+	bridgeClientAPI
 	ListNotificationPresets(ctx context.Context, query NotificationPresetQuery) (NotificationPresetListRecord, error)
 	GetNotificationPreset(ctx context.Context, name string) (NotificationPresetRecord, error)
 	CreateNotificationPreset(
@@ -182,19 +173,6 @@ type DaemonClient interface {
 		request UpdateNotificationPresetRequest,
 	) (NotificationPresetRecord, error)
 	DeleteNotificationPreset(ctx context.Context, name string) error
-	ListBridgeSecretBindings(ctx context.Context, id string) ([]BridgeSecretBindingRecord, error)
-	PutBridgeSecretBinding(
-		ctx context.Context,
-		id string,
-		bindingName string,
-		request BridgeSecretBindingRequest,
-	) (BridgeSecretBindingRecord, error)
-	DeleteBridgeSecretBinding(ctx context.Context, id string, bindingName string) error
-	TestBridgeDelivery(
-		ctx context.Context,
-		id string,
-		request BridgeTestDeliveryRequest,
-	) (BridgeTestDeliveryRecord, error)
 	ListSessions(ctx context.Context, query SessionListQuery) (SessionListPage, error)
 	CreateSession(ctx context.Context, request CreateSessionRequest) (SessionRecord, error)
 	GetSession(ctx context.Context, id string) (SessionRecord, error)

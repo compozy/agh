@@ -94,7 +94,94 @@ CREATE TABLE bridge_task_subscriptions (
 			CHECK (peer_id IS NOT NULL OR group_id IS NOT NULL)
 		);
 
+CREATE TABLE bridge_deliveries (
+			delivery_id        TEXT PRIMARY KEY CHECK (length(trim(delivery_id)) > 0),
+			session_id         TEXT NOT NULL CHECK (length(trim(session_id)) > 0),
+			turn_id            TEXT NOT NULL CHECK (length(trim(turn_id)) > 0),
+			routing_key        TEXT NOT NULL CHECK (
+				json_valid(routing_key) AND json_type(routing_key) = 'object'
+			),
+			bridge_instance_id TEXT NOT NULL REFERENCES bridge_instances(id) ON DELETE CASCADE,
+			scope              TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
+			workspace_id       TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+			state              TEXT NOT NULL CHECK (state IN ('active', 'terminal_ok', 'terminal_error')),
+			last_sent_seq      INTEGER NOT NULL DEFAULT 0 CHECK (last_sent_seq >= 0),
+			last_acked_seq     INTEGER NOT NULL DEFAULT 0 CHECK (
+				last_acked_seq >= 0 AND last_acked_seq <= last_sent_seq
+			),
+			remote_message_id  TEXT,
+			terminal_error     TEXT,
+			created_at         TEXT NOT NULL CHECK (length(trim(created_at)) > 0),
+			updated_at         TEXT NOT NULL CHECK (length(trim(updated_at)) > 0),
+			CHECK (
+				(scope = 'global' AND workspace_id IS NULL) OR
+				(scope = 'workspace' AND workspace_id IS NOT NULL)
+			),
+			CHECK (
+				(state = 'terminal_error' AND terminal_error IS NOT NULL AND length(trim(terminal_error)) > 0) OR
+				(state != 'terminal_error' AND terminal_error IS NULL)
+			)
+		);
+
+CREATE TABLE bridge_delivery_metrics (
+			bridge_instance_id              TEXT PRIMARY KEY REFERENCES bridge_instances(id) ON DELETE CASCADE,
+			scope                           TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
+			workspace_id                    TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+			delivery_dropped_total          INTEGER NOT NULL DEFAULT 0 CHECK (delivery_dropped_total >= 0),
+			delivery_dropped_by_reason_json TEXT NOT NULL DEFAULT '{}' CHECK (
+				json_valid(delivery_dropped_by_reason_json) AND
+				json_type(delivery_dropped_by_reason_json) = 'object'
+			),
+			delivery_failures_total         INTEGER NOT NULL DEFAULT 0 CHECK (delivery_failures_total >= 0),
+			last_error                      TEXT,
+			last_error_at                   TEXT,
+			last_success_at                 TEXT,
+			updated_at                      TEXT NOT NULL CHECK (length(trim(updated_at)) > 0),
+			CHECK (
+				(scope = 'global' AND workspace_id IS NULL) OR
+				(scope = 'workspace' AND workspace_id IS NOT NULL)
+			),
+			CHECK (
+				(last_error IS NULL AND last_error_at IS NULL) OR
+				(length(trim(last_error)) > 0 AND last_error_at IS NOT NULL)
+			)
+		);
+
+CREATE TRIGGER trg_bridge_instance_active_delivery_delete
+			BEFORE DELETE ON bridge_instances
+			WHEN EXISTS (
+				SELECT 1 FROM bridge_deliveries
+				WHERE bridge_instance_id = OLD.id AND state = 'active'
+			)
+			BEGIN
+				SELECT RAISE(ABORT, 'bridge instance has active deliveries');
+			END;
+
+CREATE TRIGGER trg_bridge_instance_active_delivery_identity
+			BEFORE UPDATE OF scope, workspace_id, platform, extension_name ON bridge_instances
+			WHEN EXISTS (
+				SELECT 1 FROM bridge_deliveries
+				WHERE bridge_instance_id = OLD.id AND state = 'active'
+			) AND (
+				NEW.scope IS NOT OLD.scope OR
+				NEW.workspace_id IS NOT OLD.workspace_id OR
+				NEW.platform IS NOT OLD.platform OR
+				NEW.extension_name IS NOT OLD.extension_name
+			)
+			BEGIN
+				SELECT RAISE(ABORT, 'active delivery locks bridge instance identity');
+			END;
+
 CREATE INDEX idx_bridge_ingest_dedup_expires ON bridge_ingest_dedup(expires_at);
+
+CREATE INDEX idx_bridge_deliveries_scope
+			ON bridge_deliveries(scope, workspace_id, state, updated_at, delivery_id);
+
+CREATE INDEX idx_bridge_deliveries_instance
+			ON bridge_deliveries(bridge_instance_id, state, updated_at, delivery_id);
+
+CREATE INDEX idx_bridge_delivery_metrics_scope
+			ON bridge_delivery_metrics(scope, workspace_id, updated_at, bridge_instance_id);
 
 CREATE INDEX idx_bridge_instances_scope ON bridge_instances(scope, workspace_id, id);
 

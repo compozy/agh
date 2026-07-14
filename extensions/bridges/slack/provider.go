@@ -1,27 +1,20 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -48,42 +41,27 @@ const (
 	slackSignatureVersion         = "v0"
 	slackWebhookReadHeaderTimeout = 10 * time.Second
 	slackWebhookIdleTimeout       = 2 * time.Minute
-
-	rpcCodeNotInitialized = -32003
 )
 
 type slackProvider struct {
-	sdk     *bridgesdk.Runtime
-	stderr  io.Writer
-	env     markerEnv
-	now     func() time.Time
-	session *bridgesdk.Session
+	sdk        *bridgesdk.Runtime
+	lifecycle  *bridgesdk.ProviderLifecycle
+	markers    *bridgesdk.AdapterMarkers
+	http       *bridgesdk.ProviderHTTPServer
+	stderr     io.Writer
+	now        func() time.Time
+	parents    *bridgesdk.ParentMessageCache
+	routes     *bridgesdk.RouteTable[resolvedInstanceConfig]
+	deliveries *bridgesdk.DeliveryStateStore[deliveryState]
 
-	mu             sync.RWMutex
-	lastError      string
-	server         *http.Server
-	serverListener net.Listener
-	serverAddr     string
-	listenAddr     string
-	routes         map[string]resolvedInstanceConfig
-	deliveries     map[string]deliveryState
-	reportedStatus map[string]bridgepkg.BridgeStatus
-	apiFactory     func(*resolvedInstanceConfig) slackAPI
-
-	stopCh   chan struct{}
-	stopOnce sync.Once
-	wg       sync.WaitGroup
-}
-
-type deliveryState struct {
-	LastSeq                int64
-	RemoteMessageID        string
-	ReplaceRemoteMessageID string
+	mu         sync.RWMutex
+	lastError  string
+	listenAddr string
+	apiFactory func(*resolvedInstanceConfig) slackAPI
 }
 
 type slackProviderConfig struct {
-	APIBaseURL string `json:"api_base_url,omitempty"`
-	Webhook    struct {
+	Webhook struct {
 		ListenAddr string `json:"listen_addr,omitempty"`
 		Path       string `json:"path,omitempty"`
 	} `json:"webhook"`
@@ -136,20 +114,35 @@ type slackEventTypePayload struct {
 }
 
 type slackMessageEvent struct {
-	BotID       string      `json:"bot_id,omitempty"`
-	Channel     string      `json:"channel,omitempty"`
-	ChannelType string      `json:"channel_type,omitempty"`
-	Edited      *slackEdit  `json:"edited,omitempty"`
-	Files       []slackFile `json:"files,omitempty"`
-	Subtype     string      `json:"subtype,omitempty"`
-	Team        string      `json:"team,omitempty"`
-	TeamID      string      `json:"team_id,omitempty"`
-	Text        string      `json:"text,omitempty"`
-	ThreadTS    string      `json:"thread_ts,omitempty"`
-	TS          string      `json:"ts,omitempty"`
-	Type        string      `json:"type"`
-	User        string      `json:"user,omitempty"`
-	Username    string      `json:"username,omitempty"`
+	BotID           string                `json:"bot_id,omitempty"`
+	Channel         string                `json:"channel,omitempty"`
+	ChannelType     string                `json:"channel_type,omitempty"`
+	DeletedTS       string                `json:"deleted_ts,omitempty"`
+	Edited          *slackEdit            `json:"edited,omitempty"`
+	Files           []slackFile           `json:"files,omitempty"`
+	Message         *slackMessageSnapshot `json:"message,omitempty"`
+	PreviousMessage *slackMessageSnapshot `json:"previous_message,omitempty"`
+	Subtype         string                `json:"subtype,omitempty"`
+	Team            string                `json:"team,omitempty"`
+	TeamID          string                `json:"team_id,omitempty"`
+	Text            string                `json:"text,omitempty"`
+	ThreadTS        string                `json:"thread_ts,omitempty"`
+	TS              string                `json:"ts,omitempty"`
+	Type            string                `json:"type"`
+	User            string                `json:"user,omitempty"`
+	Username        string                `json:"username,omitempty"`
+}
+
+type slackMessageSnapshot struct {
+	BotID    string      `json:"bot_id,omitempty"`
+	Edited   *slackEdit  `json:"edited,omitempty"`
+	Files    []slackFile `json:"files,omitempty"`
+	Text     string      `json:"text,omitempty"`
+	ThreadTS string      `json:"thread_ts,omitempty"`
+	TS       string      `json:"ts,omitempty"`
+	Type     string      `json:"type,omitempty"`
+	User     string      `json:"user,omitempty"`
+	Username string      `json:"username,omitempty"`
 }
 
 type slackEdit struct {
@@ -232,6 +225,8 @@ type slackAPI interface {
 	PostMessage(context.Context, slackPostMessageRequest) (*slackPostedMessage, error)
 	UpdateMessage(context.Context, slackUpdateMessageRequest) error
 	DeleteMessage(context.Context, slackDeleteMessageRequest) error
+	SetThreadStatus(context.Context, slackSetThreadStatusRequest) error
+	AddReaction(context.Context, slackAddReactionRequest) error
 }
 
 type slackDeliveryReconciler interface {
@@ -239,8 +234,9 @@ type slackDeliveryReconciler interface {
 }
 
 type slackAuthIdentity struct {
-	BotID  string `json:"bot_id,omitempty"`
-	UserID string `json:"user_id,omitempty"`
+	BotID         string   `json:"bot_id,omitempty"`
+	UserID        string   `json:"user_id,omitempty"`
+	GrantedScopes []string `json:"-"`
 }
 
 type slackPostedMessage struct {
@@ -251,6 +247,7 @@ type slackPostMessageRequest struct {
 	Channel  string                `json:"channel"`
 	ThreadTS string                `json:"thread_ts,omitempty"`
 	Text     string                `json:"text"`
+	Mrkdwn   bool                  `json:"mrkdwn"`
 	Metadata *slackMessageMetadata `json:"metadata,omitempty"`
 }
 
@@ -326,25 +323,24 @@ type slackAPIEnvelope struct {
 	UserID string `json:"user_id,omitempty"`
 }
 
-type slackBotClient struct {
-	baseURL    string
-	botToken   string
-	httpClient *http.Client
-}
-
+//nolint:funlen // Construction keeps the provider's declarative runtime wiring visible in one place.
 func newSlackProvider(stderr io.Writer) (*slackProvider, error) {
 	if stderr == nil {
 		stderr = io.Discard
 	}
 
 	provider := &slackProvider{
-		stderr:         stderr,
-		env:            markerEnvFromProcess(),
-		now:            func() time.Time { return time.Now().UTC() },
-		routes:         make(map[string]resolvedInstanceConfig),
-		deliveries:     make(map[string]deliveryState),
-		reportedStatus: make(map[string]bridgepkg.BridgeStatus),
-		stopCh:         make(chan struct{}),
+		stderr:  stderr,
+		markers: bridgesdk.NewAdapterMarkers(providerSlackKey, stderr),
+		now:     func() time.Time { return time.Now().UTC() },
+		parents: bridgesdk.NewParentMessageCache(0),
+		routes: bridgesdk.NewRouteTable(func(config resolvedInstanceConfig) []string {
+			if config.configError != nil {
+				return nil
+			}
+			return []string{config.webhookPath}
+		}),
+		deliveries: bridgesdk.NewDeliveryStateStore[deliveryState](),
 	}
 	provider.apiFactory = func(cfg *resolvedInstanceConfig) slackAPI {
 		return &slackBotClient{
@@ -353,8 +349,58 @@ func newSlackProvider(stderr io.Writer) (*slackProvider, error) {
 			httpClient: &http.Client{
 				Timeout: 10 * time.Second,
 			},
+			reportResponseCleanup: func(err error) {
+				provider.markers.ReportError("clean up Slack API response", err)
+			},
 		}
 	}
+
+	lifecycle, err := bridgesdk.NewProviderLifecycle(bridgesdk.ProviderLifecycleConfig{
+		ProviderName: providerSlackKey,
+		Markers:      provider.markers,
+		Reconcile: func(
+			ctx context.Context,
+			managed []subprocess.InitializeBridgeManagedInstance,
+		) ([]bridgesdk.ProviderInitialState, error) {
+			configs := provider.reconcileInstanceConfigs(ctx, provider.lifecycle.Session(), managed)
+			states := make([]bridgesdk.ProviderInitialState, 0, len(configs))
+			for idx := range configs {
+				states = append(states, bridgesdk.ProviderInitialState{
+					BridgeInstanceID: configs[idx].instanceID,
+					Status:           configs[idx].initialStatus,
+					Degradation:      configs[idx].initialDegradation,
+				})
+			}
+			return states, nil
+		},
+		FinalizeInitialize: func(err error) {
+			if err != nil {
+				provider.setLastError(err)
+			}
+		},
+		OnStop: provider.stopResources,
+		ShutdownResources: func(ctx context.Context) error {
+			if provider.http == nil {
+				return nil
+			}
+			return provider.http.Shutdown(ctx)
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	provider.lifecycle = lifecycle
+	providerHTTP, err := bridgesdk.NewProviderHTTPServer(bridgesdk.ProviderHTTPConfig{
+		ReadHeaderTimeout: slackWebhookReadHeaderTimeout,
+		IdleTimeout:       slackWebhookIdleTimeout,
+		Handler:           http.HandlerFunc(provider.serveWebhookHTTP),
+		Go:                lifecycle.Go,
+		OnError:           provider.setLastError,
+	})
+	if err != nil {
+		return nil, err
+	}
+	provider.http = providerHTTP
 
 	sdkRuntime, err := bridgesdk.NewRuntime(bridgesdk.RuntimeConfig{
 		ExtensionInfo: subprocess.InitializeExtensionInfo{
@@ -362,10 +408,12 @@ func newSlackProvider(stderr io.Writer) (*slackProvider, error) {
 			Version: "0.1.0",
 			SDKName: "bridgesdk",
 		},
-		Initialize:  provider.handleInitialize,
+		Initialize:  lifecycle.Initialize,
 		Deliver:     provider.handleBridgesDeliver,
+		Progress:    provider.handleBridgesProgress,
+		Check:       provider.handleBridgeCheck,
 		HealthCheck: func(context.Context, *bridgesdk.Session) error { return provider.healthCheck() },
-		Shutdown:    provider.handleShutdown,
+		Shutdown:    lifecycle.Shutdown,
 		Now:         func() time.Time { return provider.now() },
 	})
 	if err != nil {
@@ -376,87 +424,7 @@ func newSlackProvider(stderr io.Writer) (*slackProvider, error) {
 }
 
 func (p *slackProvider) serve(stdin io.Reader, stdout io.Writer) error {
-	p.reportSideEffectError(
-		"write start marker",
-		appendMarkerLine(p.env.startsPath, fmt.Sprintf("pid=%d", os.Getpid())),
-	)
-	return p.sdk.Serve(context.Background(), stdin, stdout)
-}
-
-func (p *slackProvider) handleInitialize(_ context.Context, session *bridgesdk.Session) error {
-	p.mu.Lock()
-	p.session = session
-	p.mu.Unlock()
-
-	marker := initializeMarker{
-		Request:  session.InitializeRequest(),
-		Response: session.InitializeResponse(),
-	}
-	p.reportSideEffectError("write initialize marker", writeJSONFile(p.env.handshakePath, marker))
-	p.clearLastError()
-
-	p.wg.Go(func() {
-		p.afterInitialize(session)
-	})
-
-	return nil
-}
-
-func (p *slackProvider) afterInitialize(session *bridgesdk.Session) {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	listed, err := p.syncOwnedInstances(ctx, session)
-	ownershipErr := err
-	fetched := make([]bridgepkg.BridgeInstance, 0, len(listed))
-	if ownershipErr == nil {
-		for _, managed := range listed {
-			instance, getErr := p.getOwnedInstance(ctx, session, managed.Instance.ID)
-			if getErr != nil {
-				ownershipErr = getErr
-				break
-			}
-			fetched = append(fetched, *instance)
-		}
-	}
-	if len(listed) == 0 {
-		listed = session.Cache().List()
-	}
-
-	ownership := ownershipMarker{
-		Listed:  managedInstancesToInstances(listed),
-		Fetched: fetched,
-	}
-	if ownershipErr != nil {
-		ownership.Error = ownershipErr.Error()
-	}
-	p.reportSideEffectError("write ownership marker", writeJSONFile(p.env.ownershipPath, ownership))
-
-	configs := p.reconcileInstanceConfigs(ctx, session, listed)
-	for idx := range configs {
-		cfg := configs[idx]
-		status := cfg.initialStatus
-		degradation := cfg.initialDegradation
-		if status == "" {
-			status = bridgepkg.BridgeStatusReady
-		}
-		if err := p.reportState(
-			ctx,
-			session,
-			cfg.instanceID,
-			status,
-			degradation,
-		); err != nil &&
-			ownershipErr == nil {
-			ownershipErr = err
-		}
-	}
-
-	if ownershipErr != nil {
-		p.setLastError(ownershipErr)
-	} else {
-		p.clearLastError()
-	}
+	return p.lifecycle.Serve(context.Background(), p.sdk, stdin, stdout)
 }
 
 func (p *slackProvider) handleBridgesDeliver(
@@ -464,7 +432,7 @@ func (p *slackProvider) handleBridgesDeliver(
 	session *bridgesdk.Session,
 	request bridgepkg.DeliveryRequest,
 ) (bridgepkg.DeliveryAck, error) {
-	marker := deliveryMarker{
+	marker := bridgesdk.DeliveryMarker{
 		PID:     os.Getpid(),
 		Request: request,
 	}
@@ -472,267 +440,58 @@ func (p *slackProvider) handleBridgesDeliver(
 	cfg, err := p.waitForInstanceConfig(strings.TrimSpace(request.Event.BridgeInstanceID), 500*time.Millisecond)
 	if err != nil {
 		marker.Error = err.Error()
-		p.reportSideEffectError("write failed delivery marker", appendJSONLine(p.env.deliveryPath, marker))
+		p.markers.RecordDelivery(marker)
 		p.setLastError(err)
 		return bridgepkg.DeliveryAck{}, err
 	}
 
-	if shouldCrashOnce(p.env.crashOncePath) {
-		p.reportSideEffectError("write pre-crash delivery marker", appendJSONLine(p.env.deliveryPath, marker))
-		p.reportSideEffectError("write crash marker", writeJSONFile(p.env.crashOncePath, map[string]any{
+	if p.markers.ShouldCrashOnce() {
+		p.markers.RecordDelivery(marker)
+		p.markers.RecordCrash(map[string]any{
 			"crashed":                   true,
 			"pid":                       os.Getpid(),
 			providerDeliveryIDKey:       strings.TrimSpace(request.Event.DeliveryID),
 			providerBridgeInstanceIDKey: cfg.instanceID,
-		}))
+		})
 		os.Exit(23)
 	}
 
-	api := p.apiFactory(&cfg)
-	ack, state, err := executeDelivery(ctx, api, request, p.deliveryState(cfg.instanceID, request.Event.DeliveryID))
+	ack, state, err := p.executeTextDeliveryWithProgress(ctx, &cfg, request)
 	if err != nil {
-		marker.Error = err.Error()
-		p.reportSideEffectError("write failed delivery marker", appendJSONLine(p.env.deliveryPath, marker))
-		classified := bridgesdk.ClassifyError(err)
-		_, _, reportErr := session.ReportClassifiedError(ctx, cfg.instanceID, classified)
-		if reportErr != nil {
-			p.setLastError(reportErr)
-		} else {
-			p.setLastError(err)
-		}
+		p.recordDeliveryFailure(ctx, session, cfg.instanceID, request, state, marker, err)
 		return bridgepkg.DeliveryAck{}, err
 	}
 
-	p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, state)
-	p.reportReadyIfNeeded(ctx, session, cfg.instanceID)
+	progressCleanupErr := p.completeTextDeliveryProgress(ctx, cfg.instanceID, request, state)
+	if progressCleanupErr == nil {
+		p.clearLastError()
+	}
+	if err := p.lifecycle.Host().ReportReadyIfNeeded(ctx, session, cfg.instanceID); err != nil {
+		p.setLastError(err)
+	}
 
 	marker.Ack = &ack
-	p.reportSideEffectError("write delivery marker", appendJSONLine(p.env.deliveryPath, marker))
-	p.clearLastError()
+	p.markers.RecordDelivery(marker)
+	if progressCleanupErr != nil {
+		p.recordProgressCleanupError("clear progress after text delivery", progressCleanupErr)
+	}
 	return ack, nil
 }
 
-func (p *slackProvider) healthCheck() error {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if strings.TrimSpace(p.lastError) == "" {
-		return nil
-	}
-	return errors.New(strings.TrimSpace(p.lastError))
-}
-
-func (p *slackProvider) handleShutdown(
-	_ context.Context,
-	_ *bridgesdk.Session,
-	request subprocess.ShutdownRequest,
-) error {
-	p.stop()
-
-	shutdownCtx := context.Background()
-	if request.DeadlineMS > 0 {
-		var cancel context.CancelFunc
-		shutdownCtx, cancel = context.WithTimeout(
-			context.Background(),
-			time.Duration(request.DeadlineMS)*time.Millisecond,
-		)
-		defer cancel()
-	}
-
-	p.mu.Lock()
-	server := p.server
-	listener := p.serverListener
-	p.server = nil
-	p.serverListener = nil
-	p.mu.Unlock()
-	if listener != nil {
-		_ = listener.Close()
-	}
-	if server != nil {
-		if err := server.Shutdown(shutdownCtx); err != nil {
-			_ = server.Close()
+func (p *slackProvider) stopResources() {
+	p.closeAllProgressDispatchers()
+	batchersToClose := make(map[*bridgesdk.InboundBatcher]struct{})
+	for id, cfg := range p.routes.Snapshot() {
+		if cfg.batcher == nil {
+			continue
 		}
-		_ = server.Close()
+		batchersToClose[cfg.batcher] = struct{}{}
+		p.routes.Update(id, func(current resolvedInstanceConfig) resolvedInstanceConfig {
+			current.batcher = nil
+			return current
+		})
 	}
-
-	done := make(chan struct{})
-	go func() {
-		p.wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-shutdownCtx.Done():
-	}
-
-	p.reportSideEffectError(
-		"write shutdown marker",
-		appendMarkerLine(p.env.shutdownPath, fmt.Sprintf("pid=%d", os.Getpid())),
-	)
-	return nil
-}
-
-func (p *slackProvider) stop() {
-	p.stopOnce.Do(func() {
-		close(p.stopCh)
-		batchersToClose := make(map[*bridgesdk.InboundBatcher]struct{})
-		p.mu.Lock()
-		for id := range p.routes {
-			cfg := p.routes[id]
-			if cfg.batcher != nil {
-				batchersToClose[cfg.batcher] = struct{}{}
-				cfg.batcher = nil
-				p.routes[id] = cfg
-			}
-		}
-		p.mu.Unlock()
-		closeInboundBatchers(batchersToClose)
-	})
-}
-
-func (p *slackProvider) syncOwnedInstances(
-	ctx context.Context,
-	session *bridgesdk.Session,
-) ([]subprocess.InitializeBridgeManagedInstance, error) {
-	var result []subprocess.InitializeBridgeManagedInstance
-	err := p.retryHostCall(ctx, func(callCtx context.Context) error {
-		items, callErr := session.SyncInstances(callCtx)
-		if callErr == nil {
-			result = items
-		}
-		return callErr
-	})
-	return result, err
-}
-
-func (p *slackProvider) getOwnedInstance(
-	ctx context.Context,
-	session *bridgesdk.Session,
-	bridgeInstanceID string,
-) (*bridgepkg.BridgeInstance, error) {
-	var result *bridgepkg.BridgeInstance
-	err := p.retryHostCall(ctx, func(callCtx context.Context) error {
-		instance, callErr := session.HostAPI().GetBridgeInstance(callCtx, bridgeInstanceID)
-		if callErr == nil {
-			result = instance
-		}
-		return callErr
-	})
-	return result, err
-}
-
-func (p *slackProvider) reportState(
-	ctx context.Context,
-	session *bridgesdk.Session,
-	bridgeInstanceID string,
-	status bridgepkg.BridgeStatus,
-	degradation *bridgepkg.BridgeDegradation,
-) error {
-	var result *bridgepkg.BridgeInstance
-	err := p.retryHostCall(ctx, func(callCtx context.Context) error {
-		instance, callErr := session.HostAPI().
-			ReportBridgeInstanceState(callCtx, extensioncontract.BridgesInstancesReportStateParams{
-				BridgeInstanceID: strings.TrimSpace(bridgeInstanceID),
-				Status:           status,
-				Degradation:      cloneDegradation(degradation),
-			})
-		if callErr == nil {
-			result = instance
-		}
-		return callErr
-	})
-	if err != nil {
-		p.reportSideEffectError("write failed state marker", appendJSONLine(p.env.statePath, stateMarker{
-			BridgeInstanceID: strings.TrimSpace(bridgeInstanceID),
-			Status:           status,
-			Error:            err.Error(),
-		}))
-		return err
-	}
-
-	p.mu.Lock()
-	p.reportedStatus[strings.TrimSpace(bridgeInstanceID)] = result.Status.Normalize()
-	p.mu.Unlock()
-	p.reportSideEffectError("write state marker", appendJSONLine(p.env.statePath, stateMarker{
-		BridgeInstanceID: result.ID,
-		Status:           result.Status,
-		Instance:         *result,
-	}))
-	return nil
-}
-
-func (p *slackProvider) reportReadyIfNeeded(ctx context.Context, session *bridgesdk.Session, bridgeInstanceID string) {
-	p.mu.RLock()
-	status := p.reportedStatus[strings.TrimSpace(bridgeInstanceID)]
-	p.mu.RUnlock()
-	if status == bridgepkg.BridgeStatusReady {
-		return
-	}
-	if err := p.reportState(ctx, session, bridgeInstanceID, bridgepkg.BridgeStatusReady, nil); err != nil {
-		p.setLastError(err)
-	}
-}
-
-func (p *slackProvider) ingestBridgeMessage(
-	ctx context.Context,
-	session *bridgesdk.Session,
-	envelope bridgepkg.InboundMessageEnvelope,
-) (*extensioncontract.BridgesMessagesIngestResult, error) {
-	var result *extensioncontract.BridgesMessagesIngestResult
-	err := p.retryHostCall(ctx, func(callCtx context.Context) error {
-		ingestResult, callErr := session.HostAPI().IngestBridgeMessage(callCtx, envelope)
-		if callErr == nil {
-			result = ingestResult
-		}
-		return callErr
-	})
-	return result, err
-}
-
-func (p *slackProvider) retryHostCall(ctx context.Context, fn func(context.Context) error) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	delay := 10 * time.Millisecond
-	var lastErr error
-	for range 6 {
-		err := fn(ctx)
-		if err == nil {
-			return nil
-		}
-		if !isNotInitializedRPCError(err) {
-			return err
-		}
-		lastErr = err
-
-		timer := time.NewTimer(delay)
-		select {
-		case <-ctx.Done():
-			if !timer.Stop() {
-				<-timer.C
-			}
-			return ctx.Err()
-		case <-p.stopCh:
-			if !timer.Stop() {
-				<-timer.C
-			}
-			return err
-		case <-timer.C:
-		}
-
-		if delay < 100*time.Millisecond {
-			delay *= 2
-			if delay > 100*time.Millisecond {
-				delay = 100 * time.Millisecond
-			}
-		}
-	}
-
-	if lastErr != nil {
-		return lastErr
-	}
-	return nil
+	closeInboundBatchers(batchersToClose)
 }
 
 func (p *slackProvider) reconcileInstanceConfigs(
@@ -740,54 +499,71 @@ func (p *slackProvider) reconcileInstanceConfigs(
 	session *bridgesdk.Session,
 	managed []subprocess.InitializeBridgeManagedInstance,
 ) []resolvedInstanceConfig {
-	if len(managed) == 0 {
-		batchersToClose := make(map[*bridgesdk.InboundBatcher]struct{})
-		p.mu.Lock()
-		for id := range p.routes {
-			cfg := p.routes[id]
-			if cfg.batcher != nil {
-				batchersToClose[cfg.batcher] = struct{}{}
+	batchersToClose := make(map[*bridgesdk.InboundBatcher]struct{})
+	reconciler := bridgesdk.ManagedConfigReconciler[resolvedInstanceConfig]{
+		Routes:   p.routes,
+		Resolve:  p.resolveInstanceConfig,
+		Prepare:  p.prepareSlackConfigs,
+		Finalize: p.finalizeSlackConfigs,
+		Identity: func(config resolvedInstanceConfig) string { return config.instanceID },
+		Merge: func(prior resolvedInstanceConfig, next resolvedInstanceConfig) resolvedInstanceConfig {
+			if prior.batcher != nil && prior.batcher != next.batcher {
+				batchersToClose[prior.batcher] = struct{}{}
 			}
-		}
-		p.routes = make(map[string]resolvedInstanceConfig)
-		p.mu.Unlock()
-		closeInboundBatchers(batchersToClose)
+			return next
+		},
+		OnRemoved: func(config resolvedInstanceConfig) error {
+			if config.batcher != nil {
+				batchersToClose[config.batcher] = struct{}{}
+			}
+			return nil
+		},
+		OnPublish: func() { closeInboundBatchers(batchersToClose) },
+	}
+	configs, err := reconciler.Reconcile(ctx, session, managed)
+	if err != nil {
+		p.setLastError(err)
 		return nil
 	}
+	return configs
+}
 
-	configs, requestedListen := p.collectSlackConfigs(session, managed)
-	p.applySlackListenErrors(configs, requestedListen)
-	nextRoutes := buildSlackRouteMap(configs)
-	closeInboundBatchers(p.swapSlackRoutes(nextRoutes, requestedListen))
-
+func (p *slackProvider) finalizeSlackConfigs(
+	ctx context.Context,
+	_ *bridgesdk.Session,
+	configs []resolvedInstanceConfig,
+) ([]resolvedInstanceConfig, error) {
 	for idx := range configs {
-		status, degradation, err := p.determineInitialState(ctx, &configs[idx])
-		if err != nil {
-			p.setLastError(err)
+		status, degradation, probeErr := p.determineInitialState(ctx, &configs[idx])
+		if probeErr != nil {
+			p.setLastError(probeErr)
 		}
 		configs[idx].initialStatus = status
 		configs[idx].initialDegradation = degradation
 	}
-
-	return configs
+	return configs, nil
 }
 
-func (p *slackProvider) collectSlackConfigs(
-	session *bridgesdk.Session,
-	managed []subprocess.InitializeBridgeManagedInstance,
-) ([]resolvedInstanceConfig, string) {
-	configs := make([]resolvedInstanceConfig, 0, len(managed))
-	requestedListen := strings.TrimSpace(os.Getenv(slackListenAddrEnv))
-	usedPaths := make(map[string]int, len(managed))
-
-	for _, item := range managed {
-		cfg := p.resolveInstanceConfig(session, item)
-		requestedListen = applySlackListenConstraint(&cfg, requestedListen)
-		applySlackWebhookPathConflict(&cfg, usedPaths, configs)
-		configs = append(configs, cfg)
+func (p *slackProvider) prepareSlackConfigs(
+	_ context.Context,
+	_ *bridgesdk.Session,
+	configs []resolvedInstanceConfig,
+) ([]resolvedInstanceConfig, error) {
+	if len(configs) == 0 {
+		return configs, nil
 	}
+	requestedListen := strings.TrimSpace(os.Getenv(slackListenAddrEnv))
+	usedPaths := make(map[string]int, len(configs))
 
-	return configs, requestedListen
+	for idx := range configs {
+		requestedListen = applySlackListenConstraint(&configs[idx], requestedListen)
+		applySlackWebhookPathConflict(&configs[idx], usedPaths, configs[:idx])
+	}
+	p.applySlackListenErrors(configs, requestedListen)
+	p.mu.Lock()
+	p.listenAddr = requestedListen
+	p.mu.Unlock()
+	return configs, nil
 }
 
 func applySlackListenConstraint(cfg *resolvedInstanceConfig, requestedListen string) string {
@@ -856,44 +632,6 @@ func (p *slackProvider) applySlackListenErrors(configs []resolvedInstanceConfig,
 	}
 }
 
-func buildSlackRouteMap(configs []resolvedInstanceConfig) map[string]resolvedInstanceConfig {
-	nextRoutes := make(map[string]resolvedInstanceConfig, len(configs))
-	for idx := range configs {
-		cfg := configs[idx]
-		nextRoutes[cfg.instanceID] = cfg
-	}
-	return nextRoutes
-}
-
-func (p *slackProvider) swapSlackRoutes(
-	nextRoutes map[string]resolvedInstanceConfig,
-	requestedListen string,
-) map[*bridgesdk.InboundBatcher]struct{} {
-	batchersToClose := make(map[*bridgesdk.InboundBatcher]struct{})
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	existing := p.routes
-	for instanceID := range nextRoutes {
-		cfg := nextRoutes[instanceID]
-		if prior, ok := existing[instanceID]; ok && prior.batcher != nil && prior.batcher != cfg.batcher {
-			batchersToClose[prior.batcher] = struct{}{}
-		}
-	}
-	for instanceID := range existing {
-		prior := existing[instanceID]
-		if _, ok := nextRoutes[instanceID]; ok {
-			continue
-		}
-		if prior.batcher != nil {
-			batchersToClose[prior.batcher] = struct{}{}
-		}
-	}
-	p.routes = nextRoutes
-	p.listenAddr = requestedListen
-	return batchersToClose
-}
-
 func (p *slackProvider) resolveInstanceConfig(
 	session *bridgesdk.Session,
 	managed subprocess.InitializeBridgeManagedInstance,
@@ -916,7 +654,7 @@ func (p *slackProvider) resolveInstanceConfig(
 		firstNonEmpty(cfg.Webhook.Path, "/slack/"+strings.TrimSpace(managed.Instance.ID)),
 	)
 	apiBaseURL := normalizeURL(
-		firstNonEmpty(cfg.APIBaseURL, strings.TrimSpace(os.Getenv(slackAPIBaseEnv)), slackDefaultAPIBaseURL),
+		firstNonEmpty(strings.TrimSpace(os.Getenv(slackAPIBaseEnv)), slackDefaultAPIBaseURL),
 	)
 
 	resolved := resolvedInstanceConfig{
@@ -1018,47 +756,10 @@ func (p *slackProvider) determineInitialState(
 }
 
 func (p *slackProvider) startServer(listenAddr string) error {
-	p.mu.RLock()
-	server := p.server
-	currentListen := p.listenAddr
-	p.mu.RUnlock()
-	if server != nil {
-		if currentListen != "" && currentListen != strings.TrimSpace(listenAddr) {
-			return fmt.Errorf("slack: runtime already listening on %q, cannot switch to %q", currentListen, listenAddr)
-		}
-		return nil
+	if err := p.http.Start(listenAddr); err != nil {
+		return fmt.Errorf("slack: %w", err)
 	}
-
-	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", strings.TrimSpace(listenAddr))
-	if err != nil {
-		return fmt.Errorf("slack: listen %q: %w", listenAddr, err)
-	}
-
-	httpServer := &http.Server{
-		Handler:           http.HandlerFunc(p.serveWebhookHTTP),
-		ReadHeaderTimeout: slackWebhookReadHeaderTimeout,
-		IdleTimeout:       slackWebhookIdleTimeout,
-	}
-
-	actualAddr := ln.Addr().String()
-	p.mu.Lock()
-	p.server = httpServer
-	p.serverListener = ln
-	p.serverAddr = actualAddr
-	p.listenAddr = strings.TrimSpace(listenAddr)
-	p.mu.Unlock()
-
-	p.reportSideEffectError(
-		"write start marker",
-		appendMarkerLine(p.env.startsPath, fmt.Sprintf("listen=%s", actualAddr)),
-	)
-
-	p.wg.Go(func() {
-		if serveErr := httpServer.Serve(ln); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
-			p.setLastError(serveErr)
-		}
-	})
-
+	p.markers.RecordListen(p.http.Address())
 	return nil
 }
 
@@ -1231,6 +932,7 @@ func (p *slackProvider) handleSlackMessageJSONEvent(
 		payload.EventID,
 		payload.TeamID,
 		payload.EventTime,
+		nil,
 	)
 	if err != nil {
 		return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: err.Error()}
@@ -1238,7 +940,14 @@ func (p *slackProvider) handleSlackMessageJSONEvent(
 	if ignored {
 		return writeWebhookOK(w)
 	}
-	return p.dispatchSlackWebhookEnvelope(ctx, w, cfg, mapped, true)
+	return p.dispatchSlackWebhookEnvelope(
+		ctx,
+		w,
+		cfg,
+		mapped,
+		slackEventReplyParentMessageID(event),
+		shouldBatchSlackInbound(event),
+	)
 }
 
 func (p *slackProvider) handleSlackReactionJSONEvent(
@@ -1256,7 +965,7 @@ func (p *slackProvider) handleSlackReactionJSONEvent(
 	if err != nil {
 		return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: err.Error()}
 	}
-	return p.dispatchSlackWebhookEnvelope(ctx, w, cfg, mapped, false)
+	return p.dispatchSlackWebhookEnvelope(ctx, w, cfg, mapped, "", false)
 }
 
 func (p *slackProvider) dispatchSlackWebhookEnvelope(
@@ -1264,6 +973,7 @@ func (p *slackProvider) dispatchSlackWebhookEnvelope(
 	w http.ResponseWriter,
 	cfg *resolvedInstanceConfig,
 	mapped slackMappedInbound,
+	parentMessageID string,
 	allowBatch bool,
 ) error {
 	if cfg.dedup.Seen(mapped.Envelope.IdempotencyKey) {
@@ -1272,16 +982,23 @@ func (p *slackProvider) dispatchSlackWebhookEnvelope(
 	if !allowSlackDirectMessage(cfg, mapped.User, mapped.Direct) {
 		return writeWebhookOK(w)
 	}
+	if p.parents.EnrichReply(&mapped.Envelope, parentMessageID) {
+		if err := mapped.Envelope.Validate(); err != nil {
+			return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: err.Error()}
+		}
+	}
 	if allowBatch && cfg.batcher != nil {
 		if err := cfg.batcher.Enqueue(mapped.Envelope); err != nil {
 			return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 		}
+		p.parents.RememberEnvelope(mapped.Envelope)
 		cfg.dedup.Mark(mapped.Envelope.IdempotencyKey)
 		return writeWebhookOK(w)
 	}
 	if err := p.dispatchInboundEnvelope(ctx, cfg.instanceID, mapped.Envelope); err != nil {
 		return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 	}
+	p.parents.RememberEnvelope(mapped.Envelope)
 	cfg.dedup.Mark(mapped.Envelope.IdempotencyKey)
 	return writeWebhookOK(w)
 }
@@ -1322,26 +1039,18 @@ func (p *slackProvider) dispatchInboundEnvelope(
 		return err
 	}
 
-	result, err := p.ingestBridgeMessage(ctx, session, envelope)
+	_, err = p.lifecycle.Host().IngestBridgeMessage(ctx, session, envelope)
 	if err != nil {
-		p.reportSideEffectError("write failed ingest marker", appendJSONLine(p.env.ingestPath, ingestMarker{
-			Envelope: envelope,
-			Error:    err.Error(),
-		}))
 		return err
 	}
-	p.reportSideEffectError("write ingest marker", appendJSONLine(p.env.ingestPath, ingestMarker{
-		Envelope: envelope,
-		Result:   *result,
-	}))
-	p.reportReadyIfNeeded(ctx, session, cfg.instanceID)
+	if err := p.lifecycle.Host().ReportReadyIfNeeded(ctx, session, cfg.instanceID); err != nil {
+		p.setLastError(err)
+	}
 	return nil
 }
 
 func (p *slackProvider) configForInstance(instanceID string) (resolvedInstanceConfig, error) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	cfg, ok := p.routes[strings.TrimSpace(instanceID)]
+	cfg, ok := p.routes.Get(instanceID)
 	if !ok {
 		return resolvedInstanceConfig{}, fmt.Errorf("slack: delivery targeted unmanaged instance %q", instanceID)
 	}
@@ -1356,59 +1065,26 @@ func (p *slackProvider) waitForInstanceConfig(
 		return p.configForInstance(instanceID)
 	}
 
-	deadline := time.Now().Add(timeout)
-	for {
-		cfg, err := p.configForInstance(instanceID)
-		if err == nil {
-			return cfg, nil
-		}
-		if time.Now().After(deadline) {
-			return resolvedInstanceConfig{}, err
-		}
-
-		timer := time.NewTimer(10 * time.Millisecond)
-		select {
-		case <-p.stopCh:
-			if !timer.Stop() {
-				<-timer.C
-			}
-			return resolvedInstanceConfig{}, err
-		case <-timer.C:
-		}
+	cfg, ok, err := p.routes.Wait(context.Background(), instanceID, timeout, p.lifecycle.StopChannel())
+	if err != nil {
+		return resolvedInstanceConfig{}, err
 	}
+	if !ok {
+		return p.configForInstance(instanceID)
+	}
+	return cfg, nil
 }
 
 func (p *slackProvider) configForPath(path string) (resolvedInstanceConfig, bool) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	for id := range p.routes {
-		cfg := p.routes[id]
-		if cfg.configError != nil {
-			continue
-		}
-		if cfg.webhookPath == normalizeWebhookPath(path) {
-			return cfg, true
-		}
+	configs := p.routes.ByPath(normalizeWebhookPath(path))
+	if len(configs) == 0 {
+		return resolvedInstanceConfig{}, false
 	}
-	return resolvedInstanceConfig{}, false
+	return configs[0], true
 }
 
 func (p *slackProvider) currentSession() *bridgesdk.Session {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.session
-}
-
-func (p *slackProvider) deliveryState(instanceID string, deliveryID string) deliveryState {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.deliveries[deliveryStateKey(instanceID, deliveryID)]
-}
-
-func (p *slackProvider) storeDeliveryState(instanceID string, deliveryID string, state deliveryState) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.deliveries[deliveryStateKey(instanceID, deliveryID)] = state
+	return p.lifecycle.Session()
 }
 
 func closeInboundBatchers(batchers map[*bridgesdk.InboundBatcher]struct{}) {
@@ -1432,647 +1108,6 @@ func (p *slackProvider) clearLastError() {
 	p.lastError = ""
 }
 
-func (p *slackProvider) reportSideEffectError(action string, err error) {
-	reportSideEffectError(p.stderr, action, err)
-}
-
-func executeDelivery(
-	ctx context.Context,
-	api slackAPI,
-	request bridgepkg.DeliveryRequest,
-	state deliveryState,
-) (bridgepkg.DeliveryAck, deliveryState, error) {
-	if err := request.Validate(); err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-
-	event := request.Event
-	if event.EventType != bridgepkg.DeliveryEventTypeResume && event.Seq <= state.LastSeq {
-		return bridgepkg.DeliveryAck{}, state, fmt.Errorf(
-			"slack: out-of-order delivery seq %d after %d",
-			event.Seq,
-			state.LastSeq,
-		)
-	}
-	if event.EventType == bridgepkg.DeliveryEventTypeResume && request.Snapshot != nil {
-		state.LastSeq = request.Snapshot.LastAckedSeq
-		state.RemoteMessageID = strings.TrimSpace(request.Snapshot.RemoteMessageID)
-		state.ReplaceRemoteMessageID = strings.TrimSpace(request.Snapshot.ReplaceRemoteMessageID)
-	}
-
-	channelID, threadTS, err := resolveDeliveryTarget(event)
-	if err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-
-	switch {
-	case isSlackDeleteEvent(event):
-		return executeSlackDelete(ctx, api, request, state)
-	case shouldPostNewMessage(event, state, request):
-		return executeSlackCreate(ctx, api, request, state, channelID, threadTS)
-	default:
-		return executeSlackUpdate(ctx, api, request, state)
-	}
-}
-
-func isSlackDeleteEvent(event bridgepkg.DeliveryEvent) bool {
-	return event.Operation.Normalize() == bridgepkg.DeliveryOperationDelete ||
-		normalizeDeliveryEventType(event.EventType) == bridgepkg.DeliveryEventTypeDelete
-}
-
-func executeSlackDelete(
-	ctx context.Context,
-	api slackAPI,
-	request bridgepkg.DeliveryRequest,
-	state deliveryState,
-) (bridgepkg.DeliveryAck, deliveryState, error) {
-	event := request.Event
-	remoteID := slackRemoteMessageIDFromRequest(request, state)
-	if remoteID == "" {
-		return bridgepkg.DeliveryAck{}, state, errors.New("slack: delete delivery requires a remote message id")
-	}
-	channel, ts, err := decodeRemoteMessageID(remoteID)
-	if err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-	if err := api.DeleteMessage(ctx, slackDeleteMessageRequest{Channel: channel, TS: ts}); err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-	ack := bridgepkg.DeliveryAck{
-		DeliveryID:             event.DeliveryID,
-		Seq:                    event.Seq,
-		RemoteMessageID:        remoteID,
-		ReplaceRemoteMessageID: firstNonEmpty(state.RemoteMessageID, remoteID),
-	}
-	state.LastSeq = event.Seq
-	state.RemoteMessageID = remoteID
-	state.ReplaceRemoteMessageID = ack.ReplaceRemoteMessageID
-	return ack, state, ack.ValidateFor(event)
-}
-
-func executeSlackCreate(
-	ctx context.Context,
-	api slackAPI,
-	request bridgepkg.DeliveryRequest,
-	state deliveryState,
-	channelID string,
-	threadTS string,
-) (bridgepkg.DeliveryAck, deliveryState, error) {
-	event := request.Event
-	if normalizeDeliveryEventType(event.EventType) == bridgepkg.DeliveryEventTypeResume {
-		matched, err := reconcileSlackDelivery(ctx, api, event, channelID, threadTS)
-		if err != nil {
-			return bridgepkg.DeliveryAck{}, state, err
-		}
-		if matched != nil {
-			return slackCreateAck(event, state, channelID, matched.TS)
-		}
-	}
-
-	sent, err := api.PostMessage(ctx, slackPostMessageRequest{
-		Channel:  channelID,
-		ThreadTS: threadTS,
-		Text:     event.Content.Text,
-		Metadata: slackDeliveryMetadata(event),
-	})
-	if err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-	return slackCreateAck(event, state, channelID, sent.TS)
-}
-
-func reconcileSlackDelivery(
-	ctx context.Context,
-	api slackAPI,
-	event bridgepkg.DeliveryEvent,
-	channelID string,
-	threadTS string,
-) (*slackPostedMessage, error) {
-	reconciler, ok := api.(slackDeliveryReconciler)
-	if !ok {
-		return nil, nil
-	}
-	return reconciler.FindDeliveryMessage(ctx, slackFindDeliveryMessageRequest{
-		Channel:          channelID,
-		ThreadTS:         threadTS,
-		DeliveryID:       event.DeliveryID,
-		BridgeInstanceID: event.BridgeInstanceID,
-	})
-}
-
-func slackCreateAck(
-	event bridgepkg.DeliveryEvent,
-	state deliveryState,
-	channelID string,
-	ts string,
-) (bridgepkg.DeliveryAck, deliveryState, error) {
-	remoteID := encodeRemoteMessageID(channelID, ts)
-	ack := bridgepkg.DeliveryAck{
-		DeliveryID:      event.DeliveryID,
-		Seq:             event.Seq,
-		RemoteMessageID: remoteID,
-	}
-	state.LastSeq = event.Seq
-	state.ReplaceRemoteMessageID = state.RemoteMessageID
-	state.RemoteMessageID = remoteID
-	if state.ReplaceRemoteMessageID != "" {
-		ack.ReplaceRemoteMessageID = state.ReplaceRemoteMessageID
-	}
-	return ack, state, ack.ValidateFor(event)
-}
-
-func slackDeliveryMetadata(event bridgepkg.DeliveryEvent) *slackMessageMetadata {
-	return &slackMessageMetadata{
-		EventType: providerAghBridgeDeliveryKey,
-		EventPayload: slackMessageMetadataPayload{
-			BridgeInstanceID: strings.TrimSpace(event.BridgeInstanceID),
-			DeliveryID:       strings.TrimSpace(event.DeliveryID),
-		},
-	}
-}
-
-func executeSlackUpdate(
-	ctx context.Context,
-	api slackAPI,
-	request bridgepkg.DeliveryRequest,
-	state deliveryState,
-) (bridgepkg.DeliveryAck, deliveryState, error) {
-	event := request.Event
-	remoteID := slackRemoteMessageIDFromRequest(request, state)
-	if remoteID == "" {
-		return bridgepkg.DeliveryAck{}, state, errors.New("slack: edit delivery requires a remote message id")
-	}
-	channel, ts, err := decodeRemoteMessageID(remoteID)
-	if err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-	if err := api.UpdateMessage(ctx, slackUpdateMessageRequest{
-		Channel: channel,
-		TS:      ts,
-		Text:    event.Content.Text,
-	}); err != nil {
-		return bridgepkg.DeliveryAck{}, state, err
-	}
-	ack := bridgepkg.DeliveryAck{
-		DeliveryID:             event.DeliveryID,
-		Seq:                    event.Seq,
-		RemoteMessageID:        remoteID,
-		ReplaceRemoteMessageID: firstNonEmpty(state.RemoteMessageID, remoteID),
-	}
-	state.LastSeq = event.Seq
-	state.RemoteMessageID = remoteID
-	state.ReplaceRemoteMessageID = ack.ReplaceRemoteMessageID
-	return ack, state, ack.ValidateFor(event)
-}
-
-func slackRemoteMessageIDFromRequest(request bridgepkg.DeliveryRequest, state deliveryState) string {
-	remoteID := firstNonEmpty(referenceRemoteMessageID(request.Event.Reference), state.RemoteMessageID)
-	if remoteID == "" && request.Snapshot != nil {
-		return strings.TrimSpace(request.Snapshot.RemoteMessageID)
-	}
-	return remoteID
-}
-
-func shouldPostNewMessage(event bridgepkg.DeliveryEvent, state deliveryState, request bridgepkg.DeliveryRequest) bool {
-	if normalizeDeliveryEventType(event.EventType) == bridgepkg.DeliveryEventTypeStart {
-		return true
-	}
-	if normalizeDeliveryEventType(event.EventType) == bridgepkg.DeliveryEventTypeResume {
-		if request.Snapshot == nil {
-			return state.RemoteMessageID == ""
-		}
-		return strings.TrimSpace(request.Snapshot.RemoteMessageID) == ""
-	}
-	return strings.TrimSpace(state.RemoteMessageID) == ""
-}
-
-func mapSlackMessageEvent(
-	event slackMessageEvent,
-	managed subprocess.InitializeBridgeManagedInstance,
-	receivedAt time.Time,
-	eventID string,
-	teamID string,
-	eventTime int64,
-) (slackMappedInbound, bool, error) {
-	if strings.TrimSpace(event.Channel) == "" || strings.TrimSpace(event.TS) == "" {
-		return slackMappedInbound{}, false, errors.New("slack: message event requires channel and ts")
-	}
-	if isIgnoredSlackMessageEvent(event) {
-		return slackMappedInbound{}, true, nil
-	}
-	if receivedAt.IsZero() {
-		receivedAt = time.Now().UTC()
-	}
-	if eventTime > 0 {
-		receivedAt = time.Unix(eventTime, 0).UTC()
-	}
-
-	direct := isSlackDirectConversation(event.ChannelType, event.Channel)
-	threadID := inboundSlackThreadID(direct, event.TS, event.ThreadTS)
-	user := slackUserIdentity{
-		ID:          normalizeSlackUserID(event.User),
-		Username:    normalizeUsername(event.Username),
-		DisplayName: firstNonEmpty(strings.TrimSpace(event.Username), normalizeSlackUserID(event.User)),
-	}
-	envelope := bridgepkg.InboundMessageEnvelope{
-		BridgeInstanceID:  managed.Instance.ID,
-		Scope:             managed.Instance.Scope,
-		WorkspaceID:       managed.Instance.WorkspaceID,
-		PlatformMessageID: strings.TrimSpace(event.TS),
-		ReceivedAt:        receivedAt,
-		Sender: bridgepkg.MessageSender{
-			ID:          user.ID,
-			Username:    user.Username,
-			DisplayName: user.DisplayName,
-		},
-		Content: bridgepkg.MessageContent{
-			Text: strings.TrimSpace(event.Text),
-		},
-		Attachments: normalizeSlackAttachments(event.Files),
-		EventFamily: bridgepkg.InboundEventFamilyMessage,
-		IdempotencyKey: firstNonEmpty(
-			strings.TrimSpace(eventID),
-			fmt.Sprintf(
-				"slack:%s:message:%s:%s",
-				managed.Instance.ID,
-				strings.TrimSpace(event.Channel),
-				strings.TrimSpace(event.TS),
-			),
-		),
-	}
-	if direct {
-		envelope.PeerID = strings.TrimSpace(event.Channel)
-		envelope.ThreadID = threadID
-	} else {
-		envelope.GroupID = strings.TrimSpace(event.Channel)
-		envelope.ThreadID = threadID
-	}
-	metadata, err := json.Marshal(map[string]any{
-		providerChannelIDKey: strings.TrimSpace(event.Channel),
-		"channel_type":       strings.TrimSpace(event.ChannelType),
-		"event_id":           strings.TrimSpace(eventID),
-		"subtype":            strings.TrimSpace(event.Subtype),
-		providerTeamIDKey:    firstNonEmpty(strings.TrimSpace(event.TeamID), strings.TrimSpace(teamID)),
-		"thread_ts":          strings.TrimSpace(event.ThreadTS),
-		"ts":                 strings.TrimSpace(event.TS),
-		providerTypeKey:      strings.TrimSpace(event.Type),
-	})
-	if err == nil {
-		envelope.ProviderMetadata = metadata
-	}
-	if err := envelope.Validate(); err != nil {
-		return slackMappedInbound{}, false, err
-	}
-	return slackMappedInbound{Envelope: envelope, Direct: direct, User: user}, false, nil
-}
-
-func mapSlackSlashCommand(
-	values url.Values,
-	managed subprocess.InitializeBridgeManagedInstance,
-	receivedAt time.Time,
-) (slackMappedInbound, error) {
-	if receivedAt.IsZero() {
-		receivedAt = time.Now().UTC()
-	}
-	command := strings.TrimSpace(values.Get("command"))
-	channelID := strings.TrimSpace(values.Get(providerChannelIDKey))
-	userID := normalizeSlackUserID(values.Get("user_id"))
-	if command == "" || channelID == "" || userID == "" {
-		return slackMappedInbound{}, errors.New("slack: slash command requires command, channel_id, and user_id")
-	}
-	direct := isSlackSlashCommandDirect(values.Get(providerChannelNameKey), channelID)
-	user := slackUserIdentity{
-		ID:          userID,
-		Username:    normalizeUsername(values.Get("user_name")),
-		DisplayName: firstNonEmpty(normalizeUsername(values.Get("user_name")), userID),
-	}
-
-	envelope := bridgepkg.InboundMessageEnvelope{
-		BridgeInstanceID: managed.Instance.ID,
-		Scope:            managed.Instance.Scope,
-		WorkspaceID:      managed.Instance.WorkspaceID,
-		ReceivedAt:       receivedAt,
-		Sender: bridgepkg.MessageSender{
-			ID:          user.ID,
-			Username:    user.Username,
-			DisplayName: user.DisplayName,
-		},
-		EventFamily: bridgepkg.InboundEventFamilyCommand,
-		Command: &bridgepkg.InboundCommand{
-			Command:   command,
-			Text:      strings.TrimSpace(values.Get("text")),
-			TriggerID: strings.TrimSpace(values.Get(providerTriggerIDKey)),
-		},
-		IdempotencyKey: firstNonEmpty(
-			strings.TrimSpace(values.Get(providerTriggerIDKey)),
-			fmt.Sprintf("slack:%s:command:%s:%s:%s", managed.Instance.ID, channelID, userID, command),
-		),
-	}
-	if direct {
-		envelope.PeerID = channelID
-		envelope.ThreadID = slackDirectRootThreadID(channelID)
-	} else {
-		envelope.GroupID = channelID
-		envelope.ThreadID = slackDirectRootThreadID(channelID)
-	}
-	metadata, err := json.Marshal(map[string]any{
-		providerChannelIDKey:   channelID,
-		providerChannelNameKey: strings.TrimSpace(values.Get(providerChannelNameKey)),
-		providerResponseURLKey: strings.TrimSpace(values.Get(providerResponseURLKey)),
-		providerTeamIDKey:      strings.TrimSpace(values.Get(providerTeamIDKey)),
-		providerTriggerIDKey:   strings.TrimSpace(values.Get(providerTriggerIDKey)),
-		providerTypeKey:        "slash_command",
-	})
-	if err == nil {
-		envelope.ProviderMetadata = metadata
-	}
-	if err := envelope.Validate(); err != nil {
-		return slackMappedInbound{}, err
-	}
-	return slackMappedInbound{Envelope: envelope, Direct: direct, User: user}, nil
-}
-
-func mapSlackBlockActions(
-	payload slackBlockActionsPayload,
-	managed subprocess.InitializeBridgeManagedInstance,
-	receivedAt time.Time,
-) ([]slackMappedInbound, error) {
-	if receivedAt.IsZero() {
-		receivedAt = time.Now().UTC()
-	}
-	ctx, err := newSlackBlockActionContext(payload, managed, receivedAt)
-	if err != nil {
-		return nil, err
-	}
-	items := make([]slackMappedInbound, 0, len(payload.Actions))
-	for idx := range payload.Actions {
-		item, err := buildSlackBlockActionItem(ctx, payload, payload.Actions[idx])
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, item)
-	}
-	return items, nil
-}
-
-type slackBlockActionContext struct {
-	managed    subprocess.InitializeBridgeManagedInstance
-	receivedAt time.Time
-	channelID  string
-	messageTS  string
-	threadTS   string
-	messageID  string
-	threadID   string
-	direct     bool
-	user       slackUserIdentity
-}
-
-func newSlackBlockActionContext(
-	payload slackBlockActionsPayload,
-	managed subprocess.InitializeBridgeManagedInstance,
-	receivedAt time.Time,
-) (slackBlockActionContext, error) {
-	if len(payload.Actions) == 0 {
-		return slackBlockActionContext{}, errors.New("slack: block actions payload requires at least one action")
-	}
-	channelID := firstNonEmpty(strings.TrimSpace(payload.Channel.ID), strings.TrimSpace(payload.Container.ChannelID))
-	messageTS := firstNonEmpty(strings.TrimSpace(payload.Message.TS), strings.TrimSpace(payload.Container.MessageTS))
-	threadTS := firstNonEmpty(
-		strings.TrimSpace(payload.Message.ThreadTS),
-		strings.TrimSpace(payload.Container.ThreadTS),
-	)
-	userID := normalizeSlackUserID(payload.User.ID)
-	if channelID == "" || messageTS == "" || userID == "" {
-		return slackBlockActionContext{}, errors.New(
-			"slack: block actions payload requires channel, message ts, and user id",
-		)
-	}
-	direct := isSlackDirectConversation("", channelID)
-	user := slackUserIdentity{
-		ID:       userID,
-		Username: normalizeUsername(firstNonEmpty(payload.User.Username, payload.User.Name)),
-		DisplayName: firstNonEmpty(
-			strings.TrimSpace(payload.User.Name),
-			strings.TrimSpace(payload.User.Username),
-			userID,
-		),
-	}
-	return slackBlockActionContext{
-		managed:    managed,
-		receivedAt: receivedAt,
-		channelID:  channelID,
-		messageTS:  messageTS,
-		threadTS:   threadTS,
-		messageID:  strings.TrimSpace(messageTS),
-		threadID:   inboundSlackThreadID(direct, messageTS, threadTS),
-		direct:     direct,
-		user:       user,
-	}, nil
-}
-
-func buildSlackBlockActionItem(
-	ctx slackBlockActionContext,
-	payload slackBlockActionsPayload,
-	action slackBlockAction,
-) (slackMappedInbound, error) {
-	envelope := bridgepkg.InboundMessageEnvelope{
-		BridgeInstanceID: ctx.managed.Instance.ID,
-		Scope:            ctx.managed.Instance.Scope,
-		WorkspaceID:      ctx.managed.Instance.WorkspaceID,
-		ReceivedAt:       ctx.receivedAt,
-		Sender: bridgepkg.MessageSender{
-			ID:          ctx.user.ID,
-			Username:    ctx.user.Username,
-			DisplayName: ctx.user.DisplayName,
-		},
-		EventFamily: bridgepkg.InboundEventFamilyAction,
-		Action: &bridgepkg.InboundAction{
-			ActionID:  strings.TrimSpace(action.ActionID),
-			MessageID: ctx.messageID,
-			Value:     slackBlockActionValue(action),
-			TriggerID: strings.TrimSpace(payload.TriggerID),
-		},
-		IdempotencyKey: firstNonEmpty(
-			strings.TrimSpace(action.ActionTS),
-			fmt.Sprintf(
-				"slack:%s:action:%s:%s:%s",
-				ctx.managed.Instance.ID,
-				ctx.messageTS,
-				ctx.user.ID,
-				strings.TrimSpace(action.ActionID),
-			),
-		),
-	}
-	if ctx.direct {
-		envelope.PeerID = ctx.channelID
-		envelope.ThreadID = ctx.threadID
-	} else {
-		envelope.GroupID = ctx.channelID
-		envelope.ThreadID = ctx.threadID
-	}
-	if metadata, err := slackBlockActionMetadata(payload, action, ctx); err == nil {
-		envelope.ProviderMetadata = metadata
-	}
-	if err := envelope.Validate(); err != nil {
-		return slackMappedInbound{}, err
-	}
-	return slackMappedInbound{Envelope: envelope, Direct: ctx.direct, User: ctx.user}, nil
-}
-
-func slackBlockActionValue(action slackBlockAction) string {
-	value := strings.TrimSpace(action.Value)
-	if action.SelectedOption != nil && strings.TrimSpace(action.SelectedOption.Value) != "" {
-		return strings.TrimSpace(action.SelectedOption.Value)
-	}
-	return value
-}
-
-func slackBlockActionMetadata(
-	payload slackBlockActionsPayload,
-	action slackBlockAction,
-	ctx slackBlockActionContext,
-) ([]byte, error) {
-	return json.Marshal(map[string]any{
-		"action_ts":            strings.TrimSpace(action.ActionTS),
-		"block_id":             strings.TrimSpace(action.BlockID),
-		providerChannelIDKey:   ctx.channelID,
-		"container":            strings.TrimSpace(payload.Container.Type),
-		"is_ephemeral":         payload.Container.IsEphemeral,
-		"message_ts":           ctx.messageTS,
-		providerResponseURLKey: strings.TrimSpace(payload.ResponseURL),
-		"thread_ts":            strings.TrimSpace(ctx.threadTS),
-		providerTriggerIDKey:   strings.TrimSpace(payload.TriggerID),
-		providerTypeKey:        strings.TrimSpace(action.Type),
-	})
-}
-
-func mapSlackReactionEvent(
-	event slackReactionEvent,
-	managed subprocess.InitializeBridgeManagedInstance,
-	receivedAt time.Time,
-	eventID string,
-	teamID string,
-) (slackMappedInbound, error) {
-	if strings.TrimSpace(event.Item.Type) != providerMessageKey {
-		return slackMappedInbound{}, errors.New("slack: reaction event item.type must be message")
-	}
-	if strings.TrimSpace(event.Item.Channel) == "" || strings.TrimSpace(event.Item.TS) == "" ||
-		strings.TrimSpace(event.Reaction) == "" ||
-		strings.TrimSpace(event.User) == "" {
-		return slackMappedInbound{}, errors.New(
-			"slack: reaction event requires item channel, item ts, reaction, and user",
-		)
-	}
-	receivedAt = slackReactionReceivedAt(event, receivedAt)
-	direct := isSlackDirectConversation("", event.Item.Channel)
-	user := slackUserIdentity{
-		ID:          normalizeSlackUserID(event.User),
-		DisplayName: normalizeSlackUserID(event.User),
-	}
-	envelope := bridgepkg.InboundMessageEnvelope{
-		BridgeInstanceID: managed.Instance.ID,
-		Scope:            managed.Instance.Scope,
-		WorkspaceID:      managed.Instance.WorkspaceID,
-		ReceivedAt:       receivedAt,
-		Sender: bridgepkg.MessageSender{
-			ID:          user.ID,
-			DisplayName: user.DisplayName,
-		},
-		EventFamily: bridgepkg.InboundEventFamilyReaction,
-		Reaction: &bridgepkg.InboundReaction{
-			MessageID: strings.TrimSpace(event.Item.TS),
-			Emoji:     normalizeSlackEmoji(event.Reaction),
-			RawEmoji:  strings.TrimSpace(event.Reaction),
-			Added:     strings.TrimSpace(event.Type) == providerReactionAddedKey,
-		},
-		IdempotencyKey: firstNonEmpty(
-			strings.TrimSpace(event.EventTS),
-			strings.TrimSpace(eventID),
-			fmt.Sprintf(
-				"slack:%s:reaction:%s:%s:%s:%s",
-				managed.Instance.ID,
-				strings.TrimSpace(event.Item.Channel),
-				strings.TrimSpace(event.Item.TS),
-				user.ID,
-				strings.TrimSpace(event.Reaction),
-			),
-		),
-	}
-	if direct {
-		envelope.PeerID = strings.TrimSpace(event.Item.Channel)
-		envelope.ThreadID = strings.TrimSpace(event.Item.TS)
-	} else {
-		envelope.GroupID = strings.TrimSpace(event.Item.Channel)
-		envelope.ThreadID = strings.TrimSpace(event.Item.TS)
-	}
-	metadata, err := json.Marshal(map[string]any{
-		providerChannelIDKey: strings.TrimSpace(event.Item.Channel),
-		"event_id":           strings.TrimSpace(eventID),
-		"event_ts":           strings.TrimSpace(event.EventTS),
-		"item_user":          strings.TrimSpace(event.ItemUser),
-		"message_ts":         strings.TrimSpace(event.Item.TS),
-		providerTeamIDKey:    strings.TrimSpace(teamID),
-		providerTypeKey:      strings.TrimSpace(event.Type),
-	})
-	if err == nil {
-		envelope.ProviderMetadata = metadata
-	}
-	if err := envelope.Validate(); err != nil {
-		return slackMappedInbound{}, err
-	}
-	return slackMappedInbound{Envelope: envelope, Direct: direct, User: user}, nil
-}
-
-func slackReactionReceivedAt(event slackReactionEvent, fallback time.Time) time.Time {
-	if fallback.IsZero() {
-		fallback = time.Now().UTC()
-	}
-	if strings.TrimSpace(event.EventTS) == "" {
-		return fallback
-	}
-	parsed, err := parseSlackTimestamp(strings.TrimSpace(event.EventTS))
-	if err != nil {
-		return fallback
-	}
-	return parsed
-}
-
-func allowSlackDirectMessage(cfg *resolvedInstanceConfig, user slackUserIdentity, direct bool) bool {
-	if !direct {
-		return true
-	}
-	if cfg == nil {
-		return false
-	}
-
-	switch cfg.dmPolicy.Normalize() {
-	case "", bridgepkg.BridgeDMPolicyOpen:
-		return true
-	case bridgepkg.BridgeDMPolicyAllowlist:
-		return slackIdentityAllowed(cfg.allowUserIDs, cfg.allowUsernames, user)
-	case bridgepkg.BridgeDMPolicyPairing:
-		if slackIdentityAllowed(cfg.pairedUserIDs, cfg.pairedUsernames, user) {
-			return true
-		}
-		return slackIdentityAllowed(cfg.allowUserIDs, cfg.allowUsernames, user)
-	default:
-		return false
-	}
-}
-
-func slackIdentityAllowed(ids map[string]struct{}, usernames map[string]struct{}, user slackUserIdentity) bool {
-	if len(ids) == 0 && len(usernames) == 0 {
-		return false
-	}
-	if _, ok := ids[normalizeSlackUserID(user.ID)]; ok {
-		return true
-	}
-	if _, ok := usernames[normalizeUsername(user.Username)]; ok {
-		return true
-	}
-	return false
-}
-
 func resolveDeliveryTarget(event bridgepkg.DeliveryEvent) (string, string, error) {
 	channelID := firstNonEmpty(
 		strings.TrimSpace(event.DeliveryTarget.PeerID),
@@ -2088,470 +1123,4 @@ func resolveDeliveryTarget(event bridgepkg.DeliveryEvent) (string, string, error
 		strings.TrimSpace(event.RoutingKey.ThreadID),
 	)
 	return channelID, threadTS, nil
-}
-
-func verifySlackSignature(_ context.Context, req *http.Request, body []byte, secret string, now time.Time) error {
-	trimmedSecret := strings.TrimSpace(secret)
-	if trimmedSecret == "" {
-		return errors.New("slack: signing secret is required")
-	}
-	if req == nil {
-		return errors.New("slack: webhook request is required")
-	}
-
-	timestamp := strings.TrimSpace(req.Header.Get("X-Slack-Request-Timestamp"))
-	signature := strings.TrimSpace(req.Header.Get("X-Slack-Signature"))
-	if timestamp == "" || signature == "" {
-		return errors.New("slack: missing request signature headers")
-	}
-	tsValue, err := strconv.ParseInt(timestamp, 10, 64)
-	if err != nil {
-		return errors.New("slack: invalid request timestamp")
-	}
-	if now.IsZero() {
-		now = time.Now().UTC()
-	}
-	if delta := now.Unix() - tsValue; delta > 300 || delta < -300 {
-		return errors.New("slack: stale request timestamp")
-	}
-
-	mac := hmac.New(sha256.New, []byte(trimmedSecret))
-	_, _ = mac.Write([]byte(slackSignatureVersion + ":" + timestamp + ":"))
-	_, _ = mac.Write(body)
-	expected := slackSignatureVersion + "=" + hex.EncodeToString(mac.Sum(nil))
-	if !hmac.Equal([]byte(expected), []byte(signature)) {
-		return errors.New("slack: invalid request signature")
-	}
-	return nil
-}
-
-func (c *slackBotClient) AuthTest(ctx context.Context) (*slackAuthIdentity, error) {
-	var result slackAuthIdentity
-	if err := c.call(ctx, "auth.test", map[string]any{}, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (c *slackBotClient) PostMessage(ctx context.Context, req slackPostMessageRequest) (*slackPostedMessage, error) {
-	var result slackPostedMessage
-	if err := c.call(ctx, "chat.postMessage", req, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-func (c *slackBotClient) FindDeliveryMessage(
-	ctx context.Context,
-	req slackFindDeliveryMessageRequest,
-) (*slackPostedMessage, error) {
-	if err := req.Validate(); err != nil {
-		return nil, err
-	}
-	method := "conversations.history"
-	payload := slackConversationMessagesRequest{
-		Channel: strings.TrimSpace(req.Channel),
-		Limit:   100,
-	}
-	if strings.TrimSpace(req.ThreadTS) != "" {
-		method = "conversations.replies"
-		payload.TS = strings.TrimSpace(req.ThreadTS)
-		payload.Inclusive = true
-	}
-
-	for {
-		var result slackConversationMessagesResponse
-		if err := c.call(ctx, method, payload, &result); err != nil {
-			return nil, err
-		}
-		for idx := range result.Messages {
-			message := result.Messages[idx]
-			if slackMetadataMatchesDelivery(message.Metadata, req) {
-				return &slackPostedMessage{TS: strings.TrimSpace(message.TS)}, nil
-			}
-		}
-		nextCursor := ""
-		if result.ResponseMetadata != nil {
-			nextCursor = strings.TrimSpace(result.ResponseMetadata.NextCursor)
-		}
-		if !result.HasMore && nextCursor == "" {
-			break
-		}
-		payload.Cursor = nextCursor
-	}
-	return nil, nil
-}
-
-func (c *slackBotClient) UpdateMessage(ctx context.Context, req slackUpdateMessageRequest) error {
-	var result slackPostedMessage
-	return c.call(ctx, "chat.update", req, &result)
-}
-
-func (c *slackBotClient) DeleteMessage(ctx context.Context, req slackDeleteMessageRequest) error {
-	var result json.RawMessage
-	return c.call(ctx, "chat.delete", req, &result)
-}
-
-func slackMetadataMatchesDelivery(
-	metadata *slackMessageMetadata,
-	req slackFindDeliveryMessageRequest,
-) bool {
-	if metadata == nil {
-		return false
-	}
-	if strings.TrimSpace(metadata.EventType) != providerAghBridgeDeliveryKey {
-		return false
-	}
-	return strings.TrimSpace(metadata.EventPayload.DeliveryID) == strings.TrimSpace(req.DeliveryID) &&
-		strings.TrimSpace(metadata.EventPayload.BridgeInstanceID) == strings.TrimSpace(req.BridgeInstanceID)
-}
-
-func (c *slackBotClient) call(ctx context.Context, method string, payload any, result any) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if c == nil {
-		return errors.New("slack: api client is required")
-	}
-	if c.httpClient == nil {
-		c.httpClient = &http.Client{Timeout: 10 * time.Second}
-	}
-
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("slack: marshal %s payload: %w", method, err)
-	}
-	endpoint := strings.TrimRight(strings.TrimSpace(c.baseURL), "/") + "/" + strings.TrimSpace(method)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("slack: build %s request: %w", method, err)
-	}
-	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(c.botToken))
-	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	responseBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("slack: read %s response: %w", method, err)
-	}
-
-	var envelope slackAPIEnvelope
-	if len(bytes.TrimSpace(responseBody)) > 0 {
-		if err := json.Unmarshal(responseBody, &envelope); err != nil {
-			return fmt.Errorf("slack: decode %s response: %w", method, err)
-		}
-	}
-
-	retryAfter := parseRetryAfter(resp.Header.Get("Retry-After"))
-	if resp.StatusCode == http.StatusTooManyRequests ||
-		strings.EqualFold(strings.TrimSpace(envelope.Error), "ratelimited") {
-		return &bridgesdk.RateLimitError{
-			Err:        fmt.Errorf("slack api %s rate limited", strings.TrimSpace(method)),
-			RetryAfter: retryAfter,
-		}
-	}
-	if resp.StatusCode >= http.StatusBadRequest {
-		return classifySlackAPIError(resp.StatusCode, envelope.Error, retryAfter)
-	}
-	if !envelope.OK {
-		return classifySlackAPIError(resp.StatusCode, envelope.Error, retryAfter)
-	}
-	if result != nil && len(bytes.TrimSpace(responseBody)) > 0 {
-		if err := json.Unmarshal(responseBody, result); err != nil {
-			return fmt.Errorf("slack: decode %s result: %w", method, err)
-		}
-	}
-	return nil
-}
-
-func classifySlackAPIError(status int, errorText string, retryAfter time.Duration) error {
-	trimmed := strings.TrimSpace(errorText)
-	lowered := strings.ToLower(trimmed)
-	switch {
-	case status == http.StatusTooManyRequests || lowered == "ratelimited":
-		return &bridgesdk.RateLimitError{
-			Err:        fmt.Errorf("slack api rate limited: %s", firstNonEmpty(trimmed, "ratelimited")),
-			RetryAfter: retryAfter,
-		}
-	case status == http.StatusUnauthorized, status == http.StatusForbidden,
-		lowered == "invalid_auth", lowered == "not_authed", lowered == "account_inactive",
-		lowered == "token_revoked", lowered == "missing_scope":
-		return &bridgesdk.AuthError{Err: fmt.Errorf("slack api auth failed: %s", firstNonEmpty(trimmed, "auth failed"))}
-	case status == http.StatusGatewayTimeout, status == http.StatusRequestTimeout, lowered == "request_timeout":
-		return &bridgesdk.HTTPError{
-			StatusCode: http.StatusGatewayTimeout,
-			Message:    fmt.Sprintf("slack api timeout: %s", firstNonEmpty(trimmed, "request_timeout")),
-		}
-	case status >= http.StatusInternalServerError,
-		lowered == "internal_error",
-		lowered == "fatal_error",
-		lowered == "service_unavailable":
-		return &bridgesdk.TransientError{
-			Err: fmt.Errorf("slack api transient failure: %s", firstNonEmpty(trimmed, "service unavailable")),
-		}
-	case trimmed != "":
-		return &bridgesdk.PermanentError{Err: fmt.Errorf("slack api error: %s", trimmed)}
-	default:
-		return &bridgesdk.HTTPError{
-			StatusCode: maxInt(status, http.StatusInternalServerError),
-			Message: fmt.Sprintf(
-				"slack api request failed with status %d",
-				maxInt(status, http.StatusInternalServerError),
-			),
-		}
-	}
-}
-
-func isIgnoredSlackMessageEvent(event slackMessageEvent) bool {
-	if strings.TrimSpace(event.User) == "" {
-		return true
-	}
-	if strings.TrimSpace(event.BotID) != "" {
-		return true
-	}
-	ignoredSubtypes := map[string]struct{}{
-		"bot_message":          {},
-		"message_changed":      {},
-		"message_deleted":      {},
-		"message_replied":      {},
-		"channel_join":         {},
-		"channel_leave":        {},
-		"channel_topic":        {},
-		"channel_purpose":      {},
-		providerChannelNameKey: {},
-		"group_join":           {},
-		"group_leave":          {},
-	}
-	_, ignored := ignoredSubtypes[strings.TrimSpace(event.Subtype)]
-	return ignored
-}
-
-func normalizeSlackAttachments(files []slackFile) []bridgepkg.MessageAttachment {
-	if len(files) == 0 {
-		return nil
-	}
-	attachments := make([]bridgepkg.MessageAttachment, 0, len(files))
-	for _, file := range files {
-		attachments = append(attachments, bridgepkg.MessageAttachment{
-			ID:       strings.TrimSpace(file.ID),
-			Name:     strings.TrimSpace(file.Name),
-			MIMEType: strings.TrimSpace(file.MIMEType),
-			URL:      strings.TrimSpace(file.URLPrivate),
-		})
-	}
-	return attachments
-}
-
-func isSlackDirectConversation(channelType string, channelID string) bool {
-	if strings.EqualFold(strings.TrimSpace(channelType), "im") {
-		return true
-	}
-	return strings.HasPrefix(strings.TrimSpace(channelID), "D")
-}
-
-func isSlackSlashCommandDirect(channelName string, channelID string) bool {
-	if strings.EqualFold(strings.TrimSpace(channelName), "directmessage") {
-		return true
-	}
-	return isSlackDirectConversation("", channelID)
-}
-
-func inboundSlackThreadID(_ bool, ts string, threadTS string) string {
-	return firstNonEmpty(strings.TrimSpace(threadTS), strings.TrimSpace(ts))
-}
-
-func slackDirectRootThreadID(channelID string) string {
-	return strings.TrimSpace(channelID)
-}
-
-func parseSlackTimestamp(value string) (time.Time, error) {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return time.Time{}, errors.New("slack: timestamp is required")
-	}
-	parts := strings.SplitN(trimmed, ".", 2)
-	seconds, err := strconv.ParseInt(parts[0], 10, 64)
-	if err != nil {
-		return time.Time{}, err
-	}
-	nanos := int64(0)
-	if len(parts) == 2 && parts[1] != "" {
-		fraction := parts[1]
-		if len(fraction) > 9 {
-			fraction = fraction[:9]
-		}
-		for len(fraction) < 9 {
-			fraction += "0"
-		}
-		nanos, err = strconv.ParseInt(fraction, 10, 64)
-		if err != nil {
-			return time.Time{}, err
-		}
-	}
-	return time.Unix(seconds, nanos).UTC(), nil
-}
-
-func normalizeSlackEmoji(value string) string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return ""
-	}
-	return ":" + strings.Trim(trimmed, ":") + ":"
-}
-
-func normalizeSlackUserID(value string) string {
-	return strings.ToUpper(strings.TrimSpace(value))
-}
-
-func normalizeUsername(value string) string {
-	trimmed := strings.TrimSpace(value)
-	trimmed = strings.TrimPrefix(trimmed, "@")
-	return strings.ToLower(trimmed)
-}
-
-func buildSlackIDSet(values []string) map[string]struct{} {
-	if len(values) == 0 {
-		return nil
-	}
-	ids := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		if normalized := normalizeSlackUserID(value); normalized != "" {
-			ids[normalized] = struct{}{}
-		}
-	}
-	if len(ids) == 0 {
-		return nil
-	}
-	return ids
-}
-
-func buildSlackUsernameSet(values []string) map[string]struct{} {
-	if len(values) == 0 {
-		return nil
-	}
-	names := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		if normalized := normalizeUsername(value); normalized != "" {
-			names[normalized] = struct{}{}
-		}
-	}
-	if len(names) == 0 {
-		return nil
-	}
-	return names
-}
-
-func managedInstancesToInstances(items []subprocess.InitializeBridgeManagedInstance) []bridgepkg.BridgeInstance {
-	if len(items) == 0 {
-		return nil
-	}
-	instances := make([]bridgepkg.BridgeInstance, 0, len(items))
-	for _, item := range items {
-		instances = append(instances, item.Instance)
-	}
-	return instances
-}
-
-func deliveryStateKey(instanceID string, deliveryID string) string {
-	return strings.TrimSpace(instanceID) + ":" + strings.TrimSpace(deliveryID)
-}
-
-func encodeRemoteMessageID(channelID string, ts string) string {
-	return strings.TrimSpace(channelID) + ":" + strings.TrimSpace(ts)
-}
-
-func decodeRemoteMessageID(value string) (string, string, error) {
-	trimmed := strings.TrimSpace(value)
-	parts := strings.SplitN(trimmed, ":", 2)
-	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
-		return "", "", fmt.Errorf("slack: invalid remote message id %q", value)
-	}
-	return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]), nil
-}
-
-func referenceRemoteMessageID(reference *bridgepkg.DeliveryMessageReference) string {
-	if reference == nil {
-		return ""
-	}
-	return strings.TrimSpace(reference.RemoteMessageID)
-}
-
-func parseRetryAfter(value string) time.Duration {
-	seconds, err := strconv.Atoi(strings.TrimSpace(value))
-	if err != nil || seconds <= 0 {
-		return 0
-	}
-	return time.Duration(seconds) * time.Second
-}
-
-func writeWebhookOK(w http.ResponseWriter) error {
-	w.WriteHeader(http.StatusOK)
-	_, err := w.Write([]byte("OK"))
-	return err
-}
-
-func normalizeWebhookPath(path string) string {
-	trimmed := strings.TrimSpace(path)
-	if trimmed == "" {
-		return ""
-	}
-	if !strings.HasPrefix(trimmed, "/") {
-		trimmed = "/" + trimmed
-	}
-	return strings.TrimRight(trimmed, "/")
-}
-
-func normalizeURL(value string) string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return ""
-	}
-	return strings.TrimRight(trimmed, "/")
-}
-
-func normalizeDeliveryEventType(value string) string {
-	return strings.ToLower(strings.TrimSpace(value))
-}
-
-func isNotInitializedRPCError(err error) bool {
-	var rpcErr *subprocess.RPCError
-	if !errors.As(err, &rpcErr) {
-		return false
-	}
-	if rpcErr == nil {
-		return false
-	}
-	return rpcErr.Code == rpcCodeNotInitialized
-}
-
-func cloneDegradation(degradation *bridgepkg.BridgeDegradation) *bridgepkg.BridgeDegradation {
-	if degradation == nil {
-		return nil
-	}
-	cloned := *degradation
-	return &cloned
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
-}
-
-func maxInt(value int, fallback int) int {
-	if value > 0 {
-		return value
-	}
-	return fallback
 }

@@ -8,7 +8,7 @@ import (
 
 	apicontract "github.com/compozy/agh/internal/api/contract"
 	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/modelcatalog"
 )
 

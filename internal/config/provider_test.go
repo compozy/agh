@@ -760,6 +760,61 @@ func TestProviderAuthModeValidation(t *testing.T) {
 		if got, want := provider.EffectiveAuthMode(), ProviderAuthModeBoundSecret; got != want {
 			t.Fatalf("ResolveProvider() AuthMode = %q, want %q", got, want)
 		}
+		if provider.AuthLoginCmd != "" {
+			t.Fatalf("ResolveProvider() AuthLoginCmd = %q, want empty", provider.AuthLoginCmd)
+		}
+	})
+
+	t.Run("Should clear inherited native auth commands when a builtin switches to none", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := Config{
+			Providers: map[string]ProviderConfig{
+				"claude": {
+					AuthMode:     ProviderAuthModeNone,
+					NoneSecurity: ProviderNoneSecurityLocalTransport,
+				},
+			},
+		}
+
+		provider, err := cfg.ResolveProvider("claude")
+		if err != nil {
+			t.Fatalf("ResolveProvider(none native override) error = %v", err)
+		}
+		if got, want := provider.EffectiveAuthMode(), ProviderAuthModeNone; got != want {
+			t.Fatalf("ResolveProvider() AuthMode = %q, want %q", got, want)
+		}
+		if provider.AuthStatusCmd != "" || provider.AuthLoginCmd != "" {
+			t.Fatalf(
+				"ResolveProvider() auth commands = (%q, %q), want empty",
+				provider.AuthStatusCmd,
+				provider.AuthLoginCmd,
+			)
+		}
+		if slots := provider.EffectiveCredentialSlots(); len(slots) != 0 {
+			t.Fatalf("ResolveProvider() CredentialSlots = %#v, want empty", slots)
+		}
+	})
+
+	t.Run("Should clear inherited bound credentials when a builtin switches to native CLI", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := Config{
+			Providers: map[string]ProviderConfig{
+				"openrouter": {AuthMode: ProviderAuthModeNativeCLI},
+			},
+		}
+
+		provider, err := cfg.ResolveProvider("openrouter")
+		if err != nil {
+			t.Fatalf("ResolveProvider(native bound override) error = %v", err)
+		}
+		if got, want := provider.EffectiveAuthMode(), ProviderAuthModeNativeCLI; got != want {
+			t.Fatalf("ResolveProvider() AuthMode = %q, want %q", got, want)
+		}
+		if slots := provider.EffectiveCredentialSlots(); len(slots) != 0 {
+			t.Fatalf("ResolveProvider() CredentialSlots = %#v, want empty", slots)
+		}
 	})
 
 	t.Run("Should reject bound secret auth without credential slots", func(t *testing.T) {

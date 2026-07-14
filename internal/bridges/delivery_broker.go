@@ -2,134 +2,33 @@ package bridges
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
+
+	redactpkg "github.com/compozy/agh/internal/redact"
 )
-
-const (
-	deliveryBrokerAgentMessageKey = "agent_message"
-	deliveryBrokerDoneKey         = "done"
-)
-
-type deliveryQueueKind string
-
-const (
-	deliveryQueueKindStart    deliveryQueueKind = "start"
-	deliveryQueueKindDelta    deliveryQueueKind = "delta"
-	deliveryQueueKindTerminal deliveryQueueKind = "terminal"
-	deliveryQueueKindResume   deliveryQueueKind = "resume"
-)
-
-type deliveryQueueItem struct {
-	deliveryID string
-	kind       deliveryQueueKind
-}
-
-type routeWorker struct {
-	hash             string
-	bridgeInstanceID string
-	extensionName    string
-	queue            []deliveryQueueItem
-	wakeCh           chan struct{}
-	stopCh           chan struct{}
-}
-
-type turnIndexKey struct {
-	sessionID string
-	turnID    string
-}
-
-type activeDelivery struct {
-	deliveryID       string
-	sessionID        string
-	turnID           string
-	bridgeInstanceID string
-	extensionName    string
-	routingKey       RoutingKey
-	target           DeliveryTarget
-	routeHash        string
-
-	latestSeq        int64
-	lastSentSeq      int64
-	lastAckedSeq     int64
-	latestEventType  string
-	currentContent   MessageContent
-	operation        DeliveryOperation
-	reference        *DeliveryMessageReference
-	providerMetadata json.RawMessage
-	final            bool
-	errorText        string
-	updatedAt        time.Time
-
-	remoteMessageID        string
-	replaceRemoteMessageID string
-	startDelivered         bool
-
-	pendingStart    *DeliveryEvent
-	pendingDelta    *DeliveryEvent
-	pendingTerminal *DeliveryEvent
-	queuedStart     bool
-	queuedDelta     bool
-	queuedTerminal  bool
-	queuedResume    bool
-
-	seen map[string]struct{}
-}
-
-type instanceDeliveryMetrics struct {
-	droppedByReason       map[string]int
-	deliveryFailuresTotal int
-	lastError             string
-	lastErrorAt           time.Time
-	lastSuccessAt         time.Time
-}
-
-// Broker projects session output into ordered delivery requests for one
-// bridge-capable extension runtime.
-type Broker struct {
-	mu sync.Mutex
-
-	transport DeliveryTransport
-
-	now            func() time.Time
-	queueCapacity  int
-	retryDelay     time.Duration
-	requestTimeout time.Duration
-	lifecycleCtx   context.Context
-	cancel         context.CancelFunc
-
-	wg sync.WaitGroup
-
-	deliveries   map[string]*activeDelivery
-	turnIndex    map[turnIndexKey]string
-	sessionIndex map[string]map[string]struct{}
-	routes       map[string]*routeWorker
-	bridgeRoutes map[string]map[string]*routeWorker
-	metrics      map[string]*instanceDeliveryMetrics
-}
 
 // NewBroker constructs a delivery broker with bounded per-route queues and
 // background workers for negotiated extension delivery.
 func NewBroker(transport DeliveryTransport, opts ...DeliveryBrokerOption) *Broker {
 	broker := &Broker{
-		transport:      transport,
-		now:            func() time.Time { return time.Now().UTC() },
-		queueCapacity:  defaultDeliveryQueueCapacity,
-		retryDelay:     defaultDeliveryRetryDelay,
-		requestTimeout: defaultDeliveryRequestTimeout,
-		lifecycleCtx:   context.Background(),
-		deliveries:     make(map[string]*activeDelivery),
-		turnIndex:      make(map[turnIndexKey]string),
-		sessionIndex:   make(map[string]map[string]struct{}),
-		routes:         make(map[string]*routeWorker),
-		bridgeRoutes:   make(map[string]map[string]*routeWorker),
-		metrics:        make(map[string]*instanceDeliveryMetrics),
+		transport:           transport,
+		now:                 func() time.Time { return time.Now().UTC() },
+		queueCapacity:       defaultDeliveryQueueCapacity,
+		retryDelay:          defaultDeliveryRetryDelay,
+		requestTimeout:      defaultDeliveryRequestTimeout,
+		lifecycleCtx:        context.Background(),
+		deliveries:          make(map[string]*activeDelivery),
+		turnIndex:           make(map[turnIndexKey]string),
+		sessionIndex:        make(map[string]map[string]struct{}),
+		routes:              make(map[string]*routeWorker),
+		bridgeRoutes:        make(map[string]map[string]*routeWorker),
+		metrics:             make(map[string]*instanceDeliveryMetrics),
+		metricPersistIssues: make(map[string]deliveryMetricPersistenceIssue),
+		metricWakeCh:        make(chan struct{}, 1),
+		registrationsReady:  true,
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -153,6 +52,10 @@ func NewBroker(transport DeliveryTransport, opts ...DeliveryBrokerOption) *Broke
 		baseCtx = context.Background()
 	}
 	broker.lifecycleCtx, broker.cancel = context.WithCancel(baseCtx)
+	if broker.ledgerStore != nil {
+		broker.wg.Add(1)
+		go broker.runDeliveryMetricPersistence()
+	}
 	return broker
 }
 
@@ -182,6 +85,13 @@ func (b *Broker) Close() {
 		b.cancel()
 	}
 	b.wg.Wait()
+	if b.ledgerStore != nil {
+		flushCtx, cancel := context.WithTimeout(context.Background(), b.requestTimeout)
+		if err := b.flushDirtyDeliveryMetrics(flushCtx, false); err != nil {
+			b.setDeliveryMetricPersistenceError(err)
+		}
+		cancel()
+	}
 }
 
 // RegisterPromptDelivery binds one prompted session turn to a live delivery
@@ -199,6 +109,8 @@ func (b *Broker) RegisterPromptDelivery(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	b.registrationMu.Lock()
+	defer b.registrationMu.Unlock()
 
 	normalized := reg.normalize()
 	if err := normalized.Validate(); err != nil {
@@ -211,14 +123,17 @@ func (b *Broker) RegisterPromptDelivery(
 	}
 
 	b.mu.Lock()
-	deliveryKey := newTurnIndexKey(normalized.SessionID, normalized.TurnID)
-	if existingID, ok := b.turnIndex[deliveryKey]; ok {
-		existing := b.deliveries[existingID]
+	if !b.registrationsReady {
 		b.mu.Unlock()
-		if existing == nil {
-			return nil, ErrDeliveryNotFound
+		return nil, ErrDeliveryReconciliationPending
+	}
+	deliveryKey := newTurnIndexKey(normalized.SessionID, normalized.TurnID)
+	if snapshot, found, lookupErr := b.registeredDeliveryLocked(deliveryKey); found || lookupErr != nil {
+		b.mu.Unlock()
+		if lookupErr != nil {
+			return nil, lookupErr
 		}
-		return b.Snapshot(ctx, existingID)
+		return &snapshot, nil
 	}
 
 	deliveryID, err := b.reserveDeliveryIDLocked(normalized.DeliveryID)
@@ -226,46 +141,75 @@ func (b *Broker) RegisterPromptDelivery(
 		b.mu.Unlock()
 		return nil, err
 	}
-	now := b.now()
-	delivery := &activeDelivery{
-		deliveryID:       deliveryID,
-		sessionID:        normalized.SessionID,
-		turnID:           normalized.TurnID,
-		bridgeInstanceID: normalized.RoutingKey.BridgeInstanceID,
-		extensionName:    normalized.ExtensionName,
-		routingKey:       normalized.RoutingKey,
-		target:           normalized.DeliveryTarget,
-		routeHash:        routeHash,
-		operation:        DeliveryOperationPost,
-		updatedAt:        now,
-		seen:             make(map[string]struct{}),
-	}
-	b.deliveries[deliveryID] = delivery
-	b.turnIndex[deliveryKey] = deliveryID
-	if _, ok := b.sessionIndex[normalized.SessionID]; !ok {
-		b.sessionIndex[normalized.SessionID] = make(map[string]struct{})
-	}
-	b.sessionIndex[normalized.SessionID][deliveryID] = struct{}{}
-	route := b.ensureRouteLocked(routeHash, normalized.RoutingKey.BridgeInstanceID, normalized.ExtensionName)
-	var routeToSignal *routeWorker
-	for _, event := range normalized.SeedEvents {
-		seedRoute, err := b.projectDeliveryEventLocked(delivery, event)
-		if err != nil {
-			b.removeDeliveryLocked(route, delivery)
-			b.mu.Unlock()
-			return nil, err
-		}
-		if seedRoute != nil {
-			routeToSignal = seedRoute
-		}
-	}
-	snapshot := cloneDeliverySnapshot(b.snapshotLocked(delivery))
+	createdAt := b.now()
+	delivery := newActiveDelivery(deliveryID, routeHash, normalized, createdAt)
 	b.mu.Unlock()
+
+	if err := b.createDeliveryLedgerRecord(ctx, delivery, createdAt); err != nil {
+		return nil, err
+	}
+
+	b.mu.Lock()
+	snapshot, routeToSignal, publishErr := b.publishPromptDeliveryLocked(
+		delivery,
+		deliveryKey,
+		routeHash,
+		normalized,
+	)
+	b.mu.Unlock()
+	if publishErr != nil {
+		if checkpointErr := b.checkpointInvalidRegistration(ctx, delivery, publishErr); checkpointErr != nil {
+			return nil, errors.Join(publishErr, checkpointErr)
+		}
+		return nil, publishErr
+	}
 
 	if routeToSignal != nil {
 		b.signalRoute(routeToSignal)
 	}
 	return &snapshot, nil
+}
+
+func (b *Broker) publishPromptDeliveryLocked(
+	delivery *activeDelivery,
+	deliveryKey turnIndexKey,
+	routeHash string,
+	registration PromptDeliveryRegistration,
+) (DeliverySnapshot, *routeWorker, error) {
+	b.deliveries[delivery.deliveryID] = delivery
+	b.bindDeliveryMetricIdentityLocked(delivery)
+	b.turnIndex[deliveryKey] = delivery.deliveryID
+	if _, ok := b.sessionIndex[registration.SessionID]; !ok {
+		b.sessionIndex[registration.SessionID] = make(map[string]struct{})
+	}
+	b.sessionIndex[registration.SessionID][delivery.deliveryID] = struct{}{}
+	route := b.ensureRouteLocked(routeHash, registration.RoutingKey.BridgeInstanceID, registration.ExtensionName)
+	var routeToSignal *routeWorker
+	for _, event := range registration.SeedEvents {
+		seedRoute, err := b.projectDeliveryEventLocked(delivery, event)
+		if err != nil {
+			b.removeDeliveryLocked(route, delivery)
+			return DeliverySnapshot{}, nil, err
+		}
+		if seedRoute != nil {
+			routeToSignal = seedRoute
+		}
+	}
+	return cloneDeliverySnapshot(b.snapshotLocked(delivery)), routeToSignal, nil
+}
+
+func (b *Broker) registeredDeliveryLocked(
+	deliveryKey turnIndexKey,
+) (DeliverySnapshot, bool, error) {
+	existingID, found := b.turnIndex[deliveryKey]
+	if !found {
+		return DeliverySnapshot{}, false, nil
+	}
+	existing := b.deliveries[existingID]
+	if existing == nil {
+		return DeliverySnapshot{}, true, ErrDeliveryNotFound
+	}
+	return cloneDeliverySnapshot(b.snapshotLocked(existing)), true, nil
 }
 
 func (b *Broker) reserveDeliveryIDLocked(requestedID string) (string, error) {
@@ -315,9 +259,17 @@ func (b *Broker) Deliver(ctx context.Context, evt DeliveryEvent) error {
 		b.mu.Unlock()
 		return errors.New("bridges: delivery event routing key does not match registered delivery")
 	}
+	if delivery.final {
+		b.mu.Unlock()
+		return nil
+	}
 	route := b.ensureRouteLocked(routeHash, normalized.BridgeInstanceID, delivery.extensionName)
 	err = b.enqueueEventLocked(route, delivery, normalized)
 	if err != nil {
+		if errors.Is(err, errProgressEventDropped) {
+			b.mu.Unlock()
+			return nil
+		}
 		b.mu.Unlock()
 		return err
 	}
@@ -419,8 +371,9 @@ func (b *Broker) FailSession(ctx context.Context, sessionID string, reason strin
 	}
 	reason = strings.TrimSpace(reason)
 	if reason == "" {
-		reason = "session stopped before delivery completed"
+		reason = sessionStoppedDeliveryMessage
 	}
+	reason = redactpkg.String(reason)
 
 	type pendingSignal struct {
 		route *routeWorker
@@ -442,7 +395,7 @@ func (b *Broker) FailSession(ctx context.Context, sessionID string, reason strin
 			DeliveryTarget:   delivery.target,
 			Seq:              delivery.latestSeq + 1,
 			EventType:        DeliveryEventTypeError,
-			Content:          delivery.currentContent,
+			Content:          terminalFailureContent(delivery.currentContent, reason),
 			Final:            true,
 			Operation:        delivery.operation,
 			Reference:        cloneDeliveryReference(delivery.reference),
@@ -463,750 +416,4 @@ func (b *Broker) FailSession(ctx context.Context, sessionID string, reason strin
 		b.signalRoute(signal.route)
 	}
 	return nil
-}
-
-func (b *Broker) ensureRouteLocked(hash string, bridgeInstanceID string, extensionName string) *routeWorker {
-	if route := b.routes[hash]; route != nil {
-		return route
-	}
-
-	route := &routeWorker{
-		hash:             hash,
-		bridgeInstanceID: strings.TrimSpace(bridgeInstanceID),
-		extensionName:    strings.TrimSpace(extensionName),
-		wakeCh:           make(chan struct{}, 1),
-		stopCh:           make(chan struct{}),
-	}
-	b.routes[hash] = route
-	if b.bridgeRoutes == nil {
-		b.bridgeRoutes = make(map[string]map[string]*routeWorker)
-	}
-	indexedRoutes := b.bridgeRoutes[route.bridgeInstanceID]
-	if indexedRoutes == nil {
-		indexedRoutes = make(map[string]*routeWorker)
-		b.bridgeRoutes[route.bridgeInstanceID] = indexedRoutes
-	}
-	indexedRoutes[hash] = route
-
-	b.wg.Add(1)
-	go b.runRouteWorker(route)
-	return route
-}
-
-func (b *Broker) runRouteWorker(route *routeWorker) {
-	defer b.wg.Done()
-
-	for {
-		item, ok := b.popQueueItem(route)
-		if !ok {
-			select {
-			case <-route.wakeCh:
-				continue
-			case <-route.stopCh:
-				return
-			case <-b.lifecycleCtx.Done():
-				return
-			}
-		}
-
-		retry := b.processQueueItem(route, item)
-		if retry {
-			timer := time.NewTimer(b.retryDelay)
-			select {
-			case <-timer.C:
-			case <-route.stopCh:
-				if !timer.Stop() {
-					select {
-					case <-timer.C:
-					default:
-					}
-				}
-				return
-			case <-b.lifecycleCtx.Done():
-				if !timer.Stop() {
-					select {
-					case <-timer.C:
-					default:
-					}
-				}
-				return
-			}
-		}
-	}
-}
-
-func (b *Broker) processQueueItem(route *routeWorker, item deliveryQueueItem) bool {
-	req, eventType, eventSeq, deliveryID, ok := b.prepareRequest(route, item)
-	if !ok {
-		return false
-	}
-
-	transport := b.currentTransport()
-	if transport == nil {
-		b.handleSendFailure(route, deliveryID, ErrDeliveryTransportUnavailable)
-		return true
-	}
-
-	callCtx, cancel := context.WithTimeout(b.lifecycleCtx, b.requestTimeout)
-	ack, err := transport.DeliverBridge(callCtx, route.extensionName, req)
-	cancel()
-	if err != nil {
-		b.handleSendFailure(route, deliveryID, err)
-		return true
-	}
-	if err := ack.ValidateFor(req.Event); err != nil {
-		b.handleSendFailure(route, deliveryID, err)
-		return true
-	}
-
-	b.handleSendSuccess(route, deliveryID, eventType, eventSeq, ack)
-	return false
-}
-
-func (b *Broker) prepareRequest(
-	_ *routeWorker,
-	item deliveryQueueItem,
-) (DeliveryRequest, string, int64, string, bool) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	delivery := b.deliveries[item.deliveryID]
-	if delivery == nil {
-		return DeliveryRequest{}, "", 0, "", false
-	}
-
-	switch item.kind {
-	case deliveryQueueKindStart:
-		if delivery.pendingStart == nil {
-			return DeliveryRequest{}, "", 0, "", false
-		}
-		event := cloneDeliveryEvent(*delivery.pendingStart)
-		delivery.pendingStart = nil
-		delivery.queuedStart = false
-		if event.Seq > delivery.lastSentSeq {
-			delivery.lastSentSeq = event.Seq
-		}
-		delivery.updatedAt = b.now()
-		return DeliveryRequest{Event: event}, event.EventType, event.Seq, delivery.deliveryID, true
-	case deliveryQueueKindDelta:
-		if delivery.pendingDelta == nil {
-			return DeliveryRequest{}, "", 0, "", false
-		}
-		event := cloneDeliveryEvent(*delivery.pendingDelta)
-		delivery.pendingDelta = nil
-		delivery.queuedDelta = false
-		if event.Seq > delivery.lastSentSeq {
-			delivery.lastSentSeq = event.Seq
-		}
-		delivery.updatedAt = b.now()
-		return DeliveryRequest{Event: event}, event.EventType, event.Seq, delivery.deliveryID, true
-	case deliveryQueueKindTerminal:
-		if delivery.pendingTerminal == nil {
-			return DeliveryRequest{}, "", 0, "", false
-		}
-		event := cloneDeliveryEvent(*delivery.pendingTerminal)
-		delivery.pendingTerminal = nil
-		delivery.queuedTerminal = false
-		if event.Seq > delivery.lastSentSeq {
-			delivery.lastSentSeq = event.Seq
-		}
-		delivery.updatedAt = b.now()
-		return DeliveryRequest{Event: event}, event.EventType, event.Seq, delivery.deliveryID, true
-	case deliveryQueueKindResume:
-		delivery.queuedResume = false
-		snapshot := cloneDeliverySnapshot(b.snapshotLocked(delivery))
-		event := DeliveryEvent{
-			DeliveryID:       delivery.deliveryID,
-			BridgeInstanceID: delivery.bridgeInstanceID,
-			RoutingKey:       delivery.routingKey,
-			DeliveryTarget:   delivery.target,
-			Seq:              delivery.latestSeq,
-			EventType:        DeliveryEventTypeResume,
-			Content:          delivery.currentContent,
-			Operation:        delivery.operation,
-			Reference:        cloneDeliveryReference(delivery.reference),
-			Resume: &DeliveryResumeState{
-				LatestEventType: delivery.latestEventType,
-			},
-			Final:            delivery.final,
-			ProviderMetadata: cloneRawJSON(delivery.providerMetadata),
-		}
-		if event.Seq > delivery.lastSentSeq {
-			delivery.lastSentSeq = event.Seq
-		}
-		delivery.updatedAt = b.now()
-		return DeliveryRequest{
-			Event:    event,
-			Snapshot: &snapshot,
-		}, event.EventType, event.Seq, delivery.deliveryID, true
-	default:
-		return DeliveryRequest{}, "", 0, "", false
-	}
-}
-
-func (b *Broker) handleSendFailure(route *routeWorker, deliveryID string, reason error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	delivery := b.deliveries[deliveryID]
-	if delivery == nil {
-		return
-	}
-	b.removeQueuedSlotLocked(route, deliveryID, deliveryQueueKindStart)
-	b.removeQueuedSlotLocked(route, deliveryID, deliveryQueueKindDelta)
-	b.removeQueuedSlotLocked(route, deliveryID, deliveryQueueKindTerminal)
-	delivery.pendingStart = nil
-	delivery.pendingDelta = nil
-	delivery.pendingTerminal = nil
-
-	if delivery.latestEventType == DeliveryEventTypeDelete {
-		deleteEvent := DeliveryEvent{
-			DeliveryID:       delivery.deliveryID,
-			BridgeInstanceID: delivery.bridgeInstanceID,
-			RoutingKey:       delivery.routingKey,
-			DeliveryTarget:   delivery.target,
-			Seq:              delivery.latestSeq,
-			EventType:        DeliveryEventTypeDelete,
-			Final:            true,
-			Operation:        DeliveryOperationDelete,
-			Reference:        cloneDeliveryReference(delivery.reference),
-			ProviderMetadata: cloneRawJSON(delivery.providerMetadata),
-		}
-		delivery.pendingTerminal = &deleteEvent
-		route.queue = append([]deliveryQueueItem{{
-			deliveryID: deliveryID,
-			kind:       deliveryQueueKindTerminal,
-		}}, route.queue...)
-		delivery.queuedTerminal = true
-		delivery.updatedAt = b.now()
-		if reason != nil &&
-			(delivery.latestEventType != DeliveryEventTypeError || strings.TrimSpace(delivery.errorText) == "") {
-			b.recordDeliveryIssueLocked(delivery.bridgeInstanceID, reason.Error())
-		}
-		return
-	}
-
-	if !delivery.queuedResume {
-		route.queue = append([]deliveryQueueItem{{
-			deliveryID: deliveryID,
-			kind:       deliveryQueueKindResume,
-		}}, route.queue...)
-		delivery.queuedResume = true
-	}
-	delivery.updatedAt = b.now()
-	if reason != nil {
-		// Preserve terminal delivery errors as the operator-visible failure
-		// signal; resume retries may still fail, but they should not replace a
-		// concrete delivery error with a generic transport issue.
-		if delivery.latestEventType == DeliveryEventTypeError && strings.TrimSpace(delivery.errorText) != "" {
-			return
-		}
-		b.recordDeliveryIssueLocked(delivery.bridgeInstanceID, reason.Error())
-	}
-}
-
-func (b *Broker) handleSendSuccess(
-	route *routeWorker,
-	deliveryID string,
-	eventType string,
-	eventSeq int64,
-	ack DeliveryAck,
-) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	delivery := b.deliveries[deliveryID]
-	if delivery == nil {
-		return
-	}
-
-	if eventSeq > delivery.lastSentSeq {
-		delivery.lastSentSeq = eventSeq
-	}
-	if eventSeq > delivery.lastAckedSeq {
-		delivery.lastAckedSeq = eventSeq
-	}
-	if ack.RemoteMessageID != "" {
-		delivery.remoteMessageID = strings.TrimSpace(ack.RemoteMessageID)
-	}
-	if ack.ReplaceRemoteMessageID != "" {
-		delivery.replaceRemoteMessageID = strings.TrimSpace(ack.ReplaceRemoteMessageID)
-	}
-	if normalizeDeliveryEventType(eventType) == DeliveryEventTypeStart ||
-		normalizeDeliveryEventType(eventType) == DeliveryEventTypeResume {
-		if delivery.latestSeq > 0 && delivery.latestEventType != DeliveryEventTypeError {
-			delivery.startDelivered = true
-		}
-	}
-	delivery.updatedAt = b.now()
-	b.recordDeliverySuccessLocked(delivery.bridgeInstanceID, delivery.updatedAt)
-
-	if delivery.final && !delivery.hasQueuedItems() {
-		b.removeDeliveryLocked(route, delivery)
-	}
-}
-
-func (b *Broker) popQueueItem(route *routeWorker) (deliveryQueueItem, bool) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	current := b.routes[route.hash]
-	if current == nil || len(current.queue) == 0 {
-		return deliveryQueueItem{}, false
-	}
-
-	item := current.queue[0]
-	current.queue = current.queue[1:]
-	return item, true
-}
-
-func (b *Broker) currentTransport() DeliveryTransport {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.transport
-}
-
-func (b *Broker) enqueueEventLocked(route *routeWorker, delivery *activeDelivery, event DeliveryEvent) error {
-	switch normalizeDeliveryEventType(event.EventType) {
-	case DeliveryEventTypeStart:
-		if delivery.queuedStart {
-			start := cloneDeliveryEvent(*delivery.pendingStart)
-			start.Content = event.Content
-			start.Seq = event.Seq
-			start.ProviderMetadata = cloneRawJSON(event.ProviderMetadata)
-			delivery.pendingStart = &start
-			return nil
-		}
-		if len(route.queue) >= b.queueCapacity && !b.dropQueuedDeltaLocked(route) {
-			b.recordDeliveryDropLocked(route.bridgeInstanceID, "queue_saturated")
-			return ErrDeliveryQueueSaturated
-		}
-		cloned := cloneDeliveryEvent(event)
-		delivery.pendingStart = &cloned
-		delivery.queuedStart = true
-		route.queue = append(
-			route.queue,
-			deliveryQueueItem{deliveryID: delivery.deliveryID, kind: deliveryQueueKindStart},
-		)
-		return nil
-	case DeliveryEventTypeDelta:
-		if !delivery.startDelivered && delivery.queuedStart && delivery.pendingStart != nil {
-			if len(route.queue) >= b.queueCapacity && !b.dropQueuedDeltaLocked(route) {
-				start := cloneDeliveryEvent(event)
-				start.EventType = DeliveryEventTypeStart
-				start.Final = false
-				delivery.pendingStart = &start
-				return nil
-			}
-		}
-		if delivery.queuedDelta {
-			cloned := cloneDeliveryEvent(event)
-			delivery.pendingDelta = &cloned
-			return nil
-		}
-		if len(route.queue) >= b.queueCapacity && !b.dropQueuedDeltaLocked(route) {
-			b.recordDeliveryDropLocked(route.bridgeInstanceID, "queue_saturated")
-			return ErrDeliveryQueueSaturated
-		}
-		cloned := cloneDeliveryEvent(event)
-		delivery.pendingDelta = &cloned
-		delivery.queuedDelta = true
-		route.queue = append(
-			route.queue,
-			deliveryQueueItem{deliveryID: delivery.deliveryID, kind: deliveryQueueKindDelta},
-		)
-		return nil
-	case DeliveryEventTypeFinal, DeliveryEventTypeError, DeliveryEventTypeDelete:
-		b.removeQueuedSlotLocked(route, delivery.deliveryID, deliveryQueueKindDelta)
-		delivery.pendingDelta = nil
-		if delivery.queuedTerminal {
-			cloned := cloneDeliveryEvent(event)
-			delivery.pendingTerminal = &cloned
-			return nil
-		}
-		if len(route.queue) >= b.queueCapacity && !b.dropQueuedDeltaLocked(route) {
-			b.recordDeliveryDropLocked(route.bridgeInstanceID, "queue_saturated")
-			return ErrDeliveryQueueSaturated
-		}
-		cloned := cloneDeliveryEvent(event)
-		delivery.pendingTerminal = &cloned
-		delivery.queuedTerminal = true
-		route.queue = append(
-			route.queue,
-			deliveryQueueItem{deliveryID: delivery.deliveryID, kind: deliveryQueueKindTerminal},
-		)
-		return nil
-	default:
-		return fmt.Errorf("bridges: unsupported projected delivery event type %q", event.EventType)
-	}
-}
-
-func (b *Broker) projectDeliveryEventLocked(
-	delivery *activeDelivery,
-	event DeliveryProjectionEvent,
-) (*routeWorker, error) {
-	fingerprint := agentEventFingerprint(event)
-	if fingerprint != "" {
-		if _, seen := delivery.seen[fingerprint]; seen {
-			return nil, nil
-		}
-	}
-
-	projected, ok, err := b.projectEventLocked(delivery, event)
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		return nil, nil
-	}
-	if err := projected.Validate(); err != nil {
-		return nil, fmt.Errorf("bridges: validate projected delivery event: %w", err)
-	}
-
-	route := b.ensureRouteLocked(delivery.routeHash, delivery.bridgeInstanceID, delivery.extensionName)
-	if err := b.enqueueEventLocked(route, delivery, projected); err != nil {
-		return nil, err
-	}
-	if fingerprint != "" {
-		delivery.seen[fingerprint] = struct{}{}
-	}
-	b.applyQueuedEventLocked(delivery, projected)
-	return route, nil
-}
-
-func (b *Broker) projectEventLocked(
-	delivery *activeDelivery,
-	event DeliveryProjectionEvent,
-) (DeliveryEvent, bool, error) {
-	if delivery == nil {
-		return DeliveryEvent{}, false, ErrDeliveryNotFound
-	}
-
-	switch strings.TrimSpace(event.Type) {
-	case deliveryBrokerAgentMessageKey:
-		if event.Text == "" {
-			return DeliveryEvent{}, false, nil
-		}
-		nextContent := MessageContent{Text: delivery.currentContent.Text + event.Text}
-		nextType := DeliveryEventTypeDelta
-		if delivery.latestSeq == 0 {
-			nextType = DeliveryEventTypeStart
-		}
-		return DeliveryEvent{
-			DeliveryID:       delivery.deliveryID,
-			BridgeInstanceID: delivery.bridgeInstanceID,
-			RoutingKey:       delivery.routingKey,
-			DeliveryTarget:   delivery.target,
-			Seq:              delivery.latestSeq + 1,
-			EventType:        nextType,
-			Content:          nextContent,
-			Final:            false,
-		}, true, nil
-	case deliveryBrokerDoneKey:
-		if delivery.latestSeq == 0 && strings.TrimSpace(delivery.currentContent.Text) == "" {
-			return DeliveryEvent{}, false, nil
-		}
-		return DeliveryEvent{
-			DeliveryID:       delivery.deliveryID,
-			BridgeInstanceID: delivery.bridgeInstanceID,
-			RoutingKey:       delivery.routingKey,
-			DeliveryTarget:   delivery.target,
-			Seq:              delivery.latestSeq + 1,
-			EventType:        DeliveryEventTypeFinal,
-			Content:          delivery.currentContent,
-			Final:            true,
-		}, true, nil
-	case DeliveryEventTypeError:
-		errorText := strings.TrimSpace(event.Error)
-		return DeliveryEvent{
-			DeliveryID:       delivery.deliveryID,
-			BridgeInstanceID: delivery.bridgeInstanceID,
-			RoutingKey:       delivery.routingKey,
-			DeliveryTarget:   delivery.target,
-			Seq:              delivery.latestSeq + 1,
-			EventType:        DeliveryEventTypeError,
-			Content:          delivery.currentContent,
-			Final:            true,
-			Error:            &DeliveryErrorDetail{Message: errorText},
-		}, true, nil
-	default:
-		return DeliveryEvent{}, false, nil
-	}
-}
-
-func (b *Broker) applyQueuedEventLocked(delivery *activeDelivery, event DeliveryEvent) {
-	if delivery == nil {
-		return
-	}
-
-	normalizedType := normalizeDeliveryEventType(event.EventType)
-	if event.Seq > delivery.latestSeq {
-		delivery.latestSeq = event.Seq
-	}
-	delivery.latestEventType = normalizedType
-	delivery.currentContent = event.Content
-	delivery.operation = event.Operation.Normalize()
-	delivery.reference = cloneDeliveryReference(event.Reference)
-	delivery.providerMetadata = cloneRawJSON(event.ProviderMetadata)
-	delivery.final = event.Final
-	delivery.updatedAt = b.now()
-
-	if normalizedType == DeliveryEventTypeError {
-		if event.Error != nil {
-			delivery.errorText = strings.TrimSpace(event.Error.Message)
-		} else {
-			delivery.errorText = ""
-		}
-		b.recordDeliveryFailureLocked(delivery.bridgeInstanceID, delivery.errorText)
-	} else if normalizedType != DeliveryEventTypeResume {
-		delivery.errorText = ""
-	}
-}
-
-func (b *Broker) snapshotLocked(delivery *activeDelivery) DeliverySnapshot {
-	return DeliverySnapshot{
-		DeliveryID:             delivery.deliveryID,
-		SessionID:              delivery.sessionID,
-		TurnID:                 delivery.turnID,
-		BridgeInstanceID:       delivery.bridgeInstanceID,
-		RoutingKey:             delivery.routingKey,
-		DeliveryTarget:         delivery.target,
-		LatestSeq:              delivery.latestSeq,
-		LatestEventType:        delivery.latestEventType,
-		CurrentContent:         delivery.currentContent,
-		Operation:              delivery.operation,
-		Reference:              cloneDeliveryReference(delivery.reference),
-		ProviderMetadata:       cloneRawJSON(delivery.providerMetadata),
-		LastSentSeq:            delivery.lastSentSeq,
-		LastAckedSeq:           delivery.lastAckedSeq,
-		RemoteMessageID:        delivery.remoteMessageID,
-		ReplaceRemoteMessageID: delivery.replaceRemoteMessageID,
-		Final:                  delivery.final,
-		Error:                  delivery.errorText,
-		UpdatedAt:              delivery.updatedAt,
-	}
-}
-
-func (b *Broker) removeDeliveryLocked(route *routeWorker, delivery *activeDelivery) {
-	if delivery == nil {
-		return
-	}
-	delete(b.deliveries, delivery.deliveryID)
-	delete(b.turnIndex, newTurnIndexKey(delivery.sessionID, delivery.turnID))
-	if deliverySet := b.sessionIndex[delivery.sessionID]; deliverySet != nil {
-		delete(deliverySet, delivery.deliveryID)
-		if len(deliverySet) == 0 {
-			delete(b.sessionIndex, delivery.sessionID)
-		}
-	}
-	if route != nil {
-		b.removeQueuedSlotLocked(route, delivery.deliveryID, deliveryQueueKindStart)
-		b.removeQueuedSlotLocked(route, delivery.deliveryID, deliveryQueueKindDelta)
-		b.removeQueuedSlotLocked(route, delivery.deliveryID, deliveryQueueKindTerminal)
-		b.removeQueuedSlotLocked(route, delivery.deliveryID, deliveryQueueKindResume)
-	}
-	b.retireIdleRouteLocked(route, delivery.routeHash)
-}
-
-func (b *Broker) retireIdleRouteLocked(route *routeWorker, routeHash string) {
-	if route == nil {
-		route = b.routes[routeHash]
-	}
-	if route == nil {
-		return
-	}
-	if b.routes[route.hash] != route {
-		return
-	}
-	if len(route.queue) > 0 || b.routeHasActiveDeliveriesLocked(route.hash) {
-		return
-	}
-	delete(b.routes, route.hash)
-	if indexedRoutes := b.bridgeRoutes[route.bridgeInstanceID]; indexedRoutes != nil {
-		delete(indexedRoutes, route.hash)
-		if len(indexedRoutes) == 0 {
-			delete(b.bridgeRoutes, route.bridgeInstanceID)
-		}
-	}
-	close(route.stopCh)
-}
-
-func (b *Broker) routeHasActiveDeliveriesLocked(routeHash string) bool {
-	for _, delivery := range b.deliveries {
-		if delivery != nil && delivery.routeHash == routeHash {
-			return true
-		}
-	}
-	return false
-}
-
-func (b *Broker) dropQueuedDeltaLocked(route *routeWorker) bool {
-	if route == nil {
-		return false
-	}
-	for idx, item := range route.queue {
-		if item.kind != deliveryQueueKindDelta {
-			continue
-		}
-		delivery := b.deliveries[item.deliveryID]
-		if delivery != nil {
-			delivery.queuedDelta = false
-			delivery.pendingDelta = nil
-		}
-		route.queue = append(route.queue[:idx], route.queue[idx+1:]...)
-		b.recordDeliveryDropLocked(route.bridgeInstanceID, "coalesced")
-		return true
-	}
-	return false
-}
-
-func (b *Broker) metricsLocked(bridgeInstanceID string) *instanceDeliveryMetrics {
-	if b.metrics == nil {
-		b.metrics = make(map[string]*instanceDeliveryMetrics)
-	}
-	trimmedID := strings.TrimSpace(bridgeInstanceID)
-	if trimmedID == "" {
-		return nil
-	}
-	metrics := b.metrics[trimmedID]
-	if metrics == nil {
-		metrics = &instanceDeliveryMetrics{
-			droppedByReason: make(map[string]int),
-		}
-		b.metrics[trimmedID] = metrics
-	}
-	return metrics
-}
-
-func (b *Broker) recordDeliveryDropLocked(bridgeInstanceID string, reason string) {
-	metrics := b.metricsLocked(bridgeInstanceID)
-	if metrics == nil {
-		return
-	}
-	trimmedReason := strings.TrimSpace(reason)
-	if trimmedReason == "" {
-		trimmedReason = "unknown"
-	}
-	metrics.droppedByReason[trimmedReason]++
-}
-
-func (b *Broker) recordDeliveryIssueLocked(bridgeInstanceID string, message string) {
-	metrics := b.metricsLocked(bridgeInstanceID)
-	if metrics == nil {
-		return
-	}
-	metrics.lastError = strings.TrimSpace(message)
-	metrics.lastErrorAt = b.now()
-}
-
-func (b *Broker) recordDeliveryFailureLocked(bridgeInstanceID string, message string) {
-	metrics := b.metricsLocked(bridgeInstanceID)
-	if metrics == nil {
-		return
-	}
-	metrics.deliveryFailuresTotal++
-	metrics.lastError = strings.TrimSpace(message)
-	metrics.lastErrorAt = b.now()
-}
-
-func (b *Broker) recordDeliverySuccessLocked(bridgeInstanceID string, deliveredAt time.Time) {
-	metrics := b.metricsLocked(bridgeInstanceID)
-	if metrics == nil {
-		return
-	}
-	metrics.lastSuccessAt = deliveredAt.UTC()
-}
-
-func (b *Broker) removeQueuedSlotLocked(route *routeWorker, deliveryID string, kind deliveryQueueKind) {
-	if route == nil {
-		return
-	}
-	next := route.queue[:0]
-	for _, item := range route.queue {
-		if item.deliveryID == deliveryID && item.kind == kind {
-			continue
-		}
-		next = append(next, item)
-	}
-	route.queue = next
-
-	delivery := b.deliveries[deliveryID]
-	if delivery == nil {
-		return
-	}
-	switch kind {
-	case deliveryQueueKindStart:
-		delivery.queuedStart = false
-	case deliveryQueueKindDelta:
-		delivery.queuedDelta = false
-	case deliveryQueueKindTerminal:
-		delivery.queuedTerminal = false
-	case deliveryQueueKindResume:
-		delivery.queuedResume = false
-	}
-}
-
-func (b *Broker) sessionDeliveriesLocked(sessionID string) []string {
-	set := b.sessionIndex[sessionID]
-	if len(set) == 0 {
-		return nil
-	}
-	ids := make([]string, 0, len(set))
-	for id := range set {
-		ids = append(ids, id)
-	}
-	return ids
-}
-
-func (b *Broker) signalRoute(route *routeWorker) {
-	if route == nil {
-		return
-	}
-	select {
-	case route.wakeCh <- struct{}{}:
-	default:
-	}
-}
-
-func (d *activeDelivery) hasQueuedItems() bool {
-	return d.queuedStart || d.queuedDelta || d.queuedTerminal || d.queuedResume
-}
-
-func newTurnIndexKey(sessionID string, turnID string) turnIndexKey {
-	return turnIndexKey{
-		sessionID: sessionID,
-		turnID:    turnID,
-	}
-}
-
-func newDeliveryID() string {
-	var random [8]byte
-	if _, err := rand.Read(random[:]); err != nil {
-		return fmt.Sprintf("del-%d", time.Now().UTC().UnixNano())
-	}
-	return "del-" + hex.EncodeToString(random[:])
-}
-
-func agentEventFingerprint(event DeliveryProjectionEvent) string {
-	if fingerprint := strings.TrimSpace(event.Fingerprint); fingerprint != "" {
-		return fingerprint
-	}
-	if event.Timestamp.IsZero() {
-		return ""
-	}
-	return strings.TrimSpace(
-		event.Type,
-	) + "|" + strings.TrimSpace(
-		event.TurnID,
-	) + "|" + event.Timestamp.UTC().
-		Format(time.RFC3339Nano) +
-		"|" + event.Text + "|" + event.Error
-}
-
-func cloneDeliveryReference(reference *DeliveryMessageReference) *DeliveryMessageReference {
-	if reference == nil {
-		return nil
-	}
-	cloned := reference.normalize()
-	return &cloned
 }

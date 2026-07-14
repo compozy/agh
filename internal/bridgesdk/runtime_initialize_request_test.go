@@ -3,8 +3,7 @@ package bridgesdk
 import (
 	"testing"
 
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
-	"github.com/compozy/agh/internal/resources"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -23,25 +22,25 @@ func TestSessionInitializeRequestClonesHandshakeSlicesContract(t *testing.T) {
 						extensionprotocol.HostAPIMethodBridgesInstancesList,
 					},
 					GrantedSecurity:       []string{"bridge.read"},
-					GrantedResourceKinds:  []resources.ResourceKind{resources.ResourceKind("agent")},
-					GrantedResourceScopes: []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace},
+					GrantedResourceKinds:  []string{"agent"},
+					GrantedResourceScopes: []string{"workspace"},
 				},
 			},
 		}
 
 		request := session.InitializeRequest()
 		request.SupportedProtocolVersion[0] = "mutated"
-		request.Capabilities.GrantedResourceKinds[0] = resources.ResourceKind("mutated")
-		request.Capabilities.GrantedResourceScopes[0] = resources.ResourceScopeKind("mutated")
+		request.Capabilities.GrantedResourceKinds[0] = "mutated"
+		request.Capabilities.GrantedResourceScopes[0] = "mutated"
 
 		again := session.InitializeRequest()
 		if got, want := again.SupportedProtocolVersion[0], "1"; got != want {
 			t.Fatalf("SupportedProtocolVersion[0] = %q, want %q", got, want)
 		}
-		if got, want := again.Capabilities.GrantedResourceKinds[0], resources.ResourceKind("agent"); got != want {
+		if got, want := again.Capabilities.GrantedResourceKinds[0], "agent"; got != want {
 			t.Fatalf("GrantedResourceKinds[0] = %q, want %q", got, want)
 		}
-		if got, want := again.Capabilities.GrantedResourceScopes[0], resources.ResourceScopeKindWorkspace; got != want {
+		if got, want := again.Capabilities.GrantedResourceScopes[0], "workspace"; got != want {
 			t.Fatalf("GrantedResourceScopes[0] = %q, want %q", got, want)
 		}
 	})

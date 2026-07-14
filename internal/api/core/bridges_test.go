@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -43,7 +44,7 @@ func TestBridgeHandlersCreateListGetAndUpdate(t *testing.T) {
 				if got, want := string(req.ProviderConfig), `{"mode":"bot","tenant":"acme"}`; got != want {
 					t.Fatalf("CreateInstance().ProviderConfig = %s, want %s", got, want)
 				}
-				if got, want := string(req.DeliveryDefaults), `{"peer_id":"peer-default","mode":"reply"}`; got != want {
+				if got, want := string(req.DeliveryDefaults), `{"mode":"reply","peer_id":"peer-default"}`; got != want {
 					t.Fatalf("CreateInstance().DeliveryDefaults = %s, want %s", got, want)
 				}
 				return &bridgepkg.BridgeInstance{
@@ -79,16 +80,18 @@ func TestBridgeHandlersCreateListGetAndUpdate(t *testing.T) {
 			},
 			GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
 				return &bridgepkg.BridgeInstance{
-					ID:               id,
-					Scope:            bridgepkg.ScopeGlobal,
-					Platform:         "telegram",
-					ExtensionName:    "ext-telegram",
-					DisplayName:      "Support",
-					Enabled:          true,
-					Status:           bridgepkg.BridgeStatusReady,
-					DMPolicy:         bridgepkg.BridgeDMPolicyOpen,
-					RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true},
-					ProviderConfig:   []byte(`{"mode":"bot","tenant":"acme"}`),
+					ID:            id,
+					Scope:         bridgepkg.ScopeGlobal,
+					Platform:      "telegram",
+					ExtensionName: "ext-telegram",
+					DisplayName:   "Support",
+					Enabled:       true,
+					Status:        bridgepkg.BridgeStatusReady,
+					DMPolicy:      bridgepkg.BridgeDMPolicyOpen,
+					RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+					ProviderConfig: []byte(
+						`{"mode":"bot","webhook":{"public_url":"https://hooks.example.test/telegram"}}`,
+					),
 					DeliveryDefaults: []byte(`{"peer_id":"peer-default","mode":"reply"}`),
 					Degradation: &bridgepkg.BridgeDegradation{
 						Reason: bridgepkg.BridgeDegradationReasonProviderTimeout,
@@ -103,7 +106,9 @@ func TestBridgeHandlersCreateListGetAndUpdate(t *testing.T) {
 				if req.DMPolicy == nil || *req.DMPolicy != bridgepkg.BridgeDMPolicyAllowlist {
 					t.Fatalf("UpdateInstance().DMPolicy = %#v", req.DMPolicy)
 				}
-				if req.ProviderConfig == nil || string(*req.ProviderConfig) != `{"mode":"comments"}` {
+				if req.ProviderConfig == nil ||
+					string(*req.ProviderConfig) !=
+						`{"mode":"comments","webhook":{"public_url":"http://localhost/telegram"}}` {
 					t.Fatalf("UpdateInstance().ProviderConfig = %#v", req.ProviderConfig)
 				}
 				if req.DeliveryDefaults == nil ||
@@ -160,9 +165,12 @@ func TestBridgeHandlersCreateListGetAndUpdate(t *testing.T) {
 		if got, want := string(listPayload.Bridges[0].ProviderConfig), `{"mode":"bot","tenant":"acme"}`; got != want {
 			t.Fatalf("list provider_config = %s, want %s", got, want)
 		}
+		if got := listPayload.Bridges[0].WebhookPublicURL; got != "" {
+			t.Fatalf("list webhook_public_url = %q, want omitted", got)
+		}
 		if got, want := string(
 			listPayload.Bridges[0].DeliveryDefaults,
-		), `{"peer_id":"peer-default","mode":"reply"}`; got != want {
+		), `{"mode":"reply","peer_id":"peer-default"}`; got != want {
 			t.Fatalf("list delivery_defaults = %s, want %s", got, want)
 		}
 
@@ -179,6 +187,9 @@ func TestBridgeHandlersCreateListGetAndUpdate(t *testing.T) {
 			getPayload.Bridge.Degradation.Reason != bridgepkg.BridgeDegradationReasonProviderTimeout {
 			t.Fatalf("get bridge degradation = %#v", getPayload.Bridge.Degradation)
 		}
+		if got, want := getPayload.Bridge.WebhookPublicURL, "https://hooks.example.test/telegram"; got != want {
+			t.Fatalf("get bridge webhook_public_url = %q, want %q", got, want)
+		}
 
 		updateResp := performRequest(
 			t,
@@ -186,7 +197,7 @@ func TestBridgeHandlersCreateListGetAndUpdate(t *testing.T) {
 			http.MethodPatch,
 			"/bridges/brg-core",
 			[]byte(
-				`{"display_name":"Renamed","dm_policy":"allowlist","provider_config":{"mode":"comments"},"delivery_defaults":{"group_id":"ops","mode":"direct-send"},"degradation":{"reason":"auth_failed"}}`,
+				`{"display_name":"Renamed","dm_policy":"allowlist","provider_config":{"mode":"comments","webhook":{"public_url":"http://localhost/telegram"}},"delivery_defaults":{"group_id":"ops","mode":"direct-send"},"degradation":{"reason":"auth_failed"}}`,
 			),
 		)
 		if updateResp.Code != http.StatusOK || !updateCalled {
@@ -197,7 +208,204 @@ func TestBridgeHandlersCreateListGetAndUpdate(t *testing.T) {
 				updateResp.Body.String(),
 			)
 		}
+		var updatePayload contract.BridgeResponse
+		testutil.DecodeJSONResponse(t, updateResp, &updatePayload)
+		if got := updatePayload.Bridge.WebhookPublicURL; got != "" {
+			t.Fatalf("update webhook_public_url = %q, want omitted for invalid callback", got)
+		}
 	})
+}
+
+func TestBridgeHandlersValidateTypedProgressSettings(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept typed progress and return it in the created bridge", func(t *testing.T) {
+		t.Parallel()
+
+		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			CreateInstanceFn: func(
+				_ context.Context,
+				req bridgepkg.CreateInstanceRequest,
+			) (*bridgepkg.BridgeInstance, error) {
+				var defaults struct {
+					Mode      bridgepkg.DeliveryMode               `json:"mode"`
+					ParseMode string                               `json:"parse_mode"`
+					Progress  contract.BridgeProgressConfigPayload `json:"progress"`
+				}
+				if err := json.Unmarshal(req.DeliveryDefaults, &defaults); err != nil {
+					t.Fatalf("json.Unmarshal(delivery defaults) error = %v", err)
+				}
+				if defaults.Mode != bridgepkg.DeliveryModeReply || defaults.ParseMode != "MarkdownV2" ||
+					defaults.Progress.ToolProgress != bridgepkg.ProgressModeAll ||
+					defaults.Progress.Grouping != bridgepkg.ProgressGroupingSeparate ||
+					!defaults.Progress.Typing || defaults.Progress.Reactions {
+					t.Fatalf("delivery defaults = %#v", defaults)
+				}
+				return &bridgepkg.BridgeInstance{
+					ID:               "brg-progress",
+					Scope:            req.Scope,
+					Platform:         req.Platform,
+					ExtensionName:    req.ExtensionName,
+					DisplayName:      req.DisplayName,
+					Enabled:          req.Enabled,
+					Status:           req.Status,
+					RoutingPolicy:    req.RoutingPolicy,
+					DeliveryDefaults: req.DeliveryDefaults,
+				}, nil
+			},
+		})
+
+		resp := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/bridges",
+			[]byte(`{
+				"scope":"global",
+				"platform":"telegram",
+				"extension_name":"ext-telegram",
+				"display_name":"Support",
+				"enabled":true,
+				"routing_policy":{"include_peer":true},
+				"delivery_defaults":{
+					"mode":"reply",
+					"parse_mode":"MarkdownV2",
+					"progress":{
+						"tool_progress":"all",
+						"grouping":"separate",
+						"typing":true,
+						"reactions":false
+					}
+				}
+			}`),
+		)
+		if resp.Code != http.StatusCreated {
+			t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusCreated, resp.Body.String())
+		}
+
+		var payload contract.BridgeResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		defaults := decodeBridgeProgressDefaults(t, json.RawMessage(payload.Bridge.DeliveryDefaults))
+		if defaults.ParseMode != "MarkdownV2" || defaults.Progress.ToolProgress != bridgepkg.ProgressModeAll {
+			t.Fatalf("response progress = %#v", defaults.Progress)
+		}
+	})
+
+	t.Run("Should reject invalid progress before calling update service", func(t *testing.T) {
+		t.Parallel()
+
+		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			UpdateInstanceFn: func(
+				context.Context,
+				bridgepkg.UpdateInstanceRequest,
+			) (*bridgepkg.BridgeInstance, error) {
+				t.Fatal("UpdateInstance() should not be called for invalid progress")
+				return nil, nil
+			},
+		})
+
+		resp := performRequest(
+			t,
+			engine,
+			http.MethodPatch,
+			"/bridges/brg-progress",
+			[]byte(`{
+				"delivery_defaults":{
+					"progress":{
+						"tool_progress":"sometimes",
+						"grouping":"accumulate",
+						"typing":true,
+						"reactions":true
+					}
+				}
+			}`),
+		)
+		if resp.Code != http.StatusBadRequest ||
+			!strings.Contains(resp.Body.String(), `unsupported progress tool_progress`) {
+			t.Fatalf("status = %d body=%s, want typed progress validation error", resp.Code, resp.Body.String())
+		}
+	})
+
+	t.Run("Should accept typed progress in an update response", func(t *testing.T) {
+		t.Parallel()
+
+		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			UpdateInstanceFn: func(
+				_ context.Context,
+				req bridgepkg.UpdateInstanceRequest,
+			) (*bridgepkg.BridgeInstance, error) {
+				if req.DeliveryDefaults == nil {
+					t.Fatalf("UpdateInstance().DeliveryDefaults = %v", req.DeliveryDefaults)
+				}
+				defaults := decodeBridgeProgressDefaults(t, *req.DeliveryDefaults)
+				if defaults.ThreadID != "thread-1" ||
+					defaults.Progress.Grouping != bridgepkg.ProgressGroupingAccumulate {
+					t.Fatalf("request delivery defaults = %#v", defaults)
+				}
+				return &bridgepkg.BridgeInstance{
+					ID:               req.ID,
+					Scope:            bridgepkg.ScopeGlobal,
+					Platform:         "slack",
+					ExtensionName:    "ext-slack",
+					DisplayName:      "Support",
+					Enabled:          true,
+					Status:           bridgepkg.BridgeStatusReady,
+					RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true},
+					DeliveryDefaults: *req.DeliveryDefaults,
+				}, nil
+			},
+		})
+
+		resp := performRequest(
+			t,
+			engine,
+			http.MethodPatch,
+			"/bridges/brg-progress",
+			[]byte(`{
+				"delivery_defaults":{
+					"peer_id":"peer-1",
+					"thread_id":"thread-1",
+					"mode":"reply",
+					"progress":{
+						"tool_progress":"new",
+						"grouping":"accumulate",
+						"typing":false,
+						"reactions":true
+					}
+				}
+			}`),
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		var payload contract.BridgeResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		defaults := decodeBridgeProgressDefaults(t, json.RawMessage(payload.Bridge.DeliveryDefaults))
+		if !defaults.Progress.Reactions {
+			t.Fatalf("response progress = %#v", defaults.Progress)
+		}
+	})
+}
+
+type bridgeProgressDefaultsTestPayload struct {
+	Mode      bridgepkg.DeliveryMode               `json:"mode"`
+	PeerID    string                               `json:"peer_id"`
+	ThreadID  string                               `json:"thread_id"`
+	ParseMode string                               `json:"parse_mode"`
+	Progress  contract.BridgeProgressConfigPayload `json:"progress"`
+}
+
+func decodeBridgeProgressDefaults(
+	t *testing.T,
+	raw json.RawMessage,
+) bridgeProgressDefaultsTestPayload {
+	t.Helper()
+
+	var defaults bridgeProgressDefaultsTestPayload
+	if err := json.Unmarshal(raw, &defaults); err != nil {
+		t.Fatalf("json.Unmarshal(delivery defaults) error = %v", err)
+	}
+	return defaults
 }
 
 func TestBridgeHandlersListFiltersActiveWorkspaceScope(t *testing.T) {
@@ -1401,33 +1609,6 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 				"update service error status = %d, want %d body=%s",
 				resp.Code,
 				http.StatusConflict,
-				resp.Body.String(),
-			)
-		}
-	})
-
-	t.Run("Should update rejects semantically invalid payload", func(t *testing.T) {
-		t.Parallel()
-
-		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
-			UpdateInstanceFn: func(context.Context, bridgepkg.UpdateInstanceRequest) (*bridgepkg.BridgeInstance, error) {
-				t.Fatal("UpdateInstance() should not be called for invalid payload")
-				return nil, nil
-			},
-		})
-
-		resp := performRequest(
-			t,
-			engine,
-			http.MethodPatch,
-			"/bridges/brg-core",
-			[]byte(`{"delivery_defaults":{"thread_id":"thr-1"}}`),
-		)
-		if resp.Code != http.StatusBadRequest {
-			t.Fatalf(
-				"update invalid payload status = %d, want %d body=%s",
-				resp.Code,
-				http.StatusBadRequest,
 				resp.Body.String(),
 			)
 		}

@@ -16,7 +16,6 @@ concurrency:
 env:
   CGO_ENABLED: 0
   GO_VERSION: "1.26.4"
-  BUN_VERSION: "1.3.4"
 
 permissions:
   contents: read
@@ -108,10 +107,10 @@ jobs:
             echo "relevant=$relevant"
           } >> "$GITHUB_OUTPUT"
 
-  verify:
-    name: Verify (fmt, lint, unit, build)
+  preflight:
+    name: Preflight (codegen, installer)
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 20
     needs: changes
     if: needs.changes.outputs.relevant == 'true'
     steps:
@@ -121,30 +120,151 @@ jobs:
         uses: ./.github/actions/setup-go
         with:
           go-version: ${{ env.GO_VERSION }}
-          install-tools: "true"
+          install-mage: "true"
 
-      - name: Set up Bun (web deps)
+      - name: Set up Bun
         uses: ./.github/actions/setup-bun
         with:
-          bun-version: ${{ env.BUN_VERSION }}
           install-playwright: "false"
 
-      - name: Run verification pipeline
-        run: make verify
-        env:
-          CGO_ENABLED: 0
+      - name: Restore Daytona sidecar proof
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/agh-dev/daytona-check.stamp
+          key: ${{ runner.os }}-daytona-proof-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-daytona-proof-
 
-      - name: Upload verify artifacts on failure
+      - name: Verify generated artifacts
+        run: make codegen-check
+
+      - name: Verify installer artifacts
+        run: make installer-check
+
+  frontend:
+    name: Frontend (lint, typecheck, test, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    needs: [changes, preflight]
+    if: needs.changes.outputs.relevant == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go for scaffold tests
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Set up Bun
+        uses: ./.github/actions/setup-bun
+        with:
+          install-playwright: "false"
+
+      - name: Restore Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-frontend-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-frontend-${{ hashFiles('bun.lock', 'turbo.json') }}-
+            ${{ runner.os }}-turbo-frontend-
+
+      - name: Run frontend verification
+        env:
+          AGH_CODEGEN_CHECKED: "1"
+        run: |
+          bun run lint
+          bun run typecheck
+          bun run test
+          bunx turbo run build --filter=./web
+
+      - name: Upload frontend artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: verify-artifacts
-          path: |
-            coverage.out
-            test-results.xml
-            web/dist
+          name: frontend-verify-artifacts
+          path: web/dist
           if-no-files-found: ignore
           retention-days: 7
+
+  go-static:
+    name: Go (format, lint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [changes, preflight]
+    if: needs.changes.outputs.relevant == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          install-mage: "true"
+          install-golangci-lint: "true"
+
+      - name: Restore golangci-lint cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/agh-dev/golangci-lint
+          key: ${{ runner.os }}-golangci-v2.12.2-${{ hashFiles('go.sum', '.golangci.yml') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-golangci-v2.12.2-${{ hashFiles('go.sum', '.golangci.yml') }}-
+            ${{ runner.os }}-golangci-v2.12.2-
+
+      - name: Run Go static verification
+        run: |
+          make fmt-check
+          make go-lint
+
+  go-test:
+    name: Go (race test, build, boundaries)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: [changes, preflight]
+    if: needs.changes.outputs.relevant == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          install-mage: "true"
+          install-gotestsum: "true"
+
+      - name: Set up Bun for codegen contract tests
+        uses: ./.github/actions/setup-bun
+        with:
+          install-playwright: "false"
+
+      - name: Run Go runtime verification
+        run: |
+          make test
+          make build-go
+          make boundaries
+
+  verify:
+    name: Verify (fmt, lint, unit, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [changes, preflight, frontend, go-static, go-test]
+    if: always() && needs.changes.outputs.relevant == 'true'
+    steps:
+      - name: Require every verification lane
+        env:
+          PREFLIGHT_RESULT: ${{ needs.preflight.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          GO_STATIC_RESULT: ${{ needs.go-static.result }}
+          GO_TEST_RESULT: ${{ needs.go-test.result }}
+        run: |
+          set -euo pipefail
+          for result in "$PREFLIGHT_RESULT" "$FRONTEND_RESULT" "$GO_STATIC_RESULT" "$GO_TEST_RESULT"; do
+            if [[ "$result" != "success" ]]; then
+              echo "Verification lane finished with result: $result"
+              exit 1
+            fi
+          done
 
   e2e-combined:
     name: E2E (combined lane)
@@ -158,12 +278,12 @@ jobs:
         uses: ./.github/actions/setup-go
         with:
           go-version: ${{ env.GO_VERSION }}
-          install-tools: "true"
+          install-mage: "true"
+          install-gotestsum: "true"
 
       - name: Set up Bun (web deps + Playwright)
         uses: ./.github/actions/setup-bun
         with:
-          bun-version: ${{ env.BUN_VERSION }}
           install-playwright: "true"
 
       - name: Run combined E2E lane

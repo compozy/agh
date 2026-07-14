@@ -8,6 +8,9 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
+	"github.com/compozy/agh/internal/toolmeta"
 )
 
 var (
@@ -21,19 +24,24 @@ var (
 	ErrDeliveryTransportUnavailable = errors.New("bridges: delivery transport unavailable")
 )
 
+// DeliveryEventType is one closed daemon-to-adapter delivery lifecycle event.
+type DeliveryEventType string
+
 const (
 	// DeliveryEventTypeStart starts one progressive outbound delivery for a prompt turn.
-	DeliveryEventTypeStart = "start"
+	DeliveryEventTypeStart DeliveryEventType = DeliveryEventType(bridgecontract.DeliveryEventTypeStart)
 	// DeliveryEventTypeDelta updates one progressive outbound delivery with newer full text.
-	DeliveryEventTypeDelta = "delta"
+	DeliveryEventTypeDelta DeliveryEventType = DeliveryEventType(bridgecontract.DeliveryEventTypeDelta)
 	// DeliveryEventTypeFinal reports the terminal successful state for one delivery.
-	DeliveryEventTypeFinal = "final"
+	DeliveryEventTypeFinal DeliveryEventType = DeliveryEventType(bridgecontract.DeliveryEventTypeFinal)
 	// DeliveryEventTypeError reports the terminal failed state for one delivery.
-	DeliveryEventTypeError = "error"
+	DeliveryEventTypeError DeliveryEventType = DeliveryEventType(bridgecontract.DeliveryEventTypeError)
 	// DeliveryEventTypeResume rehydrates the latest delivery snapshot after adapter recovery.
-	DeliveryEventTypeResume = "resume"
+	DeliveryEventTypeResume DeliveryEventType = DeliveryEventType(bridgecontract.DeliveryEventTypeResume)
 	// DeliveryEventTypeDelete removes one previously delivered message.
-	DeliveryEventTypeDelete = "delete"
+	DeliveryEventTypeDelete DeliveryEventType = DeliveryEventType(bridgecontract.DeliveryEventTypeDelete)
+	// DeliveryEventTypeProgress carries presentation-only tool lifecycle chrome.
+	DeliveryEventTypeProgress DeliveryEventType = DeliveryEventType(bridgecontract.DeliveryEventTypeProgress)
 )
 
 const (
@@ -53,12 +61,15 @@ type DeliveryTransport interface {
 // to project prompt output into delivery-oriented bridge events. It remains
 // ACP-agnostic so `internal/bridges` does not depend on runtime transport packages.
 type DeliveryProjectionEvent struct {
-	Type        string    `json:"type"`
-	TurnID      string    `json:"turn_id"`
-	Timestamp   time.Time `json:"timestamp"`
-	Text        string    `json:"text,omitempty"`
-	Error       string    `json:"error,omitempty"`
-	Fingerprint string    `json:"fingerprint,omitempty"`
+	Type         string                      `json:"type"`
+	TurnID       string                      `json:"turn_id"`
+	Timestamp    time.Time                   `json:"timestamp"`
+	Text         string                      `json:"text,omitempty"`
+	Error        string                      `json:"error,omitempty"`
+	Fingerprint  string                      `json:"fingerprint,omitempty"`
+	Tool         *ToolProgress               `json:"tool,omitempty"`
+	ToolInput    json.RawMessage             `json:"-"`
+	ToolMetadata toolmeta.DescriptorMetadata `json:"-"`
 }
 
 // DeliveryRequest is the negotiated daemon->extension request payload for
@@ -71,56 +82,92 @@ type DeliveryRequest struct {
 
 // Validate reports whether the negotiated request is internally consistent.
 func (r DeliveryRequest) Validate() error {
-	eventType := normalizeDeliveryEventType(r.Event.EventType)
-	if err := r.Event.Validate(); err != nil {
-		return err
-	}
-	if r.Snapshot == nil {
-		if eventType == DeliveryEventTypeResume {
-			return errors.New("bridges: resume delivery request requires a snapshot")
-		}
-		return nil
-	}
-	if eventType != DeliveryEventTypeResume {
-		return errors.New("bridges: only resume delivery requests may include a snapshot")
-	}
-
-	if err := r.Snapshot.Validate(); err != nil {
-		return err
-	}
-	if r.Snapshot.DeliveryID != r.Event.DeliveryID {
-		return errors.New("bridges: delivery request snapshot must match event delivery id")
-	}
-	if r.Snapshot.BridgeInstanceID != r.Event.BridgeInstanceID {
-		return errors.New("bridges: delivery request snapshot must match event bridge instance id")
-	}
-	return nil
+	return deliveryRequestToContract(r).Validate()
 }
 
-// DeliveryAck is the negotiated extension->daemon acknowledgement payload for
-// one `bridges/deliver` request.
+// DeliveryAckOutcome identifies the provider-side result of one delivery request.
+type DeliveryAckOutcome string
+
+const (
+	DeliveryAckOutcomeSuccess DeliveryAckOutcome = DeliveryAckOutcome(
+		bridgecontract.DeliveryAckOutcomeSuccess,
+	)
+	DeliveryAckOutcomeCommittedResultUnavailable DeliveryAckOutcome = DeliveryAckOutcome(
+		bridgecontract.DeliveryAckOutcomeCommittedResultUnavailable,
+	)
+)
+
+// DeliveryResultUnavailableMessage is the safe public explanation used when a
+// provider mutation may have committed but no trustworthy result was returned.
+const DeliveryResultUnavailableMessage = "provider mutation may have committed, but the bridge delivery " +
+	"result is unavailable"
+
+// Normalize returns the canonical acknowledgement outcome; empty means success.
+func (o DeliveryAckOutcome) Normalize() DeliveryAckOutcome {
+	return DeliveryAckOutcome(bridgecontract.DeliveryAckOutcome(o).Normalize())
+}
+
+// Validate reports whether the acknowledgement outcome is supported.
+func (o DeliveryAckOutcome) Validate() error {
+	return bridgecontract.DeliveryAckOutcome(o).Validate()
+}
+
+// DeliveryAck is the negotiated extension->daemon result for one `bridges/deliver` request.
 type DeliveryAck struct {
-	DeliveryID             string `json:"delivery_id,omitempty"`
-	Seq                    int64  `json:"seq,omitempty"`
-	RemoteMessageID        string `json:"remote_message_id,omitempty"`
-	ReplaceRemoteMessageID string `json:"replace_remote_message_id,omitempty"`
+	DeliveryID             string               `json:"delivery_id"`
+	Seq                    int64                `json:"seq"`
+	RemoteMessageID        string               `json:"remote_message_id,omitempty"`
+	ReplaceRemoteMessageID string               `json:"replace_remote_message_id,omitempty"`
+	Outcome                DeliveryAckOutcome   `json:"outcome,omitempty"`
+	Error                  *DeliveryErrorDetail `json:"error,omitempty"`
+	wireDecoded            bool
+	wireSeqPresent         bool
+}
+
+// UnmarshalJSON preserves whether the required sequence was explicitly sent.
+// Sequence zero is valid, so the Go zero value cannot distinguish it from an
+// absent or null JSON field without this wire-presence bit.
+func (a *DeliveryAck) UnmarshalJSON(data []byte) error {
+	type deliveryAckWire struct {
+		DeliveryID             string               `json:"delivery_id"`
+		Seq                    json.RawMessage      `json:"seq"`
+		RemoteMessageID        string               `json:"remote_message_id,omitempty"`
+		ReplaceRemoteMessageID string               `json:"replace_remote_message_id,omitempty"`
+		Outcome                DeliveryAckOutcome   `json:"outcome,omitempty"`
+		Error                  *DeliveryErrorDetail `json:"error,omitempty"`
+	}
+
+	var decoded deliveryAckWire
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return fmt.Errorf("bridges: decode delivery acknowledgement: %w", err)
+	}
+
+	*a = DeliveryAck{
+		DeliveryID:             decoded.DeliveryID,
+		RemoteMessageID:        decoded.RemoteMessageID,
+		ReplaceRemoteMessageID: decoded.ReplaceRemoteMessageID,
+		Outcome:                decoded.Outcome,
+		Error:                  decoded.Error,
+		wireDecoded:            true,
+	}
+	sequence := bytes.TrimSpace(decoded.Seq)
+	if len(sequence) == 0 || bytes.Equal(sequence, []byte("null")) {
+		return nil
+	}
+	if err := json.Unmarshal(sequence, &a.Seq); err != nil {
+		return fmt.Errorf("bridges: decode delivery acknowledgement sequence: %w", err)
+	}
+	a.wireSeqPresent = true
+	return nil
 }
 
 // ValidateFor reports whether the acknowledgement still belongs to the request
 // that triggered it.
 func (a DeliveryAck) ValidateFor(event DeliveryEvent) error {
-	normalized := a.normalize()
-	if normalized.DeliveryID != "" && normalized.DeliveryID != strings.TrimSpace(event.DeliveryID) {
-		return fmt.Errorf(
-			"bridges: delivery ack delivery id %q does not match event %q",
-			normalized.DeliveryID,
-			strings.TrimSpace(event.DeliveryID),
-		)
+	if a.wireDecoded && !a.wireSeqPresent {
+		return errors.New("bridges: delivery ack sequence is required")
 	}
-	if normalized.Seq != 0 && normalized.Seq != event.Seq {
-		return fmt.Errorf("bridges: delivery ack sequence %d does not match event %d", normalized.Seq, event.Seq)
-	}
-	return nil
+	return deliveryAckToContract(a).ValidateFor(deliveryEventToContract(event))
 }
 
 // DeliverySnapshot captures the current progressive state for one active
@@ -133,7 +180,7 @@ type DeliverySnapshot struct {
 	RoutingKey             RoutingKey                `json:"routing_key"`
 	DeliveryTarget         DeliveryTarget            `json:"delivery_target"`
 	LatestSeq              int64                     `json:"latest_seq"`
-	LatestEventType        string                    `json:"latest_event_type"`
+	LatestEventType        DeliveryEventType         `json:"latest_event_type"`
 	CurrentContent         MessageContent            `json:"current_content"`
 	Operation              DeliveryOperation         `json:"operation,omitempty"`
 	Reference              *DeliveryMessageReference `json:"reference,omitempty"`
@@ -150,96 +197,7 @@ type DeliverySnapshot struct {
 // Validate reports whether the snapshot contains the state needed to resume a
 // negotiated bridge delivery.
 func (s DeliverySnapshot) Validate() error {
-	normalized := s.normalize()
-	if err := normalized.validateIdentity(); err != nil {
-		return err
-	}
-	if err := normalized.validateRouting(); err != nil {
-		return err
-	}
-	if err := normalized.validateSequences(); err != nil {
-		return err
-	}
-	if err := normalized.validateOperationReference(); err != nil {
-		return err
-	}
-	if _, err := normalizeRawJSON(normalized.ProviderMetadata, "delivery snapshot provider metadata"); err != nil {
-		return err
-	}
-	if err := validateDeliveryEventType(normalized.LatestEventType, normalized.Final); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s DeliverySnapshot) validateIdentity() error {
-	if err := requireField(s.DeliveryID, "delivery snapshot id"); err != nil {
-		return err
-	}
-	if err := requireField(s.SessionID, "delivery snapshot session id"); err != nil {
-		return err
-	}
-	if err := requireField(s.TurnID, "delivery snapshot turn id"); err != nil {
-		return err
-	}
-	if err := requireField(s.BridgeInstanceID, "delivery snapshot bridge instance id"); err != nil {
-		return err
-	}
-	if s.UpdatedAt.IsZero() {
-		return errors.New("bridges: delivery snapshot updated at is required")
-	}
-	return nil
-}
-
-func (s DeliverySnapshot) validateRouting() error {
-	if err := s.RoutingKey.Validate(); err != nil {
-		return err
-	}
-	if s.RoutingKey.BridgeInstanceID != s.BridgeInstanceID {
-		return errors.New("bridges: delivery snapshot bridge instance id must match routing key")
-	}
-	if err := s.DeliveryTarget.Validate(); err != nil {
-		return err
-	}
-	if s.DeliveryTarget.BridgeInstanceID != s.BridgeInstanceID {
-		return errors.New("bridges: delivery snapshot bridge instance id must match delivery target")
-	}
-	return nil
-}
-
-func (s DeliverySnapshot) validateSequences() error {
-	if s.LatestSeq < 0 {
-		return fmt.Errorf("bridges: invalid delivery snapshot latest sequence %d", s.LatestSeq)
-	}
-	if s.LastSentSeq < 0 {
-		return fmt.Errorf("bridges: invalid delivery snapshot last sent sequence %d", s.LastSentSeq)
-	}
-	if s.LastAckedSeq < 0 {
-		return fmt.Errorf("bridges: invalid delivery snapshot last acked sequence %d", s.LastAckedSeq)
-	}
-	if s.LastAckedSeq > s.LastSentSeq {
-		return errors.New("bridges: delivery snapshot last acked sequence cannot exceed last sent sequence")
-	}
-	if s.LastSentSeq > s.LatestSeq {
-		return errors.New("bridges: delivery snapshot last sent sequence cannot exceed latest sequence")
-	}
-	return nil
-}
-
-func (s DeliverySnapshot) validateOperationReference() error {
-	if err := s.Operation.Validate(); err != nil {
-		return err
-	}
-	if s.Operation == DeliveryOperationPost {
-		if s.Reference != nil {
-			return errors.New("bridges: delivery snapshot post operation cannot include a reference")
-		}
-		return nil
-	}
-	if s.Reference == nil {
-		return fmt.Errorf("bridges: delivery snapshot %s operation requires a reference", s.Operation)
-	}
-	return s.Reference.Validate()
+	return deliverySnapshotToContract(s).Validate()
 }
 
 // PromptDeliveryRegistration binds one session prompt turn to a routed bridge
@@ -251,6 +209,7 @@ type PromptDeliveryRegistration struct {
 	DeliveryID     string                    `json:"delivery_id,omitempty"`
 	RoutingKey     RoutingKey                `json:"routing_key"`
 	DeliveryTarget DeliveryTarget            `json:"delivery_target"`
+	Progress       ProgressConfig            `json:"progress"`
 	SeedEvents     []DeliveryProjectionEvent `json:"seed_events,omitempty"`
 }
 
@@ -276,11 +235,21 @@ func (r PromptDeliveryRegistration) Validate() error {
 	if normalized.DeliveryTarget.BridgeInstanceID != normalized.RoutingKey.BridgeInstanceID {
 		return errors.New("bridges: prompt delivery registration target must match routing key bridge instance")
 	}
+	if err := normalized.Progress.Validate(); err != nil {
+		return err
+	}
 	return nil
 }
 
 // DeliveryBrokerOption customizes delivery-broker construction.
 type DeliveryBrokerOption func(*Broker)
+
+// WithDeliveryBrokerDescriptorLookup resolves registry-owned tool presentation metadata.
+func WithDeliveryBrokerDescriptorLookup(lookup toolmeta.DescriptorLookup) DeliveryBrokerOption {
+	return func(b *Broker) {
+		b.descriptors = lookup
+	}
+}
 
 // WithDeliveryBrokerNow overrides the broker clock, mainly for tests.
 func WithDeliveryBrokerNow(now func() time.Time) DeliveryBrokerOption {
@@ -333,85 +302,22 @@ func WithDeliveryBrokerLifecycleContext(ctx context.Context) DeliveryBrokerOptio
 	}
 }
 
-func normalizeDeliveryEventType(value string) string {
-	return strings.ToLower(strings.TrimSpace(value))
+func normalizeDeliveryEventType(value DeliveryEventType) DeliveryEventType {
+	return DeliveryEventType(bridgecontract.NormalizeDeliveryEventType(bridgecontract.DeliveryEventType(value)))
 }
 
-func isTerminalDeliveryEventType(value string) bool {
-	switch normalizeDeliveryEventType(value) {
-	case DeliveryEventTypeFinal, DeliveryEventTypeError, DeliveryEventTypeDelete:
-		return true
-	default:
-		return false
-	}
-}
-
-func validateDeliveryEventType(value string, final bool) error {
-	switch normalizeDeliveryEventType(value) {
-	case DeliveryEventTypeStart:
-		if final {
-			return errors.New("bridges: delivery start event cannot be final")
-		}
-		return nil
-	case DeliveryEventTypeDelta:
-		if final {
-			return errors.New("bridges: delivery delta event cannot be final")
-		}
-		return nil
-	case DeliveryEventTypeFinal:
-		if !final {
-			return errors.New("bridges: delivery final event must set final=true")
-		}
-		return nil
-	case DeliveryEventTypeError:
-		if !final {
-			return errors.New("bridges: delivery error event must set final=true")
-		}
-		return nil
-	case DeliveryEventTypeResume:
-		return nil
-	case DeliveryEventTypeDelete:
-		if !final {
-			return errors.New("bridges: delivery delete event must set final=true")
-		}
-		return nil
-	case "":
-		return errors.New("bridges: delivery event type is required")
-	default:
-		return fmt.Errorf("bridges: unsupported delivery event type %q", strings.TrimSpace(value))
-	}
+func isTerminalDeliveryEventType(value DeliveryEventType) bool {
+	return bridgecontract.IsTerminalDeliveryEventType(bridgecontract.DeliveryEventType(value))
 }
 
 func (a DeliveryAck) normalize() DeliveryAck {
-	normalized := a
-	normalized.DeliveryID = strings.TrimSpace(normalized.DeliveryID)
-	normalized.RemoteMessageID = strings.TrimSpace(normalized.RemoteMessageID)
-	normalized.ReplaceRemoteMessageID = strings.TrimSpace(normalized.ReplaceRemoteMessageID)
-	return normalized
+	return deliveryAckFromContract(bridgecontract.NormalizeDeliveryAck(deliveryAckToContract(a)))
 }
 
 func (s DeliverySnapshot) normalize() DeliverySnapshot {
-	normalized := s
-	normalized.DeliveryID = strings.TrimSpace(normalized.DeliveryID)
-	normalized.SessionID = strings.TrimSpace(normalized.SessionID)
-	normalized.TurnID = strings.TrimSpace(normalized.TurnID)
-	normalized.BridgeInstanceID = strings.TrimSpace(normalized.BridgeInstanceID)
-	normalized.RoutingKey = normalized.RoutingKey.normalize()
-	normalized.DeliveryTarget = normalized.DeliveryTarget.normalize()
-	normalized.LatestEventType = normalizeDeliveryEventType(normalized.LatestEventType)
-	normalized.Operation = normalized.Operation.Normalize()
-	if normalized.Operation == "" {
-		normalized.Operation = DeliveryOperationPost
-	}
-	normalized.ProviderMetadata = bytes.TrimSpace(normalized.ProviderMetadata)
-	normalized.RemoteMessageID = strings.TrimSpace(normalized.RemoteMessageID)
-	normalized.ReplaceRemoteMessageID = strings.TrimSpace(normalized.ReplaceRemoteMessageID)
-	normalized.Error = strings.TrimSpace(normalized.Error)
-	if normalized.Reference != nil {
-		reference := normalized.Reference.normalize()
-		normalized.Reference = &reference
-	}
-	return normalized
+	return deliverySnapshotFromContract(
+		bridgecontract.NormalizeDeliverySnapshot(deliverySnapshotToContract(s)),
+	)
 }
 
 func (r PromptDeliveryRegistration) normalize() PromptDeliveryRegistration {
@@ -422,6 +328,11 @@ func (r PromptDeliveryRegistration) normalize() PromptDeliveryRegistration {
 	normalized.DeliveryID = strings.TrimSpace(normalized.DeliveryID)
 	normalized.RoutingKey = normalized.RoutingKey.normalize()
 	normalized.DeliveryTarget = normalized.DeliveryTarget.normalize()
+	if normalized.Progress.ToolProgress == "" || normalized.Progress.Grouping == "" {
+		normalized.Progress = ResolveProgressConfig(nil, "")
+	} else {
+		normalized.Progress = normalized.Progress.effective()
+	}
 	if len(normalized.SeedEvents) > 0 {
 		normalized.SeedEvents = append([]DeliveryProjectionEvent(nil), normalized.SeedEvents...)
 		for idx := range normalized.SeedEvents {
@@ -437,46 +348,7 @@ func (e DeliveryProjectionEvent) normalize() DeliveryProjectionEvent {
 	normalized.TurnID = strings.TrimSpace(normalized.TurnID)
 	normalized.Error = strings.TrimSpace(normalized.Error)
 	normalized.Fingerprint = strings.TrimSpace(normalized.Fingerprint)
+	normalized.Tool = cloneToolProgress(normalized.Tool)
+	normalized.ToolInput = cloneRawJSON(normalized.ToolInput)
 	return normalized
-}
-
-func cloneDeliveryEvent(event DeliveryEvent) DeliveryEvent {
-	cloned := event.normalize()
-	cloned.ProviderMetadata = cloneRawJSON(cloned.ProviderMetadata)
-	if cloned.Reference != nil {
-		reference := cloned.Reference.normalize()
-		cloned.Reference = &reference
-	}
-	if cloned.Error != nil {
-		errorDetail := cloned.Error.normalize()
-		cloned.Error = &errorDetail
-	}
-	if cloned.Resume != nil {
-		resume := cloned.Resume.normalize()
-		cloned.Resume = &resume
-	}
-	return cloned
-}
-
-func cloneDeliverySnapshot(snapshot DeliverySnapshot) DeliverySnapshot {
-	cloned := snapshot.normalize()
-	return cloned
-}
-
-func cloneDeliveryRequest(req DeliveryRequest) DeliveryRequest {
-	cloned := DeliveryRequest{
-		Event: cloneDeliveryEvent(req.Event),
-	}
-	if req.Snapshot != nil {
-		snapshot := cloneDeliverySnapshot(*req.Snapshot)
-		cloned.Snapshot = &snapshot
-	}
-	return cloned
-}
-
-func cloneRawJSON(raw json.RawMessage) json.RawMessage {
-	if len(raw) == 0 {
-		return nil
-	}
-	return append(json.RawMessage(nil), raw...)
 }

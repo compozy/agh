@@ -1,4 +1,4 @@
-import { Link, useMatchRoute } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 
 import { SidebarSectionLabel, cn } from "@agh/ui";
 
@@ -31,30 +31,33 @@ export function SettingsSectionNav() {
 }
 
 function SettingsSectionLink({ section }: { section: SettingsSectionDescriptor }) {
-  const matchRoute = useMatchRoute();
   const sectionPath = settingsSectionPath(section.slug);
-  const isActive = !!matchRoute({ to: sectionPath, fuzzy: true });
   const Icon = section.icon;
 
   return (
     <Link
       to={sectionPath}
+      activeOptions={{ includeSearch: false }}
+      activeProps={{ className: ACTIVE_NAV_ROW_CLASS, "data-active": "true" }}
       data-testid={`settings-section-${section.slug}`}
-      data-active={isActive ? "true" : "false"}
-      aria-current={isActive ? "page" : undefined}
-      className={cn(NAV_ROW_CLASS, "shrink-0", isActive && ACTIVE_NAV_ROW_CLASS)}
+      inactiveProps={{ "data-active": "false" }}
+      className={cn(NAV_ROW_CLASS, "shrink-0")}
     >
-      {isActive && (
-        <span
-          aria-hidden="true"
-          className={cn(ACTIVE_NAV_INDICATOR_CLASS, "hidden xl:block")}
-          data-testid={`settings-section-active-${section.slug}`}
-        />
+      {({ isActive }) => (
+        <>
+          {isActive && (
+            <span
+              aria-hidden="true"
+              className={cn(ACTIVE_NAV_INDICATOR_CLASS, "hidden xl:block")}
+              data-testid={`settings-section-active-${section.slug}`}
+            />
+          )}
+          <Icon aria-hidden="true" className="size-3 shrink-0" />
+          <span className="whitespace-nowrap xl:truncate" title={section.label}>
+            {section.label}
+          </span>
+        </>
       )}
-      <Icon aria-hidden="true" className="size-3 shrink-0" />
-      <span className="whitespace-nowrap xl:truncate" title={section.label}>
-        {section.label}
-      </span>
     </Link>
   );
 }

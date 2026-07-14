@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/version"
 )
 

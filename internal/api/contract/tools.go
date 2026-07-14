@@ -12,6 +12,8 @@ type ToolDescriptorPayload struct {
 	ToolID              tools.ToolID          `json:"tool_id"`
 	Backend             ToolBackendRefPayload `json:"backend"`
 	DisplayTitle        string                `json:"display_title,omitempty"`
+	FriendlyVerb        string                `json:"friendly_verb,omitempty"`
+	Preview             string                `json:"preview,omitempty"`
 	Description         string                `json:"description"`
 	InputSchema         json.RawMessage       `json:"input_schema"`
 	OutputSchema        json.RawMessage       `json:"output_schema,omitempty"`

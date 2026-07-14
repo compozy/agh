@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/compozy/agh/internal/store"
@@ -166,8 +167,8 @@ func vaultPrefixRangeEnd(prefix string) string {
 		return ""
 	}
 	next := []byte(prefix)
-	for i := len(next) - 1; i >= 0; i-- {
-		if next[i] < 0xff {
+	for i, value := range slices.Backward(next) {
+		if value < 0xff {
 			next[i]++
 			return string(next[:i+1])
 		}

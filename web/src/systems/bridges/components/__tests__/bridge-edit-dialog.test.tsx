@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -148,5 +148,74 @@ describe("BridgeEditDialog", () => {
     expect(screen.getAllByRole("switch")[0]).toHaveAttribute("aria-checked", "false");
     expect(screen.getByTestId("bridge-edit-delivery-mode-select")).toHaveValue("reply");
     expect(screen.getByTestId("bridge-edit-delivery-peer-input")).toHaveValue("peer_123");
+  });
+
+  it("writes tri-state progress values and removes the override when provider default is restored", async () => {
+    const user = userEvent.setup();
+
+    function Wrapper() {
+      const [draft, setDraft] = useState<BridgeUpdateDraft>(baseDraft);
+
+      return (
+        <>
+          <BridgeEditDialog
+            allowProviderDefaultDmPolicy={false}
+            bridgeName="Support"
+            draft={draft}
+            isPending={false}
+            onDraftChange={setDraft}
+            onOpenChange={vi.fn()}
+            onSubmit={vi.fn()}
+            open
+            provider={makeProvider()}
+          />
+          <output data-testid="bridge-edit-progress-draft">
+            {draft.deliveryDefaults.progress
+              ? JSON.stringify(draft.deliveryDefaults.progress)
+              : "provider-default"}
+          </output>
+        </>
+      );
+    }
+
+    render(<Wrapper />);
+
+    await user.selectOptions(
+      screen.getByTestId("bridge-edit-delivery-progress-mode-select"),
+      "verbose"
+    );
+    const groupingSelect = screen.getByTestId("bridge-edit-delivery-progress-grouping-select");
+    expect(within(groupingSelect).queryByRole("option", { name: "Provider default" })).toBeNull();
+    expect(groupingSelect.querySelector('option[value=""]')).toBeNull();
+    await user.selectOptions(groupingSelect, "separate");
+    await user.selectOptions(
+      screen.getByTestId("bridge-edit-delivery-progress-typing-select"),
+      "true"
+    );
+    await user.selectOptions(
+      screen.getByTestId("bridge-edit-delivery-progress-reactions-select"),
+      "false"
+    );
+
+    expect(JSON.parse(screen.getByTestId("bridge-edit-progress-draft").textContent ?? "")).toEqual({
+      grouping: "separate",
+      reactions: false,
+      tool_progress: "verbose",
+      typing: true,
+    });
+
+    await user.selectOptions(screen.getByTestId("bridge-edit-delivery-progress-typing-select"), "");
+    expect(JSON.parse(screen.getByTestId("bridge-edit-progress-draft").textContent ?? "")).toEqual({
+      grouping: "separate",
+      reactions: false,
+      tool_progress: "verbose",
+    });
+
+    await user.selectOptions(screen.getByTestId("bridge-edit-delivery-progress-mode-select"), "");
+
+    expect(screen.getByTestId("bridge-edit-progress-draft")).toHaveTextContent("provider-default");
+    expect(screen.getByTestId("bridge-edit-delivery-progress-grouping-select")).toBeDisabled();
+    expect(screen.getByTestId("bridge-edit-delivery-progress-typing-select")).toBeDisabled();
+    expect(screen.getByTestId("bridge-edit-delivery-progress-reactions-select")).toBeDisabled();
   });
 });

@@ -208,6 +208,37 @@ describe("session timeline derivation", () => {
     expect(rows[1]).toMatchObject({ kind: "text", id: "text:terminal" });
   });
 
+  it("Should keep permission decisions outside a settled turn fold", () => {
+    const rows = deriveSessionRows(
+      [
+        tool(1, { turnId: "turn-permission", timestamp: "2026-07-07T12:00:00Z" }),
+        {
+          kind: "data",
+          id: "permission-rejected",
+          name: "data-agh-permission",
+          data: {
+            type: "permission",
+            request_id: "turn-permission:permission-rejected",
+            decision: "reject-always",
+          },
+          turnId: "turn-permission",
+          timestamp: "2026-07-07T12:00:04Z",
+          state: "done",
+        },
+        text("terminal-permission", "Rejected", "turn-permission", "2026-07-07T12:00:05Z"),
+      ],
+      { foldSettledTurns: true }
+    );
+
+    expect(rows.map(row => row.kind)).toEqual(["turn-fold", "data", "text"]);
+    const [foldRow, permissionRow] = rows;
+    if (foldRow?.kind !== "turn-fold" || permissionRow?.kind !== "data") {
+      throw new Error("expected a fold followed by a persistent permission row");
+    }
+    expect(foldRow.rows.map(row => row.kind)).toEqual(["work"]);
+    expect(permissionRow.part.name).toBe("data-agh-permission");
+  });
+
   it("Should keep the live turn inline instead of folding it", () => {
     const rows = deriveSessionRows(
       [

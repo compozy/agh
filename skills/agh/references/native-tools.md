@@ -103,7 +103,7 @@ MCP tools expose `agh__mcp_status` and `agh__mcp_auth_status` for redacted diagn
 
 Runtime log inspection is available through `agh__logs`. Metrics and redacted event search are available through `agh__observe_metrics` and `agh__observe_search`.
 
-Bridge list/status reads return counted, filtered pages through CLI, HTTP/UDS, and `agh__bridges_list` / `agh__bridges_status`; native results are redacted. The HTTP/UDS health stream requires at most 200 IDs from the current page under the same scope/workspace boundary. Bridge lifecycle, route mutation, test delivery, and secret binding management remain CLI/HTTP surfaces unless a scoped native tool is present in the live descriptor.
+Bridge list/status reads return counted, filtered pages through CLI, HTTP/UDS, and `agh__bridges_list` / `agh__bridges_status`; native results are redacted. The HTTP/UDS health stream requires at most 200 IDs from the current page under the same scope/workspace boundary. Bridge lifecycle, route mutation, secret binding, `manifest`, `setup`, `verify`, real `send-test`, and webhook registration remain CLI/HTTP/UDS management surfaces unless a scoped native tool is present in the live descriptor; never invent native equivalents.
 
 ## CLI/HTTP-Only Management Surfaces
 

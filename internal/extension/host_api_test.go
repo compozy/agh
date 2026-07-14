@@ -22,9 +22,10 @@ import (
 	apicontract "github.com/compozy/agh/internal/api/contract"
 	automationpkg "github.com/compozy/agh/internal/automation"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
 	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	"github.com/compozy/agh/internal/extension/protocol"
+	protocol "github.com/compozy/agh/internal/extensionprotocol"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/memory"
 	observepkg "github.com/compozy/agh/internal/observe"
@@ -875,7 +876,7 @@ func TestHostAPIHandlerResourcesMethodsCoexistWithBridgeOperationalMethods(t *te
 		t.Fatalf("Handle(bridges/instances/list) error = %v", err)
 	}
 
-	var listed []hostAPIBridgeInstance
+	var listed []bridgecontract.BridgeInstance
 	decodeResult(t, listedResult, &listed)
 	if got, want := len(listed), 1; got != want {
 		t.Fatalf("len(bridges/instances/list) = %d, want %d", got, want)
@@ -1278,10 +1279,13 @@ func TestHostAPIHandlerBridgesMessagesIngestSuppressesDuplicateWebhookRetries(t 
 	if err != nil {
 		t.Fatalf("first ingest error = %v", err)
 	}
-	var firstResult hostAPIBridgesMessagesIngestResult
+	var firstResult bridgecontract.BridgesMessagesIngestResult
 	decodeResult(t, first, &firstResult)
 
-	firstRoute, err := env.bridges.ResolveRoute(testutil.Context(t), firstResult.RoutingKey)
+	firstRoute, err := env.bridges.ResolveRoute(
+		testutil.Context(t),
+		bridgeRoutingKeyDomain(firstResult.RoutingKey),
+	)
 	if err != nil {
 		t.Fatalf("bridges.ResolveRoute(first) error = %v", err)
 	}
@@ -1292,10 +1296,13 @@ func TestHostAPIHandlerBridgesMessagesIngestSuppressesDuplicateWebhookRetries(t 
 	if err != nil {
 		t.Fatalf("duplicate ingest error = %v", err)
 	}
-	var secondResult hostAPIBridgesMessagesIngestResult
+	var secondResult bridgecontract.BridgesMessagesIngestResult
 	decodeResult(t, second, &secondResult)
 
-	secondRoute, err := env.bridges.ResolveRoute(testutil.Context(t), secondResult.RoutingKey)
+	secondRoute, err := env.bridges.ResolveRoute(
+		testutil.Context(t),
+		bridgeRoutingKeyDomain(secondResult.RoutingKey),
+	)
 	if err != nil {
 		t.Fatalf("bridges.ResolveRoute(second) error = %v", err)
 	}
@@ -1405,7 +1412,7 @@ func TestHostAPIHandlerBridgesInstancesReportStateClearsDegradationOnRecovery(t 
 		t.Fatalf("Handle(bridges/instances/report_state recovery) error = %v", err)
 	}
 
-	var updated hostAPIBridgeInstance
+	var updated bridgecontract.BridgeInstance
 	decodeResult(t, result, &updated)
 	if updated.Degradation != nil {
 		t.Fatalf("updated.Degradation = %#v, want nil", updated.Degradation)
@@ -1418,7 +1425,7 @@ func TestHostAPIHandlerBridgesInstancesReportStateClearsDegradationOnRecovery(t 
 		t.Fatalf("Handle(bridges/instances/get recovery) error = %v", err)
 	}
 
-	var loaded hostAPIBridgeInstance
+	var loaded bridgecontract.BridgeInstance
 	decodeResult(t, fetched, &loaded)
 	if loaded.Degradation != nil {
 		t.Fatalf("loaded.Degradation = %#v, want nil", loaded.Degradation)
@@ -1469,7 +1476,7 @@ func TestHostAPIHandlerMethodHandlersExposeBridgeRuntimeAwareInstanceLookup(t *t
 		t.Fatalf("MethodHandlers()[bridges/instances/get]() error = %v", err)
 	}
 
-	var loaded hostAPIBridgeInstance
+	var loaded bridgecontract.BridgeInstance
 	decodeResult(t, result, &loaded)
 	if loaded.ID != instance.ID {
 		t.Fatalf("loaded.ID = %q, want %q", loaded.ID, instance.ID)
@@ -1503,7 +1510,7 @@ func TestHostAPIHandlerBridgesInstancesListReturnsOwnedInstancesForProviderRunti
 		t.Fatalf("Handle(bridges/instances/list) error = %v", err)
 	}
 
-	var listed []hostAPIBridgeInstance
+	var listed []bridgecontract.BridgeInstance
 	decodeResult(t, listedResult, &listed)
 	if got := len(listed); got != 2 {
 		t.Fatalf("len(listed) = %d, want 2", got)
@@ -1519,7 +1526,7 @@ func TestHostAPIHandlerBridgesInstancesListReturnsOwnedInstancesForProviderRunti
 		t.Fatalf("Handle(bridges/instances/get) error = %v", err)
 	}
 
-	var fetched hostAPIBridgeInstance
+	var fetched bridgecontract.BridgeInstance
 	decodeResult(t, fetchedResult, &fetched)
 	if got, want := fetched.ID, second.ID; got != want {
 		t.Fatalf("fetched.ID = %q, want %q", got, want)
@@ -1533,7 +1540,8 @@ func TestHostAPIHandlerBridgesInstancesListAllowsZeroManagedInstances(t *testing
 	env.grant("telegram-adapter", []string{"bridges/instances/list"}, []string{"bridge.read"})
 
 	ctx := withHostAPIBridgeRuntime(testutil.Context(t), &subprocess.InitializeBridgeRuntime{
-		RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
+		RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion2,
+		Purpose:        subprocess.BridgeRuntimePurposeService,
 		Provider:       "telegram-adapter",
 		Platform:       "telegram",
 	})
@@ -1543,7 +1551,7 @@ func TestHostAPIHandlerBridgesInstancesListAllowsZeroManagedInstances(t *testing
 		t.Fatalf("Handle(bridges/instances/list zero) error = %v", err)
 	}
 
-	var listed []hostAPIBridgeInstance
+	var listed []bridgecontract.BridgeInstance
 	decodeResult(t, result, &listed)
 	if len(listed) != 0 {
 		t.Fatalf("len(listed) = %d, want 0", len(listed))
@@ -1564,7 +1572,7 @@ func TestHostAPIHandlerBridgesMessagesIngestConcurrentSameRoutingKeyCreatesOneSe
 	ctx := env.bridgeContext(t, instance)
 
 	type ingestResult struct {
-		result hostAPIBridgesMessagesIngestResult
+		result bridgecontract.BridgesMessagesIngestResult
 		err    error
 	}
 
@@ -1666,7 +1674,7 @@ func TestHostAPIHandlerBridgesMessagesIngestRebindsStaleRouteToReplacementSessio
 		t.Fatalf("Handle(bridges/messages/ingest) error = %v", err)
 	}
 
-	var ingest hostAPIBridgesMessagesIngestResult
+	var ingest bridgecontract.BridgesMessagesIngestResult
 	decodeResult(t, result, &ingest)
 	if ingest.SessionID == "missing-session" {
 		t.Fatal("ingest session_id = missing-session, want replacement session")
@@ -2420,10 +2428,10 @@ func TestHostAPIContextHelpersCloneBridgeAndResourceSession(t *testing.T) {
 	runtime := &subprocess.InitializeBridgeRuntime{
 		ManagedInstances: []subprocess.InitializeBridgeManagedInstance{
 			{
-				Instance: bridgepkg.BridgeInstance{
+				Instance: bridgepkg.BridgeInstanceToContract(bridgepkg.BridgeInstance{
 					ID:            "brg-1",
 					ExtensionName: "ext-runtime",
-				},
+				}),
 			},
 		},
 	}
@@ -2481,6 +2489,47 @@ func TestHostAPIContextHelpersCloneBridgeAndResourceSession(t *testing.T) {
 	if got, want := storedRuntime.ManagedInstances[0].Instance.ID, "brg-1"; got != want {
 		t.Fatalf("storedRuntime.ManagedInstances[0].Instance.ID = %q, want %q", got, want)
 	}
+
+	t.Run("Should preserve workspace identity and deep-copy inbound bridge wire payloads", func(t *testing.T) {
+		t.Parallel()
+
+		wire := bridgecontract.InboundMessageEnvelope{
+			BridgeInstanceID: "brg-wire", Scope: bridgecontract.ScopeWorkspace,
+			WorkspaceID: "ws-wire", ReceivedAt: time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC),
+			Attachments: []bridgecontract.MessageAttachment{{ID: "att-1", Name: "report.pdf"}},
+			Command:     &bridgecontract.InboundCommand{Command: "/summarize"},
+			Conversation: &bridgecontract.NetworkConversationRef{
+				Channel: "general", Surface: bridgecontract.NetworkConversationSurfaceThread,
+				ThreadID: "thread_1",
+			},
+			ProviderMetadata: json.RawMessage(`{"update_id":1}`), IdempotencyKey: "idem-wire",
+		}
+
+		domain := bridgeInboundEnvelopeDomain(wire)
+		if got, want := domain.Scope, bridgepkg.ScopeWorkspace; got != want {
+			t.Fatalf("bridgeInboundEnvelopeDomain().Scope = %q, want %q", got, want)
+		}
+		if got, want := domain.WorkspaceID, "ws-wire"; got != want {
+			t.Fatalf("bridgeInboundEnvelopeDomain().WorkspaceID = %q, want %q", got, want)
+		}
+
+		domain.Attachments[0].Name = "mutated"
+		domain.Command.Command = "/mutated"
+		domain.Conversation.Channel = "mutated"
+		domain.ProviderMetadata[0] = '['
+		if got, want := wire.Attachments[0].Name, "report.pdf"; got != want {
+			t.Fatalf("wire.Attachments[0].Name = %q after domain mutation, want %q", got, want)
+		}
+		if got, want := wire.Command.Command, "/summarize"; got != want {
+			t.Fatalf("wire.Command.Command = %q after domain mutation, want %q", got, want)
+		}
+		if got, want := wire.Conversation.Channel, "general"; got != want {
+			t.Fatalf("wire.Conversation.Channel = %q after domain mutation, want %q", got, want)
+		}
+		if got, want := string(wire.ProviderMetadata), `{"update_id":1}`; got != want {
+			t.Fatalf("wire.ProviderMetadata = %q after domain mutation, want %q", got, want)
+		}
+	})
 }
 
 func TestNormalizeHostAPIRPCErrorMapsResourceStatuses(t *testing.T) {
@@ -4943,6 +4992,9 @@ Review the workspace changes carefully.
 	workspaces := newHostAPIFakeWorkspaceResolver(&resolvedWorkspace)
 	driver := newHostAPIFakeDriver(baseNow)
 	source := &hostAPISessionSource{}
+	if err := extensionTestGlobalSeed.Clone(homePaths.DatabaseFile); err != nil {
+		t.Fatalf("global store seed Clone() error = %v", err)
+	}
 	registry, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("globaldb.OpenGlobalDB() error = %v", err)
@@ -5013,9 +5065,13 @@ Review the workspace changes carefully.
 	}
 	source.manager = sessions
 
+	memoryCatalogPath := filepath.Join(homePaths.HomeDir, "memory-catalog.db")
+	if err := extensionTestMemorySeed.Clone(memoryCatalogPath); err != nil {
+		t.Fatalf("memory store seed Clone() error = %v", err)
+	}
 	memoryStore := memory.NewStore(
 		homePaths.MemoryDir,
-		memory.WithCatalogDatabasePath(filepath.Join(homePaths.HomeDir, "memory-catalog.db")),
+		memory.WithCatalogDatabasePath(memoryCatalogPath),
 	)
 	if err := memoryStore.OpenCatalog(testutil.Context(t)); err != nil {
 		t.Fatalf("memory.OpenCatalog() error = %v", err)
@@ -5339,11 +5395,14 @@ func (e *hostAPITestEnv) bridgeContextForInstances(
 			t.Fatal("bridge instance = nil, want non-nil")
 			return testutil.Context(t)
 		}
-		managed = append(managed, subprocess.InitializeBridgeManagedInstance{Instance: *instance})
+		managed = append(managed, subprocess.InitializeBridgeManagedInstance{
+			Instance: bridgepkg.BridgeInstanceToContract(*instance),
+		})
 	}
 
 	return withHostAPIBridgeRuntime(testutil.Context(t), &subprocess.InitializeBridgeRuntime{
-		RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion1,
+		RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion2,
+		Purpose:          subprocess.BridgeRuntimePurposeService,
 		Provider:         instances[0].ExtensionName,
 		Platform:         instances[0].Platform,
 		ManagedInstances: managed,

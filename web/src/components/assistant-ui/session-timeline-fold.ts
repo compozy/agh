@@ -98,7 +98,16 @@ function foldTurnGroup(
   if (!interrupted && !hasTerminalText) {
     return group;
   }
-  const rowsInsideFold = hasTerminalText ? group.slice(0, -1) : [...group];
+  const rowsBeforeTerminal = hasTerminalText ? group.slice(0, -1) : [...group];
+  const rowsInsideFold: SessionRow[] = [];
+  const persistentRows: SessionRow[] = [];
+  for (const row of rowsBeforeTerminal) {
+    if (isPersistentTurnRow(row)) {
+      persistentRows.push(row);
+    } else {
+      rowsInsideFold.push(row);
+    }
+  }
   if (rowsInsideFold.length === 0) {
     return group;
   }
@@ -113,7 +122,13 @@ function foldTurnGroup(
     interrupted,
     rows: rowsInsideFold,
   };
-  return hasTerminalText ? [foldRow, terminal] : [foldRow];
+  return hasTerminalText ? [foldRow, ...persistentRows, terminal] : [foldRow, ...persistentRows];
+}
+
+// Permission rows remain operator-visible audit and decision surfaces after a
+// turn settles; they are not transient reasoning or tool work.
+function isPersistentTurnRow(row: SessionRow): boolean {
+  return row.kind === "data" && row.part.name === "data-agh-permission";
 }
 
 // Label fallbacks: a settled turn folds even when its duration is unknown, and

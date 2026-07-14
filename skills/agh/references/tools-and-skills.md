@@ -4,6 +4,7 @@
 
 - Tool-first operating model
 - Discovery loop
+- Tool presentation metadata
 - Skill loading
 - Bundled skill resources
 - Skill provenance and shadows
@@ -35,6 +36,19 @@ lineage explicitly narrows it. Use `agh__tool_search` and `agh__tool_info` to di
 denied tools; use `agh__tool_list` when you need only the currently callable set.
 
 For skills, resolve canonical `agh__skill_search`/`agh__skill_view`, then call returned references. Use CLI fallback only when denied, absent, or explicitly requested.
+
+## Tool Presentation Metadata
+
+Descriptor presentation is optional and workspace-scoped. Extension manifests use
+`friendly_verb` and `preview` under `[resources.tools.<name>]`; MCP tool `_meta` uses
+`agh/friendly_verb` and `agh/preview`. AGH resolves the active descriptor through the current
+workspace's registry projection.
+
+`friendly_verb` is one line and at most 80 runes. `preview` accepts only `auto`, `none`, `command`,
+`path`, `delegate`, `query`, or `arg:<field>`; an argument strategy must select a non-sensitive
+scalar field. The daemon selects and redacts the preview. See [Tool progress in
+bridges](https://agh.network/runtime/core/bridges/progress) for the rendering and validation
+contract.
 
 ## Skill Loading
 

@@ -3,6 +3,7 @@ package acpmock
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -13,6 +14,7 @@ import (
 
 // DiagnosticsRecord captures one protocol, lifecycle, or prompt event emitted by the ACP mock driver.
 type DiagnosticsRecord struct {
+	AGHSessionID      string             `json:"agh_session_id,omitempty"`
 	AgentName         string             `json:"agent_name"`
 	SessionID         string             `json:"session_id"`
 	ProtocolMethod    string             `json:"protocol_method,omitempty"`
@@ -26,6 +28,22 @@ type DiagnosticsRecord struct {
 	TurnName          string             `json:"turn_name,omitempty"`
 	Match             TurnMatch          `json:"match"`
 	Steps             []DiagnosticsStep  `json:"steps"`
+}
+
+// DiagnosticsForAGHSession returns records owned by one daemon session in append order.
+func DiagnosticsForAGHSession(records []DiagnosticsRecord, aghSessionID string) []DiagnosticsRecord {
+	owner := strings.TrimSpace(aghSessionID)
+	filtered := make([]DiagnosticsRecord, 0, len(records))
+	if owner == "" {
+		return filtered
+	}
+	for _, record := range records {
+		if strings.TrimSpace(record.AGHSessionID) != owner {
+			continue
+		}
+		filtered = append(filtered, record)
+	}
+	return filtered
 }
 
 // ProtocolDiagnostics returns diagnostics emitted when the driver receives ACP protocol methods.
@@ -55,17 +73,21 @@ type DiagnosticsStep struct {
 }
 
 // ReadDiagnostics decodes newline-delimited diagnostics written by the mock driver.
-func ReadDiagnostics(path string) ([]DiagnosticsRecord, error) {
+func ReadDiagnostics(path string) (records []DiagnosticsRecord, err error) {
 	file, err := os.Open(strings.TrimSpace(path))
 	if err != nil {
 		return nil, fmt.Errorf("acpmock: open diagnostics %q: %w", path, err)
 	}
-	defer func() { _ = file.Close() }()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("acpmock: close diagnostics %q: %w", path, closeErr))
+		}
+	}()
 
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
 
-	records := make([]DiagnosticsRecord, 0, 4)
+	records = make([]DiagnosticsRecord, 0, 4)
 	lineNo := 0
 	for scanner.Scan() {
 		lineNo++

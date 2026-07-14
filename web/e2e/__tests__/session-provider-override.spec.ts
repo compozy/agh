@@ -49,6 +49,10 @@ interface SessionEnvelope {
   session: SessionPayload;
 }
 
+interface SessionListEnvelope {
+  sessions: SessionPayload[];
+}
+
 interface WorkspaceDetailPayload {
   id: string;
   providers: Array<{ name: string }>;
@@ -56,6 +60,8 @@ interface WorkspaceDetailPayload {
 
 test.use({
   runtimeOptions: {
+    env: { PATH: ["/usr/bin", "/bin"].join(path.delimiter) },
+    modelsDevEnabled: false,
     seed: {
       mockAgents: [
         {
@@ -343,7 +349,7 @@ async function assertSessionParity(
       env: cliEnv(runtime.paths),
     }
   );
-  const cliRecords = JSON.parse(stdout) as SessionPayload[];
+  const cliRecords = (JSON.parse(stdout) as SessionListEnvelope).sessions;
   const cliRecord = cliRecords.find(session => session.id === sessionID);
   expect(cliRecord?.provider).toBe(expectedProvider);
 }
@@ -356,7 +362,6 @@ function sessionAPIPath(workspaceID: string, sessionID: string, suffix = ""): st
 
 function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv {
   return {
-    ...process.env,
     AGH_HOME: paths.homeDir,
     HOME: paths.homeDir,
     PATH: `${path.dirname(paths.cliShim)}:${process.env.PATH ?? ""}`,

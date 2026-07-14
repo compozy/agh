@@ -4,27 +4,66 @@ import { expect, userEvent, within } from "storybook/test";
 
 import { createBridgeTestDeliveryDraft } from "@/systems/bridges";
 import { bridgeDetailFixture, testBridgeDeliveryFixture } from "@/systems/bridges/mocks";
+import type { SendBridgeTestResponse } from "@/systems/bridges/types";
 
 import { BridgeTestDeliveryDialog } from "../bridge-test-delivery-dialog";
 
-const meta: Meta<typeof BridgeTestDeliveryDialog> = {
-  title: "systems/bridges/components/BridgeTestDeliveryDialog",
-  component: BridgeTestDeliveryDialog,
-  parameters: {
-    layout: "fullscreen",
+const storyDraft = createBridgeTestDeliveryDraft(bridgeDetailFixture.bridge);
+const noop = () => undefined;
+
+const meta = {
+  args: {
+    bridgeName: bridgeDetailFixture.bridge.display_name,
+    draft: storyDraft,
+    intent: "dry-run",
+    isPending: false,
+    onDraftChange: noop,
+    onOpenChange: noop,
+    onSubmit: noop,
+    open: true,
+    result: null,
   },
-};
+  component: BridgeTestDeliveryDialog,
+  parameters: { layout: "fullscreen" },
+  title: "systems/bridges/components/BridgeTestDeliveryDialog",
+} satisfies Meta<typeof BridgeTestDeliveryDialog>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function BridgeTestDeliveryDialogHarness({ includeResult = true }: { includeResult?: boolean }) {
-  const [draft, setDraft] = useState(createBridgeTestDeliveryDraft(bridgeDetailFixture.bridge));
+const sendResult: SendBridgeTestResponse = {
+  bridge_instance_id: bridgeDetailFixture.bridge.id,
+  delivery_id: "delivery_story_001",
+  delivery_target: {
+    bridge_instance_id: bridgeDetailFixture.bridge.id,
+    mode: "direct-send",
+    peer_id: "launch-room",
+  },
+  remote_message_id: "telegram_2048",
+  status: "delivered",
+};
 
+const committedResultUnavailable: SendBridgeTestResponse = {
+  bridge_instance_id: bridgeDetailFixture.bridge.id,
+  delivery_id: "delivery_story_ambiguous",
+  delivery_target: {
+    bridge_instance_id: bridgeDetailFixture.bridge.id,
+    mode: "direct-send",
+    peer_id: "launch-room",
+  },
+  error: {
+    message: "The provider accepted the mutation but did not return a remote message ID.",
+  },
+  status: "committed_result_unavailable",
+};
+
+function DryRunHarness({ includeResult = true }: { includeResult?: boolean }) {
+  const [draft, setDraft] = useState(createBridgeTestDeliveryDraft(bridgeDetailFixture.bridge));
   return (
     <BridgeTestDeliveryDialog
       bridgeName={bridgeDetailFixture.bridge.display_name}
       draft={draft}
+      intent="dry-run"
       isPending={false}
       onDraftChange={setDraft}
       onOpenChange={() => undefined}
@@ -35,24 +74,55 @@ function BridgeTestDeliveryDialogHarness({ includeResult = true }: { includeResu
   );
 }
 
-export const Default: Story = {
-  render: () => <BridgeTestDeliveryDialogHarness includeResult={false} />,
-};
+function SendTestHarness({
+  includeResult = true,
+  result = sendResult,
+}: {
+  includeResult?: boolean;
+  result?: SendBridgeTestResponse;
+}) {
+  const initialDraft = createBridgeTestDeliveryDraft(bridgeDetailFixture.bridge);
+  const [draft, setDraft] = useState({ ...initialDraft, message: "Bridge setup is ready." });
+  return (
+    <BridgeTestDeliveryDialog
+      bridgeName={bridgeDetailFixture.bridge.display_name}
+      draft={draft}
+      intent="send-test"
+      isPending={false}
+      onDraftChange={setDraft}
+      onOpenChange={() => undefined}
+      onSubmit={() => undefined}
+      open
+      result={includeResult ? result : null}
+    />
+  );
+}
 
-export const WithResolvedTarget: Story = {
-  render: () => <BridgeTestDeliveryDialogHarness includeResult />,
-};
-
-export const OpenFlow: Story = {
+export const DryRun: Story = { render: () => <DryRunHarness includeResult={false} /> };
+export const DryRunResolved: Story = { render: () => <DryRunHarness /> };
+export const SendTest: Story = { render: () => <SendTestHarness includeResult={false} /> };
+export const SendTestDelivered: Story = { render: () => <SendTestHarness /> };
+export const SendTestCommittedResultUnavailable: Story = {
+  render: () => <SendTestHarness result={committedResultUnavailable} />,
   tags: ["play-fn"],
-  render: () => <BridgeTestDeliveryDialogHarness includeResult={false} />,
+  play: async () => {
+    const result = await within(document.body).findByTestId("bridge-send-test-result");
+    if (window.innerWidth <= 400) {
+      result.scrollIntoView({ block: "center" });
+    }
+  },
+};
+
+export const SendTestFlow: Story = {
+  render: () => <SendTestHarness includeResult={false} />,
+  tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const body = within(document.body);
     const message = await body.findByTestId("test-delivery-message");
-    await userEvent.type(message, "Ping", { delay: null });
-    await expect(message).toHaveValue("Ping");
-    const dialog = await body.findByTestId("bridge-test-delivery-dialog");
-    await expect(dialog).toBeVisible();
+    await userEvent.clear(message);
+    await userEvent.type(message, "Operator ping", { delay: null });
+    await expect(message).toHaveValue("Operator ping");
+    await expect(body.getByTestId("bridge-send-test-dialog")).toBeVisible();
     void canvasElement;
   },
 };

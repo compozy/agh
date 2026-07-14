@@ -1,15 +1,19 @@
+// Suite: bridge SDK runtime contracts
+// Invariant: negotiated runtime methods route requests to the correct handler and validate every response.
+// Boundary IN: bridgesdk runtime request dispatch and session helpers.
+// Boundary OUT: provider APIs and daemon transport, owned by integration suites.
 package bridgesdk
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -55,16 +59,432 @@ func TestSessionAckDeliveryBuildsValidatedAck(t *testing.T) {
 	}
 }
 
+func TestRuntimeAcknowledgesCommittedMutationWithoutReturningRetryableRPCError(t *testing.T) {
+	var typedNil *CommittedMutationError
+	testCases := []struct {
+		name        string
+		handlerErr  error
+		wantMessage string
+	}{
+		{
+			name: "Should acknowledge a committed mutation with provider detail",
+			handlerErr: &CommittedMutationError{
+				Err: errors.New("provider accepted the message but omitted its id"),
+			},
+			wantMessage: "omitted its id",
+		},
+		{
+			name:        "Should acknowledge an empty committed mutation marker",
+			handlerErr:  &CommittedMutationError{},
+			wantMessage: committedMutationFallbackMessage,
+		},
+		{
+			name:        "Should acknowledge a typed nil committed mutation marker",
+			handlerErr:  typedNil,
+			wantMessage: committedMutationFallbackMessage,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			request := testRuntimeFinalDeliveryRequest("answer")
+			runtime, err := NewRuntime(RuntimeConfig{
+				ExtensionInfo: subprocess.InitializeExtensionInfo{Name: "committed-result", Version: "1.0.0"},
+				Check:         testCheckHandler,
+				Deliver: func(
+					context.Context,
+					*Session,
+					bridgepkg.DeliveryRequest,
+				) (bridgepkg.DeliveryAck, error) {
+					return bridgepkg.DeliveryAck{}, testCase.handlerErr
+				},
+			})
+			if err != nil {
+				t.Fatalf("NewRuntime() error = %v", err)
+			}
+			runtime.session = &Session{}
+			raw, err := json.Marshal(request)
+			if err != nil {
+				t.Fatalf("json.Marshal(request) error = %v", err)
+			}
+
+			result, err := runtime.handleDeliver(context.Background(), raw)
+			if err != nil {
+				t.Fatalf("handleDeliver() error = %v, want semantic acknowledgement", err)
+			}
+			ack, ok := result.(bridgepkg.DeliveryAck)
+			if !ok {
+				t.Fatalf("handleDeliver() result type = %T, want DeliveryAck", result)
+			}
+			if got, want := ack.Outcome, bridgepkg.DeliveryAckOutcomeCommittedResultUnavailable; got != want {
+				t.Fatalf("ack.Outcome = %q, want %q", got, want)
+			}
+			if ack.Error == nil || !strings.Contains(ack.Error.Message, testCase.wantMessage) {
+				t.Fatalf("ack.Error = %#v, want detail containing %q", ack.Error, testCase.wantMessage)
+			}
+			if ack.RemoteMessageID != "" || ack.ReplaceRemoteMessageID != "" {
+				t.Fatalf(
+					"committed-result ack remote ids = (%q, %q), want empty",
+					ack.RemoteMessageID,
+					ack.ReplaceRemoteMessageID,
+				)
+			}
+		})
+	}
+}
+
+func TestRuntimeProgressDeliveryDefaultsToContractNoop(t *testing.T) {
+	t.Run("Should acknowledge progress without invoking the text handler", func(t *testing.T) {
+		t.Parallel()
+
+		deliverCalls := 0
+		runtime, err := NewRuntime(RuntimeConfig{
+			ExtensionInfo: subprocess.InitializeExtensionInfo{Name: "progress-noop", Version: "1.0.0"},
+			Check:         testCheckHandler,
+			Deliver: func(
+				context.Context,
+				*Session,
+				bridgepkg.DeliveryRequest,
+			) (bridgepkg.DeliveryAck, error) {
+				deliverCalls++
+				return bridgepkg.DeliveryAck{}, errors.New("text handler must not receive progress")
+			},
+		})
+		if err != nil {
+			t.Fatalf("NewRuntime() error = %v", err)
+		}
+		runtime.session = &Session{}
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "dlv-progress-noop",
+			BridgeInstanceID: "brg-progress-noop",
+			RoutingKey: bridgepkg.RoutingKey{
+				Scope:            bridgepkg.ScopeWorkspace,
+				WorkspaceID:      "ws-progress-noop",
+				BridgeInstanceID: "brg-progress-noop",
+				PeerID:           "peer-progress-noop",
+			},
+			DeliveryTarget: bridgepkg.DeliveryTarget{
+				BridgeInstanceID: "brg-progress-noop",
+				PeerID:           "peer-progress-noop",
+				Mode:             bridgepkg.DeliveryModeReply,
+			},
+			Seq:       2,
+			EventType: bridgepkg.DeliveryEventTypeProgress,
+			Progress: &bridgepkg.ToolProgress{
+				ToolCallID: "call-progress-noop",
+				ToolID:     "agh__terminal",
+				Phase:      bridgepkg.ToolProgressPhaseStarted,
+				Label:      "Running",
+				Emoji:      "⚙️",
+				Index:      1,
+			},
+		}}
+		raw, err := json.Marshal(request)
+		if err != nil {
+			t.Fatalf("json.Marshal(request) error = %v", err)
+		}
+
+		result, err := runtime.handleDeliver(context.Background(), raw)
+		if err != nil {
+			t.Fatalf("handleDeliver(progress) error = %v", err)
+		}
+		ack, ok := result.(bridgepkg.DeliveryAck)
+		if !ok {
+			t.Fatalf("handleDeliver(progress) result type = %T, want DeliveryAck", result)
+		}
+		if got, want := ack.DeliveryID, request.Event.DeliveryID; got != want {
+			t.Fatalf("progress ack delivery id = %q, want %q", got, want)
+		}
+		if got, want := ack.Seq, request.Event.Seq; got != want {
+			t.Fatalf("progress ack seq = %d, want %d", got, want)
+		}
+		if ack.RemoteMessageID != "" || ack.ReplaceRemoteMessageID != "" {
+			t.Fatalf(
+				"progress noop ack remote ids = (%q, %q), want empty",
+				ack.RemoteMessageID,
+				ack.ReplaceRemoteMessageID,
+			)
+		}
+		if got, want := deliverCalls, 0; got != want {
+			t.Fatalf("text deliver handler calls = %d, want %d", got, want)
+		}
+	})
+}
+
+func TestRuntimeProgressDeliveryUsesDedicatedHandler(t *testing.T) {
+	t.Parallel()
+
+	request := testRuntimeProgressDeliveryRequest()
+	raw, err := json.Marshal(request)
+	if err != nil {
+		t.Fatalf("json.Marshal(request) error = %v", err)
+	}
+
+	t.Run("Should route progress exclusively to the dedicated handler", func(t *testing.T) {
+		t.Parallel()
+
+		deliverCalls := 0
+		progressCalls := 0
+		runtime, err := NewRuntime(RuntimeConfig{
+			ExtensionInfo: subprocess.InitializeExtensionInfo{Name: "progress-handler", Version: "1.0.0"},
+			Check:         testCheckHandler,
+			Deliver: func(
+				context.Context,
+				*Session,
+				bridgepkg.DeliveryRequest,
+			) (bridgepkg.DeliveryAck, error) {
+				deliverCalls++
+				return bridgepkg.DeliveryAck{}, errors.New("text handler must not receive progress")
+			},
+			Progress: func(
+				_ context.Context,
+				session *Session,
+				received bridgepkg.DeliveryRequest,
+			) (bridgepkg.DeliveryAck, error) {
+				progressCalls++
+				return session.AckDelivery(received, "", "")
+			},
+		})
+		if err != nil {
+			t.Fatalf("NewRuntime() error = %v", err)
+		}
+		runtime.session = &Session{}
+
+		result, err := runtime.handleDeliver(context.Background(), raw)
+		if err != nil {
+			t.Fatalf("handleDeliver(progress) error = %v", err)
+		}
+		ack, ok := result.(bridgepkg.DeliveryAck)
+		if !ok {
+			t.Fatalf("handleDeliver(progress) result type = %T, want DeliveryAck", result)
+		}
+		if got, want := ack.DeliveryID, request.Event.DeliveryID; got != want {
+			t.Fatalf("progress ack delivery id = %q, want %q", got, want)
+		}
+		if got, want := ack.Seq, request.Event.Seq; got != want {
+			t.Fatalf("progress ack seq = %d, want %d", got, want)
+		}
+		if got, want := progressCalls, 1; got != want {
+			t.Fatalf("progress handler calls = %d, want %d", got, want)
+		}
+		if got := deliverCalls; got != 0 {
+			t.Fatalf("text handler calls = %d, want zero", got)
+		}
+	})
+
+	t.Run("Should propagate a dedicated progress handler failure", func(t *testing.T) {
+		t.Parallel()
+
+		wantErr := errors.New("provider progress failed")
+		runtime, err := NewRuntime(RuntimeConfig{
+			ExtensionInfo: subprocess.InitializeExtensionInfo{Name: "progress-error", Version: "1.0.0"},
+			Check:         testCheckHandler,
+			Deliver: func(
+				context.Context,
+				*Session,
+				bridgepkg.DeliveryRequest,
+			) (bridgepkg.DeliveryAck, error) {
+				return bridgepkg.DeliveryAck{}, errors.New("text handler must not receive progress")
+			},
+			Progress: func(
+				context.Context,
+				*Session,
+				bridgepkg.DeliveryRequest,
+			) (bridgepkg.DeliveryAck, error) {
+				return bridgepkg.DeliveryAck{}, wantErr
+			},
+		})
+		if err != nil {
+			t.Fatalf("NewRuntime() error = %v", err)
+		}
+		runtime.session = &Session{}
+
+		result, err := runtime.handleDeliver(context.Background(), raw)
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("handleDeliver(progress) error = %v, want %v", err, wantErr)
+		}
+		if result != nil {
+			t.Fatalf("handleDeliver(progress) result = %#v, want nil after handler failure", result)
+		}
+	})
+
+	t.Run(
+		"Should convert an invalid progress acknowledgement into a committed-result acknowledgement",
+		func(t *testing.T) {
+			t.Parallel()
+
+			progressCalls := 0
+			runtime, err := NewRuntime(RuntimeConfig{
+				ExtensionInfo: subprocess.InitializeExtensionInfo{Name: "progress-invalid-ack", Version: "1.0.0"},
+				Check:         testCheckHandler,
+				Deliver: func(
+					context.Context,
+					*Session,
+					bridgepkg.DeliveryRequest,
+				) (bridgepkg.DeliveryAck, error) {
+					return bridgepkg.DeliveryAck{}, errors.New("text handler must not receive progress")
+				},
+				Progress: func(
+					_ context.Context,
+					_ *Session,
+					_ bridgepkg.DeliveryRequest,
+				) (bridgepkg.DeliveryAck, error) {
+					progressCalls++
+					return bridgepkg.DeliveryAck{}, nil
+				},
+			})
+			if err != nil {
+				t.Fatalf("NewRuntime() error = %v", err)
+			}
+			runtime.session = &Session{}
+
+			result, err := runtime.handleDeliver(context.Background(), raw)
+			if err != nil {
+				t.Fatalf("handleDeliver(progress) error = %v, want semantic acknowledgement", err)
+			}
+			ack, ok := result.(bridgepkg.DeliveryAck)
+			if !ok {
+				t.Fatalf("handleDeliver(progress) result type = %T, want DeliveryAck", result)
+			}
+			if got, want := ack.DeliveryID, request.Event.DeliveryID; got != want {
+				t.Fatalf("ack.DeliveryID = %q, want %q", got, want)
+			}
+			if got, want := ack.Seq, request.Event.Seq; got != want {
+				t.Fatalf("ack.Seq = %d, want %d", got, want)
+			}
+			if got, want := ack.Outcome, bridgepkg.DeliveryAckOutcomeCommittedResultUnavailable; got != want {
+				t.Fatalf("ack.Outcome = %q, want %q", got, want)
+			}
+			if ack.Error == nil || !strings.Contains(ack.Error.Message, "delivery id is required") {
+				t.Fatalf("ack.Error = %#v, want missing delivery id detail", ack.Error)
+			}
+			if got, want := progressCalls, 1; got != want {
+				t.Fatalf("progress handler calls = %d, want %d", got, want)
+			}
+		},
+	)
+}
+
+func TestRuntimeFinalDeliveryRouting(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		text                string
+		operation           bridgepkg.DeliveryOperation
+		progressHandler     bool
+		wantTextHandlerCall bool
+		wantProgressCalls   int
+		wantRemoteMessageID string
+	}{
+		{
+			name: "Should acknowledge a lifecycle-only final without invoking the text handler",
+		},
+		{
+			name:              "Should route a lifecycle-only final through the progress handler when configured",
+			progressHandler:   true,
+			wantProgressCalls: 1,
+		},
+		{
+			name:                "Should route a materialized final through the text handler",
+			text:                "answer",
+			wantTextHandlerCall: true,
+			wantRemoteMessageID: "answer-message",
+		},
+		{
+			name:                "Should route an empty edit final through the text handler",
+			operation:           bridgepkg.DeliveryOperationEdit,
+			wantTextHandlerCall: true,
+			wantRemoteMessageID: "answer-message",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			textHandlerCalls := 0
+			progressHandlerCalls := 0
+			config := RuntimeConfig{
+				ExtensionInfo: subprocess.InitializeExtensionInfo{Name: "final-routing", Version: "1.0.0"},
+				Check:         testCheckHandler,
+				Deliver: func(
+					_ context.Context,
+					session *Session,
+					request bridgepkg.DeliveryRequest,
+				) (bridgepkg.DeliveryAck, error) {
+					textHandlerCalls++
+					return session.AckDelivery(request, "answer-message", "")
+				},
+			}
+			if test.progressHandler {
+				config.Progress = func(
+					_ context.Context,
+					session *Session,
+					request bridgepkg.DeliveryRequest,
+				) (bridgepkg.DeliveryAck, error) {
+					progressHandlerCalls++
+					return session.AckDelivery(request, "", "")
+				}
+			}
+			runtime, err := NewRuntime(config)
+			if err != nil {
+				t.Fatalf("NewRuntime() error = %v", err)
+			}
+			runtime.session = &Session{}
+
+			request := testRuntimeFinalDeliveryRequest(test.text)
+			if test.operation != "" {
+				request.Event.Operation = test.operation
+				request.Event.Reference = &bridgepkg.DeliveryMessageReference{RemoteMessageID: "answer-message"}
+			}
+			raw, err := json.Marshal(request)
+			if err != nil {
+				t.Fatalf("json.Marshal(request) error = %v", err)
+			}
+			result, err := runtime.handleDeliver(context.Background(), raw)
+			if err != nil {
+				t.Fatalf("handleDeliver(final) error = %v", err)
+			}
+			ack, ok := result.(bridgepkg.DeliveryAck)
+			if !ok {
+				t.Fatalf("handleDeliver(final) result type = %T, want DeliveryAck", result)
+			}
+			if got, want := ack.DeliveryID, request.Event.DeliveryID; got != want {
+				t.Fatalf("final ack delivery id = %q, want %q", got, want)
+			}
+			if got, want := ack.Seq, request.Event.Seq; got != want {
+				t.Fatalf("final ack seq = %d, want %d", got, want)
+			}
+			if got, want := ack.RemoteMessageID, test.wantRemoteMessageID; got != want {
+				t.Fatalf("final ack remote message id = %q, want %q", got, want)
+			}
+			wantCalls := 0
+			if test.wantTextHandlerCall {
+				wantCalls = 1
+			}
+			if got := textHandlerCalls; got != wantCalls {
+				t.Fatalf("text handler calls = %d, want %d", got, wantCalls)
+			}
+			if got := progressHandlerCalls; got != test.wantProgressCalls {
+				t.Fatalf("progress handler calls = %d, want %d", got, test.wantProgressCalls)
+			}
+		})
+	}
+}
+
 func TestSessionReportClassifiedErrorReportsStateThroughHostAPI(t *testing.T) {
 	t.Parallel()
 
-	reported := extensioncontract.BridgesInstancesReportStateParams{}
+	reported := bridgepkg.BridgesInstancesReportStateParams{}
 	session := &Session{
 		host: NewHostAPIClientFromCall(func(_ context.Context, method string, params any, result any) error {
 			if got, want := method, "bridges/instances/report_state"; got != want {
 				t.Fatalf("method = %q, want %q", got, want)
 			}
-			reported = params.(extensioncontract.BridgesInstancesReportStateParams)
+			reported = params.(bridgepkg.BridgesInstancesReportStateParams)
 			target := result.(*bridgepkg.BridgeInstance)
 			*target = testBridgeInstance(reported.BridgeInstanceID)
 			target.Status = reported.Status
@@ -226,4 +646,42 @@ func TestSessionInitializeAccessorsReturnClones(t *testing.T) {
 	if got, want := session.response.ImplementedMethods[0], "bridges/deliver"; got != want {
 		t.Fatalf("session.response.ImplementedMethods[0] = %q, want %q", got, want)
 	}
+}
+
+func testRuntimeProgressDeliveryRequest() bridgepkg.DeliveryRequest {
+	return bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+		DeliveryID:       "dlv-progress-handler",
+		BridgeInstanceID: "brg-progress-handler",
+		RoutingKey: bridgepkg.RoutingKey{
+			Scope:            bridgepkg.ScopeWorkspace,
+			WorkspaceID:      "ws-progress-handler",
+			BridgeInstanceID: "brg-progress-handler",
+			PeerID:           "peer-progress-handler",
+		},
+		DeliveryTarget: bridgepkg.DeliveryTarget{
+			BridgeInstanceID: "brg-progress-handler",
+			PeerID:           "peer-progress-handler",
+			Mode:             bridgepkg.DeliveryModeReply,
+		},
+		Seq:       2,
+		EventType: bridgepkg.DeliveryEventTypeProgress,
+		Progress: &bridgepkg.ToolProgress{
+			ToolCallID: "call-progress-handler",
+			ToolID:     "agh__terminal",
+			Phase:      bridgepkg.ToolProgressPhaseStarted,
+			Label:      "Running",
+			Emoji:      "⚙️",
+			Index:      1,
+		},
+	}}
+}
+
+func testRuntimeFinalDeliveryRequest(text string) bridgepkg.DeliveryRequest {
+	request := testRuntimeProgressDeliveryRequest()
+	request.Event.Seq = 3
+	request.Event.EventType = bridgepkg.DeliveryEventTypeFinal
+	request.Event.Content = bridgepkg.MessageContent{Text: text}
+	request.Event.Final = true
+	request.Event.Progress = nil
+	return request
 }

@@ -100,7 +100,6 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
 
   await expect(appPage).toHaveURL(/\/bridges$/);
   await expect(bridgeUI.listPanel).toBeVisible();
-  await expect(bridgeUI.scopeAll).toHaveAttribute("aria-pressed", "true");
 
   await bridgeUI.createBridgeButton.click();
   await expect(bridgeUI.createDialog).toBeVisible();
@@ -125,17 +124,25 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
   expect(createResponse.ok()).toBeTruthy();
   const createdPayload = (await createResponse.json()) as { bridge: { id: string } };
   await expect(bridgeUI.createDialog).toBeHidden();
-  await expect(bridgeUI.item(createdPayload.bridge.id)).toBeVisible();
-  await expect(bridgeUI.item(createdPayload.bridge.id)).toContainText(createdBridgeName);
+  await expect(appPage).toHaveURL(
+    new RegExp(`/bridges/${encodeURIComponent(createdPayload.bridge.id)}$`)
+  );
+  await expect(bridgeUI.detailPanel).toContainText(createdBridgeName);
   await browserArtifacts.captureScreenshot("bridge-create-dialog-saved", appPage);
 
-  await bridgeUI.item(seeded.bridge.id).click();
+  await bridgeUI.navBridges.click();
+  await expect(appPage).toHaveURL(/\/bridges$/);
+  await expect(bridgeUI.listPanel).toBeVisible();
+  await expect(bridgeUI.item(createdPayload.bridge.id)).toBeVisible();
+  await expect(bridgeUI.item(createdPayload.bridge.id)).toContainText(createdBridgeName);
   await expect(bridgeUI.item(seeded.bridge.id)).toBeVisible();
   await expect(bridgeUI.item(seeded.bridge.id)).toContainText(
     browserBridgeOperatorFlowScenario.bridge.initialName
   );
   await expect(bridgeUI.item(seeded.bridge.id)).toContainText("disabled");
   await expect(bridgeUI.item(seeded.bridge.id)).toContainText("0 routes");
+  await bridgeUI.item(seeded.bridge.id).click();
+  await expect(appPage).toHaveURL(new RegExp(`/bridges/${encodeURIComponent(seeded.bridge.id)}$`));
   await expect(bridgeUI.detailPanel).toContainText(
     browserBridgeOperatorFlowScenario.bridge.initialName
   );
@@ -155,9 +162,6 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
 
   await expect(bridgeUI.editDialog).toBeHidden();
   await expect(bridgeUI.detailPanel).toContainText(
-    browserBridgeOperatorFlowScenario.bridge.editedName
-  );
-  await expect(bridgeUI.item(seeded.bridge.id)).toContainText(
     browserBridgeOperatorFlowScenario.bridge.editedName
   );
   await expect(bridgeUI.detailPanel).toContainText(
@@ -187,11 +191,6 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
       timeout: 45_000,
     })
     .toContain("ready");
-  await expect
-    .poll(async () => (await bridgeUI.item(seeded.bridge.id).textContent()) ?? "", {
-      timeout: 45_000,
-    })
-    .toContain("0 routes");
   await browserArtifacts.captureScreenshot("bridge-operator-enabled", appPage);
 
   await bridgeUI.openTestDeliveryButton.click();
@@ -229,9 +228,7 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
   const ingress = await triggerBrowserBridgeIngress(runtime, seeded);
   expect(ingress.transcript).toContain(browserBridgeOperatorFlowScenario.ingress.assistant);
 
-  await expect
-    .poll(async () => (await bridgeUI.item(seeded.bridge.id).textContent()) ?? "")
-    .toContain("1 routes");
+  await expect(bridgeUI.route(ingress.sessionId)).toBeVisible();
   await expect
     .poll(async () =>
       /Last delivery\s*Never/.test((await bridgeUI.detailPanel.textContent()) ?? "")
@@ -307,20 +304,20 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
 
   await expect(bridgeUI.createDialog).toBeHidden();
   const createdBridge = await waitForBridgeByName(runtime, createdName);
-  await bridgeUI.item(createdBridge.id).click();
+  await expect(appPage).toHaveURL(new RegExp(`/bridges/${encodeURIComponent(createdBridge.id)}$`));
   await expect(bridgeUI.detailPanel).toContainText(createdName);
   await expect(bridgeUI.detailPanel).toContainText("UNBOUND");
   await browserArtifacts.captureScreenshot("bridge-created-unbound", appPage);
 
-  const initialSnapshots = await waitForBridgeSnapshots(runtime, createdBridge.id, "auth_required");
+  const initialSnapshots = await waitForBridgeSnapshots(runtime, createdBridge.id, "disabled");
   expect(initialSnapshots.http.bridge.id).toBe(createdBridge.id);
   expect(initialSnapshots.uds.bridge.id).toBe(createdBridge.id);
   expect(initialSnapshots.cli.id).toBe(createdBridge.id);
-  expect(initialSnapshots.http.bridge.enabled).toBe(true);
-  expect(initialSnapshots.uds.bridge.enabled).toBe(true);
-  expect(initialSnapshots.cli.enabled).toBe(true);
-  expect(initialSnapshots.http.health.status).toBe("auth_required");
-  expect(initialSnapshots.uds.health.status).toBe("auth_required");
+  expect(initialSnapshots.http.bridge.enabled).toBe(false);
+  expect(initialSnapshots.uds.bridge.enabled).toBe(false);
+  expect(initialSnapshots.cli.enabled).toBe(false);
+  expect(initialSnapshots.http.health.status).toBe("disabled");
+  expect(initialSnapshots.uds.health.status).toBe("disabled");
   assertNoSensitiveText("initial bridge snapshots", JSON.stringify(initialSnapshots));
 
   await bridgeUI
@@ -354,7 +351,7 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
   ).toBe(true);
   assertNoSensitiveText("bound secret snapshots", JSON.stringify(boundSnapshots));
 
-  await bridgeUI.restartBridgeButton.click();
+  await bridgeUI.enableBridgeButton.click();
   await waitForBridgeStatus(runtime, createdBridge.id, "ready");
   await expect
     .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "", { timeout: 45_000 })
@@ -397,7 +394,7 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
   expect(authRequired.health.status).toBe("auth_required");
   await expect
     .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "")
-    .toContain("auth_required");
+    .toContain("auth required");
   await browserArtifacts.captureScreenshot("bridge-auth-required-after-secret-delete", appPage);
 
   await bridgeUI
@@ -413,7 +410,7 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
     .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "", { timeout: 45_000 })
     .toContain("ready");
 
-  await assertBridgeResponsive(appPage, bridgeUI, createdBridge.id);
+  await assertBridgeDetailResponsive(appPage, bridgeUI);
   const routeState = await captureRouteState(appPage);
   expect(routeState.bridge_view_visible).toBe(true);
   expect(routeState.bridge_selected_item).toBe(createdName);
@@ -622,10 +619,9 @@ async function requestOperatorJSONOrThrow<T>(
   return await runtime.requestOperatorJSON<T>(pathname, init);
 }
 
-async function assertBridgeResponsive(
+async function assertBridgeDetailResponsive(
   appPage: Page,
-  bridgeUI: ReturnType<typeof bridgeOperatorSelectors>,
-  bridgeId: string
+  bridgeUI: ReturnType<typeof bridgeOperatorSelectors>
 ): Promise<void> {
   for (const viewport of [
     { height: 900, name: "mobile", width: 375 },
@@ -633,9 +629,7 @@ async function assertBridgeResponsive(
     { height: 900, name: "desktop", width: 1280 },
   ]) {
     await appPage.setViewportSize({ height: viewport.height, width: viewport.width });
-    await expect(bridgeUI.listPanel).toBeVisible();
     await expect(bridgeUI.detailPanel).toBeVisible();
-    await expect(bridgeUI.item(bridgeId)).toBeVisible();
     await expect(bridgeUI.restartBridgeButton).toBeVisible();
     await expect(bridgeUI.openTestDeliveryButton).toBeVisible();
   }

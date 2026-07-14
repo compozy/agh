@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 )
 
 const (
@@ -87,6 +87,44 @@ func TestCallSendsRequestAndReceivesResponse(t *testing.T) {
 	if response.Message != "hello" {
 		t.Fatalf("Call(echo) response = %#v, want message hello", response)
 	}
+}
+
+func TestCallReturnsTypedResponseDecodeError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve the method and underlying materialization failure", func(t *testing.T) {
+		t.Parallel()
+
+		process := launchHelperProcess(t, "default", LaunchConfig{})
+		defer shutdownProcess(t, process)
+		initializeProcess(t, process, InitializeRuntime{
+			HealthCheckIntervalMS: 1_000,
+			HealthCheckTimeoutMS:  100,
+			ShutdownTimeoutMS:     250,
+			DefaultHookTimeoutMS:  100,
+		})
+
+		var response struct {
+			Message int `json:"message"`
+		}
+		err := process.Call(
+			testContext(t),
+			"echo",
+			map[string]string{"message": "not-an-integer"},
+			&response,
+		)
+		var decodeErr *ResponseDecodeError
+		if !errors.As(err, &decodeErr) {
+			t.Fatalf("Call(echo) error = %v, want ResponseDecodeError", err)
+		}
+		if got, want := decodeErr.Method, "echo"; got != want {
+			t.Fatalf("ResponseDecodeError.Method = %q, want %q", got, want)
+		}
+		var typeErr *json.UnmarshalTypeError
+		if !errors.As(err, &typeErr) {
+			t.Fatalf("Call(echo) error = %v, want wrapped json.UnmarshalTypeError", err)
+		}
+	})
 }
 
 func TestCallWithContextCancellationReturnsPromptly(t *testing.T) {

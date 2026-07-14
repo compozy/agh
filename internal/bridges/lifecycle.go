@@ -2,6 +2,8 @@ package bridges
 
 import (
 	"fmt"
+
+	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
 )
 
 // ValidateInstanceStateTransition reports whether the next enabled/status pair is
@@ -41,19 +43,7 @@ func ValidateInstanceStateTransition(current BridgeInstance, nextEnabled bool, n
 }
 
 func validateInstanceLifecycle(enabled bool, status BridgeStatus) error {
-	normalizedStatus := status.Normalize()
-	if err := normalizedStatus.Validate(); err != nil {
-		return err
-	}
-
-	if !enabled && normalizedStatus != BridgeStatusDisabled {
-		return fmt.Errorf("bridges: disabled bridge instance must report status %q", BridgeStatusDisabled)
-	}
-	if enabled && normalizedStatus == BridgeStatusDisabled {
-		return fmt.Errorf("bridges: enabled bridge instance cannot report status %q", BridgeStatusDisabled)
-	}
-
-	return nil
+	return bridgecontract.ValidateBridgeInstanceLifecycle(enabled, bridgecontract.BridgeStatus(status))
 }
 
 func canTransitionInstanceState(

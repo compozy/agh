@@ -79,7 +79,7 @@ func streamTestSessionInfo(id string) *session.Info {
 	}
 }
 
-func TestTranscriptStreamInitializationFailure(t *testing.T) {
+func TestTranscriptStreamErrorHandling(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should emit one terminal error and cancel the live subscription", func(t *testing.T) {
@@ -145,6 +145,52 @@ func TestTranscriptStreamInitializationFailure(t *testing.T) {
 			if !strings.Contains(logs.String(), fragment) {
 				t.Fatalf("SSE failure log missing %q: %s", fragment, logs.String())
 			}
+		}
+	})
+
+	t.Run("Should close without a warning or error frame when the session is removed", func(t *testing.T) {
+		t.Parallel()
+
+		var logs bytes.Buffer
+		stopped := streamTestSessionInfo("sess-a")
+		stopped.State = session.StateStopped
+		events := make(chan store.SessionEvent, 1)
+		events <- store.SessionEvent{Type: session.EventTypeSessionStopped}
+		handlers := &BaseHandlers{
+			Logger: slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})),
+			Sessions: sessionManagerStub{
+				status: func(context.Context, string) (*session.Info, error) {
+					return stopped, nil
+				},
+				transcriptChanges: func(
+					context.Context,
+					string,
+					transcript.ChangeQuery,
+				) (transcript.ChangePage, error) {
+					return transcript.ChangePage{}, session.ErrSessionNotFound
+				},
+			},
+		}
+		gin.SetMode(gin.TestMode)
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ctx.Request = httptest.NewRequestWithContext(context.Background(), "GET", "/stream", http.NoBody)
+		writer := &streamTestFlushWriter{}
+
+		handlers.pushAndStreamSessionTranscript(
+			ctx,
+			writer,
+			"sess-a",
+			streamTestSessionInfo("sess-a"),
+			transcriptStreamState{cursor: 7, generation: 2, epoch: 3},
+			2,
+			sessionEventStreamSubscription{events: events, cancel: func() {}},
+		)
+
+		if strings.Contains(writer.String(), "event: error") {
+			t.Fatalf("stream emitted an error frame after deletion: %s", writer.String())
+		}
+		if strings.Contains(logs.String(), `"level":"WARN"`) {
+			t.Fatalf("stream logged expected deletion at warning level: %s", logs.String())
 		}
 	})
 }

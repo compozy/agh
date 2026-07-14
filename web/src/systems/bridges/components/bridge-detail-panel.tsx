@@ -1,73 +1,28 @@
-import {
-  AlertCircle,
-  CheckCircle2,
-  ListFilter,
-  Pencil,
-  Power,
-  RotateCw,
-  Search,
-  SendHorizontal,
-  Trash2,
-  Waypoints,
-} from "lucide-react";
-import type { FormEvent } from "react";
+import { AlertCircle, Waypoints } from "lucide-react";
 
-import {
-  Button,
-  CodeBlock,
-  ConfirmDialog,
-  DataSurface,
-  DetailHeader,
-  DialogTrigger,
-  Empty,
-  Eyebrow,
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldTitle,
-  Input,
-  MetadataList,
-  Metric,
-  Pill,
-  type PillTone,
-  SearchInput,
-  Section,
-  Spinner,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@agh/ui";
+import { DataSurface } from "@agh/ui";
 
-import {
-  bridgeStatusLabel,
-  bridgeStatusTone,
-  bridgeTargetTypeLabel,
-  describeBridgeDeliveryDefaults,
-  describeBridgeDmPolicy,
-  describeBridgeProviderConfigSchema,
-  describeBridgeRouteTarget,
-  describeBridgeRoutingPolicy,
-  describeBridgeSecretSlot,
-  describeBridgeTargetCapabilities,
-  describeBridgeTargetQualifier,
-  formatBridgeDateTime,
-  formatBridgeProviderConfig,
-  formatBridgeRelativeTime,
-} from "../lib/bridge-formatters";
+import { formatBridgeProviderConfig } from "../lib/bridge-formatters";
+import type { BridgeSetupProjection } from "../lib/bridge-setup";
 import type {
   BridgeHealth,
   BridgeProvider,
-  BridgeResolveTargetResponse,
   BridgeRoute,
   BridgeSecretBinding,
   BridgeStatus,
   BridgeSummary,
-  BridgeTarget,
-  BridgeTargetsResponse,
 } from "../types";
+import { BridgeDeliveryActions } from "./bridge-delivery-actions";
+import { BridgeDetailConfiguration } from "./bridge-detail-configuration";
+import { BridgeDetailHeader } from "./bridge-detail-header";
+import { BridgeDetailMetrics } from "./bridge-detail-metrics";
+import { BridgeEventStreamSection } from "./bridge-event-stream-section";
+import { BridgeProviderRuntimeSection } from "./bridge-provider-runtime-section";
+import { BridgeSetupChecklist } from "./bridge-setup-checklist";
+import {
+  BridgeTargetDirectorySection,
+  type BridgeTargetDirectoryState,
+} from "./bridge-target-directory-section";
 
 interface BridgeDetailPanelProps {
   bridge: BridgeSummary | undefined;
@@ -75,18 +30,11 @@ interface BridgeDetailPanelProps {
   error: Error | null;
   health: BridgeHealth | undefined;
   onBack?: () => void;
-  state: {
-    isLifecyclePending?: boolean;
-    isLoading: boolean;
-    isRoutesLoading: boolean;
-    isSecretBindingPending?: boolean;
-    isSecretBindingsLoading?: boolean;
-  };
-  targetDirectory?: BridgeTargetDirectoryState;
   onDeleteSecretBinding?: (bindingName: string) => void;
   onDisableBridge?: () => void;
   onEnableBridge?: () => void;
   onOpenEdit?: () => void;
+  onOpenSendTest: () => void;
   onOpenTestDelivery: () => void;
   onRestartBridge?: () => void;
   onSaveSecretBinding?: (bindingName: string) => void;
@@ -96,880 +44,31 @@ interface BridgeDetailPanelProps {
   routes: BridgeRoute[];
   secretBindings?: BridgeSecretBinding[];
   secretInputValues?: Record<string, string>;
+  setup: {
+    isLifecyclePending: boolean;
+    isRegistering: boolean;
+    isVerifying: boolean;
+    onRegisterWebhook: () => void;
+    onVerify: () => void;
+    projection: BridgeSetupProjection | null;
+  };
+  state: {
+    isLifecyclePending?: boolean;
+    isLoading: boolean;
+    isProviderLoading?: boolean;
+    isRoutesLoading: boolean;
+    isSecretBindingPending?: boolean;
+    isSecretBindingsLoading?: boolean;
+    providerError?: Error | null;
+    secretBindingsError?: Error | null;
+  };
+  targetDirectory?: BridgeTargetDirectoryState;
   workspaceName?: string | null;
 }
 
-interface BridgeTargetDirectoryState {
-  error: Error | null;
-  isLoading: boolean;
-  isResolving: boolean;
-  onQueryChange: (query: string) => void;
-  onResolveInputChange: (value: string) => void;
-  onResolveSubmit: () => void;
-  query: string;
-  resolveInput: string;
-  resolveResult: BridgeResolveTargetResponse | null;
-  response?: BridgeTargetsResponse;
-}
-
-interface BridgeMetrics {
-  activeRoutes: string;
-  eventsTotal: string;
-  lastDelivery: string;
-  successRate: string;
-  successTone: "default" | "accent" | "success" | "warning" | "danger";
-}
-
-const METADATA_TILE_CLASS = "rounded-md border border-line bg-canvas-soft px-4 py-3";
-const METADATA_TERM_CLASS = "mb-2 text-muted";
-const METADATA_VALUE_CLASS = "text-small-body text-fg";
 const EMPTY_SECRET_BINDINGS: BridgeSecretBinding[] = [];
 const EMPTY_SECRET_INPUT_VALUES: Record<string, string> = {};
-
-function statusToPillTone(status: BridgeStatus): PillTone {
-  if (status === "disabled") return "danger";
-  return bridgeStatusTone(status);
-}
-
-function computeBridgeMetrics(
-  health: BridgeHealth | undefined,
-  routes: BridgeRoute[]
-): BridgeMetrics {
-  const backlog = health?.delivery_backlog ?? 0;
-  const failures = health?.delivery_failures_total ?? 0;
-  const dropped = health?.delivery_dropped_total ?? 0;
-  const active = health?.route_count ?? routes.length;
-  const total = backlog + failures + dropped + active;
-  const successLike = active;
-
-  let successRate = "--";
-  let successTone: BridgeMetrics["successTone"] = "default";
-  if (total > 0) {
-    const pct = (successLike / total) * 100;
-    successRate = `${Math.round(pct)}%`;
-    successTone = pct >= 90 ? "success" : pct >= 70 ? "default" : "warning";
-  }
-
-  return {
-    activeRoutes: String(active),
-    eventsTotal: String(total),
-    lastDelivery: formatBridgeRelativeTime(health?.last_success_at),
-    successRate,
-    successTone,
-  };
-}
-
-interface SecretSlotCardProps {
-  binding?: BridgeSecretBinding;
-  inputValue: string;
-  isSecretBindingPending: boolean;
-  onDelete?: (bindingName: string) => void;
-  onDraftChange?: (bindingName: string, value: string) => void;
-  onSave?: (bindingName: string) => void;
-  slot: NonNullable<BridgeProvider["secret_slots"]>[number];
-}
-
-function SecretSlotCard({
-  binding,
-  inputValue,
-  isSecretBindingPending,
-  onDelete,
-  onDraftChange,
-  onSave,
-  slot,
-}: SecretSlotCardProps) {
-  return (
-    <article
-      className="rounded-md border border-line bg-canvas-soft px-4 py-3"
-      data-testid={`bridge-secret-binding-${slot.name}`}
-    >
-      <div className="flex flex-wrap items-center gap-2">
-        <Eyebrow className="text-accent">{slot.name}</Eyebrow>
-        <Pill mono tone={slot.required === false ? "neutral" : "warning"}>
-          {slot.required === false ? "OPTIONAL" : "REQUIRED"}
-        </Pill>
-        <Pill mono tone={binding ? "success" : "neutral"}>
-          {binding ? "BOUND" : "UNBOUND"}
-        </Pill>
-      </div>
-      <p className="mt-2 text-xs leading-relaxed text-muted">{describeBridgeSecretSlot(slot)}</p>
-      <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-        <Field>
-          <FieldContent>
-            <FieldTitle>Secret value</FieldTitle>
-            <FieldDescription>
-              AGH stores bridge secret values in the vault for this bridge.
-            </FieldDescription>
-          </FieldContent>
-          <Input
-            data-testid={`bridge-secret-env-input-${slot.name}`}
-            id={`bridge-secret-env-${slot.name}`}
-            onChange={event => onDraftChange?.(slot.name, event.target.value)}
-            placeholder="Paste secret value"
-            type="password"
-            value={inputValue}
-          />
-          {binding ? (
-            <p className="text-xs text-muted">
-              Current ref: <span className="font-mono">{binding.secret_ref}</span>
-            </p>
-          ) : (
-            <p className="text-xs text-subtle">No secret binding stored.</p>
-          )}
-        </Field>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            data-testid={`save-bridge-secret-${slot.name}`}
-            disabled={!inputValue.trim() || isSecretBindingPending}
-            onClick={() => onSave?.(slot.name)}
-            size="sm"
-            type="button"
-          >
-            Save
-          </Button>
-          <ConfirmDialog
-            cancelButtonProps={{
-              "data-testid": `cancel-delete-bridge-secret-${slot.name}`,
-              disabled: isSecretBindingPending,
-            }}
-            cancelLabel="Cancel"
-            confirmButtonProps={{
-              "data-testid": `confirm-delete-bridge-secret-${slot.name}`,
-            }}
-            confirmIcon={Trash2}
-            confirmLabel="Delete binding"
-            description={`This removes the stored vault binding for ${slot.name}. The provider will not receive this secret until a replacement is saved.`}
-            isPending={isSecretBindingPending}
-            onConfirm={() => onDelete?.(slot.name)}
-            title="Delete secret binding?"
-            tone="danger"
-          >
-            <DialogTrigger
-              render={
-                <Button
-                  data-testid={`delete-bridge-secret-${slot.name}`}
-                  disabled={!binding || isSecretBindingPending}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                />
-              }
-            >
-              Delete
-            </DialogTrigger>
-          </ConfirmDialog>
-        </div>
-      </div>
-    </article>
-  );
-}
-
-function BridgeMetricsSection({
-  health,
-  routes,
-}: {
-  health: BridgeHealth | undefined;
-  routes: BridgeRoute[];
-}) {
-  const metrics = computeBridgeMetrics(health, routes);
-
-  return (
-    <Section label="Delivery metrics">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <Metric
-          data-testid="bridge-metric-events-24h"
-          label="Events (24h)"
-          subtext="backlog + failures + active"
-          value={metrics.eventsTotal}
-        />
-        <Metric
-          data-testid="bridge-metric-success-rate"
-          label="Success rate"
-          subtext="active vs. backlog"
-          tone={metrics.successTone}
-          value={metrics.successRate}
-        />
-        <Metric
-          data-testid="bridge-metric-last-delivery"
-          label="Last delivery"
-          subtext="most recent success"
-          value={metrics.lastDelivery}
-        />
-        <Metric
-          data-testid="bridge-metric-active-routes"
-          label="Active routes"
-          subtext="sessions mapped"
-          tone="accent"
-          value={metrics.activeRoutes}
-        />
-      </div>
-    </Section>
-  );
-}
-
-function BridgeTargetRow({ target }: { target: BridgeTarget }) {
-  return (
-    <TableRow data-testid={"bridge-target-" + target.canonical_route}>
-      <TableCell>
-        <div className="min-w-0">
-          <div className="truncate text-small-body font-medium text-fg">{target.display_name}</div>
-          <div className="mt-1 truncate font-mono text-eyebrow text-subtle">
-            {describeBridgeTargetCapabilities(target)}
-          </div>
-        </div>
-      </TableCell>
-      <TableCell>
-        <Pill mono tone="neutral">
-          {bridgeTargetTypeLabel(target)}
-        </Pill>
-      </TableCell>
-      <TableCell className="font-mono text-xs text-muted">
-        {describeBridgeTargetQualifier(target)}
-      </TableCell>
-      <TableCell className="max-w-[18rem] truncate font-mono text-xs text-muted">
-        {target.canonical_route}
-      </TableCell>
-      <TableCell className="font-mono text-xs text-subtle">
-        {formatBridgeRelativeTime(target.last_seen_at ?? target.updated_at)}
-      </TableCell>
-    </TableRow>
-  );
-}
-
-function BridgeTargetCard({ target }: { target: BridgeTarget }) {
-  return (
-    <article
-      className="min-w-0 rounded-md border border-line bg-canvas px-3 py-3"
-      data-testid={"bridge-target-card-" + target.canonical_route}
-    >
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-small-body font-medium text-fg">{target.display_name}</div>
-          <div className="mt-1 truncate font-mono text-eyebrow text-subtle">
-            {describeBridgeTargetCapabilities(target)}
-          </div>
-        </div>
-        <Pill mono tone="neutral">
-          {bridgeTargetTypeLabel(target)}
-        </Pill>
-      </div>
-      <dl className="mt-3 grid gap-2 text-xs">
-        <div className="min-w-0">
-          <dt className="text-muted">Qualifier</dt>
-          <dd className="mt-1 break-all font-mono text-subtle">
-            {describeBridgeTargetQualifier(target)}
-          </dd>
-        </div>
-        <div className="min-w-0">
-          <dt className="text-muted">Route</dt>
-          <dd className="mt-1 break-all font-mono text-subtle">{target.canonical_route}</dd>
-        </div>
-        <div className="min-w-0">
-          <dt className="text-muted">Seen</dt>
-          <dd className="mt-1 font-mono text-subtle">
-            {formatBridgeRelativeTime(target.last_seen_at ?? target.updated_at)}
-          </dd>
-        </div>
-      </dl>
-    </article>
-  );
-}
-
-function BridgeResolveResult({ result }: { result: BridgeResolveTargetResponse }) {
-  const diagnostic = result.diagnostic;
-  if (result.result.match) {
-    const target = result.result.match;
-    return (
-      <div
-        className="rounded-md border border-success/40 bg-success-tint px-4 py-3"
-        data-testid="bridge-target-resolve-result"
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <CheckCircle2 className="size-4 text-success" />
-          <span className="text-small-body font-medium text-fg">{target.display_name}</span>
-          <Pill mono tone="success">
-            STEP {result.result.step}
-          </Pill>
-        </div>
-        <p className="mt-2 break-all font-mono text-xs text-muted">{target.canonical_route}</p>
-      </div>
-    );
-  }
-
-  if (result.result.ambiguous) {
-    return (
-      <div
-        className="rounded-md border border-warning/40 bg-warning-tint px-4 py-3"
-        data-testid="bridge-target-resolve-ambiguous"
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <AlertCircle className="size-4 text-warning" />
-          <span className="text-small-body font-medium text-fg">
-            {diagnostic?.title ?? "Bridge target is ambiguous"}
-          </span>
-          <Pill mono tone="warning">
-            {result.result.candidates?.length ?? 0} candidates
-          </Pill>
-        </div>
-        {diagnostic?.message ? (
-          <p className="mt-2 text-xs text-muted">{diagnostic.message}</p>
-        ) : null}
-        <div className="mt-3 grid gap-2 md:grid-cols-2">
-          {(result.result.candidates ?? []).map(candidate => (
-            <div
-              className="min-w-0 rounded-md border border-line bg-canvas-soft px-3 py-2"
-              data-testid={"bridge-target-resolve-candidate-" + candidate.canonical_route}
-              key={candidate.canonical_route}
-            >
-              <div className="truncate text-small-body font-medium text-fg">
-                {candidate.display_name}
-              </div>
-              <div className="mt-1 truncate font-mono text-eyebrow text-subtle">
-                {candidate.canonical_route}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="rounded-md border border-danger/40 bg-danger-tint px-4 py-3"
-      data-testid="bridge-target-resolve-unknown"
-    >
-      <div className="flex flex-wrap items-center gap-2">
-        <AlertCircle className="size-4 text-danger" />
-        <span className="text-small-body font-medium text-fg">
-          {diagnostic?.title ?? "Bridge target not found"}
-        </span>
-      </div>
-      {diagnostic?.message ? <p className="mt-2 text-xs text-muted">{diagnostic.message}</p> : null}
-    </div>
-  );
-}
-
-function BridgeTargetDirectorySection({ state }: { state?: BridgeTargetDirectoryState }) {
-  const targets = state?.response?.targets ?? [];
-  const total = state?.response?.total ?? targets.length;
-  const lastRefresh = formatBridgeRelativeTime(state?.response?.last_successful_refresh_at);
-
-  const handleResolveSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    state?.onResolveSubmit();
-  };
-
-  return (
-    <Section
-      label="Target directory"
-      right={
-        <div className="flex flex-wrap items-center gap-2">
-          {state?.response?.cache_stale ? (
-            <Pill mono tone="warning">
-              STALE
-            </Pill>
-          ) : null}
-          <Pill mono>{total}</Pill>
-        </div>
-      }
-    >
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.45fr)_minmax(18rem,0.55fr)]">
-        <div
-          className="min-w-0 overflow-hidden rounded-md border border-line bg-canvas-soft"
-          data-testid="bridge-target-directory"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
-            <SearchInput
-              containerClassName="min-w-0 flex-1"
-              data-testid="bridge-target-search"
-              onChange={value => state?.onQueryChange(value)}
-              placeholder="Filter targets"
-              value={state?.query ?? ""}
-            />
-            <div className="flex items-center gap-2 text-xs text-subtle">
-              <ListFilter className="size-3" />
-              <span className="font-mono">{lastRefresh}</span>
-            </div>
-          </div>
-
-          {state?.isLoading ? (
-            <DataSurface.Loading data-testid="bridge-targets-loading" label="Loading targets" />
-          ) : state?.error ? (
-            <div className="p-4" data-testid="bridge-targets-error">
-              <Empty
-                description={state.error.message}
-                icon={AlertCircle}
-                title="Unable to load targets"
-              />
-            </div>
-          ) : targets.length === 0 ? (
-            <div className="p-4" data-testid="bridge-targets-empty">
-              <Empty
-                description="No provider targets have been discovered for this bridge."
-                icon={Waypoints}
-                title="No targets"
-              />
-            </div>
-          ) : (
-            <>
-              <div className="grid gap-3 p-3 md:hidden">
-                {targets.map(target => (
-                  <BridgeTargetCard key={target.canonical_route} target={target} />
-                ))}
-              </div>
-              <div className="hidden overflow-x-auto md:block" data-testid="bridge-targets-table">
-                <Table className="min-w-[46rem]">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>
-                        <Eyebrow>Target</Eyebrow>
-                      </TableHead>
-                      <TableHead>
-                        <Eyebrow>Type</Eyebrow>
-                      </TableHead>
-                      <TableHead>
-                        <Eyebrow>Qualifier</Eyebrow>
-                      </TableHead>
-                      <TableHead>
-                        <Eyebrow>Route</Eyebrow>
-                      </TableHead>
-                      <TableHead>
-                        <Eyebrow>Seen</Eyebrow>
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {targets.map(target => (
-                      <BridgeTargetRow key={target.canonical_route} target={target} />
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </>
-          )}
-        </div>
-
-        <form
-          className="min-w-0 rounded-md border border-line bg-canvas-soft px-4 py-3"
-          data-testid="bridge-target-resolver"
-          onSubmit={handleResolveSubmit}
-        >
-          <Field>
-            <FieldContent>
-              <FieldTitle>Resolve target</FieldTitle>
-              <FieldDescription>
-                Returns the canonical provider route without sending.
-              </FieldDescription>
-            </FieldContent>
-            <div className="flex gap-2">
-              <Input
-                aria-label="Bridge target name"
-                data-testid="bridge-target-resolve-input"
-                onChange={event => state?.onResolveInputChange(event.target.value)}
-                placeholder="launch room"
-                value={state?.resolveInput ?? ""}
-              />
-              <Button
-                data-testid="bridge-target-resolve-submit"
-                disabled={!state || !state.resolveInput.trim() || state.isResolving}
-                size="sm"
-                type="submit"
-              >
-                {state?.isResolving ? (
-                  <Spinner aria-hidden="true" className="size-3" />
-                ) : (
-                  <Search className="size-3" />
-                )}
-                Resolve
-              </Button>
-            </div>
-          </Field>
-          {state?.resolveResult ? (
-            <div className="mt-3">
-              <BridgeResolveResult result={state.resolveResult} />
-            </div>
-          ) : null}
-        </form>
-      </div>
-    </Section>
-  );
-}
-
-function BridgeEventStreamSection({
-  isRoutesLoading,
-  routes,
-}: {
-  isRoutesLoading: boolean;
-  routes: BridgeRoute[];
-}) {
-  if (isRoutesLoading) {
-    return (
-      <Section label="Event stream">
-        <DataSurface.Loading
-          data-testid="bridge-routes-loading"
-          label="Loading bridge routes"
-          size="sm"
-        />
-      </Section>
-    );
-  }
-
-  if (routes.length === 0) {
-    return (
-      <Section label="Event stream">
-        <div data-testid="bridge-routes-empty">
-          <Empty
-            description="This bridge has not mapped any sessions yet. Use test delivery to resolve a target or wait for the first inbound route to be claimed."
-            icon={Waypoints}
-            title="No routes"
-          />
-        </div>
-      </Section>
-    );
-  }
-
-  return (
-    <Section label="Event stream" right={<Pill mono>{routes.length}</Pill>}>
-      <div
-        className="overflow-hidden rounded-md border border-line bg-canvas-soft"
-        data-testid="bridge-routes-table"
-      >
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>
-                <Eyebrow>Status</Eyebrow>
-              </TableHead>
-              <TableHead>
-                <Eyebrow>Agent</Eyebrow>
-              </TableHead>
-              <TableHead>
-                <Eyebrow>Target</Eyebrow>
-              </TableHead>
-              <TableHead>
-                <Eyebrow>Scope</Eyebrow>
-              </TableHead>
-              <TableHead>
-                <Eyebrow>Last activity</Eyebrow>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {routes.map(route => (
-              <TableRow
-                data-testid={`bridge-route-${route.session_id}`}
-                key={`${route.session_id}:${route.routing_key_hash}`}
-              >
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <Pill.Dot tone="success" />
-                    <Pill mono tone="success">
-                      ACTIVE
-                    </Pill>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="min-w-0">
-                    <div className="text-small-body text-fg">{route.agent_name}</div>
-                    <div className="mt-1 break-all font-mono text-eyebrow text-subtle">
-                      <Eyebrow className="mr-1">Session</Eyebrow>
-                      <span>{route.session_id}</span>
-                    </div>
-                  </div>
-                </TableCell>
-                <TableCell className="font-mono text-xs text-muted">
-                  {describeBridgeRouteTarget(route)}
-                </TableCell>
-                <TableCell>
-                  <Pill mono tone={route.scope === "workspace" ? "info" : "neutral"}>
-                    {route.scope}
-                  </Pill>
-                </TableCell>
-                <TableCell className="font-mono text-xs text-subtle">
-                  {formatBridgeRelativeTime(route.last_activity_at)}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </Section>
-  );
-}
-
-function BridgeConfigurationSection({
-  bridge,
-  workspaceName,
-}: {
-  bridge: BridgeSummary;
-  workspaceName?: string | null;
-}) {
-  return (
-    <Section label="Configuration">
-      <MetadataList className="grid gap-3 lg:grid-cols-2">
-        <MetadataList.Row
-          className={METADATA_TILE_CLASS}
-          label="Provider"
-          termProps={{ className: METADATA_TERM_CLASS }}
-          valueProps={{ className: METADATA_VALUE_CLASS }}
-        >
-          {bridge.platform} / {bridge.extension_name}
-        </MetadataList.Row>
-        <MetadataList.Row
-          className={METADATA_TILE_CLASS}
-          label="Workspace"
-          termProps={{ className: METADATA_TERM_CLASS }}
-          valueProps={{ className: METADATA_VALUE_CLASS }}
-        >
-          {bridge.scope === "workspace"
-            ? (workspaceName ?? bridge.workspace_id ?? "Unavailable")
-            : "Global scope"}
-        </MetadataList.Row>
-        <MetadataList.Row
-          className={METADATA_TILE_CLASS}
-          label="Routing policy"
-          termProps={{ className: METADATA_TERM_CLASS }}
-          valueProps={{ className: METADATA_VALUE_CLASS }}
-        >
-          {describeBridgeRoutingPolicy(bridge.routing_policy)}
-        </MetadataList.Row>
-        <MetadataList.Row
-          className={METADATA_TILE_CLASS}
-          label="Delivery defaults"
-          termProps={{ className: METADATA_TERM_CLASS }}
-          valueProps={{ className: METADATA_VALUE_CLASS }}
-        >
-          {describeBridgeDeliveryDefaults(bridge.delivery_defaults)}
-        </MetadataList.Row>
-        <MetadataList.Row
-          className={METADATA_TILE_CLASS}
-          label="DM policy"
-          termProps={{ className: METADATA_TERM_CLASS }}
-          valueProps={{ className: METADATA_VALUE_CLASS }}
-        >
-          {describeBridgeDmPolicy(bridge.dm_policy)}
-        </MetadataList.Row>
-        <MetadataList.Row
-          className={METADATA_TILE_CLASS}
-          label="Created"
-          termProps={{ className: METADATA_TERM_CLASS }}
-          valueProps={{ className: METADATA_VALUE_CLASS }}
-        >
-          {formatBridgeDateTime(bridge.created_at)}
-        </MetadataList.Row>
-        <MetadataList.Row
-          className={METADATA_TILE_CLASS}
-          label="Updated"
-          termProps={{ className: METADATA_TERM_CLASS }}
-          valueProps={{ className: METADATA_VALUE_CLASS }}
-        >
-          {formatBridgeDateTime(bridge.updated_at)}
-        </MetadataList.Row>
-      </MetadataList>
-    </Section>
-  );
-}
-
-interface BridgeProviderRuntimeSectionProps {
-  bindingsByName: Map<string, BridgeSecretBinding>;
-  isSecretBindingPending: boolean;
-  isSecretBindingsLoading: boolean;
-  onDeleteSecretBinding?: (bindingName: string) => void;
-  onSaveSecretBinding?: (bindingName: string) => void;
-  onSecretDraftChange?: (bindingName: string, value: string) => void;
-  provider?: BridgeProvider;
-  providerConfig: string;
-  secretInputValues: Record<string, string>;
-}
-
-function BridgeProviderRuntimeSection({
-  bindingsByName,
-  isSecretBindingPending,
-  isSecretBindingsLoading,
-  onDeleteSecretBinding,
-  onSaveSecretBinding,
-  onSecretDraftChange,
-  provider,
-  providerConfig,
-  secretInputValues,
-}: BridgeProviderRuntimeSectionProps) {
-  return (
-    <Section label="Provider runtime">
-      <MetadataList className="grid gap-3 lg:grid-cols-2">
-        <MetadataList.Row
-          className={METADATA_TILE_CLASS}
-          label="Manifest schema"
-          termProps={{ className: METADATA_TERM_CLASS }}
-          valueProps={{ className: METADATA_VALUE_CLASS }}
-        >
-          {describeBridgeProviderConfigSchema(provider?.config_schema)}
-        </MetadataList.Row>
-        <MetadataList.Row
-          className={METADATA_TILE_CLASS}
-          label="Secret slots"
-          termProps={{ className: METADATA_TERM_CLASS }}
-          valueProps={{ className: METADATA_VALUE_CLASS }}
-        >
-          {provider?.secret_slots?.length ? provider.secret_slots.length : "None declared"}
-        </MetadataList.Row>
-      </MetadataList>
-
-      {provider?.description ? (
-        <p className="mt-3 rounded-md border border-line bg-canvas-soft px-4 py-3 text-small-body leading-relaxed text-muted">
-          {provider.description}
-        </p>
-      ) : null}
-
-      {provider?.secret_slots?.length ? (
-        <div className="mt-3 space-y-3" data-testid="bridge-detail-secret-slots">
-          {provider.secret_slots.map(slot => (
-            <SecretSlotCard
-              binding={bindingsByName.get(slot.name)}
-              inputValue={secretInputValues[slot.name] ?? ""}
-              isSecretBindingPending={isSecretBindingPending}
-              key={slot.name}
-              onDelete={onDeleteSecretBinding}
-              onDraftChange={onSecretDraftChange}
-              onSave={onSaveSecretBinding}
-              slot={slot}
-            />
-          ))}
-        </div>
-      ) : isSecretBindingsLoading ? (
-        <div className="mt-3 flex items-center gap-2 text-small-body text-subtle">
-          <Spinner aria-label="Loading secret bindings" className="size-4" />
-          <span>Loading secret bindings…</span>
-        </div>
-      ) : null}
-
-      <div className="mt-3">
-        <Eyebrow className="text-muted mb-2 block">Provider config</Eyebrow>
-        {providerConfig ? (
-          <CodeBlock
-            code={providerConfig}
-            copyable={false}
-            data-testid="bridge-detail-provider-config"
-            showPrompt={false}
-          />
-        ) : (
-          <p className="rounded-md border border-line bg-canvas-soft px-4 py-3 text-small-body leading-relaxed text-muted">
-            No provider runtime config stored for this bridge.
-          </p>
-        )}
-      </div>
-    </Section>
-  );
-}
-
-interface BridgeDetailHeaderProps {
-  bridge: BridgeSummary;
-  effectiveStatus: BridgeStatus;
-  isLifecyclePending: boolean;
-  onBack?: () => void;
-  onDisableBridge?: () => void;
-  onEnableBridge?: () => void;
-  onOpenEdit?: () => void;
-  onRestartBridge?: () => void;
-}
-
-function BridgeDetailHeader({
-  bridge,
-  effectiveStatus,
-  isLifecyclePending,
-  onBack,
-  onDisableBridge,
-  onEnableBridge,
-  onOpenEdit,
-  onRestartBridge,
-}: BridgeDetailHeaderProps) {
-  const statusTone = statusToPillTone(effectiveStatus);
-  const pulse = effectiveStatus === "starting";
-
-  const pills = (
-    <>
-      <span className="flex items-center gap-2">
-        <Pill.Dot pulse={pulse} tone={statusTone} />
-        <Pill mono tone={statusTone}>
-          {bridgeStatusLabel(effectiveStatus)}
-        </Pill>
-      </span>
-      <Pill mono tone={bridge.scope === "workspace" ? "info" : "neutral"}>
-        {bridge.scope}
-      </Pill>
-    </>
-  );
-
-  const meta = (
-    <span data-testid="bridge-detail-meta-platform">
-      {bridge.platform} / {bridge.extension_name}
-    </span>
-  );
-
-  const actions = (
-    <>
-      <Button
-        data-testid="edit-bridge-btn"
-        disabled={isLifecyclePending}
-        onClick={onOpenEdit}
-        size="sm"
-        type="button"
-        variant="outline"
-      >
-        <Pencil className="size-3" />
-        Edit
-      </Button>
-      <Button
-        data-testid="restart-bridge-btn"
-        disabled={isLifecyclePending}
-        onClick={onRestartBridge}
-        size="sm"
-        type="button"
-        variant="outline"
-      >
-        <RotateCw className="size-3" />
-        Restart
-      </Button>
-      {bridge.enabled ? (
-        <Button
-          data-testid="disable-bridge-btn"
-          disabled={isLifecyclePending}
-          onClick={onDisableBridge}
-          size="sm"
-          type="button"
-          variant="outline"
-        >
-          <Power className="size-3" />
-          Disable
-        </Button>
-      ) : (
-        <Button
-          data-testid="enable-bridge-btn"
-          disabled={isLifecyclePending}
-          onClick={onEnableBridge}
-          size="sm"
-          type="button"
-        >
-          <Power className="size-3" />
-          Enable
-        </Button>
-      )}
-    </>
-  );
-
-  return (
-    <DetailHeader
-      actions={actions}
-      back={onBack}
-      backLabel="Back to bridges"
-      crumbs={onBack ? [{ id: "bridges", label: "Bridges", onSelect: onBack }] : undefined}
-      data-testid="bridge-detail-header"
-      meta={meta}
-      pills={pills}
-      title={bridge.display_name}
-    />
-  );
-}
+const EMPTY_CHECKS_BY_SECRET_SLOT: BridgeSetupProjection["checksBySecretSlot"] = {};
 
 export function BridgeDetailPanel({
   bridge,
@@ -977,11 +76,11 @@ export function BridgeDetailPanel({
   error,
   health,
   onBack,
-  state,
   onDeleteSecretBinding,
   onDisableBridge,
   onEnableBridge,
   onOpenEdit,
+  onOpenSendTest,
   onOpenTestDelivery,
   onRestartBridge,
   onSaveSecretBinding,
@@ -991,20 +90,31 @@ export function BridgeDetailPanel({
   routes,
   secretBindings = EMPTY_SECRET_BINDINGS,
   secretInputValues = EMPTY_SECRET_INPUT_VALUES,
+  setup,
+  state,
   targetDirectory,
   workspaceName,
 }: BridgeDetailPanelProps) {
   const {
-    isLifecyclePending = false,
+    isLifecyclePending: stateLifecyclePending = false,
     isLoading,
+    isProviderLoading = false,
     isRoutesLoading,
     isSecretBindingPending = false,
     isSecretBindingsLoading = false,
+    providerError = null,
+    secretBindingsError = null,
   } = state;
+  const isLifecyclePending =
+    setup.isLifecyclePending || stateLifecyclePending || setup.isRegistering || setup.isVerifying;
+
   if (isLoading || error || !bridge) {
-    const state = isLoading ? "loading" : error ? "error" : "empty";
+    const surfaceState = isLoading ? "loading" : error ? "error" : "empty";
     return (
-      <DataSurface state={state} className="flex min-h-0 flex-1 items-center justify-center p-6">
+      <DataSurface
+        className="flex min-h-0 flex-1 items-center justify-center p-6"
+        state={surfaceState}
+      >
         <DataSurface.Loading
           data-testid="bridge-detail-loading"
           label="Loading bridge"
@@ -1031,7 +141,7 @@ export function BridgeDetailPanel({
   const providerConfig = formatBridgeProviderConfig(bridge.provider_config);
   const effectiveStatus = (health?.status ?? bridge.status) as BridgeStatus;
   const bindingsByName = new Map(secretBindings.map(binding => [binding.binding_name, binding]));
-  const disabledBridge = effectiveStatus === "disabled";
+  const bridgeDisabled = !bridge.enabled || effectiveStatus === "disabled";
 
   return (
     <section
@@ -1050,6 +160,18 @@ export function BridgeDetailPanel({
       />
 
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-5">
+        <BridgeSetupChecklist
+          isLifecyclePending={isLifecyclePending}
+          isRegistering={setup.isRegistering}
+          isVerifying={setup.isVerifying}
+          onEnableBridge={onEnableBridge}
+          onOpenEdit={onOpenEdit}
+          onRegisterWebhook={setup.onRegisterWebhook}
+          onRestartBridge={onRestartBridge}
+          onVerify={setup.onVerify}
+          projection={setup.projection}
+        />
+
         {restartRequired ? (
           <div
             className="rounded-md border border-warning/40 bg-warning-tint px-4 py-3 text-small-body text-warning"
@@ -1060,45 +182,30 @@ export function BridgeDetailPanel({
           </div>
         ) : null}
 
-        <BridgeMetricsSection health={health} routes={routes} />
-
-        <BridgeConfigurationSection bridge={bridge} workspaceName={workspaceName} />
-
+        <BridgeDetailMetrics health={health} routes={routes} />
+        <BridgeDetailConfiguration bridge={bridge} workspaceName={workspaceName} />
         <BridgeProviderRuntimeSection
           bindingsByName={bindingsByName}
+          checksBySecretSlot={setup.projection?.checksBySecretSlot ?? EMPTY_CHECKS_BY_SECRET_SLOT}
+          isProviderLoading={isProviderLoading}
           isSecretBindingPending={isSecretBindingPending}
           isSecretBindingsLoading={isSecretBindingsLoading}
           onDeleteSecretBinding={onDeleteSecretBinding}
           onSaveSecretBinding={onSaveSecretBinding}
           onSecretDraftChange={onSecretDraftChange}
           provider={provider}
+          providerError={providerError}
           providerConfig={providerConfig}
+          secretBindingsError={secretBindingsError}
           secretInputValues={secretInputValues}
         />
-
         <BridgeTargetDirectorySection state={targetDirectory} />
-
         <BridgeEventStreamSection isRoutesLoading={isRoutesLoading} routes={routes} />
-
-        <div className="flex items-center justify-between gap-3 rounded-md border border-line bg-canvas-soft px-5 py-4">
-          <div className="space-y-1">
-            <Eyebrow className="text-muted block">Test delivery</Eyebrow>
-            <p className="text-small-body text-muted">
-              Resolve the outbound target using bridge defaults plus any explicit target override.
-            </p>
-          </div>
-          <Button
-            data-testid="open-test-delivery-btn"
-            disabled={disabledBridge}
-            onClick={onOpenTestDelivery}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            <SendHorizontal className="size-3" />
-            Send Test
-          </Button>
-        </div>
+        <BridgeDeliveryActions
+          bridgeDisabled={bridgeDisabled}
+          onOpenDryRun={onOpenTestDelivery}
+          onOpenSendTest={onOpenSendTest}
+        />
       </div>
     </section>
   );

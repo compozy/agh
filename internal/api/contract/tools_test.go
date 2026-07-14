@@ -16,9 +16,11 @@ func TestToolContractsMarshalCanonicalIDsAndStructuredErrors(t *testing.T) {
 
 		payload := ToolResponse{Tool: ToolPayload{
 			Descriptor: ToolDescriptorPayload{
-				ToolID:      tools.ToolIDSkillView,
-				Description: "Read one skill",
-				InputSchema: json.RawMessage(`{"type":"object"}`),
+				ToolID:       tools.ToolIDSkillView,
+				FriendlyVerb: "Reading",
+				Preview:      "arg:name",
+				Description:  "Read one skill",
+				InputSchema:  json.RawMessage(`{"type":"object"}`),
 				Backend: ToolBackendRefPayload{
 					Kind:       tools.BackendNativeGo,
 					NativeName: "skill_view",
@@ -56,6 +58,10 @@ func TestToolContractsMarshalCanonicalIDsAndStructuredErrors(t *testing.T) {
 		}
 		if !strings.Contains(encoded, `"kind":"native_go"`) {
 			t.Fatalf("encoded payload missing backend kind: %s", encoded)
+		}
+		if !strings.Contains(encoded, `"friendly_verb":"Reading"`) ||
+			!strings.Contains(encoded, `"preview":"arg:name"`) {
+			t.Fatalf("encoded payload missing presentation metadata: %s", encoded)
 		}
 		if strings.Contains(encoded, "approval_token") || strings.Contains(encoded, "refresh_token") {
 			t.Fatalf("encoded descriptor leaked token-shaped fields: %s", encoded)

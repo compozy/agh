@@ -1027,6 +1027,22 @@ export interface AutonomyObservationPatch {
   labels?: Record<string, string>;
 }
 
+export type BridgeCheckStatus = "pass" | "warn" | "fail" | "skipped";
+
+export interface BridgeCheckRecord {
+  check: string;
+  status: BridgeCheckStatus;
+  remediation: string;
+}
+
+export interface BridgeCheckRequest {
+  bridge_instance_id: string;
+}
+
+export interface BridgeCheckResponse {
+  checks: BridgeCheckRecord[];
+}
+
 export type BridgeScope = string;
 
 export type BridgeInstanceSource = string;
@@ -1072,6 +1088,8 @@ export interface BridgeInstanceTargetParams {
   bridge_instance_id: string;
 }
 
+export type BridgeRuntimePurpose = "service" | "control";
+
 export type BridgeTargetType = string;
 
 export interface BridgeTargetSnapshot {
@@ -1089,6 +1107,15 @@ export interface BridgeTargetSnapshotRequest {
 
 export interface BridgeTargetSnapshotResponse {
   targets: BridgeTargetSnapshot[];
+}
+
+export interface BridgeWebhookRegistrationRequest {
+  bridge_instance_id: string;
+}
+
+export interface BridgeWebhookRegistrationResponse {
+  status: BridgeCheckStatus;
+  remediation: string;
 }
 
 export interface BridgesInstancesReportStateParams {
@@ -1213,6 +1240,8 @@ export interface ContextPreCompactPayload {
   summary?: string;
   context_blocks?: ContextBlock[];
 }
+
+export type ControlMethod = "bridges/check" | "bridges/webhook/register";
 
 export interface ControlPatch {
   deny?: boolean;
@@ -1357,15 +1386,19 @@ export interface CoordinatorStoppedPayload {
   error?: string;
 }
 
-export interface DeliveryAck {
-  delivery_id?: string;
-  seq?: number;
-  remote_message_id?: string;
-  replace_remote_message_id?: string;
-}
+export type DeliveryAckOutcome = "success" | "committed_result_unavailable";
 
 export interface DeliveryErrorDetail {
   message: string;
+}
+
+export interface DeliveryAck {
+  delivery_id: string;
+  seq: number;
+  remote_message_id?: string;
+  replace_remote_message_id?: string;
+  outcome?: DeliveryAckOutcome;
+  error?: DeliveryErrorDetail;
 }
 
 export type DeliveryMode = string;
@@ -1377,6 +1410,15 @@ export interface DeliveryTarget {
   group_id?: string;
   mode?: DeliveryMode;
 }
+
+export type DeliveryEventType =
+  | "start"
+  | "delta"
+  | "final"
+  | "error"
+  | "resume"
+  | "delete"
+  | "progress";
 
 export interface MessageContent {
   text?: string;
@@ -1390,7 +1432,21 @@ export interface DeliveryMessageReference {
 }
 
 export interface DeliveryResumeState {
-  latest_event_type: string;
+  latest_event_type: DeliveryEventType;
+}
+
+export type ToolProgressPhase = "started" | "completed" | "failed";
+
+export interface ToolProgress {
+  tool_call_id: string;
+  tool_id: string;
+  phase: ToolProgressPhase;
+  label: string;
+  preview?: string;
+  emoji?: string;
+  duration_ms?: number;
+  error?: string;
+  index: number;
 }
 
 export interface DeliveryEvent {
@@ -1399,13 +1455,14 @@ export interface DeliveryEvent {
   routing_key: RoutingKey;
   delivery_target: DeliveryTarget;
   seq: number;
-  event_type: string;
+  event_type: DeliveryEventType;
   content: MessageContent;
   final: boolean;
   operation?: DeliveryOperation;
   reference?: DeliveryMessageReference;
   error?: DeliveryErrorDetail;
   resume?: DeliveryResumeState;
+  progress?: ToolProgress;
   provider_metadata?: JSONValue;
 }
 
@@ -1417,7 +1474,7 @@ export interface DeliverySnapshot {
   routing_key: RoutingKey;
   delivery_target: DeliveryTarget;
   latest_seq: number;
-  latest_event_type: string;
+  latest_event_type: DeliveryEventType;
   current_content: MessageContent;
   operation?: DeliveryOperation;
   reference?: DeliveryMessageReference;
@@ -1520,6 +1577,8 @@ export type RiskClass = string;
 export interface ExtensionToolRuntimeDescriptor {
   id: ToolID;
   handler: string;
+  friendly_verb?: string;
+  preview?: string;
   input_schema_digest: string;
   output_schema_digest?: string;
   read_only: boolean;
@@ -1943,7 +2002,16 @@ export interface InboundCommand {
   trigger_id?: string;
 }
 
-export type InboundEventFamily = string;
+export type InboundEditOperation = "updated" | "deleted";
+
+export interface InboundEdit {
+  message_id: string;
+  new_text: string;
+  original_timestamp: ISODateTime;
+  operation: InboundEditOperation;
+}
+
+export type InboundEventFamily = "message" | "command" | "action" | "reaction" | "edit";
 
 export interface MessageSender {
   id?: string;
@@ -1985,15 +2053,19 @@ export interface InboundMessageEnvelope {
   peer_id?: string;
   thread_id?: string;
   group_id?: string;
-  platform_message_id: string;
+  platform_message_id?: string;
   received_at: ISODateTime;
   sender: MessageSender;
-  content: MessageContent;
+  content?: MessageContent;
   attachments?: MessageAttachment[];
   event_family: InboundEventFamily;
   command?: InboundCommand;
   action?: InboundAction;
   reaction?: InboundReaction;
+  edit?: InboundEdit;
+  reply_to_text?: string;
+  reply_to_author_id?: string;
+  reply_to_author_name?: string;
   conversation?: NetworkConversationRef;
   provider_metadata?: JSONValue;
   idempotency_key: string;
@@ -2012,21 +2084,19 @@ export interface InitializeBridgeManagedInstance {
 
 export interface InitializeBridgeRuntime {
   runtime_version: string;
+  purpose: BridgeRuntimePurpose;
   provider: string;
   platform: string;
+  allowed_methods?: string[];
   managed_instances?: InitializeBridgeManagedInstance[];
 }
-
-export type ResourceKind = string;
-
-export type ResourceScopeKind = string;
 
 export interface InitializeCapabilities {
   provides: string[];
   granted_actions: HostAPIMethod[];
   granted_security: string[];
-  granted_resource_kinds: ResourceKind[];
-  granted_resource_scopes: ResourceScopeKind[];
+  granted_resource_kinds: string[];
+  granted_resource_scopes: string[];
 }
 
 export interface InitializeExtension {
@@ -3541,6 +3611,8 @@ export interface ProviderModelStatusResponse {
   sources: ModelCatalogSourceStatusPayload[];
 }
 
+export type ResourceKind = string;
+
 export interface ResourceGetParams {
   kind: ResourceKind;
   id: string;
@@ -3552,6 +3624,8 @@ export interface ResourceOwner {
   kind: ResourceOwnerKind;
   id: string;
 }
+
+export type ResourceScopeKind = string;
 
 export interface ResourceScope {
   kind: ResourceScopeKind;
@@ -5687,6 +5761,8 @@ export interface Tool {
   id: ToolID;
   backend: BackendRef;
   display_title?: string;
+  friendly_verb?: string;
+  preview?: string;
   description: string;
   input_schema: JSONValue;
   output_schema?: JSONValue;

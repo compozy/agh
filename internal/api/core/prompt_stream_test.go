@@ -209,6 +209,39 @@ func TestPromptStreamEncoderPartBoundaries(t *testing.T) {
 }
 
 func TestPromptStreamEncoderToolNameResolution(t *testing.T) {
+	t.Run("Should prefer typed tool metadata over conflicting legacy raw fields", func(t *testing.T) {
+		t.Parallel()
+
+		writer := &bufferFlusher{}
+		encoder := core.NewPromptStreamEncoder(func() time.Time {
+			return time.Date(2026, 6, 11, 9, 0, 0, 0, time.UTC)
+		})
+		event := (acp.AgentEvent{
+			Type:       acp.EventTypeToolCall,
+			ToolCallID: "tool-typed-1",
+			Title:      "descriptive title",
+			Raw: json.RawMessage(
+				`{"_meta":{"legacy":{"toolName":"legacy__search"}},"tool_input":{"query":"legacy"}}`,
+			),
+		}).WithTool("typed__search", json.RawMessage(`{"query":"typed"}`), false)
+
+		mustEmitPromptEvent(t, encoder, writer, event)
+
+		frames := promptToolFramesFromSSE(t, writer.String())
+		if len(frames) != 2 {
+			t.Fatalf("tool frames = %d, want start and input-available", len(frames))
+		}
+		for _, frame := range frames {
+			if got, want := frame.ToolName, "typed__search"; got != want {
+				t.Fatalf("tool frame toolName = %q, want %q; frame=%#v", got, want, frame)
+			}
+		}
+		input, ok := frames[1].Input.(map[string]any)
+		if !ok || input["query"] != "typed" {
+			t.Fatalf("tool input = %#v, want typed query", frames[1].Input)
+		}
+	})
+
 	t.Run("ShouldPreferMetaToolNameOverDescriptiveTitle", func(t *testing.T) {
 		t.Parallel()
 
@@ -287,6 +320,7 @@ type promptToolFrame struct {
 	Type       string `json:"type"`
 	ToolCallID string `json:"toolCallId"`
 	ToolName   string `json:"toolName"`
+	Input      any    `json:"input"`
 }
 
 func promptToolFramesFromSSE(t *testing.T, body string) []promptToolFrame {
@@ -298,12 +332,7 @@ func promptToolFramesFromSSE(t *testing.T, body string) []promptToolFrame {
 		if record == "" {
 			continue
 		}
-		data := ""
-		for line := range strings.SplitSeq(record, "\n") {
-			if after, ok := strings.CutPrefix(line, "data: "); ok {
-				data += after
-			}
-		}
+		data := promptSSEData(record)
 		if data == "" || data == "[DONE]" {
 			continue
 		}
@@ -329,12 +358,7 @@ func promptFrameSignatures(t *testing.T, body string) []string {
 		if record == "" {
 			continue
 		}
-		data := ""
-		for line := range strings.SplitSeq(record, "\n") {
-			if after, ok := strings.CutPrefix(line, "data: "); ok {
-				data += after
-			}
-		}
+		data := promptSSEData(record)
 		if data == "" || data == "[DONE]" {
 			continue
 		}
@@ -388,12 +412,7 @@ func promptPermissionFramesFromSSE(t *testing.T, body string) []promptPermission
 		if record == "" {
 			continue
 		}
-		data := ""
-		for line := range strings.SplitSeq(record, "\n") {
-			if after, ok := strings.CutPrefix(line, "data: "); ok {
-				data += after
-			}
-		}
+		data := promptSSEData(record)
 		if data == "" || data == "[DONE]" {
 			continue
 		}
@@ -407,4 +426,14 @@ func promptPermissionFramesFromSSE(t *testing.T, body string) []promptPermission
 		}
 	}
 	return frames
+}
+
+func promptSSEData(record string) string {
+	var data strings.Builder
+	for line := range strings.SplitSeq(record, "\n") {
+		if after, ok := strings.CutPrefix(line, "data: "); ok {
+			data.WriteString(after)
+		}
+	}
+	return data.String()
 }

@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	apicontract "github.com/compozy/agh/internal/api/contract"
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/hooks"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 	"github.com/compozy/agh/internal/resources"
@@ -198,10 +198,12 @@ var sdkRootTypes = []NamedType{
 	{Name: "RoutingPolicy", Value: bridgepkg.RoutingPolicy{}},
 	{Name: "RoutingKey", Value: bridgepkg.RoutingKey{}},
 	{Name: "InboundEventFamily", Value: bridgepkg.InboundEventFamily("")},
-	{Name: "InboundMessageEnvelope", Value: bridgepkg.InboundMessageEnvelope{}},
+	{Name: inboundMessageEnvelopeTypeName, Value: bridgepkg.InboundMessageEnvelope{}},
 	{Name: "InboundCommand", Value: bridgepkg.InboundCommand{}},
 	{Name: "InboundAction", Value: bridgepkg.InboundAction{}},
 	{Name: "InboundReaction", Value: bridgepkg.InboundReaction{}},
+	{Name: "InboundEditOperation", Value: bridgepkg.InboundEditOperation("")},
+	{Name: "InboundEdit", Value: bridgepkg.InboundEdit{}},
 	{Name: "DeliveryEvent", Value: bridgepkg.DeliveryEvent{}},
 	{Name: "DeliveryRequest", Value: bridgepkg.DeliveryRequest{}},
 	{Name: "DeliveryAck", Value: bridgepkg.DeliveryAck{}},
@@ -345,11 +347,6 @@ var sdkRootTypes = []NamedType{
 	{Name: "CompactionMatcher", Value: hooks.CompactionMatcher{}},
 	{Name: "HookMatcher", Value: hooks.HookMatcher{}},
 	{Name: "HookDecl", Value: hooks.HookDecl{}},
-}
-
-// SDKRootTypes returns the canonical generated SDK contract roots.
-func SDKRootTypes() []NamedType {
-	return append([]NamedType(nil), sdkRootTypes...)
 }
 
 // BuildHookContracts returns the canonical hook payload/patch registry in event order.

@@ -2,6 +2,11 @@
 
 package main
 
+import (
+	"fmt"
+	"time"
+)
+
 func Verify() error {
 	release := acquireVerifyLock()
 	defer release()
@@ -17,8 +22,8 @@ func verifySteps() []mageStep {
 		{name: "BunTypecheck", run: BunTypecheck},
 		{name: "BunTest", run: BunTest},
 		{name: "WebBuild", run: WebBuild},
-		{name: "Fmt", run: Fmt},
-		{name: "GoLint", run: goLint},
+		{name: "FmtCheck", run: FmtCheck},
+		{name: "GoLint", run: GoLint},
 		{name: "Test", run: Test},
 		{name: "buildGo", run: buildGo},
 		{name: "Boundaries", run: Boundaries},
@@ -27,9 +32,13 @@ func verifySteps() []mageStep {
 
 func runMageSteps(steps []mageStep) error {
 	for _, step := range steps {
+		startedAt := time.Now()
+		fmt.Printf("==> %s\n", step.name)
 		if err := step.run(); err != nil {
+			fmt.Printf("<== %s FAILED (%s)\n", step.name, time.Since(startedAt).Round(time.Millisecond))
 			return err
 		}
+		fmt.Printf("<== %s OK (%s)\n", step.name, time.Since(startedAt).Round(time.Millisecond))
 	}
 	return nil
 }

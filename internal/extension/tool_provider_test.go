@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/subprocess"
 	"github.com/compozy/agh/internal/testutil"
 	toolspkg "github.com/compozy/agh/internal/tools"

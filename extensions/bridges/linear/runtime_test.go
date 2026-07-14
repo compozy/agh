@@ -16,10 +16,9 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -71,20 +70,20 @@ func TestRuntimeInitializeStartsServerAndWritesMarkers(t *testing.T) {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
 
-	handshake := waitForLinearJSONFile[initializeMarker](t, env.handshakePath)
+	handshake := waitForLinearJSONFile[bridgesdk.InitializeMarker](t, env.HandshakePath)
 	if got, want := handshake.Request.Runtime.Bridge.Provider, "linear"; got != want {
 		t.Fatalf("handshake provider = %q, want %q", got, want)
 	}
 
-	ownership := waitForLinearJSONFile[ownershipMarker](t, env.ownershipPath)
+	ownership := waitForLinearJSONFile[bridgesdk.OwnershipMarker](t, env.OwnershipPath)
 	if got, want := len(ownership.Fetched), 2; got != want {
 		t.Fatalf("len(ownership.Fetched) = %d, want %d", got, want)
 	}
 
-	states := waitForLinearJSONLinesFile[stateMarker](
+	states := waitForLinearJSONLinesFile[bridgesdk.StateMarker](
 		t,
-		env.statePath,
-		func(items []stateMarker) bool { return len(items) >= 2 },
+		env.StatePath,
+		func(items []bridgesdk.StateMarker) bool { return len(items) >= 2 },
 	)
 	for _, state := range states[:2] {
 		if got, want := state.Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
@@ -95,7 +94,7 @@ func TestRuntimeInitializeStartsServerAndWritesMarkers(t *testing.T) {
 	waitForLinearCondition(t, func() bool {
 		runtime.mu.RLock()
 		defer runtime.mu.RUnlock()
-		return strings.TrimSpace(runtime.serverAddr) != ""
+		return strings.TrimSpace(runtime.http.Address()) != ""
 	})
 }
 
@@ -158,7 +157,7 @@ func TestWebhookIngressRejectsInvalidSignatureAndIngestsSupportedModes(t *testin
 			mu.Lock()
 			ingested = append(ingested, envelope)
 			mu.Unlock()
-			return extensioncontract.BridgesMessagesIngestResult{
+			return bridgepkg.BridgesMessagesIngestResult{
 				SessionID:    "sess-" + envelope.BridgeInstanceID,
 				RouteCreated: true,
 				RoutingKey: bridgepkg.RoutingKey{
@@ -185,7 +184,7 @@ func TestWebhookIngressRejectsInvalidSignatureAndIngestsSupportedModes(t *testin
 	waitForLinearCondition(t, func() bool {
 		runtime.mu.RLock()
 		defer runtime.mu.RUnlock()
-		return strings.TrimSpace(runtime.serverAddr) != ""
+		return strings.TrimSpace(runtime.http.Address()) != ""
 	})
 
 	webhookURL := "http://" + linearRuntimeServerAddr(runtime) + "/linear"
@@ -246,10 +245,10 @@ func TestWebhookIngressRejectsInvalidSignatureAndIngestsSupportedModes(t *testin
 	}
 	_ = resp.Body.Close()
 
-	records := waitForLinearJSONLinesFile[ingestMarker](
+	records := waitForLinearJSONLinesFile[bridgesdk.IngestMarker](
 		t,
-		env.ingestPath,
-		func(items []ingestMarker) bool { return len(items) == 2 },
+		env.IngestPath,
+		func(items []bridgesdk.IngestMarker) bool { return len(items) == 2 },
 	)
 	if got, want := records[0].Envelope.ThreadID, "linear:issue-comments:c:root-comment"; got != want {
 		t.Fatalf("comment thread id = %q, want %q", got, want)
@@ -322,7 +321,7 @@ func TestWebhookIngressRejectsCrossInstanceSignatureOnSharedPath(t *testing.T) {
 				mu.Lock()
 				ingested = append(ingested, envelope)
 				mu.Unlock()
-				return extensioncontract.BridgesMessagesIngestResult{
+				return bridgepkg.BridgesMessagesIngestResult{
 					SessionID:    "sess-" + envelope.BridgeInstanceID,
 					RouteCreated: true,
 					RoutingKey: bridgepkg.RoutingKey{
@@ -349,7 +348,7 @@ func TestWebhookIngressRejectsCrossInstanceSignatureOnSharedPath(t *testing.T) {
 		waitForLinearCondition(t, func() bool {
 			runtime.mu.RLock()
 			defer runtime.mu.RUnlock()
-			return strings.TrimSpace(runtime.serverAddr) != ""
+			return strings.TrimSpace(runtime.http.Address()) != ""
 		})
 
 		webhookURL := "http://" + linearRuntimeServerAddr(runtime) + "/linear"
@@ -381,7 +380,7 @@ func TestWebhookIngressRejectsCrossInstanceSignatureOnSharedPath(t *testing.T) {
 		if got, want := len(ingested), 0; got != want {
 			t.Fatalf("len(ingested) = %d, want %d", got, want)
 		}
-		if _, err := os.Stat(env.ingestPath); !errors.Is(err, os.ErrNotExist) {
+		if _, err := os.Stat(env.IngestPath); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("os.Stat(ingestPath) error = %v, want not-exist", err)
 		}
 	})
@@ -518,10 +517,10 @@ func TestRuntimeDeliveriesRecordMarkersForSupportedModes(t *testing.T) {
 		t.Fatalf("hostPeer.Call(agent final) error = %v", err)
 	}
 
-	records := waitForLinearJSONLinesFile[deliveryMarker](
+	records := waitForLinearJSONLinesFile[bridgesdk.DeliveryMarker](
 		t,
-		env.deliveryPath,
-		func(items []deliveryMarker) bool { return len(items) >= 5 },
+		env.DeliveryPath,
+		func(items []bridgesdk.DeliveryMarker) bool { return len(items) >= 5 },
 	)
 	if got, want := len(records), 5; got != want {
 		t.Fatalf("len(records) = %d, want %d", got, want)
@@ -551,69 +550,93 @@ func TestRuntimeDeliveriesRecordMarkersForSupportedModes(t *testing.T) {
 	}
 }
 
-func TestRetryWaitHealthAndHelperUtilities(t *testing.T) {
-	t.Parallel()
+func TestRuntimeProgressDeliveryAcknowledgesWithoutPlatformSideEffects(t *testing.T) {
+	// not parallel: the provider bootstrap uses t.Setenv for process-wide runtime configuration.
+	t.Run("Should ack progress without creating a Linear API client", func(t *testing.T) {
+		setLinearProviderTestEnv(t)
 
-	runtime, err := newLinearProvider(io.Discard)
-	if err != nil {
-		t.Fatalf("newLinearProvider() error = %v", err)
-	}
-
-	attempts := 0
-	err = runtime.retryHostCall(context.Background(), func(context.Context) error {
-		attempts++
-		if attempts < 3 {
-			return subprocess.NewRPCError(rpcCodeNotInitialized, "Not initialized", nil)
+		runtime, hostPeer, cleanup := newLinearRuntimePeerPair(t)
+		defer cleanup()
+		apiFactoryCalls := 0
+		runtime.apiFactory = func(resolvedInstanceConfig) linearAPI {
+			apiFactoryCalls++
+			return &recordingLinearAPI{}
 		}
-		return nil
+		mustHandleLinearLifecycle(t, hostPeer)
+		if err := hostPeer.Call(
+			context.Background(),
+			"initialize",
+			linearInitializeRequest(
+				time.Date(2026, 4, 15, 13, 20, 0, 0, time.UTC),
+				linearRuntimeManagedInstance(
+					time.Date(2026, 4, 15, 13, 20, 0, 0, time.UTC),
+					"brg-linear-progress-noop",
+					"org-progress",
+					linearModeComments,
+					linearAuthModeAPIKey,
+					"127.0.0.1:0",
+				),
+			),
+			nil,
+		); err != nil {
+			t.Fatalf("hostPeer.Call(initialize) error = %v", err)
+		}
+
+		request := linearTestDeliveryRequest(
+			"brg-linear-progress-noop",
+			"delivery-linear-progress-noop",
+			1,
+			bridgepkg.DeliveryEventTypeProgress,
+			linearThreadRef{IssueID: "issue-progress", RootCommentID: "comment-progress"},
+			"",
+			linearModeComments,
+		)
+		request.Event.Progress = &bridgepkg.ToolProgress{
+			ToolCallID: "tool-call-linear-noop",
+			ToolID:     "agh__search",
+			Phase:      bridgepkg.ToolProgressPhaseStarted,
+			Label:      "Search",
+			Index:      1,
+		}
+		var ack bridgepkg.DeliveryAck
+		if err := hostPeer.Call(context.Background(), "bridges/deliver", request, &ack); err != nil {
+			t.Fatalf("hostPeer.Call(progress) error = %v", err)
+		}
+		if got, want := ack.DeliveryID, request.Event.DeliveryID; got != want {
+			t.Fatalf("ack delivery id = %q, want %q", got, want)
+		}
+		if got, want := ack.Seq, request.Event.Seq; got != want {
+			t.Fatalf("ack seq = %d, want %d", got, want)
+		}
+		if ack.RemoteMessageID != "" || ack.ReplaceRemoteMessageID != "" {
+			t.Fatalf("progress ack = %#v, want no platform handles", ack)
+		}
+		if got := apiFactoryCalls; got != 0 {
+			t.Fatalf("apiFactory calls = %d, want 0", got)
+		}
 	})
-	if err != nil {
-		t.Fatalf("retryHostCall() error = %v", err)
-	}
-	if got, want := attempts, 3; got != want {
-		t.Fatalf("attempts = %d, want %d", got, want)
-	}
+}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if err := runtime.retryHostCall(ctx, func(context.Context) error {
-		return subprocess.NewRPCError(rpcCodeNotInitialized, "Not initialized", nil)
-	}); !errors.Is(err, context.Canceled) {
-		t.Fatalf("retryHostCall(context canceled) error = %v, want %v", err, context.Canceled)
-	}
-
-	stopped, err := newLinearProvider(io.Discard)
-	if err != nil {
-		t.Fatalf("newLinearProvider(stopped) error = %v", err)
-	}
-	stopped.stop()
-	stopErr := subprocess.NewRPCError(rpcCodeNotInitialized, "Not initialized", nil)
-	if err := stopped.retryHostCall(
-		context.Background(),
-		func(context.Context) error { return stopErr },
-	); !errors.Is(
-		err,
-		stopErr,
-	) {
-		t.Fatalf("retryHostCall(stopped) error = %v, want %v", err, stopErr)
-	}
+func TestWaitHealthAndHelperUtilities(t *testing.T) {
+	t.Parallel()
 
 	waitProvider, err := newLinearProvider(io.Discard)
 	if err != nil {
 		t.Fatalf("newLinearProvider(wait) error = %v", err)
 	}
+	t.Cleanup(waitProvider.lifecycle.Stop)
 	go func() {
 		time.Sleep(20 * time.Millisecond)
-		waitProvider.mu.Lock()
-		waitProvider.routes["brg-1"] = resolvedInstanceConfig{
-			instanceID:     "brg-1",
-			webhookPath:    "/linear",
-			organizationID: "org-1",
-			mode:           linearModeComments,
-		}
-		waitProvider.mu.Unlock()
+		waitProvider.routes.Replace(map[string]resolvedInstanceConfig{
+			"brg-1": {
+				instanceID:     "brg-1",
+				webhookPath:    "/linear",
+				organizationID: "org-1",
+				mode:           linearModeComments,
+			},
+		}, nil)
 	}()
-	cfg, err := waitProvider.waitForInstanceConfig("brg-1", 200*time.Millisecond)
+	cfg, err := waitProvider.waitForInstanceConfig(context.Background(), "brg-1", 200*time.Millisecond)
 	if err != nil {
 		t.Fatalf("waitForInstanceConfig() error = %v", err)
 	}
@@ -677,34 +700,6 @@ func TestRetryWaitHealthAndHelperUtilities(t *testing.T) {
 		t.Fatal("linearCommentIsSelf(other user) = true, want false")
 	}
 
-	if got, want := string(
-		mustJSONMarshal(
-			t,
-			managedInstancesToInstances(
-				[]subprocess.InitializeBridgeManagedInstance{
-					linearRuntimeManagedInstance(
-						time.Now().UTC(),
-						"brg-1",
-						"org-1",
-						linearModeComments,
-						linearAuthModeAPIKey,
-						"127.0.0.1:1",
-					),
-				},
-			),
-		),
-	), `[{"id":"brg-1","scope":"workspace","workspace_id":"ws-linear"`; !strings.Contains(
-		got,
-		want,
-	) {
-		t.Fatalf("managedInstancesToInstances() payload = %q, want substring %q", got, want)
-	}
-	if clone := cloneDegradation(
-		&bridgepkg.BridgeDegradation{Reason: bridgepkg.BridgeDegradationReasonAuthFailed, Message: "boom"},
-	); clone == nil ||
-		clone.Message != "boom" {
-		t.Fatalf("cloneDegradation() = %#v, want copied degradation", clone)
-	}
 	if got, want := deliveryStateKey("brg-1", "delivery-1"), "brg-1|delivery-1"; got != want {
 		t.Fatalf("deliveryStateKey() = %q, want %q", got, want)
 	}
@@ -746,7 +741,7 @@ func TestHandleShutdownAndHandleBridgesDeliverErrorPaths(t *testing.T) {
 		t.Fatalf("startServer() error = %v", err)
 	}
 
-	provider.stop()
+	provider.lifecycle.Stop()
 	_, err = provider.handleBridgesDeliver(context.Background(), nil, linearTestDeliveryRequest(
 		"missing-instance",
 		"delivery-missing",
@@ -759,30 +754,30 @@ func TestHandleShutdownAndHandleBridgesDeliverErrorPaths(t *testing.T) {
 	if err == nil {
 		t.Fatal("handleBridgesDeliver(missing config) error = nil, want non-nil")
 	}
-	records := waitForLinearJSONLinesFile[deliveryMarker](
+	records := waitForLinearJSONLinesFile[bridgesdk.DeliveryMarker](
 		t,
-		env.deliveryPath,
-		func(items []deliveryMarker) bool { return len(items) == 1 },
+		env.DeliveryPath,
+		func(items []bridgesdk.DeliveryMarker) bool { return len(items) == 1 },
 	)
 	if strings.TrimSpace(records[0].Error) == "" {
 		t.Fatalf("delivery marker = %#v, want recorded error", records[0])
 	}
 
-	if err := provider.handleShutdown(
+	if err := provider.lifecycle.Shutdown(
 		context.Background(),
 		nil,
 		subprocess.ShutdownRequest{DeadlineMS: 100},
 	); err != nil {
-		t.Fatalf("handleShutdown() error = %v", err)
+		t.Fatalf("Shutdown() error = %v", err)
 	}
-	lines := waitForLinearNonEmptyLines(t, env.shutdownPath)
+	lines := waitForLinearNonEmptyLines(t, env.ShutdownPath)
 	if len(lines) == 0 || !strings.Contains(lines[0], "pid=") {
 		t.Fatalf("shutdown marker lines = %#v, want pid line", lines)
 	}
 	select {
-	case <-provider.stopCh:
+	case <-provider.lifecycle.StopChannel():
 	default:
-		t.Fatal("provider.stopCh is not closed after shutdown")
+		t.Fatal("provider lifecycle is not stopped after shutdown")
 	}
 }
 
@@ -1209,74 +1204,15 @@ func TestExecuteLinearDeliveryEdgeCasesAndClassifiers(t *testing.T) {
 	}
 }
 
-func TestLinearMarkerAndRunHelpers(t *testing.T) {
-	root := t.TempDir()
-	linePath := filepath.Join(root, "markers", "lines.log")
-	jsonLinesPath := filepath.Join(root, "markers", "records.jsonl")
-	jsonPath := filepath.Join(root, "markers", "value.json")
-	crashPath := filepath.Join(root, "markers", "crash-once.json")
-
-	t.Setenv(adapterHandshakeEnv, filepath.Join(root, "handshake.json"))
-	t.Setenv(adapterOwnershipEnv, filepath.Join(root, "ownership.json"))
-	t.Setenv(adapterStateEnv, filepath.Join(root, "state.jsonl"))
-	t.Setenv(adapterDeliveryEnv, filepath.Join(root, "delivery.jsonl"))
-	t.Setenv(adapterIngestEnv, filepath.Join(root, "ingest.jsonl"))
-	t.Setenv(adapterStartsEnv, filepath.Join(root, "starts.log"))
-	t.Setenv(adapterShutdownEnv, filepath.Join(root, "shutdown.log"))
-	t.Setenv(adapterCrashOnceEnv, crashPath)
-
-	env := markerEnvFromProcess()
-	if got, want := env.crashOncePath, crashPath; got != want {
-		t.Fatalf("markerEnvFromProcess().crashOncePath = %q, want %q", got, want)
-	}
-
-	if err := appendMarkerLine(linePath, "  first line  "); err != nil {
-		t.Fatalf("appendMarkerLine() error = %v", err)
-	}
-	lines := waitForLinearNonEmptyLines(t, linePath)
-	if got, want := lines[0], "first line"; got != want {
-		t.Fatalf("lines[0] = %q, want %q", got, want)
-	}
-
-	if err := appendJSONLine(jsonLinesPath, map[string]any{"ok": true}); err != nil {
-		t.Fatalf("appendJSONLine() error = %v", err)
-	}
-	jsonLines := waitForLinearNonEmptyLines(t, jsonLinesPath)
-	if !strings.Contains(jsonLines[0], `"ok":true`) {
-		t.Fatalf("json line = %q, want ok=true", jsonLines[0])
-	}
-
-	if err := writeJSONFile(jsonPath, map[string]any{"ready": true}); err != nil {
-		t.Fatalf("writeJSONFile() error = %v", err)
-	}
-	payload, err := os.ReadFile(jsonPath)
-	if err != nil {
-		t.Fatalf("os.ReadFile(jsonPath) error = %v", err)
-	}
-	if !strings.Contains(string(payload), `"ready":true`) {
-		t.Fatalf("json payload = %q, want ready=true", string(payload))
-	}
-
-	if got := shouldCrashOnce(crashPath); !got {
-		t.Fatal("shouldCrashOnce(missing) = false, want true")
-	}
-	if err := writeJSONFile(crashPath, map[string]any{"crashed": true}); err != nil {
-		t.Fatalf("writeJSONFile(crashPath) error = %v", err)
-	}
-	if got := shouldCrashOnce(crashPath); got {
-		t.Fatal("shouldCrashOnce(existing) = true, want false")
-	}
-
-	var stderr strings.Builder
-	reportSideEffectError(&stderr, " test action ", errors.New("boom"))
-	if got := stderr.String(); !strings.Contains(got, "linear: test action: boom") {
-		t.Fatalf("reportSideEffectError() wrote %q, want action and error", got)
-	}
+func TestLinearRunHelpers(t *testing.T) {
+	t.Parallel()
 
 	if err := run([]string{"bad"}, strings.NewReader(""), io.Discard, io.Discard); err == nil {
 		t.Fatal("run(unsupported) error = nil, want non-nil")
 	}
-	_ = runServe(strings.NewReader(""), io.Discard, io.Discard)
+	if err := runServe(strings.NewReader(""), io.Discard, io.Discard); err != nil {
+		t.Fatalf("runServe(empty input) error = %v", err)
+	}
 }
 
 func TestNewLinearProviderDefaultsAndNotFoundWebhook(t *testing.T) {
@@ -1324,17 +1260,18 @@ func newLinearRuntimePeerPair(t *testing.T) (*linearProvider, *bridgesdk.Peer, f
 	cleanup := func() {
 		once.Do(func() {
 			cancel()
-			runtime.stop()
-			runtime.mu.RLock()
-			server := runtime.server
-			runtime.mu.RUnlock()
-			if server != nil {
-				shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
-				_ = server.Shutdown(shutdownCtx)
-				shutdownCancel()
+			runtime.lifecycle.Stop()
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
+			if err := runtime.http.Shutdown(shutdownCtx); err != nil {
+				t.Errorf("runtime HTTP shutdown error = %v", err)
 			}
-			_ = hostConn.Close()
-			_ = runtimeConn.Close()
+			shutdownCancel()
+			if err := hostConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+				t.Errorf("host connection close error = %v", err)
+			}
+			if err := runtimeConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+				t.Errorf("runtime connection close error = %v", err)
+			}
 			for range 2 {
 				err := <-errCh
 				if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, net.ErrClosed) {
@@ -1345,7 +1282,11 @@ func newLinearRuntimePeerPair(t *testing.T) (*linearProvider, *bridgesdk.Peer, f
 				}
 				t.Fatalf("runtime peer serve error = %v", err)
 			}
-			runtime.wg.Wait()
+			waitCtx, waitCancel := context.WithTimeout(context.Background(), time.Second)
+			defer waitCancel()
+			if err := runtime.lifecycle.Wait(waitCtx); err != nil {
+				t.Errorf("runtime lifecycle wait error = %v", err)
+			}
 		})
 	}
 
@@ -1383,7 +1324,7 @@ func mustHandleLinearLifecycle(
 		peer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgeInstanceTargetParams
+			var payload bridgepkg.BridgeInstanceTargetParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -1400,7 +1341,7 @@ func mustHandleLinearLifecycle(
 		peer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -1528,7 +1469,8 @@ func linearInitializeRequest(
 			ShutdownTimeoutMS:     5_000,
 			DefaultHookTimeoutMS:  5_000,
 			Bridge: &subprocess.InitializeBridgeRuntime{
-				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion1,
+				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion2,
+				Purpose:          subprocess.BridgeRuntimePurposeService,
 				Provider:         "linear",
 				Platform:         "linear",
 				ManagedInstances: managed,
@@ -1537,29 +1479,29 @@ func linearInitializeRequest(
 	}
 }
 
-func setLinearProviderTestEnv(t *testing.T) markerEnv {
+func setLinearProviderTestEnv(t *testing.T) bridgesdk.AdapterMarkerPaths {
 	t.Helper()
 
 	root := filepath.Join(t.TempDir(), "markers")
-	env := markerEnv{
-		handshakePath: filepath.Join(root, "handshake.json"),
-		ownershipPath: filepath.Join(root, "ownership.json"),
-		statePath:     filepath.Join(root, "state.jsonl"),
-		deliveryPath:  filepath.Join(root, "delivery.jsonl"),
-		ingestPath:    filepath.Join(root, "ingest.jsonl"),
-		startsPath:    filepath.Join(root, "starts.log"),
-		shutdownPath:  filepath.Join(root, "shutdown.log"),
-		crashOncePath: filepath.Join(root, "crash-once.json"),
+	env := bridgesdk.AdapterMarkerPaths{
+		HandshakePath: filepath.Join(root, "handshake.json"),
+		OwnershipPath: filepath.Join(root, "ownership.json"),
+		StatePath:     filepath.Join(root, "state.jsonl"),
+		DeliveryPath:  filepath.Join(root, "delivery.jsonl"),
+		IngestPath:    filepath.Join(root, "ingest.jsonl"),
+		StartsPath:    filepath.Join(root, "starts.log"),
+		ShutdownPath:  filepath.Join(root, "shutdown.log"),
+		CrashOncePath: filepath.Join(root, "crash-once.json"),
 	}
 
-	t.Setenv(adapterHandshakeEnv, env.handshakePath)
-	t.Setenv(adapterOwnershipEnv, env.ownershipPath)
-	t.Setenv(adapterStateEnv, env.statePath)
-	t.Setenv(adapterDeliveryEnv, env.deliveryPath)
-	t.Setenv(adapterIngestEnv, env.ingestPath)
-	t.Setenv(adapterStartsEnv, env.startsPath)
-	t.Setenv(adapterShutdownEnv, env.shutdownPath)
-	t.Setenv(adapterCrashOnceEnv, "")
+	t.Setenv(bridgesdk.AdapterHandshakePathEnv, env.HandshakePath)
+	t.Setenv(bridgesdk.AdapterOwnershipPathEnv, env.OwnershipPath)
+	t.Setenv(bridgesdk.AdapterStatePathEnv, env.StatePath)
+	t.Setenv(bridgesdk.AdapterDeliveryPathEnv, env.DeliveryPath)
+	t.Setenv(bridgesdk.AdapterIngestPathEnv, env.IngestPath)
+	t.Setenv(bridgesdk.AdapterStartsPathEnv, env.StartsPath)
+	t.Setenv(bridgesdk.AdapterShutdownPathEnv, env.ShutdownPath)
+	t.Setenv(bridgesdk.AdapterCrashOncePathEnv, "")
 
 	return env
 }
@@ -1582,7 +1524,7 @@ func reserveLinearListenAddr(t *testing.T) string {
 func linearRuntimeServerAddr(runtime *linearProvider) string {
 	runtime.mu.RLock()
 	defer runtime.mu.RUnlock()
-	return runtime.serverAddr
+	return runtime.http.Address()
 }
 
 func linearCommentWebhookBodyForTest(

@@ -3,6 +3,7 @@ package spec
 import (
 	"bytes"
 	"encoding/json"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -12,7 +13,7 @@ import (
 
 	"github.com/compozy/agh/internal/api/contract"
 	automationpkg "github.com/compozy/agh/internal/automation"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/hooks"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/tools"
@@ -876,8 +877,37 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 
 				deliveryDefaultsSchema := propertySchema(t, createBridgeSchema, "delivery_defaults")
 				assertSchemaIncludesType(t, deliveryDefaultsSchema, openapi3.TypeObject)
-				assertSchemaHasAdditionalProperties(t, deliveryDefaultsSchema, false)
+				assertSchemaHasAdditionalProperties(t, deliveryDefaultsSchema, true)
+				assertAdditionalPropertiesSchemaIncludesType(t, deliveryDefaultsSchema, openapi3.TypeString)
+				if got := deliveryDefaultsSchema.Extensions[openapiTSWidenAdditionalPropertiesExtension]; got != true {
+					t.Fatalf(
+						"delivery defaults %s = %#v, want true",
+						openapiTSWidenAdditionalPropertiesExtension,
+						got,
+					)
+				}
 				assertEnumValues(t, propertySchema(t, deliveryDefaultsSchema, "mode"), "direct-send", "reply")
+
+				progressSchema := propertySchema(t, deliveryDefaultsSchema, "progress")
+				assertRequired(t, progressSchema, "tool_progress", "grouping")
+				assertNotRequired(t, progressSchema, "typing", "reactions")
+				assertSchemaHasAdditionalProperties(t, progressSchema, false)
+				assertEnumValues(t, propertySchema(t, progressSchema, "tool_progress"), "off", "new", "all", "verbose")
+				assertEnumValues(t, propertySchema(t, progressSchema, "grouping"), "accumulate", "separate")
+				assertSchemaIncludesType(t, propertySchema(t, progressSchema, "typing"), openapi3.TypeBoolean)
+				assertSchemaIncludesType(t, propertySchema(t, progressSchema, "reactions"), openapi3.TypeBoolean)
+
+				updateBridge := operationFor(t, doc, "/api/bridges/{id}", "PATCH")
+				updateDefaultsSchema := propertySchema(t, jsonRequestSchema(t, updateBridge), "delivery_defaults")
+				updateProgressSchema := propertySchema(t, updateDefaultsSchema, "progress")
+				assertEnumValues(
+					t,
+					propertySchema(t, updateProgressSchema, "tool_progress"),
+					"off",
+					"new",
+					"all",
+					"verbose",
+				)
 			},
 		},
 		{
@@ -947,7 +977,9 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertSchemaIncludesType(t, propertySchema(t, bridgeSchema, "provider_config"), openapi3.TypeObject)
 				assertSchemaHasAdditionalProperties(t, propertySchema(t, bridgeSchema, "provider_config"), true)
 				assertSchemaIncludesType(t, propertySchema(t, bridgeSchema, "delivery_defaults"), openapi3.TypeObject)
-				assertSchemaHasAdditionalProperties(t, propertySchema(t, bridgeSchema, "delivery_defaults"), false)
+				bridgeDefaultsSchema := propertySchema(t, bridgeSchema, "delivery_defaults")
+				assertSchemaHasAdditionalProperties(t, bridgeDefaultsSchema, true)
+				assertAdditionalPropertiesSchemaIncludesType(t, bridgeDefaultsSchema, openapi3.TypeString)
 
 				healthSchema := propertySchema(t, getBridgeSchema, "health")
 				assertNotRequired(t, healthSchema, "last_success_at", "last_error", "last_error_at", "degradation")
@@ -972,6 +1004,109 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"transient_delivery_failure",
 				)
 				assertEnumValues(t, propertySchema(t, diagnosticSchema, "severity"), "info", "warning", "error")
+			},
+		},
+		{
+			name: "Should describe the Slack manifest route and typed artifact",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				operation := operationFor(t, doc, "/api/bridges/providers/slack/manifest", "GET")
+				assertParameter(t, operation, "instance", openapi3.ParameterInQuery, true)
+				responseSchema := jsonResponseSchema(t, operation, 200)
+				assertRequired(t, responseSchema, "manifest")
+				manifestSchema := propertySchema(t, responseSchema, "manifest")
+				assertRequired(
+					t,
+					manifestSchema,
+					"_metadata",
+					"display_information",
+					"features",
+					"oauth_config",
+					"settings",
+				)
+				settingsSchema := propertySchema(t, manifestSchema, "settings")
+				assertRequired(
+					t,
+					settingsSchema,
+					"event_subscriptions",
+					"interactivity",
+					"org_deploy_enabled",
+					"socket_mode_enabled",
+					"token_rotation_enabled",
+				)
+				assertSchemaIncludesType(
+					t,
+					propertySchema(t, settingsSchema, "socket_mode_enabled"),
+					openapi3.TypeBoolean,
+				)
+			},
+		},
+		{
+			name: "ShouldDescribeTypedBridgeControlRoutesAndResponses",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				verify := operationFor(t, doc, "/api/bridges/{id}/verify", "POST")
+				verifySchema := jsonResponseSchema(t, verify, http.StatusOK)
+				assertRequired(t, verifySchema, "bridge_instance_id", "checks")
+				checksSchema := propertySchema(t, verifySchema, "checks")
+				if checksSchema.Items == nil || checksSchema.Items.Value == nil {
+					t.Fatal("expected verify checks to define an items schema")
+				}
+				checkSchema := checksSchema.Items.Value
+				assertRequired(t, checkSchema, "check", "status", "remediation")
+				assertEnumValues(
+					t,
+					propertySchema(t, checkSchema, "status"),
+					"pass",
+					"warn",
+					"fail",
+					"skipped",
+				)
+				assertRequired(t, jsonResponseSchema(t, verify, http.StatusServiceUnavailable), "error")
+
+				sendTest := operationFor(t, doc, "/api/bridges/{id}/send-test", "POST")
+				sendTestRequest := jsonRequestSchema(t, sendTest)
+				assertRequired(t, sendTestRequest, "message", "target")
+				targetSchema := propertySchema(t, sendTestRequest, "target")
+				assertNotRequired(t, targetSchema, "peer_id", "thread_id", "group_id", "mode")
+				assertEnumValues(t, propertySchema(t, targetSchema, "mode"), "direct-send", "reply")
+				sendTestResponse := jsonResponseSchema(t, sendTest, http.StatusOK)
+				assertRequired(
+					t,
+					sendTestResponse,
+					"status",
+					"bridge_instance_id",
+					"delivery_id",
+					"delivery_target",
+				)
+				assertNotRequired(t, sendTestResponse, "remote_message_id", "error")
+				assertEnumValues(
+					t,
+					propertySchema(t, sendTestResponse, "status"),
+					"delivered",
+					"committed_result_unavailable",
+				)
+				assertRequired(t, propertySchema(t, sendTestResponse, "error"), "message")
+				assertRequired(t, jsonResponseSchema(t, sendTest, http.StatusBadRequest), "error")
+
+				registerWebhook := operationFor(t, doc, "/api/bridges/{id}/webhook/register", "POST")
+				registerSchema := jsonResponseSchema(t, registerWebhook, http.StatusOK)
+				assertRequired(t, registerSchema, "bridge_instance_id", "status", "remediation")
+				assertEnumValues(
+					t,
+					propertySchema(t, registerSchema, "status"),
+					"pass",
+					"warn",
+					"fail",
+					"skipped",
+				)
+				assertRequired(
+					t,
+					jsonResponseSchema(t, registerWebhook, http.StatusServiceUnavailable),
+					"error",
+				)
 			},
 		},
 		{
@@ -2453,6 +2588,16 @@ func assertSchemaHasAdditionalProperties(t *testing.T, schema *openapi3.Schema, 
 	if got := *schema.AdditionalProperties.Has; got != want {
 		t.Fatalf("expected additionalProperties=%v, got %v", want, got)
 	}
+}
+
+func assertAdditionalPropertiesSchemaIncludesType(t *testing.T, schema *openapi3.Schema, want string) {
+	t.Helper()
+
+	additional := schema.AdditionalProperties.Schema
+	if additional == nil || additional.Value == nil {
+		t.Fatalf("expected typed additionalProperties schema, got %#v", schema.AdditionalProperties)
+	}
+	assertSchemaIncludesType(t, additional.Value, want)
 }
 
 func assertObjectPropertyKeys(t *testing.T, schema *openapi3.Schema, names ...string) {

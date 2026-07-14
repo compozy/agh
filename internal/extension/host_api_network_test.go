@@ -835,6 +835,26 @@ func TestBridgeHostAPINetworkMetaShouldUseExplicitConversationMapping(t *testing
 			t.Fatalf("bridgePromptNetworkMeta() = %#v, want explicit AGH conversation mapping", meta)
 		}
 	})
+
+	t.Run("ShouldUseEditedMessageIdentityForEditNetworkMeta", func(t *testing.T) {
+		t.Parallel()
+
+		meta := bridgePromptNetworkMeta(bridgepkg.InboundMessageEnvelope{
+			EventFamily: bridgepkg.InboundEventFamilyEdit,
+			Edit: &bridgepkg.InboundEdit{
+				MessageID:         "platform-msg-edited",
+				NewText:           "corrected",
+				OriginalTimestamp: time.Date(2026, 7, 12, 12, 0, 0, 0, time.UTC),
+				Operation:         bridgepkg.InboundEditOperationUpdated,
+			},
+		})
+		if got, want := meta.MessageID, "platform-msg-edited"; got != want {
+			t.Fatalf("bridgePromptNetworkMeta().MessageID = %q, want %q", got, want)
+		}
+		if got, want := meta.Kind, string(bridgepkg.InboundEventFamilyEdit); got != want {
+			t.Fatalf("bridgePromptNetworkMeta().Kind = %q, want %q", got, want)
+		}
+	})
 }
 
 type hostAPINetworkServiceStub struct {

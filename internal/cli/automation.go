@@ -1202,7 +1202,7 @@ func automationTriggerBundle(item TriggerRecord) outputBundle {
 					"fire_limit",
 					"webhook_id",
 					"endpoint_slug",
-					"webhook_path",
+					bridgeSetupWebhookPathKey,
 					automationCreatedAtKey,
 					automationUpdatedAtKey,
 					automationPromptKey,

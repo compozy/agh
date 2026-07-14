@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
 )
 
 const (
@@ -19,32 +21,21 @@ const (
 type BridgeTargetType string
 
 const (
-	BridgeTargetTypeChannel BridgeTargetType = "channel"
-	BridgeTargetTypeUser    BridgeTargetType = "user"
-	BridgeTargetTypeRoom    BridgeTargetType = "room"
-	BridgeTargetTypeThread  BridgeTargetType = "thread"
-	BridgeTargetTypeGroup   BridgeTargetType = "group"
+	BridgeTargetTypeChannel BridgeTargetType = BridgeTargetType(bridgecontract.BridgeTargetTypeChannel)
+	BridgeTargetTypeUser    BridgeTargetType = BridgeTargetType(bridgecontract.BridgeTargetTypeUser)
+	BridgeTargetTypeRoom    BridgeTargetType = BridgeTargetType(bridgecontract.BridgeTargetTypeRoom)
+	BridgeTargetTypeThread  BridgeTargetType = BridgeTargetType(bridgecontract.BridgeTargetTypeThread)
+	BridgeTargetTypeGroup   BridgeTargetType = BridgeTargetType(bridgecontract.BridgeTargetTypeGroup)
 )
 
 // Normalize returns the canonical target type representation.
 func (t BridgeTargetType) Normalize() BridgeTargetType {
-	return BridgeTargetType(strings.ToLower(strings.TrimSpace(string(t))))
+	return BridgeTargetType(bridgecontract.BridgeTargetType(t).Normalize())
 }
 
 // Validate reports whether the target type belongs to the supported set.
 func (t BridgeTargetType) Validate() error {
-	switch normalized := t.Normalize(); normalized {
-	case BridgeTargetTypeChannel,
-		BridgeTargetTypeUser,
-		BridgeTargetTypeRoom,
-		BridgeTargetTypeThread,
-		BridgeTargetTypeGroup:
-		return nil
-	case "":
-		return errors.New("bridges: bridge target type is required")
-	default:
-		return fmt.Errorf("bridges: unsupported bridge target type %q", strings.TrimSpace(string(t)))
-	}
+	return bridgecontract.BridgeTargetType(t).Validate()
 }
 
 // BridgeTargetSnapshotRequest asks a bridge-capable extension to enumerate targets for one instance.
@@ -54,7 +45,7 @@ type BridgeTargetSnapshotRequest struct {
 
 // Validate reports whether the snapshot request identifies a bridge instance.
 func (r BridgeTargetSnapshotRequest) Validate() error {
-	return requireField(strings.TrimSpace(r.BridgeInstanceID), "bridge target snapshot bridge instance id")
+	return bridgeTargetSnapshotRequestToContract(r).Validate()
 }
 
 // BridgeTargetSnapshotResponse carries adapter-enumerated targets back to the daemon.
@@ -74,8 +65,7 @@ type BridgeTargetSnapshot struct {
 
 // Validate reports whether the adapter snapshot has a stable provider identity.
 func (s BridgeTargetSnapshot) Validate() error {
-	_, err := normalizeBridgeTargetSnapshot("", s, time.Now().UTC())
-	return err
+	return bridgeTargetSnapshotToContract(s).Validate()
 }
 
 // BridgeTarget is the daemon-normalized persisted directory row.
@@ -263,19 +253,13 @@ func normalizeBridgeTargetSnapshot(
 	snapshot BridgeTargetSnapshot,
 	refreshedAt time.Time,
 ) (BridgeTarget, error) {
+	if err := bridgeTargetSnapshotToContract(snapshot).Validate(); err != nil {
+		return BridgeTarget{}, err
+	}
 	trimmedBridgeID := strings.TrimSpace(bridgeID)
 	trimmedCanonical := strings.TrimSpace(snapshot.CanonicalRoute)
 	trimmedDisplayName := strings.TrimSpace(snapshot.DisplayName)
-	if err := requireField(trimmedCanonical, "bridge target canonical route"); err != nil {
-		return BridgeTarget{}, err
-	}
-	if err := requireField(trimmedDisplayName, "bridge target display name"); err != nil {
-		return BridgeTarget{}, err
-	}
 	targetType := snapshot.TargetType.Normalize()
-	if err := targetType.Validate(); err != nil {
-		return BridgeTarget{}, err
-	}
 	updatedAt := refreshedAt.UTC()
 	if updatedAt.IsZero() {
 		updatedAt = time.Now().UTC()
@@ -339,18 +323,12 @@ func bridgeTargetsCacheStale(lastSuccessfulRefreshAt time.Time, query BridgeTarg
 
 // NormalizeBridgeTargetName canonicalizes display-name hints for lookup.
 func NormalizeBridgeTargetName(value string) string {
-	trimmed := strings.TrimSpace(value)
-	trimmed = strings.TrimLeft(trimmed, "#@")
-	trimmed = strings.TrimSpace(trimmed)
-	return strings.ToLower(trimmed)
+	return bridgecontract.NormalizeBridgeTargetName(value)
 }
 
 // NormalizeBridgeTargetQualifier canonicalizes workspace/guild qualifiers for lookup.
 func NormalizeBridgeTargetQualifier(value string) string {
-	trimmed := strings.TrimSpace(value)
-	trimmed = strings.TrimLeft(trimmed, "#@")
-	trimmed = strings.TrimSpace(trimmed)
-	return strings.ToLower(trimmed)
+	return bridgecontract.NormalizeBridgeTargetQualifier(value)
 }
 
 func normalizeBridgeTargetCapabilities(values []string) []string {

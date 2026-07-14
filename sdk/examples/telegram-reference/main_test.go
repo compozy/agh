@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -14,10 +15,9 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -90,6 +90,191 @@ func TestMapTelegramUpdateToInboundEnvelope(t *testing.T) {
 	}
 }
 
+func TestMapTelegramUpdateToInboundEnvelopeEditAndReplyFamilies(t *testing.T) {
+	t.Run("Should map edited message with target text and original timestamp", func(t *testing.T) {
+		t.Parallel()
+
+		originalTimestamp := time.Date(2026, 4, 11, 4, 30, 0, 0, time.UTC)
+		editTimestamp := originalTimestamp.Add(5 * time.Minute)
+		bridgeRuntime := testBridgeRuntime(originalTimestamp, "brg-telegram-reference")
+		update := mustDecodeTelegramUpdate(t, `{
+			"update_id": 9002,
+			"edited_message": {
+				"message_id": 321,
+				"message_thread_id": 654,
+				"date": `+fmt.Sprint(originalTimestamp.Unix())+`,
+				"edit_date": `+fmt.Sprint(editTimestamp.Unix())+`,
+				"chat": {"id": 777, "type": "supergroup", "title": "ops"},
+				"from": {"id": 888, "username": "alice", "first_name": "Alice", "last_name": "Example"},
+				"text": "  Need an edited summary  "
+			}
+		}`)
+
+		envelope, err := mapTelegramUpdate(update, bridgeRuntime, func() time.Time {
+			return editTimestamp.Add(time.Hour)
+		})
+		if err != nil {
+			t.Fatalf("mapTelegramUpdate() error = %v", err)
+		}
+		if err := envelope.Validate(); err != nil {
+			t.Fatalf("envelope.Validate() error = %v", err)
+		}
+		if got, want := envelope.EventFamily, bridgepkg.InboundEventFamilyEdit; got != want {
+			t.Fatalf("envelope.EventFamily = %q, want %q", got, want)
+		}
+		if envelope.Edit == nil {
+			t.Fatal("envelope.Edit = nil, want typed edit payload")
+		}
+		if got, want := envelope.Edit.MessageID, "321"; got != want {
+			t.Fatalf("envelope.Edit.MessageID = %q, want %q", got, want)
+		}
+		if got, want := envelope.Edit.NewText, "Need an edited summary"; got != want {
+			t.Fatalf("envelope.Edit.NewText = %q, want %q", got, want)
+		}
+		if got, want := envelope.Edit.OriginalTimestamp, originalTimestamp; !got.Equal(want) {
+			t.Fatalf("envelope.Edit.OriginalTimestamp = %s, want %s", got, want)
+		}
+		if got, want := envelope.Edit.Operation, bridgepkg.InboundEditOperationUpdated; got != want {
+			t.Fatalf("envelope.Edit.Operation = %q, want %q", got, want)
+		}
+		if got, want := envelope.ReceivedAt, editTimestamp; !got.Equal(want) {
+			t.Fatalf("envelope.ReceivedAt = %s, want %s", got, want)
+		}
+		if envelope.PlatformMessageID != "" || envelope.Content.Text != "" {
+			t.Fatalf(
+				"edit message fields = platform_message_id %q content %q, want empty",
+				envelope.PlatformMessageID,
+				envelope.Content.Text,
+			)
+		}
+	})
+
+	t.Run("Should map edited channel post without requiring a user sender", func(t *testing.T) {
+		t.Parallel()
+
+		originalTimestamp := time.Date(2026, 4, 11, 5, 0, 0, 0, time.UTC)
+		editTimestamp := originalTimestamp.Add(time.Minute)
+		bridgeRuntime := testBridgeRuntime(originalTimestamp, "brg-telegram-reference")
+		update := mustDecodeTelegramUpdate(t, `{
+			"update_id": 9003,
+			"edited_channel_post": {
+				"message_id": 654,
+				"date": `+fmt.Sprint(originalTimestamp.Unix())+`,
+				"edit_date": `+fmt.Sprint(editTimestamp.Unix())+`,
+				"chat": {"id": -100777, "type": "channel", "title": "Release channel"},
+				"sender_chat": {"id": -100777, "type": "channel", "title": "Release channel"},
+				"text": "Release notes updated"
+			}
+		}`)
+
+		envelope, err := mapTelegramUpdate(update, bridgeRuntime, func() time.Time {
+			return editTimestamp.Add(time.Hour)
+		})
+		if err != nil {
+			t.Fatalf("mapTelegramUpdate() error = %v", err)
+		}
+		if err := envelope.Validate(); err != nil {
+			t.Fatalf("envelope.Validate() error = %v", err)
+		}
+		if got, want := envelope.Edit.MessageID, "654"; got != want {
+			t.Fatalf("envelope.Edit.MessageID = %q, want %q", got, want)
+		}
+		if got, want := envelope.Sender.ID, "-100777"; got != want {
+			t.Fatalf("envelope.Sender.ID = %q, want %q", got, want)
+		}
+		if got, want := envelope.Sender.DisplayName, "Release channel"; got != want {
+			t.Fatalf("envelope.Sender.DisplayName = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should map reply context from the embedded Telegram parent message", func(t *testing.T) {
+		t.Parallel()
+
+		timestamp := time.Date(2026, 4, 11, 5, 30, 0, 0, time.UTC)
+		bridgeRuntime := testBridgeRuntime(timestamp, "brg-telegram-reference")
+		update := mustDecodeTelegramUpdate(t, `{
+			"update_id": 9004,
+			"message": {
+				"message_id": 322,
+				"date": `+fmt.Sprint(timestamp.Unix())+`,
+				"chat": {"id": 777, "type": "supergroup", "title": "ops"},
+				"from": {"id": 999, "username": "bob", "first_name": "Bob"},
+				"text": "Follow up on that",
+				"reply_to_message": {
+					"message_id": 321,
+					"date": `+fmt.Sprint(timestamp.Add(-time.Minute).Unix())+`,
+					"chat": {"id": 777, "type": "supergroup", "title": "ops"},
+					"from": {"id": 888, "username": "alice", "first_name": "Alice", "last_name": "Example"},
+					"text": "Need an edited summary"
+				}
+			}
+		}`)
+
+		envelope, err := mapTelegramUpdate(update, bridgeRuntime, nil)
+		if err != nil {
+			t.Fatalf("mapTelegramUpdate() error = %v", err)
+		}
+		if err := envelope.Validate(); err != nil {
+			t.Fatalf("envelope.Validate() error = %v", err)
+		}
+		if got, want := envelope.EventFamily, bridgepkg.InboundEventFamilyMessage; got != want {
+			t.Fatalf("envelope.EventFamily = %q, want %q", got, want)
+		}
+		if got, want := envelope.ReplyToText, "Need an edited summary"; got != want {
+			t.Fatalf("envelope.ReplyToText = %q, want %q", got, want)
+		}
+		if got, want := envelope.ReplyToAuthorID, "888"; got != want {
+			t.Fatalf("envelope.ReplyToAuthorID = %q, want %q", got, want)
+		}
+		if got, want := envelope.ReplyToAuthorName, "Alice Example"; got != want {
+			t.Fatalf("envelope.ReplyToAuthorName = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should reject ambiguous and unsupported Telegram update payloads", func(t *testing.T) {
+		t.Parallel()
+
+		bridgeRuntime := testBridgeRuntime(time.Date(2026, 4, 11, 6, 0, 0, 0, time.UTC), "brg-telegram-reference")
+		cases := []struct {
+			name string
+			raw  string
+		}{
+			{
+				name: "Should reject an update without a supported message payload",
+				raw:  `{"update_id":9005}`,
+			},
+			{
+				name: "Should reject an update with both message and edited message payloads",
+				raw: `{
+					"update_id":9006,
+					"message":{"message_id":1,"date":1775887200,"chat":{"id":777},"text":"new"},
+					"edited_message":{"message_id":1,"date":1775887200,"edit_date":1775887260,"chat":{"id":777},"text":"edit"}
+				}`,
+			},
+		}
+		for _, testCase := range cases {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				update := mustDecodeTelegramUpdate(t, testCase.raw)
+				if _, err := mapTelegramUpdate(update, bridgeRuntime, nil); err == nil {
+					t.Fatalf("mapTelegramUpdate(%#v) error = nil, want unsupported-shape failure", update)
+				}
+			})
+		}
+	})
+}
+
+func mustDecodeTelegramUpdate(t *testing.T, raw string) telegramUpdate {
+	t.Helper()
+
+	var update telegramUpdate
+	if err := json.Unmarshal([]byte(raw), &update); err != nil {
+		t.Fatalf("json.Unmarshal(telegram update) error = %v", err)
+	}
+	return update
+}
+
 func TestBoundSecretValueReadsOnlyBoundLaunchCredentials(t *testing.T) {
 	bridgeRuntime := testBridgeRuntime(time.Date(2026, 4, 11, 4, 45, 0, 0, time.UTC), "brg-telegram-reference")
 	bridgeRuntime.BoundSecrets = []subprocess.InitializeBridgeBoundSecret{
@@ -135,7 +320,7 @@ func TestResolveManagedInstanceRequiresExplicitSelectionForMultiplexedProvider(t
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
 		func(_ context.Context, raw json.RawMessage) (any, error) {
-			var params extensioncontract.BridgeInstanceTargetParams
+			var params bridgepkg.BridgeInstanceTargetParams
 			if err := json.Unmarshal(raw, &params); err != nil {
 				return nil, err
 			}
@@ -154,7 +339,7 @@ func TestResolveManagedInstanceRequiresExplicitSelectionForMultiplexedProvider(t
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, raw json.RawMessage) (any, error) {
-			var params extensioncontract.BridgesInstancesReportStateParams
+			var params bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(raw, &params); err != nil {
 				return nil, err
 			}
@@ -290,7 +475,7 @@ func TestRuntimeInitializeWritesOwnershipAndPerInstanceStateMarkers(t *testing.T
 
 	listedIDs := make([]string, 0)
 	gotIDs := make([]string, 0)
-	reportedStatuses := make([]extensioncontract.BridgesInstancesReportStateParams, 0)
+	reportedStatuses := make([]bridgepkg.BridgesInstancesReportStateParams, 0)
 	var mu sync.Mutex
 
 	instanceByID := map[string]bridgepkg.BridgeInstance{
@@ -313,7 +498,7 @@ func TestRuntimeInitializeWritesOwnershipAndPerInstanceStateMarkers(t *testing.T
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgeInstanceTargetParams
+			var payload bridgepkg.BridgeInstanceTargetParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -328,7 +513,7 @@ func TestRuntimeInitializeWritesOwnershipAndPerInstanceStateMarkers(t *testing.T
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -423,7 +608,7 @@ func TestRuntimePollsInboundUpdatesAndRetriesNotInitialized(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -447,7 +632,7 @@ func TestRuntimePollsInboundUpdatesAndRetriesNotInitialized(t *testing.T) {
 			if err := json.Unmarshal(params, &envelope); err != nil {
 				return nil, err
 			}
-			return extensioncontract.BridgesMessagesIngestResult{
+			return bridgepkg.BridgesMessagesIngestResult{
 				SessionID:    "sess-1",
 				RouteCreated: true,
 				RoutingKey: bridgepkg.RoutingKey{
@@ -524,7 +709,7 @@ func TestRuntimeDeliveryWritesAckAndManagedInstanceErrors(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -603,7 +788,7 @@ func TestRuntimeInitializeWritesOwnershipErrorAndStillReportsState(t *testing.T)
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -840,7 +1025,8 @@ func testInitializeRequest(
 			ShutdownTimeoutMS:     5_000,
 			DefaultHookTimeoutMS:  5_000,
 			Bridge: &subprocess.InitializeBridgeRuntime{
-				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion1,
+				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion2,
+				Purpose:          subprocess.BridgeRuntimePurposeService,
 				Provider:         "telegram-reference",
 				Platform:         "telegram",
 				ManagedInstances: managed,
@@ -853,7 +1039,7 @@ func testDeliveryRequest(
 	instanceID string,
 	deliveryID string,
 	seq int64,
-	eventType string,
+	eventType bridgepkg.DeliveryEventType,
 	final bool,
 ) bridgepkg.DeliveryRequest {
 	return bridgepkg.DeliveryRequest{

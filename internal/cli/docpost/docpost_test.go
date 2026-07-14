@@ -247,41 +247,47 @@ agh status [flags]
 func TestRenderSubcommandsSection(t *testing.T) {
 	t.Parallel()
 
-	inputs := []input{
-		{
-			fileName: "agh_task.md",
-			baseName: "agh_task",
-			segments: []string{"task"},
-			raw:      "## agh task\n\nManage tasks and task runs\n\n",
-		},
-		{
-			fileName: "agh_task_create.md",
-			baseName: "agh_task_create",
-			segments: []string{"task", "create"},
-			raw:      "## agh task create\n\nCreate a task\n\n",
-		},
-		{
-			fileName: "agh_task_list.md",
-			baseName: "agh_task_list",
-			segments: []string{"task", "list"},
-			raw:      "## agh task list\n\nList tasks\n\n",
-		},
-	}
+	t.Run("Should render a canonical subcommand table", func(t *testing.T) {
+		t.Parallel()
 
-	targets := map[string]string{
-		"agh_task":        "/runtime/cli-reference/task",
-		"agh_task_create": "/runtime/cli-reference/task/create",
-		"agh_task_list":   "/runtime/cli-reference/task/list",
-	}
+		inputs := []input{
+			{
+				fileName: "agh_task.md",
+				baseName: "agh_task",
+				segments: []string{"task"},
+				raw:      "## agh task\n\nManage tasks and task runs\n\n",
+			},
+			{
+				fileName: "agh_task_create.md",
+				baseName: "agh_task_create",
+				segments: []string{"task", "create"},
+				raw:      "## agh task create\n\nCreate a task\n\n",
+			},
+			{
+				fileName: "agh_task_list.md",
+				baseName: "agh_task_list",
+				segments: []string{"task", "list"},
+				raw:      "## agh task list\n\nList tasks\n\n",
+			},
+		}
 
-	result := renderSubcommandsSection(inputs[0], inputs, targets)
+		targets := map[string]string{
+			"agh_task":        "/runtime/cli-reference/task",
+			"agh_task_create": "/runtime/cli-reference/task/create",
+			"agh_task_list":   "/runtime/cli-reference/task/list",
+		}
 
-	if !strings.Contains(result, "| [agh task create](/runtime/cli-reference/task/create) | Create a task |") {
-		t.Fatal("expected create subcommand row")
-	}
-	if !strings.Contains(result, "| [agh task list](/runtime/cli-reference/task/list) | List tasks |") {
-		t.Fatal("expected list subcommand row")
-	}
+		result := renderSubcommandsSection(inputs[0], inputs, targets)
+		want := `## Subcommands
+
+| Command                                               | Description   |
+| ----------------------------------------------------- | ------------- |
+| [agh task create](/runtime/cli-reference/task/create) | Create a task |
+| [agh task list](/runtime/cli-reference/task/list)     | List tasks    |`
+		if result != want {
+			t.Fatalf("renderSubcommandsSection() = %q, want %q", result, want)
+		}
+	})
 }
 
 func TestEscapeJSX(t *testing.T) {

@@ -2,9 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,9 +15,8 @@ import (
 	"sync"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -59,8 +55,6 @@ const (
 	linearWebhookReadHeaderTimeout = 10 * time.Second
 	linearWebhookIdleTimeout       = 30 * time.Second
 	linearWebhookIngressTimeout    = 10 * time.Second
-
-	rpcCodeNotInitialized = -32003
 )
 
 var (
@@ -71,28 +65,21 @@ var (
 )
 
 type linearProvider struct {
-	sdk     *bridgesdk.Runtime
-	stderr  io.Writer
-	env     markerEnv
-	now     func() time.Time
-	session *bridgesdk.Session
+	sdk        *bridgesdk.Runtime
+	lifecycle  *bridgesdk.ProviderLifecycle
+	markers    *bridgesdk.AdapterMarkers
+	http       *bridgesdk.ProviderHTTPServer
+	stderr     io.Writer
+	now        func() time.Time
+	routes     *bridgesdk.RouteTable[resolvedInstanceConfig]
+	deliveries *bridgesdk.DeliveryStateStore[deliveryState]
 
 	mu                    sync.RWMutex
 	lastError             string
-	server                *http.Server
-	serverAddr            string
-	listenAddr            string
-	routes                map[string]resolvedInstanceConfig
-	deliveries            map[string]deliveryState
-	reportedStatus        map[string]bridgepkg.BridgeStatus
 	apiFactory            func(resolvedInstanceConfig) linearAPI
 	rateLimiter           *bridgesdk.FixedWindowRateLimiter
 	inFlight              *bridgesdk.InFlightLimiter
 	webhookIngressTimeout time.Duration
-
-	stopCh   chan struct{}
-	stopOnce sync.Once
-	wg       sync.WaitGroup
 }
 
 type deliveryState struct {
@@ -103,8 +90,6 @@ type deliveryState struct {
 }
 
 type linearProviderConfig struct {
-	APIBaseURL     string `json:"api_base_url,omitempty"`
-	OAuthTokenURL  string `json:"oauth_token_url,omitempty"`
 	OrganizationID string `json:"organization_id,omitempty"`
 	Mode           string `json:"mode,omitempty"`
 	AuthMode       string `json:"auth_mode,omitempty"`
@@ -225,22 +210,23 @@ type linearAgentSessionWebhookPayload struct {
 	Actor            linearActor                 `json:"actor"`
 }
 
+//nolint:funlen // Construction keeps the provider's declarative runtime wiring visible in one place.
 func newLinearProvider(stderr io.Writer) (*linearProvider, error) {
 	if stderr == nil {
 		stderr = io.Discard
 	}
 
 	provider := &linearProvider{
-		stderr:                stderr,
-		env:                   markerEnvFromProcess(),
-		now:                   func() time.Time { return time.Now().UTC() },
-		routes:                make(map[string]resolvedInstanceConfig),
-		deliveries:            make(map[string]deliveryState),
-		reportedStatus:        make(map[string]bridgepkg.BridgeStatus),
+		stderr:  stderr,
+		markers: bridgesdk.NewAdapterMarkers(providerLinearKey, stderr),
+		now:     func() time.Time { return time.Now().UTC() },
+		routes: bridgesdk.NewRouteTable(func(config resolvedInstanceConfig) []string {
+			return []string{config.webhookPath}
+		}),
+		deliveries:            bridgesdk.NewDeliveryStateStore[deliveryState](),
 		rateLimiter:           bridgesdk.NewFixedWindowRateLimiter(300, time.Minute),
 		inFlight:              bridgesdk.NewInFlightLimiter(48),
 		webhookIngressTimeout: linearWebhookIngressTimeout,
-		stopCh:                make(chan struct{}),
 	}
 	provider.apiFactory = func(cfg resolvedInstanceConfig) linearAPI {
 		return &linearClient{
@@ -252,16 +238,63 @@ func newLinearProvider(stderr io.Writer) (*linearProvider, error) {
 		}
 	}
 
+	lifecycle, err := bridgesdk.NewProviderLifecycle(bridgesdk.ProviderLifecycleConfig{
+		ProviderName: providerLinearKey,
+		Markers:      provider.markers,
+		Reconcile: func(
+			ctx context.Context,
+			managed []subprocess.InitializeBridgeManagedInstance,
+		) ([]bridgesdk.ProviderInitialState, error) {
+			configs := provider.reconcileInstanceConfigs(ctx, provider.lifecycle.Session(), managed)
+			states := make([]bridgesdk.ProviderInitialState, 0, len(configs))
+			for idx := range configs {
+				states = append(states, bridgesdk.ProviderInitialState{
+					BridgeInstanceID: configs[idx].instanceID,
+					Status:           configs[idx].initialStatus,
+					Degradation:      configs[idx].initialDegradation,
+				})
+			}
+			return states, nil
+		},
+		FinalizeInitialize: func(err error) {
+			if err != nil {
+				provider.setLastError(err)
+			}
+		},
+		ShutdownResources: func(ctx context.Context) error {
+			if provider.http == nil {
+				return nil
+			}
+			return provider.http.Shutdown(ctx)
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	provider.lifecycle = lifecycle
+	providerHTTP, err := bridgesdk.NewProviderHTTPServer(bridgesdk.ProviderHTTPConfig{
+		ReadHeaderTimeout: linearWebhookReadHeaderTimeout,
+		IdleTimeout:       linearWebhookIdleTimeout,
+		Handler:           http.HandlerFunc(provider.serveWebhookHTTP),
+		Go:                lifecycle.Go,
+		OnError:           provider.setLastError,
+	})
+	if err != nil {
+		return nil, err
+	}
+	provider.http = providerHTTP
+
 	sdkRuntime, err := bridgesdk.NewRuntime(bridgesdk.RuntimeConfig{
 		ExtensionInfo: subprocess.InitializeExtensionInfo{
 			Name:    providerLinearKey,
 			Version: "0.1.0",
 			SDKName: "bridgesdk",
 		},
-		Initialize:  provider.handleInitialize,
+		Initialize:  lifecycle.Initialize,
 		Deliver:     provider.handleBridgesDeliver,
+		Check:       provider.handleBridgeCheck,
 		HealthCheck: func(context.Context, *bridgesdk.Session) error { return provider.healthCheck() },
-		Shutdown:    provider.handleShutdown,
+		Shutdown:    lifecycle.Shutdown,
 		Now:         func() time.Time { return provider.now() },
 	})
 	if err != nil {
@@ -272,86 +305,7 @@ func newLinearProvider(stderr io.Writer) (*linearProvider, error) {
 }
 
 func (p *linearProvider) serve(stdin io.Reader, stdout io.Writer) error {
-	p.reportSideEffectError(
-		"write start marker",
-		appendMarkerLine(p.env.startsPath, fmt.Sprintf("pid=%d", os.Getpid())),
-	)
-	return p.sdk.Serve(context.Background(), stdin, stdout)
-}
-
-func (p *linearProvider) handleInitialize(_ context.Context, session *bridgesdk.Session) error {
-	p.mu.Lock()
-	p.session = session
-	p.mu.Unlock()
-
-	marker := initializeMarker{
-		Request:  session.InitializeRequest(),
-		Response: session.InitializeResponse(),
-	}
-	p.reportSideEffectError("write initialize marker", writeJSONFile(p.env.handshakePath, marker))
-	p.clearLastError()
-
-	p.wg.Go(func() {
-		p.afterInitialize(session)
-	})
-
-	return nil
-}
-
-func (p *linearProvider) afterInitialize(session *bridgesdk.Session) {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	listed, err := p.syncOwnedInstances(ctx, session)
-	ownershipErr := err
-	fetched := make([]bridgepkg.BridgeInstance, 0, len(listed))
-	if ownershipErr == nil {
-		for _, managed := range listed {
-			instance, getErr := p.getOwnedInstance(ctx, session, managed.Instance.ID)
-			if getErr != nil {
-				ownershipErr = getErr
-				break
-			}
-			fetched = append(fetched, *instance)
-		}
-	}
-	if len(listed) == 0 {
-		listed = session.Cache().List()
-	}
-
-	ownership := ownershipMarker{
-		Listed:  managedInstancesToInstances(listed),
-		Fetched: fetched,
-	}
-	if ownershipErr != nil {
-		ownership.Error = ownershipErr.Error()
-	}
-	p.reportSideEffectError("write ownership marker", writeJSONFile(p.env.ownershipPath, ownership))
-
-	configs := p.reconcileInstanceConfigs(ctx, session, listed)
-	for _, cfg := range configs {
-		status := cfg.initialStatus
-		degradation := cfg.initialDegradation
-		if status == "" {
-			status = bridgepkg.BridgeStatusReady
-		}
-		if err := p.reportState(
-			ctx,
-			session,
-			cfg.instanceID,
-			status,
-			degradation,
-		); err != nil &&
-			ownershipErr == nil {
-			ownershipErr = err
-		}
-	}
-
-	if ownershipErr != nil {
-		p.setLastError(ownershipErr)
-	} else {
-		p.clearLastError()
-	}
+	return p.lifecycle.Serve(context.Background(), p.sdk, stdin, stdout)
 }
 
 func (p *linearProvider) handleBridgesDeliver(
@@ -359,26 +313,26 @@ func (p *linearProvider) handleBridgesDeliver(
 	session *bridgesdk.Session,
 	request bridgepkg.DeliveryRequest,
 ) (bridgepkg.DeliveryAck, error) {
-	marker := deliveryMarker{
+	marker := bridgesdk.DeliveryMarker{
 		PID:     os.Getpid(),
 		Request: request,
 	}
 
-	cfg, err := p.waitForInstanceConfig(strings.TrimSpace(request.Event.BridgeInstanceID), 500*time.Millisecond)
+	cfg, err := p.waitForInstanceConfig(ctx, strings.TrimSpace(request.Event.BridgeInstanceID), 500*time.Millisecond)
 	if err != nil {
 		marker.Error = err.Error()
-		p.reportSideEffectError("write failed delivery marker", appendJSONLine(p.env.deliveryPath, marker))
+		p.markers.RecordDelivery(marker)
 		p.setLastError(err)
 		return bridgepkg.DeliveryAck{}, err
 	}
-	if shouldCrashOnce(p.env.crashOncePath) {
-		p.reportSideEffectError("write pre-crash delivery marker", appendJSONLine(p.env.deliveryPath, marker))
-		p.reportSideEffectError("write crash marker", writeJSONFile(p.env.crashOncePath, map[string]any{
+	if p.markers.ShouldCrashOnce() {
+		p.markers.RecordDelivery(marker)
+		p.markers.RecordCrash(map[string]any{
 			"crashed":            true,
 			"pid":                os.Getpid(),
 			"delivery_id":        strings.TrimSpace(request.Event.DeliveryID),
 			"bridge_instance_id": cfg.instanceID,
-		}))
+		})
 		os.Exit(23)
 	}
 
@@ -391,8 +345,11 @@ func (p *linearProvider) handleBridgesDeliver(
 		p.deliveryState(cfg.instanceID, request.Event.DeliveryID),
 	)
 	if err != nil {
+		if bridgesdk.IsCommittedMutation(err) {
+			p.deliveries.Delete(deliveryStateKey(cfg.instanceID, request.Event.DeliveryID))
+		}
 		marker.Error = err.Error()
-		p.reportSideEffectError("write failed delivery marker", appendJSONLine(p.env.deliveryPath, marker))
+		p.markers.RecordDelivery(marker)
 		classified := bridgesdk.ClassifyError(err)
 		_, _, reportErr := session.ReportClassifiedError(ctx, cfg.instanceID, classified)
 		if reportErr != nil {
@@ -404,224 +361,15 @@ func (p *linearProvider) handleBridgesDeliver(
 	}
 
 	p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, state)
-	if err := p.reportReadyIfNeeded(ctx, session, cfg.instanceID); err != nil {
+	if err := p.lifecycle.Host().ReportReadyIfNeeded(ctx, session, cfg.instanceID); err != nil {
 		p.setLastError(err)
 	} else {
 		p.clearLastError()
 	}
 
 	marker.Ack = &ack
-	p.reportSideEffectError("write delivery marker", appendJSONLine(p.env.deliveryPath, marker))
+	p.markers.RecordDelivery(marker)
 	return ack, nil
-}
-
-func (p *linearProvider) healthCheck() error {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if strings.TrimSpace(p.lastError) == "" {
-		return nil
-	}
-	return errors.New(strings.TrimSpace(p.lastError))
-}
-
-func (p *linearProvider) handleShutdown(
-	_ context.Context,
-	_ *bridgesdk.Session,
-	request subprocess.ShutdownRequest,
-) error {
-	p.stop()
-
-	shutdownCtx := context.Background()
-	if request.DeadlineMS > 0 {
-		var cancel context.CancelFunc
-		shutdownCtx, cancel = context.WithTimeout(
-			context.Background(),
-			time.Duration(request.DeadlineMS)*time.Millisecond,
-		)
-		defer cancel()
-	}
-
-	p.mu.Lock()
-	server := p.server
-	p.mu.Unlock()
-	var shutdownErr error
-	if server != nil {
-		if err := server.Shutdown(shutdownCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			shutdownErr = fmt.Errorf("linear: shutdown webhook server: %w", err)
-			p.setLastError(shutdownErr)
-		}
-	}
-
-	done := make(chan struct{})
-	go func() {
-		p.wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-shutdownCtx.Done():
-	}
-
-	p.reportSideEffectError(
-		"write shutdown marker",
-		appendMarkerLine(p.env.shutdownPath, fmt.Sprintf("pid=%d", os.Getpid())),
-	)
-	return shutdownErr
-}
-
-func (p *linearProvider) stop() {
-	p.stopOnce.Do(func() {
-		close(p.stopCh)
-	})
-}
-
-func (p *linearProvider) syncOwnedInstances(
-	ctx context.Context,
-	session *bridgesdk.Session,
-) ([]subprocess.InitializeBridgeManagedInstance, error) {
-	var result []subprocess.InitializeBridgeManagedInstance
-	err := p.retryHostCall(ctx, func(callCtx context.Context) error {
-		items, callErr := session.SyncInstances(callCtx)
-		if callErr == nil {
-			result = items
-		}
-		return callErr
-	})
-	return result, err
-}
-
-func (p *linearProvider) getOwnedInstance(
-	ctx context.Context,
-	session *bridgesdk.Session,
-	bridgeInstanceID string,
-) (*bridgepkg.BridgeInstance, error) {
-	var result *bridgepkg.BridgeInstance
-	err := p.retryHostCall(ctx, func(callCtx context.Context) error {
-		instance, callErr := session.HostAPI().GetBridgeInstance(callCtx, bridgeInstanceID)
-		if callErr == nil {
-			result = instance
-		}
-		return callErr
-	})
-	return result, err
-}
-
-func (p *linearProvider) reportState(
-	ctx context.Context,
-	session *bridgesdk.Session,
-	bridgeInstanceID string,
-	status bridgepkg.BridgeStatus,
-	degradation *bridgepkg.BridgeDegradation,
-) error {
-	var result *bridgepkg.BridgeInstance
-	err := p.retryHostCall(ctx, func(callCtx context.Context) error {
-		instance, callErr := session.HostAPI().
-			ReportBridgeInstanceState(callCtx, extensioncontract.BridgesInstancesReportStateParams{
-				BridgeInstanceID: strings.TrimSpace(bridgeInstanceID),
-				Status:           status,
-				Degradation:      cloneDegradation(degradation),
-			})
-		if callErr == nil {
-			result = instance
-		}
-		return callErr
-	})
-	if err != nil {
-		p.reportSideEffectError("write failed state marker", appendJSONLine(p.env.statePath, stateMarker{
-			BridgeInstanceID: strings.TrimSpace(bridgeInstanceID),
-			Status:           status,
-			Error:            err.Error(),
-		}))
-		return err
-	}
-
-	p.mu.Lock()
-	p.reportedStatus[strings.TrimSpace(bridgeInstanceID)] = result.Status.Normalize()
-	p.mu.Unlock()
-	p.reportSideEffectError("write state marker", appendJSONLine(p.env.statePath, stateMarker{
-		BridgeInstanceID: result.ID,
-		Status:           result.Status,
-		Instance:         *result,
-	}))
-	return nil
-}
-
-func (p *linearProvider) reportReadyIfNeeded(
-	ctx context.Context,
-	session *bridgesdk.Session,
-	bridgeInstanceID string,
-) error {
-	bridgeInstanceID = strings.TrimSpace(bridgeInstanceID)
-	p.mu.RLock()
-	status := p.reportedStatus[bridgeInstanceID]
-	p.mu.RUnlock()
-	if status == bridgepkg.BridgeStatusReady {
-		return nil
-	}
-	return p.reportState(ctx, session, bridgeInstanceID, bridgepkg.BridgeStatusReady, nil)
-}
-
-func (p *linearProvider) ingestBridgeMessage(
-	ctx context.Context,
-	session *bridgesdk.Session,
-	envelope bridgepkg.InboundMessageEnvelope,
-) (*extensioncontract.BridgesMessagesIngestResult, error) {
-	var result *extensioncontract.BridgesMessagesIngestResult
-	err := p.retryHostCall(ctx, func(callCtx context.Context) error {
-		ingestResult, callErr := session.HostAPI().IngestBridgeMessage(callCtx, envelope)
-		if callErr == nil {
-			result = ingestResult
-		}
-		return callErr
-	})
-	return result, err
-}
-
-func (p *linearProvider) retryHostCall(ctx context.Context, fn func(context.Context) error) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	delay := 10 * time.Millisecond
-	var lastErr error
-	for range 6 {
-		err := fn(ctx)
-		if err == nil {
-			return nil
-		}
-		if !isNotInitializedRPCError(err) {
-			return err
-		}
-		lastErr = err
-
-		timer := time.NewTimer(delay)
-		select {
-		case <-ctx.Done():
-			if !timer.Stop() {
-				<-timer.C
-			}
-			return ctx.Err()
-		case <-p.stopCh:
-			if !timer.Stop() {
-				<-timer.C
-			}
-			return err
-		case <-timer.C:
-		}
-
-		if delay < 100*time.Millisecond {
-			delay *= 2
-			if delay > 100*time.Millisecond {
-				delay = 100 * time.Millisecond
-			}
-		}
-	}
-
-	if lastErr != nil {
-		return lastErr
-	}
-	return nil
 }
 
 func (p *linearProvider) reconcileInstanceConfigs(
@@ -629,19 +377,52 @@ func (p *linearProvider) reconcileInstanceConfigs(
 	session *bridgesdk.Session,
 	managed []subprocess.InitializeBridgeManagedInstance,
 ) []resolvedInstanceConfig {
-	if len(managed) == 0 {
-		p.mu.Lock()
-		p.routes = make(map[string]resolvedInstanceConfig)
-		p.mu.Unlock()
+	reconciler := bridgesdk.ManagedConfigReconciler[resolvedInstanceConfig]{
+		Routes:    p.routes,
+		Resolve:   p.resolveInstanceConfig,
+		Prepare:   p.prepareLinearConfigs,
+		Finalize:  p.finalizeLinearConfigs,
+		Identity:  func(config resolvedInstanceConfig) string { return config.instanceID },
+		OnPublish: p.lifecycle.MarkRoutesReady,
+	}
+	configs, err := reconciler.Reconcile(ctx, session, managed)
+	if err != nil {
+		p.setLastError(err)
 		return nil
 	}
+	return configs
+}
 
-	configs := make([]resolvedInstanceConfig, 0, len(managed))
+func (p *linearProvider) finalizeLinearConfigs(
+	ctx context.Context,
+	_ *bridgesdk.Session,
+	configs []resolvedInstanceConfig,
+) ([]resolvedInstanceConfig, error) {
+	for idx := range configs {
+		updated, status, degradation, probeErr := p.determineInitialState(ctx, configs[idx])
+		if probeErr != nil {
+			p.setLastError(probeErr)
+		}
+		updated.initialStatus = status
+		updated.initialDegradation = degradation
+		configs[idx] = updated
+	}
+	return configs, nil
+}
+
+func (p *linearProvider) prepareLinearConfigs(
+	_ context.Context,
+	_ *bridgesdk.Session,
+	configs []resolvedInstanceConfig,
+) ([]resolvedInstanceConfig, error) {
+	if len(configs) == 0 {
+		return configs, nil
+	}
 	requestedListen := strings.TrimSpace(os.Getenv(linearListenAddrEnv))
-	seenOwnership := make(map[string]string, len(managed))
+	seenOwnership := make(map[string]string, len(configs))
 
-	for _, item := range managed {
-		cfg := p.resolveInstanceConfig(session, item)
+	for idx := range configs {
+		cfg := &configs[idx]
 		if cfg.listenAddr != "" {
 			if requestedListen == "" {
 				requestedListen = cfg.listenAddr
@@ -667,7 +448,6 @@ func (p *linearProvider) reconcileInstanceConfigs(
 		if ownershipKey != "" {
 			seenOwnership[ownershipKey] = cfg.instanceID
 		}
-		configs = append(configs, cfg)
 	}
 
 	if requestedListen == "" {
@@ -684,24 +464,7 @@ func (p *linearProvider) reconcileInstanceConfigs(
 		}
 	}
 
-	nextRoutes := make(map[string]resolvedInstanceConfig, len(configs))
-	for idx := range configs {
-		updated, status, degradation, err := p.determineInitialState(ctx, configs[idx])
-		if err != nil {
-			p.setLastError(err)
-		}
-		updated.initialStatus = status
-		updated.initialDegradation = degradation
-		configs[idx] = updated
-		nextRoutes[updated.instanceID] = updated
-	}
-
-	p.mu.Lock()
-	p.routes = nextRoutes
-	p.listenAddr = requestedListen
-	p.mu.Unlock()
-
-	return configs
+	return configs, nil
 }
 
 func (p *linearProvider) resolveInstanceConfig(
@@ -768,8 +531,8 @@ func resolveLinearInstanceConfig(
 		authMode:        normalizeLinearAuthMode(cfg.AuthMode),
 		listenAddr:      firstNonEmpty(cfg.Webhook.ListenAddr, env.listenAddr),
 		webhookPath:     normalizeWebhookPath(firstNonEmpty(cfg.Webhook.Path, linearDefaultWebhookPath)),
-		apiBaseURL:      normalizeURL(firstNonEmpty(cfg.APIBaseURL, env.apiBaseURL, linearDefaultAPIBaseURL)),
-		oauthTokenURL:   normalizeURL(firstNonEmpty(cfg.OAuthTokenURL, env.tokenURL, linearDefaultOAuthTokenURL())),
+		apiBaseURL:      normalizeURL(firstNonEmpty(env.apiBaseURL, linearDefaultAPIBaseURL)),
+		oauthTokenURL:   normalizeURL(firstNonEmpty(env.tokenURL, linearDefaultOAuthTokenURL())),
 		webhookSecret:   strings.TrimSpace(secrets.webhookSecret),
 		apiKey:          strings.TrimSpace(secrets.apiKey),
 		clientID:        strings.TrimSpace(secrets.clientID),
@@ -878,45 +641,10 @@ func (p *linearProvider) determineInitialState(
 }
 
 func (p *linearProvider) startServer(listenAddr string) error {
-	p.mu.RLock()
-	server := p.server
-	currentListen := p.listenAddr
-	p.mu.RUnlock()
-	if server != nil {
-		if currentListen != "" && currentListen != strings.TrimSpace(listenAddr) {
-			return fmt.Errorf("linear: runtime already listening on %q, cannot switch to %q", currentListen, listenAddr)
-		}
-		return nil
+	if err := p.http.Start(listenAddr); err != nil {
+		return fmt.Errorf("linear: %w", err)
 	}
-
-	ln, err := listenLinearWebhook(strings.TrimSpace(listenAddr))
-	if err != nil {
-		return fmt.Errorf("linear: listen %q: %w", listenAddr, err)
-	}
-
-	httpServer := &http.Server{
-		Handler:           http.HandlerFunc(p.serveWebhookHTTP),
-		ReadHeaderTimeout: linearWebhookReadHeaderTimeout,
-		IdleTimeout:       linearWebhookIdleTimeout,
-	}
-	actualAddr := ln.Addr().String()
-
-	p.mu.Lock()
-	p.server = httpServer
-	p.serverAddr = actualAddr
-	p.listenAddr = strings.TrimSpace(listenAddr)
-	p.mu.Unlock()
-
-	p.reportSideEffectError(
-		"write start marker",
-		appendMarkerLine(p.env.startsPath, fmt.Sprintf("listen=%s", actualAddr)),
-	)
-
-	p.wg.Go(func() {
-		if serveErr := httpServer.Serve(ln); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
-			p.setLastError(serveErr)
-		}
-	})
+	p.markers.RecordListen(p.http.Address())
 	return nil
 }
 
@@ -1003,19 +731,10 @@ func (p *linearProvider) dispatchInboundEnvelope(
 	if err != nil {
 		return err
 	}
-	result, err := p.ingestBridgeMessage(ctx, session, envelope)
-	if err != nil {
-		p.reportSideEffectError("write failed ingest marker", appendJSONLine(p.env.ingestPath, ingestMarker{
-			Envelope: envelope,
-			Error:    err.Error(),
-		}))
+	if _, err := p.lifecycle.Host().IngestBridgeMessage(ctx, session, envelope); err != nil {
 		return err
 	}
-	p.reportSideEffectError("write ingest marker", appendJSONLine(p.env.ingestPath, ingestMarker{
-		Envelope: envelope,
-		Result:   *result,
-	}))
-	if err := p.reportReadyIfNeeded(ctx, session, cfg.instanceID); err != nil {
+	if err := p.lifecycle.Host().ReportReadyIfNeeded(ctx, session, cfg.instanceID); err != nil {
 		p.setLastError(err)
 	} else {
 		p.clearLastError()
@@ -1024,9 +743,7 @@ func (p *linearProvider) dispatchInboundEnvelope(
 }
 
 func (p *linearProvider) configForInstance(instanceID string) (resolvedInstanceConfig, error) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	cfg, ok := p.routes[strings.TrimSpace(instanceID)]
+	cfg, ok := p.routes.Get(instanceID)
 	if !ok {
 		return resolvedInstanceConfig{}, fmt.Errorf("linear: unmanaged bridge instance %q", instanceID)
 	}
@@ -1034,65 +751,38 @@ func (p *linearProvider) configForInstance(instanceID string) (resolvedInstanceC
 }
 
 func (p *linearProvider) waitForInstanceConfig(
+	ctx context.Context,
 	instanceID string,
 	timeout time.Duration,
 ) (resolvedInstanceConfig, error) {
 	if timeout <= 0 {
 		return p.configForInstance(instanceID)
 	}
-
-	deadline := time.Now().Add(timeout)
-	for {
-		cfg, err := p.configForInstance(instanceID)
-		if err == nil {
-			return cfg, nil
-		}
-		if time.Now().After(deadline) {
-			return resolvedInstanceConfig{}, err
-		}
-
-		timer := time.NewTimer(10 * time.Millisecond)
-		select {
-		case <-p.stopCh:
-			if !timer.Stop() {
-				<-timer.C
-			}
-			return resolvedInstanceConfig{}, err
-		case <-timer.C:
-		}
+	cfg, ok, err := p.routes.Wait(ctx, instanceID, timeout, p.lifecycle.StopChannel())
+	if err != nil {
+		return resolvedInstanceConfig{}, err
 	}
+	if !ok {
+		return p.configForInstance(instanceID)
+	}
+	return cfg, nil
 }
 
 func (p *linearProvider) configsForPath(path string) []resolvedInstanceConfig {
-	normalizedPath := normalizeWebhookPath(path)
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	configs := make([]resolvedInstanceConfig, 0, len(p.routes))
-	for _, cfg := range p.routes {
-		if cfg.webhookPath == normalizedPath {
-			configs = append(configs, cfg)
-		}
-	}
-	return configs
+	return p.routes.ByPath(normalizeWebhookPath(path))
 }
 
 func (p *linearProvider) currentSession() *bridgesdk.Session {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.session
+	return p.lifecycle.Session()
 }
 
 func (p *linearProvider) deliveryState(instanceID string, deliveryID string) deliveryState {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.deliveries[deliveryStateKey(instanceID, deliveryID)]
+	state, _ := p.deliveries.Load(deliveryStateKey(instanceID, deliveryID))
+	return state
 }
 
 func (p *linearProvider) storeDeliveryState(instanceID string, deliveryID string, state deliveryState) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.deliveries[deliveryStateKey(instanceID, deliveryID)] = state
+	p.deliveries.Store(deliveryStateKey(instanceID, deliveryID), state)
 }
 
 func (p *linearProvider) setLastError(err error) {
@@ -1108,10 +798,6 @@ func (p *linearProvider) clearLastError() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.lastError = ""
-}
-
-func (p *linearProvider) reportSideEffectError(action string, err error) {
-	reportSideEffectError(p.stderr, action, err)
 }
 
 func executeLinearDelivery(
@@ -1420,7 +1106,7 @@ func verifyLinearWebhookSignature(req *http.Request, body []byte, candidates []r
 		if secret == "" {
 			continue
 		}
-		if linearSignature(secret, body) == signature {
+		if validLinearWebhookSignature(secret, body, signature) {
 			return nil
 		}
 	}
@@ -1557,22 +1243,6 @@ func isLoopbackBridgeHost(host string) bool {
 	}
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
-}
-
-func managedInstancesToInstances(managed []subprocess.InitializeBridgeManagedInstance) []bridgepkg.BridgeInstance {
-	instances := make([]bridgepkg.BridgeInstance, 0, len(managed))
-	for _, item := range managed {
-		instances = append(instances, item.Instance)
-	}
-	return instances
-}
-
-func cloneDegradation(value *bridgepkg.BridgeDegradation) *bridgepkg.BridgeDegradation {
-	if value == nil {
-		return nil
-	}
-	cloned := *value
-	return &cloned
 }
 
 func deliveryStateKey(instanceID string, deliveryID string) string {
@@ -1738,14 +1408,8 @@ func linearWebhookDispatchHTTPError(err error) error {
 	}
 }
 
-func linearSignature(secret string, body []byte) string {
-	mac := hmac.New(sha256.New, []byte(strings.TrimSpace(secret)))
-	_, _ = mac.Write(body)
-	return hex.EncodeToString(mac.Sum(nil))
-}
-
-func normalizeDeliveryEventType(value string) string {
-	return strings.ToLower(strings.TrimSpace(value))
+func normalizeDeliveryEventType(value bridgepkg.DeliveryEventType) bridgepkg.DeliveryEventType {
+	return bridgepkg.DeliveryEventType(strings.ToLower(strings.TrimSpace(string(value))))
 }
 
 func resolveLinearRemoteMessageID(
@@ -1968,16 +1632,4 @@ func actorURL(actor *linearActor) string {
 		return ""
 	}
 	return strings.TrimSpace(actor.URL)
-}
-
-func isNotInitializedRPCError(err error) bool {
-	if err == nil {
-		return false
-	}
-	var rpcErr *subprocess.RPCError
-	if !errors.As(err, &rpcErr) {
-		return false
-	}
-	return rpcErr.Code == rpcCodeNotInitialized ||
-		strings.EqualFold(strings.TrimSpace(rpcErr.Message), "Not initialized")
 }

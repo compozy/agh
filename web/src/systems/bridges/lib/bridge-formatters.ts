@@ -3,11 +3,15 @@ import type { PillTone } from "@agh/ui";
 import type {
   BridgeDeliveryDefaults,
   BridgeDmPolicy,
+  BridgeProgressConfig,
+  BridgeProgressGrouping,
+  BridgeProgressMode,
   BridgeProviderConfig,
   BridgeProvider,
   BridgeProviderConfigSchemaHint,
   BridgeProviderSecretSlot,
   BridgeRoute,
+  BridgeRoutingPolicy,
   BridgeScope,
   BridgeStatus,
   BridgeTarget,
@@ -20,6 +24,74 @@ function normalizeText(value: unknown): string | undefined {
 
   const normalized = value.trim();
   return normalized === "" ? undefined : normalized;
+}
+
+function normalizeBridgeProgressMode(value: unknown): BridgeProgressMode | undefined {
+  switch (normalizeText(value)) {
+    case "off":
+      return "off";
+    case "new":
+      return "new";
+    case "all":
+      return "all";
+    case "verbose":
+      return "verbose";
+    default:
+      return undefined;
+  }
+}
+
+function normalizeBridgeProgressGrouping(value: unknown): BridgeProgressGrouping | undefined {
+  switch (normalizeText(value)) {
+    case "accumulate":
+      return "accumulate";
+    case "separate":
+      return "separate";
+    default:
+      return undefined;
+  }
+}
+
+function normalizeBridgeProgressConfig(value: unknown): BridgeProgressConfig | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const grouping = normalizeBridgeProgressGrouping(candidate.grouping);
+  const toolProgress = normalizeBridgeProgressMode(candidate.tool_progress);
+  if (!grouping || !toolProgress) {
+    return undefined;
+  }
+
+  const progress: BridgeProgressConfig = {
+    grouping,
+    tool_progress: toolProgress,
+  };
+  if (typeof candidate.reactions === "boolean") {
+    progress.reactions = candidate.reactions;
+  }
+  if (typeof candidate.typing === "boolean") {
+    progress.typing = candidate.typing;
+  }
+  return progress;
+}
+
+const COMMON_BRIDGE_DELIVERY_DEFAULT_KEYS = new Set([
+  "group_id",
+  "mode",
+  "peer_id",
+  "progress",
+  "thread_id",
+]);
+
+function providerBridgeDeliveryDefaults(value: Record<string, unknown>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(value).filter((entry): entry is [string, string] => {
+      const [key, fieldValue] = entry;
+      return !COMMON_BRIDGE_DELIVERY_DEFAULT_KEYS.has(key) && typeof fieldValue === "string";
+    })
+  );
 }
 
 export function buildBridgeProviderKey(
@@ -65,38 +137,42 @@ export function normalizeBridgeDeliveryDefaults(value: unknown): BridgeDeliveryD
   const candidate = value as Record<string, unknown>;
   const mode = candidate.mode;
 
-  return {
+  const normalized: BridgeDeliveryDefaults = {
+    ...providerBridgeDeliveryDefaults(candidate),
     group_id: normalizeText(candidate.group_id),
     mode: mode === "direct-send" || mode === "reply" ? mode : undefined,
     peer_id: normalizeText(candidate.peer_id),
     thread_id: normalizeText(candidate.thread_id),
   };
+  const progress = normalizeBridgeProgressConfig(candidate.progress);
+  if (progress) {
+    normalized.progress = progress;
+  }
+  return normalized;
 }
 
 export function compactBridgeDeliveryDefaults(
   value: BridgeDeliveryDefaults
 ): BridgeDeliveryDefaults | undefined {
-  const normalized: BridgeDeliveryDefaults = {};
+  const normalized: BridgeDeliveryDefaults = {
+    ...providerBridgeDeliveryDefaults(value as Record<string, unknown>),
+  };
   const groupId = normalizeText(value.group_id);
   const peerId = normalizeText(value.peer_id);
+  const progress = normalizeBridgeProgressConfig(value.progress);
   const threadId = normalizeText(value.thread_id);
 
   if (groupId) normalized.group_id = groupId;
   if (value.mode) normalized.mode = value.mode;
   if (peerId) normalized.peer_id = peerId;
+  if (progress) normalized.progress = progress;
   if (threadId) normalized.thread_id = threadId;
 
-  if (!normalized.group_id && !normalized.mode && !normalized.peer_id && !normalized.thread_id) {
+  if (Object.keys(normalized).length === 0) {
     return undefined;
   }
 
   return normalized;
-}
-
-export interface BridgeRoutingPolicy {
-  include_group: boolean;
-  include_peer: boolean;
-  include_thread: boolean;
 }
 
 export function describeBridgeRoutingPolicy(policy: BridgeRoutingPolicy): string {
@@ -131,6 +207,12 @@ export function describeBridgeDeliveryDefaults(value: unknown): string {
   if (defaults.thread_id) {
     parts.push(`thread:${defaults.thread_id}`);
   }
+  if (defaults.progress) {
+    parts.push(`progress:${defaults.progress.tool_progress}`);
+    parts.push(`grouping:${defaults.progress.grouping}`);
+    parts.push(`typing:${defaults.progress.typing ?? false}`);
+    parts.push(`reactions:${defaults.progress.reactions ?? false}`);
+  }
 
   return parts.length > 0 ? parts.join(" · ") : "No delivery defaults configured";
 }
@@ -159,6 +241,27 @@ export function formatBridgeProviderConfig(value: unknown): string {
   }
 
   return JSON.stringify(providerConfig, null, 2);
+}
+
+export function fingerprintBridgeProviderConfig(
+  value: BridgeProviderConfig | null | undefined
+): string {
+  return JSON.stringify(sortJSONValue(value ?? null));
+}
+
+function sortJSONValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(sortJSONValue);
+  }
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, sortJSONValue(entry)])
+  );
 }
 
 export function describeBridgeProviderConfigSchema(

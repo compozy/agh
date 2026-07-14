@@ -43,6 +43,13 @@ func TestGenerate(t *testing.T) {
 		if !strings.Contains(generated, "getExample") {
 			t.Fatalf("generated output missing expected operation id: %s", generated)
 		}
+		compact := strings.Join(strings.Fields(generated), " ")
+		if !strings.Contains(
+			compact,
+			"[key: string]: | string | { enabled?: boolean; } | undefined;",
+		) {
+			t.Fatalf("generated mixed-shape index is not assignable: %s", generated)
+		}
 	})
 
 	t.Run("Should reject invalid artifacts before running generators", func(t *testing.T) {
@@ -285,8 +292,8 @@ func TestRunCommand(t *testing.T) {
 	t.Run("Should succeed for zero exit status", func(t *testing.T) {
 		t.Parallel()
 
-		script := writeExecutableScript(t, "#!/bin/sh\nexit 0\n")
-		if err := runCommand(context.Background(), script); err != nil {
+		script := writeShellScript(t, "exit 0\n")
+		if err := runCommand(context.Background(), "/bin/sh", script); err != nil {
 			t.Fatalf("runCommand() error = %v", err)
 		}
 	})
@@ -294,8 +301,8 @@ func TestRunCommand(t *testing.T) {
 	t.Run("Should prefer stderr details", func(t *testing.T) {
 		t.Parallel()
 
-		script := writeExecutableScript(t, "#!/bin/sh\necho 'stderr detail' >&2\nexit 1\n")
-		err := runCommand(context.Background(), script)
+		script := writeShellScript(t, "echo 'stderr detail' >&2\nexit 1\n")
+		err := runCommand(context.Background(), "/bin/sh", script)
 		if err == nil {
 			t.Fatal("runCommand() error = nil, want non-nil")
 		}
@@ -307,8 +314,8 @@ func TestRunCommand(t *testing.T) {
 	t.Run("Should fall back to stdout details", func(t *testing.T) {
 		t.Parallel()
 
-		script := writeExecutableScript(t, "#!/bin/sh\necho 'stdout detail'\nexit 1\n")
-		err := runCommand(context.Background(), script)
+		script := writeShellScript(t, "echo 'stdout detail'\nexit 1\n")
+		err := runCommand(context.Background(), "/bin/sh", script)
 		if err == nil {
 			t.Fatal("runCommand() error = nil, want non-nil")
 		}
@@ -332,11 +339,11 @@ func TestRunCommand(t *testing.T) {
 	t.Run("Should preserve context cancellation", func(t *testing.T) {
 		t.Parallel()
 
-		script := writeExecutableScript(t, "#!/bin/sh\nsleep 1\n")
+		script := writeShellScript(t, "sleep 1\n")
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		err := runCommand(ctx, script)
+		err := runCommand(ctx, "/bin/sh", script)
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("runCommand() error = %v, want context.Canceled", err)
 		}
@@ -405,6 +412,26 @@ func writeTestSpec(t *testing.T, path string) {
                   "properties": {
                     "status": {
                       "type": "string"
+					},
+					"defaults": {
+					  "type": "object",
+					  "x-agh-typescript-widen-additional-properties": true,
+					  "properties": {
+					    "label": {
+					      "type": "string"
+					    },
+					    "progress": {
+					      "type": "object",
+					      "properties": {
+					        "enabled": {
+					          "type": "boolean"
+					        }
+					      }
+					    }
+					  },
+					  "additionalProperties": {
+					    "type": "string"
+					  }
                     }
                   }
                 }
@@ -423,11 +450,11 @@ func writeTestSpec(t *testing.T, path string) {
 	}
 }
 
-func writeExecutableScript(t *testing.T, content string) string {
+func writeShellScript(t *testing.T, content string) string {
 	t.Helper()
 
 	path := filepath.Join(t.TempDir(), "script.sh")
-	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
 	}
 	return path

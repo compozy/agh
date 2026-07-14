@@ -4,8 +4,10 @@ package sessiondb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -346,6 +348,60 @@ func TestReadOnlyPoolServesConcurrentInactiveReads(t *testing.T) {
 		}
 		if got, want := closeCount.Load(), int64(2); got != want {
 			t.Fatalf("underlying close count = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should unblock in-flight quiescence when the pool closes", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		writer, err := OpenSessionDB(ctx, "sess-read-only-pool-shutdown", path)
+		if err != nil {
+			t.Fatalf("OpenSessionDB() error = %v", err)
+		}
+		if err := writer.Close(ctx); err != nil {
+			t.Fatalf("Close(writer) error = %v", err)
+		}
+
+		pool := NewReadOnlyPool(ReadOnlyPoolConfig{})
+		lease, err := pool.Open(ctx, "sess-read-only-pool-shutdown", path)
+		if err != nil {
+			t.Fatalf("Open(pool) error = %v", err)
+		}
+		quiesceDone := make(chan error, 1)
+		go func() {
+			_, quiesceErr := pool.Quiesce(ctx, "sess-read-only-pool-shutdown", path)
+			quiesceDone <- quiesceErr
+		}()
+
+		for {
+			probe, openErr := pool.Open(ctx, "sess-read-only-pool-shutdown", path)
+			if errors.Is(openErr, ErrReadOnlyPoolQuiescing) {
+				break
+			}
+			if openErr != nil {
+				t.Fatalf("Open(quiescence probe) error = %v", openErr)
+			}
+			if closeErr := probe.Close(ctx); closeErr != nil {
+				t.Fatalf("Close(quiescence probe) error = %v", closeErr)
+			}
+			runtime.Gosched()
+		}
+
+		if err := pool.Close(ctx); err != nil {
+			t.Fatalf("Close(pool) error = %v", err)
+		}
+		if err := lease.Close(ctx); err != nil {
+			t.Fatalf("Close(lease) error = %v", err)
+		}
+		select {
+		case quiesceErr := <-quiesceDone:
+			if !errors.Is(quiesceErr, errReadOnlyPoolClosed) {
+				t.Fatalf("Quiesce() error = %v, want errReadOnlyPoolClosed", quiesceErr)
+			}
+		case <-ctx.Done():
+			t.Fatalf("Quiesce() did not return after pool close: %v", ctx.Err())
 		}
 	})
 }

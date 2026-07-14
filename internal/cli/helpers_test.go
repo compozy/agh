@@ -99,6 +99,10 @@ type stubClient struct {
 	putBridgeSecretBindingFn     func(context.Context, string, string, BridgeSecretBindingRequest) (BridgeSecretBindingRecord, error)
 	deleteBridgeSecretBindingFn  func(context.Context, string, string) error
 	testBridgeDeliveryFn         func(context.Context, string, BridgeTestDeliveryRequest) (BridgeTestDeliveryRecord, error)
+	slackBridgeManifestFn        func(context.Context, string) (SlackManifestRecord, error)
+	verifyBridgeFn               func(context.Context, string) (BridgeVerifyRecord, error)
+	sendBridgeTestFn             func(context.Context, string, BridgeSendTestRequest) (BridgeSendTestRecord, error)
+	registerBridgeWebhookFn      func(context.Context, string) (BridgeWebhookRegistrationRecord, error)
 	listSessionsFn               func(context.Context, SessionListQuery) ([]SessionRecord, error)
 	listSessionPageFn            func(context.Context, SessionListQuery) (SessionListPage, error)
 	createSessionFn              func(context.Context, CreateSessionRequest) (SessionRecord, error)
@@ -1020,6 +1024,41 @@ func (s *stubClient) ResolveBridgeTarget(
 		return s.resolveBridgeTargetFn(ctx, id, name)
 	}
 	return BridgeResolveTargetRecord{}, errors.New("unexpected ResolveBridgeTarget call")
+}
+
+func (s *stubClient) SlackBridgeManifest(ctx context.Context, instanceID string) (SlackManifestRecord, error) {
+	if s.slackBridgeManifestFn != nil {
+		return s.slackBridgeManifestFn(ctx, instanceID)
+	}
+	return SlackManifestRecord{}, errors.New("unexpected SlackBridgeManifest call")
+}
+
+func (s *stubClient) VerifyBridge(ctx context.Context, id string) (BridgeVerifyRecord, error) {
+	if s.verifyBridgeFn != nil {
+		return s.verifyBridgeFn(ctx, id)
+	}
+	return BridgeVerifyRecord{}, errors.New("unexpected VerifyBridge call")
+}
+
+func (s *stubClient) SendBridgeTest(
+	ctx context.Context,
+	id string,
+	request BridgeSendTestRequest,
+) (BridgeSendTestRecord, error) {
+	if s.sendBridgeTestFn != nil {
+		return s.sendBridgeTestFn(ctx, id, request)
+	}
+	return BridgeSendTestRecord{}, errors.New("unexpected SendBridgeTest call")
+}
+
+func (s *stubClient) RegisterBridgeWebhook(
+	ctx context.Context,
+	id string,
+) (BridgeWebhookRegistrationRecord, error) {
+	if s.registerBridgeWebhookFn != nil {
+		return s.registerBridgeWebhookFn(ctx, id)
+	}
+	return BridgeWebhookRegistrationRecord{}, errors.New("unexpected RegisterBridgeWebhook call")
 }
 
 func (s *stubClient) ListNotificationPresets(

@@ -3,11 +3,8 @@ package tools
 import (
 	"bytes"
 	"encoding/json"
-	"strings"
-)
 
-const (
-	resultTokenKey = "token"
+	redactpkg "github.com/compozy/agh/internal/redact"
 )
 
 // ToolContent is one typed content block returned by a tool.
@@ -131,21 +128,5 @@ func validateRawJSON(field string, raw json.RawMessage) error {
 }
 
 func sensitiveMetadataKey(key string) bool {
-	normalized := strings.ToLower(strings.ReplaceAll(key, "-", "_"))
-	sensitive := []string{
-		"authorization",
-		"bearer",
-		"oauth_code",
-		"password",
-		"pkce",
-		"refresh_token",
-		"secret",
-		resultTokenKey,
-	}
-	for _, item := range sensitive {
-		if strings.Contains(normalized, item) {
-			return true
-		}
-	}
-	return false
+	return redactpkg.IsSensitiveKey(key)
 }

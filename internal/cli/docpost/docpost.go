@@ -578,55 +578,6 @@ func outputExampleCommand(usage string) string {
 	return usage + " -o json"
 }
 
-func renderSubcommandsSection(current input, inputs []input, targets map[string]string) string {
-	children := directChildren(current, inputs)
-	if len(children) == 0 {
-		return ""
-	}
-
-	var b strings.Builder
-	b.WriteString("## Subcommands\n\n")
-	b.WriteString("| Command | Description |\n")
-	b.WriteString("| ------- | ----------- |\n")
-	for _, child := range children {
-		cmd := child.commandName()
-		desc := strings.TrimSpace(extractDescription(child.raw))
-		if desc == "" {
-			desc = "See command reference."
-		}
-		desc = strings.ReplaceAll(desc, "|", "\\|")
-		target := targets[child.baseName]
-		fmt.Fprintf(&b, "| [%s](%s) | %s |\n", cmd, target, desc)
-	}
-
-	return strings.TrimSpace(b.String())
-}
-
-func directChildren(parent input, inputs []input) []input {
-	children := make([]input, 0, 4)
-	for _, candidate := range inputs {
-		if len(candidate.segments) != len(parent.segments)+1 {
-			continue
-		}
-		match := true
-		for i := range parent.segments {
-			if candidate.segments[i] != parent.segments[i] {
-				match = false
-				break
-			}
-		}
-		if match {
-			children = append(children, candidate)
-		}
-	}
-
-	sort.Slice(children, func(i, j int) bool {
-		return children[i].commandName() < children[j].commandName()
-	})
-
-	return children
-}
-
 // stripBoilerplate removes Cobra auto-generated artifacts:
 // - The "###### Auto generated" footer line
 // - The "### SEE ALSO" section (contains local .md file links)

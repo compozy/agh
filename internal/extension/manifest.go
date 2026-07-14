@@ -15,8 +15,8 @@ import (
 	"github.com/BurntSushi/toml"
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
 	"github.com/compozy/agh/internal/extension/surfaces"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/compozy/agh/internal/resources"
 	toolspkg "github.com/compozy/agh/internal/tools"
@@ -175,6 +175,8 @@ type MCPServerConfig struct {
 type ToolConfig struct {
 	ID                   string            `toml:"id,omitempty"                    json:"id,omitempty"`
 	DisplayTitle         string            `toml:"display_title,omitempty"         json:"display_title,omitempty"`
+	FriendlyVerb         string            `toml:"friendly_verb,omitempty"         json:"friendly_verb,omitempty"`
+	Preview              string            `toml:"preview,omitempty"               json:"preview,omitempty"`
 	Description          string            `toml:"description,omitempty"           json:"description,omitempty"`
 	Handler              string            `toml:"handler,omitempty"               json:"handler,omitempty"`
 	Backend              ToolBackendConfig `toml:"backend,omitempty"               json:"backend"`
@@ -938,79 +940,6 @@ func normalizeHooks(src []HookConfig) []HookConfig {
 		})
 	}
 
-	return dst
-}
-
-func normalizeMCPServers(src map[string]MCPServerConfig) map[string]MCPServerConfig {
-	if len(src) == 0 {
-		return nil
-	}
-
-	dst := make(map[string]MCPServerConfig, len(src))
-	for _, name := range sortedMapKeys(src) {
-		trimmedName := strings.TrimSpace(name)
-		if trimmedName == "" {
-			continue
-		}
-
-		server := src[name]
-		dst[trimmedName] = MCPServerConfig{
-			Command:   strings.TrimSpace(server.Command),
-			Args:      normalizeStrings(server.Args),
-			Env:       normalizeStringMap(server.Env),
-			SecretEnv: normalizeStringMap(server.SecretEnv),
-		}
-	}
-	if len(dst) == 0 {
-		return nil
-	}
-	return dst
-}
-
-func normalizeTools(src map[string]ToolConfig) map[string]ToolConfig {
-	if len(src) == 0 {
-		return nil
-	}
-
-	dst := make(map[string]ToolConfig, len(src))
-	for _, name := range sortedMapKeys(src) {
-		trimmedName := strings.TrimSpace(name)
-		if trimmedName == "" {
-			continue
-		}
-
-		tool := src[name]
-		dst[trimmedName] = ToolConfig{
-			ID:           strings.TrimSpace(tool.ID),
-			DisplayTitle: strings.TrimSpace(tool.DisplayTitle),
-			Description:  strings.TrimSpace(tool.Description),
-			Handler:      strings.TrimSpace(tool.Handler),
-			Backend: ToolBackendConfig{
-				Kind:    strings.TrimSpace(tool.Backend.Kind),
-				Handler: strings.TrimSpace(tool.Backend.Handler),
-				Server:  strings.TrimSpace(tool.Backend.Server),
-				Tool:    strings.TrimSpace(tool.Backend.Tool),
-			},
-			InputSchema:          cloneManifestRawMessage(tool.InputSchema),
-			OutputSchema:         cloneManifestRawMessage(tool.OutputSchema),
-			Risk:                 strings.TrimSpace(tool.Risk),
-			ReadOnly:             tool.ReadOnly,
-			Destructive:          tool.Destructive,
-			OpenWorld:            tool.OpenWorld,
-			RequiresInteraction:  tool.RequiresInteraction,
-			ConcurrencySafe:      tool.ConcurrencySafe,
-			MaxResultBytes:       tool.MaxResultBytes,
-			Toolsets:             normalizeStrings(tool.Toolsets),
-			Tags:                 normalizeStrings(tool.Tags),
-			SearchHints:          normalizeStrings(tool.SearchHints),
-			RequiresEnv:          normalizeStrings(tool.RequiresEnv),
-			RequiredCapabilities: normalizeStrings(tool.RequiredCapabilities),
-			Visibility:           strings.TrimSpace(tool.Visibility),
-		}
-	}
-	if len(dst) == 0 {
-		return nil
-	}
 	return dst
 }
 

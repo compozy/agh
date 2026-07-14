@@ -43,7 +43,7 @@ func bridgeBundle(item BridgeRecord) outputBundle {
 				"id",
 				bridgeDisplayNameKey,
 				bridgePlatformKey,
-				"extension_name",
+				bridgeSetupExtensionNameKey,
 				bridgeScopeKey,
 				bridgeWorkspaceIDKey,
 				bridgeEnabledKey,

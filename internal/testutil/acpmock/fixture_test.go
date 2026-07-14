@@ -154,92 +154,165 @@ func TestRegisterRendersValidatedAgentDefinition(t *testing.T) {
 func TestReadDiagnosticsParsesJSONLines(t *testing.T) {
 	t.Parallel()
 
-	path := filepath.Join(t.TempDir(), "diag.jsonl")
-	want := []DiagnosticsRecord{
-		{
-			AgentName:   "alpha",
-			SessionID:   "sess-1",
-			PromptIndex: 1,
-			Prompt:      "hello",
-			PromptMeta:  acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
-			TurnName:    "alpha-hello",
-			Match: TurnMatch{
-				TurnSource: acp.PromptTurnSourceUser,
-				UserText:   "hello",
-			},
-		},
-		{
-			AgentName:   "beta",
-			SessionID:   "sess-2",
-			PromptIndex: 2,
-			Prompt:      "hello beta",
-			PromptMeta: acp.PromptMeta{
-				TurnSource: acp.PromptTurnSourceNetwork,
-				Network: &acp.PromptNetworkMeta{
-					MessageID:   "msg-2",
-					Kind:        "say",
-					Surface:     "direct",
-					DirectID:    "direct_0123456789abcdef0123456789abcdef",
-					WorkID:      "work_patch_42",
-					ReplyTo:     "msg-root",
-					TraceID:     "trace_ops_patch_42",
-					CausationID: "msg-root",
-					Trust:       "untrusted",
+	t.Run("Should decode AGH session ownership alongside ACP diagnostics", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), "diag.jsonl")
+		want := []DiagnosticsRecord{
+			{
+				AGHSessionID: "agh-session-a",
+				AgentName:    "alpha",
+				SessionID:    "acp-session-1",
+				PromptIndex:  1,
+				Prompt:       "hello",
+				PromptMeta:   acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+				TurnName:     "alpha-hello",
+				Match: TurnMatch{
+					TurnSource: acp.PromptTurnSourceUser,
+					UserText:   "hello",
 				},
 			},
-			TurnName: "beta-hello",
-			Match: TurnMatch{
-				TurnSource: acp.PromptTurnSourceNetwork,
-				Network: &TurnMatchNetwork{
-					MessageID:   "msg-2",
-					Kind:        "say",
-					Surface:     "direct",
-					DirectID:    "direct_0123456789abcdef0123456789abcdef",
-					WorkID:      "work_patch_42",
-					ReplyTo:     "msg-root",
-					TraceID:     "trace_ops_patch_42",
-					CausationID: "msg-root",
-					Trust:       "untrusted",
+			{
+				AGHSessionID: "agh-session-b",
+				AgentName:    "beta",
+				SessionID:    "acp-session-1",
+				PromptIndex:  2,
+				Prompt:       "hello beta",
+				PromptMeta: acp.PromptMeta{
+					TurnSource: acp.PromptTurnSourceNetwork,
+					Network: &acp.PromptNetworkMeta{
+						MessageID:   "msg-2",
+						Kind:        "say",
+						Surface:     "direct",
+						DirectID:    "direct_0123456789abcdef0123456789abcdef",
+						WorkID:      "work_patch_42",
+						ReplyTo:     "msg-root",
+						TraceID:     "trace_ops_patch_42",
+						CausationID: "msg-root",
+						Trust:       "untrusted",
+					},
+				},
+				TurnName: "beta-hello",
+				Match: TurnMatch{
+					TurnSource: acp.PromptTurnSourceNetwork,
+					Network: &TurnMatchNetwork{
+						MessageID:   "msg-2",
+						Kind:        "say",
+						Surface:     "direct",
+						DirectID:    "direct_0123456789abcdef0123456789abcdef",
+						WorkID:      "work_patch_42",
+						ReplyTo:     "msg-root",
+						TraceID:     "trace_ops_patch_42",
+						CausationID: "msg-root",
+						Trust:       "untrusted",
+					},
 				},
 			},
-		},
-		{
-			AgentName:         "gamma",
-			SessionID:         "sess-3",
-			ProtocolMethod:    "session/set_config_option",
-			ConfigOptionID:    "reasoning_effort",
-			ConfigOptionValue: "max",
-		},
-	}
+			{
+				AGHSessionID:      "agh-session-a",
+				AgentName:         "gamma",
+				SessionID:         "acp-session-1",
+				ProtocolMethod:    "session/set_config_option",
+				ConfigOptionID:    "reasoning_effort",
+				ConfigOptionValue: "max",
+			},
+		}
 
-	data, err := json.Marshal(want[0])
-	if err != nil {
-		t.Fatalf("json.Marshal(first) error = %v", err)
-	}
-	second, err := json.Marshal(want[1])
-	if err != nil {
-		t.Fatalf("json.Marshal(second) error = %v", err)
-	}
-	third, err := json.Marshal(want[2])
-	if err != nil {
-		t.Fatalf("json.Marshal(third) error = %v", err)
-	}
-	encoded := append(append(append(append(append(data, '\n'), second...), '\n'), third...), '\n')
-	if err := os.WriteFile(path, encoded, 0o600); err != nil {
-		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
-	}
+		encoded := []byte("\n")
+		for index, record := range want {
+			data, err := json.Marshal(record)
+			if err != nil {
+				t.Fatalf("json.Marshal(record %d) error = %v", index, err)
+			}
+			encoded = append(encoded, data...)
+			encoded = append(encoded, '\n')
+		}
+		if err := os.WriteFile(path, encoded, 0o600); err != nil {
+			t.Fatalf("os.WriteFile(%q) error = %v", path, err)
+		}
 
-	got, err := ReadDiagnostics(path)
-	if err != nil {
-		t.Fatalf("ReadDiagnostics() error = %v", err)
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("ReadDiagnostics() = %#v, want %#v", got, want)
-	}
-	protocol := ProtocolDiagnostics(got)
-	if len(protocol) != 1 || !reflect.DeepEqual(protocol[0], want[2]) {
-		t.Fatalf("ProtocolDiagnostics() = %#v, want %#v", protocol, want[2:])
-	}
+		got, err := ReadDiagnostics(path)
+		if err != nil {
+			t.Fatalf("ReadDiagnostics() error = %v", err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("ReadDiagnostics() = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should select one AGH session in append order before protocol projection", func(t *testing.T) {
+		t.Parallel()
+
+		records := []DiagnosticsRecord{
+			{AGHSessionID: "agh-session-a", SessionID: "acp-session-1", ProtocolMethod: "model"},
+			{AGHSessionID: "agh-session-b", SessionID: "acp-session-1", ProtocolMethod: "foreign"},
+			{AGHSessionID: " agh-session-a ", SessionID: "acp-session-1", ProtocolMethod: "prompt"},
+			{AGHSessionID: "agh-session-a", SessionID: "acp-session-1", PromptIndex: 1},
+			{
+				AGHSessionID:   "agh-session-a",
+				SessionID:      "acp-session-1",
+				LifecycleEvent: "session_new",
+				PromptIndex:    1,
+			},
+		}
+		owned := DiagnosticsForAGHSession(records, " agh-session-a ")
+		if got, want := len(owned), 4; got != want {
+			t.Fatalf("DiagnosticsForAGHSession() = %#v, want four records", owned)
+		}
+		if owned[0].ProtocolMethod != "model" || owned[1].ProtocolMethod != "prompt" {
+			t.Fatalf("DiagnosticsForAGHSession() = %#v, want model then prompt", owned)
+		}
+		protocol := ProtocolDiagnostics(owned)
+		if !reflect.DeepEqual(protocol, owned[:2]) {
+			t.Fatalf("ProtocolDiagnostics(owned) = %#v, want %#v", protocol, owned[:2])
+		}
+		prompt := PromptDiagnostics(owned)
+		if len(prompt) != 1 || prompt[0].PromptIndex != 1 || prompt[0].LifecycleEvent != "" {
+			t.Fatalf("PromptDiagnostics(owned) = %#v, want one prompt record", prompt)
+		}
+	})
+
+	t.Run("Should fail closed for empty or unknown AGH session owners", func(t *testing.T) {
+		t.Parallel()
+
+		records := []DiagnosticsRecord{
+			{AGHSessionID: "", SessionID: "agh-session-a"},
+			{AGHSessionID: "agh-session-a", SessionID: "acp-session-1"},
+		}
+		tests := []struct {
+			name  string
+			owner string
+		}{
+			{name: "Should return an allocated empty result for an empty owner"},
+			{name: "Should return an allocated empty result for a whitespace owner", owner: "   "},
+			{name: "Should return an allocated empty result for an unknown owner", owner: "agh-session-missing"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				got := DiagnosticsForAGHSession(records, tt.owner)
+				if got == nil {
+					t.Fatal("DiagnosticsForAGHSession() = nil, want allocated empty result")
+				}
+				if len(got) != 0 {
+					t.Fatalf("DiagnosticsForAGHSession() = %#v, want no records", got)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject a diagnostics record above the scanner limit", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), "oversized.jsonl")
+		if err := os.WriteFile(path, []byte(strings.Repeat("x", 10*1024*1024+1)), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(%q) error = %v", path, err)
+		}
+		if _, err := ReadDiagnostics(path); err == nil || !strings.Contains(err.Error(), "scan diagnostics") {
+			t.Fatalf("ReadDiagnostics(oversized) error = %v, want scanner limit error", err)
+		}
+	})
 }
 
 func TestLoadFixtureAndParseFixtureValidationErrors(t *testing.T) {

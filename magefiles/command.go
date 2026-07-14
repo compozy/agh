@@ -27,13 +27,22 @@ func mergeCommandEnv(overrides map[string]string) []string {
 }
 
 func runRaceEnabledGoCommand(ctx context.Context, env map[string]string, args ...string) error {
-	cmd := exec.CommandContext(ctx, "go", args...)
+	return runRaceEnabledCommand(ctx, env, "go", args...)
+}
+
+func runRaceEnabledCommand(
+	ctx context.Context,
+	env map[string]string,
+	name string,
+	args ...string,
+) error {
+	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = "."
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = hermeticGoTestEnv(withRaceEnabledEnv(env))
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("race-enabled go command %v: %w", args, err)
+		return fmt.Errorf("race-enabled %s command %v: %w", name, args, err)
 	}
 	return nil
 }

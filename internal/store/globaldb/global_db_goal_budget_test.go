@@ -318,7 +318,7 @@ func seedGoalBudgetGuardTest(
 ) (*GlobalDB, goal.TurnKey, string, time.Time) {
 	t.Helper()
 
-	globalDB := openFreshLoopTestGlobalDB(t)
+	globalDB := openLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now, err := goalBudgetDatabaseNow(ctx, globalDB.db)
 	if err != nil {

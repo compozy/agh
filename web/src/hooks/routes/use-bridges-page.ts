@@ -1,22 +1,15 @@
-import { useState } from "react";
 import { useChildMatches, useNavigate } from "@tanstack/react-router";
-import { toast } from "sonner";
 
 import type { ListingViewMode } from "@agh/ui";
 
 import { normalizeListingSearchValue } from "@/lib/listing-search";
 import {
-  buildBridgeCreateRequest,
   bridgeListFilterForScope,
-  createBridgeCreateDraft,
-  findBridgeProviderByKey,
-  isBridgeProviderSelectable,
   useBridgeHealthStream,
   useBridgeProviders,
   useBridges,
-  useCreateBridge,
 } from "@/systems/bridges";
-import type { BridgeCreateDraft, BridgeScopeFilter } from "@/systems/bridges";
+import type { BridgeScopeFilter } from "@/systems/bridges";
 import {
   parseBridgePlatformFilter,
   parseBridgeScopeFilter,
@@ -25,6 +18,7 @@ import {
   type BridgeStatusFilter,
 } from "@/systems/bridges/lib/bridge-list-filters";
 import { useActiveWorkspace } from "@/systems/workspace";
+import { useBridgeCreateFlow } from "./use-bridge-create-flow";
 
 export interface BridgesRouteSearch {
   q?: string;
@@ -47,11 +41,6 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
   const platformFilter = search.platform ?? null;
   const statusFilter = search.status ?? null;
 
-  const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
-  const [createDraft, setCreateDraft] = useState<BridgeCreateDraft>(() =>
-    createBridgeCreateDraft([], activeWorkspaceId)
-  );
-
   const bridgeListFilters = {
     ...bridgeListFilterForScope(scopeFilter, activeWorkspaceId),
     q: searchQuery,
@@ -69,12 +58,15 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
     filters: bridgeListFilters,
   });
   const providersQuery = useBridgeProviders();
-  const createBridgeMutation = useCreateBridge();
 
   const bridges = bridgesQuery.bridges;
   const bridgeHealth = bridgesQuery.bridgeHealth;
   const providers = providersQuery.data ?? [];
-  const canCreateBridge = providers.some(isBridgeProviderSelectable);
+  const createFlow = useBridgeCreateFlow({
+    activeWorkspaceId,
+    activeWorkspaceName: activeWorkspace?.name,
+    providers,
+  });
 
   const platforms = Object.keys(bridgesQuery.facets?.platforms ?? {});
   const statuses: BridgeStatusFilter[] = [];
@@ -157,66 +149,14 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
     void providersQuery.refetch();
   };
 
-  const openCreateDialog = () => {
-    setCreateDraft(createBridgeCreateDraft(providers, activeWorkspaceId));
-    setCreateDialogOpen(true);
-  };
-
-  const handleCreateDialogOpenChange = (open: boolean) => {
-    setCreateDialogOpen(open);
-  };
-
-  const handleCreateBridge = async () => {
-    const provider = findBridgeProviderByKey(providers, createDraft.selectedProviderKey);
-    if (!provider || !isBridgeProviderSelectable(provider)) {
-      toast.error("Select an available bridge provider before creating the bridge.");
-      return;
-    }
-
-    if (createDraft.scope === "workspace" && !activeWorkspaceId) {
-      toast.error("Select an active workspace before creating a workspace-scoped bridge.");
-      return;
-    }
-
-    const requestResult = buildBridgeCreateRequest(createDraft, provider, activeWorkspaceId);
-    if (!requestResult.ok) {
-      toast.error(requestResult.error);
-      return;
-    }
-
-    try {
-      const result = await createBridgeMutation.mutateAsync(requestResult.data);
-      setCreateDialogOpen(false);
-      toast.success(`Created bridge ${result.bridge.display_name}.`);
-      void navigate({
-        params: { id: result.bridge.id },
-        to: "/bridges/$id",
-      });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to create bridge");
-    }
-  };
-
-  const createDialogProps = {
-    activeWorkspaceId,
-    activeWorkspaceName: activeWorkspace?.name,
-    draft: createDraft,
-    isPending: createBridgeMutation.isPending,
-    onDraftChange: setCreateDraft,
-    onOpenChange: handleCreateDialogOpenChange,
-    onSubmit: handleCreateBridge,
-    open: isCreateDialogOpen,
-    providers,
-  };
-
   return {
     activeWorkspaceId,
     backgroundError,
     bridgeHealth,
     bridges,
-    canCreateBridge,
+    canCreateBridge: createFlow.canCreateBridge,
     clearFilters,
-    createDialogProps,
+    createDialogProps: createFlow.createDialogProps,
     fatalError,
     hasActiveFilters,
     hasNextPage: bridgesQuery.hasNextPage,
@@ -225,7 +165,7 @@ function useBridgesPage(search: BridgesRouteSearch = {}) {
     isInitialLoading,
     isFetchingNextPage: bridgesQuery.isFetchingNextPage,
     loadMore: bridgesQuery.fetchNextPage,
-    openCreateDialog,
+    openCreateDialog: createFlow.openCreateDialog,
     platformFilter,
     platforms,
     providers,

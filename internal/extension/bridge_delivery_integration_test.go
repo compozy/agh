@@ -19,22 +19,30 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgecontract "github.com/compozy/agh/internal/bridges/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/session"
 	skillspkg "github.com/compozy/agh/internal/skills"
+	storepkg "github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/subprocess"
 	"github.com/compozy/agh/internal/testutil"
+	toolspkg "github.com/compozy/agh/internal/tools"
 	transcriptpkg "github.com/compozy/agh/internal/transcript"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 type scriptedPromptEvent struct {
-	Type  string
-	Text  string
-	Error string
-	Delay time.Duration
+	Type            string
+	Text            string
+	Error           string
+	ToolName        string
+	ToolCallID      string
+	ToolInput       json.RawMessage
+	ToolError       bool
+	ToolErrorDetail string
+	Delay           time.Duration
 }
 
 type scriptedPromptDriver struct {
@@ -66,26 +74,76 @@ type deliveryIntegrationEnv struct {
 	extensionName string
 }
 
+type signalingDeliveryLedgerStore struct {
+	bridgepkg.DeliveryLedgerStore
+	checkpointed chan bridgepkg.DeliveryLedgerCheckpoint
+}
+
+func (s *signalingDeliveryLedgerStore) CheckpointBridgeDelivery(
+	ctx context.Context,
+	checkpoint bridgepkg.DeliveryLedgerCheckpoint,
+) error {
+	if err := s.DeliveryLedgerStore.CheckpointBridgeDelivery(ctx, checkpoint); err != nil {
+		return err
+	}
+	select {
+	case s.checkpointed <- checkpoint:
+	default:
+	}
+	return nil
+}
+
+type durableRestartDeliveryTransport struct {
+	mu              sync.Mutex
+	remoteMessageID string
+	calls           []bridgepkg.DeliveryRequest
+}
+
+func (t *durableRestartDeliveryTransport) DeliverBridge(
+	_ context.Context,
+	_ string,
+	request bridgepkg.DeliveryRequest,
+) (bridgepkg.DeliveryAck, error) {
+	t.mu.Lock()
+	t.calls = append(t.calls, request)
+	remoteMessageID := t.remoteMessageID
+	t.mu.Unlock()
+	return bridgepkg.DeliveryAck{
+		DeliveryID:      request.Event.DeliveryID,
+		Seq:             request.Event.Seq,
+		RemoteMessageID: remoteMessageID,
+	}, nil
+}
+
+func (t *durableRestartDeliveryTransport) snapshotCalls() []bridgepkg.DeliveryRequest {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return append([]bridgepkg.DeliveryRequest(nil), t.calls...)
+}
+
 func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 	t.Parallel()
+	descriptorLookup := newDeliveryIntegrationToolRegistry(t)
 
 	tests := []struct {
-		name          string
-		now           time.Time
-		script        []scriptedPromptEvent
-		extensionName string
-		scenario      string
-		instanceID    string
-		markerFile    string
-		messageText   string
-		brokerOpts    []bridgepkg.DeliveryBrokerOption
-		waitFor       func([]managerDeliveryMarker) bool
-		assert        func(t *testing.T, markers []managerDeliveryMarker)
-		assertContext func(
+		name             string
+		now              time.Time
+		script           []scriptedPromptEvent
+		extensionName    string
+		platform         string
+		scenario         string
+		instanceID       string
+		markerFile       string
+		messageText      string
+		deliveryDefaults json.RawMessage
+		brokerOpts       []bridgepkg.DeliveryBrokerOption
+		waitFor          func([]managerDeliveryMarker) bool
+		assert           func(t *testing.T, markers []managerDeliveryMarker)
+		assertContext    func(
 			t *testing.T,
 			env *deliveryIntegrationEnv,
 			driver *scriptedPromptDriver,
-			ingest hostAPIBridgesMessagesIngestResult,
+			ingest bridgecontract.BridgesMessagesIngestResult,
 			markers []managerDeliveryMarker,
 		)
 	}{
@@ -106,6 +164,109 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 					markers[len(markers)-1].Request.Event.EventType == bridgepkg.DeliveryEventTypeFinal
 			},
 			assert: assertMarkerDeliveryProgress,
+		},
+		{
+			name: "Should deliver ordered redacted tool progress without transcript chrome",
+			now:  time.Date(2026, 4, 11, 3, 2, 0, 0, time.UTC),
+			script: []scriptedPromptEvent{
+				{Type: acp.EventTypeAgentMessage, Text: "working"},
+				{
+					Type:       acp.EventTypeToolCall,
+					ToolName:   "vendor__deploy",
+					ToolCallID: "call-progress-integration",
+					ToolInput:  json.RawMessage(`{"command":"echo sk-integration-progress-secret"}`),
+				},
+				{
+					Type:       acp.EventTypeToolCall,
+					ToolName:   "vendor__deploy",
+					ToolCallID: "call-progress-integration",
+				},
+				{
+					Type:            acp.EventTypeToolResult,
+					ToolCallID:      "call-progress-integration",
+					ToolError:       true,
+					ToolErrorDetail: "deployment failed: password=hunter2",
+				},
+				{Type: acp.EventTypeDone},
+			},
+			extensionName: "ext-bridge-progress",
+			platform:      "teams",
+			scenario:      "record_deliveries",
+			instanceID:    "brg-progress",
+			markerFile:    "progress-deliveries.jsonl",
+			deliveryDefaults: json.RawMessage(
+				`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":false,"reactions":false}}`,
+			),
+			brokerOpts: []bridgepkg.DeliveryBrokerOption{
+				bridgepkg.WithDeliveryBrokerDescriptorLookup(descriptorLookup),
+			},
+			waitFor: func(markers []managerDeliveryMarker) bool {
+				return len(markers) >= 4 &&
+					markers[len(markers)-1].Request.Event.EventType == bridgepkg.DeliveryEventTypeFinal
+			},
+			assert: func(t *testing.T, markers []managerDeliveryMarker) {
+				t.Helper()
+
+				assertMarkerEvents(t, markers, []bridgepkg.DeliveryEventType{
+					bridgepkg.DeliveryEventTypeStart,
+					bridgepkg.DeliveryEventTypeProgress,
+					bridgepkg.DeliveryEventTypeProgress,
+					bridgepkg.DeliveryEventTypeFinal,
+				}, []int64{1, 2, 3, 4})
+				for index, marker := range markers[1:3] {
+					progress := marker.Request.Event.Progress
+					if progress == nil {
+						t.Fatalf("progress marker %d payload = nil", index)
+					}
+					if got, want := progress.ToolID, "vendor__deploy"; got != want {
+						t.Fatalf("progress marker %d tool id = %q, want %q", index, got, want)
+					}
+					if got, want := progress.Label, "Deploying service"; got != want {
+						t.Fatalf("progress marker %d label = %q, want %q", index, got, want)
+					}
+					if got, want := progress.Preview, "echo [REDACTED]"; got != want {
+						t.Fatalf("progress marker %d preview = %q, want %q", index, got, want)
+					}
+				}
+				started := markers[1].Request.Event.Progress
+				failed := markers[2].Request.Event.Progress
+				if started.Phase != bridgepkg.ToolProgressPhaseStarted {
+					t.Fatalf("started phase = %q, want %q", started.Phase, bridgepkg.ToolProgressPhaseStarted)
+				}
+				if failed.Phase != bridgepkg.ToolProgressPhaseFailed {
+					t.Fatalf("failed phase = %q, want %q", failed.Phase, bridgepkg.ToolProgressPhaseFailed)
+				}
+				if got, want := failed.DurationMS, int64(2); got != want {
+					t.Fatalf("failed duration = %d, want %d", got, want)
+				}
+				if strings.Contains(failed.Error, "hunter2") || !strings.Contains(failed.Error, "[REDACTED]") {
+					t.Fatalf("failed error = %q, want canonical redaction", failed.Error)
+				}
+			},
+			assertContext: func(
+				t *testing.T,
+				env *deliveryIntegrationEnv,
+				_ *scriptedPromptDriver,
+				ingest bridgecontract.BridgesMessagesIngestResult,
+				_ []managerDeliveryMarker,
+			) {
+				t.Helper()
+
+				events, err := env.sessions.Events(
+					testutil.Context(t),
+					ingest.SessionID,
+					storepkg.EventQuery{},
+				)
+				if err != nil {
+					t.Fatalf("sessions.Events() error = %v", err)
+				}
+				for _, event := range events {
+					if event.Type == string(bridgepkg.DeliveryEventTypeProgress) ||
+						strings.Contains(event.Content, `"event_type":"progress"`) {
+						t.Fatalf("session transcript contains progress chrome: %#v", event)
+					}
+				}
+			},
 		},
 		{
 			name: "ShouldCoalesceIntermediateDeltasForSlowAdapters",
@@ -241,7 +402,7 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 				t *testing.T,
 				env *deliveryIntegrationEnv,
 				driver *scriptedPromptDriver,
-				ingest hostAPIBridgesMessagesIngestResult,
+				ingest bridgecontract.BridgesMessagesIngestResult,
 				markers []managerDeliveryMarker,
 			) {
 				t.Helper()
@@ -277,10 +438,15 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 			)
 
 			instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
-				ID:            tc.instanceID,
-				ExtensionName: env.extensionName,
-				RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+				ID:               tc.instanceID,
+				ExtensionName:    env.extensionName,
+				Platform:         tc.platform,
+				RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true},
+				DeliveryDefaults: tc.deliveryDefaults,
 			})
+			if tc.platform != "" && instance.Platform != tc.platform {
+				t.Fatalf("bridge platform = %q, want low-tier platform %q", instance.Platform, tc.platform)
+			}
 			messageText := tc.messageText
 			if strings.TrimSpace(messageText) == "" {
 				messageText = "hello"
@@ -306,7 +472,7 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Handle(bridges/messages/ingest) error = %v", err)
 			}
-			var ingest hostAPIBridgesMessagesIngestResult
+			var ingest bridgecontract.BridgesMessagesIngestResult
 			decodeResult(t, result, &ingest)
 
 			waitForDeliveryMarkers(t, markerPath, tc.waitFor)
@@ -318,6 +484,206 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBridgeDeliveryIntegrationShouldReconcileFreshBrokerOverSameStore(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should fail open from a fresh broker over the same GlobalDB", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 12, 20, 0, 0, 0, time.UTC)
+		homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(testutil.Context(t)); err != nil {
+				t.Fatalf("GlobalDB.Close() error = %v", err)
+			}
+		})
+
+		instance := bridgepkg.BridgeInstance{
+			ID:            "brg-durable-restart",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "ext-durable-restart",
+			DisplayName:   "Durable restart",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusReady,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		}
+		if err := db.InsertBridgeInstance(ctx, instance); err != nil {
+			t.Fatalf("InsertBridgeInstance() error = %v", err)
+		}
+		routingKey := bridgepkg.RoutingKey{
+			Scope:            instance.Scope,
+			BridgeInstanceID: instance.ID,
+			PeerID:           "peer-durable-restart",
+		}
+		target := bridgepkg.DeliveryTarget{
+			BridgeInstanceID: instance.ID,
+			PeerID:           routingKey.PeerID,
+			Mode:             bridgepkg.DeliveryModeReply,
+		}
+		checkpointed := make(chan bridgepkg.DeliveryLedgerCheckpoint, 2)
+		store := &signalingDeliveryLedgerStore{
+			DeliveryLedgerStore: db,
+			checkpointed:        checkpointed,
+		}
+		firstTransport := &durableRestartDeliveryTransport{remoteMessageID: "remote-durable-restart"}
+		firstBroker := bridgepkg.NewBroker(
+			firstTransport,
+			bridgepkg.WithDeliveryLedgerStore(store),
+			bridgepkg.WithDeliveryBrokerNow(func() time.Time { return now }),
+		)
+		t.Cleanup(firstBroker.Close)
+		registered, err := firstBroker.RegisterPromptDelivery(ctx, bridgepkg.PromptDeliveryRegistration{
+			SessionID:      "sess-durable-restart",
+			TurnID:         "turn-durable-restart",
+			ExtensionName:  instance.ExtensionName,
+			DeliveryID:     "delivery-durable-restart",
+			RoutingKey:     routingKey,
+			DeliveryTarget: target,
+		})
+		if err != nil {
+			t.Fatalf("RegisterPromptDelivery() error = %v", err)
+		}
+		if err := firstBroker.Deliver(ctx, bridgepkg.DeliveryEvent{
+			DeliveryID:       registered.DeliveryID,
+			BridgeInstanceID: instance.ID,
+			RoutingKey:       routingKey,
+			DeliveryTarget:   target,
+			Seq:              1,
+			EventType:        bridgepkg.DeliveryEventTypeStart,
+			Content:          bridgepkg.MessageContent{Text: "partial answer"},
+			Operation:        bridgepkg.DeliveryOperationPost,
+		}); err != nil {
+			t.Fatalf("Deliver(start) error = %v", err)
+		}
+		select {
+		case checkpoint := <-checkpointed:
+			if checkpoint.RemoteMessageID != "remote-durable-restart" || checkpoint.LastAckedSeq != 1 {
+				t.Fatalf("start checkpoint = %#v, want durable remote anchor at seq 1", checkpoint)
+			}
+		case <-ctx.Done():
+			t.Fatalf("start checkpoint did not persist: %v", ctx.Err())
+		}
+		firstBroker.Close()
+
+		active, err := db.ListBridgeDeliveries(ctx, bridgepkg.DeliveryLedgerQuery{
+			Scope: instance.Scope,
+			State: bridgepkg.DeliveryLedgerStateActive,
+		})
+		if err != nil {
+			t.Fatalf("ListBridgeDeliveries(active) error = %v", err)
+		}
+		if got, want := len(active), 1; got != want {
+			t.Fatalf("len(active deliveries) = %d, want %d", got, want)
+		}
+		if got, want := active[0].RemoteMessageID, "remote-durable-restart"; got != want {
+			t.Fatalf("active remote_message_id = %q, want %q", got, want)
+		}
+
+		restartedTransport := &durableRestartDeliveryTransport{remoteMessageID: "remote-durable-restart"}
+		restartedBroker := bridgepkg.NewBroker(
+			restartedTransport,
+			bridgepkg.WithDeliveryLedgerStore(db),
+			bridgepkg.WithDeliveryBrokerRegistrationGate(),
+			bridgepkg.WithDeliveryBrokerNow(func() time.Time { return now.Add(time.Minute) }),
+		)
+		t.Cleanup(restartedBroker.Close)
+		query := bridgepkg.DeliveryLedgerQuery{Scope: instance.Scope}
+		if err := restartedBroker.LoadDeliveryMetrics(ctx, query); err != nil {
+			t.Fatalf("LoadDeliveryMetrics() error = %v", err)
+		}
+		before := restartedBroker.DeliveryMetrics()[instance.ID]
+		if before.LastSuccessAt.IsZero() {
+			t.Fatal("rehydrated LastSuccessAt = zero, want first-broker checkpoint metrics")
+		}
+		if err := restartedBroker.ReconcileDelivery(ctx, active[0], instance.ExtensionName); err != nil {
+			t.Fatalf("ReconcileDelivery() error = %v", err)
+		}
+
+		calls := restartedTransport.snapshotCalls()
+		if got, want := len(calls), 1; got != want {
+			t.Fatalf("restarted delivery calls = %d, want %d", got, want)
+		}
+		resume := calls[0]
+		if resume.Event.EventType != bridgepkg.DeliveryEventTypeError || resume.Snapshot != nil {
+			t.Fatalf("restart request = %#v, want fail-open terminal post", resume)
+		}
+		if resume.Event.Operation != bridgepkg.DeliveryOperationPost || resume.Event.Reference != nil {
+			t.Fatalf("restart operation/reference = %q/%#v, want universal post", resume.Event.Operation, resume.Event.Reference)
+		}
+		if !strings.Contains(resume.Event.Content.Text, "session stopped before delivery completed") {
+			t.Fatalf("restart content = %q, want visible stopped-session terminal error", resume.Event.Content.Text)
+		}
+
+		terminal, err := db.ListBridgeDeliveries(ctx, bridgepkg.DeliveryLedgerQuery{
+			Scope: instance.Scope,
+			State: bridgepkg.DeliveryLedgerStateTerminalError,
+		})
+		if err != nil {
+			t.Fatalf("ListBridgeDeliveries(terminal error) error = %v", err)
+		}
+		if got, want := len(terminal), 1; got != want {
+			t.Fatalf("len(terminal deliveries) = %d, want %d", got, want)
+		}
+		if got, want := terminal[0].RemoteMessageID, "remote-durable-restart"; got != want {
+			t.Fatalf("terminal remote_message_id = %q, want %q", got, want)
+		}
+		after := restartedBroker.DeliveryMetrics()[instance.ID]
+		if got, want := after.DeliveryFailuresTotal, before.DeliveryFailuresTotal+1; got != want {
+			t.Fatalf("restarted delivery failures = %d, want %d", got, want)
+		}
+	})
+}
+
+func newDeliveryIntegrationToolRegistry(t *testing.T) *toolspkg.RuntimeRegistry {
+	t.Helper()
+
+	source := toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: "daemon"}
+	provider, err := toolspkg.NewNativeProvider(source, toolspkg.NativeTool{
+		Descriptor: toolspkg.Descriptor{
+			ID:               "vendor__deploy",
+			DisplayTitle:     "Deploy service",
+			ToolPresentation: toolspkg.NewToolPresentation("Deploying service", "arg:command"),
+			Description:      "Deploy one service",
+			InputSchema:      json.RawMessage(`{"type":"object"}`),
+			Backend: toolspkg.BackendRef{
+				Kind:       toolspkg.BackendNativeGo,
+				NativeName: "bridge_delivery_metadata",
+			},
+			Source:          source,
+			Visibility:      toolspkg.VisibilityModel,
+			Risk:            toolspkg.RiskRead,
+			ReadOnly:        true,
+			ConcurrencySafe: true,
+		},
+		Call: func(context.Context, toolspkg.Scope, toolspkg.CallRequest) (toolspkg.ToolResult, error) {
+			return toolspkg.ToolResult{Content: []toolspkg.ToolContent{{Type: "text", Text: "unused"}}}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("tools.NewNativeProvider() error = %v", err)
+	}
+	registry, err := toolspkg.NewRegistry(toolspkg.WithProviders(provider))
+	if err != nil {
+		t.Fatalf("tools.NewRegistry() error = %v", err)
+	}
+	if _, err := registry.OperatorProjection(testutil.Context(t), toolspkg.Scope{Operator: true}); err != nil {
+		t.Fatalf("RuntimeRegistry.OperatorProjection() error = %v", err)
+	}
+	return registry
 }
 
 func newDeliveryIntegrationEnv(
@@ -595,13 +961,14 @@ func (d *scriptedPromptDriver) Prompt(
 			if item.Delay > 0 {
 				time.Sleep(item.Delay)
 			}
-			events <- acp.AgentEvent{
-				Type:      item.Type,
-				TurnID:    req.TurnID,
-				Timestamp: startedAt.Add(time.Duration(idx+1) * time.Millisecond),
-				Text:      item.Text,
-				Error:     item.Error,
-			}
+			events <- (acp.AgentEvent{
+				Type:       item.Type,
+				TurnID:     req.TurnID,
+				Timestamp:  startedAt.Add(time.Duration(idx+1) * time.Millisecond),
+				Text:       item.Text,
+				Error:      item.Error,
+				ToolCallID: item.ToolCallID,
+			}).WithToolDetail(item.ToolName, item.ToolInput, item.ToolError, item.ToolErrorDetail)
 		}
 	}()
 	return events, nil
@@ -677,20 +1044,34 @@ func readDeliveryMarkersOrEmpty(path string) []managerDeliveryMarker {
 	return markers
 }
 
-func assertMarkerEvents(t *testing.T, markers []managerDeliveryMarker, wantTypes []string, wantSeqs []int64) {
+func assertMarkerEvents(
+	t *testing.T,
+	markers []managerDeliveryMarker,
+	wantTypes []bridgepkg.DeliveryEventType,
+	wantSeqs []int64,
+) {
 	t.Helper()
 
 	if len(markers) < len(wantTypes) {
 		t.Fatalf("len(markers) = %d, want at least %d", len(markers), len(wantTypes))
 	}
-	gotTypes := make([]string, 0, len(markers))
+	gotTypes := make([]bridgepkg.DeliveryEventType, 0, len(markers))
 	gotSeqs := make([]int64, 0, len(markers))
+	gotProgress := make([]bridgepkg.ToolProgress, 0, len(markers))
 	for _, marker := range markers {
 		gotTypes = append(gotTypes, marker.Request.Event.EventType)
 		gotSeqs = append(gotSeqs, marker.Request.Event.Seq)
+		if marker.Request.Event.Progress != nil {
+			gotProgress = append(gotProgress, *marker.Request.Event.Progress)
+		}
 	}
 	if !slices.Equal(gotTypes[:len(wantTypes)], wantTypes) {
-		t.Fatalf("marker event types = %#v, want prefix %#v", gotTypes, wantTypes)
+		t.Fatalf(
+			"marker event types = %#v, want prefix %#v; progress = %#v",
+			gotTypes,
+			wantTypes,
+			gotProgress,
+		)
 	}
 	if !slices.Equal(gotSeqs[:len(wantSeqs)], wantSeqs) {
 		t.Fatalf("marker seqs = %#v, want prefix %#v", gotSeqs, wantSeqs)
@@ -794,7 +1175,7 @@ func assertTransientDeliveryRecovery(
 	if strings.TrimSpace(resume.Snapshot.TurnID) == "" {
 		t.Fatal("resume snapshot turn id = empty, want traceable turn")
 	}
-	if got := resume.Event.Resume; got == nil || strings.TrimSpace(got.LatestEventType) == "" {
+	if got := resume.Event.Resume; got == nil || strings.TrimSpace(string(got.LatestEventType)) == "" {
 		t.Fatalf("resume state = %#v, want latest event type", got)
 	}
 	if !strings.Contains(resume.Event.Content.Text, wantRecoveredText) {
@@ -827,7 +1208,7 @@ func assertBridgeTurnContextPreserved(
 	t *testing.T,
 	env *deliveryIntegrationEnv,
 	driver *scriptedPromptDriver,
-	ingest hostAPIBridgesMessagesIngestResult,
+	ingest bridgecontract.BridgesMessagesIngestResult,
 	markers []managerDeliveryMarker,
 	wantInboundText string,
 	wantOutboundText string,

@@ -54,6 +54,17 @@ func (r *queryStoreRuntime) Open(
 	return r.pool.Open(ctx, sessionID, path)
 }
 
+func (r *queryStoreRuntime) Quiesce(
+	ctx context.Context,
+	sessionID string,
+	path string,
+) (func(), error) {
+	if r == nil || r.pool == nil {
+		return func() {}, nil
+	}
+	return r.pool.Quiesce(ctx, sessionID, path)
+}
+
 func (r *queryStoreRuntime) Start(ctx context.Context) {
 	if r == nil || r.pool == nil {
 		return

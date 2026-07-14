@@ -186,6 +186,7 @@ describe("Extension", () => {
       runtime: {
         bridge: {
           runtime_version: "1",
+          purpose: "service",
           provider: "bridge-adapter",
           platform: "telegram",
           managed_instances: [

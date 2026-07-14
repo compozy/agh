@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"maps"
 	"net"
@@ -19,13 +20,13 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -50,7 +51,7 @@ func TestMapSlackMessageEventRoutingAndAttachments(t *testing.T) {
 			MIMEType:   "text/plain",
 			URLPrivate: "https://files.example/F1",
 		}},
-	}, managed, now, "Ev1", "T1", now.Unix())
+	}, managed, now, "Ev1", "T1", now.Unix(), nil)
 	if err != nil {
 		t.Fatalf("mapSlackMessageEvent(direct) error = %v", err)
 	}
@@ -75,7 +76,7 @@ func TestMapSlackMessageEventRoutingAndAttachments(t *testing.T) {
 		Username:    "bob",
 		Text:        " need summary ",
 		TS:          "1775866801.100000",
-	}, managed, now, "Ev2", "T1", now.Unix())
+	}, managed, now, "Ev2", "T1", now.Unix(), nil)
 	if err != nil {
 		t.Fatalf("mapSlackMessageEvent(channel) error = %v", err)
 	}
@@ -91,6 +92,210 @@ func TestMapSlackMessageEventRoutingAndAttachments(t *testing.T) {
 	if got, want := channel.Envelope.Content.Text, "need summary"; got != want {
 		t.Fatalf("channel.Envelope.Content.Text = %q, want %q", got, want)
 	}
+}
+
+func TestMapSlackEditAndReplyContext(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 12, 15, 0, 0, 0, time.UTC)
+	managed := testBridgeRuntime(now, "brg-slack-edits")
+	managed.Instance.Scope = bridgepkg.ScopeWorkspace
+	managed.Instance.WorkspaceID = "ws-a"
+
+	t.Run("Should map message changed and deleted events to typed edits", func(t *testing.T) {
+		t.Parallel()
+
+		parents := bridgesdk.NewParentMessageCache(0)
+		var changedEvent slackMessageEvent
+		if err := json.Unmarshal([]byte(`{
+			"type":"message",
+			"subtype":"message_changed",
+			"channel":"C123",
+			"channel_type":"channel",
+			"message":{
+				"user":"U123",
+				"username":"Alice",
+				"text":"corrected answer",
+				"ts":"1783864800.123456"
+			},
+			"previous_message":{
+				"user":"U123",
+				"username":"Alice",
+				"text":"original answer",
+				"ts":"1783864800.123456"
+			}
+		}`), &changedEvent); err != nil {
+			t.Fatalf("json.Unmarshal(message_changed) error = %v", err)
+		}
+		changed, ignored, err := mapSlackMessageEvent(
+			changedEvent,
+			managed,
+			now,
+			"Ev-edit",
+			"T123",
+			now.Unix(),
+			parents,
+		)
+		if err != nil {
+			t.Fatalf("mapSlackMessageEvent(changed) error = %v", err)
+		}
+		if ignored {
+			t.Fatal("mapSlackMessageEvent(changed) ignored = true, want false")
+		}
+		if got, want := changed.Envelope.EventFamily, bridgepkg.InboundEventFamilyEdit; got != want {
+			t.Fatalf("changed EventFamily = %q, want %q", got, want)
+		}
+		if changed.Envelope.Edit == nil {
+			t.Fatal("changed Edit = nil, want typed payload")
+		}
+		if got, want := changed.Envelope.Edit.MessageID, "1783864800.123456"; got != want {
+			t.Fatalf("changed Edit.MessageID = %q, want %q", got, want)
+		}
+		if got, want := changed.Envelope.Edit.NewText, "corrected answer"; got != want {
+			t.Fatalf("changed Edit.NewText = %q, want %q", got, want)
+		}
+		if got, want := changed.Envelope.Edit.Operation, bridgepkg.InboundEditOperationUpdated; got != want {
+			t.Fatalf("changed Edit.Operation = %q, want %q", got, want)
+		}
+		wantOriginal, err := parseSlackTimestamp("1783864800.123456")
+		if err != nil {
+			t.Fatalf("parseSlackTimestamp() error = %v", err)
+		}
+		if !changed.Envelope.Edit.OriginalTimestamp.Equal(wantOriginal) {
+			t.Fatalf(
+				"changed Edit.OriginalTimestamp = %s, want %s",
+				changed.Envelope.Edit.OriginalTimestamp,
+				wantOriginal,
+			)
+		}
+		if shouldBatchSlackInbound(slackMessageEvent{Subtype: "message_changed"}) {
+			t.Fatal("shouldBatchSlackInbound(message_changed) = true, want false")
+		}
+
+		deleted, ignored, err := mapSlackMessageEvent(slackMessageEvent{
+			Type:        "message",
+			Subtype:     "message_deleted",
+			Channel:     "C123",
+			ChannelType: "channel",
+			DeletedTS:   "1783864800.123456",
+			PreviousMessage: &slackMessageSnapshot{
+				User:     "U123",
+				Username: "Alice",
+				Text:     "corrected answer",
+				TS:       "1783864800.123456",
+			},
+		}, managed, now.Add(time.Minute), "Ev-delete", "T123", now.Add(time.Minute).Unix(), parents)
+		if err != nil {
+			t.Fatalf("mapSlackMessageEvent(deleted) error = %v", err)
+		}
+		if ignored {
+			t.Fatal("mapSlackMessageEvent(deleted) ignored = true, want false")
+		}
+		if deleted.Envelope.Edit == nil ||
+			deleted.Envelope.Edit.Operation != bridgepkg.InboundEditOperationDeleted ||
+			deleted.Envelope.Edit.NewText != "" {
+			t.Fatalf("deleted Edit = %#v, want deleted operation without replacement text", deleted.Envelope.Edit)
+		}
+
+		mapped, ignored, err := mapSlackMessageEvent(slackMessageEvent{
+			Type:        "message",
+			Subtype:     slackMessageSubtypeChanged,
+			Channel:     "C123",
+			ChannelType: "channel",
+			Message: &slackMessageSnapshot{
+				TS:   "1783864801.000000",
+				User: "U123",
+			},
+		}, managed, now.Add(2*time.Minute), "Ev-no-text", "T123", now.Add(2*time.Minute).Unix(), parents)
+		if err != nil {
+			t.Fatalf("mapSlackMessageEvent(textless edit) error = %v", err)
+		}
+		if !ignored {
+			t.Fatalf("mapSlackMessageEvent(textless edit) ignored = false, mapped %#v", mapped)
+		}
+	})
+
+	t.Run("Should fill threaded reply context from the bounded cache and miss without fetching", func(t *testing.T) {
+		t.Parallel()
+
+		parents := bridgesdk.NewParentMessageCache(0)
+		rootEvent := slackMessageEvent{
+			Type:        "message",
+			Channel:     "C123",
+			ChannelType: "channel",
+			User:        "U-parent",
+			Username:    "Bob",
+			Text:        "original proposal",
+			TS:          "1783864800.100000",
+		}
+		root, ignored, err := mapSlackMessageEvent(
+			rootEvent,
+			managed,
+			now,
+			"Ev-root",
+			"T123",
+			now.Unix(),
+			parents,
+		)
+		if err != nil || ignored {
+			t.Fatalf("mapSlackMessageEvent(root) = (ignored=%v, err=%v), want mapped", ignored, err)
+		}
+		parents.RememberEnvelope(root.Envelope)
+
+		replyEvent := slackMessageEvent{
+			Type:        "message",
+			Channel:     "C123",
+			ChannelType: "channel",
+			User:        "U-reply",
+			Username:    "Alice",
+			Text:        "I agree",
+			ThreadTS:    rootEvent.TS,
+			TS:          "1783864860.200000",
+		}
+		reply, ignored, err := mapSlackMessageEvent(
+			replyEvent,
+			managed,
+			now.Add(time.Minute),
+			"Ev-reply",
+			"T123",
+			now.Add(time.Minute).Unix(),
+			parents,
+		)
+		if err != nil || ignored {
+			t.Fatalf("mapSlackMessageEvent(reply) = (ignored=%v, err=%v), want mapped", ignored, err)
+		}
+		if reply.Envelope.ReplyToText != "original proposal" ||
+			reply.Envelope.ReplyToAuthorID != "U-PARENT" ||
+			reply.Envelope.ReplyToAuthorName != "Bob" {
+			t.Fatalf(
+				"reply context = (%q, %q, %q), want cached parent",
+				reply.Envelope.ReplyToText,
+				reply.Envelope.ReplyToAuthorID,
+				reply.Envelope.ReplyToAuthorName,
+			)
+		}
+		if shouldBatchSlackInbound(replyEvent) {
+			t.Fatal("shouldBatchSlackInbound(threaded reply) = true, want false")
+		}
+
+		cold, ignored, err := mapSlackMessageEvent(
+			replyEvent,
+			managed,
+			now.Add(time.Minute),
+			"Ev-cold",
+			"T123",
+			now.Add(time.Minute).Unix(),
+			bridgesdk.NewParentMessageCache(0),
+		)
+		if err != nil || ignored {
+			t.Fatalf("mapSlackMessageEvent(cold reply) = (ignored=%v, err=%v), want mapped", ignored, err)
+		}
+		if cold.Envelope.ReplyToText != "" ||
+			cold.Envelope.ReplyToAuthorID != "" ||
+			cold.Envelope.ReplyToAuthorName != "" {
+			t.Fatalf("cold reply context = %#v, want empty cache-miss fields", cold.Envelope)
+		}
+	})
 }
 
 func TestMapSlackSlashCommandStableTargetIdentity(t *testing.T) {
@@ -407,6 +612,732 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 	if got, want := resumeAck.RemoteMessageID, "C123:1775866806.100000"; got != want {
 		t.Fatalf("resumeAck.RemoteMessageID = %q, want %q", got, want)
 	}
+
+	t.Run("Should reject malformed successful post responses without advancing state", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name                string
+			content             string
+			postResults         []*slackPostedMessage
+			wantCompletedChunks int
+		}{
+			{
+				name:        "Should reject a nil post response",
+				content:     "hello",
+				postResults: []*slackPostedMessage{nil},
+			},
+			{
+				name:        "Should reject a blank post timestamp",
+				content:     "hello",
+				postResults: []*slackPostedMessage{{TS: " "}},
+			},
+			{
+				name:                "Should reject a blank continuation timestamp",
+				content:             strings.Repeat("continuation ", slackMaxMessageLen),
+				wantCompletedChunks: 1,
+				postResults: []*slackPostedMessage{
+					{TS: "1775866807.100000"},
+					{TS: " "},
+				},
+			},
+		}
+		for _, testCase := range cases {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				api := &fakeSlackAPI{postResults: testCase.postResults}
+				request := testDeliveryRequest(
+					"brg-slack",
+					"delivery-malformed-post",
+					1,
+					bridgepkg.DeliveryEventTypeFinal,
+					true,
+				)
+				request.Event.Content.Text = testCase.content
+
+				_, gotState, err := executeDelivery(context.Background(), api, request, deliveryState{})
+				var committedErr *bridgesdk.CommittedMutationError
+				if !errors.As(err, &committedErr) {
+					t.Fatalf("executeDelivery() error = %T %v, want CommittedMutationError", err, err)
+				}
+				if gotState.LastSeq != 0 || gotState.RemoteMessageID != "" || gotState.ReplaceRemoteMessageID != "" {
+					t.Fatalf("executeDelivery() committed state = %#v, want no final acknowledgement", gotState)
+				}
+				if got, want := gotState.Chunks.NextChunk(), testCase.wantCompletedChunks; got != want {
+					t.Fatalf("completed chunk prefix = %d, want %d", got, want)
+				}
+				if got, want := len(api.postAttempts), testCase.wantCompletedChunks+1; got != want {
+					t.Fatalf("post attempts = %d, want %d", got, want)
+				}
+			})
+		}
+	})
+
+	t.Run("Should edit the explicitly referenced message without prior state", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeSlackAPI{nextTS: "1775866808.100000"}
+		request := testDeliveryRequest(
+			"brg-slack",
+			"delivery-reference-edit",
+			1,
+			bridgepkg.DeliveryEventTypeDelta,
+			false,
+		)
+		request.Event.Operation = bridgepkg.DeliveryOperationEdit
+		request.Event.Reference = &bridgepkg.DeliveryMessageReference{
+			RemoteMessageID: "C123:1775866807.100000",
+		}
+		request.Event.Content.Text = "updated"
+
+		ack, gotState, err := executeDelivery(context.Background(), api, request, deliveryState{})
+		if err != nil {
+			t.Fatalf("executeDelivery() error = %v", err)
+		}
+		if got, want := strings.Join(api.methods, ","), "chat.update"; got != want {
+			t.Fatalf("api methods = %q, want %q", got, want)
+		}
+		if got, want := api.updates[0].TS, "1775866807.100000"; got != want {
+			t.Fatalf("updated timestamp = %q, want %q", got, want)
+		}
+		if got, want := ack.RemoteMessageID, request.Event.Reference.RemoteMessageID; got != want {
+			t.Fatalf("ack remote id = %q, want %q", got, want)
+		}
+		if got, want := gotState.RemoteMessageID, ack.RemoteMessageID; got != want {
+			t.Fatalf("state remote id = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should honor Retry-After for update and delete operations", func(t *testing.T) {
+		t.Parallel()
+
+		rateLimit := &bridgesdk.RateLimitError{
+			Err:        errors.New("rate limited primary operation"),
+			RetryAfter: time.Nanosecond,
+		}
+		api := &fakeSlackAPI{
+			updateErrors: []error{rateLimit, nil},
+			deleteErrors: []error{rateLimit, nil},
+		}
+		state := deliveryState{
+			LastSeq:         1,
+			RemoteMessageID: "C123:1775866811.100000",
+		}
+		update := testDeliveryRequest(
+			"brg-slack",
+			"delivery-primary-retry",
+			2,
+			bridgepkg.DeliveryEventTypeDelta,
+			false,
+		)
+		update.Event.Operation = bridgepkg.DeliveryOperationEdit
+		update.Event.Reference = &bridgepkg.DeliveryMessageReference{RemoteMessageID: state.RemoteMessageID}
+		update.Event.Content.Text = "updated after rate limit"
+
+		ack, state, err := executeDelivery(context.Background(), api, update, state)
+		if err != nil {
+			t.Fatalf("executeDelivery(update) error = %v", err)
+		}
+		if got, want := len(api.updates), 2; got != want {
+			t.Fatalf("update attempts = %d, want %d", got, want)
+		}
+
+		deleteRequest := testDeleteRequest(
+			"brg-slack",
+			"delivery-primary-retry",
+			3,
+			ack.RemoteMessageID,
+		)
+		if _, _, err := executeDelivery(context.Background(), api, deleteRequest, state); err != nil {
+			t.Fatalf("executeDelivery(delete) error = %v", err)
+		}
+		if got, want := len(api.deletes), 2; got != want {
+			t.Fatalf("delete attempts = %d, want %d", got, want)
+		}
+	})
+}
+
+func TestSlackProgressDelivery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should post a formatted progress bubble in the inbound thread before reacting", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 12, 10, 0, 0, 0, time.UTC)
+		api := &fakeSlackAPI{nextTS: "1775866900.100000"}
+		provider := newSlackProgressTestProvider(t, func() time.Time { return now }, api)
+		request := testProgressRequest(
+			"brg-progress",
+			"delivery-progress",
+			1,
+			bridgepkg.ToolProgressPhaseStarted,
+			"**Reading**",
+		)
+		request.Event.Progress.Preview = "A & <B>"
+
+		ack, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, request)
+		if err != nil {
+			t.Fatalf("handleBridgesProgress() error = %v", err)
+		}
+		if got := ack.RemoteMessageID; got != "" {
+			t.Fatalf("ack.RemoteMessageID = %q, want empty progress ACK", got)
+		}
+		if got, want := len(api.posts), 1; got != want {
+			t.Fatalf("post calls = %d, want %d", got, want)
+		}
+		if got, want := api.posts[0].ThreadTS, request.Event.DeliveryTarget.ThreadID; got != want {
+			t.Fatalf("post thread_ts = %q, want %q", got, want)
+		}
+		if got, want := api.posts[0].Text, "\U0001f527 *Reading* A &amp; &lt;B&gt;"; got != want {
+			t.Fatalf("post text = %q, want %q", got, want)
+		}
+		if got, want := len(api.statuses), 1; got != want {
+			t.Fatalf("status calls = %d, want %d", got, want)
+		}
+		if got, want := api.statuses[0].Status, "is thinking..."; got != want {
+			t.Fatalf("status = %q, want %q", got, want)
+		}
+		if got, want := len(api.reactions), 1; got != want {
+			t.Fatalf("reaction calls = %d, want %d", got, want)
+		}
+		if got, want := api.reactions[0].Timestamp, "1775866900.100000"; got != want {
+			t.Fatalf("reaction timestamp = %q, want progress bubble %q", got, want)
+		}
+		if got, want := api.reactions[0].Name, "eyes"; got != want {
+			t.Fatalf("reaction name = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should keep progress bubbles within the Slack UTF-16 limit", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)
+		api := &fakeSlackAPI{nextTS: "1775866910.100000"}
+		provider := newSlackProgressTestProvider(t, func() time.Time { return now }, api)
+		request := testProgressRequest(
+			"brg-progress",
+			"delivery-progress-utf16",
+			1,
+			bridgepkg.ToolProgressPhaseStarted,
+			"Inspecting",
+		)
+		request.Event.Progress.Preview = strings.Repeat("😀", slackMaxMessageLen/2+1)
+
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, request); err != nil {
+			t.Fatalf("handleBridgesProgress() error = %v", err)
+		}
+		if got := len(api.posts); got < 2 {
+			t.Fatalf("progress posts = %d, want multiple UTF-16-bounded chunks", got)
+		}
+		for index, post := range api.posts {
+			if got := bridgesdk.UTF16Len(post.Text); got > slackMaxMessageLen {
+				t.Fatalf("progress post %d wire length = %d, want <= %d", index, got, slackMaxMessageLen)
+			}
+		}
+	})
+
+	t.Run("Should deliver final text once after a committed progress edit result failure", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 13, 12, 5, 0, 0, time.UTC)
+		api := &fakeSlackAPI{
+			nextTS: "1775866915.100000",
+			updateErrors: []error{
+				bridgesdk.MarkCommittedMutation(errors.New("progress edit result unavailable")),
+			},
+		}
+		provider := newSlackProgressTestProvider(t, func() time.Time { return now }, api)
+		cfg, ok := provider.routes.Get("brg-progress")
+		if !ok {
+			t.Fatal("progress route = missing")
+		}
+		target := testDeliveryRequest(
+			"brg-progress",
+			"delivery-progress-committed",
+			3,
+			bridgepkg.DeliveryEventTypeFinal,
+			true,
+		).Event.DeliveryTarget
+		accumulator := bridgesdk.NewProgressAccumulator(bridgesdk.ProgressConfig{
+			ProgressConfig: slackResolvedProgressConfig(cfg),
+			Target:         target,
+			MaxMessageLen:  slackMaxMessageLen,
+			Len: func(value string) int {
+				return bridgesdk.UTF16Len(formatOutbound(value))
+			},
+		}, &slackProgressSink{api: api}, func() time.Time { return now })
+		dispatcher := bridgesdk.NewProgressDispatcher(
+			accumulator,
+			bridgesdk.WithProgressSchedule(func(time.Duration, func()) bridgesdk.ProgressCancel {
+				return func() bool { return true }
+			}),
+		)
+		t.Cleanup(dispatcher.Close)
+		if err := dispatcher.OnProgress(context.Background(), bridgepkg.ToolProgress{
+			ToolCallID: "call-progress-started",
+			ToolID:     "agh__terminal",
+			Phase:      bridgepkg.ToolProgressPhaseStarted,
+			Label:      "Inspecting",
+			Emoji:      "\U0001f527",
+			Index:      1,
+		}); err != nil {
+			t.Fatalf("ProgressDispatcher.OnProgress(started) error = %v", err)
+		}
+		if err := dispatcher.OnProgress(context.Background(), bridgepkg.ToolProgress{
+			ToolCallID: "call-progress-completed",
+			ToolID:     "agh__terminal",
+			Phase:      bridgepkg.ToolProgressPhaseCompleted,
+			Label:      "Inspecting",
+			Emoji:      "\U0001f527",
+			Index:      2,
+		}); err != nil {
+			t.Fatalf("ProgressDispatcher.OnProgress(completed) error = %v", err)
+		}
+		provider.deliveries.Store(
+			deliveryStateKey("brg-progress", "delivery-progress-committed"),
+			deliveryState{Progress: dispatcher},
+		)
+
+		final := testDeliveryRequest(
+			"brg-progress",
+			"delivery-progress-committed",
+			3,
+			bridgepkg.DeliveryEventTypeFinal,
+			true,
+		)
+		final.Event.Content.Text = "final answer"
+		ack, err := provider.handleBridgesDeliver(context.Background(), &bridgesdk.Session{}, final)
+		if err != nil {
+			t.Fatalf("handleBridgesDeliver(final) error = %v", err)
+		}
+		if got, want := ack.DeliveryID, final.Event.DeliveryID; got != want {
+			t.Fatalf("ack delivery id = %q, want %q", got, want)
+		}
+		if got, want := len(api.updates), 1; got != want {
+			t.Fatalf("committed progress edit attempts = %d, want %d", got, want)
+		}
+		if got, want := countSlackPostAttempts(api.postAttempts, "final answer"), 1; got != want {
+			t.Fatalf("final text post attempts = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should discard and close progress state after a committed final text result failure", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 13, 12, 6, 0, 0, time.UTC)
+		api := &fakeSlackAPI{nextTS: "1775866916.100000"}
+		provider := newSlackProgressTestProvider(t, func() time.Time { return now }, api)
+		started := testProgressRequest(
+			"brg-progress",
+			"delivery-text-committed",
+			1,
+			bridgepkg.ToolProgressPhaseStarted,
+			"Inspecting",
+		)
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, started); err != nil {
+			t.Fatalf("handleBridgesProgress(started) error = %v", err)
+		}
+		dispatcher := provider.deliveryState("brg-progress", "delivery-text-committed").Progress
+		if dispatcher == nil {
+			t.Fatal("progress dispatcher = nil, want active dispatcher")
+		}
+		api.postErrorText = "final answer"
+		api.postError = bridgesdk.MarkCommittedMutation(errors.New("final text result unavailable"))
+		final := testDeliveryRequest(
+			"brg-progress",
+			"delivery-text-committed",
+			2,
+			bridgepkg.DeliveryEventTypeFinal,
+			true,
+		)
+		final.Event.Content.Text = "final answer"
+
+		_, err := provider.handleBridgesDeliver(context.Background(), &bridgesdk.Session{}, final)
+		if !bridgesdk.IsCommittedMutation(err) {
+			t.Fatalf("handleBridgesDeliver(final) error = %T %v, want committed mutation", err, err)
+		}
+		if got, want := countSlackPostAttempts(api.postAttempts, "final answer"), 1; got != want {
+			t.Fatalf("final text post attempts = %d, want %d", got, want)
+		}
+		if _, retained := provider.deliveries.Load(
+			deliveryStateKey("brg-progress", "delivery-text-committed"),
+		); retained {
+			t.Fatal("committed final text failure retained delivery state")
+		}
+		if flushErr := dispatcher.Flush(context.Background()); flushErr == nil ||
+			!strings.Contains(flushErr.Error(), "closed") {
+			t.Fatalf("closed dispatcher Flush() error = %v, want closed error", flushErr)
+		}
+	})
+
+	t.Run("Should retry a rate limited edit without dropping accumulated lines", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 12, 10, 5, 0, 0, time.UTC)
+		api := &fakeSlackAPI{
+			nextTS: "1775866905.100000",
+			updateErrors: []error{
+				&bridgesdk.RateLimitError{Err: errors.New("rate limited"), RetryAfter: time.Nanosecond},
+				nil,
+			},
+		}
+		provider := newSlackProgressTestProvider(t, func() time.Time { return now }, api)
+		for seq, label := range []string{"Inspecting", "Reading"} {
+			request := testProgressRequest(
+				"brg-progress",
+				"delivery-retry",
+				int64(seq+1),
+				bridgepkg.ToolProgressPhaseStarted,
+				label,
+			)
+			_, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, request)
+			if err != nil {
+				t.Fatalf("handleBridgesProgress(%q) error = %v", label, err)
+			}
+		}
+		final := testLifecycleOnlyFinalRequest("brg-progress", "delivery-retry", 3)
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, final); err != nil {
+			t.Fatalf("handleBridgesProgress(final) error = %v", err)
+		}
+
+		if got, want := len(api.updates), 2; got != want {
+			t.Fatalf("update attempts = %d, want %d", got, want)
+		}
+		wantText := "\U0001f527 Inspecting\n\U0001f527 Reading"
+		for index, update := range api.updates {
+			if got := update.Text; got != wantText {
+				t.Fatalf("update[%d].Text = %q, want %q", index, got, wantText)
+			}
+			if got, want := update.TS, "1775866905.100000"; got != want {
+				t.Fatalf("update[%d].TS = %q, want %q", index, got, want)
+			}
+		}
+	})
+
+	t.Run("Should deliver completed duration and failed detail through the progress bubble", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 12, 10, 7, 0, 0, time.UTC)
+		api := &fakeSlackAPI{nextTS: "1775866907.100000"}
+		provider := newSlackProgressTestProvider(t, func() time.Time { return now }, api)
+		started := testProgressRequest(
+			"brg-progress",
+			"delivery-terminal-lines",
+			1,
+			bridgepkg.ToolProgressPhaseStarted,
+			"Inspecting",
+		)
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, started); err != nil {
+			t.Fatalf("handleBridgesProgress(started) error = %v", err)
+		}
+		now = now.Add(2 * time.Second)
+		completed := testProgressRequest(
+			"brg-progress",
+			"delivery-terminal-lines",
+			2,
+			bridgepkg.ToolProgressPhaseCompleted,
+			"Inspecting",
+		)
+		completed.Event.Progress.DurationMS = 31_000
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, completed); err != nil {
+			t.Fatalf("handleBridgesProgress(completed) error = %v", err)
+		}
+		now = now.Add(2 * time.Second)
+		failed := testProgressRequest(
+			"brg-progress",
+			"delivery-terminal-lines",
+			3,
+			bridgepkg.ToolProgressPhaseFailed,
+			"Writing",
+		)
+		failed.Event.Progress.Error = "permission denied"
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, failed); err != nil {
+			t.Fatalf("handleBridgesProgress(failed) error = %v", err)
+		}
+
+		if got, want := len(api.updates), 2; got != want {
+			t.Fatalf("progress edits = %d, want %d", got, want)
+		}
+		body := api.updates[len(api.updates)-1].Text
+		if !strings.Contains(body, "\u2705 Inspecting \u00b7 31s") ||
+			!strings.Contains(body, "\u274c Writing \u2014 permission denied") {
+			t.Fatalf("progress body = %q, want completed duration and failed detail", body)
+		}
+		if got, want := api.reactions[len(api.reactions)-1].Name, "x"; got != want {
+			t.Fatalf("failed reaction = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should detach an existing dispatcher when progress mode changes to off", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 12, 10, 8, 0, 0, time.UTC)
+		api := &fakeSlackAPI{nextTS: "1775866908.100000"}
+		provider := newSlackProgressTestProvider(t, func() time.Time { return now }, api)
+		started := testProgressRequest(
+			"brg-progress",
+			"delivery-mode-change",
+			1,
+			bridgepkg.ToolProgressPhaseStarted,
+			"Inspecting",
+		)
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, started); err != nil {
+			t.Fatalf("handleBridgesProgress(started) error = %v", err)
+		}
+		callsBeforeOff := len(api.methods)
+		cfg, _ := provider.routes.Get("brg-progress")
+		cfg.managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"off","grouping":"accumulate","typing":false,"reactions":false}}`,
+		)
+		provider.routes.Update("brg-progress", func(resolvedInstanceConfig) resolvedInstanceConfig { return cfg })
+
+		off := testProgressRequest(
+			"brg-progress",
+			"delivery-mode-change",
+			2,
+			bridgepkg.ToolProgressPhaseStarted,
+			"Reading",
+		)
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, off); err != nil {
+			t.Fatalf("handleBridgesProgress(off) error = %v", err)
+		}
+		if got := len(api.methods); got != callsBeforeOff {
+			t.Fatalf("platform calls after mode off = %d, want unchanged %d", got, callsBeforeOff)
+		}
+		if state := provider.deliveryState("brg-progress", "delivery-mode-change"); state.Progress != nil {
+			t.Fatal("mode-off delivery retained a progress dispatcher")
+		}
+	})
+
+	t.Run("Should make zero platform calls when progress mode is off", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 12, 10, 10, 0, 0, time.UTC)
+		api := &fakeSlackAPI{nextTS: "unused"}
+		provider := newSlackProgressTestProvider(t, func() time.Time { return now }, api)
+		cfg, _ := provider.routes.Get("brg-progress")
+		cfg.managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"off","grouping":"accumulate","typing":false,"reactions":false}}`,
+		)
+		provider.routes.Update("brg-progress", func(resolvedInstanceConfig) resolvedInstanceConfig { return cfg })
+		factoryCalls := 0
+		provider.apiFactory = func(*resolvedInstanceConfig) slackAPI {
+			factoryCalls++
+			return api
+		}
+
+		request := testProgressRequest(
+			"brg-progress",
+			"delivery-off",
+			1,
+			bridgepkg.ToolProgressPhaseStarted,
+			"Inspecting",
+		)
+		if _, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, request); err != nil {
+			t.Fatalf("handleBridgesProgress() error = %v", err)
+		}
+		if factoryCalls != 0 {
+			t.Fatalf("api factory calls = %d, want zero", factoryCalls)
+		}
+		if got := len(api.methods); got != 0 {
+			t.Fatalf("platform calls = %d, want zero", got)
+		}
+	})
+}
+
+func TestSlackDeleteDeliveryPayload(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should delete the exact referenced Slack message", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeSlackAPI{}
+		request := testDeleteRequest("brg-slack", "delivery-delete", 1, "C456:1775866999.100000")
+		if _, _, err := executeDelivery(context.Background(), api, request, deliveryState{}); err != nil {
+			t.Fatalf("executeDelivery(delete) error = %v", err)
+		}
+		if got, want := len(api.deletes), 1; got != want {
+			t.Fatalf("delete calls = %d, want %d", got, want)
+		}
+		if got, want := api.deletes[0].Channel, "C456"; got != want {
+			t.Fatalf("delete channel = %q, want %q", got, want)
+		}
+		if got, want := api.deletes[0].TS, "1775866999.100000"; got != want {
+			t.Fatalf("delete ts = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestExecuteDeliveryFormatsAndChunksCumulativeText(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep an oversized preview in one message and materialize continuations on final", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeSlackAPI{nextTS: "1775866805.100000"}
+		content := strings.Repeat("**bold!** & ", 4_000)
+		startReq := testDeliveryRequest(
+			"brg-slack",
+			"delivery-long",
+			1,
+			bridgepkg.DeliveryEventTypeStart,
+			false,
+		)
+		startReq.Event.Content.Text = content
+
+		startAck, state, err := executeDelivery(context.Background(), api, startReq, deliveryState{})
+		if err != nil {
+			t.Fatalf("executeDelivery(start) error = %v", err)
+		}
+		if got, want := len(api.posts), 1; got != want {
+			t.Fatalf("PostMessage calls after preview = %d, want %d", got, want)
+		}
+		if got := bridgesdk.UTF16Len(api.posts[0].Text); got > slackMaxMessageLen {
+			t.Fatalf("preview wire length = %d, want <= %d", got, slackMaxMessageLen)
+		}
+		if strings.Contains(api.posts[0].Text, "**bold!**") || !strings.Contains(api.posts[0].Text, "&amp;") {
+			t.Fatalf("preview text = %q, want Slack mrkdwn", api.posts[0].Text[:min(len(api.posts[0].Text), 80)])
+		}
+		if !api.posts[0].Mrkdwn {
+			t.Fatal("preview Mrkdwn = false, want true")
+		}
+
+		deltaReq := testDeliveryRequest(
+			"brg-slack",
+			"delivery-long",
+			2,
+			bridgepkg.DeliveryEventTypeDelta,
+			false,
+		)
+		deltaReq.Event.Operation = bridgepkg.DeliveryOperationEdit
+		deltaReq.Event.Reference = &bridgepkg.DeliveryMessageReference{
+			RemoteMessageID: startAck.RemoteMessageID,
+		}
+		deltaReq.Event.Content.Text = content
+		_, state, err = executeDelivery(context.Background(), api, deltaReq, state)
+		if err != nil {
+			t.Fatalf("executeDelivery(delta edit) error = %v", err)
+		}
+		if got, want := len(api.updates), 1; got != want {
+			t.Fatalf("UpdateMessage calls after delta = %d, want %d", got, want)
+		}
+		if got, want := len(api.posts), 1; got != want {
+			t.Fatalf("PostMessage calls after delta = %d, want preview only (%d)", got, want)
+		}
+
+		finalReq := testDeliveryRequest(
+			"brg-slack",
+			"delivery-long",
+			3,
+			bridgepkg.DeliveryEventTypeFinal,
+			true,
+		)
+		finalReq.Event.Content.Text = content
+		finalAck, finalState, err := executeDelivery(context.Background(), api, finalReq, state)
+		if err != nil {
+			t.Fatalf("executeDelivery(final) error = %v", err)
+		}
+		if got, want := len(api.updates), 2; got != want {
+			t.Fatalf("UpdateMessage calls = %d, want %d", got, want)
+		}
+		if got := len(api.posts); got < 2 {
+			t.Fatalf("PostMessage calls after final = %d, want preview plus continuation", got)
+		}
+		if got, want := finalAck.RemoteMessageID, finalState.RemoteMessageID; got != want {
+			t.Fatalf("final ACK remote id = %q, want state handle %q", got, want)
+		}
+		if finalAck.RemoteMessageID == startAck.RemoteMessageID {
+			t.Fatalf("final ACK remote id = %q, want last continuation handle", finalAck.RemoteMessageID)
+		}
+		if got, want := api.posts[len(api.posts)-1].ThreadTS, startReq.Event.DeliveryTarget.ThreadID; got != want {
+			t.Fatalf("continuation thread_ts = %q, want %q", got, want)
+		}
+
+		wireBodies := []string{api.updates[len(api.updates)-1].Text}
+		for _, request := range api.posts[1:] {
+			wireBodies = append(wireBodies, request.Text)
+		}
+		for index, body := range wireBodies {
+			if got := bridgesdk.UTF16Len(body); got > slackMaxMessageLen {
+				t.Fatalf("final chunk %d wire length = %d, want <= %d", index, got, slackMaxMessageLen)
+			}
+		}
+	})
+
+	t.Run("Should keep astral characters within the Slack UTF-16 limit", func(t *testing.T) {
+		t.Parallel()
+
+		request := testDeliveryRequest(
+			"brg-slack",
+			"delivery-utf16",
+			1,
+			bridgepkg.DeliveryEventTypeFinal,
+			true,
+		)
+		request.Event.Content.Text = strings.Repeat("😀", slackMaxMessageLen/2+1)
+
+		chunks := slackDeliveryChunks(request.Event)
+		if len(chunks) < 2 {
+			t.Fatalf("slackDeliveryChunks() returned %d chunk, want multiple UTF-16-bounded chunks", len(chunks))
+		}
+		for index, chunk := range chunks {
+			if got := bridgesdk.UTF16Len(chunk); got > slackMaxMessageLen {
+				t.Fatalf("chunk %d UTF-16 length = %d, want <= %d", index, got, slackMaxMessageLen)
+			}
+		}
+	})
+
+	t.Run("Should resume at the first unsent chunk after exhausting Retry-After attempts", func(t *testing.T) {
+		t.Parallel()
+
+		request := testDeliveryRequest(
+			"brg-slack",
+			"delivery-partial-chunk",
+			1,
+			bridgepkg.DeliveryEventTypeFinal,
+			true,
+		)
+		request.Event.Content.Text = strings.Repeat("partial Slack delivery ", 3_000)
+		chunks := slackDeliveryChunks(request.Event)
+		if len(chunks) < 2 {
+			t.Fatalf("slackDeliveryChunks() returned %d chunk, want at least 2", len(chunks))
+		}
+
+		api := &fakeSlackAPI{
+			nextTS:        "1775866810.100000",
+			postErrorText: chunks[1],
+			postError: &bridgesdk.RateLimitError{
+				Err:        errors.New("rate limited continuation"),
+				RetryAfter: time.Nanosecond,
+			},
+		}
+		_, partialState, err := executeDelivery(context.Background(), api, request, deliveryState{})
+		if err == nil {
+			t.Fatal("executeDelivery(partial) error = nil, want exhausted rate limit")
+		}
+		if got, want := countSlackPostAttempts(
+			api.postAttempts,
+			chunks[1],
+		), bridgesdk.DefaultRetryConfig().Attempts; got != want {
+			t.Fatalf("failed continuation attempts = %d, want %d", got, want)
+		}
+		if got, want := countSlackPostAttempts(api.posts, chunks[0]), 1; got != want {
+			t.Fatalf("successful first-chunk posts = %d, want %d", got, want)
+		}
+
+		api.postError = nil
+		resume := testSlackResumeRequest(request)
+		if _, _, err := executeDelivery(context.Background(), api, resume, partialState); err != nil {
+			t.Fatalf("executeDelivery(resume) error = %v", err)
+		}
+		if got, want := countSlackPostAttempts(api.posts, chunks[0]), 1; got != want {
+			t.Fatalf("successful first-chunk posts after resume = %d, want %d", got, want)
+		}
+		if got, want := len(api.posts), len(chunks); got != want {
+			t.Fatalf("successful chunk posts = %d, want %d", got, want)
+		}
+	})
 }
 
 func TestRuntimeInitializeStartsWebhookServerAndWritesMarkers(t *testing.T) {
@@ -438,7 +1369,7 @@ func TestRuntimeInitializeStartsWebhookServerAndWritesMarkers(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgeInstanceTargetParams
+			var payload bridgepkg.BridgeInstanceTargetParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -457,7 +1388,7 @@ func TestRuntimeInitializeStartsWebhookServerAndWritesMarkers(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -480,26 +1411,24 @@ func TestRuntimeInitializeStartsWebhookServerAndWritesMarkers(t *testing.T) {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
 
-	handshake := waitForJSONFile[initializeMarker](t, env.handshakePath)
+	handshake := waitForJSONFile[bridgesdk.InitializeMarker](t, env.HandshakePath)
 	if got, want := handshake.Request.Runtime.Bridge.Provider, "slack"; got != want {
 		t.Fatalf("handshake provider = %q, want %q", got, want)
 	}
-	ownership := waitForJSONFile[ownershipMarker](t, env.ownershipPath)
+	ownership := waitForJSONFile[bridgesdk.OwnershipMarker](t, env.OwnershipPath)
 	if got, want := len(ownership.Fetched), 2; got != want {
 		t.Fatalf("len(ownership.Fetched) = %d, want %d", got, want)
 	}
-	states := waitForJSONLinesFile[stateMarker](
+	states := waitForJSONLinesFile[bridgesdk.StateMarker](
 		t,
-		env.statePath,
-		func(items []stateMarker) bool { return len(items) >= 2 },
+		env.StatePath,
+		func(items []bridgesdk.StateMarker) bool { return len(items) >= 2 },
 	)
 	if got, want := states[0].Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
 		t.Fatalf("states[0].Status = %q, want %q", got, want)
 	}
 	waitForCondition(t, func() bool {
-		runtime.mu.RLock()
-		defer runtime.mu.RUnlock()
-		return strings.TrimSpace(runtime.serverAddr) != ""
+		return strings.TrimSpace(runtime.http.Address()) != ""
 	})
 }
 
@@ -538,7 +1467,7 @@ func TestHandleShutdownWritesMarker(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -551,14 +1480,14 @@ func TestHandleShutdownWritesMarker(t *testing.T) {
 	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, managed), nil); err != nil {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
-	if err := runtime.handleShutdown(
+	if err := runtime.lifecycle.Shutdown(
 		context.Background(),
 		nil,
 		subprocess.ShutdownRequest{DeadlineMS: 50},
 	); err != nil {
 		t.Fatalf("handleShutdown() error = %v", err)
 	}
-	lines := waitForNonEmptyLines(t, env.shutdownPath)
+	lines := waitForNonEmptyLines(t, env.ShutdownPath)
 	if len(lines) == 0 || !strings.Contains(lines[0], "pid=") {
 		t.Fatalf("shutdown marker lines = %#v, want pid entry", lines)
 	}
@@ -599,7 +1528,7 @@ func TestHandleJSONWebhookChallengeAndReaction(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -617,7 +1546,7 @@ func TestHandleJSONWebhookChallengeAndReaction(t *testing.T) {
 			if err := json.Unmarshal(params, &envelope); err != nil {
 				return nil, err
 			}
-			return extensioncontract.BridgesMessagesIngestResult{SessionID: "sess-1"}, nil
+			return bridgepkg.BridgesMessagesIngestResult{SessionID: "sess-1"}, nil
 		},
 	)
 
@@ -655,10 +1584,10 @@ func TestHandleJSONWebhookChallengeAndReaction(t *testing.T) {
 	if got, want := reactionRecorder.Code, http.StatusOK; got != want {
 		t.Fatalf("reaction status = %d, want %d", got, want)
 	}
-	ingests := waitForJSONLinesFile[ingestMarker](
+	ingests := waitForJSONLinesFile[bridgesdk.IngestMarker](
 		t,
-		env.ingestPath,
-		func(items []ingestMarker) bool { return len(items) >= 1 },
+		env.IngestPath,
+		func(items []bridgesdk.IngestMarker) bool { return len(items) >= 1 },
 	)
 	if got, want := ingests[len(ingests)-1].Envelope.EventFamily, bridgepkg.InboundEventFamilyReaction; got != want {
 		t.Fatalf("reaction ingest family = %q, want %q", got, want)
@@ -707,7 +1636,7 @@ func TestWebhookIngressRejectsInvalidSignatureAndIngestsMessage(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -728,7 +1657,7 @@ func TestWebhookIngressRejectsInvalidSignatureAndIngestsMessage(t *testing.T) {
 			mu.Lock()
 			ingested = append(ingested, envelope)
 			mu.Unlock()
-			return extensioncontract.BridgesMessagesIngestResult{
+			return bridgepkg.BridgesMessagesIngestResult{
 				SessionID:    "sess-1",
 				RouteCreated: true,
 				RoutingKey: bridgepkg.RoutingKey{
@@ -747,14 +1676,10 @@ func TestWebhookIngressRejectsInvalidSignatureAndIngestsMessage(t *testing.T) {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
 	waitForCondition(t, func() bool {
-		runtime.mu.RLock()
-		defer runtime.mu.RUnlock()
-		return strings.TrimSpace(runtime.serverAddr) != ""
+		return strings.TrimSpace(runtime.http.Address()) != ""
 	})
 
-	runtime.mu.RLock()
-	serverAddr := runtime.serverAddr
-	runtime.mu.RUnlock()
+	serverAddr := runtime.http.Address()
 	webhookURL := "http://" + serverAddr + "/slack/brg-1"
 	body := []byte(slackMessageWebhookPayload())
 	timestamp := strconv.FormatInt(now.Unix(), 10)
@@ -776,7 +1701,9 @@ func TestWebhookIngressRejectsInvalidSignatureAndIngestsMessage(t *testing.T) {
 		t.Fatalf("http.DefaultClient.Do(invalid) error = %v", err)
 	}
 	defer func() {
-		_ = invalidResp.Body.Close()
+		if err := invalidResp.Body.Close(); err != nil {
+			t.Errorf("invalid response body close error = %v", err)
+		}
 	}()
 	if got, want := invalidResp.StatusCode, http.StatusUnauthorized; got != want {
 		t.Fatalf("invalid webhook status = %d, want %d", got, want)
@@ -799,15 +1726,21 @@ func TestWebhookIngressRejectsInvalidSignatureAndIngestsMessage(t *testing.T) {
 		t.Fatalf("http.DefaultClient.Do(valid) error = %v", err)
 	}
 	defer func() {
-		_ = validResp.Body.Close()
+		if err := validResp.Body.Close(); err != nil {
+			t.Errorf("valid response body close error = %v", err)
+		}
 	}()
 	if got, want := validResp.StatusCode, http.StatusOK; got != want {
 		t.Fatalf("valid webhook status = %d, want %d", got, want)
 	}
 
-	ingests := waitForJSONLinesFile[ingestMarker](t, env.ingestPath, func(items []ingestMarker) bool {
-		return len(items) == 1 && strings.TrimSpace(items[0].Result.SessionID) != ""
-	})
+	ingests := waitForJSONLinesFile[bridgesdk.IngestMarker](
+		t,
+		env.IngestPath,
+		func(items []bridgesdk.IngestMarker) bool {
+			return len(items) == 1 && strings.TrimSpace(items[0].Result.SessionID) != ""
+		},
+	)
 	if got, want := ingests[0].Envelope.GroupID, "C123"; got != want {
 		t.Fatalf("ingest envelope group id = %q, want %q", got, want)
 	}
@@ -857,7 +1790,7 @@ func TestWebhookIngressHandlesSlashCommandAndBlockActions(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -875,7 +1808,7 @@ func TestWebhookIngressHandlesSlashCommandAndBlockActions(t *testing.T) {
 			if err := json.Unmarshal(params, &envelope); err != nil {
 				return nil, err
 			}
-			return extensioncontract.BridgesMessagesIngestResult{
+			return bridgepkg.BridgesMessagesIngestResult{
 				SessionID:    "sess-1",
 				RouteCreated: true,
 				RoutingKey: bridgepkg.RoutingKey{
@@ -894,13 +1827,9 @@ func TestWebhookIngressHandlesSlashCommandAndBlockActions(t *testing.T) {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
 	waitForCondition(t, func() bool {
-		runtime.mu.RLock()
-		defer runtime.mu.RUnlock()
-		return strings.TrimSpace(runtime.serverAddr) != ""
+		return strings.TrimSpace(runtime.http.Address()) != ""
 	})
-	runtime.mu.RLock()
-	serverAddr := runtime.serverAddr
-	runtime.mu.RUnlock()
+	serverAddr := runtime.http.Address()
 	webhookURL := "http://" + serverAddr + "/slack/brg-1"
 
 	commandBody := []byte(
@@ -911,10 +1840,10 @@ func TestWebhookIngressHandlesSlashCommandAndBlockActions(t *testing.T) {
 	actionBody := []byte("payload=" + url.QueryEscape(slackBlockActionsPayloadJSON()))
 	postSignedSlackForm(t, webhookURL, "top-secret", now, actionBody)
 
-	ingests := waitForJSONLinesFile[ingestMarker](
+	ingests := waitForJSONLinesFile[bridgesdk.IngestMarker](
 		t,
-		env.ingestPath,
-		func(items []ingestMarker) bool { return len(items) >= 2 },
+		env.IngestPath,
+		func(items []bridgesdk.IngestMarker) bool { return len(items) >= 2 },
 	)
 	if got, want := ingests[0].Envelope.EventFamily, bridgepkg.InboundEventFamilyCommand; got != want {
 		t.Fatalf("ingests[0].Envelope.EventFamily = %q, want %q", got, want)
@@ -1019,7 +1948,7 @@ func TestWebhookRetriesAfterTransientIngestFailure(t *testing.T) {
 				hostPeer,
 				string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 				func(_ context.Context, params json.RawMessage) (any, error) {
-					var payload extensioncontract.BridgesInstancesReportStateParams
+					var payload bridgepkg.BridgesInstancesReportStateParams
 					if err := json.Unmarshal(params, &payload); err != nil {
 						return nil, err
 					}
@@ -1044,7 +1973,7 @@ func TestWebhookRetriesAfterTransientIngestFailure(t *testing.T) {
 					if attempt == 1 {
 						return nil, errors.New("transient ingest failure")
 					}
-					return extensioncontract.BridgesMessagesIngestResult{SessionID: "sess-1"}, nil
+					return bridgepkg.BridgesMessagesIngestResult{SessionID: "sess-1"}, nil
 				},
 			)
 
@@ -1088,9 +2017,11 @@ func TestWebhookRetriesAfterTransientIngestFailure(t *testing.T) {
 				t.Fatalf("cfg.dedup.Seen(%q) = false, want true", tt.wantKey)
 			}
 
-			ingests := waitForJSONLinesFile[ingestMarker](t, env.ingestPath, func(items []ingestMarker) bool {
-				return len(items) >= 2
-			})
+			ingests := waitForJSONLinesFile[bridgesdk.IngestMarker](
+				t,
+				env.IngestPath,
+				func(items []bridgesdk.IngestMarker) bool { return len(items) >= 2 },
+			)
 			if got, want := ingests[0].Envelope.IdempotencyKey, tt.wantKey; got != want {
 				t.Fatalf("ingests[0].Envelope.IdempotencyKey = %q, want %q", got, want)
 			}
@@ -1148,7 +2079,7 @@ func TestRuntimeDeliveriesCallSlackAPI(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -1161,10 +2092,10 @@ func TestRuntimeDeliveriesCallSlackAPI(t *testing.T) {
 	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, managed), nil); err != nil {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
-	states := waitForJSONLinesFile[stateMarker](
+	states := waitForJSONLinesFile[bridgesdk.StateMarker](
 		t,
-		env.statePath,
-		func(items []stateMarker) bool { return len(items) >= 1 },
+		env.StatePath,
+		func(items []bridgesdk.StateMarker) bool { return len(items) >= 1 },
 	)
 	if got, want := states[len(states)-1].Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
 		t.Fatalf("states[last].Status = %q, want %q", got, want)
@@ -1179,27 +2110,31 @@ func TestRuntimeDeliveriesCallSlackAPI(t *testing.T) {
 	); err != nil {
 		t.Fatalf("hostPeer.Call(start delivery) error = %v", err)
 	}
-	if err := hostPeer.Call(
-		context.Background(),
-		"bridges/deliver",
-		testDeliveryRequest("brg-1", "delivery-1", 2, bridgepkg.DeliveryEventTypeFinal, true),
-		&ack,
-	); err != nil {
+	finalReq := testDeliveryRequest(
+		"brg-1",
+		"delivery-1",
+		2,
+		bridgepkg.DeliveryEventTypeFinal,
+		true,
+	)
+	finalReq.Event.Content.Text = "**Result:** [doc](https://x.y)\n```go\n" +
+		strings.Repeat("fmt.Println(\"hello\")\n", 2_100) + "```"
+	if err := hostPeer.Call(context.Background(), "bridges/deliver", finalReq, &ack); err != nil {
 		t.Fatalf("hostPeer.Call(final delivery) error = %v", err)
 	}
 
-	records := waitForJSONLinesFile[deliveryMarker](
+	records := waitForJSONLinesFile[bridgesdk.DeliveryMarker](
 		t,
-		env.deliveryPath,
-		func(items []deliveryMarker) bool { return len(items) >= 2 },
+		env.DeliveryPath,
+		func(items []bridgesdk.DeliveryMarker) bool { return len(items) >= 2 },
 	)
 	if records[0].Ack == nil || records[1].Ack == nil {
 		t.Fatalf("delivery markers = %#v, want recorded acks", records)
 	}
 
 	calls := mockAPI.Calls()
-	if got, want := len(calls), 3; got != want {
-		t.Fatalf("len(mockAPI calls) = %d, want %d (auth + post + update)", got, want)
+	if got, want := len(calls), 4; got != want {
+		t.Fatalf("len(mockAPI calls) = %d, want %d (auth + post + update + continuation)", got, want)
 	}
 	if got, want := calls[0].Method, "auth.test"; got != want {
 		t.Fatalf("calls[0].Method = %q, want %q", got, want)
@@ -1209,6 +2144,37 @@ func TestRuntimeDeliveriesCallSlackAPI(t *testing.T) {
 	}
 	if got, want := calls[2].Method, "chat.update"; got != want {
 		t.Fatalf("calls[2].Method = %q, want %q", got, want)
+	}
+	if got, want := calls[3].Method, "chat.postMessage"; got != want {
+		t.Fatalf("calls[3].Method = %q, want %q", got, want)
+	}
+	if got, want := calls[1].Body["mrkdwn"], true; got != want {
+		t.Fatalf("post mrkdwn = %#v, want %#v", got, want)
+	}
+	if got, want := calls[1].Body["thread_ts"], "1775866805.000000"; got != want {
+		t.Fatalf("post thread_ts = %#v, want %#v", got, want)
+	}
+	if got, want := calls[3].Body["thread_ts"], "1775866805.000000"; got != want {
+		t.Fatalf("continuation thread_ts = %#v, want %#v", got, want)
+	}
+	if got, want := calls[3].Body["mrkdwn"], true; got != want {
+		t.Fatalf("continuation mrkdwn = %#v, want %#v", got, want)
+	}
+	for index, call := range calls[2:] {
+		text, ok := call.Body["text"].(string)
+		if !ok {
+			t.Fatalf("final call %d text = %#v, want string", index, call.Body["text"])
+		}
+		if got := len([]rune(text)); got > slackMaxMessageLen {
+			t.Fatalf("final call %d text length = %d, want <= %d", index, got, slackMaxMessageLen)
+		}
+		if got := strings.Count(text, "```"); got%2 != 0 {
+			t.Fatalf("final call %d fence count = %d, want balanced", index, got)
+		}
+	}
+	firstFinalText, ok := calls[2].Body["text"].(string)
+	if !ok || !strings.Contains(firstFinalText, "*Result:* <https://x.y|doc>") {
+		t.Fatalf("first final text = %#v, want Slack mrkdwn conversion", calls[2].Body["text"])
 	}
 }
 
@@ -1273,7 +2239,7 @@ func TestHandleBridgesDeliverErrorPaths(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -1310,10 +2276,10 @@ func TestHandleBridgesDeliverErrorPaths(t *testing.T) {
 	); err == nil {
 		t.Fatal("handleBridgesDeliver(auth failure) error = nil, want non-nil")
 	}
-	lines := waitForJSONLinesFile[deliveryMarker](
+	lines := waitForJSONLinesFile[bridgesdk.DeliveryMarker](
 		t,
-		env.deliveryPath,
-		func(items []deliveryMarker) bool { return len(items) >= 2 },
+		env.DeliveryPath,
+		func(items []bridgesdk.DeliveryMarker) bool { return len(items) >= 2 },
 	)
 	if lines[0].Error == "" || lines[1].Error == "" {
 		t.Fatalf("delivery errors = %#v, want recorded marker failures", lines)
@@ -1358,7 +2324,7 @@ func TestDispatchInboundBatchMergesContent(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -1379,7 +2345,7 @@ func TestDispatchInboundBatchMergesContent(t *testing.T) {
 			mu.Lock()
 			ingested = append(ingested, envelope)
 			mu.Unlock()
-			return extensioncontract.BridgesMessagesIngestResult{SessionID: "sess-1"}, nil
+			return bridgepkg.BridgesMessagesIngestResult{SessionID: "sess-1"}, nil
 		},
 	)
 
@@ -1443,10 +2409,10 @@ func TestDispatchInboundBatchMergesContent(t *testing.T) {
 		t.Fatalf("merged idempotency key = %q, want %q", got, want)
 	}
 	if got, want := len(
-		waitForJSONLinesFile[ingestMarker](
+		waitForJSONLinesFile[bridgesdk.IngestMarker](
 			t,
-			env.ingestPath,
-			func(items []ingestMarker) bool { return len(items) == 1 },
+			env.IngestPath,
+			func(items []bridgesdk.IngestMarker) bool { return len(items) == 1 },
 		),
 	), 1; got != want {
 		t.Fatalf("ingest markers = %d, want %d", got, want)
@@ -1479,13 +2445,13 @@ func TestStopClosesBatchersWithoutProviderLockDeadlock(t *testing.T) {
 		t.Fatalf("NewInboundBatcher() error = %v", err)
 	}
 
-	runtime.routes = map[string]resolvedInstanceConfig{
+	runtime.routes.Replace(map[string]resolvedInstanceConfig{
 		"brg-1": {
 			instanceID:  "brg-1",
 			webhookPath: "/slack/brg-1",
 			batcher:     batcher,
 		},
-	}
+	}, nil)
 
 	if err := batcher.Enqueue(bridgepkg.InboundMessageEnvelope{
 		BridgeInstanceID:  "brg-1",
@@ -1511,7 +2477,7 @@ func TestStopClosesBatchersWithoutProviderLockDeadlock(t *testing.T) {
 
 	stopDone := make(chan struct{})
 	go func() {
-		runtime.stop()
+		runtime.lifecycle.Stop()
 		close(stopDone)
 	}()
 
@@ -1533,6 +2499,7 @@ func TestStopClosesBatchersWithoutProviderLockDeadlock(t *testing.T) {
 func TestResolveInstanceConfigAndHelperNormalization(t *testing.T) {
 	env := setProviderTestEnv(t)
 	_ = env
+	t.Setenv(slackAPIBaseEnv, "https://slack-gov.example/api/")
 
 	runtime, hostPeer, cleanup := newRuntimePeerPair(t)
 	defer cleanup()
@@ -1542,7 +2509,6 @@ func TestResolveInstanceConfigAndHelperNormalization(t *testing.T) {
 	managed.Instance.DMPolicy = bridgepkg.BridgeDMPolicyPairing
 	configured := managed
 	configured.Instance.ProviderConfig = []byte(`{
-		"api_base_url":"https://slack-gov.example/api/",
 		"webhook":{"listen_addr":"127.0.0.1:9999","path":"slack"},
 		"batching":{"delay_ms":5,"split_delay_ms":7,"split_threshold":2},
 		"dm":{"allow_user_ids":[" u123 "],"allow_usernames":["@Alice"],"paired_usernames":["Bob"]}
@@ -1573,7 +2539,7 @@ func TestResolveInstanceConfigAndHelperNormalization(t *testing.T) {
 		hostPeer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -1664,7 +2630,10 @@ func TestSlackWebhookPathConflictsDegradeAllRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newSlackProvider() error = %v", err)
 	}
-	runtime.routes = buildSlackRouteMap(configs)
+	runtime.routes.Replace(map[string]resolvedInstanceConfig{
+		"brg-1": configs[0],
+		"brg-2": configs[1],
+	}, nil)
 
 	if _, ok := runtime.configForPath("/slack"); ok {
 		t.Fatal("configForPath(/slack) returned conflicted config, want deterministic rejection")
@@ -1742,54 +2711,6 @@ func TestDetermineInitialStateRetryAndHealthHelpers(t *testing.T) {
 	runtime.clearLastError()
 	if err := runtime.healthCheck(); err != nil {
 		t.Fatalf("healthCheck(clear) error = %v", err)
-	}
-}
-
-func TestRetryHostCallRetriesNotInitialized(t *testing.T) {
-	t.Parallel()
-
-	runtime, err := newSlackProvider(io.Discard)
-	if err != nil {
-		t.Fatalf("newSlackProvider() error = %v", err)
-	}
-	attempts := 0
-	err = runtime.retryHostCall(context.Background(), func(context.Context) error {
-		attempts++
-		if attempts < 3 {
-			return subprocess.NewRPCError(rpcCodeNotInitialized, "not ready", nil)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("retryHostCall() error = %v", err)
-	}
-	if got, want := attempts, 3; got != want {
-		t.Fatalf("attempts = %d, want %d", got, want)
-	}
-}
-
-func TestRetryHostCallHonorsContextAndStop(t *testing.T) {
-	t.Parallel()
-
-	runtime, err := newSlackProvider(io.Discard)
-	if err != nil {
-		t.Fatalf("newSlackProvider() error = %v", err)
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	if err := runtime.retryHostCall(ctx, func(context.Context) error {
-		return subprocess.NewRPCError(rpcCodeNotInitialized, "not ready", nil)
-	}); !errors.Is(err, context.Canceled) {
-		t.Fatalf("retryHostCall(context canceled) error = %v, want %v", err, context.Canceled)
-	}
-
-	runtime.stop()
-	stopErr := subprocess.NewRPCError(rpcCodeNotInitialized, "still stopping", nil)
-	if err := runtime.retryHostCall(context.Background(), func(context.Context) error {
-		return stopErr
-	}); !errors.Is(err, stopErr) {
-		t.Fatalf("retryHostCall(stop) error = %v, want %v", err, stopErr)
 	}
 }
 
@@ -1888,18 +2809,179 @@ func TestSlackBotClientCallBranches(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve rate limit classification for a non-JSON error response", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Retry-After", "7")
+			w.WriteHeader(http.StatusTooManyRequests)
+			if _, err := w.Write([]byte("<html>slow down</html>")); err != nil {
+				t.Errorf("write malformed rate limit response: %v", err)
+			}
+		}))
+		defer server.Close()
+
+		client := &slackBotClient{
+			baseURL:    server.URL,
+			botToken:   "xoxb",
+			httpClient: &http.Client{Timeout: time.Second},
+		}
+		err := client.call(t.Context(), "chat.postMessage", map[string]any{"channel": "C1"}, nil)
+		var rateErr *bridgesdk.RateLimitError
+		if !errors.As(err, &rateErr) {
+			t.Fatalf("malformed 429 error type = %T %v, want RateLimitError", err, err)
+		}
+		if got, want := rateErr.RetryAfter, 7*time.Second; got != want {
+			t.Fatalf("RetryAfter = %v, want %v", got, want)
+		}
+		var syntaxErr *json.SyntaxError
+		if !errors.As(err, &syntaxErr) {
+			t.Fatalf("malformed 429 error = %T %v, want preserved JSON syntax cause", err, err)
+		}
+	})
+
+	t.Run("Should bound retries for a transient response with a partial body", func(t *testing.T) {
+		t.Parallel()
+
+		var attempts atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			attempts.Add(1)
+			partialBody := []byte(`{"ok":false,"error":"internal_`)
+			w.Header().Set("Content-Length", strconv.Itoa(len(partialBody)+1))
+			w.WriteHeader(http.StatusInternalServerError)
+			if _, err := w.Write(partialBody); err != nil {
+				t.Errorf("write partial transient response: %v", err)
+			}
+		}))
+		defer server.Close()
+
+		client := &slackBotClient{
+			baseURL:    server.URL,
+			botToken:   "xoxb",
+			httpClient: &http.Client{Timeout: time.Second},
+		}
+		retryConfig := bridgesdk.DefaultRetryConfig()
+		retryConfig.MinDelay = time.Nanosecond
+		retryConfig.MaxDelay = time.Nanosecond
+		retryConfig.Jitter = 0
+		retryConfig.RandFloat = func() float64 { return 0.5 }
+		_, err := bridgesdk.RetryDo(t.Context(), retryConfig, func(ctx context.Context) (*slackPostedMessage, error) {
+			return client.PostMessage(ctx, slackPostMessageRequest{Channel: "C1", Text: "hello"})
+		})
+		var transientErr *bridgesdk.TransientError
+		if !errors.As(err, &transientErr) {
+			t.Fatalf("partial 500 error type = %T %v, want TransientError", err, err)
+		}
+		if !errors.Is(err, io.ErrUnexpectedEOF) {
+			t.Fatalf("partial 500 error = %T %v, want preserved unexpected EOF", err, err)
+		}
+		if got, want := attempts.Load(), int32(retryConfig.Attempts); got != want {
+			t.Fatalf("transient attempts = %d, want %d", got, want)
+		}
+	})
+
 	t.Run("Should decode response failure", func(t *testing.T) {
+		t.Parallel()
+
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`not-json`))
+			if _, err := w.Write([]byte(`not-json`)); err != nil {
+				t.Errorf("write malformed response: %v", err)
+			}
 		}))
 		defer server.Close()
 
 		client := &slackBotClient{baseURL: server.URL, botToken: "xoxb", httpClient: &http.Client{Timeout: time.Second}}
-		if err := client.call(context.Background(), "auth.test", map[string]any{}, nil); err == nil {
+		err := client.call(context.Background(), "auth.test", map[string]any{}, nil)
+		if err == nil {
 			t.Fatal("decode response error = nil, want non-nil")
 		}
+		if committedErr, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); ok && committedErr != nil {
+			t.Fatalf("auth read error = %T %v, want non-committed error", err, err)
+		}
 	})
+
+	t.Run("Should not retry a post after a successful status with a truncated result", func(t *testing.T) {
+		t.Parallel()
+
+		var attempts atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			attempts.Add(1)
+			if _, err := w.Write([]byte(`{"ok":true,"ts":`)); err != nil {
+				t.Errorf("write truncated response: %v", err)
+			}
+		}))
+		defer server.Close()
+
+		client := &slackBotClient{
+			baseURL:    server.URL,
+			botToken:   "xoxb",
+			httpClient: &http.Client{Timeout: time.Second},
+		}
+		_, err := postSlackDeliveryMessage(t.Context(), client, slackPostMessageRequest{Channel: "C1", Text: "hello"})
+		var committedErr *bridgesdk.CommittedMutationError
+		if !errors.As(err, &committedErr) {
+			t.Fatalf("postSlackDeliveryMessage() error = %T %v, want CommittedMutationError", err, err)
+		}
+		if got, want := attempts.Load(), int32(1); got != want {
+			t.Fatalf("post attempts = %d, want %d", got, want)
+		}
+	})
+
+	for _, testCase := range []struct {
+		name       string
+		statusCode int
+	}{
+		{name: "Should refuse a credentialed 301 redirect", statusCode: http.StatusMovedPermanently},
+		{name: "Should refuse a credentialed 302 redirect", statusCode: http.StatusFound},
+		{name: "Should refuse a credentialed 303 redirect", statusCode: http.StatusSeeOther},
+		{name: "Should refuse a credentialed 307 redirect", statusCode: http.StatusTemporaryRedirect},
+		{name: "Should refuse a credentialed 308 redirect", statusCode: http.StatusPermanentRedirect},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			var targetHits atomic.Int32
+			target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				targetHits.Add(1)
+				writeSlackAPIResponse(t, w, map[string]any{"ok": true, "ts": "123.456"})
+			}))
+			defer target.Close()
+
+			redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Location", target.URL)
+				w.WriteHeader(testCase.statusCode)
+				writeSlackAPIResponse(t, w, map[string]any{"ok": false, "error": "redirect_refused"})
+				if got, want := r.Method, http.MethodPost; got != want {
+					t.Errorf("redirect source method = %q, want %q", got, want)
+				}
+			}))
+			defer redirect.Close()
+
+			client := &slackBotClient{
+				baseURL:    redirect.URL,
+				botToken:   "xoxb",
+				httpClient: redirect.Client(),
+			}
+			var result slackPostedMessage
+			err := client.callMutation(t.Context(), "chat.postMessage", map[string]any{"channel": "C1"}, &result)
+			var permanentErr *bridgesdk.PermanentError
+			if !errors.As(err, &permanentErr) {
+				t.Fatalf(
+					"callMutation(%d) error = %T %v, want first-response PermanentError",
+					testCase.statusCode,
+					err,
+					err,
+				)
+			}
+			if bridgesdk.IsCommittedMutation(err) {
+				t.Fatalf("callMutation(%d) error = %v, want pre-commit rejection", testCase.statusCode, err)
+			}
+			if got := targetHits.Load(); got != 0 {
+				t.Fatalf("redirect target hits = %d, want 0", got)
+			}
+		})
+	}
 
 	t.Run("Should api error classification", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -2080,29 +3162,109 @@ func TestRunRejectsUnsupportedCommand(t *testing.T) {
 }
 
 type fakeSlackAPI struct {
-	methods []string
-	nextTS  string
+	methods       []string
+	nextTS        string
+	postResults   []*slackPostedMessage
+	postErrorText string
+	postError     error
+	postAttempts  []slackPostMessageRequest
+	updateErrors  []error
+	deleteErrors  []error
+	posts         []slackPostMessageRequest
+	updates       []slackUpdateMessageRequest
+	deletes       []slackDeleteMessageRequest
+	statuses      []slackSetThreadStatusRequest
+	reactions     []slackAddReactionRequest
 }
 
 func (f fakeSlackAPI) AuthTest(context.Context) (*slackAuthIdentity, error) {
 	return &slackAuthIdentity{UserID: "U_BOT", BotID: "B_BOT"}, nil
 }
 
-func (f *fakeSlackAPI) PostMessage(_ context.Context, _ slackPostMessageRequest) (*slackPostedMessage, error) {
+func (f *fakeSlackAPI) PostMessage(
+	_ context.Context,
+	request slackPostMessageRequest,
+) (*slackPostedMessage, error) {
 	f.methods = append(f.methods, "chat.postMessage")
+	f.postAttempts = append(f.postAttempts, request)
+	if f.postError != nil && (f.postErrorText == "" || request.Text == f.postErrorText) {
+		return nil, f.postError
+	}
+	f.posts = append(f.posts, request)
+	callIndex := len(f.posts) - 1
+	if callIndex < len(f.postResults) {
+		return f.postResults[callIndex], nil
+	}
 	if strings.TrimSpace(f.nextTS) == "" {
 		f.nextTS = "1775866805.100000"
 	}
-	return &slackPostedMessage{TS: f.nextTS}, nil
+	timestamp := f.nextTS
+	if len(f.posts) > 1 {
+		timestamp += "-" + strconv.Itoa(len(f.posts))
+	}
+	return &slackPostedMessage{TS: timestamp}, nil
 }
 
-func (f *fakeSlackAPI) UpdateMessage(context.Context, slackUpdateMessageRequest) error {
+func countSlackPostAttempts(requests []slackPostMessageRequest, text string) int {
+	count := 0
+	for _, request := range requests {
+		if request.Text == text {
+			count++
+		}
+	}
+	return count
+}
+
+func testSlackResumeRequest(request bridgepkg.DeliveryRequest) bridgepkg.DeliveryRequest {
+	resume := request
+	resume.Event.EventType = bridgepkg.DeliveryEventTypeResume
+	resume.Event.Resume = &bridgepkg.DeliveryResumeState{LatestEventType: bridgepkg.DeliveryEventTypeFinal}
+	resume.Snapshot = &bridgepkg.DeliverySnapshot{
+		DeliveryID:       request.Event.DeliveryID,
+		SessionID:        "sess-resume",
+		TurnID:           "turn-resume",
+		BridgeInstanceID: request.Event.BridgeInstanceID,
+		RoutingKey:       request.Event.RoutingKey,
+		DeliveryTarget:   request.Event.DeliveryTarget,
+		LatestSeq:        request.Event.Seq,
+		LatestEventType:  bridgepkg.DeliveryEventTypeFinal,
+		CurrentContent:   request.Event.Content,
+		Operation:        request.Event.Operation,
+		Final:            true,
+		UpdatedAt:        time.Date(2026, 7, 13, 9, 0, 0, 0, time.UTC),
+	}
+	return resume
+}
+
+func (f *fakeSlackAPI) UpdateMessage(_ context.Context, request slackUpdateMessageRequest) error {
 	f.methods = append(f.methods, "chat.update")
+	f.updates = append(f.updates, request)
+	callIndex := len(f.updates) - 1
+	if callIndex < len(f.updateErrors) {
+		return f.updateErrors[callIndex]
+	}
 	return nil
 }
 
-func (f *fakeSlackAPI) DeleteMessage(context.Context, slackDeleteMessageRequest) error {
+func (f *fakeSlackAPI) DeleteMessage(_ context.Context, request slackDeleteMessageRequest) error {
 	f.methods = append(f.methods, "chat.delete")
+	f.deletes = append(f.deletes, request)
+	callIndex := len(f.deletes) - 1
+	if callIndex < len(f.deleteErrors) {
+		return f.deleteErrors[callIndex]
+	}
+	return nil
+}
+
+func (f *fakeSlackAPI) SetThreadStatus(_ context.Context, request slackSetThreadStatusRequest) error {
+	f.methods = append(f.methods, "assistant.threads.setStatus")
+	f.statuses = append(f.statuses, request)
+	return nil
+}
+
+func (f *fakeSlackAPI) AddReaction(_ context.Context, request slackAddReactionRequest) error {
+	f.methods = append(f.methods, "reactions.add")
+	f.reactions = append(f.reactions, request)
 	return nil
 }
 
@@ -2123,6 +3285,14 @@ func (f fakeSlackAPIError) UpdateMessage(context.Context, slackUpdateMessageRequ
 }
 
 func (f fakeSlackAPIError) DeleteMessage(context.Context, slackDeleteMessageRequest) error {
+	return f.err
+}
+
+func (f fakeSlackAPIError) SetThreadStatus(context.Context, slackSetThreadStatusRequest) error {
+	return f.err
+}
+
+func (f fakeSlackAPIError) AddReaction(context.Context, slackAddReactionRequest) error {
 	return f.err
 }
 
@@ -2161,9 +3331,13 @@ func newSlackAPIServer(t *testing.T) *slackAPIServer {
 			writeSlackAPIResponse(t, w, map[string]any{"ts": body["ts"]})
 		case "chat.delete":
 			writeSlackAPIResponse(t, w, map[string]any{})
+		case "assistant.threads.setStatus", "reactions.add":
+			writeSlackAPIResponse(t, w, map[string]any{})
 		default:
 			w.WriteHeader(http.StatusNotFound)
-			_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": "unknown_method"})
+			if err := json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": "unknown_method"}); err != nil {
+				t.Errorf("encode unknown Slack method response: %v", err)
+			}
 		}
 	}))
 	srv.server = server
@@ -2224,24 +3398,18 @@ func newRuntimePeerPair(t *testing.T) (*slackProvider, *bridgesdk.Peer, func()) 
 	cleanup := func() {
 		once.Do(func() {
 			cancel()
-			runtime.stop()
-			runtime.mu.RLock()
-			server := runtime.server
-			listener := runtime.serverListener
-			runtime.mu.RUnlock()
-			if listener != nil {
-				_ = listener.Close()
+			runtime.lifecycle.Stop()
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
+			if err := runtime.http.Shutdown(shutdownCtx); err != nil {
+				t.Fatalf("provider HTTP shutdown error = %v", err)
 			}
-			if server != nil {
-				shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
-				if err := server.Shutdown(shutdownCtx); err != nil {
-					_ = server.Close()
-				}
-				_ = server.Close()
-				shutdownCancel()
+			shutdownCancel()
+			if err := hostConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+				t.Errorf("host connection close error = %v", err)
 			}
-			_ = hostConn.Close()
-			_ = runtimeConn.Close()
+			if err := runtimeConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+				t.Errorf("runtime connection close error = %v", err)
+			}
 			for range 2 {
 				err := <-errCh
 				if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, net.ErrClosed) {
@@ -2252,7 +3420,9 @@ func newRuntimePeerPair(t *testing.T) (*slackProvider, *bridgesdk.Peer, func()) 
 				}
 				t.Fatalf("runtime peer serve error = %v", err)
 			}
-			runtime.wg.Wait()
+			if err := runtime.lifecycle.Wait(context.Background()); err != nil {
+				t.Fatalf("provider lifecycle wait error = %v", err)
+			}
 		})
 	}
 
@@ -2321,7 +3491,8 @@ func testInitializeRequest(
 			ShutdownTimeoutMS:     5_000,
 			DefaultHookTimeoutMS:  5_000,
 			Bridge: &subprocess.InitializeBridgeRuntime{
-				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion1,
+				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion2,
+				Purpose:          subprocess.BridgeRuntimePurposeService,
 				Provider:         "slack",
 				Platform:         "slack",
 				ManagedInstances: managed,
@@ -2334,7 +3505,7 @@ func testDeliveryRequest(
 	instanceID string,
 	deliveryID string,
 	seq int64,
-	eventType string,
+	eventType bridgepkg.DeliveryEventType,
 	final bool,
 ) bridgepkg.DeliveryRequest {
 	return bridgepkg.DeliveryRequest{
@@ -2362,6 +3533,68 @@ func testDeliveryRequest(
 	}
 }
 
+func testProgressRequest(
+	instanceID string,
+	deliveryID string,
+	seq int64,
+	phase bridgepkg.ToolProgressPhase,
+	label string,
+) bridgepkg.DeliveryRequest {
+	request := testDeliveryRequest(
+		instanceID,
+		deliveryID,
+		seq,
+		bridgepkg.DeliveryEventTypeProgress,
+		false,
+	)
+	request.Event.Content = bridgepkg.MessageContent{}
+	request.Event.Progress = &bridgepkg.ToolProgress{
+		ToolCallID: "call-" + strconv.FormatInt(seq, 10),
+		ToolID:     "agh__terminal",
+		Phase:      phase,
+		Label:      label,
+		Emoji:      "\U0001f527",
+		Index:      int(seq),
+	}
+	return request
+}
+
+func testLifecycleOnlyFinalRequest(instanceID string, deliveryID string, seq int64) bridgepkg.DeliveryRequest {
+	request := testDeliveryRequest(
+		instanceID,
+		deliveryID,
+		seq,
+		bridgepkg.DeliveryEventTypeFinal,
+		true,
+	)
+	request.Event.Content = bridgepkg.MessageContent{}
+	return request
+}
+
+func newSlackProgressTestProvider(
+	t *testing.T,
+	now func() time.Time,
+	api slackAPI,
+) *slackProvider {
+	t.Helper()
+
+	provider, err := newSlackProvider(io.Discard)
+	if err != nil {
+		t.Fatalf("newSlackProvider() error = %v", err)
+	}
+	managed := testBridgeRuntime(now(), "brg-progress")
+	provider.now = now
+	provider.routes.Replace(map[string]resolvedInstanceConfig{
+		"brg-progress": {
+			managed:    &managed,
+			instanceID: "brg-progress",
+		},
+	}, nil)
+	provider.apiFactory = func(*resolvedInstanceConfig) slackAPI { return api }
+	t.Cleanup(provider.lifecycle.Stop)
+	return provider
+}
+
 func testDeleteRequest(
 	instanceID string,
 	deliveryID string,
@@ -2383,29 +3616,29 @@ func slackBlockActionsPayloadJSON() string {
 	return `{"type":"block_actions","trigger_id":"trigger-1","response_url":"https://hooks.slack.test/action","channel":{"id":"C123"},"container":{"type":"message","channel_id":"C123","message_ts":"1775866802.100000","thread_ts":"1775866802.000000"},"message":{"ts":"1775866802.100000","thread_ts":"1775866802.000000"},"user":{"id":"U123","username":"alice"},"actions":[{"type":"button","action_id":"approve","value":"yes","action_ts":"1775866802.200000"}]}`
 }
 
-func setProviderTestEnv(t *testing.T) markerEnv {
+func setProviderTestEnv(t *testing.T) bridgesdk.AdapterMarkerPaths {
 	t.Helper()
 
 	root := filepath.Join(t.TempDir(), "markers")
-	env := markerEnv{
-		handshakePath: filepath.Join(root, "handshake.json"),
-		ownershipPath: filepath.Join(root, "ownership.json"),
-		statePath:     filepath.Join(root, "state.jsonl"),
-		deliveryPath:  filepath.Join(root, "delivery.jsonl"),
-		ingestPath:    filepath.Join(root, "ingest.jsonl"),
-		startsPath:    filepath.Join(root, "starts.log"),
-		shutdownPath:  filepath.Join(root, "shutdown.log"),
-		crashOncePath: filepath.Join(root, "crash-once.json"),
+	env := bridgesdk.AdapterMarkerPaths{
+		HandshakePath: filepath.Join(root, "handshake.json"),
+		OwnershipPath: filepath.Join(root, "ownership.json"),
+		StatePath:     filepath.Join(root, "state.jsonl"),
+		DeliveryPath:  filepath.Join(root, "delivery.jsonl"),
+		IngestPath:    filepath.Join(root, "ingest.jsonl"),
+		StartsPath:    filepath.Join(root, "starts.log"),
+		ShutdownPath:  filepath.Join(root, "shutdown.log"),
+		CrashOncePath: filepath.Join(root, "crash-once.json"),
 	}
 
-	t.Setenv(adapterHandshakeEnv, env.handshakePath)
-	t.Setenv(adapterOwnershipEnv, env.ownershipPath)
-	t.Setenv(adapterStateEnv, env.statePath)
-	t.Setenv(adapterDeliveryEnv, env.deliveryPath)
-	t.Setenv(adapterIngestEnv, env.ingestPath)
-	t.Setenv(adapterStartsEnv, env.startsPath)
-	t.Setenv(adapterShutdownEnv, env.shutdownPath)
-	t.Setenv(adapterCrashOnceEnv, "")
+	t.Setenv(bridgesdk.AdapterHandshakePathEnv, env.HandshakePath)
+	t.Setenv(bridgesdk.AdapterOwnershipPathEnv, env.OwnershipPath)
+	t.Setenv(bridgesdk.AdapterStatePathEnv, env.StatePath)
+	t.Setenv(bridgesdk.AdapterDeliveryPathEnv, env.DeliveryPath)
+	t.Setenv(bridgesdk.AdapterIngestPathEnv, env.IngestPath)
+	t.Setenv(bridgesdk.AdapterStartsPathEnv, env.StartsPath)
+	t.Setenv(bridgesdk.AdapterShutdownPathEnv, env.ShutdownPath)
+	t.Setenv(bridgesdk.AdapterCrashOncePathEnv, "")
 
 	return env
 }
@@ -2440,7 +3673,9 @@ func postSignedSlackForm(t *testing.T, webhookURL string, secret string, now tim
 		t.Fatalf("http.DefaultClient.Do() error = %v", err)
 	}
 	defer func() {
-		_ = resp.Body.Close()
+		if err := resp.Body.Close(); err != nil {
+			t.Errorf("form webhook response body close error = %v", err)
+		}
 	}()
 	if got, want := resp.StatusCode, http.StatusOK; got != want {
 		t.Fatalf("form webhook status = %d, want %d", got, want)
@@ -2449,8 +3684,12 @@ func postSignedSlackForm(t *testing.T, webhookURL string, secret string, now tim
 
 func slackSignature(secret string, timestamp string, body []byte) string {
 	mac := hmac.New(sha256.New, []byte(secret))
-	_, _ = mac.Write([]byte(slackSignatureVersion + ":" + strings.TrimSpace(timestamp) + ":"))
-	_, _ = mac.Write(body)
+	if _, err := mac.Write([]byte(slackSignatureVersion + ":" + strings.TrimSpace(timestamp) + ":")); err != nil {
+		panic(fmt.Sprintf("write Slack signature prefix: %v", err))
+	}
+	if _, err := mac.Write(body); err != nil {
+		panic(fmt.Sprintf("write Slack signature body: %v", err))
+	}
 	return slackSignatureVersion + "=" + hex.EncodeToString(mac.Sum(nil))
 }
 

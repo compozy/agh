@@ -6,11 +6,80 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 )
+
+// Invariant: public control diagnostics preserve provider error taxonomy without exposing provider error text.
+// Owning layer: bridge SDK error classification. Canonical suite: errors_test.go.
+func TestProviderIdentityCheckRecordPreservesSafeErrorTaxonomy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		err        error
+		wantStatus bridgepkg.BridgeCheckStatus
+		wantText   string
+	}{
+		{name: "success", wantStatus: bridgepkg.BridgeCheckStatusPass},
+		{
+			name:       "auth",
+			err:        &AuthError{Err: errors.New("invalid sk-provider-secret")},
+			wantStatus: bridgepkg.BridgeCheckStatusFail,
+			wantText:   "bot_token",
+		},
+		{
+			name:       "permanent",
+			err:        &PermanentError{Err: errors.New("bad sk-provider-secret configuration")},
+			wantStatus: bridgepkg.BridgeCheckStatusFail,
+			wantText:   "provider configuration",
+		},
+		{
+			name:       "rate limit",
+			err:        &RateLimitError{Err: errors.New("sk-provider-secret rate limited")},
+			wantStatus: bridgepkg.BridgeCheckStatusWarn,
+			wantText:   "rate-limited",
+		},
+		{
+			name:       "timeout",
+			err:        context.DeadlineExceeded,
+			wantStatus: bridgepkg.BridgeCheckStatusWarn,
+			wantText:   "timed out",
+		},
+		{
+			name:       "transient",
+			err:        &TransientError{Err: errors.New("sk-provider-secret unavailable")},
+			wantStatus: bridgepkg.BridgeCheckStatusWarn,
+			wantText:   "temporarily unavailable",
+		},
+		{
+			name:       "canceled",
+			err:        context.Canceled,
+			wantStatus: bridgepkg.BridgeCheckStatusWarn,
+			wantText:   "canceled",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			record := ProviderIdentityCheckRecord(tt.err, "bot_token", "bot_token")
+			if record.Check != "provider.identity" || record.Status != tt.wantStatus {
+				t.Fatalf("ProviderIdentityCheckRecord() = %#v, want status %q", record, tt.wantStatus)
+			}
+			if tt.wantText != "" && !strings.Contains(record.Remediation, tt.wantText) {
+				t.Fatalf("remediation = %q, want %q", record.Remediation, tt.wantText)
+			}
+			if strings.Contains(record.Remediation, "sk-provider-secret") {
+				t.Fatalf("remediation leaked provider error text: %q", record.Remediation)
+			}
+		})
+	}
+}
 
 func TestClassifyErrorMapsRepresentativeProviderFailures(t *testing.T) {
 	t.Parallel()
@@ -61,6 +130,13 @@ func TestClassifyErrorMapsRepresentativeProviderFailures(t *testing.T) {
 		{
 			name:       "permanent",
 			err:        &PermanentError{Err: errors.New("bad request")},
+			wantClass:  ErrorClassPermanent,
+			wantRetry:  false,
+			wantStatus: bridgepkg.BridgeStatusError,
+		},
+		{
+			name:       "committed mutation",
+			err:        &CommittedMutationError{Err: errors.New("remote result unavailable")},
 			wantClass:  ErrorClassPermanent,
 			wantRetry:  false,
 			wantStatus: bridgepkg.BridgeStatusError,
@@ -124,6 +200,40 @@ func TestRetryDoRetriesRateLimitedFailuresAndSucceeds(t *testing.T) {
 	if got, want := attempts, 3; got != want {
 		t.Fatalf("attempts = %d, want %d", got, want)
 	}
+
+	t.Run("Should never retry a rate limit nested inside a committed mutation", func(t *testing.T) {
+		t.Parallel()
+
+		committedErr := MarkCommittedMutation(&RateLimitError{
+			Err:        errors.New("remote result unavailable after commit"),
+			RetryAfter: time.Millisecond,
+		})
+		classified := ClassifyError(committedErr)
+		if got, want := classified.Class, ErrorClassPermanent; got != want {
+			t.Fatalf("ClassifyError(committed rate limit).Class = %q, want %q", got, want)
+		}
+		if classified.Recovery().Retry {
+			t.Fatal("ClassifyError(committed rate limit).Recovery().Retry = true, want false")
+		}
+
+		attempts := 0
+		_, err := RetryDo(context.Background(), RetryConfig{
+			Attempts:  3,
+			MinDelay:  time.Millisecond,
+			MaxDelay:  2 * time.Millisecond,
+			Jitter:    0,
+			RandFloat: func() float64 { return 0.5 },
+		}, func(context.Context) (string, error) {
+			attempts++
+			return "", committedErr
+		})
+		if !errors.Is(err, committedErr) {
+			t.Fatalf("RetryDo() error = %v, want committed mutation", err)
+		}
+		if got, want := attempts, 1; got != want {
+			t.Fatalf("attempts = %d, want %d", got, want)
+		}
+	})
 }
 
 func TestDefaultRetryConfigAndErrorUnwrapHelpers(t *testing.T) {
@@ -147,6 +257,57 @@ func TestDefaultRetryConfigAndErrorUnwrapHelpers(t *testing.T) {
 	if !errors.Is((&PermanentError{Err: root}).Unwrap(), root) {
 		t.Fatal("PermanentError.Unwrap() does not expose root error")
 	}
+	if !errors.Is((&CommittedMutationError{Err: root}).Unwrap(), root) {
+		t.Fatal("CommittedMutationError.Unwrap() does not expose root error")
+	}
+	marked := MarkCommittedMutation(root)
+	var committed *CommittedMutationError
+	if !errors.As(marked, &committed) || !errors.Is(marked, root) {
+		t.Fatalf("MarkCommittedMutation() = %v, want committed wrapper around root", marked)
+	}
+	if got := MarkCommittedMutation(marked); got != marked {
+		t.Fatalf("MarkCommittedMutation(marked) = %v, want original marker", got)
+	}
+	if MarkCommittedMutation(nil) != nil {
+		t.Fatal("MarkCommittedMutation(nil) error = non-nil")
+	}
+	if !IsCommittedMutation(marked) || IsCommittedMutation(root) {
+		t.Fatalf(
+			"IsCommittedMutation() = marked:%t root:%t, want true/false",
+			IsCommittedMutation(marked),
+			IsCommittedMutation(root),
+		)
+	}
+	if !ShouldContinueTextDeliveryAfterProgress(nil) ||
+		!ShouldContinueTextDeliveryAfterProgress(marked) ||
+		ShouldContinueTextDeliveryAfterProgress(root) {
+		t.Fatal("ShouldContinueTextDeliveryAfterProgress() did not isolate committed progress failures")
+	}
+}
+
+func TestCommittedMutationErrorUsesFallbackForEmptyCauses(t *testing.T) {
+	t.Run("Should keep the semantic acknowledgement reason non-empty", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name string
+			err  *CommittedMutationError
+		}{
+			{name: "nil receiver", err: nil},
+			{name: "nil cause", err: &CommittedMutationError{}},
+			{name: "empty cause", err: &CommittedMutationError{Err: errors.New("")}},
+			{name: "whitespace cause", err: &CommittedMutationError{Err: errors.New("  \n ")}},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				if got := test.err.Error(); got != committedMutationFallbackMessage {
+					t.Fatalf("CommittedMutationError.Error() = %q, want %q", got, committedMutationFallbackMessage)
+				}
+			})
+		}
+	})
 }
 
 func TestClassifyErrorCoversHTTPNetAndStringFallbacks(t *testing.T) {

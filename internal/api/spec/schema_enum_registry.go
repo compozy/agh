@@ -6,7 +6,7 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	automationpkg "github.com/compozy/agh/internal/automation"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/hooks"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 	"github.com/compozy/agh/internal/modelcatalog"
@@ -70,6 +70,7 @@ var schemaEnumValues = withGoalSchemaEnumValues(map[reflect.Type][]string{
 	reflect.TypeFor[contract.HeartbeatWakeReason]():              contract.HeartbeatWakeReasonValues(),
 	reflect.TypeFor[contract.SkillDiagnosticState]():             skillDiagnosticStateValues(),
 	reflect.TypeFor[contract.SkillVerificationStatus]():          skillVerificationStatusValues(),
+	reflect.TypeFor[contract.BridgeSendTestStatus]():             contract.BridgeSendTestStatusValues(),
 	reflect.TypeFor[hooks.HookEvent]():                           hookEventValues(),
 	reflect.TypeFor[hooks.HookEventFamily]():                     hookEventFamilyValues(),
 	reflect.TypeFor[hooks.HookMode]():                            hookModeValues(),
@@ -113,6 +114,7 @@ var schemaEnumValues = withGoalSchemaEnumValues(map[reflect.Type][]string{
 	reflect.TypeFor[bridgepkg.BridgeDegradationReason]():         bridgeDegradationReasonValues(),
 	reflect.TypeFor[bridgepkg.BridgeDiagnosticKind]():            bridgeDiagnosticKindValues(),
 	reflect.TypeFor[bridgepkg.BridgeDiagnosticSeverity]():        bridgeDiagnosticSeverityValues(),
+	reflect.TypeFor[bridgepkg.BridgeCheckStatus]():               bridgeCheckStatusValues(),
 	reflect.TypeFor[bridgepkg.DeliveryMode]():                    deliveryModeValues(),
 	reflect.TypeFor[modelcatalog.ReasoningEffort]():              modelcatalog.ReasoningEffortValues(),
 	reflect.TypeFor[modelcatalog.ReasoningSource]():              modelcatalog.ReasoningSourceValues(),

@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 )
 
 // InboundBatch groups a short burst of inbound bridge envelopes under one routing identity.

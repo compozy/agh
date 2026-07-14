@@ -58,6 +58,21 @@ type StubBridgeService struct {
 	StartInstanceFn       func(context.Context, string) (*bridgepkg.BridgeInstance, error)
 	StopInstanceFn        func(context.Context, string) (*bridgepkg.BridgeInstance, error)
 	RestartInstanceFn     func(context.Context, string) (*bridgepkg.BridgeInstance, error)
+	CheckBridgeFn         func(
+		context.Context,
+		string,
+		bridgepkg.BridgeCheckRequest,
+	) (bridgepkg.BridgeCheckResponse, error)
+	RegisterBridgeWebhookFn func(
+		context.Context,
+		string,
+		bridgepkg.BridgeWebhookRegistrationRequest,
+	) (bridgepkg.BridgeWebhookRegistrationResponse, error)
+	DeliverBridgeFn func(
+		context.Context,
+		string,
+		bridgepkg.DeliveryRequest,
+	) (bridgepkg.DeliveryAck, error)
 }
 
 func (s StubBridgeService) CreateInstance(
@@ -361,6 +376,39 @@ func (s StubBridgeService) RestartInstance(ctx context.Context, id string) (*bri
 		return s.RestartInstanceFn(ctx, id)
 	}
 	return nil, bridgepkg.ErrBridgeInstanceNotFound
+}
+
+func (s StubBridgeService) CheckBridge(
+	ctx context.Context,
+	extensionName string,
+	request bridgepkg.BridgeCheckRequest,
+) (bridgepkg.BridgeCheckResponse, error) {
+	if s.CheckBridgeFn != nil {
+		return s.CheckBridgeFn(ctx, extensionName, request)
+	}
+	return bridgepkg.BridgeCheckResponse{}, bridgepkg.ErrBridgeControlTransportUnavailable
+}
+
+func (s StubBridgeService) RegisterBridgeWebhook(
+	ctx context.Context,
+	extensionName string,
+	request bridgepkg.BridgeWebhookRegistrationRequest,
+) (bridgepkg.BridgeWebhookRegistrationResponse, error) {
+	if s.RegisterBridgeWebhookFn != nil {
+		return s.RegisterBridgeWebhookFn(ctx, extensionName, request)
+	}
+	return bridgepkg.BridgeWebhookRegistrationResponse{}, bridgepkg.ErrBridgeControlTransportUnavailable
+}
+
+func (s StubBridgeService) DeliverBridge(
+	ctx context.Context,
+	extensionName string,
+	request bridgepkg.DeliveryRequest,
+) (bridgepkg.DeliveryAck, error) {
+	if s.DeliverBridgeFn != nil {
+		return s.DeliverBridgeFn(ctx, extensionName, request)
+	}
+	return bridgepkg.DeliveryAck{}, bridgepkg.ErrDeliveryTransportUnavailable
 }
 
 var _ core.BridgeService = (*StubBridgeService)(nil)

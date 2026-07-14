@@ -308,9 +308,13 @@ func mcpRegistryDescriptor(source SourceRef, desc MCPToolDescriptor) (Descriptor
 		displayTitle = rawTool
 	}
 	descriptor := Descriptor{
-		ID:              id,
-		Backend:         BackendRef{Kind: BackendMCP, MCPServer: owner, MCPTool: rawTool},
-		DisplayTitle:    displayTitle,
+		ID:           id,
+		Backend:      BackendRef{Kind: BackendMCP, MCPServer: owner, MCPTool: rawTool},
+		DisplayTitle: displayTitle,
+		ToolPresentation: NewToolPresentation(
+			strings.TrimSpace(desc.FriendlyVerb),
+			strings.TrimSpace(desc.Preview),
+		),
 		Description:     strings.TrimSpace(desc.Description),
 		InputSchema:     cloneRawMessage(desc.InputSchema),
 		OutputSchema:    cloneRawMessage(desc.OutputSchema),

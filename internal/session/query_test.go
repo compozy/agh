@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/agh/internal/acp"
 	"github.com/compozy/agh/internal/events"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/sessiondb"
 	"github.com/compozy/agh/internal/testutil"
 	"github.com/compozy/agh/internal/transcript"
 )
@@ -1244,6 +1245,20 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 			openErr,
 		) {
 			t.Fatalf("openQueryRecorder(open failure) error = %v, want wrapped %v", err, openErr)
+		}
+	})
+
+	t.Run("Should hide query pool quiescence behind session absence", func(t *testing.T) {
+		h := newHarness(t, WithQueryStore(func(context.Context, string, string) (EventRecorder, error) {
+			return nil, sessiondb.ErrReadOnlyPoolQuiescing
+		}))
+		writeStoppedSessionArtifacts(t, h, "stored-quiescing", true)
+
+		if _, _, err := h.manager.openQueryRecorder(
+			testutil.Context(t),
+			"stored-quiescing",
+		); !errors.Is(err, ErrSessionNotFound) {
+			t.Fatalf("openQueryRecorder(quiescing) error = %v, want ErrSessionNotFound", err)
 		}
 	})
 

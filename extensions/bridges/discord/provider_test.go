@@ -9,21 +9,23 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 	"unsafe"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
@@ -359,6 +361,798 @@ func TestExecuteDiscordDeliveryValidatesEditAndDeleteOperations(t *testing.T) {
 	if got, want := api.deleteRequests[0].MessageID, "msg-1"; got != want {
 		t.Fatalf("delete message id = %q, want %q", got, want)
 	}
+
+	t.Run("Should edit an explicit reference without delivery state", func(t *testing.T) {
+		t.Parallel()
+
+		api := &discordAPIFake{}
+		remoteID := "thread-reference:message-reference"
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "del-explicit-reference",
+			BridgeInstanceID: "brg-discord",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              1,
+			EventType:        bridgepkg.DeliveryEventTypeDelta,
+			Operation:        bridgepkg.DeliveryOperationEdit,
+			Reference:        &bridgepkg.DeliveryMessageReference{RemoteMessageID: remoteID},
+			Content:          bridgepkg.MessageContent{Text: "referenced update"},
+		}}
+
+		ack, state, err := executeDiscordDelivery(ctx, api, request, deliveryState{})
+		if err != nil {
+			t.Fatalf("executeDiscordDelivery() error = %v", err)
+		}
+		if got := len(api.postRequests); got != 0 {
+			t.Fatalf("post requests = %d, want 0", got)
+		}
+		if got, want := len(api.updateRequests), 1; got != want {
+			t.Fatalf("update requests = %d, want %d", got, want)
+		}
+		if got, want := api.updateRequests[0].ChannelID, "thread-reference"; got != want {
+			t.Fatalf("update channel = %q, want %q", got, want)
+		}
+		if got, want := api.updateRequests[0].MessageID, "message-reference"; got != want {
+			t.Fatalf("update message id = %q, want %q", got, want)
+		}
+		if got := ack.RemoteMessageID; got != remoteID {
+			t.Fatalf("ack remote message id = %q, want %q", got, remoteID)
+		}
+		if got := state.RemoteMessageID; got != remoteID {
+			t.Fatalf("state remote message id = %q, want %q", got, remoteID)
+		}
+	})
+
+	t.Run("Should honor Retry-After for update and delete operations", func(t *testing.T) {
+		t.Parallel()
+
+		rateLimit := &bridgesdk.RateLimitError{
+			Err:        errors.New("rate limited primary operation"),
+			RetryAfter: time.Nanosecond,
+		}
+		api := &discordAPIFake{
+			updateErrors: []error{rateLimit, nil},
+			deleteErrors: []error{rateLimit, nil},
+		}
+		state := deliveryState{LastSeq: 1, RemoteMessageID: "thread-1:message-1", LastContent: "before"}
+		update := editReq
+		update.Event.DeliveryID = "del-primary-retry"
+		update.Event.Content.Text = "updated after rate limit"
+		update.Event.Reference = &bridgepkg.DeliveryMessageReference{RemoteMessageID: state.RemoteMessageID}
+
+		ack, state, err := executeDiscordDelivery(context.Background(), api, update, state)
+		if err != nil {
+			t.Fatalf("executeDiscordDelivery(update) error = %v", err)
+		}
+		if got, want := len(api.updateAttempts), 2; got != want {
+			t.Fatalf("update attempts = %d, want %d", got, want)
+		}
+
+		deleteRequest := deleteReq
+		deleteRequest.Event.DeliveryID = "del-primary-retry"
+		deleteRequest.Event.Reference = &bridgepkg.DeliveryMessageReference{RemoteMessageID: ack.RemoteMessageID}
+		if _, _, err := executeDiscordDelivery(context.Background(), api, deleteRequest, state); err != nil {
+			t.Fatalf("executeDiscordDelivery(delete) error = %v", err)
+		}
+		if got, want := len(api.deleteAttempts), 2; got != want {
+			t.Fatalf("delete attempts = %d, want %d", got, want)
+		}
+	})
+}
+
+func TestExecuteDiscordDeliveryChunksTerminalContent(t *testing.T) {
+	t.Parallel()
+
+	target := bridgepkg.DeliveryTarget{
+		BridgeInstanceID: "brg-discord",
+		GroupID:          "channel-1",
+		ThreadID:         "thread-1",
+		Mode:             bridgepkg.DeliveryModeReply,
+	}
+	routing := bridgepkg.RoutingKey{
+		Scope:            bridgepkg.ScopeWorkspace,
+		WorkspaceID:      "ws-1",
+		BridgeInstanceID: "brg-discord",
+		GroupID:          "channel-1",
+		ThreadID:         "thread-1",
+	}
+	longText := strings.Repeat("discord chunk ", 500)
+
+	t.Run("Should post terminal chunks in order and acknowledge the last message", func(t *testing.T) {
+		t.Parallel()
+
+		api := &discordAPIFake{postedMessageIDs: []string{"msg-1", "msg-2", "msg-3", "msg-4"}}
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "del-create",
+			BridgeInstanceID: "brg-discord",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              1,
+			EventType:        bridgepkg.DeliveryEventTypeFinal,
+			Final:            true,
+			Content:          bridgepkg.MessageContent{Text: longText},
+		}}
+
+		ack, _, err := executeDiscordDelivery(context.Background(), api, request, deliveryState{})
+		if err != nil {
+			t.Fatalf("executeDiscordDelivery() error = %v", err)
+		}
+		wantChunks := bridgesdk.ChunkMessage(longText, discordMaxMessageLen, nil)
+		if got, want := len(api.postRequests), len(wantChunks); got != want {
+			t.Fatalf("post requests = %d, want %d chunks", got, want)
+		}
+		for index, posted := range api.postRequests {
+			if got, want := posted.Content, wantChunks[index]; got != want {
+				t.Fatalf("chunk %d content = %q, want %q", index, got, want)
+			}
+			if got := len([]rune(posted.Content)); got > discordMaxMessageLen {
+				t.Fatalf("chunk %d length = %d, want <= %d", index, got, discordMaxMessageLen)
+			}
+			if got, want := posted.ChannelID, "thread-1"; got != want {
+				t.Fatalf("chunk %d channel = %q, want %q", index, got, want)
+			}
+			indicator := fmt.Sprintf("\n\n(%d/%d)", index+1, len(api.postRequests))
+			if !strings.HasSuffix(posted.Content, indicator) {
+				t.Fatalf("chunk %d content = %q, want suffix %q", index, posted.Content, indicator)
+			}
+		}
+		wantRemoteID := fmt.Sprintf("thread-1:msg-%d", len(api.postRequests))
+		if got := ack.RemoteMessageID; got != wantRemoteID {
+			t.Fatalf("RemoteMessageID = %q, want %q", got, wantRemoteID)
+		}
+	})
+
+	t.Run("Should edit the active message then post terminal continuations", func(t *testing.T) {
+		t.Parallel()
+
+		api := &discordAPIFake{postedMessageIDs: []string{"msg-1", "msg-2", "msg-3", "msg-4"}}
+		state := deliveryState{LastSeq: 1, RemoteMessageID: "thread-1:active"}
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "del-edit",
+			BridgeInstanceID: "brg-discord",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              2,
+			EventType:        bridgepkg.DeliveryEventTypeFinal,
+			Final:            true,
+			Operation:        bridgepkg.DeliveryOperationEdit,
+			Reference:        &bridgepkg.DeliveryMessageReference{RemoteMessageID: "thread-1:active"},
+			Content:          bridgepkg.MessageContent{Text: longText},
+		}}
+
+		ack, _, err := executeDiscordDelivery(context.Background(), api, request, state)
+		if err != nil {
+			t.Fatalf("executeDiscordDelivery() error = %v", err)
+		}
+		if got, want := len(api.updateRequests), 1; got != want {
+			t.Fatalf("update requests = %d, want %d", got, want)
+		}
+		if len(api.postRequests) == 0 {
+			t.Fatal("post requests = 0, want terminal continuations")
+		}
+		if got, want := api.updateRequests[0].MessageID, "active"; got != want {
+			t.Fatalf("updated message id = %q, want %q", got, want)
+		}
+		wantChunks := bridgesdk.ChunkMessage(longText, discordMaxMessageLen, nil)
+		if got, want := len(api.postRequests)+1, len(wantChunks); got != want {
+			t.Fatalf("delivered chunks = %d, want %d", got, want)
+		}
+		if got, want := api.updateRequests[0].Content, wantChunks[0]; got != want {
+			t.Fatalf("updated chunk = %q, want %q", got, want)
+		}
+		totalChunks := len(wantChunks)
+		if got := len([]rune(api.updateRequests[0].Content)); got > discordMaxMessageLen {
+			t.Fatalf("updated chunk length = %d, want <= %d", got, discordMaxMessageLen)
+		}
+		indicator := fmt.Sprintf("\n\n(1/%d)", totalChunks)
+		if !strings.HasSuffix(api.updateRequests[0].Content, indicator) {
+			t.Fatalf("updated chunk = %q, want suffix %q", api.updateRequests[0].Content, indicator)
+		}
+		for index, posted := range api.postRequests {
+			if got, want := posted.Content, wantChunks[index+1]; got != want {
+				t.Fatalf("continuation %d = %q, want %q", index, got, want)
+			}
+			if got := len([]rune(posted.Content)); got > discordMaxMessageLen {
+				t.Fatalf("continuation %d length = %d, want <= %d", index, got, discordMaxMessageLen)
+			}
+			indicator := fmt.Sprintf("\n\n(%d/%d)", index+2, totalChunks)
+			if !strings.HasSuffix(posted.Content, indicator) {
+				t.Fatalf("continuation %d = %q, want suffix %q", index, posted.Content, indicator)
+			}
+		}
+		wantRemoteID := fmt.Sprintf("thread-1:msg-%d", len(api.postRequests))
+		if got := ack.RemoteMessageID; got != wantRemoteID {
+			t.Fatalf("RemoteMessageID = %q, want %q", got, wantRemoteID)
+		}
+		if got, want := ack.ReplaceRemoteMessageID, "thread-1:active"; got != want {
+			t.Fatalf("ReplaceRemoteMessageID = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should keep an overflowing non-terminal preview in one message", func(t *testing.T) {
+		t.Parallel()
+
+		api := &discordAPIFake{postedMessageIDs: []string{"msg-1", "msg-2"}}
+		state := deliveryState{LastSeq: 1, RemoteMessageID: "thread-1:active"}
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "del-preview",
+			BridgeInstanceID: "brg-discord",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              2,
+			EventType:        bridgepkg.DeliveryEventTypeDelta,
+			Operation:        bridgepkg.DeliveryOperationEdit,
+			Reference:        &bridgepkg.DeliveryMessageReference{RemoteMessageID: "thread-1:active"},
+			Content:          bridgepkg.MessageContent{Text: longText},
+		}}
+
+		_, _, err := executeDiscordDelivery(context.Background(), api, request, state)
+		if err != nil {
+			t.Fatalf("executeDiscordDelivery() error = %v", err)
+		}
+		if got, want := len(api.updateRequests), 1; got != want {
+			t.Fatalf("update requests = %d, want %d", got, want)
+		}
+		wantPreview := bridgesdk.ChunkMessage(longText, discordMaxMessageLen, nil)[0]
+		if got := api.updateRequests[0].Content; got != wantPreview {
+			t.Fatalf("preview content = %q, want %q", got, wantPreview)
+		}
+		if got := len([]rune(api.updateRequests[0].Content)); got > discordMaxMessageLen {
+			t.Fatalf("preview length = %d, want <= %d", got, discordMaxMessageLen)
+		}
+		if !strings.Contains(api.updateRequests[0].Content, "\n\n(1/") {
+			t.Fatalf("preview content = %q, want first-chunk indicator", api.updateRequests[0].Content)
+		}
+		if got := len(api.postRequests); got != 0 {
+			t.Fatalf("post requests = %d, want no preview continuations", got)
+		}
+	})
+
+	t.Run("Should update an explicit reference even when current content matches", func(t *testing.T) {
+		t.Parallel()
+
+		api := &discordAPIFake{}
+		state := deliveryState{
+			LastSeq:         1,
+			RemoteMessageID: "thread-1:current",
+			LastContent:     "same content",
+		}
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "del-reference",
+			BridgeInstanceID: "brg-discord",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              2,
+			EventType:        bridgepkg.DeliveryEventTypeDelta,
+			Operation:        bridgepkg.DeliveryOperationEdit,
+			Reference:        &bridgepkg.DeliveryMessageReference{RemoteMessageID: "thread-1:target"},
+			Content:          bridgepkg.MessageContent{Text: "same content"},
+		}}
+
+		_, _, err := executeDiscordDelivery(context.Background(), api, request, state)
+		if err != nil {
+			t.Fatalf("executeDiscordDelivery() error = %v", err)
+		}
+		if got, want := len(api.updateRequests), 1; got != want {
+			t.Fatalf("update requests = %d, want %d", got, want)
+		}
+		if got, want := api.updateRequests[0].MessageID, "target"; got != want {
+			t.Fatalf("updated message id = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should reject a post response without a message id", func(t *testing.T) {
+		t.Parallel()
+
+		api := &discordAPIFake{}
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "del-empty-response",
+			BridgeInstanceID: "brg-discord",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              1,
+			EventType:        bridgepkg.DeliveryEventTypeFinal,
+			Final:            true,
+			Content:          bridgepkg.MessageContent{Text: "hello"},
+		}}
+
+		_, _, err := executeDiscordDelivery(context.Background(), api, request, deliveryState{})
+		if got, want := bridgesdk.ClassifyError(err).Class, bridgesdk.ErrorClassPermanent; got != want {
+			t.Fatalf("executeDiscordDelivery() error class = %q, want %q: %v", got, want, err)
+		}
+		var committedErr *bridgesdk.CommittedMutationError
+		if !errors.As(err, &committedErr) {
+			t.Fatalf("executeDiscordDelivery() error = %T, want CommittedMutationError", err)
+		}
+		if got, want := len(api.postAttempts), 1; got != want {
+			t.Fatalf("post attempts = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should resume at the first unsent chunk after exhausting Retry-After attempts", func(t *testing.T) {
+		t.Parallel()
+
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "del-partial-chunk",
+			BridgeInstanceID: "brg-discord",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              1,
+			EventType:        bridgepkg.DeliveryEventTypeFinal,
+			Final:            true,
+			Content:          bridgepkg.MessageContent{Text: longText},
+		}}
+		chunks := discordDeliveryChunks(request.Event)
+		if len(chunks) < 2 {
+			t.Fatalf("discordDeliveryChunks() returned %d chunk, want at least 2", len(chunks))
+		}
+
+		api := &discordAPIFake{
+			postedMessageIDs: []string{"msg-1", "msg-2", "msg-3", "msg-4"},
+			postErrorContent: chunks[1],
+			postErr: &bridgesdk.RateLimitError{
+				Err:        errors.New("rate limited continuation"),
+				RetryAfter: time.Nanosecond,
+			},
+		}
+		_, partialState, err := executeDiscordDelivery(context.Background(), api, request, deliveryState{})
+		if err == nil {
+			t.Fatal("executeDiscordDelivery(partial) error = nil, want exhausted rate limit")
+		}
+		if got, want := countDiscordPostRequests(
+			api.postAttempts,
+			chunks[1],
+		), bridgesdk.DefaultRetryConfig().Attempts; got != want {
+			t.Fatalf("failed continuation attempts = %d, want %d", got, want)
+		}
+		if got, want := countDiscordPostRequests(api.postRequests, chunks[0]), 1; got != want {
+			t.Fatalf("successful first-chunk posts = %d, want %d", got, want)
+		}
+
+		api.postErr = nil
+		resume := testDiscordResumeRequest(request)
+		if _, _, err := executeDiscordDelivery(context.Background(), api, resume, partialState); err != nil {
+			t.Fatalf("executeDiscordDelivery(resume) error = %v", err)
+		}
+		if got, want := countDiscordPostRequests(api.postRequests, chunks[0]), 1; got != want {
+			t.Fatalf("successful first-chunk posts after resume = %d, want %d", got, want)
+		}
+		if got, want := len(api.postRequests), len(chunks); got != want {
+			t.Fatalf("successful chunk posts = %d, want %d", got, want)
+		}
+	})
+}
+
+func TestDiscordProgressDeliveryRendersAndEditsOneBubble(t *testing.T) {
+	t.Run("Should render exact lifecycle lines by editing the created progress bubble", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 4, 15, 12, 30, 0, 0, time.UTC)
+		timer := &discordManualProgressTimer{}
+		api := &discordAPIFake{postedMessageID: "progress-1"}
+		provider, err := newDiscordProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newDiscordProvider() error = %v", err)
+		}
+		provider.now = func() time.Time { return now }
+		provider.progressDispatcherOptions = []bridgesdk.ProgressDispatcherOption{
+			bridgesdk.WithProgressSchedule(timer.Schedule),
+		}
+		provider.apiFactory = func(resolvedInstanceConfig) discordAPI { return api }
+		setDiscordProviderRoute(provider, "brg-discord", &resolvedInstanceConfig{
+			instanceID: "brg-discord",
+			managed:    testDiscordManagedInstance("brg-discord"),
+		})
+		session := &bridgesdk.Session{}
+
+		started := testDiscordProgressRequest(
+			"delivery-progress",
+			1,
+			bridgepkg.ToolProgress{
+				ToolCallID: "tool-call-search",
+				ToolID:     "agh__search",
+				Phase:      bridgepkg.ToolProgressPhaseStarted,
+				Label:      "Search",
+				Preview:    "project docs",
+				Emoji:      "🔎",
+				Index:      1,
+			},
+		)
+		ack, err := provider.handleBridgesProgress(context.Background(), session, started)
+		if err != nil {
+			t.Fatalf("handleBridgesProgress(started) error = %v", err)
+		}
+		if ack.RemoteMessageID != "" || ack.ReplaceRemoteMessageID != "" {
+			t.Fatalf("progress ack = %#v, want no textual remote handles", ack)
+		}
+		if got, want := api.progressActions, []string{
+			"typing:true:thread-1",
+			"post:thread-1:🔎 Search project docs",
+			"react:thread-1:progress-1:👀",
+		}; !slices.Equal(got, want) {
+			t.Fatalf("progress actions = %#v, want %#v", got, want)
+		}
+
+		now = now.Add(500 * time.Millisecond)
+		completed := testDiscordProgressRequest(
+			"delivery-progress",
+			2,
+			bridgepkg.ToolProgress{
+				ToolCallID: "tool-call-build",
+				ToolID:     "agh__build",
+				Phase:      bridgepkg.ToolProgressPhaseCompleted,
+				Label:      "Build",
+				DurationMS: 31_200,
+				Index:      2,
+			},
+		)
+		if _, err := provider.handleBridgesProgress(context.Background(), session, completed); err != nil {
+			t.Fatalf("handleBridgesProgress(completed) error = %v", err)
+		}
+		if got, want := timer.Delay(), time.Second; got != want {
+			t.Fatalf("scheduled edit delay = %s, want %s", got, want)
+		}
+		now = now.Add(time.Second)
+		timer.Run(t)
+		if got, want := len(api.updateRequests), 1; got != want {
+			t.Fatalf("update requests = %d, want %d", got, want)
+		}
+		if got, want := api.updateRequests[0], (discordUpdateMessageRequest{
+			ChannelID: "thread-1",
+			MessageID: "progress-1",
+			Content:   "🔎 Search project docs\n✅ Build · 31.2s",
+		}); got != want {
+			t.Fatalf("update request = %#v, want %#v", got, want)
+		}
+		gotReaction := api.reactionRequests[len(api.reactionRequests)-1]
+		if gotReaction.MessageID != "progress-1" || gotReaction.Reaction != "✅" {
+			t.Fatalf("completion reaction = %#v, want progress-1 + ✅", gotReaction)
+		}
+
+		now = now.Add(1600 * time.Millisecond)
+		failed := testDiscordProgressRequest(
+			"delivery-progress",
+			3,
+			bridgepkg.ToolProgress{
+				ToolCallID: "tool-call-deploy",
+				ToolID:     "agh__deploy",
+				Phase:      bridgepkg.ToolProgressPhaseFailed,
+				Label:      "Deploy",
+				Error:      "permission denied",
+				Index:      3,
+			},
+		)
+		if _, err := provider.handleBridgesProgress(context.Background(), session, failed); err != nil {
+			t.Fatalf("handleBridgesProgress(failed) error = %v", err)
+		}
+		if got, want := api.updateRequests[len(api.updateRequests)-1].Content,
+			"🔎 Search project docs\n✅ Build · 31.2s\n❌ Deploy — permission denied"; got != want {
+			t.Fatalf("failed progress content = %q, want %q", got, want)
+		}
+		gotReaction = api.reactionRequests[len(api.reactionRequests)-1]
+		if gotReaction.MessageID != "progress-1" || gotReaction.Reaction != "❌" {
+			t.Fatalf("failure reaction = %#v, want progress-1 + ❌", gotReaction)
+		}
+
+		final := testDiscordLifecycleFinalRequest("delivery-progress", 4)
+		if _, err := provider.handleBridgesProgress(context.Background(), session, final); err != nil {
+			t.Fatalf("handleBridgesProgress(lifecycle final) error = %v", err)
+		}
+		if got := provider.deliveryState("brg-discord", "delivery-progress").Progress; got != nil {
+			t.Fatal("delivery progress dispatcher retained after lifecycle final")
+		}
+		_, retained := provider.deliveries.Load(deliveryStateKey("brg-discord", "delivery-progress"))
+		if retained {
+			t.Fatal("lifecycle-only final retained an orphaned delivery state")
+		}
+	})
+
+	t.Run("Should deliver final text once after a committed progress edit result failure", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 13, 12, 5, 0, 0, time.UTC)
+		timer := &discordManualProgressTimer{}
+		api := &discordAPIFake{
+			postedMessageID: "progress-committed",
+			updateErrors: []error{
+				bridgesdk.MarkCommittedMutation(errors.New("progress edit result unavailable")),
+			},
+		}
+		provider, err := newDiscordProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newDiscordProvider() error = %v", err)
+		}
+		t.Cleanup(provider.stopResources)
+		provider.now = func() time.Time { return now }
+		provider.progressDispatcherOptions = []bridgesdk.ProgressDispatcherOption{
+			bridgesdk.WithProgressSchedule(timer.Schedule),
+		}
+		provider.apiFactory = func(resolvedInstanceConfig) discordAPI { return api }
+		setDiscordProviderRoute(provider, "brg-discord", &resolvedInstanceConfig{
+			instanceID: "brg-discord",
+			managed:    testDiscordManagedInstance("brg-discord"),
+		})
+		session := &bridgesdk.Session{}
+		started := testDiscordProgressRequest(
+			"delivery-progress-committed",
+			1,
+			bridgepkg.ToolProgress{
+				ToolCallID: "call-progress-started",
+				ToolID:     "agh__terminal",
+				Phase:      bridgepkg.ToolProgressPhaseStarted,
+				Label:      "Inspecting",
+				Emoji:      "\U0001f527",
+				Index:      1,
+			},
+		)
+		if _, err := provider.handleBridgesProgress(context.Background(), session, started); err != nil {
+			t.Fatalf("handleBridgesProgress(started) error = %v", err)
+		}
+		completed := testDiscordProgressRequest(
+			"delivery-progress-committed",
+			2,
+			bridgepkg.ToolProgress{
+				ToolCallID: "call-progress-completed",
+				ToolID:     "agh__terminal",
+				Phase:      bridgepkg.ToolProgressPhaseCompleted,
+				Label:      "Inspecting",
+				Emoji:      "\U0001f527",
+				Index:      2,
+			},
+		)
+		if _, err := provider.handleBridgesProgress(context.Background(), session, completed); err != nil {
+			t.Fatalf("handleBridgesProgress(completed) error = %v", err)
+		}
+		final := testDiscordLifecycleFinalRequest("delivery-progress-committed", 3)
+		final.Event.Content.Text = "final answer"
+
+		ack, err := provider.handleBridgesDeliver(context.Background(), session, final)
+		if err != nil {
+			t.Fatalf("handleBridgesDeliver(final) error = %v", err)
+		}
+		if got, want := ack.DeliveryID, final.Event.DeliveryID; got != want {
+			t.Fatalf("ack delivery id = %q, want %q", got, want)
+		}
+		if got, want := len(api.updateAttempts), 1; got != want {
+			t.Fatalf("committed progress edit attempts = %d, want %d", got, want)
+		}
+		if got, want := countDiscordPostRequests(api.postAttempts, "final answer"), 1; got != want {
+			t.Fatalf("final text post attempts = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should discard and close progress state after a committed final text result failure", func(t *testing.T) {
+		t.Parallel()
+
+		api := &discordAPIFake{postedMessageID: "progress-text-committed"}
+		provider, err := newDiscordProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newDiscordProvider() error = %v", err)
+		}
+		t.Cleanup(provider.stopResources)
+		provider.apiFactory = func(resolvedInstanceConfig) discordAPI { return api }
+		setDiscordProviderRoute(provider, "brg-discord", &resolvedInstanceConfig{
+			instanceID: "brg-discord",
+			managed:    testDiscordManagedInstance("brg-discord"),
+		})
+		session := &bridgesdk.Session{}
+		started := testDiscordProgressRequest(
+			"delivery-text-committed",
+			1,
+			bridgepkg.ToolProgress{
+				ToolCallID: "call-progress-started",
+				ToolID:     "agh__terminal",
+				Phase:      bridgepkg.ToolProgressPhaseStarted,
+				Label:      "Inspecting",
+				Emoji:      "\U0001f527",
+				Index:      1,
+			},
+		)
+		if _, err := provider.handleBridgesProgress(context.Background(), session, started); err != nil {
+			t.Fatalf("handleBridgesProgress(started) error = %v", err)
+		}
+		dispatcher := provider.deliveryState("brg-discord", "delivery-text-committed").Progress
+		if dispatcher == nil {
+			t.Fatal("progress dispatcher = nil, want active dispatcher")
+		}
+		api.postErrorContent = "final answer"
+		api.postErr = bridgesdk.MarkCommittedMutation(errors.New("final text result unavailable"))
+		final := testDiscordLifecycleFinalRequest("delivery-text-committed", 2)
+		final.Event.Content.Text = "final answer"
+
+		_, err = provider.handleBridgesDeliver(context.Background(), session, final)
+		if !bridgesdk.IsCommittedMutation(err) {
+			t.Fatalf("handleBridgesDeliver(final) error = %T %v, want committed mutation", err, err)
+		}
+		if got, want := countDiscordPostRequests(api.postAttempts, "final answer"), 1; got != want {
+			t.Fatalf("final text post attempts = %d, want %d", got, want)
+		}
+		if _, retained := provider.deliveries.Load(
+			deliveryStateKey("brg-discord", "delivery-text-committed"),
+		); retained {
+			t.Fatal("committed final text failure retained delivery state")
+		}
+		if flushErr := dispatcher.Flush(context.Background()); flushErr == nil ||
+			!strings.Contains(flushErr.Error(), "closed") {
+			t.Fatalf("closed dispatcher Flush() error = %v, want closed error", flushErr)
+		}
+	})
+}
+
+func TestDiscordProgressDeliveryHonorsModeOffBeforeCreatingAPI(t *testing.T) {
+	t.Run("Should ack mode-off progress before creating a Discord API client", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newDiscordProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newDiscordProvider() error = %v", err)
+		}
+		managed := testDiscordManagedInstance("brg-discord-off")
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"off","grouping":"accumulate","typing":false,"reactions":false}}`,
+		)
+		setDiscordProviderRoute(provider, managed.Instance.ID, &resolvedInstanceConfig{
+			instanceID: managed.Instance.ID,
+			managed:    managed,
+		})
+		apiFactoryCalls := 0
+		provider.apiFactory = func(resolvedInstanceConfig) discordAPI {
+			apiFactoryCalls++
+			return &discordAPIFake{}
+		}
+
+		request := testDiscordProgressRequest(
+			"delivery-off",
+			1,
+			bridgepkg.ToolProgress{
+				ToolCallID: "tool-call-off",
+				ToolID:     "agh__search",
+				Phase:      bridgepkg.ToolProgressPhaseStarted,
+				Label:      "Search",
+				Index:      1,
+			},
+		)
+		request.Event.BridgeInstanceID = managed.Instance.ID
+		request.Event.RoutingKey.BridgeInstanceID = managed.Instance.ID
+		request.Event.DeliveryTarget.BridgeInstanceID = managed.Instance.ID
+
+		ack, err := provider.handleBridgesProgress(context.Background(), &bridgesdk.Session{}, request)
+		if err != nil {
+			t.Fatalf("handleBridgesProgress(mode off) error = %v", err)
+		}
+		if got, want := ack.DeliveryID, request.Event.DeliveryID; got != want {
+			t.Fatalf("ack delivery id = %q, want %q", got, want)
+		}
+		if got := apiFactoryCalls; got != 0 {
+			t.Fatalf("apiFactory calls = %d, want 0", got)
+		}
+		if got := provider.deliveryState(managed.Instance.ID, request.Event.DeliveryID).Progress; got != nil {
+			t.Fatal("mode-off progress created a dispatcher")
+		}
+	})
+
+	t.Run("Should remove delivery state after a progress mode flip and lifecycle final", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newDiscordProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newDiscordProvider() error = %v", err)
+		}
+		timer := &discordManualProgressTimer{}
+		provider.progressDispatcherOptions = []bridgesdk.ProgressDispatcherOption{
+			bridgesdk.WithProgressSchedule(timer.Schedule),
+		}
+		managed := testDiscordManagedInstance("brg-discord-flip")
+		setDiscordProviderRoute(provider, managed.Instance.ID, &resolvedInstanceConfig{
+			instanceID: managed.Instance.ID,
+			managed:    managed,
+		})
+		apiFactoryCalls := 0
+		api := &discordAPIFake{postedMessageID: "progress-flip"}
+		provider.apiFactory = func(resolvedInstanceConfig) discordAPI {
+			apiFactoryCalls++
+			return api
+		}
+		request := testDiscordProgressRequest("delivery-flip", 1, bridgepkg.ToolProgress{
+			ToolCallID: "tool-call-flip",
+			ToolID:     "agh__search",
+			Phase:      bridgepkg.ToolProgressPhaseStarted,
+			Label:      "Search",
+			Index:      1,
+		})
+		request.Event.BridgeInstanceID = managed.Instance.ID
+		request.Event.RoutingKey.BridgeInstanceID = managed.Instance.ID
+		request.Event.DeliveryTarget.BridgeInstanceID = managed.Instance.ID
+		session := &bridgesdk.Session{}
+		if _, err := provider.handleBridgesProgress(context.Background(), session, request); err != nil {
+			t.Fatalf("handleBridgesProgress(default on) error = %v", err)
+		}
+		request.Event.Seq = 2
+		request.Event.Progress = &bridgepkg.ToolProgress{
+			ToolCallID: "tool-call-flip-dirty",
+			ToolID:     "agh__read",
+			Phase:      bridgepkg.ToolProgressPhaseCompleted,
+			Label:      "Read",
+			Index:      2,
+		}
+		if _, err := provider.handleBridgesProgress(context.Background(), session, request); err != nil {
+			t.Fatalf("handleBridgesProgress(dirty update) error = %v", err)
+		}
+
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"off","grouping":"accumulate","typing":false,"reactions":false}}`,
+		)
+		provider.routes.Update(managed.Instance.ID, func(cfg resolvedInstanceConfig) resolvedInstanceConfig {
+			cfg.managed = managed
+			return cfg
+		})
+		final := testDiscordLifecycleFinalRequest("delivery-flip", 3)
+		final.Event.BridgeInstanceID = managed.Instance.ID
+		final.Event.RoutingKey.BridgeInstanceID = managed.Instance.ID
+		final.Event.DeliveryTarget.BridgeInstanceID = managed.Instance.ID
+		if _, err := provider.handleBridgesProgress(context.Background(), session, final); err != nil {
+			t.Fatalf("handleBridgesProgress(lifecycle final) error = %v", err)
+		}
+		if got, want := apiFactoryCalls, 1; got != want {
+			t.Fatalf("apiFactory calls = %d, want %d", got, want)
+		}
+		if got := len(api.updateAttempts); got != 0 {
+			t.Fatalf("Discord update attempts after mode flip = %d, want 0", got)
+		}
+		_, retained := provider.deliveries.Load(deliveryStateKey(managed.Instance.ID, request.Event.DeliveryID))
+		if retained {
+			t.Fatal("mode-flipped lifecycle final retained delivery state")
+		}
+	})
+}
+
+func TestDiscordProgressSinkRetriesRateLimitedEdits(t *testing.T) {
+	t.Run("Should honor Retry-After and keep the throttled edit", func(t *testing.T) {
+		t.Parallel()
+
+		api := &discordAPIFake{
+			postedMessageID: "progress-1",
+			updateErrors: []error{
+				&bridgesdk.HTTPError{
+					StatusCode: http.StatusTooManyRequests,
+					Message:    "slow down",
+					RetryAfter: 2 * time.Millisecond,
+				},
+				nil,
+			},
+		}
+		sink := newDiscordProgressSink(api)
+		target := testDiscordProgressRequest(
+			"delivery-retry",
+			1,
+			bridgepkg.ToolProgress{
+				ToolCallID: "tool-call-retry",
+				ToolID:     "agh__search",
+				Phase:      bridgepkg.ToolProgressPhaseStarted,
+				Label:      "Search",
+				Index:      1,
+			},
+		).Event.DeliveryTarget
+		remoteID, err := sink.Post(context.Background(), target, "👀 Search")
+		if err != nil {
+			t.Fatalf("Post() error = %v", err)
+		}
+
+		startedAt := time.Now()
+		if err := sink.Edit(context.Background(), target, remoteID, "👀 Search\n✅ Search"); err != nil {
+			t.Fatalf("Edit() error = %v", err)
+		}
+		if got, want := len(api.updateAttempts), 2; got != want {
+			t.Fatalf("update attempts = %d, want %d", got, want)
+		}
+		if elapsed := time.Since(startedAt); elapsed < 2*time.Millisecond {
+			t.Fatalf("retry elapsed = %s, want at least Retry-After 2ms", elapsed)
+		}
+		if got, want := api.updateRequests[len(api.updateRequests)-1].Content,
+			"👀 Search\n✅ Search"; got != want {
+			t.Fatalf("successful update content = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestHandleInteractionWebhookAcknowledgesImmediately(t *testing.T) {
@@ -370,15 +1164,12 @@ func TestHandleInteractionWebhookAcknowledgesImmediately(t *testing.T) {
 		t.Fatalf("newDiscordProvider() error = %v", err)
 	}
 	provider.now = func() time.Time { return now }
-	provider.mu.Lock()
-	provider.session = nil
-	provider.routes["brg-discord"] = resolvedInstanceConfig{
+	setDiscordProviderRoute(provider, "brg-discord", &resolvedInstanceConfig{
 		instanceID: "brg-discord",
 		managed:    testDiscordManagedInstance("brg-discord"),
 		dedup:      bridgesdk.NewDedupCache(time.Minute, 16),
 		dmPolicy:   bridgepkg.BridgeDMPolicyOpen,
-	}
-	provider.mu.Unlock()
+	})
 
 	recorder := httptest.NewRecorder()
 	cfg := &resolvedInstanceConfig{
@@ -410,21 +1201,279 @@ func TestHandleInteractionWebhookAcknowledgesImmediately(t *testing.T) {
 func TestDiscordBotClientRoutesRequestsAndClassifiesFailures(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve rate-limit classification when the error body read fails", func(t *testing.T) {
+		t.Parallel()
+
+		readErr := errors.New("Discord error body read failed")
+		body := &discordPartialErrorResponseBody{
+			content: []byte("too many requests"),
+			readErr: readErr,
+		}
+		client := &discordBotClient{
+			baseURL:  "https://discord.test",
+			botToken: "discord-bot-token",
+			httpClient: &http.Client{
+				Transport: discordRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					return &http.Response{
+						StatusCode: http.StatusTooManyRequests,
+						Header:     http.Header{"Retry-After": []string{"2"}},
+						Body:       body,
+						Request:    req,
+					}, nil
+				}),
+			},
+		}
+
+		_, err := client.PostMessage(t.Context(), discordPostMessageRequest{
+			ChannelID: "thread-rate-limited",
+			Content:   "hello",
+		})
+		if !errors.Is(err, readErr) {
+			t.Fatalf("PostMessage() error = %v, want response body read failure", err)
+		}
+		var httpErr *bridgesdk.HTTPError
+		if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusTooManyRequests {
+			t.Fatalf("PostMessage() error = %v, want HTTP 429 classification", err)
+		}
+		classified := bridgesdk.ClassifyError(err)
+		if classified.Class != bridgesdk.ErrorClassRateLimit || classified.RetryAfter != 2*time.Second {
+			t.Fatalf("PostMessage() classification = %#v, want rate-limit with two-second retry", classified)
+		}
+		if !strings.Contains(httpErr.Message, "too many requests") {
+			t.Fatalf("PostMessage() HTTP message = %q, want partial provider body", httpErr.Message)
+		}
+		if got, want := body.reads, 2; got != want {
+			t.Fatalf("response body reads = %d, want %d for read plus deferred drain", got, want)
+		}
+		if !body.closed {
+			t.Fatal("response body closed = false after error classification")
+		}
+	})
+
+	t.Run("Should stop after a successful create returns truncated JSON", func(t *testing.T) {
+		t.Parallel()
+
+		attempts := 0
+		client := &discordBotClient{
+			baseURL:  "https://discord.test",
+			botToken: "discord-bot-token",
+			httpClient: &http.Client{
+				Transport: discordRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					attempts++
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Header:     make(http.Header),
+						Body:       io.NopCloser(strings.NewReader(`{"id":`)),
+						Request:    req,
+					}, nil
+				}),
+			},
+		}
+
+		_, err := postDiscordDeliveryMessage(t.Context(), client, discordPostMessageRequest{
+			ChannelID: "thread-committed",
+			Content:   "hello",
+		})
+		if err == nil {
+			t.Fatal("postDiscordDeliveryMessage(truncated response) error = nil, want non-nil")
+		}
+		var committedErr *bridgesdk.CommittedMutationError
+		if !errors.As(err, &committedErr) {
+			t.Fatalf("postDiscordDeliveryMessage() error = %T, want CommittedMutationError", err)
+		}
+		if got, want := attempts, 1; got != want {
+			t.Fatalf("transport attempts = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should preserve a materialized message when response cleanup fails", func(t *testing.T) {
+		t.Parallel()
+
+		closeErr := &net.OpError{
+			Op:  "close",
+			Net: "tcp",
+			Err: errors.New("connection reset by peer"),
+		}
+		attempts := 0
+		reported := make([]error, 0, 1)
+		client := &discordBotClient{
+			baseURL:  "https://discord.test",
+			botToken: "discord-bot-token",
+			httpClient: &http.Client{
+				Transport: discordRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					attempts++
+					return &http.Response{
+						StatusCode: http.StatusOK,
+						Header:     make(http.Header),
+						Body: &discordResponseBody{
+							Reader:   strings.NewReader(`{"id":"msg-committed"}`),
+							closeErr: closeErr,
+						},
+						Request: req,
+					}, nil
+				}),
+			},
+			reportResponseCleanup: func(err error) {
+				reported = append(reported, err)
+			},
+		}
+
+		message, err := postDiscordDeliveryMessage(t.Context(), client, discordPostMessageRequest{
+			ChannelID: "thread-committed",
+			Content:   "hello",
+		})
+		if err != nil {
+			t.Fatalf("postDiscordDeliveryMessage() error = %v", err)
+		}
+		if message == nil || message.ID != "msg-committed" {
+			t.Fatalf("postDiscordDeliveryMessage() message = %#v, want materialized message", message)
+		}
+		if attempts != 1 {
+			t.Fatalf("transport attempts = %d, want 1", attempts)
+		}
+		if len(reported) != 1 || !errors.Is(reported[0], closeErr) {
+			t.Fatalf("reported cleanup errors = %#v, want close failure", reported)
+		}
+	})
+
+	t.Run("Should preserve a status-confirmed deletion when response cleanup fails", func(t *testing.T) {
+		t.Parallel()
+
+		closeErr := &net.OpError{
+			Op:  "close",
+			Net: "tcp",
+			Err: errors.New("connection reset by peer"),
+		}
+		attempts := 0
+		reported := make([]error, 0, 1)
+		client := &discordBotClient{
+			baseURL:  "https://discord.test",
+			botToken: "discord-bot-token",
+			httpClient: &http.Client{
+				Transport: discordRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					attempts++
+					if attempts > 1 {
+						return &http.Response{
+							StatusCode: http.StatusNotFound,
+							Header:     make(http.Header),
+							Body:       io.NopCloser(strings.NewReader("already deleted")),
+							Request:    req,
+						}, nil
+					}
+					return &http.Response{
+						StatusCode: http.StatusNoContent,
+						Header:     make(http.Header),
+						Body: &discordResponseBody{
+							Reader:   strings.NewReader(""),
+							closeErr: closeErr,
+						},
+						Request: req,
+					}, nil
+				}),
+			},
+			reportResponseCleanup: func(err error) {
+				reported = append(reported, err)
+			},
+		}
+
+		err := deleteDiscordDeliveryMessage(t.Context(), client, discordDeleteMessageRequest{
+			ChannelID: "thread-committed",
+			MessageID: "msg-deleted",
+		})
+		if err != nil {
+			t.Fatalf("deleteDiscordDeliveryMessage() error = %v", err)
+		}
+		if attempts != 1 {
+			t.Fatalf("transport attempts = %d, want 1", attempts)
+		}
+		if len(reported) != 1 || !errors.Is(reported[0], closeErr) {
+			t.Fatalf("reported cleanup errors = %#v, want close failure", reported)
+		}
+	})
+
+	for _, testCase := range []struct {
+		name       string
+		statusCode int
+	}{
+		{name: "Should refuse a credentialed 301 redirect", statusCode: http.StatusMovedPermanently},
+		{name: "Should refuse a credentialed 302 redirect", statusCode: http.StatusFound},
+		{name: "Should refuse a credentialed 303 redirect", statusCode: http.StatusSeeOther},
+		{name: "Should refuse a credentialed 307 redirect", statusCode: http.StatusTemporaryRedirect},
+		{name: "Should refuse a credentialed 308 redirect", statusCode: http.StatusPermanentRedirect},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			var targetHits atomic.Int32
+			target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				targetHits.Add(1)
+				if err := json.NewEncoder(w).Encode(discordPostedMessage{ID: "msg-redirect"}); err != nil {
+					t.Errorf("encode redirect target Discord response: %v", err)
+				}
+			}))
+			defer target.Close()
+
+			redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Location", target.URL)
+				http.Error(w, "redirect refused", testCase.statusCode)
+				if got, want := r.Method, http.MethodPost; got != want {
+					t.Errorf("redirect source method = %q, want %q", got, want)
+				}
+			}))
+			defer redirect.Close()
+
+			client := &discordBotClient{
+				baseURL:    redirect.URL,
+				botToken:   "discord-bot-token",
+				httpClient: redirect.Client(),
+			}
+			_, err := client.PostMessage(t.Context(), discordPostMessageRequest{
+				ChannelID: "thread-redirect",
+				Content:   "hello",
+			})
+			var httpErr *bridgesdk.HTTPError
+			if !errors.As(err, &httpErr) || httpErr.StatusCode != testCase.statusCode {
+				t.Fatalf(
+					"PostMessage(%d) error = %T %v, want first-response HTTPError",
+					testCase.statusCode,
+					err,
+					err,
+				)
+			}
+			if bridgesdk.IsCommittedMutation(err) {
+				t.Fatalf("PostMessage(%d) error = %v, want pre-commit rejection", testCase.statusCode, err)
+			}
+			if got := targetHits.Load(); got != 0 {
+				t.Fatalf("redirect target hits = %d, want 0", got)
+			}
+		})
+	}
+
 	var mu sync.Mutex
 	var paths []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
-		paths = append(paths, r.Method+" "+r.URL.Path)
+		paths = append(paths, r.Method+" "+r.URL.EscapedPath())
 		mu.Unlock()
 
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/users/@me":
-			_ = json.NewEncoder(w).Encode(discordBotIdentity{ID: "bot-1", Username: "agh"})
+			if err := json.NewEncoder(w).Encode(discordBotIdentity{ID: "bot-1", Username: "agh"}); err != nil {
+				t.Errorf("encode Discord bot identity: %v", err)
+			}
 		case r.Method == http.MethodPost && r.URL.Path == "/channels/thread-1/messages":
-			_ = json.NewEncoder(w).Encode(discordPostedMessage{ID: "msg-1"})
+			if err := json.NewEncoder(w).Encode(discordPostedMessage{ID: "msg-1"}); err != nil {
+				t.Errorf("encode Discord posted message: %v", err)
+			}
 		case r.Method == http.MethodPatch && r.URL.Path == "/channels/thread-1/messages/msg-1":
-			_ = json.NewEncoder(w).Encode(discordPostedMessage{ID: "msg-1"})
+			if err := json.NewEncoder(w).Encode(discordPostedMessage{ID: "msg-1"}); err != nil {
+				t.Errorf("encode Discord updated message: %v", err)
+			}
 		case r.Method == http.MethodDelete && r.URL.Path == "/channels/thread-1/messages/msg-1":
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodPost && r.URL.Path == "/channels/thread-1/typing":
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodPut && r.URL.Path == "/channels/thread-1/messages/msg-1/reactions/👀/@me":
 			w.WriteHeader(http.StatusNoContent)
 		case r.Method == http.MethodPost && r.URL.Path == "/channels/thread-2/messages":
 			w.Header().Set("Retry-After", "2")
@@ -463,6 +1512,25 @@ func TestDiscordBotClientRoutesRequestsAndClassifiesFailures(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("DeleteMessage() error = %v", err)
 	}
+	if err := client.SetTyping(context.Background(), discordTypingRequest{
+		ChannelID: "thread-1",
+		Active:    true,
+	}); err != nil {
+		t.Fatalf("SetTyping(active) error = %v", err)
+	}
+	if err := client.SetTyping(context.Background(), discordTypingRequest{
+		ChannelID: "thread-1",
+		Active:    false,
+	}); err != nil {
+		t.Fatalf("SetTyping(inactive) error = %v", err)
+	}
+	if err := client.AddReaction(context.Background(), discordReactionRequest{
+		ChannelID: "thread-1",
+		MessageID: "msg-1",
+		Reaction:  "👀",
+	}); err != nil {
+		t.Fatalf("AddReaction() error = %v", err)
+	}
 	if _, err := client.PostMessage(context.Background(), discordPostMessageRequest{
 		ChannelID: "thread-2",
 		Content:   "slow",
@@ -472,9 +1540,52 @@ func TestDiscordBotClientRoutesRequestsAndClassifiesFailures(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	if len(paths) < 5 {
-		t.Fatalf("len(paths) = %d, want at least 5", len(paths))
+	if got, want := len(paths), 7; got != want {
+		t.Fatalf("len(paths) = %d, want %d", got, want)
 	}
+	for _, want := range []string{
+		"POST /channels/thread-1/typing",
+		"PUT /channels/thread-1/messages/msg-1/reactions/%F0%9F%91%80/@me",
+	} {
+		if !slices.Contains(paths, want) {
+			t.Fatalf("paths = %#v, want %q", paths, want)
+		}
+	}
+}
+
+type discordRoundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f discordRoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+type discordResponseBody struct {
+	io.Reader
+	closeErr error
+}
+
+type discordPartialErrorResponseBody struct {
+	content []byte
+	readErr error
+	reads   int
+	closed  bool
+}
+
+func (b *discordPartialErrorResponseBody) Read(buffer []byte) (int, error) {
+	b.reads++
+	if b.reads > 1 {
+		return 0, io.EOF
+	}
+	return copy(buffer, b.content), b.readErr
+}
+
+func (b *discordPartialErrorResponseBody) Close() error {
+	b.closed = true
+	return nil
+}
+
+func (b *discordResponseBody) Close() error {
+	return b.closeErr
 }
 
 func TestServeWebhookHTTPHandlesSignedMessageWebhookWithBatching(t *testing.T) {
@@ -505,8 +1616,7 @@ func TestServeWebhookHTTPHandlesSignedMessageWebhookWithBatching(t *testing.T) {
 		t.Fatalf("newDiscordProvider() error = %v", err)
 	}
 	provider.now = func() time.Time { return now }
-	provider.mu.Lock()
-	provider.routes["brg-discord"] = resolvedInstanceConfig{
+	setDiscordProviderRoute(provider, "brg-discord", &resolvedInstanceConfig{
 		instanceID:      "brg-discord",
 		managed:         testDiscordManagedInstance("brg-discord"),
 		webhookPath:     "/discord/brg-discord",
@@ -516,8 +1626,7 @@ func TestServeWebhookHTTPHandlesSignedMessageWebhookWithBatching(t *testing.T) {
 		inFlightLimiter: bridgesdk.NewInFlightLimiter(4),
 		batcher:         batcher,
 		dmPolicy:        bridgepkg.BridgeDMPolicyOpen,
-	}
-	provider.mu.Unlock()
+	})
 
 	payload := map[string]any{
 		"type": 1,
@@ -607,8 +1716,7 @@ func TestServeWebhookHTTPRejectsInvalidSignatureBeforeDispatch(t *testing.T) {
 			t.Fatalf("newDiscordProvider() error = %v", err)
 		}
 		provider.now = func() time.Time { return now }
-		provider.mu.Lock()
-		provider.routes["brg-discord"] = resolvedInstanceConfig{
+		setDiscordProviderRoute(provider, "brg-discord", &resolvedInstanceConfig{
 			instanceID:      "brg-discord",
 			managed:         testDiscordManagedInstance("brg-discord"),
 			webhookPath:     "/discord/brg-discord",
@@ -618,8 +1726,7 @@ func TestServeWebhookHTTPRejectsInvalidSignatureBeforeDispatch(t *testing.T) {
 			inFlightLimiter: bridgesdk.NewInFlightLimiter(4),
 			batcher:         batcher,
 			dmPolicy:        bridgepkg.BridgeDMPolicyOpen,
-		}
-		provider.mu.Unlock()
+		})
 
 		payload := map[string]any{
 			"type": 1,
@@ -744,40 +1851,6 @@ func TestDetermineInitialStateAndLifecycleHelpers(t *testing.T) {
 	}
 }
 
-func TestHandleInitializeAfterInitializeRetryAndShutdownHelpers(t *testing.T) {
-	t.Parallel()
-
-	provider, err := newDiscordProvider(io.Discard)
-	if err != nil {
-		t.Fatalf("newDiscordProvider() error = %v", err)
-	}
-
-	if err := provider.handleInitialize(context.Background(), &bridgesdk.Session{}); err != nil {
-		t.Fatalf("handleInitialize() error = %v", err)
-	}
-
-	attempts := 0
-	err = provider.retryHostCall(context.Background(), func(context.Context) error {
-		attempts++
-		if attempts == 1 {
-			return rpcCodeErr{}
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("retryHostCall() error = %v", err)
-	}
-
-	if err := provider.handleShutdown(
-		context.Background(),
-		nil,
-		subprocess.ShutdownRequest{DeadlineMS: 10},
-	); err != nil {
-		t.Fatalf("handleShutdown() error = %v", err)
-	}
-	provider.stop()
-}
-
 func TestHandleEventAndInteractionWebhookBranches(t *testing.T) {
 	t.Parallel()
 
@@ -790,8 +1863,10 @@ func TestHandleEventAndInteractionWebhookBranches(t *testing.T) {
 		t.Fatalf("newDiscordProvider() error = %v", err)
 	}
 	defer func() {
-		provider.stop()
-		provider.wg.Wait()
+		provider.lifecycle.Stop()
+		if err := provider.lifecycle.Wait(context.Background()); err != nil {
+			t.Fatalf("provider lifecycle wait error = %v", err)
+		}
 	}()
 	provider.apiFactory = func(resolvedInstanceConfig) discordAPI {
 		return &discordAPIFake{postedMessageID: "msg-1"}
@@ -805,15 +1880,14 @@ func TestHandleEventAndInteractionWebhookBranches(t *testing.T) {
 		dedup:      bridgesdk.NewDedupCache(time.Minute, 16),
 		dmPolicy:   bridgepkg.BridgeDMPolicyOpen,
 	}
-	provider.mu.Lock()
-	provider.session = injectedDiscordSession(t,
+	session := injectedDiscordSession(t,
 		bridgesdk.NewHostAPIClientFromCall(func(_ context.Context, method string, params any, result any) error {
 			if method == "bridges/messages/ingest" {
 				mu.Lock()
 				ingests = append(ingests, params.(bridgepkg.InboundMessageEnvelope))
 				mu.Unlock()
-				target := result.(*extensioncontract.BridgesMessagesIngestResult)
-				*target = extensioncontract.BridgesMessagesIngestResult{SessionID: "sess-1"}
+				target := result.(*bridgepkg.BridgesMessagesIngestResult)
+				*target = bridgepkg.BridgesMessagesIngestResult{SessionID: "sess-1"}
 				return nil
 			}
 			if method == "bridges/instances/report_state" {
@@ -825,8 +1899,15 @@ func TestHandleEventAndInteractionWebhookBranches(t *testing.T) {
 		}),
 		bridgesdk.NewInstanceCache(&subprocess.InitializeBridgeRuntime{}),
 	)
-	provider.routes["brg-discord"] = cfg
-	provider.mu.Unlock()
+	if err := provider.handleInitialize(context.Background(), session); err != nil {
+		t.Fatalf("handleInitialize() error = %v", err)
+	}
+	select {
+	case <-provider.lifecycle.Initialized():
+	case <-t.Context().Done():
+		t.Fatal("provider initialization did not finish")
+	}
+	setDiscordProviderRoute(provider, "brg-discord", &cfg)
 
 	recorder := httptest.NewRecorder()
 	if err := provider.handleEventWebhook(
@@ -965,11 +2046,28 @@ func TestAllowDiscordDirectMessagePoliciesAndUtilityHelpers(t *testing.T) {
 	if got := parseRetryAfter("2"); got != 2*time.Second {
 		t.Fatalf("parseRetryAfter() = %s, want 2s", got)
 	}
-	if got := cloneDegradation(
-		&bridgepkg.BridgeDegradation{Reason: bridgepkg.BridgeDegradationReasonAuthFailed},
-	); got == nil {
-		t.Fatal("cloneDegradation() = nil, want non-nil")
-	}
+}
+
+func TestParseRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve fractional seconds without under-waiting", func(t *testing.T) {
+		t.Parallel()
+
+		if got, want := parseRetryAfter("0.75"), 750*time.Millisecond; got != want {
+			t.Fatalf("parseRetryAfter(0.75) = %s, want %s", got, want)
+		}
+	})
+
+	t.Run("Should reject non-positive and invalid delays", func(t *testing.T) {
+		t.Parallel()
+
+		for _, value := range []string{"0", "-0.5", "bad"} {
+			if got := parseRetryAfter(value); got != 0 {
+				t.Fatalf("parseRetryAfter(%q) = %s, want 0", value, got)
+			}
+		}
+	})
 }
 
 func TestHandleBridgesDeliverFailureAndMainHelpers(t *testing.T) {
@@ -984,20 +2082,18 @@ func TestHandleBridgesDeliverFailureAndMainHelpers(t *testing.T) {
 			postErr: &bridgesdk.HTTPError{StatusCode: http.StatusTooManyRequests, Message: "slow down"},
 		}
 	}
-	provider.mu.Lock()
-	provider.routes["brg-discord"] = resolvedInstanceConfig{
+	setDiscordProviderRoute(provider, "brg-discord", &resolvedInstanceConfig{
 		instanceID: "brg-discord",
 		managed:    testDiscordManagedInstance("brg-discord"),
 		dedup:      bridgesdk.NewDedupCache(time.Minute, 16),
-	}
-	provider.mu.Unlock()
+	})
 
 	session := injectedDiscordSession(t,
 		bridgesdk.NewHostAPIClientFromCall(func(_ context.Context, method string, params any, result any) error {
 			if method == "bridges/instances/report_state" {
 				target := result.(*bridgepkg.BridgeInstance)
 				updated := testDiscordManagedInstance("brg-discord").Instance
-				updated.Status = params.(extensioncontract.BridgesInstancesReportStateParams).Status
+				updated.Status = params.(bridgepkg.BridgesInstancesReportStateParams).Status
 				*target = updated
 			}
 			return nil
@@ -1047,15 +2143,19 @@ func TestHandleBridgesDeliverFailureAndMainHelpers(t *testing.T) {
 }
 
 func TestAfterInitializeSuccessAndParsingBranches(t *testing.T) {
-	t.Parallel()
+	tmpDir := t.TempDir()
+	ownershipPath := filepath.Join(tmpDir, "ownership.json")
+	statePath := filepath.Join(tmpDir, "state.jsonl")
+	t.Setenv(bridgesdk.AdapterHandshakePathEnv, filepath.Join(tmpDir, "handshake.json"))
+	t.Setenv(bridgesdk.AdapterOwnershipPathEnv, ownershipPath)
+	t.Setenv(bridgesdk.AdapterStatePathEnv, statePath)
+	t.Setenv(bridgesdk.AdapterStartsPathEnv, filepath.Join(tmpDir, "starts.log"))
 
 	pub, _, err := ed25519.GenerateKey(nil)
 	if err != nil {
 		t.Fatalf("GenerateKey() error = %v", err)
 	}
-	cfg := discordProviderConfig{
-		APIBaseURL: "https://discord.test/api/",
-	}
+	cfg := discordProviderConfig{}
 	cfg.Webhook.ListenAddr = "127.0.0.1:0"
 	cfg.Webhook.Path = "/discord/brg-discord"
 	rawConfig, err := json.Marshal(cfg)
@@ -1087,7 +2187,7 @@ func TestAfterInitializeSuccessAndParsingBranches(t *testing.T) {
 			case "bridges/instances/report_state":
 				target := result.(*bridgepkg.BridgeInstance)
 				updated := instance
-				updated.Status = params.(extensioncontract.BridgesInstancesReportStateParams).Status
+				updated.Status = params.(bridgepkg.BridgesInstancesReportStateParams).Status
 				*target = updated
 			default:
 				return nil
@@ -1095,7 +2195,8 @@ func TestAfterInitializeSuccessAndParsingBranches(t *testing.T) {
 			return nil
 		}),
 		bridgesdk.NewInstanceCache(&subprocess.InitializeBridgeRuntime{
-			RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
+			RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion2,
+			Purpose:        subprocess.BridgeRuntimePurposeService,
 			Provider:       "discord",
 			Platform:       "discord",
 			ManagedInstances: []subprocess.InitializeBridgeManagedInstance{
@@ -1107,27 +2208,27 @@ func TestAfterInitializeSuccessAndParsingBranches(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newDiscordProvider() error = %v", err)
 	}
-	tmpDir := t.TempDir()
-	provider.env = markerEnv{
-		handshakePath: filepath.Join(tmpDir, "handshake.json"),
-		ownershipPath: filepath.Join(tmpDir, "ownership.json"),
-		statePath:     filepath.Join(tmpDir, "state.jsonl"),
-		startsPath:    filepath.Join(tmpDir, "starts.log"),
-	}
 	provider.apiFactory = func(resolvedInstanceConfig) discordAPI {
 		return &discordAPIFake{postedMessageID: "msg-1"}
 	}
-	provider.afterInitialize(session)
+	if err := provider.handleInitialize(context.Background(), session); err != nil {
+		t.Fatalf("handleInitialize() error = %v", err)
+	}
+	select {
+	case <-provider.lifecycle.Initialized():
+	case <-t.Context().Done():
+		t.Fatal("provider initialization did not finish")
+	}
 	defer func() {
-		if provider.server != nil {
-			_ = provider.server.Close()
+		if err := provider.http.Shutdown(context.Background()); err != nil {
+			t.Fatalf("provider HTTP shutdown error = %v", err)
 		}
 	}()
 
-	if _, err := os.Stat(provider.env.ownershipPath); err != nil {
+	if _, err := os.Stat(ownershipPath); err != nil {
 		t.Fatalf("ownership marker missing: %v", err)
 	}
-	if _, err := os.Stat(provider.env.statePath); err != nil {
+	if _, err := os.Stat(statePath); err != nil {
 		t.Fatalf("state marker missing: %v", err)
 	}
 
@@ -1205,19 +2306,6 @@ func TestAdditionalDiscordProviderBranches(t *testing.T) {
 	if _, err := provider.waitForInstanceConfig("missing", 20*time.Millisecond); err == nil {
 		t.Fatal("waitForInstanceConfig(missing) error = nil, want non-nil")
 	}
-	if isNotInitializedRPCError(errors.New("not initialized")) {
-		t.Fatal("isNotInitializedRPCError(string only) = true, want false")
-	}
-	if !isNotInitializedRPCError(rpcCodeErr{}) {
-		t.Fatal("isNotInitializedRPCError(rpc code) = false, want true")
-	}
-	if isNotInitializedRPCError(&subprocess.RPCError{
-		Code:    -32001,
-		Message: "Not initialized",
-	}) {
-		t.Fatal("isNotInitializedRPCError(rpc message only) = true, want false")
-	}
-
 	if got := parseDiscordReceivedAt(
 		time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC).Format(time.RFC3339),
 		time.Time{},
@@ -1318,12 +2406,6 @@ func TestDiscordWebhookAndHelperErrorBranches(t *testing.T) {
 	if channelID != "channel-1" || messageID != "msg-1" {
 		t.Fatalf("decodeRemoteMessageID(valid) = (%q, %q), want (channel-1, msg-1)", channelID, messageID)
 	}
-	if got := readResponseBody(nil); got != "" {
-		t.Fatalf("readResponseBody(nil) = %q, want empty", got)
-	}
-	if got := readResponseBody(discordErrorReader{}); got != "" {
-		t.Fatalf("readResponseBody(error) = %q, want empty", got)
-	}
 	if got := parseRetryAfter("0"); got != 0 {
 		t.Fatalf("parseRetryAfter(0) = %s, want 0", got)
 	}
@@ -1342,15 +2424,15 @@ func TestHandleDiscordEventWebhookUsesRequestContext(t *testing.T) {
 
 	managed := testDiscordManagedInstance("brg-discord")
 	runtime := &subprocess.InitializeBridgeRuntime{
-		RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
+		RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion2,
+		Purpose:        subprocess.BridgeRuntimePurposeService,
 		Provider:       "discord",
 		Platform:       "discord",
 		ManagedInstances: []subprocess.InitializeBridgeManagedInstance{
 			managed,
 		},
 	}
-	provider.mu.Lock()
-	provider.session = injectedDiscordSession(t,
+	session := injectedDiscordSession(t,
 		bridgesdk.NewHostAPIClientFromCall(func(ctx context.Context, method string, _ any, _ any) error {
 			if method != "bridges/messages/ingest" {
 				return fmt.Errorf("unexpected host api method %q", method)
@@ -1362,7 +2444,15 @@ func TestHandleDiscordEventWebhookUsesRequestContext(t *testing.T) {
 		}),
 		bridgesdk.NewInstanceCache(runtime),
 	)
-	provider.mu.Unlock()
+	if err := provider.handleInitialize(context.Background(), session); err != nil {
+		t.Fatalf("handleInitialize() error = %v", err)
+	}
+	t.Cleanup(func() {
+		provider.lifecycle.Stop()
+		if err := provider.lifecycle.Wait(context.Background()); err != nil {
+			t.Fatalf("provider lifecycle wait error = %v", err)
+		}
+	})
 
 	cfg := resolvedInstanceConfig{
 		instanceID: "brg-discord",
@@ -1406,10 +2496,9 @@ func TestHandleDiscordEventWebhookUsesRequestContext(t *testing.T) {
 	}
 }
 
-func TestReconcileConfigMarkerAndFileHelpers(t *testing.T) {
+func TestReconcileConfigHelpers(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
 	provider, err := newDiscordProvider(io.Discard)
 	if err != nil {
 		t.Fatalf("newDiscordProvider() error = %v", err)
@@ -1418,10 +2507,7 @@ func TestReconcileConfigMarkerAndFileHelpers(t *testing.T) {
 		return &discordAPIFake{postedMessageID: "msg-1"}
 	}
 
-	cfg := discordProviderConfig{
-		APIBaseURL:    "https://tenant.example.invalid/api/",
-		ApplicationID: "bot-1",
-	}
+	cfg := discordProviderConfig{ApplicationID: "bot-1"}
 	cfg.Webhook.ListenAddr = "127.0.0.1:0"
 	cfg.Webhook.Path = "/discord/brg-discord"
 	rawConfig, err := json.Marshal(cfg)
@@ -1449,43 +2535,14 @@ func TestReconcileConfigMarkerAndFileHelpers(t *testing.T) {
 	if got, want := configs[0].apiBaseURL, discordDefaultAPIBaseURL; got != want {
 		t.Fatalf("apiBaseURL = %q, want %q", got, want)
 	}
-	if provider.server == nil {
-		t.Fatal("provider.server = nil, want configured webhook server")
-	}
-	if got, want := provider.server.ReadHeaderTimeout, discordWebhookReadHeaderTimeout; got != want {
-		t.Fatalf("ReadHeaderTimeout = %s, want %s", got, want)
-	}
-	if got, want := provider.server.IdleTimeout, discordWebhookIdleTimeout; got != want {
-		t.Fatalf("IdleTimeout = %s, want %s", got, want)
+	if provider.http.Address() == "" {
+		t.Fatal("provider HTTP address is empty after reconciliation")
 	}
 	if _, err := provider.waitForInstanceConfig("brg-discord", time.Second); err != nil {
 		t.Fatalf("waitForInstanceConfig() error = %v", err)
 	}
 	if _, ok := provider.configForPath("/discord/brg-discord"); !ok {
 		t.Fatal("configForPath() ok = false, want true")
-	}
-
-	linePath := filepath.Join(tmpDir, "markers", "line.log")
-	if err := appendMarkerLine(linePath, "hello"); err != nil {
-		t.Fatalf("appendMarkerLine() error = %v", err)
-	}
-	jsonLinePath := filepath.Join(tmpDir, "markers", "items.jsonl")
-	if err := appendJSONLine(jsonLinePath, map[string]string{"hello": "world"}); err != nil {
-		t.Fatalf("appendJSONLine() error = %v", err)
-	}
-	jsonFilePath := filepath.Join(tmpDir, "markers", "state.json")
-	if err := writeJSONFile(jsonFilePath, map[string]string{"hello": "world"}); err != nil {
-		t.Fatalf("writeJSONFile() error = %v", err)
-	}
-	crashPath := filepath.Join(tmpDir, "markers", "crash.json")
-	if !shouldCrashOnce(crashPath) {
-		t.Fatal("shouldCrashOnce(missing) = false, want true")
-	}
-	if err := os.WriteFile(crashPath, []byte(`{}`), 0o600); err != nil {
-		t.Fatalf("WriteFile() error = %v", err)
-	}
-	if shouldCrashOnce(crashPath) {
-		t.Fatal("shouldCrashOnce(existing) = true, want false")
 	}
 }
 
@@ -1496,10 +2553,7 @@ func TestProviderHostAPIFlowWithInjectedSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateKey() error = %v", err)
 	}
-	cfg := discordProviderConfig{
-		APIBaseURL:    "https://discord.test/api/",
-		ApplicationID: "bot-1",
-	}
+	cfg := discordProviderConfig{ApplicationID: "bot-1"}
 	cfg.Webhook.ListenAddr = "127.0.0.1:0"
 	cfg.Webhook.Path = "/discord/brg-discord"
 	cfg.Batching.DelayMS = 1
@@ -1524,7 +2578,8 @@ func TestProviderHostAPIFlowWithInjectedSession(t *testing.T) {
 		},
 	}
 	runtime := &subprocess.InitializeBridgeRuntime{
-		RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
+		RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion2,
+		Purpose:        subprocess.BridgeRuntimePurposeService,
 		Provider:       "discord",
 		Platform:       "discord",
 		ManagedInstances: []subprocess.InitializeBridgeManagedInstance{
@@ -1534,7 +2589,7 @@ func TestProviderHostAPIFlowWithInjectedSession(t *testing.T) {
 
 	var mu sync.Mutex
 	ingests := make([]bridgepkg.InboundMessageEnvelope, 0)
-	reportedStates := make([]extensioncontract.BridgesInstancesReportStateParams, 0)
+	reportedStates := make([]bridgepkg.BridgesInstancesReportStateParams, 0)
 	session := injectedDiscordSession(t,
 		bridgesdk.NewHostAPIClientFromCall(func(_ context.Context, method string, params any, result any) error {
 			mu.Lock()
@@ -1549,17 +2604,17 @@ func TestProviderHostAPIFlowWithInjectedSession(t *testing.T) {
 				*target = instance
 				return nil
 			case "bridges/instances/report_state":
-				reportedStates = append(reportedStates, params.(extensioncontract.BridgesInstancesReportStateParams))
+				reportedStates = append(reportedStates, params.(bridgepkg.BridgesInstancesReportStateParams))
 				target := result.(*bridgepkg.BridgeInstance)
 				updated := instance
-				updated.Status = params.(extensioncontract.BridgesInstancesReportStateParams).Status
-				updated.Degradation = params.(extensioncontract.BridgesInstancesReportStateParams).Degradation
+				updated.Status = params.(bridgepkg.BridgesInstancesReportStateParams).Status
+				updated.Degradation = params.(bridgepkg.BridgesInstancesReportStateParams).Degradation
 				*target = updated
 				return nil
 			case "bridges/messages/ingest":
 				ingests = append(ingests, params.(bridgepkg.InboundMessageEnvelope))
-				target := result.(*extensioncontract.BridgesMessagesIngestResult)
-				*target = extensioncontract.BridgesMessagesIngestResult{SessionID: "sess-1"}
+				target := result.(*bridgepkg.BridgesMessagesIngestResult)
+				*target = bridgepkg.BridgesMessagesIngestResult{SessionID: "sess-1"}
 				return nil
 			default:
 				return fmt.Errorf("unexpected host api method %q", method)
@@ -1574,18 +2629,6 @@ func TestProviderHostAPIFlowWithInjectedSession(t *testing.T) {
 	}
 	provider.apiFactory = func(resolvedInstanceConfig) discordAPI {
 		return &discordAPIFake{postedMessageID: "msg-1"}
-	}
-
-	if listed, err := provider.syncOwnedInstances(context.Background(), session); err != nil || len(listed) != 1 {
-		t.Fatalf("syncOwnedInstances() = (%d, %v), want (1, nil)", len(listed), err)
-	}
-	if fetched, err := provider.getOwnedInstance(
-		context.Background(),
-		session,
-		instance.ID,
-	); err != nil || fetched == nil ||
-		fetched.ID != instance.ID {
-		t.Fatalf("getOwnedInstance() = (%#v, %v), want instance and nil", fetched, err)
 	}
 
 	resolved := provider.resolveInstanceConfig(session, managed)
@@ -1605,18 +2648,18 @@ func TestProviderHostAPIFlowWithInjectedSession(t *testing.T) {
 		[]subprocess.InitializeBridgeManagedInstance{managed},
 	)
 	defer func() {
-		if provider.server != nil {
-			_ = provider.server.Close()
+		if err := provider.http.Shutdown(context.Background()); err != nil {
+			t.Fatalf("provider HTTP shutdown error = %v", err)
 		}
-		provider.stop()
+		provider.lifecycle.Stop()
 	}()
 	if len(configs) != 1 {
 		t.Fatalf("len(configs) = %d, want 1", len(configs))
 	}
 
-	provider.mu.Lock()
-	provider.session = session
-	provider.mu.Unlock()
+	if err := provider.handleInitialize(context.Background(), session); err != nil {
+		t.Fatalf("handleInitialize() error = %v", err)
+	}
 
 	message := bridgepkg.InboundMessageEnvelope{
 		BridgeInstanceID:  instance.ID,
@@ -1701,14 +2744,28 @@ func TestProviderHostAPIFlowWithInjectedSession(t *testing.T) {
 }
 
 type discordAPIFake struct {
-	postedMessageID string
-	postErr         error
-	updateErr       error
-	deleteErr       error
+	postedMessageID  string
+	postedMessageIDs []string
+	postErr          error
+	postErrorContent string
+	updateErr        error
+	updateErrors     []error
+	updateStarted    chan struct{}
+	updateBlock      <-chan struct{}
+	updateStartOnce  sync.Once
+	deleteErr        error
+	deleteErrors     []error
+	typingStopErr    error
 
-	postRequests   []discordPostMessageRequest
-	updateRequests []discordUpdateMessageRequest
-	deleteRequests []discordDeleteMessageRequest
+	postRequests     []discordPostMessageRequest
+	postAttempts     []discordPostMessageRequest
+	updateAttempts   []discordUpdateMessageRequest
+	updateRequests   []discordUpdateMessageRequest
+	deleteRequests   []discordDeleteMessageRequest
+	deleteAttempts   []discordDeleteMessageRequest
+	typingRequests   []discordTypingRequest
+	reactionRequests []discordReactionRequest
+	progressActions  []string
 }
 
 func (f *discordAPIFake) GetBotUser(context.Context) (*discordBotIdentity, error) {
@@ -1716,27 +2773,188 @@ func (f *discordAPIFake) GetBotUser(context.Context) (*discordBotIdentity, error
 }
 
 func (f *discordAPIFake) PostMessage(_ context.Context, req discordPostMessageRequest) (*discordPostedMessage, error) {
-	if f.postErr != nil {
+	f.postAttempts = append(f.postAttempts, req)
+	if f.postErr != nil && (f.postErrorContent == "" || req.Content == f.postErrorContent) {
 		return nil, f.postErr
 	}
 	f.postRequests = append(f.postRequests, req)
-	return &discordPostedMessage{ID: f.postedMessageID}, nil
+	f.progressActions = append(f.progressActions, "post:"+req.ChannelID+":"+req.Content)
+	messageID := f.postedMessageID
+	if index := len(f.postRequests) - 1; index < len(f.postedMessageIDs) {
+		messageID = f.postedMessageIDs[index]
+	}
+	return &discordPostedMessage{ID: messageID}, nil
+}
+
+func countDiscordPostRequests(requests []discordPostMessageRequest, content string) int {
+	count := 0
+	for _, request := range requests {
+		if request.Content == content {
+			count++
+		}
+	}
+	return count
+}
+
+func testDiscordResumeRequest(request bridgepkg.DeliveryRequest) bridgepkg.DeliveryRequest {
+	resume := request
+	resume.Event.EventType = bridgepkg.DeliveryEventTypeResume
+	resume.Event.Resume = &bridgepkg.DeliveryResumeState{LatestEventType: bridgepkg.DeliveryEventTypeFinal}
+	resume.Snapshot = &bridgepkg.DeliverySnapshot{
+		DeliveryID:       request.Event.DeliveryID,
+		SessionID:        "sess-resume",
+		TurnID:           "turn-resume",
+		BridgeInstanceID: request.Event.BridgeInstanceID,
+		RoutingKey:       request.Event.RoutingKey,
+		DeliveryTarget:   request.Event.DeliveryTarget,
+		LatestSeq:        request.Event.Seq,
+		LatestEventType:  bridgepkg.DeliveryEventTypeFinal,
+		CurrentContent:   request.Event.Content,
+		Operation:        request.Event.Operation,
+		Final:            true,
+		UpdatedAt:        time.Date(2026, 7, 13, 9, 0, 0, 0, time.UTC),
+	}
+	return resume
 }
 
 func (f *discordAPIFake) UpdateMessage(_ context.Context, req discordUpdateMessageRequest) error {
+	f.updateAttempts = append(f.updateAttempts, req)
+	if f.updateStarted != nil {
+		f.updateStartOnce.Do(func() { close(f.updateStarted) })
+	}
+	if f.updateBlock != nil {
+		<-f.updateBlock
+	}
+	if index := len(f.updateAttempts) - 1; index < len(f.updateErrors) && f.updateErrors[index] != nil {
+		return f.updateErrors[index]
+	}
 	if f.updateErr != nil {
 		return f.updateErr
 	}
 	f.updateRequests = append(f.updateRequests, req)
+	f.progressActions = append(f.progressActions, "update:"+req.ChannelID+":"+req.MessageID+":"+req.Content)
 	return nil
 }
 
 func (f *discordAPIFake) DeleteMessage(_ context.Context, req discordDeleteMessageRequest) error {
+	f.deleteAttempts = append(f.deleteAttempts, req)
+	callIndex := len(f.deleteAttempts) - 1
+	if callIndex < len(f.deleteErrors) && f.deleteErrors[callIndex] != nil {
+		return f.deleteErrors[callIndex]
+	}
 	if f.deleteErr != nil {
 		return f.deleteErr
 	}
 	f.deleteRequests = append(f.deleteRequests, req)
 	return nil
+}
+
+func (f *discordAPIFake) SetTyping(_ context.Context, req discordTypingRequest) error {
+	f.typingRequests = append(f.typingRequests, req)
+	f.progressActions = append(
+		f.progressActions,
+		fmt.Sprintf("typing:%t:%s", req.Active, req.ChannelID),
+	)
+	if !req.Active && f.typingStopErr != nil {
+		return f.typingStopErr
+	}
+	return nil
+}
+
+func (f *discordAPIFake) AddReaction(_ context.Context, req discordReactionRequest) error {
+	f.reactionRequests = append(f.reactionRequests, req)
+	f.progressActions = append(
+		f.progressActions,
+		"react:"+req.ChannelID+":"+req.MessageID+":"+req.Reaction,
+	)
+	return nil
+}
+
+type discordManualProgressTimer struct {
+	mu       sync.Mutex
+	delay    time.Duration
+	callback func()
+}
+
+func (t *discordManualProgressTimer) Schedule(
+	delay time.Duration,
+	callback func(),
+) bridgesdk.ProgressCancel {
+	t.mu.Lock()
+	t.delay = delay
+	t.callback = callback
+	t.mu.Unlock()
+	return func() bool {
+		t.mu.Lock()
+		defer t.mu.Unlock()
+		if t.callback == nil {
+			return false
+		}
+		t.callback = nil
+		return true
+	}
+}
+
+func (t *discordManualProgressTimer) Delay() time.Duration {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.delay
+}
+
+func (t *discordManualProgressTimer) Run(test *testing.T) {
+	test.Helper()
+	t.mu.Lock()
+	callback := t.callback
+	t.callback = nil
+	t.mu.Unlock()
+	if callback == nil {
+		test.Fatal("scheduled progress callback = nil")
+	}
+	callback()
+}
+
+func testDiscordProgressRequest(
+	deliveryID string,
+	seq int64,
+	progress bridgepkg.ToolProgress,
+) bridgepkg.DeliveryRequest {
+	return bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+		DeliveryID:       deliveryID,
+		BridgeInstanceID: "brg-discord",
+		RoutingKey: bridgepkg.RoutingKey{
+			Scope:            bridgepkg.ScopeWorkspace,
+			WorkspaceID:      "ws-1",
+			BridgeInstanceID: "brg-discord",
+			GroupID:          "channel-1",
+			ThreadID:         "thread-1",
+		},
+		DeliveryTarget: bridgepkg.DeliveryTarget{
+			BridgeInstanceID: "brg-discord",
+			GroupID:          "channel-1",
+			ThreadID:         "thread-1",
+			Mode:             bridgepkg.DeliveryModeReply,
+		},
+		Seq:       seq,
+		EventType: bridgepkg.DeliveryEventTypeProgress,
+		Operation: bridgepkg.DeliveryOperationPost,
+		Progress:  &progress,
+	}}
+}
+
+func testDiscordLifecycleFinalRequest(deliveryID string, seq int64) bridgepkg.DeliveryRequest {
+	request := testDiscordProgressRequest(deliveryID, seq, bridgepkg.ToolProgress{})
+	request.Event.EventType = bridgepkg.DeliveryEventTypeFinal
+	request.Event.Final = true
+	request.Event.Progress = nil
+	return request
+}
+
+func setDiscordProviderRoute(
+	provider *discordProvider,
+	instanceID string,
+	config *resolvedInstanceConfig,
+) {
+	provider.routes.Replace(map[string]resolvedInstanceConfig{instanceID: *config}, nil)
 }
 
 func testDiscordManagedInstance(id string) subprocess.InitializeBridgeManagedInstance {
@@ -1763,12 +2981,6 @@ func bridgepkgToWebhookRequest(t *testing.T, payload any, receivedAt time.Time) 
 	}
 }
 
-type rpcCodeErr struct{}
-
-func (rpcCodeErr) Error() string { return "not initialized" }
-
-func (rpcCodeErr) Code() int { return rpcCodeNotInitialized }
-
 type discordAPIGetBotUserErrorFake struct {
 	err error
 }
@@ -1790,12 +3002,6 @@ func (f *discordAPIGetBotUserErrorFake) UpdateMessage(context.Context, discordUp
 
 func (f *discordAPIGetBotUserErrorFake) DeleteMessage(context.Context, discordDeleteMessageRequest) error {
 	return f.err
-}
-
-type discordErrorReader struct{}
-
-func (discordErrorReader) Read([]byte) (int, error) {
-	return 0, errors.New("read failed")
 }
 
 func injectedDiscordSession(

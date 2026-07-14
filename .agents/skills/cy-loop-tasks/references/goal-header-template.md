@@ -33,9 +33,9 @@ The skill is a continue loop — one phase action per iteration, then the next, 
 ```
 
 - `--frontend claude` → Claude Code workers (`claude
-  --dangerously-skip-permissions --model opus --effort xhigh`)
+--dangerously-skip-permissions --model opus --effort xhigh`)
 - `--frontend cursor` → Cursor workers (`cursor-agent --yolo --model
-  grok-4.5`)
+grok-4.5`)
 
 Bootstrap passes the value to `init-state.py --frontend`; it lands in
 `state.yaml.frontend_agent` and holds for the whole loop. Omit the parameter

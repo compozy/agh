@@ -139,6 +139,47 @@ func TestBridgeInstanceResourceCodecAllowsProviderSpecificDeliveryDefaults(t *te
 	}
 }
 
+func TestBridgeProgressConfigValidationAndResolution(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should validate a typed progress block alongside provider defaults", func(t *testing.T) {
+		t.Parallel()
+
+		raw := []byte(`{
+			"scope":"global",
+			"platform":"slack",
+			"extension_name":"ext-slack",
+			"display_name":"Support",
+			"enabled":true,
+			"dm_policy":"open",
+			"routing_policy":{"include_peer":true},
+			"delivery_defaults":{
+				"thread_id":"thread-support",
+				"progress":{"tool_progress":"all","grouping":"separate","typing":true,"reactions":true}
+			}
+		}`)
+		codec, err := bridgepkg.NewBridgeInstanceResourceCodec(nil)
+		if err != nil {
+			t.Fatalf("NewBridgeInstanceResourceCodec() error = %v", err)
+		}
+		spec, err := codec.DecodeAndValidate(
+			testutil.Context(t),
+			resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			raw,
+		)
+		if err != nil {
+			t.Fatalf("DecodeAndValidate() error = %v", err)
+		}
+		instance := bridgepkg.BridgeInstance{Platform: "slack", DeliveryDefaults: spec.DeliveryDefaults}
+		got := bridgepkg.ResolveProgressConfig(&instance, instance.Platform)
+		if got.ToolProgress != bridgepkg.ProgressModeAll ||
+			got.Grouping != bridgepkg.ProgressGroupingSeparate ||
+			!got.Typing || !got.Reactions {
+			t.Fatalf("ResolveProgressConfig(instance) = %#v, want explicit override", got)
+		}
+	})
+}
+
 func TestBridgeInstanceResourceCodecEnforcesProviderManifestMetadata(t *testing.T) {
 	t.Parallel()
 

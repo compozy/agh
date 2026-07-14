@@ -33,7 +33,7 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	eventspkg "github.com/compozy/agh/internal/events"
 	extensionpkg "github.com/compozy/agh/internal/extension"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/heartbeat"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/memory"
@@ -6187,6 +6187,10 @@ func (r *recordingRegistry) UpdateSessionState(context.Context, store.SessionSta
 	return nil
 }
 
+func (r *recordingRegistry) DeleteSession(context.Context, string) error {
+	return nil
+}
+
 func (r *recordingRegistry) ListSessions(context.Context, store.SessionListQuery) ([]store.SessionInfo, error) {
 	return nil, nil
 }
@@ -7843,6 +7847,7 @@ type fakeExtensionRuntime struct {
 	getFn       func(string) (*extensionpkg.Extension, error)
 	onStart     func()
 	onStop      func()
+	onReload    func(context.Context) error
 }
 
 func (f *fakeExtensionRuntime) Start(context.Context) error {
@@ -7861,8 +7866,13 @@ func (f *fakeExtensionRuntime) Stop(context.Context) error {
 	return f.stopErr
 }
 
-func (f *fakeExtensionRuntime) Reload(context.Context) error {
+func (f *fakeExtensionRuntime) Reload(ctx context.Context) error {
 	f.reloadCount++
+	if f.onReload != nil {
+		if err := f.onReload(ctx); err != nil {
+			return err
+		}
+	}
 	return f.reloadErr
 }
 
@@ -7915,6 +7925,9 @@ func openDaemonTestGlobalDB(t *testing.T) *globaldb.GlobalDB {
 	t.Helper()
 
 	databasePath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+	if err := daemonTestStoreSeed.Clone(databasePath); err != nil {
+		t.Fatalf("daemon store seed Clone() error = %v", err)
+	}
 	db, err := globaldb.OpenGlobalDB(testutil.Context(t), databasePath)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
@@ -7922,18 +7935,6 @@ func openDaemonTestGlobalDB(t *testing.T) *globaldb.GlobalDB {
 	t.Cleanup(func() {
 		if err := db.Close(testutil.Context(t)); err != nil {
 			t.Fatalf("GlobalDB.Close() error = %v", err)
-		}
-	})
-	memoryStore := memory.NewStore(
-		filepath.Join(t.TempDir(), "memory"),
-		memory.WithCatalogDatabasePath(databasePath),
-	)
-	if err := memoryStore.OpenCatalog(testutil.Context(t)); err != nil {
-		t.Fatalf("MemoryStore.OpenCatalog() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := memoryStore.CloseCatalog(testutil.Context(t)); err != nil {
-			t.Errorf("MemoryStore.CloseCatalog() error = %v", err)
 		}
 	})
 	return db

@@ -2,10 +2,10 @@ package transcript
 
 import (
 	"encoding/json"
-	"strings"
 
 	"github.com/compozy/agh/internal/acp"
 	"github.com/compozy/agh/internal/diagnostics"
+	redactpkg "github.com/compozy/agh/internal/redact"
 	"github.com/compozy/agh/internal/store"
 )
 
@@ -16,6 +16,12 @@ func RedactAgentEvent(event acp.AgentEvent) acp.AgentEvent {
 	redacted.Text = redactDisplayString(event.Text)
 	redacted.Title = redactDisplayString(event.Title)
 	redacted.ToolCallID = redactDisplayString(event.ToolCallID)
+	redacted = redacted.WithToolDetail(
+		redactDisplayString(event.ToolName()),
+		redactRawMessage(event.ToolInput()),
+		event.ToolError(),
+		redactDisplayString(event.ToolErrorDetail()),
+	)
 	redacted.StopReason = redactDisplayString(event.StopReason)
 	redacted.PromptStopReason = acp.PromptStopReason(redactDisplayString(string(event.PromptStopReason)))
 	redacted.Action = redactDisplayString(event.Action)
@@ -202,35 +208,7 @@ func redactJSONDisplayValue(value any) (bool, any) {
 }
 
 func sensitiveDisplayJSONField(key string) bool {
-	normalized := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(key), "-", "_"))
-	if normalized == "token_present" {
-		return false
-	}
-	for _, field := range []string{
-		"api_key",
-		"access_token",
-		"refresh_token",
-		"mcp_auth_token",
-		"claim_token",
-		"lease_token",
-		"bot_token",
-		"oauth_code",
-		"authorization_code",
-		"client_secret",
-		"webhook_secret",
-		"code_verifier",
-		"pkce_verifier",
-		"secret_binding",
-		"authorization",
-		"password",
-		"token",
-		"secret",
-	} {
-		if strings.Contains(normalized, field) {
-			return true
-		}
-	}
-	return false
+	return redactpkg.IsSensitiveKey(key)
 }
 
 func redactDisplayString(value string) string {

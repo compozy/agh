@@ -25,7 +25,7 @@ cd packages/site && bun run dev  (or make site-dev)  # next dev (predev runs bot
 make cli-docs                                        # regenerate CLI reference from cobra JSON export
 ```
 
-`predev`/`prebuild`/`pretypecheck`/`pretest` run both generators in series. `.source/`, `.velite/`, `out/`, `.next/`, `tsconfig.tsbuildinfo` are generated — never commit them.
+`predev` and direct builds run `generate`; Turbo-backed build/typecheck/test reuse the cacheable `generate:openapi → generate:content` graph. `.source/`, `.velite/`, `out/`, `.next/`, `tsconfig.tsbuildinfo` are generated — never commit them.
 
 ## Skill Dispatch
 

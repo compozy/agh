@@ -311,10 +311,13 @@ func ToolsetPayloadFromView(view toolspkg.ToolsetView) contract.ToolsetPayload {
 
 // toolDescriptorPayload detaches registry-owned descriptor data from transport DTOs.
 func toolDescriptorPayload(d toolspkg.Descriptor) contract.ToolDescriptorPayload {
+	presentation := d.Presentation()
 	return contract.ToolDescriptorPayload{
 		ToolID:              d.ID,
 		Backend:             toolBackendPayload(d.Backend),
 		DisplayTitle:        d.DisplayTitle,
+		FriendlyVerb:        presentation.FriendlyVerb,
+		Preview:             presentation.Preview,
 		Description:         d.Description,
 		InputSchema:         cloneRawMessage(d.InputSchema),
 		OutputSchema:        cloneRawMessage(d.OutputSchema),

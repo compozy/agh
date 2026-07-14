@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	retrypkg "github.com/compozy/agh/internal/retry"
 )
 
@@ -119,6 +119,58 @@ func (e *PermanentError) Unwrap() error {
 	return e.Err
 }
 
+// CommittedMutationError marks a remote mutation that the provider accepted,
+// but whose required result could not be materialized locally. Retrying such
+// an operation could duplicate the remote side effect.
+type CommittedMutationError struct {
+	Err error
+}
+
+const committedMutationFallbackMessage = "remote mutation committed but its result is unavailable"
+
+func (e *CommittedMutationError) Error() string {
+	if e == nil || e.Err == nil {
+		return committedMutationFallbackMessage
+	}
+	message := e.Err.Error()
+	if strings.TrimSpace(message) == "" {
+		return committedMutationFallbackMessage
+	}
+	return message
+}
+
+func (e *CommittedMutationError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+// MarkCommittedMutation preserves an existing committed-mutation marker or
+// wraps an error so retry layers can distinguish it from a pre-commit failure.
+func MarkCommittedMutation(err error) error {
+	if err == nil {
+		return nil
+	}
+	if committed, ok := errors.AsType[*CommittedMutationError](err); ok && committed != nil {
+		return err
+	}
+	return &CommittedMutationError{Err: err}
+}
+
+// IsCommittedMutation reports whether a remote mutation crossed its commit boundary.
+func IsCommittedMutation(err error) bool {
+	var committed *CommittedMutationError
+	return errors.As(err, &committed)
+}
+
+// ShouldContinueTextDeliveryAfterProgress reports whether a progress failure is
+// safe to consume before the independently addressed text mutation. A committed
+// progress mutation must never be misreported as the outcome of the text event.
+func ShouldContinueTextDeliveryAfterProgress(err error) bool {
+	return err == nil || IsCommittedMutation(err)
+}
+
 // ClassifiedError is one actionable provider failure classification.
 type ClassifiedError struct {
 	Class      ErrorClass
@@ -174,6 +226,10 @@ func ClassifyError(err error) ClassifiedError {
 }
 
 func classifyTypedProviderError(err error) (ClassifiedError, bool) {
+	if IsCommittedMutation(err) {
+		return classifiedProviderError(err, ErrorClassPermanent, 0), true
+	}
+
 	if authErr, ok := errors.AsType[*AuthError](err); ok && authErr != nil {
 		return classifiedProviderError(err, ErrorClassAuth, 0), true
 	}

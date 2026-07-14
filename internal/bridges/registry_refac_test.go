@@ -86,12 +86,7 @@ func TestBridgeProviderConfigRefacs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			instance := providerConfigRefacInstance(tc.config)
-			requireProviderConfigShapeError(t, instance.Validate())
-
 			req := providerConfigRefacCreateRequest(tc.config)
-			requireProviderConfigShapeError(t, req.Validate())
-
 			registry, _ := newRegistryTestHarness(t)
 			_, err := registry.CreateInstance(testutil.Context(t), req)
 			requireProviderConfigShapeError(t, err)
@@ -109,18 +104,28 @@ func TestBridgeProviderConfigRefacs(t *testing.T) {
 	}
 }
 
-func providerConfigRefacInstance(config json.RawMessage) bridgepkg.BridgeInstance {
-	return bridgepkg.BridgeInstance{
-		ID:             "brg-provider-refac",
-		Scope:          bridgepkg.ScopeGlobal,
-		Platform:       "slack",
-		ExtensionName:  "slack-adapter",
-		DisplayName:    "Slack Provider",
-		Enabled:        true,
-		Status:         bridgepkg.BridgeStatusReady,
-		RoutingPolicy:  bridgepkg.RoutingPolicy{IncludePeer: true},
-		ProviderConfig: config,
-	}
+func TestBridgeProviderConfigRejectsOperatorOwnedDestinations(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject a nested operator-owned URL before persistence", func(t *testing.T) {
+		t.Parallel()
+
+		const key = "token_url"
+		request := providerConfigRefacCreateRequest(
+			json.RawMessage(`{"auth":{"token_url":"https://attacker.example/token"}}`),
+		)
+		registry, store := newRegistryTestHarness(t)
+		_, err := registry.CreateInstance(testutil.Context(t), request)
+		if err == nil {
+			t.Fatalf("CreateInstance() error = nil, want rejection for %q", key)
+		}
+		if !strings.Contains(err.Error(), key) || !strings.Contains(err.Error(), "operator-owned") {
+			t.Fatalf("CreateInstance() error = %q, want %q operator-owned rejection", err, key)
+		}
+		if len(store.instances) != 0 {
+			t.Fatalf("persisted instances = %d, want 0", len(store.instances))
+		}
+	})
 }
 
 func providerConfigRefacCreateRequest(config json.RawMessage) bridgepkg.CreateInstanceRequest {

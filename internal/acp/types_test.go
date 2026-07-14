@@ -1,11 +1,72 @@
 package acp
 
 import (
+	"encoding/json"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestAgentEventToolPayloadPreservesValueSemantics(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return zero tool values when the payload is absent", func(t *testing.T) {
+		t.Parallel()
+
+		event := AgentEvent{}
+		if event.HasToolPayload() {
+			t.Fatal("HasToolPayload() = true, want false")
+		}
+		if event.ToolName() != "" || len(event.ToolInput()) != 0 ||
+			event.ToolError() || event.ToolErrorDetail() != "" {
+			t.Fatalf(
+				"zero tool payload = (%q, %s, %t, %q), want empty values",
+				event.ToolName(),
+				event.ToolInput(),
+				event.ToolError(),
+				event.ToolErrorDetail(),
+			)
+		}
+	})
+
+	t.Run("Should isolate tool input and copied event payloads", func(t *testing.T) {
+		t.Parallel()
+
+		input := json.RawMessage(`{"command":"original"}`)
+		event := (AgentEvent{Type: EventTypeToolCall}).WithToolDetail(
+			"agh__terminal",
+			input,
+			true,
+			"command failed",
+		)
+		if !event.HasToolPayload() {
+			t.Fatal("HasToolPayload() = false, want true")
+		}
+		copied := event
+
+		input[2] = 'X'
+		returned := event.ToolInput()
+		returned[2] = 'Y'
+		copied = copied.WithTool("agh__read", json.RawMessage(`{"path":"README.md"}`), false)
+
+		if got, want := event.ToolName(), "agh__terminal"; got != want {
+			t.Fatalf("original tool name = %q, want %q", got, want)
+		}
+		if got, want := string(event.ToolInput()), `{"command":"original"}`; got != want {
+			t.Fatalf("original tool input = %s, want %s", got, want)
+		}
+		if !event.ToolError() {
+			t.Fatal("original tool error = false, want true")
+		}
+		if got, want := event.ToolErrorDetail(), "command failed"; got != want {
+			t.Fatalf("original tool error detail = %q, want %q", got, want)
+		}
+		if got, want := copied.ToolName(), "agh__read"; got != want {
+			t.Fatalf("copied tool name = %q, want %q", got, want)
+		}
+	})
+}
 
 func TestPromptMetaToMap(t *testing.T) {
 	t.Parallel()

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/bridges"
+	bridges "github.com/compozy/agh/internal/bridges/contract"
 )
 
 func TestInitializeBridgeRuntimeValidateRejectsInvalidProviderScopedPayload(t *testing.T) {
@@ -39,7 +39,8 @@ func TestInitializeBridgeRuntimeValidateRejectsInvalidProviderScopedPayload(t *t
 		{
 			name: "missing provider identity",
 			runtime: InitializeBridgeRuntime{
-				RuntimeVersion:   InitializeBridgeRuntimeVersion1,
+				RuntimeVersion:   InitializeBridgeRuntimeVersion2,
+				Purpose:          BridgeRuntimePurposeService,
 				Platform:         "telegram",
 				ManagedInstances: []InitializeBridgeManagedInstance{validManaged},
 			},
@@ -48,7 +49,8 @@ func TestInitializeBridgeRuntimeValidateRejectsInvalidProviderScopedPayload(t *t
 		{
 			name: "invalid managed instance snapshot",
 			runtime: InitializeBridgeRuntime{
-				RuntimeVersion: InitializeBridgeRuntimeVersion1,
+				RuntimeVersion: InitializeBridgeRuntimeVersion2,
+				Purpose:        BridgeRuntimePurposeService,
 				Provider:       "telegram-reference",
 				Platform:       "telegram",
 				ManagedInstances: []InitializeBridgeManagedInstance{{
@@ -70,7 +72,8 @@ func TestInitializeBridgeRuntimeValidateRejectsInvalidProviderScopedPayload(t *t
 		{
 			name: "platform mismatch",
 			runtime: InitializeBridgeRuntime{
-				RuntimeVersion:   InitializeBridgeRuntimeVersion1,
+				RuntimeVersion:   InitializeBridgeRuntimeVersion2,
+				Purpose:          BridgeRuntimePurposeService,
 				Provider:         "telegram-reference",
 				Platform:         "slack",
 				ManagedInstances: []InitializeBridgeManagedInstance{validManaged},
@@ -96,7 +99,8 @@ func TestCloneInitializeBridgeRuntimeDoesNotAliasManagedInstanceState(t *testing
 
 	now := time.Date(2026, 4, 15, 12, 5, 0, 0, time.UTC)
 	src := &InitializeBridgeRuntime{
-		RuntimeVersion: InitializeBridgeRuntimeVersion1,
+		RuntimeVersion: InitializeBridgeRuntimeVersion2,
+		Purpose:        BridgeRuntimePurposeService,
 		Provider:       "telegram-reference",
 		Platform:       "telegram",
 		ManagedInstances: []InitializeBridgeManagedInstance{{
@@ -176,7 +180,8 @@ func TestInitializeBridgeRuntimeManagedInstanceHelpers(t *testing.T) {
 
 	now := time.Date(2026, 4, 15, 12, 10, 0, 0, time.UTC)
 	singleRuntime := InitializeBridgeRuntime{
-		RuntimeVersion: InitializeBridgeRuntimeVersion1,
+		RuntimeVersion: InitializeBridgeRuntimeVersion2,
+		Purpose:        BridgeRuntimePurposeService,
 		Provider:       "telegram-reference",
 		Platform:       "telegram",
 		ManagedInstances: []InitializeBridgeManagedInstance{{
@@ -306,7 +311,8 @@ func TestInitializeBridgeRuntimeValidateRejectsDuplicateManagedInstances(t *test
 	}
 
 	runtime := InitializeBridgeRuntime{
-		RuntimeVersion:   InitializeBridgeRuntimeVersion1,
+		RuntimeVersion:   InitializeBridgeRuntimeVersion2,
+		Purpose:          BridgeRuntimePurposeService,
 		Provider:         "telegram-reference",
 		Platform:         "telegram",
 		ManagedInstances: []InitializeBridgeManagedInstance{managed, managed},

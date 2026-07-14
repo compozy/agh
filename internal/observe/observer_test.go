@@ -1115,6 +1115,9 @@ func newHarness(t *testing.T) *harness {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 
+	if err := observeTestGlobalSeed.Clone(home.DatabaseFile); err != nil {
+		t.Fatalf("global store seed Clone() error = %v", err)
+	}
 	registry, err := globaldb.OpenGlobalDB(ctx, home.DatabaseFile)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/testutil"
 	toolspkg "github.com/compozy/agh/internal/tools"
 )

@@ -1493,6 +1493,9 @@ func TestCatalogServiceRefresh(t *testing.T) {
 		if _, err := service.Refresh(testutil.Context(t), RefreshOptions{Force: true, Now: testTime(42)}); err != nil {
 			t.Fatalf("Refresh(initial global) error = %v", err)
 		}
+		if got, want := source.calls, 1; got != want {
+			t.Fatalf("source calls after initial global refresh = %d, want %d", got, want)
+		}
 
 		source.providers = []string{"beta"}
 		source.rows = []ModelRow{
@@ -1500,6 +1503,9 @@ func TestCatalogServiceRefresh(t *testing.T) {
 		}
 		if _, err := service.Refresh(testutil.Context(t), RefreshOptions{Force: true, Now: testTime(43)}); err != nil {
 			t.Fatalf("Refresh(after provider removal) error = %v", err)
+		}
+		if got, want := source.calls, 2; got != want {
+			t.Fatalf("source calls after two global refreshes = %d, want %d", got, want)
 		}
 
 		alphaRows, err := store.ListRows(testutil.Context(t), ListOptions{
@@ -1992,8 +1998,8 @@ func TestCatalogServiceRefreshConcurrency(t *testing.T) {
 				t.Fatalf("Refresh() error = %v", result.err)
 			}
 		}
-		if got, want := source.callCount(), 2; got != want {
-			t.Fatalf("source calls = %d, want %d shared codex + claude call", got, want)
+		if got, want := source.callCount(), 1; got != want {
+			t.Fatalf("source calls = %d, want %d shared global snapshot", got, want)
 		}
 	})
 }
@@ -2138,7 +2144,19 @@ func (s *blockingRefreshSource) ListModels(ctx context.Context, opts ListOptions
 	}
 
 	s.mu.Lock()
-	rows := cloneModelRows(s.rowsByProvider[opts.ProviderID])
+	rows := make([]ModelRow, 0)
+	if opts.ProviderID == "" {
+		providers := make([]string, 0, len(s.rowsByProvider))
+		for providerID := range s.rowsByProvider {
+			providers = append(providers, providerID)
+		}
+		slices.Sort(providers)
+		for _, providerID := range providers {
+			rows = append(rows, cloneModelRows(s.rowsByProvider[providerID])...)
+		}
+	} else {
+		rows = cloneModelRows(s.rowsByProvider[opts.ProviderID])
+	}
 	s.mu.Unlock()
 	return rows, nil
 }

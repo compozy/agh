@@ -63,7 +63,7 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 	t.Run("Should round trip loop config by workspace and loop name", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t)
+		globalDB := openLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		humanGate := true
 		reattempt := looppkg.ReattemptFullBody
@@ -125,7 +125,7 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 	t.Run("Should reject empty loop config keys", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t)
+		globalDB := openLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		cases := []struct {
 			name     string
@@ -154,7 +154,7 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 	t.Run("Should preserve omitted overrides on partial update", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t)
+		globalDB := openLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		humanGate := true
 		reattempt := looppkg.ReattemptFullBody
@@ -206,7 +206,7 @@ func TestGlobalDBLoopRunCreateShouldSeedInitialCoordinator(t *testing.T) {
 	t.Run("Should create a workspace-scoped coordinator for a running loop", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t)
+		globalDB := openLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 7, 9, 0, 0, 0, time.UTC)
 		run := testLoopRun("looprun-seed", now, looppkg.StatusRunning)
@@ -269,7 +269,7 @@ func TestGlobalDBLoopRunCreateShouldSeedInitialCoordinator(t *testing.T) {
 	t.Run("Should not create a coordinator for queued loop starts", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t)
+		globalDB := openLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 7, 9, 5, 0, 0, time.UTC)
 		first := testLoopRun("looprun-seed-running", now, looppkg.StatusRunning)
@@ -292,7 +292,7 @@ func TestGlobalDBLoopRunCreateShouldSeedInitialCoordinator(t *testing.T) {
 	t.Run("Should reserve coordinator wakes beyond the task retry budget", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t)
+		globalDB := openLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 7, 9, 10, 0, 0, time.UTC)
 		created, err := globalDB.CreateLoopRunForStart(
@@ -440,7 +440,7 @@ func TestGlobalDBLoopRunStatusShouldUseCompareAndSwap(t *testing.T) {
 	t.Run("Should allow only one concurrent transition from the same status", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t)
+		globalDB := openLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 4, 14, 0, 0, 0, time.UTC)
 		run := testLoopRun("looprun-cas", now, looppkg.StatusRunning)
@@ -522,7 +522,7 @@ func TestGlobalDBLoopRunStatusShouldUseCompareAndSwap(t *testing.T) {
 	t.Run("Should ignore same-status compare-and-swap without appending an event", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t)
+		globalDB := openLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 4, 14, 5, 0, 0, time.UTC)
 		run := testLoopRun("looprun-cas-noop", now, looppkg.StatusRunning)
@@ -551,7 +551,7 @@ func TestGlobalDBLoopDefinitionSnapshotShouldRejectDigestCollisions(t *testing.T
 	t.Run("Should roll back a new Run when the workspace digest already owns different content", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t)
+		globalDB := openLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
 		first := testLoopRun("looprun-snapshot-first", now, looppkg.StatusRunning)
@@ -593,7 +593,7 @@ func TestGlobalDBLoopRunCreateShouldApplyConcurrencyPolicyAtomically(t *testing.
 	t.Run("Should allow only one concurrent forbid start", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t)
+		globalDB := openLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 4, 14, 15, 0, 0, time.UTC)
 		attempts := make([]error, 8)
@@ -647,7 +647,7 @@ func TestGlobalDBLoopRunCreateShouldApplyConcurrencyPolicyAtomically(t *testing.
 	t.Run("Should queue concurrent queue starts after the first running run", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t)
+		globalDB := openLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 4, 14, 20, 0, 0, time.UTC)
 		attempts := make([]error, 8)

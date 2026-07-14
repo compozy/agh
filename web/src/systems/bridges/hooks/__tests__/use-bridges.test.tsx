@@ -9,6 +9,7 @@ import {
   useBridgeRoutes,
   useBridgeSecretBindings,
   useBridges,
+  useSlackBridgeManifest,
 } from "@/systems/bridges/hooks/use-bridges";
 
 vi.mock("@/systems/bridges/adapters/bridges-api", () => ({
@@ -27,6 +28,13 @@ vi.mock("@/systems/bridges/adapters/bridges-api", () => ({
   updateBridge: vi.fn(),
 }));
 
+vi.mock("@/systems/bridges/adapters/bridge-setup-api", () => ({
+  getSlackBridgeManifest: vi.fn(),
+  registerBridgeWebhook: vi.fn(),
+  sendBridgeTest: vi.fn(),
+  verifyBridge: vi.fn(),
+}));
+
 import {
   getBridge,
   listBridgeSecretBindings,
@@ -34,6 +42,7 @@ import {
   listBridgeRoutes,
   listBridges,
 } from "@/systems/bridges/adapters/bridges-api";
+import { getSlackBridgeManifest } from "@/systems/bridges/adapters/bridge-setup-api";
 import type { BridgesListResponse } from "@/systems/bridges/types";
 
 function bridgePage(
@@ -169,6 +178,64 @@ describe("useBridgeProviders", () => {
     });
 
     expect(listBridgeProviders).toHaveBeenCalledWith(expect.any(AbortSignal));
+  });
+});
+
+describe("useSlackBridgeManifest", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("loads the manifest only for a persisted nonblank bridge instance", async () => {
+    vi.mocked(getSlackBridgeManifest).mockResolvedValue({
+      manifest: {
+        _metadata: { major_version: 1, minor_version: 1 },
+        display_information: {
+          background_color: "#E8572A",
+          description: "AGH Slack bridge",
+          name: "AGH",
+        },
+        features: {
+          bot_user: { always_online: false, display_name: "AGH" },
+          slash_commands: [],
+        },
+        oauth_config: { scopes: { bot: ["app_mentions:read"] } },
+        settings: {
+          event_subscriptions: {
+            bot_events: ["app_mention"],
+            request_url: "https://bridge.example.test/slack",
+          },
+          interactivity: {
+            is_enabled: true,
+            request_url: "https://bridge.example.test/slack",
+          },
+          org_deploy_enabled: false,
+          socket_mode_enabled: false,
+          token_rotation_enabled: false,
+        },
+      },
+    });
+
+    const { result } = renderHook(() => useSlackBridgeManifest(" brg_slack "), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.data?.manifest.display_information.name).toBe("AGH");
+    });
+    expect(getSlackBridgeManifest).toHaveBeenCalledWith("brg_slack", expect.any(AbortSignal));
+  });
+
+  it("does not fetch a manifest without a persisted bridge instance", () => {
+    renderHook(() => useSlackBridgeManifest("   "), {
+      wrapper: createWrapper(),
+    });
+
+    expect(getSlackBridgeManifest).not.toHaveBeenCalled();
   });
 });
 

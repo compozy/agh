@@ -4,12 +4,14 @@ import (
 	"reflect"
 
 	apicontract "github.com/compozy/agh/internal/api/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/hooks"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/subprocess"
 	"github.com/compozy/agh/internal/tools"
 )
 
@@ -25,6 +27,14 @@ var enumValuesRegistry = map[reflect.Type][]string{
 	reflect.TypeFor[apicontract.HeartbeatWakeSource]():              apicontract.HeartbeatWakeSourceValues(),
 	reflect.TypeFor[apicontract.HeartbeatWakeResult]():              apicontract.HeartbeatWakeResultValues(),
 	reflect.TypeFor[apicontract.HeartbeatWakeReason]():              apicontract.HeartbeatWakeReasonValues(),
+	reflect.TypeFor[bridgepkg.DeliveryAckOutcome]():                 bridgepkg.DeliveryAckOutcomeValues(),
+	reflect.TypeFor[bridgepkg.DeliveryEventType]():                  bridgepkg.DeliveryEventTypeValues(),
+	reflect.TypeFor[bridgepkg.InboundEventFamily]():                 bridgepkg.InboundEventFamilyValues(),
+	reflect.TypeFor[bridgepkg.InboundEditOperation]():               bridgepkg.InboundEditOperationValues(),
+	reflect.TypeFor[bridgepkg.ToolProgressPhase]():                  bridgepkg.ToolProgressPhaseValues(),
+	reflect.TypeFor[bridgepkg.ControlMethod]():                      bridgepkg.ControlMethodValues(),
+	reflect.TypeFor[bridgepkg.BridgeCheckStatus]():                  bridgepkg.BridgeCheckStatusValues(),
+	reflect.TypeFor[subprocess.BridgeRuntimePurpose]():              subprocess.BridgeRuntimePurposeValues(),
 	reflect.TypeFor[extensionprotocol.HostAPIMethod]():              hostAPIMethodValues(),
 	reflect.TypeFor[hooks.HookEvent]():                              hookEventValues(),
 	reflect.TypeFor[hooks.HookEventFamily]():                        hookEventFamilyValues(),

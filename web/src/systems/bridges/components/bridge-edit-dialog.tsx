@@ -19,7 +19,6 @@ import {
   Pill,
   Section,
   Spinner,
-  Switch,
   Textarea,
 } from "@agh/ui";
 
@@ -30,6 +29,7 @@ import {
   describeBridgeRoutingPolicy,
 } from "../lib/bridge-formatters";
 import type { BridgeProvider, BridgeUpdateDraft } from "../types";
+import { BridgeDeliveryFields, BridgeRoutingFields } from "./bridge-delivery-fields";
 
 interface BridgeEditDialogProps {
   allowProviderDefaultDmPolicy: boolean;
@@ -43,11 +43,7 @@ interface BridgeEditDialogProps {
   provider?: BridgeProvider;
 }
 
-export function BridgeEditDialog(props: BridgeEditDialogProps) {
-  return renderBridgeEditDialog(props);
-}
-
-function renderBridgeEditDialog({
+export function BridgeEditDialog({
   allowProviderDefaultDmPolicy,
   bridgeName,
   draft,
@@ -69,10 +65,10 @@ function renderBridgeEditDialog({
           data-testid="bridge-edit-dialog"
         >
           <DialogHeader variant="ruled">
-            <DialogTitle>Edit Bridge</DialogTitle>
+            <DialogTitle>Edit bridge</DialogTitle>
             <DialogDescription>
-              Update mutable bridge settings for {bridgeName ?? "the selected bridge"} and restart
-              the runtime after saving to apply provider-owned changes.
+              Update mutable settings for {bridgeName ?? "the selected bridge"}, then restart the
+              runtime to apply provider-owned changes.
             </DialogDescription>
           </DialogHeader>
 
@@ -87,13 +83,9 @@ function renderBridgeEditDialog({
                     </FieldDescription>
                   </FieldContent>
                   <Input
+                    aria-label="Bridge display name"
                     data-testid="bridge-edit-display-name-input"
-                    onChange={event =>
-                      onDraftChange({
-                        ...draft,
-                        displayName: event.target.value,
-                      })
-                    }
+                    onChange={event => onDraftChange({ ...draft, displayName: event.target.value })}
                     placeholder="Support bridge"
                     value={draft.displayName}
                   />
@@ -107,6 +99,7 @@ function renderBridgeEditDialog({
                     </FieldDescription>
                   </FieldContent>
                   <NativeSelect
+                    aria-label="Direct message policy"
                     data-testid="bridge-edit-dm-policy-select"
                     onChange={event =>
                       onDraftChange({
@@ -128,9 +121,8 @@ function renderBridgeEditDialog({
 
               <Section label="Provider runtime">
                 <p className="text-small-body text-muted">
-                  Provider-owned runtime settings remain separate from generic delivery defaults.
+                  Provider-owned settings remain separate from generic delivery defaults.
                 </p>
-
                 <MetadataList className="mt-3">
                   <MetadataList.Row
                     className="rounded-md border border-line bg-canvas-soft px-4 py-3"
@@ -149,24 +141,21 @@ function renderBridgeEditDialog({
                     </div>
                   ) : null}
                 </MetadataList>
-
                 <Field className="mt-4">
                   <FieldContent>
                     <FieldTitle>Provider config</FieldTitle>
                     <FieldDescription>
-                      Enter a JSON object for provider-specific runtime settings such as tenant
-                      identifiers, webhook URLs, or provider mode flags.
+                      Enter a JSON object for provider-specific settings such as tenant identifiers,
+                      webhook URLs, or provider mode flags.
                     </FieldDescription>
                   </FieldContent>
                   <Textarea
                     aria-invalid={Boolean(providerConfigError)}
+                    aria-label="Provider configuration JSON"
                     className="min-h-32 font-mono text-xs"
                     data-testid="bridge-edit-provider-config-input"
                     onChange={event =>
-                      onDraftChange({
-                        ...draft,
-                        providerConfigText: event.target.value,
-                      })
+                      onDraftChange({ ...draft, providerConfigText: event.target.value })
                     }
                     placeholder={`{\n  "mode": "bot"\n}`}
                     spellCheck={false}
@@ -184,166 +173,25 @@ function renderBridgeEditDialog({
               </Section>
 
               <Section label="Routing policy">
-                <p className="text-small-body text-muted">
+                <p className="mb-3 text-small-body text-muted">
                   {describeBridgeRoutingPolicy(draft.routingPolicy)}
                 </p>
-                <FieldGroup className="mt-3 gap-3">
-                  <Field orientation="horizontal">
-                    <Switch
-                      checked={draft.routingPolicy.include_peer}
-                      data-testid="bridge-edit-routing-include-peer"
-                      onCheckedChange={checked =>
-                        onDraftChange({
-                          ...draft,
-                          routingPolicy: {
-                            ...draft.routingPolicy,
-                            include_peer: checked,
-                          },
-                        })
-                      }
-                    />
-                    <FieldContent>
-                      <FieldTitle>Include peer</FieldTitle>
-                      <FieldDescription>
-                        Differentiate direct targets by peer identifier.
-                      </FieldDescription>
-                    </FieldContent>
-                  </Field>
-                  <Field orientation="horizontal">
-                    <Switch
-                      checked={draft.routingPolicy.include_group}
-                      data-testid="bridge-edit-routing-include-group"
-                      onCheckedChange={checked =>
-                        onDraftChange({
-                          ...draft,
-                          routingPolicy: {
-                            ...draft.routingPolicy,
-                            include_group: checked,
-                          },
-                        })
-                      }
-                    />
-                    <FieldContent>
-                      <FieldTitle>Include group</FieldTitle>
-                      <FieldDescription>
-                        Keep routes isolated per group or channel when the platform supports it.
-                      </FieldDescription>
-                    </FieldContent>
-                  </Field>
-                  <Field orientation="horizontal">
-                    <Switch
-                      checked={draft.routingPolicy.include_thread}
-                      data-testid="bridge-edit-routing-include-thread"
-                      onCheckedChange={checked =>
-                        onDraftChange({
-                          ...draft,
-                          routingPolicy: {
-                            ...draft.routingPolicy,
-                            include_thread: checked,
-                          },
-                        })
-                      }
-                    />
-                    <FieldContent>
-                      <FieldTitle>Include thread</FieldTitle>
-                      <FieldDescription>
-                        Use thread identity as an additional routing dimension.
-                      </FieldDescription>
-                    </FieldContent>
-                  </Field>
-                </FieldGroup>
+                <BridgeRoutingFields
+                  onChange={routingPolicy => onDraftChange({ ...draft, routingPolicy })}
+                  testIdPrefix="bridge-edit"
+                  value={draft.routingPolicy}
+                />
               </Section>
 
               <Section label="Delivery defaults">
-                <p className="text-small-body text-muted">
+                <p className="mb-3 text-small-body text-muted">
                   These defaults are applied when resolving outbound delivery targets.
                 </p>
-                <FieldGroup className="mt-3 grid gap-4 lg:grid-cols-2">
-                  <Field>
-                    <FieldContent>
-                      <FieldTitle>Mode</FieldTitle>
-                    </FieldContent>
-                    <NativeSelect
-                      data-testid="bridge-edit-delivery-mode-select"
-                      onChange={event =>
-                        onDraftChange({
-                          ...draft,
-                          deliveryDefaults: {
-                            ...draft.deliveryDefaults,
-                            mode:
-                              event.target.value === ""
-                                ? undefined
-                                : (event.target.value as NonNullable<
-                                    BridgeUpdateDraft["deliveryDefaults"]["mode"]
-                                  >),
-                          },
-                        })
-                      }
-                      value={draft.deliveryDefaults.mode ?? ""}
-                    >
-                      <NativeSelectOption value="">Use runtime default</NativeSelectOption>
-                      <NativeSelectOption value="reply">Reply</NativeSelectOption>
-                      <NativeSelectOption value="direct-send">Direct send</NativeSelectOption>
-                    </NativeSelect>
-                  </Field>
-                  <Field>
-                    <FieldContent>
-                      <FieldTitle>Peer ID</FieldTitle>
-                    </FieldContent>
-                    <Input
-                      data-testid="bridge-edit-delivery-peer-input"
-                      onChange={event =>
-                        onDraftChange({
-                          ...draft,
-                          deliveryDefaults: {
-                            ...draft.deliveryDefaults,
-                            peer_id: event.target.value,
-                          },
-                        })
-                      }
-                      placeholder="peer_123"
-                      value={draft.deliveryDefaults.peer_id ?? ""}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldContent>
-                      <FieldTitle>Thread ID</FieldTitle>
-                    </FieldContent>
-                    <Input
-                      data-testid="bridge-edit-delivery-thread-input"
-                      onChange={event =>
-                        onDraftChange({
-                          ...draft,
-                          deliveryDefaults: {
-                            ...draft.deliveryDefaults,
-                            thread_id: event.target.value,
-                          },
-                        })
-                      }
-                      placeholder="thread_456"
-                      value={draft.deliveryDefaults.thread_id ?? ""}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldContent>
-                      <FieldTitle>Group ID</FieldTitle>
-                    </FieldContent>
-                    <Input
-                      data-testid="bridge-edit-delivery-group-input"
-                      onChange={event =>
-                        onDraftChange({
-                          ...draft,
-                          deliveryDefaults: {
-                            ...draft.deliveryDefaults,
-                            group_id: event.target.value,
-                          },
-                        })
-                      }
-                      placeholder="group_789"
-                      value={draft.deliveryDefaults.group_id ?? ""}
-                    />
-                  </Field>
-                </FieldGroup>
+                <BridgeDeliveryFields
+                  onChange={deliveryDefaults => onDraftChange({ ...draft, deliveryDefaults })}
+                  testIdPrefix="bridge-edit"
+                  value={draft.deliveryDefaults}
+                />
               </Section>
             </FieldSet>
           </div>
@@ -355,8 +203,8 @@ function renderBridgeEditDialog({
             <Button
               data-testid="submit-bridge-edit"
               disabled={!canSubmit || isPending}
-              size="sm"
               onClick={onSubmit}
+              size="sm"
               type="button"
             >
               {isPending ? (
@@ -365,7 +213,7 @@ function renderBridgeEditDialog({
                   Saving…
                 </>
               ) : (
-                "Save Changes"
+                "Save changes"
               )}
             </Button>
           </DialogFooter>

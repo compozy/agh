@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -148,6 +149,11 @@ func (h *BaseHandlers) logTranscriptAssembly(
 		"entry_count", entryCount,
 		"phase", phase,
 	)
+	if errors.Is(err, session.ErrSessionNotFound) {
+		attrs = append(attrs, "error", err)
+		h.sessionStreamLogger().DebugContext(ctx, "api: session transcript no longer available", attrs...)
+		return
+	}
 	if err != nil {
 		attrs = append(attrs, "error", err)
 		h.sessionStreamLogger().WarnContext(ctx, "api: session transcript assembly failed", attrs...)

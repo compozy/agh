@@ -8,6 +8,8 @@ AGH a normalized inbound envelope with platform dimensions such as peer, group, 
 uses the bridge instance routing policy to decide which dimensions belong to the canonical route key.
 
 The result is a durable bridge route: one platform conversation identity mapped to one AGH session.
+See [Bridge conversations](./conversations) for the conceptual model behind platform conversations,
+routes, and session history. This page defines the routing and delivery contracts.
 
 ## Routing policy
 
@@ -66,15 +68,22 @@ same bridge is otherwise healthy.
 
 The adapters normalize platform-specific IDs into the same three fields:
 
-| Platform event                 | `peer_id`             | `group_id`         | `thread_id`                                                       |
-| ------------------------------ | --------------------- | ------------------ | ----------------------------------------------------------------- |
-| Slack direct message           | Slack conversation ID | empty              | Slack `thread_ts` when present.                                   |
-| Slack channel message          | empty                 | Slack channel ID   | `thread_ts`, or the message `ts` for a top-level channel message. |
-| Discord direct message         | Discord DM channel ID | empty              | empty                                                             |
-| Discord server channel message | empty                 | Discord channel ID | empty                                                             |
-| Discord thread message         | empty                 | Parent/channel ID  | Discord thread channel ID                                         |
-| Telegram private chat          | Telegram chat ID      | empty              | Telegram message thread ID when present.                          |
-| Telegram group or supergroup   | empty                 | Telegram chat ID   | Forum topic ID; forum general topic normalizes to `1`.            |
+| Platform event                  | `peer_id`                          | `group_id`                         | `thread_id`                                                       |
+| ------------------------------- | ---------------------------------- | ---------------------------------- | ----------------------------------------------------------------- |
+| Slack direct message            | Slack conversation ID              | —                                  | Slack `thread_ts` when present.                                   |
+| Slack channel message           | —                                  | Slack channel ID                   | `thread_ts`, or the message `ts` for a top-level channel message. |
+| Discord direct message          | Discord DM channel ID              | —                                  | —                                                                 |
+| Discord server channel message  | —                                  | Discord channel ID                 | —                                                                 |
+| Discord thread message          | —                                  | Parent/channel ID                  | Discord thread channel ID.                                        |
+| Telegram private chat           | Telegram chat ID                   | —                                  | Telegram message thread ID when present.                          |
+| Telegram group or supergroup    | —                                  | Telegram chat ID                   | Forum topic ID; forum general topic normalizes to `1`.            |
+| WhatsApp direct message         | Sender `wa_id`                     | —                                  | —                                                                 |
+| Teams personal conversation     | Base Bot Framework conversation ID | —                                  | Encoded conversation and service URL.                             |
+| Teams channel or group chat     | —                                  | Base Bot Framework conversation ID | Encoded conversation and service URL.                             |
+| Google Chat direct message      | Space resource name, `spaces/...`  | —                                  | Encoded Chat target; always present for a DM.                     |
+| Google Chat shared space        | —                                  | Space resource name, `spaces/...`  | Encoded native thread or derived message target when present.     |
+| GitHub issue or review comment  | —                                  | Repository `owner/name`            | Encoded issue or review reference.                                |
+| Linear comment or Agent Session | —                                  | Linear issue ID                    | Encoded root-comment or Agent Session reference.                  |
 
 There is no explicit channel-to-agent mapping field on a bridge instance. New route sessions use the
 workspace default agent, and route separation comes from these dimensions.
@@ -89,6 +98,11 @@ After the route key is built, AGH follows one of three paths:
 3. If no route exists, AGH creates a new workspace session, stores the route, and submits the inbound
    content.
 
+An active route keeps reusing its session. A missing or inactive session does not make the route
+disappear: the next accepted inbound event creates a replacement session and rebinds the same route
+key. The previous session and its events remain historical runtime records. To replace one routed
+session intentionally, follow [Start a fresh routed session](./operations#start-a-fresh-routed-session).
+
 New bridge sessions use the workspace default agent. Set the workspace default before enabling a
 bridge if the bridge should talk to a specific agent:
 
@@ -101,6 +115,24 @@ agh workspace add /Users/you/src/support-bot \
 The inbound session path requires a workspace ID on the bridge instance. A global bridge instance can
 exist, but it cannot currently create a new AGH session from inbound messages because there is no
 workspace to resolve.
+
+### When the routed session is busy
+
+Bridge ingress makes up to three local submission attempts when an active routed session reports that
+a prompt is already in progress. Between attempts, AGH watches that session for an availability
+window of about five seconds. If the session remains busy, the Host returns the prompt-in-progress
+error to the adapter.
+
+This path does not create a replacement session, queue the bridge message, interrupt the active turn,
+or steer it into the current prompt. The `queue`, `interrupt`, and `steer` modes available to explicit
+session prompt operations are not selected automatically for bridge ingress.
+
+The callback result is adapter-specific. A synchronous adapter can expose the Host failure to the
+platform. Discord interactions instead return a deferred acknowledgement before asynchronous Host
+ingestion. An adapter with positive inbound batching acknowledges after placing the event in an
+in-memory batch; a later flush failure cannot reach the platform, and the pending batch is not durable
+across adapter restarts. AGH has no shared durable queue or automatic readmission path behind either
+early acknowledgement.
 
 ## Inbound envelope
 
@@ -128,23 +160,45 @@ The provider sends AGH the normalized envelope, not the raw platform webhook pay
 }
 ```
 
-Supported event families are `message`, `command`, `action`, and `reaction`. Each family has its
-own typed payload when the platform event is not just text. Attachments are normalized as metadata
-with ID, name, MIME type, and URL.
+Supported event families are `message`, `edit`, `command`, `action`, and `reaction`. Each family has
+its own typed payload when the platform event is not just text. An `edit` identifies the affected
+platform message, carries an `updated` or `deleted` operation, and includes the replacement text and
+original timestamp when the provider supplies them. Attachments are normalized as metadata with ID,
+name, MIME type, and URL.
+
+Slack and Telegram normalize supported message edits into this family. Discord's bundled HTTP
+interactions adapter does not consume Gateway `MESSAGE_UPDATE` events, so ordinary Discord message
+edits are not inbound events for that adapter.
+
+When a provider has already observed the parent of a reply, it can add the parent's text and author
+to the envelope. Slack, Telegram, and Google Chat keep that context in bounded, instance- and
+conversation-scoped caches. An embedded parent snapshot takes precedence when the platform includes
+one. A cache miss leaves the optional reply fields empty; ingest never performs an on-demand provider
+fetch.
 
 AGH renders the envelope into a prompt that includes the event family, platform message ID, sender,
-peer, thread, group, body text, and attachment list. That prompt is persisted in the session event
-store before it is handed to the agent.
+peer, thread, group, body text, and attachment list. Edits and quoted reply context use distinct
+blocks so the current replacement text cannot be mistaken for historical content. That prompt is
+persisted in the session event store before it is handed to the agent.
 
 ## Deduplication
 
-Providers must send an `idempotency_key`. AGH stores that key for 24 hours after the later of
-`received_at` and daemon time. If the provider retries the same inbound event during that window and
-the route still exists, AGH suppresses duplicate prompt submission and returns the existing session
-and routing key.
+Providers must send an `idempotency_key`. The daemon writes its durable deduplication record only
+after the inbound prompt has been submitted successfully. The record remains active for 24 hours
+after the later of `received_at` and daemon time. If the adapter submits the same event during that
+window and the route still exists, AGH suppresses duplicate prompt submission and returns the
+existing session and routing key.
 
-Deduplication is scoped to the bridge instance and idempotency key. It protects AGH from repeated
-platform webhook delivery, but it is not a platform-wide exactly-once guarantee.
+Adapters also have a separate, in-process deduplication cache. Its shared default TTL is five minutes,
+and several bundled adapters mark it before Host ingestion. That early mark has no per-event rollback:
+an immediate provider retry can be acknowledged and suppressed locally after a busy or failed Host
+submission. Restarting the adapter clears this local cache, but it also discards any pending
+in-memory inbound batches.
+
+Deduplication is scoped to the bridge instance and idempotency key. The durable daemon record protects
+accepted prompts from repeated delivery; the adapter-local cache suppresses near-term callbacks. The
+combination is not a platform-wide exactly-once guarantee, and a platform acknowledgement is not
+proof of durable prompt admission.
 
 ## Delivery targets
 
@@ -232,41 +286,72 @@ into delivery events, and asks the adapter to acknowledge each delivery request.
 
 The event types are:
 
-| Event    | Purpose                                                                          |
-| -------- | -------------------------------------------------------------------------------- |
-| `start`  | Begin a response delivery stream.                                                |
-| `delta`  | Append streamed text.                                                            |
-| `final`  | Mark the response complete.                                                      |
-| `error`  | Mark the response failed.                                                        |
-| `resume` | Send a snapshot after a transport, adapter, or acknowledgement failure.          |
-| `delete` | Remove a previously delivered platform message when the agent output is deleted. |
+| Event    | Purpose                                                                           |
+| -------- | --------------------------------------------------------------------------------- |
+| `start`  | Begin a response delivery stream.                                                 |
+| `delta`  | Append streamed text.                                                             |
+| `final`  | Mark the response complete.                                                       |
+| `error`  | Mark the response failed.                                                         |
+| `resume` | Send a snapshot after a pre-commit transport/adapter failure or queue coalescing. |
+| `delete` | Remove a previously delivered platform message when the agent output is deleted.  |
 
-The broker retries failed delivery through `resume` snapshots. Slow adapters get coalesced deltas so
-the route stays bounded; under pressure, queued deltas may be dropped before a later resume/final
-snapshot catches the platform up. The default route queue capacity is small by design, and the
-request timeout is internal to the broker. These are not user-facing bridge configuration knobs.
+Before a provider mutation starts, retryable transport or adapter failures can be resumed with a
+snapshot. Slow adapters get coalesced deltas so the route stays bounded; under pressure, queued deltas
+may be dropped before a later resume/final snapshot catches the platform up. The default route queue
+capacity is small by design, and the request timeout is internal to the broker. These are not
+user-facing bridge configuration knobs.
 
-When a session stops with unfinished delivery work, AGH sends terminal `error` delivery events for
-the unfinished responses before the bridge notifier finishes the session stop path.
+`committed_result_unavailable` is a different acknowledgement outcome. It means the mutation may have
+crossed the provider commit boundary, but the adapter could not reliably read or validate the response
+or recover the required remote message identity. The broker closes that delivery as a terminal error
+without a resume or replay, and it never fabricates a remote message ID. This avoids repeating a
+mutation that may already be visible at the provider.
+
+When this outcome belongs only to a progress update, AGH drops that indeterminate progress event under
+`progress_delivery_indeterminate`. It does not close the response's text delivery, so a later final
+text event can still continue through the normal delivery path.
+
+AGH keeps a durable checkpoint ledger for in-flight response delivery. It records route ownership,
+sent and acknowledged sequence numbers, remote-message identity, and terminal transitions. Before a
+durable `start`, `resume`, `final`, `error`, or `delete` mutation reaches the provider, the broker
+writes its sequence as sent. A successful provider acknowledgement advances the acknowledged
+sequence. A `committed_result_unavailable` acknowledgement instead terminalizes the delivery while
+leaving the acknowledged sequence unchanged. Streamed delta text and tool-progress payloads are not
+stored in this ledger. Rows and durable metrics carry direct scope and workspace ownership, so startup
+reconciliation never lists or handles another workspace's delivery.
+
+At daemon startup, AGH reconciles unfinished rows before the broker admits new registrations or
+inbound prompt side effects. A row whose sent sequence is ahead of its acknowledged sequence may have
+committed remotely before the daemon stopped. AGH terminalizes that row locally as indeterminate and
+does not call the provider again. When no unmatched send intent exists, the checkpoint-only ledger
+still has no response text to reconstruct, so reconciliation first writes a new intent and then
+fails open as a visible terminal `error` post with the standard session-stopped message. When a live
+session stops normally, AGH uses the same write-ahead rule for terminal `error` delivery before the
+bridge notifier finishes the stop path.
 
 ## Error handling
 
-| Failure                                                                  | Runtime behavior                                                                                      |
-| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| Instance disabled                                                        | Ingest is rejected as unavailable.                                                                    |
-| Status `starting`, `auth_required`, or `error`                           | Ingest is rejected until the provider reports a usable state.                                         |
-| Status `ready` or `degraded`                                             | Ingest is accepted. Degradation metadata remains visible in health output.                            |
-| Secret binding is missing, invalid, or points to an empty env var        | The provider reports degraded, auth-required, or error state depending on the adapter classification. |
-| Webhook signature or token validation fails                              | The adapter rejects the platform request before calling AGH ingest.                                   |
-| Provider config has duplicate webhook paths for the same adapter process | The adapter marks the affected instance configuration invalid.                                        |
-| Delivery transport fails or returns an invalid acknowledgement           | The broker records the failure and retries with a resume snapshot.                                    |
+| Failure                                                                  | Runtime behavior                                                                                                                                                                                  |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Instance disabled                                                        | Ingest is rejected as unavailable.                                                                                                                                                                |
+| Status `starting`, `auth_required`, or `error`                           | Ingest is rejected until the provider reports a usable state.                                                                                                                                     |
+| Status `ready` or `degraded`                                             | Ingest is accepted. Degradation metadata remains visible in health output.                                                                                                                        |
+| Secret binding is missing, invalid, or points to an empty env var        | The provider reports degraded, auth-required, or error state depending on the adapter classification.                                                                                             |
+| Webhook signature or token validation fails                              | The adapter rejects the platform request before calling AGH ingest.                                                                                                                               |
+| Provider config has duplicate webhook paths for the same adapter process | The adapter marks the affected instance configuration invalid.                                                                                                                                    |
+| Routed session remains busy                                              | Host ingest returns prompt-in-progress after bounded local attempts. The daemon creates no queue or durable dedup record; an adapter-local mark may already suppress an immediate platform retry. |
+| Pre-commit delivery transport or adapter call fails                      | The broker records the failure and can retry with a resume snapshot.                                                                                                                              |
+| A received delivery acknowledgement is missing, malformed, or invalid    | The manager returns `committed_result_unavailable`; the broker closes the delivery without replay because the provider commit outcome cannot be proven safe.                                      |
+| Provider mutation commits but its result cannot be materialized          | The broker records `committed_result_unavailable`, closes the delivery, and does not replay it.                                                                                                   |
+| Progress mutation commits but its result cannot be materialized          | The progress event is dropped; final text delivery remains eligible to continue.                                                                                                                  |
 
-Bridge health fields are returned by `agh bridge list`, `agh bridge get`, and the HTTP bridge
-responses. For live monitoring, subscribe to `GET /api/bridges/health/stream` with the required
-`bridge_ids` query parameter. Pass the comma-separated IDs from the current catalog page (up to
-200), and reuse that page's `scope` and `workspace_id` query values. The stream emits an initial
-snapshot and then changes only for that authorized, page-bounded set; loading another catalog page
-opens a stream for its IDs instead of hydrating the full registry.
+Bridge health fields are returned by `agh bridge list` and the HTTP bridge responses. `agh bridge
+get` reports the persisted instance and effective status but does not include the health metrics. For
+live monitoring, subscribe to `GET /api/bridges/health/stream` with the required `bridge_ids` query
+parameter. Pass the comma-separated IDs from the current catalog page (up to 200), and reuse that
+page's `scope` and `workspace_id` query values. The stream emits an initial snapshot and then changes
+only for that authorized, page-bounded set; loading another catalog page opens a stream for its IDs
+instead of hydrating the full registry.
 
 ## Related pages
 

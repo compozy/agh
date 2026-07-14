@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/api/contract"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
 	"github.com/compozy/agh/internal/diagnostics"
 )
 
@@ -156,4 +157,132 @@ func TestRunner(t *testing.T) {
 			t.Fatalf("timeout Code = %q, want %q", items[0].Code, contract.CodeProbeTimeout)
 		}
 	})
+}
+
+func TestBridgeProbeCategoryFilter(t *testing.T) {
+	t.Run("Should skip bridge checks without an explicit bridge filter", func(t *testing.T) {
+		t.Parallel()
+
+		source := &bridgeProbeSourceStub{
+			instances: []bridgepkg.BridgeInstance{{
+				ID:            "brg-slack",
+				Platform:      "slack",
+				ExtensionName: "slack",
+			}},
+		}
+		registry := NewRegistry()
+		if err := registry.Register(&BridgeProbe{Source: source}); err != nil {
+			t.Fatalf("Register(bridge) error = %v", err)
+		}
+		runner, err := NewRunner(registry)
+		if err != nil {
+			t.Fatalf("NewRunner() error = %v", err)
+		}
+
+		items, err := runner.Run(context.Background(), RunOptions{})
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if source.listCalls != 0 || source.checkCalls != 0 {
+			t.Fatalf("bridge source calls = list:%d check:%d, want 0/0", source.listCalls, source.checkCalls)
+		}
+		if len(items) != 0 {
+			t.Fatalf("bridge diagnostic count = %d, want 0", len(items))
+		}
+	})
+
+	t.Run("Should run only bridge checks and preserve failing secret remediation", func(t *testing.T) {
+		t.Parallel()
+
+		source := &bridgeProbeSourceStub{
+			instances: []bridgepkg.BridgeInstance{{
+				ID:            "brg-slack",
+				Platform:      "slack",
+				ExtensionName: "slack",
+			}},
+			response: bridgepkg.BridgeCheckResponse{Checks: []bridgepkg.BridgeCheckRecord{{
+				Check:       "provider.identity",
+				Status:      bridgepkg.BridgeCheckStatusFail,
+				Remediation: "Bind the required bot_token bridge secret and retry.",
+			}}},
+		}
+		otherProbeCalls := 0
+		registry := NewRegistry()
+		if err := registry.Register(&ProbeFunc{
+			ProbeID:       "runtime.providers",
+			ProbeCategory: contract.CategoryProvider,
+			RunFunc: func(context.Context, *ProbeEnv) ([]contract.DiagnosticItem, error) {
+				otherProbeCalls++
+				return nil, nil
+			},
+		}); err != nil {
+			t.Fatalf("Register(provider) error = %v", err)
+		}
+		if err := registry.Register(&BridgeProbe{Source: source}); err != nil {
+			t.Fatalf("Register(bridge) error = %v", err)
+		}
+		runner, err := NewRunner(registry)
+		if err != nil {
+			t.Fatalf("NewRunner() error = %v", err)
+		}
+
+		items, err := runner.Run(context.Background(), RunOptions{Only: []string{contract.CategoryBridge}})
+		if err != nil {
+			t.Fatalf("Run(bridge only) error = %v", err)
+		}
+		if otherProbeCalls != 0 {
+			t.Fatalf("provider probe calls = %d, want 0", otherProbeCalls)
+		}
+		if source.listCalls != 1 || source.checkCalls != 1 {
+			t.Fatalf("bridge source calls = list:%d check:%d, want 1/1", source.listCalls, source.checkCalls)
+		}
+		if len(items) != 1 {
+			t.Fatalf("bridge diagnostic count = %d, want 1", len(items))
+		}
+		item := items[0]
+		if item.Category != contract.CategoryBridge || item.Severity != contract.SeverityError ||
+			!strings.Contains(item.Message, "bot_token") {
+			t.Fatalf("bridge diagnostic = %#v, want failed bot_token remediation", item)
+		}
+		if item.SuggestedCommand != "agh bridge verify brg-slack" {
+			t.Fatalf("SuggestedCommand = %q, want bridge verify follow-up", item.SuggestedCommand)
+		}
+	})
+
+	t.Run("Should never describe a failed check without remediation as passed", func(t *testing.T) {
+		t.Parallel()
+
+		item := bridgeCheckDiagnosticItem(
+			bridgepkg.BridgeInstance{ID: "brg-slack", Platform: "slack", ExtensionName: "slack"},
+			bridgepkg.BridgeCheckRecord{Check: "provider.identity", Status: bridgepkg.BridgeCheckStatusFail},
+		)
+		if item.Severity != contract.SeverityError || strings.Contains(strings.ToLower(item.Message), "passed") ||
+			!strings.Contains(strings.ToLower(item.Message), "no remediation") {
+			t.Fatalf("bridge failure diagnostic = %#v, want explicit missing-remediation error", item)
+		}
+	})
+}
+
+type bridgeProbeSourceStub struct {
+	instances  []bridgepkg.BridgeInstance
+	response   bridgepkg.BridgeCheckResponse
+	listCalls  int
+	checkCalls int
+}
+
+func (s *bridgeProbeSourceStub) ListInstances(context.Context) ([]bridgepkg.BridgeInstance, error) {
+	s.listCalls++
+	return append([]bridgepkg.BridgeInstance(nil), s.instances...), nil
+}
+
+func (s *bridgeProbeSourceStub) CheckBridge(
+	_ context.Context,
+	extensionName string,
+	request bridgepkg.BridgeCheckRequest,
+) (bridgepkg.BridgeCheckResponse, error) {
+	s.checkCalls++
+	if extensionName != "slack" || request.BridgeInstanceID != "brg-slack" {
+		return bridgepkg.BridgeCheckResponse{}, errors.New("unexpected bridge check request")
+	}
+	return s.response, nil
 }

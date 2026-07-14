@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/agh/internal/bridges"
+	bridges "github.com/compozy/agh/internal/bridges/contract"
 )
 
 type discardWriteCloser struct {
@@ -128,7 +128,8 @@ func benchmarkBridgeRuntime(instances int, secretsPerInstance int) *InitializeBr
 	}
 
 	return &InitializeBridgeRuntime{
-		RuntimeVersion:   InitializeBridgeRuntimeVersion1,
+		RuntimeVersion:   InitializeBridgeRuntimeVersion2,
+		Purpose:          BridgeRuntimePurposeService,
 		Provider:         "telegram-reference",
 		Platform:         "telegram",
 		ManagedInstances: managed,

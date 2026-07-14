@@ -7,7 +7,6 @@ import (
 	"github.com/compozy/agh/internal/acp"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	"github.com/compozy/agh/internal/session"
-	"github.com/compozy/agh/internal/transcript"
 )
 
 // BridgeDeliveryNotifier projects prompt-time ACP events into the bridge
@@ -104,7 +103,17 @@ func (n *BridgeDeliveryNotifier) projectAgentEvent(
 	if !ok {
 		return
 	}
-	if err := n.broker.ProjectEvent(ctx, sessionID, projectionEventFromAgentEvent(event)); err != nil {
+	projected, err := projectionEventFromAgentEvent(&event)
+	if err != nil {
+		slog.ErrorContext(ctx, "extension: canonicalize bridge delivery event",
+			"session_id", sessionID,
+			"event_type", event.Type,
+			"turn_id", event.TurnID,
+			"error", err,
+		)
+		return
+	}
+	if err := n.broker.ProjectEvent(ctx, sessionID, projected); err != nil {
 		slog.ErrorContext(ctx, "extension: project bridge delivery event",
 			"session_id", sessionID,
 			"event_type", event.Type,
@@ -112,18 +121,4 @@ func (n *BridgeDeliveryNotifier) projectAgentEvent(
 			"error", err,
 		)
 	}
-}
-
-func projectionEventFromAgentEvent(event acp.AgentEvent) bridgepkg.DeliveryProjectionEvent {
-	projected := bridgepkg.DeliveryProjectionEvent{
-		Type:      event.Type,
-		TurnID:    event.TurnID,
-		Timestamp: event.Timestamp,
-		Text:      event.Text,
-		Error:     event.Error,
-	}
-	if fingerprint, err := transcript.MarshalAgentEvent(event); err == nil {
-		projected.Fingerprint = fingerprint
-	}
-	return projected
 }

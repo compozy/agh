@@ -17,7 +17,7 @@ import (
 	automationpkg "github.com/compozy/agh/internal/automation"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/compozy/agh/internal/resources"
@@ -1535,10 +1535,10 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 	bridgeRuntime := &subprocess.InitializeBridgeRuntime{
 		ManagedInstances: []subprocess.InitializeBridgeManagedInstance{
 			{
-				Instance: bridgepkg.BridgeInstance{
+				Instance: bridgepkg.BridgeInstanceToContract(bridgepkg.BridgeInstance{
 					ID:            "brg-wrap",
 					ExtensionName: "ext-host",
-				},
+				}),
 			},
 		},
 	}
@@ -1949,6 +1949,16 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 		ack := bridgepkg.DeliveryAck{
 			DeliveryID: strings.TrimSpace(params.Event.DeliveryID),
 			Seq:        params.Event.Seq,
+		}
+		switch h.scenario {
+		case "delivery_ack_missing_seq":
+			return h.sendResult(req.ID, map[string]any{"delivery_id": ack.DeliveryID})
+		case "delivery_ack_null_seq":
+			return h.sendResult(req.ID, map[string]any{"delivery_id": ack.DeliveryID, "seq": nil})
+		case "delivery_ack_string_seq":
+			return h.sendResult(req.ID, map[string]any{"delivery_id": ack.DeliveryID, "seq": "0"})
+		case "delivery_ack_non_object":
+			return h.sendResult(req.ID, []string{"not", "an", "ack"})
 		}
 		if ack.Seq > 0 {
 			ack.RemoteMessageID = fmt.Sprintf("remote-%d", ack.Seq)
@@ -2530,11 +2540,12 @@ func testScopedBridgeRuntimeForInstance(
 	boundSecrets []subprocess.InitializeBridgeBoundSecret,
 ) *subprocess.InitializeBridgeRuntime {
 	return &subprocess.InitializeBridgeRuntime{
-		RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion1,
+		RuntimeVersion: subprocess.InitializeBridgeRuntimeVersion2,
+		Purpose:        subprocess.BridgeRuntimePurposeService,
 		Provider:       instance.ExtensionName,
 		Platform:       instance.Platform,
 		ManagedInstances: []subprocess.InitializeBridgeManagedInstance{{
-			Instance:     instance,
+			Instance:     bridgepkg.BridgeInstanceToContract(instance),
 			BoundSecrets: append([]subprocess.InitializeBridgeBoundSecret(nil), boundSecrets...),
 		}},
 	}

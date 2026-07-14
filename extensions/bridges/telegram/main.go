@@ -1,24 +1,17 @@
 package main
 
 import (
-	"fmt"
 	"io"
-	"os"
-	"strings"
+
+	"github.com/compozy/agh/internal/bridgesdk"
 )
 
 func main() {
-	if err := run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	bridgesdk.Main("telegram", runServe)
 }
 
 func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
-	if len(args) == 0 || strings.TrimSpace(args[0]) == "serve" {
-		return runServe(stdin, stdout, stderr)
-	}
-	return fmt.Errorf("telegram: unsupported command %q", strings.TrimSpace(args[0]))
+	return bridgesdk.RunProviderCommand("telegram", args, stdin, stdout, stderr, runServe)
 }
 
 func runServe(stdin io.Reader, stdout io.Writer, stderr io.Writer) error {

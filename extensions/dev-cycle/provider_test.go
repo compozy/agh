@@ -1356,10 +1356,10 @@ func codeRabbitPollRunner(
 		lookPathResults: map[string]string{"gh": "/usr/bin/gh", "git": "/usr/bin/git"},
 		runResults: map[string][]byte{
 			codeRabbitRepoViewKey(): []byte("acme/repo\n"),
-			codeRabbitGraphQLKey(pr): []byte(fmt.Sprintf(
+			codeRabbitGraphQLKey(pr): fmt.Appendf(nil,
 				`{"data":{"repository":{"pullRequest":{"headRefOid":%q,"reviewThreads":{"nodes":[]}}}}}`,
 				head,
-			)),
+			),
 			commandKey("git", "rev-parse", "HEAD"): []byte(localHead + "\n"),
 			commandKey(
 				"gh",

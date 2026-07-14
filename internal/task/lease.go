@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	redactpkg "github.com/compozy/agh/internal/redact"
 )
 
 const (
@@ -39,7 +41,6 @@ var defaultCoordinationMessageKinds = []string{
 	"review_request",
 }
 
-var rawClaimTokenPattern = regexp.MustCompile(`agh_claim_[A-Za-z0-9_-]+`)
 var canonicalTaskIDTokenPattern = regexp.MustCompile(`\btask-[A-Za-z0-9][A-Za-z0-9_-]*\b`)
 
 // ClaimCriteria captures the atomic next-work filters for one claiming session.
@@ -177,7 +178,7 @@ func RedactClaimTokens(value string) string {
 	if value == "" {
 		return ""
 	}
-	return rawClaimTokenPattern.ReplaceAllString(value, "agh_claim_[REDACTED]")
+	return redactpkg.ClaimTokens(value)
 }
 
 // ClaimTokenHash returns the canonical hash persisted for one raw claim token.

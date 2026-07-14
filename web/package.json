@@ -7,7 +7,7 @@
         "codegen-check": "bun run --cwd .. codegen-check",
         "dev": "bun run codegen && bun run dev:raw",
         "dev:raw": "vite --port 3000",
-        "build": "bun run typecheck:raw && bun run build:raw",
+        "build": "bun run build:raw",
         "build:raw": "vite build",
         "storybook": "storybook dev -p 6006",
         "build-storybook": "storybook build",
@@ -54,7 +54,6 @@
         "zustand": "^5.0.14"
     },
     "devDependencies": {
-        "@babel/plugin-syntax-jsx": "^8.0.1",
         "@playwright/test": "^1.61.1",
         "@rolldown/plugin-babel": "^0.2.3",
         "@storybook/addon-a11y": "^10.5.0",

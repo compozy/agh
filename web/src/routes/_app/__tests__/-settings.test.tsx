@@ -10,19 +10,41 @@ vi.mock("@tanstack/react-router", () => ({
   }),
   Outlet: () => <div data-testid="settings-outlet-marker" />,
   Link: ({
+    activeOptions,
+    activeProps,
     children,
+    className,
+    inactiveProps,
     to,
     ...rest
   }: {
-    children: ReactNode;
+    activeOptions?: unknown;
+    activeProps?: Record<string, string>;
+    children: ReactNode | ((state: { isActive: boolean; isTransitioning: boolean }) => ReactNode);
+    className?: string;
+    inactiveProps?: Record<string, string>;
     to: string;
     [key: string]: unknown;
-  }) => (
-    <a href={to} {...(rest as Record<string, string | undefined>)}>
-      {children}
-    </a>
-  ),
-  useMatchRoute: () => (opts: { to: string; fuzzy?: boolean }) => matchedRoutes[opts.to] ?? false,
+  }) => {
+    void activeOptions;
+    const isActive = matchedRoutes[to] ?? false;
+    const { className: stateClassName, ...stateProps } =
+      (isActive ? activeProps : inactiveProps) ?? {};
+    const resolvedChildren =
+      typeof children === "function" ? children({ isActive, isTransitioning: false }) : children;
+
+    return (
+      <a
+        href={to}
+        {...(rest as Record<string, string | undefined>)}
+        {...stateProps}
+        aria-current={isActive ? "page" : undefined}
+        className={[className, stateClassName].filter(Boolean).join(" ") || undefined}
+      >
+        {resolvedChildren}
+      </a>
+    );
+  },
 }));
 
 import { routeComponent } from "@/test/route-options";
@@ -53,7 +75,7 @@ describe("SettingsShell", () => {
     }
   });
 
-  it("marks the matching section as active when the current route fuzzy-matches its path", () => {
+  it("marks the matching section from the link's authoritative active state", () => {
     matchedRoutes["/settings/general"] = true;
     render(<SettingsShell />);
 

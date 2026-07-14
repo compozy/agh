@@ -8,6 +8,7 @@ import {
   buildBridgeSecretBindingRequest,
   buildBridgeUpdateRequest,
   createBridgeCreateDraft,
+  createBridgeTestDeliveryDraft,
   createBridgeUpdateDraft,
   parseBridgeDmPolicy,
   parseBridgeProviderConfig,
@@ -59,6 +60,27 @@ describe("createBridgeCreateDraft", () => {
   });
 });
 
+describe("createBridgeTestDeliveryDraft", () => {
+  it("keeps instance progress and provider defaults out of delivery target overrides", () => {
+    const draft = createBridgeTestDeliveryDraft({
+      delivery_defaults: {
+        parse_mode: "MarkdownV2",
+        peer_id: "peer_123",
+        progress: {
+          grouping: "accumulate",
+          reactions: false,
+          tool_progress: "off",
+          typing: false,
+        },
+      },
+    });
+
+    expect(draft.target).toEqual({
+      peer_id: "peer_123",
+    });
+  });
+});
+
 describe("parseBridgeProviderConfig", () => {
   it("accepts only JSON objects for provider config", () => {
     expect(parseBridgeProviderConfig("")).toEqual({});
@@ -72,7 +94,7 @@ describe("parseBridgeProviderConfig", () => {
 });
 
 describe("buildBridgeCreateRequest", () => {
-  it("preserves provider_config separately from delivery_defaults", () => {
+  it("creates setup instances disabled and preserves provider_config separately", () => {
     const result = buildBridgeCreateRequest(
       makeDraft({
         dmPolicy: "pairing",
@@ -93,7 +115,7 @@ describe("buildBridgeCreateRequest", () => {
         },
         display_name: "Telegram",
         dm_policy: "pairing",
-        enabled: true,
+        enabled: false,
         extension_name: "ext-telegram",
         notification_suppress: false,
         platform: "telegram",
@@ -108,6 +130,43 @@ describe("buildBridgeCreateRequest", () => {
         },
         scope: "workspace",
         workspace_id: "ws_test",
+      },
+      ok: true,
+    });
+  });
+
+  it("serializes all progress controls into delivery_defaults", () => {
+    const result = buildBridgeCreateRequest(
+      makeDraft({
+        deliveryDefaults: {
+          mode: "reply",
+          progress: {
+            grouping: "separate",
+            reactions: true,
+            tool_progress: "verbose",
+            typing: false,
+          },
+        },
+      }),
+      {
+        extension_name: "ext-telegram",
+        platform: "telegram",
+      },
+      "ws_test"
+    );
+
+    expect(result).toMatchObject({
+      data: {
+        delivery_defaults: {
+          mode: "reply",
+          progress: {
+            grouping: "separate",
+            reactions: true,
+            tool_progress: "verbose",
+            typing: false,
+          },
+        },
+        enabled: false,
       },
       ok: true,
     });
@@ -175,6 +234,70 @@ describe("createBridgeUpdateDraft", () => {
 });
 
 describe("buildBridgeUpdateRequest", () => {
+  it("preserves provider-specific defaults through an unchanged editor round trip", () => {
+    const existingBridge: NonNullable<Parameters<typeof createBridgeUpdateDraft>[0]> = {
+      delivery_defaults: {
+        parse_mode: "MarkdownV2",
+      },
+      display_name: "Support",
+      dm_policy: "allowlist",
+      provider_config: null,
+      routing_policy: {
+        include_group: true,
+        include_peer: true,
+        include_thread: true,
+      },
+    };
+
+    const result = buildBridgeUpdateRequest(createBridgeUpdateDraft(existingBridge));
+
+    expect(result).toMatchObject({
+      data: {
+        delivery_defaults: {
+          parse_mode: "MarkdownV2",
+        },
+      },
+      ok: true,
+    });
+  });
+
+  it("serializes all progress controls through the edit round trip", () => {
+    const existingBridge: NonNullable<Parameters<typeof createBridgeUpdateDraft>[0]> = {
+      delivery_defaults: {
+        progress: {
+          grouping: "accumulate",
+          reactions: false,
+          tool_progress: "off",
+          typing: false,
+        },
+      },
+      display_name: "Support",
+      dm_policy: "allowlist",
+      provider_config: null,
+      routing_policy: {
+        include_group: true,
+        include_peer: true,
+        include_thread: true,
+      },
+    };
+
+    const result = buildBridgeUpdateRequest(createBridgeUpdateDraft(existingBridge));
+
+    expect(result).toMatchObject({
+      data: {
+        delivery_defaults: {
+          progress: {
+            grouping: "accumulate",
+            reactions: false,
+            tool_progress: "off",
+            typing: false,
+          },
+        },
+      },
+      ok: true,
+    });
+  });
+
   it("preserves nullable fields for clearing provider config and delivery defaults", () => {
     const result = buildBridgeUpdateRequest({
       deliveryDefaults: {},

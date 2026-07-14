@@ -47,7 +47,7 @@ func TestBrokerProjectEventRefacs(t *testing.T) {
 			t,
 			calls,
 			registration.DeliveryID,
-			[]string{DeliveryEventTypeStart, DeliveryEventTypeDelta},
+			[]DeliveryEventType{DeliveryEventTypeStart, DeliveryEventTypeDelta},
 			[]int64{1, 2},
 		)
 		if got, want := calls[1].request.Event.Content.Text, "haha"; got != want {

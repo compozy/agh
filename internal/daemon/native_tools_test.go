@@ -126,6 +126,34 @@ func nativeNetworkTestSessionManager(workspaceID string) apitest.StubSessionMana
 func TestDaemonNativeTools(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should redact every canonical secret shape from network results", func(t *testing.T) {
+		t.Parallel()
+
+		value := map[string]string{
+			"claim":  "agh_claim_NETWORKSECRET",
+			"openai": "sk-network-secret",
+			"slack":  "xoxb-network-secret",
+		}
+		result, err := structuredNetworkResult(
+			value,
+			"Bearer network-secret sk-network-secret xoxb-network-secret agh_claim_NETWORKSECRET",
+		)
+		if err != nil {
+			t.Fatalf("structuredNetworkResult() error = %v", err)
+		}
+		for _, secret := range []string{
+			"network-secret",
+			"sk-network-secret",
+			"xoxb-network-secret",
+			"agh_claim_NETWORKSECRET",
+		} {
+			if strings.Contains(string(result.Structured), secret) || strings.Contains(result.Preview, secret) ||
+				len(result.Content) != 1 || strings.Contains(result.Content[0].Text, secret) {
+				t.Fatalf("structuredNetworkResult() leaked %q: %#v", secret, result)
+			}
+		}
+	})
+
 	t.Run("Should dispatch skill catalog tools through the real skill registry", func(t *testing.T) {
 		t.Parallel()
 
@@ -4966,7 +4994,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					))
 				},
 				wantFor: func(fixture nativeMemoryAdminFixture) []byte {
-					return []byte(fmt.Sprintf(`"id":%q`, fixture.decision.ID))
+					return fmt.Appendf(nil, `"id":%q`, fixture.decision.ID)
 				},
 			},
 			{

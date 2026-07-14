@@ -1170,7 +1170,7 @@ func networkPeersBundle(peers []NetworkPeerRecord) outputBundle {
 		"network_peers",
 		[]string{
 			networkPeerIDKey,
-			"display_name",
+			bridgeSetupDisplayNameKey,
 			"session_id",
 			networkChannelKey,
 			"presence_state",

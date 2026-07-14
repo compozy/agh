@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
@@ -17,21 +16,574 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 
-	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges/contract"
 	"github.com/compozy/agh/internal/bridgesdk"
-	extensioncontract "github.com/compozy/agh/internal/extension/contract"
-	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
 	"github.com/compozy/agh/internal/subprocess"
 )
 
 func enableTeamsLoopbackCredentialedURLsForTesting(t *testing.T) {
 	t.Helper()
 	t.Setenv(teamsTestLoopbackAuthEnv, "1")
+}
+
+func TestTeamsProgressRendering(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should acknowledge default-off progress without calling the Teams API", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newTeamsProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newTeamsProvider() error = %v", err)
+		}
+		t.Cleanup(provider.lifecycle.Stop)
+		managed := testTeamsManagedInstance(t, time.Unix(8_000, 0).UTC(), "brg-progress-off", map[string]any{
+			"service_url": "https://service.test",
+		})
+		setTeamsProviderRoute(provider, managed.Instance.ID, resolvedInstanceConfig{
+			managed:    &managed,
+			instanceID: managed.Instance.ID,
+			appID:      "app-id",
+			serviceURL: "https://service.test",
+		})
+		apiCalls := 0
+		provider.apiFactory = func(resolvedInstanceConfig) teamsAPI {
+			apiCalls++
+			return &fakeTeamsAPI{}
+		}
+
+		request := testTeamsProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-off",
+			1,
+			"call-off",
+			"agh__terminal",
+			"Inspecting",
+		)
+		ack, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			request,
+		)
+		if err != nil {
+			t.Fatalf("handleBridgesProgress() error = %v", err)
+		}
+		if ack.DeliveryID != request.Event.DeliveryID || ack.Seq != request.Event.Seq {
+			t.Fatalf("progress ack = %#v, want delivery id %q seq %d", ack, request.Event.DeliveryID, request.Event.Seq)
+		}
+		if ack.RemoteMessageID != "" || ack.ReplaceRemoteMessageID != "" {
+			t.Fatalf("progress ack remote ids = (%q, %q), want empty", ack.RemoteMessageID, ack.ReplaceRemoteMessageID)
+		}
+		if apiCalls != 0 {
+			t.Fatalf("Teams API factory calls = %d, want zero", apiCalls)
+		}
+
+		provider.storeDeliveryState(managed.Instance.ID, request.Event.DeliveryID, deliveryState{
+			RemoteMessageID: "stale-message",
+		})
+		final := request
+		final.Event.Seq = 2
+		final.Event.EventType = bridgepkg.DeliveryEventTypeFinal
+		final.Event.Progress = nil
+		final.Event.Final = true
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			final,
+		); err != nil {
+			t.Fatalf("handleBridgesProgress(default-off lifecycle final) error = %v", err)
+		}
+		_, deliveryExists := provider.deliveries.Load(deliveryStateKey(managed.Instance.ID, request.Event.DeliveryID))
+		if deliveryExists {
+			t.Fatal("default-off lifecycle-only delivery state still exists, want terminal removal")
+		}
+	})
+
+	t.Run("Should retain failed progress for retry and report unhealthy", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newTeamsProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newTeamsProvider() error = %v", err)
+		}
+		t.Cleanup(provider.lifecycle.Stop)
+		managed := testTeamsManagedInstance(t, time.Unix(8_025, 0).UTC(), "brg-progress-failure", map[string]any{
+			"service_url": "https://service.test",
+		})
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"all","grouping":"separate","typing":false,"reactions":false}}`,
+		)
+		setTeamsProviderRoute(provider, managed.Instance.ID, resolvedInstanceConfig{
+			managed:    &managed,
+			instanceID: managed.Instance.ID,
+			appID:      "app-id",
+			serviceURL: "https://service.test",
+		})
+		api := &fakeTeamsAPI{sendErr: errors.New("activity unavailable")}
+		provider.apiFactory = func(resolvedInstanceConfig) teamsAPI { return api }
+
+		request := testTeamsProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-failure",
+			1,
+			"call-failure",
+			"agh__terminal",
+			"Inspecting",
+		)
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			request,
+		); err == nil {
+			t.Fatal("handleBridgesProgress() error = nil, want failed activity error")
+		}
+		if provider.deliveryState(managed.Instance.ID, request.Event.DeliveryID).Progress == nil {
+			t.Fatal("failed progress dispatcher = nil, want retained dispatcher for retry")
+		}
+		if err := provider.healthCheck(); err == nil {
+			t.Fatal("healthCheck() error = nil, want reported progress failure")
+		}
+	})
+
+	t.Run("Should detach pending progress when the instance switches to off", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newTeamsProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newTeamsProvider() error = %v", err)
+		}
+		t.Cleanup(provider.lifecycle.Stop)
+		managed := testTeamsManagedInstance(t, time.Unix(8_050, 0).UTC(), "brg-progress-disabled", map[string]any{
+			"service_url": "https://service.test",
+		})
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":false,"reactions":false}}`,
+		)
+		setTeamsProviderRoute(provider, managed.Instance.ID, resolvedInstanceConfig{
+			managed:    &managed,
+			instanceID: managed.Instance.ID,
+			appID:      "app-id",
+			serviceURL: "https://service.test",
+		})
+		api := &fakeTeamsAPI{nextActivityID: 10}
+		provider.apiFactory = func(resolvedInstanceConfig) teamsAPI { return api }
+
+		first := testTeamsProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-disabled",
+			1,
+			"call-1",
+			"agh__terminal",
+			"Inspecting",
+		)
+		second := testTeamsProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-disabled",
+			2,
+			"call-2",
+			"agh__task_list",
+			"Reading tasks",
+		)
+		for _, request := range []bridgepkg.DeliveryRequest{first, second} {
+			if _, err := provider.handleBridgesProgress(
+				context.Background(),
+				&bridgesdk.Session{},
+				request,
+			); err != nil {
+				t.Fatalf("handleBridgesProgress(seq=%d) error = %v", request.Event.Seq, err)
+			}
+		}
+		if provider.deliveryState(managed.Instance.ID, first.Event.DeliveryID).Progress == nil {
+			t.Fatal("progress dispatcher before disabling = nil, want active dispatcher")
+		}
+
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"off","grouping":"accumulate","typing":false,"reactions":false}}`,
+		)
+		disabled := second
+		disabled.Event.Seq = 3
+		disabled.Event.Progress.ToolCallID = "call-3"
+		disabled.Event.Progress.Index = 3
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			disabled,
+		); err != nil {
+			t.Fatalf("handleBridgesProgress(disabled) error = %v", err)
+		}
+
+		if provider.deliveryState(managed.Instance.ID, first.Event.DeliveryID).Progress != nil {
+			t.Fatal("progress dispatcher after disabling != nil, want detached dispatcher")
+		}
+		if got := len(api.updateCalls); got != 0 {
+			t.Fatalf("Teams progress updates after disabling = %d, want zero", got)
+		}
+	})
+
+	t.Run("Should flush an opted-in markdown progress activity before the final answer", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newTeamsProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newTeamsProvider() error = %v", err)
+		}
+		t.Cleanup(provider.lifecycle.Stop)
+		managed := testTeamsManagedInstance(t, time.Unix(8_100, 0).UTC(), "brg-progress-on", map[string]any{
+			"service_url": "https://service.test",
+		})
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":true,"reactions":true}}`,
+		)
+		setTeamsProviderRoute(provider, managed.Instance.ID, resolvedInstanceConfig{
+			managed:    &managed,
+			instanceID: managed.Instance.ID,
+			appID:      "app-id",
+			serviceURL: "https://service.test",
+		})
+		api := &fakeTeamsAPI{nextActivityID: 20}
+		provider.apiFactory = func(resolvedInstanceConfig) teamsAPI { return api }
+
+		first := testTeamsProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-on",
+			1,
+			"call-1",
+			"agh__terminal",
+			"Inspecting",
+		)
+		second := testTeamsProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-on",
+			2,
+			"call-2",
+			"agh__task_list",
+			"Reading tasks",
+		)
+		for _, request := range []bridgepkg.DeliveryRequest{first, second} {
+			if _, err := provider.handleBridgesProgress(
+				context.Background(),
+				&bridgesdk.Session{},
+				request,
+			); err != nil {
+				t.Fatalf("handleBridgesProgress(seq=%d) error = %v", request.Event.Seq, err)
+			}
+		}
+
+		final := first
+		final.Event.Seq = 3
+		final.Event.EventType = bridgepkg.DeliveryEventTypeFinal
+		final.Event.Progress = nil
+		final.Event.Content = bridgepkg.MessageContent{Text: "Final answer"}
+		final.Event.Final = true
+		if _, err := provider.handleBridgesDeliver(
+			context.Background(),
+			&bridgesdk.Session{},
+			final,
+		); err != nil {
+			t.Fatalf("handleBridgesDeliver(final) error = %v", err)
+		}
+
+		var messageCalls []teamsSendCall
+		for _, call := range api.sendCalls {
+			if call.Activity.Type == providerMessageKey {
+				messageCalls = append(messageCalls, call)
+			}
+		}
+		if got, want := len(messageCalls), 2; got != want {
+			t.Fatalf("Teams message activity calls = %d, want %d", got, want)
+		}
+		if got, want := messageCalls[0].Activity.Text, "Inspecting"; got != want {
+			t.Fatalf("progress activity text = %q, want %q", got, want)
+		}
+		if got, want := messageCalls[0].Activity.TextFormat, "markdown"; got != want {
+			t.Fatalf("progress activity text format = %q, want %q", got, want)
+		}
+		if got, want := messageCalls[0].ReplyToID, "activity-parent"; got != want {
+			t.Fatalf("progress activity reply id = %q, want %q", got, want)
+		}
+		if got, want := len(api.updateCalls), 1; got != want {
+			t.Fatalf("Teams progress update calls = %d, want %d", got, want)
+		}
+		if got, want := api.updateCalls[0].Activity.Text, "Inspecting\nReading tasks"; got != want {
+			t.Fatalf("progress update text = %q, want %q", got, want)
+		}
+		if got, want := api.updateCalls[0].Activity.TextFormat, "markdown"; got != want {
+			t.Fatalf("progress update text format = %q, want %q", got, want)
+		}
+		if got, want := messageCalls[1].Activity.Text, "Final answer"; got != want {
+			t.Fatalf("final activity text = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should deliver final text once after a committed progress flush", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newTeamsProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newTeamsProvider() error = %v", err)
+		}
+		t.Cleanup(provider.lifecycle.Stop)
+		managed := testTeamsManagedInstance(
+			t,
+			time.Unix(8_125, 0).UTC(),
+			"brg-progress-committed-flush",
+			map[string]any{
+				"service_url": "https://service.test",
+			},
+		)
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":false,"reactions":false}}`,
+		)
+		setTeamsProviderRoute(provider, managed.Instance.ID, resolvedInstanceConfig{
+			managed:    &managed,
+			instanceID: managed.Instance.ID,
+			appID:      "app-id",
+			serviceURL: "https://service.test",
+		})
+		api := &fakeTeamsAPI{
+			nextActivityID:  40,
+			updateErrorText: "Inspecting\nReading tasks",
+			updateErr: &bridgesdk.CommittedMutationError{
+				Err: errors.New("Teams progress update result unavailable"),
+			},
+		}
+		provider.apiFactory = func(resolvedInstanceConfig) teamsAPI { return api }
+
+		first := testTeamsProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-committed-flush",
+			1,
+			"call-1",
+			"agh__terminal",
+			"Inspecting",
+		)
+		second := testTeamsProgressRequest(
+			managed.Instance.ID,
+			first.Event.DeliveryID,
+			2,
+			"call-2",
+			"agh__task_list",
+			"Reading tasks",
+		)
+		for _, request := range []bridgepkg.DeliveryRequest{first, second} {
+			if _, err := provider.handleBridgesProgress(
+				context.Background(),
+				&bridgesdk.Session{},
+				request,
+			); err != nil {
+				t.Fatalf("handleBridgesProgress(seq=%d) error = %v", request.Event.Seq, err)
+			}
+		}
+
+		final := first
+		final.Event.Seq = 3
+		final.Event.EventType = bridgepkg.DeliveryEventTypeFinal
+		final.Event.Progress = nil
+		final.Event.Content = bridgepkg.MessageContent{Text: "Final answer"}
+		final.Event.Final = true
+		if _, err := provider.handleBridgesDeliver(
+			context.Background(),
+			&bridgesdk.Session{},
+			final,
+		); err != nil {
+			t.Fatalf("handleBridgesDeliver(final) error = %v", err)
+		}
+
+		if got, want := countTeamsSendCalls(api.sendAttempts, "Final answer"), 1; got != want {
+			t.Fatalf("Teams final send attempts = %d, want %d", got, want)
+		}
+		if got, want := len(api.updateCalls), 1; got != want {
+			t.Fatalf("Teams committed progress update attempts = %d, want %d", got, want)
+		}
+		if state := provider.deliveryState(managed.Instance.ID, first.Event.DeliveryID); state.Progress != nil {
+			t.Fatal("terminal delivery progress dispatcher != nil after final text")
+		}
+	})
+
+	t.Run("Should remove and close delivery state after committed final text", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newTeamsProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newTeamsProvider() error = %v", err)
+		}
+		t.Cleanup(provider.lifecycle.Stop)
+		managed := testTeamsManagedInstance(t, time.Unix(8_137, 0).UTC(), "brg-final-committed", map[string]any{
+			"service_url": "https://service.test",
+		})
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":false,"reactions":false}}`,
+		)
+		setTeamsProviderRoute(provider, managed.Instance.ID, resolvedInstanceConfig{
+			managed:    &managed,
+			instanceID: managed.Instance.ID,
+			appID:      "app-id",
+			serviceURL: "https://service.test",
+		})
+		api := &fakeTeamsAPI{
+			nextActivityID: 50,
+			sendErrorText:  "Final answer",
+			sendErr: &bridgesdk.CommittedMutationError{
+				Err: errors.New("Teams final send result unavailable"),
+			},
+		}
+		provider.apiFactory = func(resolvedInstanceConfig) teamsAPI { return api }
+
+		progress := testTeamsProgressRequest(
+			managed.Instance.ID,
+			"delivery-final-committed",
+			1,
+			"call-1",
+			"agh__terminal",
+			"Inspecting",
+		)
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			progress,
+		); err != nil {
+			t.Fatalf("handleBridgesProgress() error = %v", err)
+		}
+		dispatcher := provider.deliveryState(managed.Instance.ID, progress.Event.DeliveryID).Progress
+		if dispatcher == nil {
+			t.Fatal("progress dispatcher = nil before final delivery")
+		}
+
+		final := progress
+		final.Event.Seq = 2
+		final.Event.EventType = bridgepkg.DeliveryEventTypeFinal
+		final.Event.Progress = nil
+		final.Event.Content = bridgepkg.MessageContent{Text: "Final answer"}
+		final.Event.Final = true
+		_, err = provider.handleBridgesDeliver(
+			context.Background(),
+			&bridgesdk.Session{},
+			final,
+		)
+		var committedErr *bridgesdk.CommittedMutationError
+		if !errors.As(err, &committedErr) {
+			t.Fatalf("handleBridgesDeliver(final) error = %T %v, want CommittedMutationError", err, err)
+		}
+		if _, exists := provider.deliveries.Load(
+			deliveryStateKey(managed.Instance.ID, progress.Event.DeliveryID),
+		); exists {
+			t.Fatal("delivery state still exists after committed final text")
+		}
+		if err := dispatcher.Flush(context.Background()); err == nil || !strings.Contains(err.Error(), "closed") {
+			t.Fatalf("removed progress dispatcher Flush() error = %v, want closed dispatcher", err)
+		}
+		if got, want := countTeamsSendCalls(api.sendAttempts, "Final answer"), 1; got != want {
+			t.Fatalf("Teams committed final send attempts = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should reuse one proactive conversation for typing and progress", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newTeamsProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newTeamsProvider() error = %v", err)
+		}
+		t.Cleanup(provider.lifecycle.Stop)
+		managed := testTeamsManagedInstance(t, time.Unix(8_200, 0).UTC(), "brg-progress-dm", map[string]any{
+			"service_url": "https://service.test",
+		})
+		managed.Instance.DeliveryDefaults = json.RawMessage(
+			`{"progress":{"tool_progress":"all","grouping":"accumulate","typing":true,"reactions":false}}`,
+		)
+		setTeamsProviderRoute(provider, managed.Instance.ID, resolvedInstanceConfig{
+			managed:     &managed,
+			instanceID:  managed.Instance.ID,
+			appID:       "app-id",
+			appTenantID: "tenant-id",
+			serviceURL:  "https://service.test",
+		})
+		api := &fakeTeamsAPI{createConversationID: "conversation-dm", nextActivityID: 30}
+		provider.apiFactory = func(resolvedInstanceConfig) teamsAPI { return api }
+
+		request := testTeamsProgressRequest(
+			managed.Instance.ID,
+			"delivery-progress-dm",
+			1,
+			"call-dm",
+			"agh__terminal",
+			"Inspecting",
+		)
+		request.Event.RoutingKey.GroupID = ""
+		request.Event.RoutingKey.ThreadID = ""
+		request.Event.RoutingKey.PeerID = "29:user"
+		request.Event.DeliveryTarget.GroupID = ""
+		request.Event.DeliveryTarget.ThreadID = ""
+		request.Event.DeliveryTarget.PeerID = "29:user"
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			request,
+		); err != nil {
+			t.Fatalf("handleBridgesProgress() error = %v", err)
+		}
+
+		if got, want := len(api.createCalls), 1; got != want {
+			t.Fatalf("Teams proactive conversation calls = %d, want %d", got, want)
+		}
+		if got, want := len(api.sendCalls), 2; got != want {
+			t.Fatalf("Teams typing and progress calls = %d, want %d", got, want)
+		}
+		if got, want := api.sendCalls[0].Activity.Type, teamsTypingActivityType; got != want {
+			t.Fatalf("Teams first progress activity type = %q, want %q", got, want)
+		}
+		if got, want := api.sendCalls[1].Activity.Type, providerMessageKey; got != want {
+			t.Fatalf("Teams second progress activity type = %q, want %q", got, want)
+		}
+		for index, call := range api.sendCalls {
+			if got, want := call.ConversationID, "conversation-dm"; got != want {
+				t.Fatalf("Teams send call %d conversation id = %q, want %q", index, got, want)
+			}
+		}
+
+		final := request
+		final.Event.Seq = 2
+		final.Event.EventType = bridgepkg.DeliveryEventTypeFinal
+		final.Event.Progress = nil
+		final.Event.Final = true
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			final,
+		); err != nil {
+			t.Fatalf("handleBridgesProgress(lifecycle final) error = %v", err)
+		}
+		_, deliveryExists := provider.deliveries.Load(deliveryStateKey(managed.Instance.ID, request.Event.DeliveryID))
+		if deliveryExists {
+			t.Fatal("lifecycle-only delivery state still exists, want terminal removal")
+		}
+
+		staleDeliveryID := "delivery-progress-dm-stale"
+		provider.storeDeliveryState(managed.Instance.ID, staleDeliveryID, deliveryState{
+			RemoteMessageID: "stale-message",
+		})
+		staleFinal := final
+		staleFinal.Event.DeliveryID = staleDeliveryID
+		staleFinal.Event.Seq = 3
+		if _, err := provider.handleBridgesProgress(
+			context.Background(),
+			&bridgesdk.Session{},
+			staleFinal,
+		); err != nil {
+			t.Fatalf("handleBridgesProgress(stale lifecycle final) error = %v", err)
+		}
+		_, staleExists := provider.deliveries.Load(deliveryStateKey(managed.Instance.ID, staleDeliveryID))
+		if staleExists {
+			t.Fatal("dispatcher-free lifecycle-only state still exists, want terminal removal")
+		}
+	})
 }
 
 func TestMapTeamsActivityFamiliesAndDMPolicy(t *testing.T) {
@@ -389,12 +941,387 @@ func TestExecuteTeamsDeliveryConversationAndProactiveDM(t *testing.T) {
 	}
 }
 
+func TestExecuteTeamsDeliveryChunksTerminalContent(t *testing.T) {
+	t.Parallel()
+
+	serviceURL := "https://smba.trafficmanager.net/teams/"
+	conversationID := "19:channel@thread.tacv2"
+	threadID := encodeTeamsThreadID(teamsThreadRef{
+		ConversationID: conversationID + ";messageid=activity-parent",
+		ServiceURL:     serviceURL,
+	})
+	cfg := resolvedInstanceConfig{
+		instanceID: "brg-teams",
+		serviceURL: serviceURL,
+		appID:      "app-id",
+	}
+	routing := bridgepkg.RoutingKey{
+		Scope:            bridgepkg.ScopeWorkspace,
+		WorkspaceID:      "ws-teams",
+		BridgeInstanceID: "brg-teams",
+		GroupID:          conversationID,
+		ThreadID:         threadID,
+	}
+	target := bridgepkg.DeliveryTarget{
+		BridgeInstanceID: "brg-teams",
+		GroupID:          conversationID,
+		ThreadID:         threadID,
+		Mode:             bridgepkg.DeliveryModeReply,
+	}
+	longText := strings.Repeat("teams chunk ", 3_000)
+	lookup := func(string, string) (teamsUserContext, bool) {
+		return teamsUserContext{}, false
+	}
+
+	t.Run("Should post terminal chunks in order and acknowledge the last activity", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeTeamsAPI{nextActivityID: 700}
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "delivery-create",
+			BridgeInstanceID: "brg-teams",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              1,
+			EventType:        bridgepkg.DeliveryEventTypeFinal,
+			Final:            true,
+			Content:          bridgepkg.MessageContent{Text: longText},
+		}}
+
+		ack, _, err := executeTeamsDelivery(
+			context.Background(), api, cfg, request, deliveryState{}, nil, lookup,
+		)
+		if err != nil {
+			t.Fatalf("executeTeamsDelivery() error = %v", err)
+		}
+		wantChunks := bridgesdk.ChunkMessage(longText, teamsMaxMessageLen, nil)
+		if got, want := len(api.sendCalls), len(wantChunks); got != want {
+			t.Fatalf("send calls = %d, want %d chunks", got, want)
+		}
+		for index, call := range api.sendCalls {
+			if got, want := call.Activity.Text, wantChunks[index]; got != want {
+				t.Fatalf("chunk %d text = %q, want %q", index, got, want)
+			}
+			if got := len([]rune(call.Activity.Text)); got > teamsMaxMessageLen {
+				t.Fatalf("chunk %d length = %d, want <= %d", index, got, teamsMaxMessageLen)
+			}
+			if got, want := call.ConversationID, conversationID; got != want {
+				t.Fatalf("chunk %d conversation = %q, want %q", index, got, want)
+			}
+			if got, want := call.ReplyToID, "activity-parent"; got != want {
+				t.Fatalf("chunk %d reply id = %q, want %q", index, got, want)
+			}
+			indicator := fmt.Sprintf("\n\n(%d/%d)", index+1, len(api.sendCalls))
+			if !strings.HasSuffix(call.Activity.Text, indicator) {
+				t.Fatalf("chunk %d text = %q, want suffix %q", index, call.Activity.Text, indicator)
+			}
+		}
+		ref, err := decodeRemoteMessageID(ack.RemoteMessageID)
+		if err != nil {
+			t.Fatalf("decodeRemoteMessageID() error = %v", err)
+		}
+		if got, want := ref.ActivityID, fmt.Sprintf("activity-%d", 699+len(api.sendCalls)); got != want {
+			t.Fatalf("ack activity id = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should keep an overflowing non-terminal preview in one activity", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeTeamsAPI{nextActivityID: 800}
+		remoteID := testTeamsRemoteMessageID(conversationID, serviceURL, "activity-active")
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "delivery-preview",
+			BridgeInstanceID: "brg-teams",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              2,
+			EventType:        bridgepkg.DeliveryEventTypeDelta,
+			Operation:        bridgepkg.DeliveryOperationEdit,
+			Reference:        &bridgepkg.DeliveryMessageReference{RemoteMessageID: remoteID},
+			Content:          bridgepkg.MessageContent{Text: longText},
+		}}
+
+		_, _, err := executeTeamsDelivery(
+			context.Background(), api, cfg, request,
+			deliveryState{LastSeq: 1, RemoteMessageID: remoteID}, nil, lookup,
+		)
+		if err != nil {
+			t.Fatalf("executeTeamsDelivery() error = %v", err)
+		}
+		if got, want := len(api.updateCalls), 1; got != want {
+			t.Fatalf("update calls = %d, want %d", got, want)
+		}
+		wantPreview := bridgesdk.ChunkMessage(longText, teamsMaxMessageLen, nil)[0]
+		if got := api.updateCalls[0].Activity.Text; got != wantPreview {
+			t.Fatalf("preview text = %q, want %q", got, wantPreview)
+		}
+		if got := len([]rune(api.updateCalls[0].Activity.Text)); got > teamsMaxMessageLen {
+			t.Fatalf("preview length = %d, want <= %d", got, teamsMaxMessageLen)
+		}
+		if !strings.Contains(api.updateCalls[0].Activity.Text, "\n\n(1/") {
+			t.Fatalf("preview text = %q, want first-chunk indicator", api.updateCalls[0].Activity.Text)
+		}
+		if got := len(api.sendCalls); got != 0 {
+			t.Fatalf("send calls = %d, want no preview continuations", got)
+		}
+	})
+
+	t.Run("Should edit the active activity then post terminal continuations", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeTeamsAPI{nextActivityID: 900}
+		remoteID := testTeamsRemoteMessageID(conversationID, serviceURL, "activity-active")
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "delivery-edit",
+			BridgeInstanceID: "brg-teams",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              2,
+			EventType:        bridgepkg.DeliveryEventTypeFinal,
+			Final:            true,
+			Operation:        bridgepkg.DeliveryOperationEdit,
+			Reference:        &bridgepkg.DeliveryMessageReference{RemoteMessageID: remoteID},
+			Content:          bridgepkg.MessageContent{Text: longText},
+		}}
+
+		ack, _, err := executeTeamsDelivery(
+			context.Background(), api, cfg, request,
+			deliveryState{LastSeq: 1, RemoteMessageID: remoteID}, nil, lookup,
+		)
+		if err != nil {
+			t.Fatalf("executeTeamsDelivery() error = %v", err)
+		}
+		if got, want := len(api.updateCalls), 1; got != want {
+			t.Fatalf("update calls = %d, want %d", got, want)
+		}
+		if len(api.sendCalls) == 0 {
+			t.Fatal("send calls = 0, want terminal continuations")
+		}
+		wantChunks := bridgesdk.ChunkMessage(longText, teamsMaxMessageLen, nil)
+		if got, want := len(api.sendCalls)+1, len(wantChunks); got != want {
+			t.Fatalf("delivered chunks = %d, want %d", got, want)
+		}
+		if got, want := api.updateCalls[0].Activity.Text, wantChunks[0]; got != want {
+			t.Fatalf("updated chunk = %q, want %q", got, want)
+		}
+		totalChunks := len(wantChunks)
+		if got := len([]rune(api.updateCalls[0].Activity.Text)); got > teamsMaxMessageLen {
+			t.Fatalf("updated chunk length = %d, want <= %d", got, teamsMaxMessageLen)
+		}
+		indicator := fmt.Sprintf("\n\n(1/%d)", totalChunks)
+		if !strings.HasSuffix(api.updateCalls[0].Activity.Text, indicator) {
+			t.Fatalf("updated chunk = %q, want suffix %q", api.updateCalls[0].Activity.Text, indicator)
+		}
+		for index, call := range api.sendCalls {
+			if got, want := call.Activity.Text, wantChunks[index+1]; got != want {
+				t.Fatalf("continuation %d = %q, want %q", index, got, want)
+			}
+			if got, want := call.ReplyToID, "activity-parent"; got != want {
+				t.Fatalf("continuation %d reply id = %q, want %q", index, got, want)
+			}
+			if got := len([]rune(call.Activity.Text)); got > teamsMaxMessageLen {
+				t.Fatalf("continuation %d length = %d, want <= %d", index, got, teamsMaxMessageLen)
+			}
+			indicator := fmt.Sprintf("\n\n(%d/%d)", index+2, totalChunks)
+			if !strings.HasSuffix(call.Activity.Text, indicator) {
+				t.Fatalf("continuation %d = %q, want suffix %q", index, call.Activity.Text, indicator)
+			}
+		}
+		lastRef, err := decodeRemoteMessageID(ack.RemoteMessageID)
+		if err != nil {
+			t.Fatalf("decodeRemoteMessageID() error = %v", err)
+		}
+		if got, want := lastRef.ActivityID, fmt.Sprintf("activity-%d", 899+len(api.sendCalls)); got != want {
+			t.Fatalf("ack activity id = %q, want %q", got, want)
+		}
+		if got := ack.ReplaceRemoteMessageID; got != remoteID {
+			t.Fatalf("ReplaceRemoteMessageID = %q, want %q", got, remoteID)
+		}
+	})
+
+	t.Run("Should keep root continuations at the conversation root", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeTeamsAPI{nextActivityID: 1_000}
+		rootThreadID := encodeTeamsThreadID(teamsThreadRef{
+			ConversationID: conversationID,
+			ServiceURL:     serviceURL,
+		})
+		rootRouting := routing
+		rootRouting.ThreadID = rootThreadID
+		rootTarget := target
+		rootTarget.ThreadID = rootThreadID
+		remoteID := testTeamsRemoteMessageID(conversationID, serviceURL, "activity-active")
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "delivery-root-edit",
+			BridgeInstanceID: "brg-teams",
+			RoutingKey:       rootRouting,
+			DeliveryTarget:   rootTarget,
+			Seq:              2,
+			EventType:        bridgepkg.DeliveryEventTypeFinal,
+			Final:            true,
+			Operation:        bridgepkg.DeliveryOperationEdit,
+			Reference:        &bridgepkg.DeliveryMessageReference{RemoteMessageID: remoteID},
+			Content:          bridgepkg.MessageContent{Text: longText},
+		}}
+
+		_, _, err := executeTeamsDelivery(
+			context.Background(), api, cfg, request,
+			deliveryState{LastSeq: 1, RemoteMessageID: remoteID}, nil, lookup,
+		)
+		if err != nil {
+			t.Fatalf("executeTeamsDelivery() error = %v", err)
+		}
+		if len(api.sendCalls) == 0 {
+			t.Fatal("send calls = 0, want terminal continuations")
+		}
+		for index, call := range api.sendCalls {
+			if got := call.ReplyToID; got != "" {
+				t.Fatalf("continuation %d reply id = %q, want root", index, got)
+			}
+		}
+	})
+
+	t.Run("Should reject a send response without an activity id", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeTeamsAPI{sendEmptyActivityID: true}
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "delivery-empty-id",
+			BridgeInstanceID: "brg-teams",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              1,
+			EventType:        bridgepkg.DeliveryEventTypeFinal,
+			Final:            true,
+			Content:          bridgepkg.MessageContent{Text: "hello"},
+		}}
+
+		ack, state, err := executeTeamsDelivery(
+			context.Background(), api, cfg, request, deliveryState{}, nil, lookup,
+		)
+		if got, want := bridgesdk.ClassifyError(err).Class, bridgesdk.ErrorClassPermanent; got != want {
+			t.Fatalf("executeTeamsDelivery() error class = %q, want %q: %v", got, want, err)
+		}
+		var committedErr *bridgesdk.CommittedMutationError
+		if !errors.As(err, &committedErr) {
+			t.Fatalf("executeTeamsDelivery() error = %T, want CommittedMutationError", err)
+		}
+		if got, want := len(api.sendAttempts), 1; got != want {
+			t.Fatalf("send attempts = %d, want %d", got, want)
+		}
+		if ack != (bridgepkg.DeliveryAck{}) ||
+			state.LastSeq != 0 ||
+			state.RemoteMessageID != "" ||
+			state.ReplaceRemoteMessageID != "" ||
+			state.Chunks.NextChunk() != 0 {
+			t.Fatalf("unacknowledged delivery = ack:%#v state:%#v, want no committed chunk", ack, state)
+		}
+	})
+
+	t.Run("Should stop without an ack when a terminal continuation fails", func(t *testing.T) {
+		t.Parallel()
+
+		sendErr := errors.New("continuation unavailable")
+		api := &fakeTeamsAPI{sendErr: sendErr}
+		remoteID := testTeamsRemoteMessageID(conversationID, serviceURL, "activity-active")
+		initialState := deliveryState{LastSeq: 1, RemoteMessageID: remoteID}
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "delivery-continuation-failure",
+			BridgeInstanceID: "brg-teams",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              2,
+			EventType:        bridgepkg.DeliveryEventTypeFinal,
+			Final:            true,
+			Operation:        bridgepkg.DeliveryOperationEdit,
+			Reference:        &bridgepkg.DeliveryMessageReference{RemoteMessageID: remoteID},
+			Content:          bridgepkg.MessageContent{Text: longText},
+		}}
+
+		ack, state, err := executeTeamsDelivery(
+			context.Background(), api, cfg, request, initialState, nil, lookup,
+		)
+		if !errors.Is(err, sendErr) {
+			t.Fatalf("executeTeamsDelivery() error = %v, want wrapped continuation error", err)
+		}
+		if ack != (bridgepkg.DeliveryAck{}) ||
+			state.LastSeq != initialState.LastSeq ||
+			state.RemoteMessageID != initialState.RemoteMessageID ||
+			state.ReplaceRemoteMessageID != initialState.ReplaceRemoteMessageID {
+			t.Fatalf("failed delivery = ack:%#v state:%#v, want zero ack and no committed final state", ack, state)
+		}
+		if got, want := state.Chunks.NextChunk(), 1; got != want {
+			t.Fatalf("completed chunk prefix = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should resume at the first unsent chunk after exhausting Retry-After attempts", func(t *testing.T) {
+		t.Parallel()
+
+		request := bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+			DeliveryID:       "delivery-partial-chunk",
+			BridgeInstanceID: "brg-teams",
+			RoutingKey:       routing,
+			DeliveryTarget:   target,
+			Seq:              1,
+			EventType:        bridgepkg.DeliveryEventTypeFinal,
+			Final:            true,
+			Content:          bridgepkg.MessageContent{Text: longText},
+		}}
+		chunks := teamsDeliveryChunks(request.Event)
+		if len(chunks) < 2 {
+			t.Fatalf("teamsDeliveryChunks() returned %d chunk, want at least 2", len(chunks))
+		}
+
+		api := &fakeTeamsAPI{
+			nextActivityID: 1_100,
+			sendErrorText:  chunks[1],
+			sendErr: &bridgesdk.RateLimitError{
+				Err:        errors.New("rate limited continuation"),
+				RetryAfter: time.Nanosecond,
+			},
+		}
+		_, partialState, err := executeTeamsDelivery(
+			context.Background(), api, cfg, request, deliveryState{}, nil, lookup,
+		)
+		if err == nil {
+			t.Fatal("executeTeamsDelivery(partial) error = nil, want exhausted rate limit")
+		}
+		if got, want := countTeamsSendCalls(
+			api.sendAttempts,
+			chunks[1],
+		), bridgesdk.DefaultRetryConfig().Attempts; got != want {
+			t.Fatalf("failed continuation attempts = %d, want %d", got, want)
+		}
+		if got, want := countTeamsSendCalls(api.sendCalls, chunks[0]), 1; got != want {
+			t.Fatalf("successful first-chunk sends = %d, want %d", got, want)
+		}
+
+		api.sendErr = nil
+		resume := testTeamsResumeRequest(request)
+		if _, _, err := executeTeamsDelivery(
+			context.Background(), api, cfg, resume, partialState, nil, lookup,
+		); err != nil {
+			t.Fatalf("executeTeamsDelivery(resume) error = %v", err)
+		}
+		if got, want := countTeamsSendCalls(api.sendCalls, chunks[0]), 1; got != want {
+			t.Fatalf("successful first-chunk sends after resume = %d, want %d", got, want)
+		}
+		if got, want := len(api.sendCalls), len(chunks); got != want {
+			t.Fatalf("successful chunk sends = %d, want %d", got, want)
+		}
+	})
+}
+
 func TestResolveInstanceConfigAndDetermineInitialState(t *testing.T) {
 	mock := newTeamsProviderServer(t, teamsProviderServerConfig{})
 	env := setProviderTestEnv(t)
 	_ = env
 	listenAddr := reserveListenAddr(t)
 	t.Setenv(teamsListenAddrEnv, listenAddr)
+	t.Setenv(teamsServiceURLEnv, mock.ServiceURL())
 	t.Setenv(teamsOpenIDMetadataURLEnv, mock.MetadataURL())
 	t.Setenv(teamsOAuthTokenURLEnvName(), mock.TokenURL())
 
@@ -403,14 +1330,9 @@ func TestResolveInstanceConfigAndDetermineInitialState(t *testing.T) {
 
 	now := time.Date(2026, 4, 15, 18, 0, 0, 0, time.UTC)
 	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{
-		"service_url": mock.ServiceURL(),
 		"webhook": map[string]any{
 			"listen_addr": listenAddr,
 			"path":        "teams",
-		},
-		"auth": map[string]any{
-			"openid_metadata_url": mock.MetadataURL(),
-			"token_url":           mock.TokenURL(),
 		},
 		"batching": map[string]any{
 			"delay_ms":        5,
@@ -428,10 +1350,10 @@ func TestResolveInstanceConfigAndDetermineInitialState(t *testing.T) {
 	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, managed), nil); err != nil {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
-	states := waitForJSONLinesFile[stateMarker](
+	states := waitForJSONLinesFile[bridgesdk.StateMarker](
 		t,
-		env.statePath,
-		func(items []stateMarker) bool {
+		env.StatePath,
+		func(items []bridgesdk.StateMarker) bool {
 			return len(items) >= 1 && items[len(items)-1].Status.Normalize() == bridgepkg.BridgeStatusReady
 		},
 	)
@@ -439,9 +1361,7 @@ func TestResolveInstanceConfigAndDetermineInitialState(t *testing.T) {
 		t.Fatalf("states[last].Status = %q, want %q", got, want)
 	}
 	waitForCondition(t, func() bool {
-		runtime.mu.RLock()
-		defer runtime.mu.RUnlock()
-		return runtime.server != nil && strings.TrimSpace(runtime.serverAddr) != ""
+		return strings.TrimSpace(runtime.http.Address()) != ""
 	})
 
 	session := runtime.currentSession()
@@ -564,6 +1484,7 @@ func TestRuntimeInitializeStartsServerAndWritesMarkers(t *testing.T) {
 	listenAddr := reserveListenAddr(t)
 	mock := newTeamsProviderServer(t, teamsProviderServerConfig{})
 	t.Setenv(teamsListenAddrEnv, listenAddr)
+	t.Setenv(teamsServiceURLEnv, mock.ServiceURL())
 	t.Setenv(teamsOpenIDMetadataURLEnv, mock.MetadataURL())
 	t.Setenv(teamsOAuthTokenURLEnvName(), mock.TokenURL())
 
@@ -576,25 +1497,13 @@ func TestRuntimeInitializeStartsServerAndWritesMarkers(t *testing.T) {
 			t,
 			now,
 			"brg-1",
-			map[string]any{
-				"service_url": mock.ServiceURL(),
-				"auth": map[string]any{
-					"openid_metadata_url": mock.MetadataURL(),
-					"token_url":           mock.TokenURL(),
-				},
-			},
+			map[string]any{},
 		),
 		testTeamsManagedInstance(
 			t,
 			now,
 			"brg-2",
-			map[string]any{
-				"service_url": mock.ServiceURL(),
-				"auth": map[string]any{
-					"openid_metadata_url": mock.MetadataURL(),
-					"token_url":           mock.TokenURL(),
-				},
-			},
+			map[string]any{},
 		),
 	}
 	mustHandleLifecycle(t, hostPeer, managed...)
@@ -608,26 +1517,24 @@ func TestRuntimeInitializeStartsServerAndWritesMarkers(t *testing.T) {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
 
-	handshake := waitForJSONFile[initializeMarker](t, env.handshakePath)
+	handshake := waitForJSONFile[bridgesdk.InitializeMarker](t, env.HandshakePath)
 	if got, want := handshake.Request.Runtime.Bridge.Provider, "teams"; got != want {
 		t.Fatalf("handshake provider = %q, want %q", got, want)
 	}
-	ownership := waitForJSONFile[ownershipMarker](t, env.ownershipPath)
+	ownership := waitForJSONFile[bridgesdk.OwnershipMarker](t, env.OwnershipPath)
 	if got, want := len(ownership.Fetched), 2; got != want {
 		t.Fatalf("len(ownership.Fetched) = %d, want %d", got, want)
 	}
-	states := waitForJSONLinesFile[stateMarker](
+	states := waitForJSONLinesFile[bridgesdk.StateMarker](
 		t,
-		env.statePath,
-		func(items []stateMarker) bool { return len(items) >= 2 },
+		env.StatePath,
+		func(items []bridgesdk.StateMarker) bool { return len(items) >= 2 },
 	)
 	if got, want := states[0].Status.Normalize(), bridgepkg.BridgeStatusReady; got != want {
 		t.Fatalf("states[0].Status = %q, want %q", got, want)
 	}
 	waitForCondition(t, func() bool {
-		runtime.mu.RLock()
-		defer runtime.mu.RUnlock()
-		return strings.TrimSpace(runtime.serverAddr) != ""
+		return strings.TrimSpace(runtime.http.Address()) != ""
 	})
 }
 
@@ -636,6 +1543,7 @@ func TestWebhookAuthorizationRejectsInvalidTokenAndIngestsActivities(t *testing.
 	listenAddr := reserveListenAddr(t)
 	mock := newTeamsProviderServer(t, teamsProviderServerConfig{})
 	t.Setenv(teamsListenAddrEnv, listenAddr)
+	t.Setenv(teamsServiceURLEnv, mock.ServiceURL())
 	t.Setenv(teamsOpenIDMetadataURLEnv, mock.MetadataURL())
 	t.Setenv(teamsOAuthTokenURLEnvName(), mock.TokenURL())
 
@@ -643,13 +1551,7 @@ func TestWebhookAuthorizationRejectsInvalidTokenAndIngestsActivities(t *testing.
 	defer cleanup()
 
 	now := time.Date(2026, 4, 15, 18, 25, 0, 0, time.UTC)
-	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{
-		"service_url": mock.ServiceURL(),
-		"auth": map[string]any{
-			"openid_metadata_url": mock.MetadataURL(),
-			"token_url":           mock.TokenURL(),
-		},
-	})
+	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{})
 	mustHandleLifecycle(t, hostPeer, managed)
 
 	var ingested []bridgepkg.InboundMessageEnvelope
@@ -666,7 +1568,7 @@ func TestWebhookAuthorizationRejectsInvalidTokenAndIngestsActivities(t *testing.
 			mu.Lock()
 			ingested = append(ingested, envelope)
 			mu.Unlock()
-			return extensioncontract.BridgesMessagesIngestResult{
+			return bridgepkg.BridgesMessagesIngestResult{
 				SessionID:    "sess-1",
 				RouteCreated: true,
 				RoutingKey: bridgepkg.RoutingKey{
@@ -685,14 +1587,10 @@ func TestWebhookAuthorizationRejectsInvalidTokenAndIngestsActivities(t *testing.
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
 	waitForCondition(t, func() bool {
-		runtime.mu.RLock()
-		defer runtime.mu.RUnlock()
-		return strings.TrimSpace(runtime.serverAddr) != ""
+		return strings.TrimSpace(runtime.http.Address()) != ""
 	})
 
-	runtime.mu.RLock()
-	serverAddr := runtime.serverAddr
-	runtime.mu.RUnlock()
+	serverAddr := runtime.http.Address()
 	webhookURL := "http://" + serverAddr + "/teams/brg-1"
 
 	invalidReq, err := http.NewRequestWithContext(
@@ -710,7 +1608,9 @@ func TestWebhookAuthorizationRejectsInvalidTokenAndIngestsActivities(t *testing.
 	if err != nil {
 		t.Fatalf("http.DefaultClient.Do(invalid) error = %v", err)
 	}
-	_ = invalidResp.Body.Close()
+	if err := invalidResp.Body.Close(); err != nil {
+		t.Errorf("invalid response body close error = %v", err)
+	}
 	if got, want := invalidResp.StatusCode, http.StatusUnauthorized; got != want {
 		t.Fatalf("invalid webhook status = %d, want %d", got, want)
 	}
@@ -725,10 +1625,10 @@ func TestWebhookAuthorizationRejectsInvalidTokenAndIngestsActivities(t *testing.
 	postTeamsWebhook(t, mock, webhookURL, "app-id", teamsInvokeWebhook(mock.ServiceURL()))
 	postTeamsWebhook(t, mock, webhookURL, "app-id", teamsReactionWebhook(mock.ServiceURL()))
 
-	ingests := waitForJSONLinesFile[ingestMarker](
+	ingests := waitForJSONLinesFile[bridgesdk.IngestMarker](
 		t,
-		env.ingestPath,
-		func(items []ingestMarker) bool {
+		env.IngestPath,
+		func(items []bridgesdk.IngestMarker) bool {
 			return len(items) >= 4
 		},
 	)
@@ -753,6 +1653,57 @@ func TestWebhookAuthorizationRejectsInvalidTokenAndIngestsActivities(t *testing.
 
 func TestTeamsCredentialedRequestsRejectRedirects(t *testing.T) {
 	enableTeamsLoopbackCredentialedURLsForTesting(t)
+
+	t.Run("Should preserve rate-limit classification when the error body read fails", func(t *testing.T) {
+		// not parallel: parent test configures credentialed URL policy with t.Setenv.
+		readErr := errors.New("Teams error body read failed")
+		body := &teamsPartialErrorResponseBody{
+			content: []byte("Teams rate limit exceeded"),
+			readErr: readErr,
+		}
+		client := &teamsBotClient{
+			cfg: resolvedInstanceConfig{},
+			httpClient: &http.Client{Transport: teamsRoundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusTooManyRequests,
+					Header:     http.Header{"Retry-After": []string{"3"}},
+					Body:       body,
+					Request:    req,
+				}, nil
+			})},
+			cachedToken: "cached-token",
+			tokenExpiry: time.Now().UTC().Add(time.Hour),
+		}
+
+		err := client.callJSON(
+			t.Context(),
+			http.MethodGet,
+			"https://service.test",
+			"/v3/conversations/rate-limited",
+			nil,
+			nil,
+			bridgesdk.HTTPResponseNoCommit,
+		)
+		if !errors.Is(err, readErr) {
+			t.Fatalf("callJSON() error = %v, want response body read failure", err)
+		}
+		var rateLimitErr *bridgesdk.RateLimitError
+		if !errors.As(err, &rateLimitErr) || rateLimitErr.RetryAfter != 3*time.Second {
+			t.Fatalf("callJSON() error = %v, want rate limit with three-second retry", err)
+		}
+		if got, want := bridgesdk.ClassifyError(err).Class, bridgesdk.ErrorClassRateLimit; got != want {
+			t.Fatalf("callJSON() error class = %q, want %q", got, want)
+		}
+		if !strings.Contains(rateLimitErr.Error(), "Teams rate limit exceeded") {
+			t.Fatalf("callJSON() rate-limit error = %q, want partial provider body", rateLimitErr.Error())
+		}
+		if got, want := body.reads, 2; got != want {
+			t.Fatalf("response body reads = %d, want %d for read plus deferred drain", got, want)
+		}
+		if !body.closed {
+			t.Fatal("response body closed = false after error classification")
+		}
+	})
 
 	t.Run("Should not follow OpenID metadata redirects", func(t *testing.T) {
 		var (
@@ -860,6 +1811,87 @@ func TestTeamsCredentialedRequestsRejectRedirects(t *testing.T) {
 			t.Fatalf("redirect target hits = %d, want 0", got)
 		}
 	})
+
+	for _, testCase := range []struct {
+		name       string
+		statusCode int
+	}{
+		{name: "Should refuse a credentialed bot API 301 redirect", statusCode: http.StatusMovedPermanently},
+		{name: "Should refuse a credentialed bot API 302 redirect", statusCode: http.StatusFound},
+		{name: "Should refuse a credentialed bot API 303 redirect", statusCode: http.StatusSeeOther},
+		{name: "Should refuse a credentialed bot API 307 redirect", statusCode: http.StatusTemporaryRedirect},
+		{name: "Should refuse a credentialed bot API 308 redirect", statusCode: http.StatusPermanentRedirect},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			// not parallel: parent test configures credentialed URL policy with t.Setenv.
+			var targetHits atomic.Int32
+			target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				targetHits.Add(1)
+				if err := json.NewEncoder(w).Encode(teamsResourceResponse{ID: "activity-redirect"}); err != nil {
+					t.Errorf("encode redirect target Teams response: %v", err)
+				}
+			}))
+			defer target.Close()
+
+			redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Location", target.URL)
+				http.Error(w, "redirect refused", testCase.statusCode)
+				if got, want := r.Method, http.MethodPost; got != want {
+					t.Errorf("redirect source method = %q, want %q", got, want)
+				}
+			}))
+			defer redirect.Close()
+
+			client := &teamsBotClient{
+				httpClient:  redirect.Client(),
+				cachedToken: "cached-token",
+				tokenExpiry: time.Now().UTC().Add(time.Hour),
+			}
+			_, err := client.SendActivity(
+				t.Context(),
+				redirect.URL,
+				"conversation-1",
+				"",
+				teamsOutboundActivity{Type: "message", Text: "hello"},
+			)
+			var httpErr *bridgesdk.HTTPError
+			if !errors.As(err, &httpErr) || httpErr.StatusCode != testCase.statusCode {
+				t.Fatalf(
+					"SendActivity(%d) error = %T %v, want first-response HTTPError",
+					testCase.statusCode,
+					err,
+					err,
+				)
+			}
+			if bridgesdk.IsCommittedMutation(err) {
+				t.Fatalf("SendActivity(%d) error = %v, want pre-commit rejection", testCase.statusCode, err)
+			}
+			if got := targetHits.Load(); got != 0 {
+				t.Fatalf("redirect target hits = %d, want 0", got)
+			}
+		})
+	}
+
+	t.Run("Should reject trailing JSON in an OAuth token response", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			if _, err := io.WriteString(w, `{"access_token":"teams-token","expires_in":3600} {}`); err != nil {
+				t.Errorf("write Teams token response: %v", err)
+			}
+		}))
+		defer server.Close()
+
+		client := &teamsBotClient{
+			cfg: resolvedInstanceConfig{
+				tokenURL:    server.URL,
+				appID:       "app-id",
+				appPassword: "app-password",
+			},
+			httpClient: server.Client(),
+		}
+		if _, err := client.accessToken(t.Context()); err == nil {
+			t.Fatal("accessToken(trailing JSON) error = nil, want strict decode failure")
+		}
+	})
 }
 
 func TestRuntimeDeliveriesCallTeamsAPI(t *testing.T) {
@@ -867,6 +1899,7 @@ func TestRuntimeDeliveriesCallTeamsAPI(t *testing.T) {
 	listenAddr := reserveListenAddr(t)
 	mock := newTeamsProviderServer(t, teamsProviderServerConfig{})
 	t.Setenv(teamsListenAddrEnv, listenAddr)
+	t.Setenv(teamsServiceURLEnv, mock.ServiceURL())
 	t.Setenv(teamsOpenIDMetadataURLEnv, mock.MetadataURL())
 	t.Setenv(teamsOAuthTokenURLEnvName(), mock.TokenURL())
 
@@ -874,13 +1907,7 @@ func TestRuntimeDeliveriesCallTeamsAPI(t *testing.T) {
 	defer cleanup()
 
 	now := time.Date(2026, 4, 15, 18, 30, 0, 0, time.UTC)
-	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{
-		"service_url": mock.ServiceURL(),
-		"auth": map[string]any{
-			"openid_metadata_url": mock.MetadataURL(),
-			"token_url":           mock.TokenURL(),
-		},
-	})
+	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{})
 	mustHandleLifecycle(t, hostPeer, managed)
 
 	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, managed), nil); err != nil {
@@ -927,10 +1954,10 @@ func TestRuntimeDeliveriesCallTeamsAPI(t *testing.T) {
 		t.Fatalf("hostPeer.Call(final delivery) error = %v", err)
 	}
 
-	records := waitForJSONLinesFile[deliveryMarker](
+	records := waitForJSONLinesFile[bridgesdk.DeliveryMarker](
 		t,
-		env.deliveryPath,
-		func(items []deliveryMarker) bool { return len(items) >= 2 },
+		env.DeliveryPath,
+		func(items []bridgesdk.DeliveryMarker) bool { return len(items) >= 2 },
 	)
 	if records[0].Ack == nil || records[1].Ack == nil {
 		t.Fatalf("delivery markers = %#v, want recorded acks", records)
@@ -1019,6 +2046,16 @@ func TestProviderHelperStateAndShutdown(t *testing.T) {
 		t.Fatalf("healthCheck() after clear error = %v, want nil", err)
 	}
 
+	runtime.recordTeamsProgressCleanupError(nil)
+	if err := runtime.healthCheck(); err != nil {
+		t.Fatalf("healthCheck() after nil progress cleanup error = %v, want nil", err)
+	}
+	runtime.recordTeamsProgressCleanupError(errors.New("cleanup failed"))
+	if err := runtime.healthCheck(); err == nil || !strings.Contains(err.Error(), "cleanup failed") {
+		t.Fatalf("healthCheck() progress cleanup error = %v, want cleanup failed", err)
+	}
+	runtime.clearLastError()
+
 	runtime.storeUserContext("brg-1", teamsActivity{
 		From:       teamsChannelAccount{ID: "29:user-1"},
 		ServiceURL: "https://service.test",
@@ -1033,32 +2070,13 @@ func TestProviderHelperStateAndShutdown(t *testing.T) {
 		t.Fatal("userContext(missing) = true, want false")
 	}
 
-	degradation := &bridgepkg.BridgeDegradation{
-		Reason:  bridgepkg.BridgeDegradationReasonAuthFailed,
-		Message: "bad auth",
-	}
-	cloned := cloneDegradation(degradation)
-	if cloned == nil || cloned == degradation || cloned.Message != degradation.Message {
-		t.Fatalf("cloneDegradation() = %#v, want independent clone of %#v", cloned, degradation)
-	}
-	if cloneDegradation(nil) != nil {
-		t.Fatal("cloneDegradation(nil) != nil")
-	}
-
-	if !isNotInitializedRPCError(subprocess.NewRPCError(rpcCodeNotInitialized, "not ready", nil)) {
-		t.Fatal("isNotInitializedRPCError() = false, want true")
-	}
-	if isNotInitializedRPCError(errors.New("boom")) {
-		t.Fatal("isNotInitializedRPCError(non-rpc) = true, want false")
-	}
-
 	done := make(chan struct{})
-	runtime.wg.Go(func() {
-		<-runtime.stopCh
+	runtime.lifecycle.Go(func() {
+		<-runtime.lifecycle.StopChannel()
 		close(done)
 	})
 
-	if err := runtime.handleShutdown(
+	if err := runtime.lifecycle.Shutdown(
 		context.Background(),
 		nil,
 		subprocess.ShutdownRequest{DeadlineMS: 250},
@@ -1072,61 +2090,9 @@ func TestProviderHelperStateAndShutdown(t *testing.T) {
 	}
 
 	waitForCondition(t, func() bool {
-		data, err := os.ReadFile(env.shutdownPath)
+		data, err := os.ReadFile(env.ShutdownPath)
 		return err == nil && strings.Contains(string(data), "pid=")
 	})
-}
-
-func TestRetryHostCallCoverage(t *testing.T) {
-	runtime, err := newTeamsProvider(io.Discard)
-	if err != nil {
-		t.Fatalf("newTeamsProvider() error = %v", err)
-	}
-
-	attempts := 0
-	err = runtime.retryHostCall(context.Background(), func(context.Context) error {
-		attempts++
-		if attempts < 3 {
-			return subprocess.NewRPCError(rpcCodeNotInitialized, "not ready", nil)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("retryHostCall(success after retries) error = %v", err)
-	}
-	if got, want := attempts, 3; got != want {
-		t.Fatalf("attempts = %d, want %d", got, want)
-	}
-
-	canceled, cancel := context.WithCancel(context.Background())
-	cancel()
-	err = runtime.retryHostCall(canceled, func(context.Context) error {
-		return subprocess.NewRPCError(rpcCodeNotInitialized, "not ready", nil)
-	})
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("retryHostCall(canceled) error = %v, want context.Canceled", err)
-	}
-
-	stopped, err := newTeamsProvider(io.Discard)
-	if err != nil {
-		t.Fatalf("newTeamsProvider(stopped) error = %v", err)
-	}
-	stopped.stop()
-	expected := subprocess.NewRPCError(rpcCodeNotInitialized, "not ready", nil)
-	err = stopped.retryHostCall(context.Background(), func(context.Context) error {
-		return expected
-	})
-	if !errors.Is(err, expected) {
-		t.Fatalf("retryHostCall(stopped) error = %v, want %v", err, expected)
-	}
-
-	permanent := errors.New("permanent")
-	err = runtime.retryHostCall(context.Background(), func(context.Context) error {
-		return permanent
-	})
-	if !errors.Is(err, permanent) {
-		t.Fatalf("retryHostCall(permanent) error = %v, want %v", err, permanent)
-	}
 }
 
 func TestDispatchInboundBatchAndEnvelopeCoverage(t *testing.T) {
@@ -1135,6 +2101,7 @@ func TestDispatchInboundBatchAndEnvelopeCoverage(t *testing.T) {
 	listenAddr := reserveListenAddr(t)
 	mock := newTeamsProviderServer(t, teamsProviderServerConfig{})
 	t.Setenv(teamsListenAddrEnv, listenAddr)
+	t.Setenv(teamsServiceURLEnv, mock.ServiceURL())
 	t.Setenv(teamsOpenIDMetadataURLEnv, mock.MetadataURL())
 	t.Setenv(teamsOAuthTokenURLEnvName(), mock.TokenURL())
 
@@ -1142,13 +2109,7 @@ func TestDispatchInboundBatchAndEnvelopeCoverage(t *testing.T) {
 	defer cleanup()
 
 	now := time.Date(2026, 4, 15, 19, 20, 0, 0, time.UTC)
-	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{
-		"service_url": mock.ServiceURL(),
-		"auth": map[string]any{
-			"openid_metadata_url": mock.MetadataURL(),
-			"token_url":           mock.TokenURL(),
-		},
-	})
+	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{})
 	mustHandleLifecycle(t, hostPeer, managed)
 
 	var ingested []bridgepkg.InboundMessageEnvelope
@@ -1165,7 +2126,7 @@ func TestDispatchInboundBatchAndEnvelopeCoverage(t *testing.T) {
 			mu.Lock()
 			ingested = append(ingested, envelope)
 			mu.Unlock()
-			return extensioncontract.BridgesMessagesIngestResult{
+			return bridgepkg.BridgesMessagesIngestResult{
 				SessionID:    "sess-1",
 				RouteCreated: true,
 				RoutingKey: bridgepkg.RoutingKey{
@@ -1258,10 +2219,54 @@ func TestDispatchInboundBatchAndEnvelopeCoverage(t *testing.T) {
 }
 
 func TestBotClientCoverageAndWebhookGuards(t *testing.T) {
+	t.Run("Should stop after a successful activity send returns truncated JSON", func(t *testing.T) {
+		attempts := 0
+		var attemptsMu sync.Mutex
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			attemptsMu.Lock()
+			attempts++
+			attemptsMu.Unlock()
+			w.WriteHeader(http.StatusOK)
+			if _, err := io.WriteString(w, `{"id":`); err != nil {
+				t.Errorf("write Teams response: %v", err)
+			}
+		}))
+		defer server.Close()
+
+		client := &teamsBotClient{
+			cfg:         resolvedInstanceConfig{},
+			httpClient:  server.Client(),
+			cachedToken: "cached-token",
+			tokenExpiry: time.Now().UTC().Add(time.Hour),
+		}
+		_, err := sendTeamsDeliveryActivity(
+			t.Context(),
+			client,
+			server.URL,
+			"conversation-1",
+			"",
+			teamsOutboundActivity{Type: "message", Text: "hello"},
+		)
+		if err == nil {
+			t.Fatal("sendTeamsDeliveryActivity(truncated response) error = nil, want non-nil")
+		}
+		var committedErr *bridgesdk.CommittedMutationError
+		if !errors.As(err, &committedErr) {
+			t.Fatalf("sendTeamsDeliveryActivity() error = %T, want CommittedMutationError", err)
+		}
+		attemptsMu.Lock()
+		gotAttempts := attempts
+		attemptsMu.Unlock()
+		if got, want := gotAttempts, 1; got != want {
+			t.Fatalf("transport attempts = %d, want %d", got, want)
+		}
+	})
+
 	env := setProviderTestEnv(t)
 	listenAddr := reserveListenAddr(t)
 	mock := newTeamsProviderServer(t, teamsProviderServerConfig{})
 	t.Setenv(teamsListenAddrEnv, listenAddr)
+	t.Setenv(teamsServiceURLEnv, mock.ServiceURL())
 	t.Setenv(teamsOpenIDMetadataURLEnv, mock.MetadataURL())
 	t.Setenv(teamsOAuthTokenURLEnvName(), mock.TokenURL())
 
@@ -1269,21 +2274,13 @@ func TestBotClientCoverageAndWebhookGuards(t *testing.T) {
 	defer cleanup()
 
 	now := time.Date(2026, 4, 15, 19, 30, 0, 0, time.UTC)
-	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{
-		"service_url": mock.ServiceURL(),
-		"auth": map[string]any{
-			"openid_metadata_url": mock.MetadataURL(),
-			"token_url":           mock.TokenURL(),
-		},
-	})
+	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{})
 	mustHandleLifecycle(t, hostPeer, managed)
 	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, managed), nil); err != nil {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
 	waitForCondition(t, func() bool {
-		runtime.mu.RLock()
-		defer runtime.mu.RUnlock()
-		return strings.TrimSpace(runtime.serverAddr) != ""
+		return strings.TrimSpace(runtime.http.Address()) != ""
 	})
 
 	webhookURL := fmt.Sprintf("http://%s/teams/%s", listenAddr, managed.Instance.ID)
@@ -1300,8 +2297,14 @@ func TestBotClientCoverageAndWebhookGuards(t *testing.T) {
 	if err != nil {
 		t.Fatalf("http.DefaultClient.Do(GET) error = %v", err)
 	}
-	_, _ = io.ReadAll(resp.Body)
-	_ = resp.Body.Close()
+	_, getReadErr := io.ReadAll(resp.Body)
+	getCloseErr := resp.Body.Close()
+	if getCloseErr != nil {
+		t.Errorf("GET webhook response body close error = %v", getCloseErr)
+	}
+	if getReadErr != nil {
+		t.Fatalf("read GET webhook response body: %v", getReadErr)
+	}
 	if got, want := resp.StatusCode, http.StatusMethodNotAllowed; got != want {
 		t.Fatalf("GET webhook status = %d, want %d", got, want)
 	}
@@ -1319,8 +2322,14 @@ func TestBotClientCoverageAndWebhookGuards(t *testing.T) {
 	if err != nil {
 		t.Fatalf("http.DefaultClient.Do(unknown) error = %v", err)
 	}
-	_, _ = io.ReadAll(resp.Body)
-	_ = resp.Body.Close()
+	_, unknownReadErr := io.ReadAll(resp.Body)
+	unknownCloseErr := resp.Body.Close()
+	if unknownCloseErr != nil {
+		t.Errorf("unknown-path response body close error = %v", unknownCloseErr)
+	}
+	if unknownReadErr != nil {
+		t.Fatalf("read unknown-path response body: %v", unknownReadErr)
+	}
 	if got, want := resp.StatusCode, http.StatusNotFound; got != want {
 		t.Fatalf("unknown path status = %d, want %d", got, want)
 	}
@@ -1358,10 +2367,6 @@ func TestBotClientCoverageAndWebhookGuards(t *testing.T) {
 		t.Fatalf("DeleteActivity() error = %v", err)
 	}
 
-	if got, want := readResponseBody(io.NopCloser(strings.NewReader(" body "))), "body"; got != want {
-		t.Fatalf("readResponseBody() = %q, want %q", got, want)
-	}
-
 	calls := mock.APICalls()
 	if len(calls) == 0 {
 		t.Fatal("mock.APICalls() = 0, want recorded bot client calls")
@@ -1371,7 +2376,7 @@ func TestBotClientCoverageAndWebhookGuards(t *testing.T) {
 	}
 
 	waitForCondition(t, func() bool {
-		data, err := os.ReadFile(env.startsPath)
+		data, err := os.ReadFile(env.StartsPath)
 		return err == nil && strings.Contains(string(data), "listen=")
 	})
 }
@@ -1382,6 +2387,7 @@ func TestHandleBridgesDeliverCoverageAndRunCommand(t *testing.T) {
 	listenAddr := reserveListenAddr(t)
 	mock := newTeamsProviderServer(t, teamsProviderServerConfig{})
 	t.Setenv(teamsListenAddrEnv, listenAddr)
+	t.Setenv(teamsServiceURLEnv, mock.ServiceURL())
 	t.Setenv(teamsOpenIDMetadataURLEnv, mock.MetadataURL())
 	t.Setenv(teamsOAuthTokenURLEnvName(), mock.TokenURL())
 
@@ -1389,21 +2395,15 @@ func TestHandleBridgesDeliverCoverageAndRunCommand(t *testing.T) {
 	defer cleanup()
 
 	now := time.Date(2026, 4, 15, 19, 40, 0, 0, time.UTC)
-	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{
-		"service_url": mock.ServiceURL(),
-		"auth": map[string]any{
-			"openid_metadata_url": mock.MetadataURL(),
-			"token_url":           mock.TokenURL(),
-		},
-	})
+	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{})
 	mustHandleLifecycle(t, hostPeer, managed)
 	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, managed), nil); err != nil {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
-	states := waitForJSONLinesFile[stateMarker](
+	states := waitForJSONLinesFile[bridgesdk.StateMarker](
 		t,
-		env.statePath,
-		func(items []stateMarker) bool {
+		env.StatePath,
+		func(items []bridgesdk.StateMarker) bool {
 			return len(items) >= 1 && items[len(items)-1].Status.Normalize() == bridgepkg.BridgeStatusReady
 		},
 	)
@@ -1492,13 +2492,19 @@ func TestTeamsOpenIDAndAuthHelperCoverage(t *testing.T) {
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
 			case "/metadata":
-				_ = json.NewEncoder(w).
-					Encode(map[string]any{"issuer": "https://api.botframework.com"})
+				if err := json.NewEncoder(w).
+					Encode(map[string]any{"issuer": "https://api.botframework.com"}); err != nil {
+					t.Errorf("encode Teams metadata response: %v", err)
+				}
 			case "/jwks":
-				_ = json.NewEncoder(w).Encode(map[string]any{"keys": []any{}})
+				if err := json.NewEncoder(w).Encode(map[string]any{"keys": []any{}}); err != nil {
+					t.Errorf("encode Teams JWKS response: %v", err)
+				}
 			default:
 				w.WriteHeader(http.StatusNotFound)
-				_ = json.NewEncoder(w).Encode(map[string]any{"error": "missing"})
+				if err := json.NewEncoder(w).Encode(map[string]any{"error": "missing"}); err != nil {
+					t.Errorf("encode missing Teams auth resource response: %v", err)
+				}
 			}
 		}),
 	)
@@ -1601,13 +2607,11 @@ func TestReconcileInstanceConfigCoverage(t *testing.T) {
 
 	now := time.Date(2026, 4, 15, 19, 50, 0, 0, time.UTC)
 	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{
-		"service_url": teamsDefaultServiceURL,
 		"webhook": map[string]any{
 			"path": "shared",
 		},
 	})
 	managed2 := testTeamsManagedInstance(t, now, "brg-2", map[string]any{
-		"service_url": teamsDefaultServiceURL,
 		"webhook": map[string]any{
 			"path": "shared",
 		},
@@ -1662,65 +2666,6 @@ func TestReconcileInstanceConfigCoverage(t *testing.T) {
 	}
 }
 
-func TestMarkerHelperCoverage(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	linesPath := filepath.Join(dir, "markers", "lines.log")
-	jsonPath := filepath.Join(dir, "markers", "state.jsonl")
-	filePath := filepath.Join(dir, "markers", "data.json")
-	crashPath := filepath.Join(dir, "markers", "crash-once")
-
-	if err := appendMarkerLine("", "ignored"); err != nil {
-		t.Fatalf("appendMarkerLine(empty) error = %v", err)
-	}
-	if err := appendMarkerLine(linesPath, " first "); err != nil {
-		t.Fatalf("appendMarkerLine(first) error = %v", err)
-	}
-	if err := appendMarkerLine(linesPath, "second"); err != nil {
-		t.Fatalf("appendMarkerLine(second) error = %v", err)
-	}
-	data, err := os.ReadFile(linesPath)
-	if err != nil {
-		t.Fatalf("os.ReadFile(linesPath) error = %v", err)
-	}
-	if got, want := strings.TrimSpace(string(data)), "first\nsecond"; got != want {
-		t.Fatalf("marker lines = %q, want %q", got, want)
-	}
-
-	if err := appendJSONLine(jsonPath, map[string]any{"ok": true}); err != nil {
-		t.Fatalf("appendJSONLine() error = %v", err)
-	}
-	if err := writeJSONFile(filePath, map[string]any{"ok": true}); err != nil {
-		t.Fatalf("writeJSONFile() error = %v", err)
-	}
-	if _, err := os.Stat(filePath); err != nil {
-		t.Fatalf("os.Stat(filePath) error = %v", err)
-	}
-
-	var stderr bytes.Buffer
-	reportSideEffectError(&stderr, "write marker", errors.New("boom"))
-	if got := stderr.String(); !strings.Contains(got, "write marker") ||
-		!strings.Contains(got, "boom") {
-		t.Fatalf("reportSideEffectError() wrote %q, want action and error text", got)
-	}
-	reportSideEffectError(&stderr, "noop", nil)
-	reportSideEffectError(nil, "noop", errors.New("ignored"))
-
-	if shouldCrashOnce("") {
-		t.Fatal("shouldCrashOnce(empty) = true, want false")
-	}
-	if !shouldCrashOnce(crashPath) {
-		t.Fatal("shouldCrashOnce(missing) = false, want true")
-	}
-	if err := os.WriteFile(crashPath, []byte("done"), 0o600); err != nil {
-		t.Fatalf("os.WriteFile(crashPath) error = %v", err)
-	}
-	if shouldCrashOnce(crashPath) {
-		t.Fatal("shouldCrashOnce(existing) = true, want false")
-	}
-}
-
 func TestWebhookRejectsDuplicateSharedPath(t *testing.T) {
 	t.Run("Should reject webhook requests when shared path is duplicated", func(t *testing.T) {
 		t.Setenv(teamsListenAddrEnv, "")
@@ -1730,13 +2675,11 @@ func TestWebhookRejectsDuplicateSharedPath(t *testing.T) {
 
 		now := time.Date(2026, 4, 15, 19, 55, 0, 0, time.UTC)
 		managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{
-			"service_url": teamsDefaultServiceURL,
 			"webhook": map[string]any{
 				"path": "shared",
 			},
 		})
 		managed2 := testTeamsManagedInstance(t, now, "brg-2", map[string]any{
-			"service_url": teamsDefaultServiceURL,
 			"webhook": map[string]any{
 				"path": "shared",
 			},
@@ -1915,11 +2858,45 @@ type fakeTeamsAPI struct {
 	createConversationID string
 	nextActivityID       int
 	validateErr          error
+	sendErr              error
+	sendErrors           []error
+	sendErrorText        string
+	sendEmptyActivityID  bool
+	deleteErr            error
+	updateErrorText      string
+	updateErr            error
 
-	createCalls []teamsCreateConversationRequest
-	sendCalls   []teamsSendCall
-	updateCalls []teamsUpdateCall
-	deleteCalls []teamsDeleteCall
+	createCalls  []teamsCreateConversationRequest
+	sendCalls    []teamsSendCall
+	sendAttempts []teamsSendCall
+	updateCalls  []teamsUpdateCall
+	deleteCalls  []teamsDeleteCall
+}
+
+type teamsRoundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f teamsRoundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+type teamsPartialErrorResponseBody struct {
+	content []byte
+	readErr error
+	reads   int
+	closed  bool
+}
+
+func (b *teamsPartialErrorResponseBody) Read(buffer []byte) (int, error) {
+	b.reads++
+	if b.reads > 1 {
+		return 0, io.EOF
+	}
+	return copy(buffer, b.content), b.readErr
+}
+
+func (b *teamsPartialErrorResponseBody) Close() error {
+	b.closed = true
+	return nil
 }
 
 type teamsSendCall struct {
@@ -1962,15 +2939,59 @@ func (f *fakeTeamsAPI) SendActivity(
 	replyToID string,
 	activity teamsOutboundActivity,
 ) (*teamsResourceResponse, error) {
-	f.sendCalls = append(f.sendCalls, teamsSendCall{
+	call := teamsSendCall{
 		ServiceURL:     serviceURL,
 		ConversationID: conversationID,
 		ReplyToID:      replyToID,
 		Activity:       activity,
-	})
+	}
+	f.sendAttempts = append(f.sendAttempts, call)
+	if len(f.sendErrors) > 0 {
+		err := f.sendErrors[0]
+		f.sendErrors = f.sendErrors[1:]
+		return nil, err
+	}
+	if f.sendErr != nil && (f.sendErrorText == "" || activity.Text == f.sendErrorText) {
+		return nil, f.sendErr
+	}
+	f.sendCalls = append(f.sendCalls, call)
+	if f.sendEmptyActivityID {
+		return &teamsResourceResponse{}, nil
+	}
 	id := fmt.Sprintf("activity-%d", f.nextActivityID)
 	f.nextActivityID++
 	return &teamsResourceResponse{ID: id}, nil
+}
+
+func countTeamsSendCalls(calls []teamsSendCall, text string) int {
+	count := 0
+	for _, call := range calls {
+		if call.Activity.Text == text {
+			count++
+		}
+	}
+	return count
+}
+
+func testTeamsResumeRequest(request bridgepkg.DeliveryRequest) bridgepkg.DeliveryRequest {
+	resume := request
+	resume.Event.EventType = bridgepkg.DeliveryEventTypeResume
+	resume.Event.Resume = &bridgepkg.DeliveryResumeState{LatestEventType: bridgepkg.DeliveryEventTypeFinal}
+	resume.Snapshot = &bridgepkg.DeliverySnapshot{
+		DeliveryID:       request.Event.DeliveryID,
+		SessionID:        "sess-resume",
+		TurnID:           "turn-resume",
+		BridgeInstanceID: request.Event.BridgeInstanceID,
+		RoutingKey:       request.Event.RoutingKey,
+		DeliveryTarget:   request.Event.DeliveryTarget,
+		LatestSeq:        request.Event.Seq,
+		LatestEventType:  bridgepkg.DeliveryEventTypeFinal,
+		CurrentContent:   request.Event.Content,
+		Operation:        request.Event.Operation,
+		Final:            true,
+		UpdatedAt:        time.Date(2026, 7, 13, 9, 0, 0, 0, time.UTC),
+	}
+	return resume
 }
 
 func (f *fakeTeamsAPI) UpdateActivity(
@@ -1986,6 +3007,9 @@ func (f *fakeTeamsAPI) UpdateActivity(
 		ActivityID:     activityID,
 		Activity:       activity,
 	})
+	if f.updateErr != nil && (f.updateErrorText == "" || activity.Text == f.updateErrorText) {
+		return f.updateErr
+	}
 	return nil
 }
 
@@ -2000,7 +3024,7 @@ func (f *fakeTeamsAPI) DeleteActivity(
 		ConversationID: conversationID,
 		ActivityID:     activityID,
 	})
-	return nil
+	return f.deleteErr
 }
 
 type teamsProviderServerConfig struct{}
@@ -2033,13 +3057,15 @@ func newTeamsProviderServer(t *testing.T, _ teamsProviderServerConfig) *teamsPro
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/openid/.well-known/openidconfiguration":
-			_ = json.NewEncoder(w).Encode(map[string]any{
+			if err := json.NewEncoder(w).Encode(map[string]any{
 				"issuer":   "https://api.botframework.com",
 				"jwks_uri": srv.server.URL + "/openid/keys",
-			})
+			}); err != nil {
+				t.Errorf("encode Teams OpenID metadata response: %v", err)
+			}
 		case r.Method == http.MethodGet && r.URL.Path == "/openid/keys":
 			pub := privateKey.PublicKey
-			_ = json.NewEncoder(w).Encode(map[string]any{
+			if err := json.NewEncoder(w).Encode(map[string]any{
 				"keys": []map[string]any{{
 					"kty":          "RSA",
 					"kid":          srv.keyID,
@@ -2048,34 +3074,46 @@ func newTeamsProviderServer(t *testing.T, _ teamsProviderServerConfig) *teamsPro
 					"e":            base64.RawURLEncoding.EncodeToString(bigEndianExponent(pub.E)),
 					"endorsements": []string{"msteams"},
 				}},
-			})
+			}); err != nil {
+				t.Errorf("encode Teams signing keys response: %v", err)
+			}
 		case r.Method == http.MethodPost && r.URL.Path == "/oauth2/v2.0/token":
-			_ = json.NewEncoder(w).Encode(map[string]any{
+			if err := json.NewEncoder(w).Encode(map[string]any{
 				"token_type":   "Bearer",
 				"expires_in":   3600,
 				"access_token": "bot-access-token",
-			})
+			}); err != nil {
+				t.Errorf("encode Teams OAuth response: %v", err)
+			}
 		case r.Method == http.MethodPost && r.URL.Path == "/v3/conversations":
-			body := decodeJSONBody(r.Body)
+			body := decodeJSONBody(t, r.Body)
 			srv.recordCall(r.Method, r.URL.Path, body)
-			_ = json.NewEncoder(w).Encode(map[string]any{"id": "a:created-conversation"})
+			if err := json.NewEncoder(w).Encode(map[string]any{"id": "a:created-conversation"}); err != nil {
+				t.Errorf("encode Teams conversation response: %v", err)
+			}
 		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/activities"):
-			body := decodeJSONBody(r.Body)
+			body := decodeJSONBody(t, r.Body)
 			srv.recordCall(r.Method, r.URL.Path, body)
 			srv.mu.Lock()
 			id := fmt.Sprintf("activity-%d", srv.nextID)
 			srv.nextID++
 			srv.mu.Unlock()
-			_ = json.NewEncoder(w).Encode(map[string]any{"id": id})
+			if err := json.NewEncoder(w).Encode(map[string]any{"id": id}); err != nil {
+				t.Errorf("encode Teams activity response: %v", err)
+			}
 		case r.Method == http.MethodPut && strings.Contains(r.URL.Path, "/activities/"):
-			srv.recordCall(r.Method, r.URL.Path, decodeJSONBody(r.Body))
-			_ = json.NewEncoder(w).Encode(map[string]any{"id": "updated"})
+			srv.recordCall(r.Method, r.URL.Path, decodeJSONBody(t, r.Body))
+			if err := json.NewEncoder(w).Encode(map[string]any{"id": "updated"}); err != nil {
+				t.Errorf("encode Teams activity update response: %v", err)
+			}
 		case r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "/activities/"):
 			srv.recordCall(r.Method, r.URL.Path, map[string]any{})
 			w.WriteHeader(http.StatusNoContent)
 		default:
 			w.WriteHeader(http.StatusNotFound)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "unknown path"})
+			if err := json.NewEncoder(w).Encode(map[string]any{"error": "unknown path"}); err != nil {
+				t.Errorf("encode unknown Teams path response: %v", err)
+			}
 		}
 	}))
 	srv.server = server
@@ -2130,10 +3168,17 @@ func (s *teamsProviderServer) SignedToken(t *testing.T, appID string, serviceURL
 	return signed
 }
 
-func decodeJSONBody(body io.ReadCloser) map[string]any {
-	defer func() { _ = body.Close() }()
+func decodeJSONBody(t *testing.T, body io.ReadCloser) map[string]any {
+	t.Helper()
+	defer func() {
+		if err := body.Close(); err != nil {
+			t.Errorf("Teams request body close error = %v", err)
+		}
+	}()
 	out := map[string]any{}
-	_ = json.NewDecoder(body).Decode(&out)
+	if err := json.NewDecoder(body).Decode(&out); err != nil {
+		t.Errorf("decode Teams request body: %v", err)
+	}
 	return out
 }
 
@@ -2177,8 +3222,14 @@ func postTeamsWebhook(
 			time.Sleep(20 * time.Millisecond)
 			continue
 		}
-		_, _ = io.ReadAll(resp.Body)
-		_ = resp.Body.Close()
+		_, readErr := io.ReadAll(resp.Body)
+		closeErr := resp.Body.Close()
+		if closeErr != nil {
+			t.Errorf("Teams webhook response body close error = %v", closeErr)
+		}
+		if readErr != nil {
+			t.Fatalf("read Teams webhook response body: %v", readErr)
+		}
 		if resp.StatusCode == http.StatusOK {
 			return
 		}
@@ -2233,20 +3284,18 @@ func newRuntimePeerPair(t *testing.T) (*teamsProvider, *bridgesdk.Peer, func()) 
 	cleanup := func() {
 		once.Do(func() {
 			cancel()
-			runtime.stop()
-			runtime.mu.RLock()
-			server := runtime.server
-			runtime.mu.RUnlock()
-			if server != nil {
-				shutdownCtx, shutdownCancel := context.WithTimeout(
-					context.Background(),
-					2*time.Second,
-				)
-				_ = server.Shutdown(shutdownCtx)
-				shutdownCancel()
+			runtime.lifecycle.Stop()
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
+			if err := runtime.http.Shutdown(shutdownCtx); err != nil {
+				t.Fatalf("provider HTTP shutdown error = %v", err)
 			}
-			_ = hostConn.Close()
-			_ = runtimeConn.Close()
+			shutdownCancel()
+			if err := hostConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+				t.Errorf("host connection close error = %v", err)
+			}
+			if err := runtimeConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+				t.Errorf("runtime connection close error = %v", err)
+			}
 			for range 2 {
 				err := <-errCh
 				if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, net.ErrClosed) {
@@ -2257,7 +3306,9 @@ func newRuntimePeerPair(t *testing.T) (*teamsProvider, *bridgesdk.Peer, func()) 
 				}
 				t.Fatalf("runtime peer serve error = %v", err)
 			}
-			runtime.wg.Wait()
+			if err := runtime.lifecycle.Wait(context.Background()); err != nil {
+				t.Fatalf("provider lifecycle wait error = %v", err)
+			}
 		})
 	}
 	return runtime, hostPeer, cleanup
@@ -2294,7 +3345,7 @@ func mustHandleLifecycle(
 		peer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgeInstanceTargetParams
+			var payload bridgepkg.BridgeInstanceTargetParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -2311,7 +3362,7 @@ func mustHandleLifecycle(
 		peer,
 		string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
 		func(_ context.Context, params json.RawMessage) (any, error) {
-			var payload extensioncontract.BridgesInstancesReportStateParams
+			var payload bridgepkg.BridgesInstancesReportStateParams
 			if err := json.Unmarshal(params, &payload); err != nil {
 				return nil, err
 			}
@@ -2326,6 +3377,14 @@ func mustHandleLifecycle(
 			return nil, errors.New("unexpected state instance")
 		},
 	)
+}
+
+func setTeamsProviderRoute(
+	provider *teamsProvider,
+	instanceID string,
+	config resolvedInstanceConfig,
+) {
+	provider.routes.Replace(map[string]resolvedInstanceConfig{instanceID: config}, nil)
 }
 
 func testTeamsManagedInstance(
@@ -2369,6 +3428,46 @@ func testTeamsManagedInstance(
 	}
 }
 
+func testTeamsProgressRequest(
+	instanceID string,
+	deliveryID string,
+	seq int64,
+	toolCallID string,
+	toolID string,
+	label string,
+) bridgepkg.DeliveryRequest {
+	threadID := encodeTeamsThreadID(teamsThreadRef{
+		ConversationID: "19:channel@thread.tacv2;messageid=activity-parent",
+		ServiceURL:     "https://service.test",
+	})
+	return bridgepkg.DeliveryRequest{Event: bridgepkg.DeliveryEvent{
+		DeliveryID:       deliveryID,
+		BridgeInstanceID: instanceID,
+		RoutingKey: bridgepkg.RoutingKey{
+			Scope:            bridgepkg.ScopeWorkspace,
+			WorkspaceID:      "ws-teams",
+			BridgeInstanceID: instanceID,
+			GroupID:          "19:channel@thread.tacv2",
+			ThreadID:         threadID,
+		},
+		DeliveryTarget: bridgepkg.DeliveryTarget{
+			BridgeInstanceID: instanceID,
+			GroupID:          "19:channel@thread.tacv2",
+			ThreadID:         threadID,
+			Mode:             bridgepkg.DeliveryModeReply,
+		},
+		Seq:       seq,
+		EventType: bridgepkg.DeliveryEventTypeProgress,
+		Progress: &bridgepkg.ToolProgress{
+			ToolCallID: toolCallID,
+			ToolID:     toolID,
+			Phase:      bridgepkg.ToolProgressPhaseStarted,
+			Label:      label,
+			Index:      int(seq),
+		},
+	}}
+}
+
 func testInitializeRequest(
 	_ time.Time,
 	managed ...subprocess.InitializeBridgeManagedInstance,
@@ -2402,7 +3501,8 @@ func testInitializeRequest(
 			ShutdownTimeoutMS:     5_000,
 			DefaultHookTimeoutMS:  5_000,
 			Bridge: &subprocess.InitializeBridgeRuntime{
-				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion1,
+				RuntimeVersion:   subprocess.InitializeBridgeRuntimeVersion2,
+				Purpose:          subprocess.BridgeRuntimePurposeService,
 				Provider:         "teams",
 				Platform:         "teams",
 				ManagedInstances: managed,
@@ -2411,29 +3511,135 @@ func testInitializeRequest(
 	}
 }
 
-func setProviderTestEnv(t *testing.T) markerEnv {
+func TestTeamsResolvedConfigHealthAndListenerHelpers(t *testing.T) {
+	t.Run("Should classify each invalid provider endpoint field", func(t *testing.T) {
+		t.Parallel()
+
+		valid := resolvedInstanceConfig{
+			webhookPath:       "/teams",
+			serviceURL:        teamsDefaultServiceURL,
+			openIDMetadataURL: teamsDefaultOpenIDMetadata,
+			tokenURL:          "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+		}
+		cases := []struct {
+			name string
+			edit func(*resolvedInstanceConfig)
+			want string
+		}{
+			{
+				name: "webhook path",
+				edit: func(cfg *resolvedInstanceConfig) { cfg.webhookPath = "" },
+				want: "webhook path",
+			},
+			{name: "service URL", edit: func(cfg *resolvedInstanceConfig) { cfg.serviceURL = "" }, want: "service url"},
+			{
+				name: "invalid service URL",
+				edit: func(cfg *resolvedInstanceConfig) { cfg.serviceURL = "ftp://invalid" },
+				want: "service url",
+			},
+			{
+				name: "metadata URL",
+				edit: func(cfg *resolvedInstanceConfig) { cfg.openIDMetadataURL = "" },
+				want: "openid metadata",
+			},
+			{
+				name: "invalid metadata URL",
+				edit: func(cfg *resolvedInstanceConfig) { cfg.openIDMetadataURL = "ftp://invalid" },
+				want: "openid metadata",
+			},
+			{
+				name: "token URL",
+				edit: func(cfg *resolvedInstanceConfig) { cfg.tokenURL = "" },
+				want: "token url",
+			},
+			{
+				name: "invalid token URL",
+				edit: func(cfg *resolvedInstanceConfig) { cfg.tokenURL = "ftp://invalid" },
+				want: "token url",
+			},
+			{
+				name: "tenant ID",
+				edit: func(cfg *resolvedInstanceConfig) { cfg.appTenantID = "malformed" },
+				want: "app_tenant_id",
+			},
+		}
+		for _, test := range cases {
+			t.Run("Should reject "+test.name, func(t *testing.T) {
+				t.Parallel()
+				cfg := valid
+				test.edit(&cfg)
+				validateTeamsResolvedConfig(&cfg)
+				if cfg.configError == nil || !strings.Contains(cfg.configError.Error(), test.want) {
+					t.Fatalf("config error = %v, want %q", cfg.configError, test.want)
+				}
+			})
+		}
+	})
+
+	t.Run("Should expose degradation health text and release a listener", func(t *testing.T) {
+		t.Parallel()
+
+		validateTeamsResolvedConfig(nil)
+		if got := bridgeHealthMessage(nil); got != "" {
+			t.Fatalf("bridgeHealthMessage(nil) = %q", got)
+		}
+		if got, want := bridgeHealthMessage(&bridgepkg.BridgeDegradation{
+			Message: "  explicit health message  ",
+		}), "explicit health message"; got != want {
+			t.Fatalf("bridgeHealthMessage(message) = %q, want %q", got, want)
+		}
+		if got, want := bridgeHealthMessage(&bridgepkg.BridgeDegradation{
+			Reason: bridgepkg.BridgeDegradationReasonAuthFailed,
+		}), string(bridgepkg.BridgeDegradationReasonAuthFailed); got != want {
+			t.Fatalf("bridgeHealthMessage(reason) = %q, want %q", got, want)
+		}
+		listener, err := listenTeamsWebhook("127.0.0.1:0")
+		if err != nil {
+			t.Fatalf("listenTeamsWebhook() error = %v", err)
+		}
+		if err := listener.Close(); err != nil {
+			t.Fatalf("listener.Close() error = %v", err)
+		}
+		fallbackListener, err := listenTeamsWebhook("")
+		if err != nil {
+			t.Fatalf("listenTeamsWebhook(empty) error = %v", err)
+		}
+		if err := fallbackListener.Close(); err != nil {
+			t.Fatalf("fallback listener.Close() error = %v", err)
+		}
+		if _, err := refreshTeamsJWKS(context.Background(), "ftp://invalid"); err == nil {
+			t.Fatal("refreshTeamsJWKS(invalid URL) error = nil")
+		}
+		if got, want := defaultTeamsTokenURL(""),
+			"https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token"; got != want {
+			t.Fatalf("defaultTeamsTokenURL(empty) = %q, want %q", got, want)
+		}
+	})
+}
+
+func setProviderTestEnv(t *testing.T) bridgesdk.AdapterMarkerPaths {
 	t.Helper()
 	enableTeamsLoopbackCredentialedURLsForTesting(t)
 
 	root := filepath.Join(t.TempDir(), "markers")
-	env := markerEnv{
-		handshakePath: filepath.Join(root, "handshake.json"),
-		ownershipPath: filepath.Join(root, "ownership.json"),
-		statePath:     filepath.Join(root, "state.jsonl"),
-		deliveryPath:  filepath.Join(root, "delivery.jsonl"),
-		ingestPath:    filepath.Join(root, "ingest.jsonl"),
-		startsPath:    filepath.Join(root, "starts.log"),
-		shutdownPath:  filepath.Join(root, "shutdown.log"),
-		crashOncePath: filepath.Join(root, "crash-once.json"),
+	env := bridgesdk.AdapterMarkerPaths{
+		HandshakePath: filepath.Join(root, "handshake.json"),
+		OwnershipPath: filepath.Join(root, "ownership.json"),
+		StatePath:     filepath.Join(root, "state.jsonl"),
+		DeliveryPath:  filepath.Join(root, "delivery.jsonl"),
+		IngestPath:    filepath.Join(root, "ingest.jsonl"),
+		StartsPath:    filepath.Join(root, "starts.log"),
+		ShutdownPath:  filepath.Join(root, "shutdown.log"),
+		CrashOncePath: filepath.Join(root, "crash-once.json"),
 	}
-	t.Setenv(adapterHandshakeEnv, env.handshakePath)
-	t.Setenv(adapterOwnershipEnv, env.ownershipPath)
-	t.Setenv(adapterStateEnv, env.statePath)
-	t.Setenv(adapterDeliveryEnv, env.deliveryPath)
-	t.Setenv(adapterIngestEnv, env.ingestPath)
-	t.Setenv(adapterStartsEnv, env.startsPath)
-	t.Setenv(adapterShutdownEnv, env.shutdownPath)
-	t.Setenv(adapterCrashOnceEnv, "")
+	t.Setenv(bridgesdk.AdapterHandshakePathEnv, env.HandshakePath)
+	t.Setenv(bridgesdk.AdapterOwnershipPathEnv, env.OwnershipPath)
+	t.Setenv(bridgesdk.AdapterStatePathEnv, env.StatePath)
+	t.Setenv(bridgesdk.AdapterDeliveryPathEnv, env.DeliveryPath)
+	t.Setenv(bridgesdk.AdapterIngestPathEnv, env.IngestPath)
+	t.Setenv(bridgesdk.AdapterStartsPathEnv, env.StartsPath)
+	t.Setenv(bridgesdk.AdapterShutdownPathEnv, env.ShutdownPath)
+	t.Setenv(bridgesdk.AdapterCrashOncePathEnv, "")
 	return env
 }
 

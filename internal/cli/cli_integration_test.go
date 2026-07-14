@@ -3035,6 +3035,7 @@ type integrationDaemon struct {
 	done    chan error
 
 	bridges          *integrationBridgeService
+	bridgeProviders  []bridgepkg.BridgeProvider
 	driver           *integrationDriver
 	manager          *session.Manager
 	extensionSources []registrypkg.Source
@@ -3082,6 +3083,10 @@ type integrationBridgeService struct {
 	store             integrationBridgeSecretStore
 	catalogStore      integrationBridgeCatalogStore
 	taskSubscriptions bridgepkg.BridgeTaskSubscriptionStore
+	providers         []bridgepkg.BridgeProvider
+	checkBridgeFn     func(context.Context, string, bridgepkg.BridgeCheckRequest) (bridgepkg.BridgeCheckResponse, error)
+	registerWebhookFn func(context.Context, string, bridgepkg.BridgeWebhookRegistrationRequest) (bridgepkg.BridgeWebhookRegistrationResponse, error)
+	deliverBridgeFn   func(context.Context, string, bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error)
 }
 
 var _ core.BridgeService = (*integrationBridgeService)(nil)
@@ -3108,7 +3113,10 @@ type lockedBuffer struct {
 	buffer bytes.Buffer
 }
 
-func newIntegrationBridgeService(store bridgepkg.RegistryStore) *integrationBridgeService {
+func newIntegrationBridgeService(
+	store bridgepkg.RegistryStore,
+	providers []bridgepkg.BridgeProvider,
+) *integrationBridgeService {
 	secretStore, ok := store.(integrationBridgeSecretStore)
 	if !ok {
 		secretStore = nil
@@ -3126,6 +3134,7 @@ func newIntegrationBridgeService(store bridgepkg.RegistryStore) *integrationBrid
 		store:             secretStore,
 		catalogStore:      catalogStore,
 		taskSubscriptions: taskSubscriptions,
+		providers:         append([]bridgepkg.BridgeProvider(nil), providers...),
 	}
 }
 
@@ -3187,7 +3196,55 @@ func (s *integrationBridgeService) RestartInstance(ctx context.Context, id strin
 }
 
 func (s *integrationBridgeService) ListProviders(context.Context) ([]bridgepkg.BridgeProvider, error) {
-	return []bridgepkg.BridgeProvider{}, nil
+	return append([]bridgepkg.BridgeProvider(nil), s.providers...), nil
+}
+
+func (s *integrationBridgeService) CheckBridge(
+	ctx context.Context,
+	extensionName string,
+	request bridgepkg.BridgeCheckRequest,
+) (bridgepkg.BridgeCheckResponse, error) {
+	if s.checkBridgeFn != nil {
+		return s.checkBridgeFn(ctx, extensionName, request)
+	}
+	return bridgepkg.BridgeCheckResponse{}, bridgepkg.ErrBridgeControlTransportUnavailable
+}
+
+func (s *integrationBridgeService) RegisterBridgeWebhook(
+	ctx context.Context,
+	extensionName string,
+	request bridgepkg.BridgeWebhookRegistrationRequest,
+) (bridgepkg.BridgeWebhookRegistrationResponse, error) {
+	if s.registerWebhookFn != nil {
+		return s.registerWebhookFn(ctx, extensionName, request)
+	}
+	return bridgepkg.BridgeWebhookRegistrationResponse{}, bridgepkg.ErrBridgeControlTransportUnavailable
+}
+
+func (s *integrationBridgeService) DeliverBridge(
+	ctx context.Context,
+	extensionName string,
+	request bridgepkg.DeliveryRequest,
+) (bridgepkg.DeliveryAck, error) {
+	if s.deliverBridgeFn != nil {
+		return s.deliverBridgeFn(ctx, extensionName, request)
+	}
+	return bridgepkg.DeliveryAck{}, bridgepkg.ErrDeliveryTransportUnavailable
+}
+
+func (s *integrationBridgeService) CountBridgeRoutes(
+	ctx context.Context,
+	bridgeInstanceIDs []string,
+) (map[string]int, error) {
+	counts := make(map[string]int, len(bridgeInstanceIDs))
+	for _, bridgeInstanceID := range bridgeInstanceIDs {
+		routes, err := s.ListRoutes(ctx, bridgeInstanceID)
+		if err != nil {
+			return nil, fmt.Errorf("count integration bridge routes for %q: %w", bridgeInstanceID, err)
+		}
+		counts[bridgeInstanceID] = len(routes)
+	}
+	return counts, nil
 }
 
 func (s *integrationBridgeService) ListSecretBindings(
@@ -3198,6 +3255,21 @@ func (s *integrationBridgeService) ListSecretBindings(
 		return nil, errors.New("integration bridge secret store is not configured")
 	}
 	return s.store.ListBridgeSecretBindings(ctx, bridgeInstanceID)
+}
+
+func (s *integrationBridgeService) ListSecretBindingsForInstances(
+	ctx context.Context,
+	bridgeInstanceIDs []string,
+) (map[string][]bridgepkg.BridgeSecretBinding, error) {
+	bindings := make(map[string][]bridgepkg.BridgeSecretBinding, len(bridgeInstanceIDs))
+	for _, bridgeInstanceID := range bridgeInstanceIDs {
+		instanceBindings, err := s.ListSecretBindings(ctx, bridgeInstanceID)
+		if err != nil {
+			return nil, fmt.Errorf("list integration bridge bindings for %q: %w", bridgeInstanceID, err)
+		}
+		bindings[bridgeInstanceID] = instanceBindings
+	}
+	return bindings, nil
 }
 
 func (s *integrationBridgeService) PutSecretBinding(
@@ -3668,7 +3740,7 @@ func (d *integrationDaemon) Run(ctx context.Context) error {
 		return fmt.Errorf("new task manager: %w", err)
 	}
 
-	bridgeService := newIntegrationBridgeService(registry)
+	bridgeService := newIntegrationBridgeService(registry, d.bridgeProviders)
 	observer, err := observe.New(
 		context.Background(),
 		observe.WithHomePaths(d.homePaths),
