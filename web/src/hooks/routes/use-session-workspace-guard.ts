@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useMatchRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import { useActiveWorkspace } from "@/systems/workspace";
@@ -17,10 +17,20 @@ export function useSessionWorkspaceGuard({
   sessionId,
   sessionName,
 }: UseSessionWorkspaceGuardOptions): void {
+  const matchRoute = useMatchRoute();
   const navigate = useNavigate();
   const { activeWorkspaceId, setActiveWorkspaceId, workspaces } = useActiveWorkspace();
+  const pendingSessionRoute = matchRoute({
+    to: "/agents/$name/sessions/$id",
+    pending: true,
+    includeSearch: false,
+  });
+  const isNavigatingToDifferentSession = Boolean(
+    sessionId && pendingSessionRoute && pendingSessionRoute.id !== sessionId
+  );
 
   useEffect(() => {
+    if (isNavigatingToDifferentSession) return;
     if (sessionWorkspaceId && activeWorkspaceId && activeWorkspaceId !== sessionWorkspaceId) {
       const ownerWorkspace = workspaces.find(workspace => workspace.id === sessionWorkspaceId);
       const workspaceLabel = ownerWorkspace?.name?.trim() || sessionWorkspaceId;
@@ -47,6 +57,7 @@ export function useSessionWorkspaceGuard({
   }, [
     activeWorkspaceId,
     agentName,
+    isNavigatingToDifferentSession,
     navigate,
     sessionId,
     sessionName,

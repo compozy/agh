@@ -9,8 +9,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/agh/internal/acp"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -31,6 +33,7 @@ const (
 
 const taskRoleActivationReasonRunEnqueued = "task_run_enqueued"
 const taskRoleActivationReasonRecovery = "recovery"
+const taskRoleActivationReasonStarvation = "starvation"
 
 type taskRoleStore interface {
 	GetTask(ctx context.Context, id string) (taskpkg.Task, error)
@@ -41,16 +44,25 @@ type taskRoleStore interface {
 
 type taskRoleSessionManager interface {
 	Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
+	Events(ctx context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error)
 	ListAll(ctx context.Context) ([]*session.Info, error)
+	PromptSynthetic(ctx context.Context, id string, opts session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error)
+	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
 }
 
 type taskRoleRuntime struct {
+	drainCtx            context.Context
+	cancel              context.CancelFunc
+	lifecycleMu         sync.Mutex
+	stopping            bool
 	mu                  sync.Mutex
 	store               taskRoleStore
 	sessions            taskRoleSessionManager
 	globalWorkspacePath string
 	logger              *slog.Logger
 	now                 func() time.Time
+	promptInFlight      map[string]struct{}
+	wg                  sync.WaitGroup
 }
 
 type taskRoleActivation struct {
@@ -91,12 +103,17 @@ func newTaskRoleRuntime(
 	if now == nil {
 		now = time.Now
 	}
+	// #nosec G118 -- cancel is owned by taskRoleRuntime and invoked from shutdown.
+	drainCtx, cancel := context.WithCancel(context.Background())
 	return &taskRoleRuntime{
+		drainCtx:            drainCtx,
+		cancel:              cancel,
 		store:               store,
 		sessions:            sessions,
 		globalWorkspacePath: strings.TrimSpace(globalWorkspacePath),
 		logger:              logger,
 		now:                 now,
+		promptInFlight:      make(map[string]struct{}),
 	}, nil
 }
 
@@ -104,13 +121,39 @@ func (r *taskRoleRuntime) OnTaskRunEnqueued(ctx context.Context, payload hookspk
 	if r == nil {
 		return
 	}
-	ctx, cancel := taskRunActivationContext(ctx)
-	defer cancel()
 	runID := strings.TrimSpace(payload.RunID)
 	if runID == "" {
 		r.logTaskRoleError("daemon: task role enqueue payload missing run id", nil, payload)
 		return
 	}
+	if !r.beginEnqueuedActivation() {
+		return
+	}
+	go r.activateEnqueuedRun(ctx, runID, payload)
+}
+
+func (r *taskRoleRuntime) beginEnqueuedActivation() bool {
+	r.lifecycleMu.Lock()
+	defer r.lifecycleMu.Unlock()
+	if r.stopping {
+		return false
+	}
+	// Keep Add ordered before shutdown starts waiting on the owned work.
+	r.wg.Add(1)
+	return true
+}
+
+func (r *taskRoleRuntime) activateEnqueuedRun(
+	ctx context.Context,
+	runID string,
+	payload hookspkg.TaskRunEnqueuedPayload,
+) {
+	defer r.wg.Done()
+	ctx, cancel := taskRunActivationContext(ctx)
+	defer cancel()
+	stopDrainCancellation := context.AfterFunc(r.drainCtx, cancel)
+	defer stopDrainCancellation()
+
 	run, err := r.store.GetTaskRun(ctx, runID)
 	if err != nil {
 		r.logTaskRoleError("daemon: load task run for role activation", err, payload)
@@ -180,13 +223,14 @@ func (r *taskRoleRuntime) activateRun(
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	existing, err := r.activeRoleSession(ctx, activation)
+	result, err := r.activateRoleSession(ctx, activation, reason, r.startRoleSession)
 	if err != nil {
 		return err
 	}
-	if existing != nil {
+	if !result.created {
 		r.logger.Info(
 			"daemon: task role session already active",
+			"session_id", result.info.ID,
 			taskRoleRuntimeTaskIDKey, activation.TaskID,
 			"run_id", activation.RunID,
 			"agent_name", activation.AgentName,
@@ -195,14 +239,9 @@ func (r *taskRoleRuntime) activateRun(
 		)
 		return nil
 	}
-
-	info, err := r.startRoleSession(ctx, activation)
-	if err != nil {
-		return err
-	}
 	r.logger.Info(
 		"daemon: task role session started",
-		"session_id", info.ID,
+		"session_id", result.info.ID,
 		taskRoleRuntimeTaskIDKey, activation.TaskID,
 		"run_id", activation.RunID,
 		"agent_name", activation.AgentName,

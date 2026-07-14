@@ -1,17 +1,30 @@
-import { Button, Field, FieldLabel, NativeSelect, NativeSelectOption, Spinner } from "@agh/ui";
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Field,
+  FieldLabel,
+  NativeSelect,
+  NativeSelectOption,
+  Spinner,
+} from "@agh/ui";
 
-import { useLoops } from "../../hooks/use-loops";
 import {
   setLoopTargetInput,
   setLoopTargetLoop,
   setLoopTargetMapping,
   type LoopTargetDraft,
 } from "../../lib/loop-target";
+import {
+  loopTargetAvailabilityMessage,
+  type LoopTargetCatalog,
+} from "../../lib/loop-target-availability";
 import { LoopInputControl } from "./loop-input-control";
 import { LoopInputMapping } from "./loop-input-mapping";
 
 interface LoopTargetFieldsProps {
-  workspaceId: string;
+  catalog: LoopTargetCatalog;
+  mode: "create" | "edit";
   value: LoopTargetDraft;
   onChange: (value: LoopTargetDraft) => void;
   /** Show the event-payload mapping table (triggers/webhooks only). */
@@ -25,71 +38,83 @@ interface LoopTargetFieldsProps {
  * daemon's declared-input schema, so it always matches what the Loop accepts.
  */
 export function LoopTargetFields({
-  workspaceId,
+  catalog,
+  mode,
   value,
   onChange,
   showMapping = false,
 }: LoopTargetFieldsProps) {
-  const loopsQuery = useLoops(workspaceId, { limit: 50, sort: "name" }, workspaceId !== "");
-  const loops = loopsQuery.loops;
-  const loadedSelection = loops.find(loop => loop.name === value.loop_name) ?? null;
-  const selectedLoopQuery = useLoops(
-    workspaceId,
-    { limit: 50, q: value.loop_name, sort: "name" },
-    workspaceId !== "" && value.loop_name !== "" && !loadedSelection
-  );
-  const selected =
-    loadedSelection ?? selectedLoopQuery.loops.find(loop => loop.name === value.loop_name) ?? null;
-  const options = selected && !loadedSelection ? [selected, ...loops] : loops;
+  const selected = catalog.selected;
   const inputs = selected?.inputs ?? {};
   const inputNames = Object.keys(inputs);
+  const selectedIsUnavailable =
+    value.loop_name !== "" &&
+    (catalog.status === "incompatible" || catalog.status === "unavailable");
+  const noticeId = "loop-target-availability";
+  const compatibilityMessage = loopTargetAvailabilityMessage(catalog, mode);
+  const hasSelectableContent = catalog.options.length > 0 || selectedIsUnavailable;
 
   return (
     <div className="space-y-4" data-testid="loop-target-fields">
       <Field>
         <FieldLabel htmlFor="loop-target-loop">Loop</FieldLabel>
-        {loopsQuery.isLoading ? (
-          <div className="flex h-9 items-center gap-2 text-[11.5px] text-subtle">
+        {catalog.isLoading && catalog.options.length === 0 && !selected ? (
+          <div className="flex h-9 items-center gap-2 text-form-hint text-subtle">
             <Spinner aria-hidden="true" className="size-3.5 text-subtle" />
-            Loading loops…
+            Loading Loops…
           </div>
-        ) : loopsQuery.isError && loops.length === 0 ? (
-          <p className="text-[11.5px] text-danger" role="alert">
+        ) : catalog.error && catalog.options.length === 0 && !selected ? (
+          <p className="text-form-hint text-danger" role="alert">
             Could not load Loops for this workspace.
           </p>
-        ) : options.length === 0 ? (
-          <p className="text-[11.5px] text-subtle">No Loops are available in this workspace.</p>
+        ) : !hasSelectableContent && catalog.hasNextPage ? (
+          <p className="text-form-hint text-subtle">No compatible Loops loaded yet.</p>
+        ) : !hasSelectableContent ? (
+          <p className="text-form-hint text-subtle">
+            No Loops in this workspace allow {catalog.requiredStartKind} starts.
+          </p>
         ) : (
           <NativeSelect
+            aria-describedby={compatibilityMessage ? noticeId : undefined}
             id="loop-target-loop"
             data-testid="loop-target-select"
             value={value.loop_name}
             onChange={event => onChange(setLoopTargetLoop(value, event.target.value))}
           >
             <NativeSelectOption value="">Select a loop</NativeSelectOption>
-            {options.map(loop => (
+            {selectedIsUnavailable ? (
+              <NativeSelectOption disabled value={value.loop_name}>
+                {value.loop_name} (unavailable for {catalog.requiredStartKind})
+              </NativeSelectOption>
+            ) : null}
+            {catalog.options.map(loop => (
               <NativeSelectOption key={loop.name} value={loop.name}>
                 {loop.name}
               </NativeSelectOption>
             ))}
           </NativeSelect>
         )}
-        {loopsQuery.error && loops.length > 0 ? (
-          <p className="text-[11.5px] text-danger" role="alert">
-            {loopsQuery.error.message}
+        {compatibilityMessage ? (
+          <Alert id={noticeId} role="alert" variant="warning">
+            <AlertDescription>{compatibilityMessage}</AlertDescription>
+          </Alert>
+        ) : null}
+        {catalog.error && catalog.options.length > 0 ? (
+          <p className="text-form-hint text-danger" role="alert">
+            {catalog.error.message}
           </p>
         ) : null}
-        {loopsQuery.hasNextPage ? (
+        {catalog.hasNextPage ? (
           <Button
-            aria-busy={loopsQuery.isFetchingNextPage}
+            aria-busy={catalog.isFetchingNextPage}
             data-testid="loop-target-load-more"
-            disabled={loopsQuery.isFetchingNextPage}
-            onClick={() => void loopsQuery.fetchNextPage()}
+            disabled={catalog.isFetchingNextPage}
+            onClick={catalog.fetchNextPage}
             size="sm"
             type="button"
             variant="ghost"
           >
-            {loopsQuery.isFetchingNextPage ? "Loading more loops…" : "Load more loops"}
+            {catalog.isFetchingNextPage ? "Loading more Loops…" : "Load more Loops"}
           </Button>
         ) : null}
       </Field>

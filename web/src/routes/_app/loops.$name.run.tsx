@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { Empty, Spinner } from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
-import { LoopRunForm, useLoop } from "@/systems/loops";
+import { LoopRunForm, useLoop, useLoopConfig } from "@/systems/loops";
 import { useActiveWorkspace } from "@/systems/workspace";
 import { preloadLoopRunFormRoute } from "./-loops-preload";
 
@@ -26,6 +26,7 @@ function LoopRunFormRoute() {
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = activeWorkspaceId ?? "";
   const loopQuery = useLoop(workspaceId, name, workspaceId !== "");
+  const configQuery = useLoopConfig(workspaceId, name, workspaceId !== "");
 
   if (workspaceId === "") {
     return (
@@ -36,7 +37,7 @@ function LoopRunFormRoute() {
       />
     );
   }
-  if (loopQuery.isLoading) {
+  if (loopQuery.isLoading || configQuery.isLoading) {
     return (
       <div
         className="flex min-h-0 flex-1 items-center justify-center"
@@ -46,10 +47,12 @@ function LoopRunFormRoute() {
       </div>
     );
   }
-  if (loopQuery.error || !loopQuery.data) {
+  if (loopQuery.error || configQuery.error || !loopQuery.data) {
     return (
       <RunFormState
-        description={loopQuery.error?.message ?? `Loop ${name} not found.`}
+        description={
+          loopQuery.error?.message ?? configQuery.error?.message ?? `Loop ${name} not found.`
+        }
         icon={AlertCircle}
         testId="loop-run-form-error"
         title="Unable to load loop"
@@ -62,6 +65,7 @@ function LoopRunFormRoute() {
       key={loopQuery.data.name}
       workspaceId={workspaceId}
       loop={loopQuery.data}
+      config={configQuery.data ?? null}
       onCancel={() => navigate({ to: "/loops/$name", params: { name } })}
       onRunStarted={runId => navigate({ to: "/loop-runs/$runId", params: { runId } })}
     />

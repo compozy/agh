@@ -26,7 +26,7 @@ func (m *Service) CompleteRun(
 		return nil, err
 	}
 
-	run, taskRecord, err := m.loadRunWithTask(ctx, runID)
+	run, _, err := m.loadRunWithTask(ctx, runID)
 	if err != nil {
 		return nil, err
 	}
@@ -54,11 +54,12 @@ func (m *Service) CompleteRun(
 	if err := m.stopTerminalRunSession(ctx, run, StopReasonCompleted); err != nil {
 		return nil, err
 	}
-	if err := m.store.UpdateTaskRun(ctx, run); err != nil {
+	settlement, err := m.store.CompleteRunSettlement(ctx, run, actor)
+	if err != nil {
 		return nil, err
 	}
 
-	reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID, actor)
+	reconciledTask, err := m.publishCompletedRunSettlement(ctx, &settlement, actor)
 	if err != nil {
 		return nil, err
 	}

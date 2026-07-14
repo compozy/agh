@@ -66,21 +66,44 @@ func (r *Resolver) Unregister(ctx context.Context, id string) error {
 	if err != nil {
 		return fmt.Errorf("workspace: unregister %q: %w", trimmedID, err)
 	}
+	preparation, err := r.prepareUnregister(ctx, previous)
+	if err != nil {
+		return fmt.Errorf("workspace: prepare unregister %q: %w", trimmedID, err)
+	}
 
 	if err := r.store.DeleteWorkspace(ctx, trimmedID); err != nil {
+		if preparation != nil {
+			rollbackErr := preparation.Rollback(context.WithoutCancel(ctx))
+			if rollbackErr != nil {
+				return errors.Join(
+					fmt.Errorf("workspace: unregister %q: %w", trimmedID, err),
+					fmt.Errorf("workspace: roll back unregister preparation %q: %w", trimmedID, rollbackErr),
+				)
+			}
+		}
 		return fmt.Errorf("workspace: unregister %q: %w", trimmedID, err)
 	}
 
 	r.Invalidate(trimmedID)
-	if err := r.notifyChangeHook(ctx, "unregister", trimmedID); err != nil {
-		restoreErr := r.rollbackInsertWorkspace(ctx, previous)
-		if restoreErr != nil {
-			return errors.Join(
-				err,
-				fmt.Errorf("workspace: rollback workspace unregister %q: %w", trimmedID, restoreErr),
+	if preparation != nil {
+		if err := preparation.Commit(context.WithoutCancel(ctx)); err != nil {
+			r.logger.Warn(
+				"workspace: committed unregister left deferred external cleanup",
+				"workspace_id", trimmedID,
+				"error", err,
 			)
 		}
-		return err
+	}
+	if err := r.notifyChangeHook(ctx, "unregister", trimmedID); err != nil {
+		// The database and external state are already committed as one logical
+		// deletion. Restoring only the workspace row would manufacture partial
+		// state, so keep the deletion authoritative and let the next projection
+		// sync converge the derived resources.
+		r.logger.Error(
+			"workspace: unregister committed before derived resource sync failed",
+			"workspace_id", trimmedID,
+			"error", err,
+		)
 	}
 	return nil
 }
@@ -144,13 +167,6 @@ func (r *Resolver) Update(ctx context.Context, id string, opts UpdateOptions) er
 	return nil
 }
 
-func (r *Resolver) rollbackInsertWorkspace(ctx context.Context, ws Workspace) error {
-	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackDeleteTimeout)
-	defer cancel()
-
-	return r.store.InsertWorkspace(rollbackCtx, ws)
-}
-
 func (r *Resolver) rollbackUpdateWorkspace(ctx context.Context, ws Workspace) error {
 	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackDeleteTimeout)
 	defer cancel()
@@ -164,9 +180,16 @@ func (r *Resolver) List(ctx context.Context) ([]Workspace, error) {
 		return nil, err
 	}
 
+	r.reconcileMu.Lock()
+	defer r.reconcileMu.Unlock()
+
 	workspaces, err := r.store.ListWorkspaces(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("workspace: list workspaces: %w", err)
+	}
+	workspaces, err = r.reconcileWorkspaceList(ctx, workspaces)
+	if err != nil {
+		return nil, err
 	}
 
 	return cloneWorkspaces(workspaces), nil

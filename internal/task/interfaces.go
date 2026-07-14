@@ -166,6 +166,7 @@ type BlockStore interface {
 type RunStore interface {
 	CreateTaskRun(ctx context.Context, run Run) error
 	UpdateTaskRun(ctx context.Context, run Run) error
+	CompleteRunSettlement(ctx context.Context, run Run, actor ActorContext) (CompletedRunSettlement, error)
 	GetTaskRun(ctx context.Context, id string) (Run, error)
 	ListTaskRuns(ctx context.Context, query RunQuery) ([]Run, error)
 	ListTaskRunsByStatus(ctx context.Context, statuses []RunStatus) ([]Run, error)
@@ -174,6 +175,7 @@ type RunStore interface {
 	HeartbeatRunLease(ctx context.Context, heartbeat LeaseHeartbeat) (Run, error)
 	ReleaseRunLease(ctx context.Context, release LeaseRelease) (Run, error)
 	CompleteRunLease(ctx context.Context, completion LeaseCompletion) (Run, error)
+	CompleteRunLeaseSettlement(ctx context.Context, completion LeaseCompletion) (CompletedRunSettlement, error)
 	FailRunLease(ctx context.Context, failure LeaseFailure) (Run, error)
 	CompleteCoordinatorAndEnqueueNext(
 		ctx context.Context,

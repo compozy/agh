@@ -17,10 +17,11 @@ import {
   type LoopOverrideDraft,
   type LoopOverrideField,
 } from "../../lib/loop-overrides";
-import type { LoopContract } from "../../types";
+import type { LoopConfig, LoopContract } from "../../types";
 
 interface LoopRunOverridesProps {
   contract: LoopContract;
+  config?: LoopConfig | null;
   draft: LoopOverrideDraft;
   disabled?: boolean;
   onChange: (draft: LoopOverrideDraft) => void;
@@ -49,9 +50,15 @@ function setOverrideValue(
  * "overrides set" the moment any field diverges from its default. There is NO cost-cap
  * field — cost is display-only (ADR-017 §9.5.2).
  */
-export function LoopRunOverrides({ contract, draft, disabled, onChange }: LoopRunOverridesProps) {
-  const fields = buildOverrideFields(contract);
-  const overridden = hasActiveOverrides(draft, contract);
+export function LoopRunOverrides({
+  contract,
+  config = null,
+  draft,
+  disabled,
+  onChange,
+}: LoopRunOverridesProps) {
+  const fields = buildOverrideFields(contract, config);
+  const overridden = hasActiveOverrides(draft, contract, config);
   return (
     <Collapsible
       className="rounded-md border border-line-soft bg-canvas-tint"

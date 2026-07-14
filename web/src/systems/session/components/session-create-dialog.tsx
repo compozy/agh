@@ -10,6 +10,7 @@ import {
   DialogTitle,
   Field,
   FieldDescription,
+  FieldError,
   FieldLabel,
   FieldTitle,
   Spinner,
@@ -23,6 +24,8 @@ import {
   type RuntimeSelectorValue,
 } from "@/systems/runtime";
 import type { WorkspacePayload } from "@/systems/workspace";
+
+import { validateSessionModelSelection } from "../lib/session-model-selection";
 
 export interface SessionCreateDialogProps {
   open: boolean;
@@ -86,6 +89,14 @@ function SessionCreateDialog({
   const hasAgents = agents.length > 0;
   const hasSelectedAgent = agents.some(agent => agent.name === trimmedSelectedAgentName);
   const hasSelectedProvider = runtimeProviders.some(option => option.id === runtimeValue.provider);
+  const modelSelection = validateSessionModelSelection({
+    provider: runtimeValue.provider,
+    model: runtimeValue.model,
+    models: runtimeModels,
+    catalogLoading,
+    catalogLoaded,
+    catalogError,
+  });
   const agentPlaceholder = !workspaceSelected
     ? "Select a workspace first"
     : hasAgents
@@ -98,7 +109,8 @@ function SessionCreateDialog({
     hasAgents &&
     hasSelectedAgent &&
     hasProviderOptions &&
-    hasSelectedProvider;
+    hasSelectedProvider &&
+    modelSelection.valid;
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -207,7 +219,27 @@ function SessionCreateDialog({
                   No providers are configured for this workspace.
                 </p>
               ) : null}
+              {modelSelection.error ? (
+                <FieldError
+                  className="mt-1 text-form-hint text-danger"
+                  data-testid="session-create-model-error"
+                >
+                  {modelSelection.error}
+                </FieldError>
+              ) : null}
             </Field>
+
+            {isSubmitting ? (
+              <p
+                aria-live="polite"
+                className="text-form-hint text-subtle"
+                data-testid="session-create-pending-status"
+                role="status"
+              >
+                Waiting for provider startup and ACP confirmation. The session opens after the
+                runtime confirms it.
+              </p>
+            ) : null}
 
             {submitError ? (
               <p
@@ -232,7 +264,7 @@ function SessionCreateDialog({
             </Button>
             <Button data-testid="session-create-dialog-submit" disabled={!canSubmit} type="submit">
               {isSubmitting ? <Spinner aria-hidden="true" /> : null}
-              Start session
+              {isSubmitting ? "Starting session…" : "Start session"}
             </Button>
           </DialogFooter>
         </form>
@@ -268,7 +300,7 @@ function CatalogStatusLine({
   if (error) {
     return (
       <span className="text-danger" data-testid="session-create-catalog-error" role="alert">
-        {error}. Type a model ID to continue.
+        {error}. Refresh the catalog or leave Model blank to use the provider default.
       </span>
     );
   }
@@ -296,7 +328,7 @@ function CatalogStatusLine({
   if (optionCount === 0) {
     return (
       <span className="text-subtle" data-testid="session-create-catalog-empty">
-        No catalog models — type an exact model ID to continue.
+        No catalog models. Leave Model blank to use the provider default.
       </span>
     );
   }

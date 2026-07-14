@@ -151,16 +151,43 @@ const AGENT_TARGET_KIND = "agent";
 export type AutomationTargetMode = "agent" | "loop";
 export type AutomationLoopTarget = NonNullable<CreateAutomationTriggerRequest["loop_target"]>;
 
-/** A draft runs a Loop when it carries a `loop_target`; otherwise it runs an agent. */
+/** The persisted discriminator is the sole authority for the target union branch. */
 export function automationTargetMode(
-  draft: Pick<CreateAutomationTriggerRequest, "loop_target" | "target_kind">
+  draft: Pick<CreateAutomationTriggerRequest, "target_kind">
 ): AutomationTargetMode {
-  return draft.target_kind === LOOP_TARGET_KIND || draft.loop_target ? "loop" : "agent";
+  return draft.target_kind === LOOP_TARGET_KIND ? "loop" : "agent";
 }
 
 /** A blank loop target bound to the automation's own workspace. */
 export function emptyLoopTarget(workspaceId?: string | null, loopName = ""): AutomationLoopTarget {
   return { loop_name: loopName, workspace_id: workspaceId ?? "", inputs: {}, input_mapping: {} };
+}
+
+/** Resolves the concrete workspace that owns a Trigger's Loop target. */
+export function triggerLoopWorkspaceId(
+  draft: Pick<CreateAutomationTriggerRequest, "loop_target" | "scope" | "workspace_id">,
+  fallbackWorkspaceId?: string | null
+): string {
+  if (draft.scope === "workspace") {
+    return draft.workspace_id ?? fallbackWorkspaceId ?? "";
+  }
+
+  return draft.loop_target?.workspace_id || fallbackWorkspaceId || "";
+}
+
+/** Keeps the nested Loop target binding synchronized without creating a target branch. */
+export function bindTriggerLoopWorkspace(
+  draft: CreateAutomationTriggerRequest,
+  workspaceId: string
+): CreateAutomationTriggerRequest {
+  if (automationTargetMode(draft) !== "loop" || !draft.loop_target) {
+    return draft;
+  }
+
+  return {
+    ...draft,
+    loop_target: { ...draft.loop_target, workspace_id: workspaceId },
+  };
 }
 
 function applyTargetMode(
@@ -192,9 +219,18 @@ function applyTargetMode(
  */
 export function setTriggerTargetMode(
   draft: CreateAutomationTriggerRequest,
-  mode: AutomationTargetMode
+  mode: AutomationTargetMode,
+  targetWorkspaceId: string = draft.workspace_id ?? ""
 ): CreateAutomationTriggerRequest {
-  return applyTargetMode(draft, mode);
+  if (mode === "loop") {
+    return {
+      ...draft,
+      target_kind: LOOP_TARGET_KIND,
+      loop_target: draft.loop_target ?? emptyLoopTarget(targetWorkspaceId),
+    };
+  }
+
+  return { ...draft, target_kind: AGENT_TARGET_KIND, loop_target: undefined };
 }
 
 /** Switches a job draft between agent and Loop targets (see setTriggerTargetMode). */

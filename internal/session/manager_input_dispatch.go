@@ -115,11 +115,12 @@ func (m *Manager) newQueuedInputPromptRequest(
 		return promptRequest{}, false
 	}
 	return promptRequest{
-		turnID:     m.newPromptTurnID(),
-		target:     target,
-		message:    entry.Text,
-		turnSource: TurnSourceUser,
-		meta:       meta,
+		turnID:          m.newPromptTurnID(),
+		target:          target,
+		message:         entry.Text,
+		authoredMessage: entry.Text,
+		turnSource:      TurnSourceUser,
+		meta:            meta,
 	}, true
 }
 

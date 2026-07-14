@@ -21,6 +21,7 @@ func (m *Manager) persistSessionLifecycleState(ctx context.Context, session *Ses
 		return err
 	}
 	if m.sessionCatalog == nil {
+		m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, session.Info()))
 		return nil
 	}
 	info := session.Info()
@@ -30,15 +31,35 @@ func (m *Manager) persistSessionLifecycleState(ctx context.Context, session *Ses
 			if err := m.registerSessionCreation(ctx, info, meta, *identity); err != nil {
 				return err
 			}
+			m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
 			return nil
 		}
 		if err := m.sessionCatalog.RegisterSession(ctx, sessionCatalogInfoFromRuntime(info)); err != nil {
 			return fmt.Errorf("session: register catalog state for %q: %w", session.ID, err)
 		}
+		m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
 		return nil
 	}
 	if err := m.sessionCatalog.UpdateSessionState(ctx, sessionCatalogStateUpdate(info)); err != nil {
 		return fmt.Errorf("session: update catalog state for %q: %w", session.ID, err)
+	}
+	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
+	return nil
+}
+
+func (m *Manager) persistSessionIdentity(ctx context.Context, session *Session) error {
+	if session == nil {
+		return fmt.Errorf("session: session is required")
+	}
+	if err := m.writeMeta(session); err != nil {
+		return err
+	}
+	if m.sessionCatalog == nil {
+		return nil
+	}
+	info := session.Info()
+	if err := m.sessionCatalog.RegisterSession(ctx, sessionCatalogInfoFromRuntime(info)); err != nil {
+		return fmt.Errorf("session: update catalog identity for %q: %w", session.ID, err)
 	}
 	return nil
 }

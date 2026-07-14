@@ -35,6 +35,7 @@ type AutomationDialogEditorState =
       onCancel: () => void;
       onChange: (draft: CreateAutomationTriggerRequest) => void;
       onSubmit: () => void;
+      submitError?: string | null;
     };
 
 interface AutomationEditorDialogProps {
@@ -58,8 +59,8 @@ function jobHeaderCopy(mode: "create" | "edit"): EditorHeaderCopy {
     title: mode === "create" ? "Create job" : "Edit job",
     description: (
       <>
-        A job runs an agent on a schedule, no operator in the loop. It answers three things:{" "}
-        <b className="font-medium text-muted">which agent, what prompt, and when to dispatch.</b>
+        A job runs an agent, materializes a task, or starts a Loop on a schedule.{" "}
+        <b className="font-medium text-muted">Choose the target and when it should run.</b>
       </>
     ),
   };
@@ -72,8 +73,7 @@ function triggerHeaderCopy(mode: "create" | "edit"): EditorHeaderCopy {
     title: mode === "create" ? "Create trigger" : "Edit trigger",
     description: (
       <>
-        A trigger watches for a runtime event and, when it matches, runs an agent with a prompt
-        built from that event.{" "}
+        A trigger watches for a runtime event and, when it matches, runs an agent or starts a Loop.{" "}
         <b className="font-medium text-muted">When this happens → run that.</b>
       </>
     ),
@@ -131,6 +131,7 @@ export function AutomationEditorDialog({
               onCancel={editor.onCancel}
               onChange={editor.onChange}
               onSubmit={editor.onSubmit}
+              submitError={editor.submitError}
               workspaces={workspaces}
             />
           )}

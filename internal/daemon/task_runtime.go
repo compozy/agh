@@ -44,6 +44,7 @@ type taskRuntime struct {
 	networkTaskStatus   *networkTaskStatusObserver
 	loopActions         *loopActionRuntime
 	coordinatorBackstop *loopCoordinatorBootGate
+	loopJudges          *loopGateJudgeRunner
 	activation          atomic.Pointer[taskRunActivationDispatcher]
 	roles               atomic.Pointer[taskRoleRuntime]
 }

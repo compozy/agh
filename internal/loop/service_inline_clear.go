@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -38,11 +39,18 @@ func (s *service) ClearInlineGoal(
 	if !result.Terminalized {
 		return nil
 	}
+	var revokeErr error
 	if s.goalLeaseRevoker != nil {
 		for _, lease := range result.RevokedPromptLeases {
-			s.goalLeaseRevoker.RevokeGoalPromptLease(lease, string(TransitionCauseGoalClear))
+			if err := s.goalLeaseRevoker.RevokeGoalPromptLease(
+				ctx,
+				lease,
+				string(TransitionCauseGoalClear),
+			); err != nil {
+				revokeErr = errors.Join(revokeErr, fmt.Errorf("loop: revoke cleared Goal runtime: %w", err))
+			}
 		}
 	}
 	s.dispatchCoordinatorTerminal(ctx, result.Run, TransitionCauseGoalClear, clearedAt)
-	return nil
+	return revokeErr
 }

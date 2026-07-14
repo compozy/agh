@@ -47,6 +47,19 @@ function draftFromWorkspace(
   };
 }
 
+function registeredWorkspaceIdForDraft(
+  draft: OnboardingWorkspaceDraft | undefined,
+  registeredWorkspaces: WorkspacePayload[]
+): string {
+  if (!draft) {
+    return "";
+  }
+  const registeredWorkspace =
+    registeredWorkspaces.find(workspace => workspace.id === draft.workspaceId) ??
+    registeredWorkspaces.find(workspace => workspace.root_dir === draft.path);
+  return registeredWorkspace?.id ?? "";
+}
+
 export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
   const workspaces = useOnboardingDraftStore(state => state.workspaces);
   const addToDraft = useOnboardingDraftStore(state => state.addWorkspace);
@@ -54,6 +67,7 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
   const resolveWorkspace = useResolveWorkspace();
   const deleteWorkspace = useDeleteWorkspace();
   const registeredWorkspaces = useWorkspaces();
+  const workspaceCatalog = registeredWorkspaces.data;
   const [currentPath, setCurrentPath] = useState<string>("");
   const [resolveError, setResolveError] = useState<string | null>(null);
 
@@ -104,11 +118,11 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
   };
 
   const removeWorkspace = async (path: string) => {
+    if (workspaceCatalog === undefined) {
+      return;
+    }
     const draft = workspaces.find(item => item.path === path);
-    const workspaceId =
-      draft?.workspaceId ??
-      registeredWorkspaces.data?.find(workspace => workspace.root_dir === path)?.id ??
-      "";
+    const workspaceId = registeredWorkspaceIdForDraft(draft, workspaceCatalog);
     if (workspaceId.length === 0) {
       removeFromDraft(path);
       return;
@@ -139,7 +153,7 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
       : null,
     workspaces,
     isResolving: resolveWorkspace.isPending,
-    isRemoving: deleteWorkspace.isPending,
+    isRemoving: workspaceCatalog === undefined || deleteWorkspace.isPending,
     resolveError,
     navigateTo,
     goToParent,

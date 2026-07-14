@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -47,7 +48,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 	manager := &Manager{
 		sessions:              make(map[string]*Session),
 		pending:               make(map[string]struct{}),
-		finalizing:            make(map[string]chan struct{}),
+		finalizing:            make(map[string]*sessionFinalization),
 		promptDrains:          make(map[chan struct{}]struct{}),
 		managedInputLeases:    make(map[string]managedInputLease),
 		syntheticQueues:       make(map[string][]queuedSyntheticPrompt),
@@ -55,6 +56,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 		soulLocks:             make(map[string]chan struct{}),
 		sessionHealthHookLast: make(map[string]time.Time),
 		streamEvents:          newSessionEventBroadcaster(),
+		catalogEvents:         newSessionCatalogBroadcaster(),
 		logger:                slog.Default(),
 		driver:                NewACPDriverAdapter(acp.New()),
 		homePaths:             homePaths,
@@ -78,6 +80,8 @@ func NewManager(opts ...Option) (*Manager, error) {
 		newTurnID: func() string {
 			return newID("turn")
 		},
+		renamePath:         os.Rename,
+		removeAllPath:      os.RemoveAll,
 		promptBufSize:      defaultPromptBufferSize,
 		soulRefreshTimeout: defaultLifecycleTimeout,
 	}
@@ -94,6 +98,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 	if err := aghconfig.EnsureHomeLayout(manager.homePaths); err != nil {
 		return nil, fmt.Errorf("session: ensure home layout: %w", err)
 	}
+	manager.cleanupDeleteTombstones()
 
 	return manager, nil
 }
@@ -310,8 +315,8 @@ func (m *Manager) releaseReservation(id string) {
 func (m *Manager) remove(id string) {
 	target := strings.TrimSpace(id)
 	m.mu.Lock()
-	if done, ok := m.finalizing[target]; ok {
-		close(done)
+	if finalization, ok := m.finalizing[target]; ok {
+		close(finalization.done)
 	}
 	delete(m.sessions, target)
 	delete(m.pending, target)
@@ -362,69 +367,5 @@ func (m *Manager) takeQueuedSyntheticPrompts(sessionID string) []queuedSynthetic
 func (m *Manager) emitDroppedSyntheticPrompts(items []queuedSyntheticPrompt, err error) {
 	for _, item := range items {
 		m.emitQueuedSyntheticDispatchError(item, err)
-	}
-}
-
-func (m *Manager) finishFinalization(id string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if done, ok := m.finalizing[id]; ok {
-		close(done)
-	}
-	delete(m.finalizing, id)
-}
-
-func (m *Manager) claimFinalization(session *Session) (bool, <-chan struct{}) {
-	if session == nil {
-		return false, nil
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	if done, ok := m.finalizing[session.ID]; ok {
-		return false, done
-	}
-
-	current, ok := m.sessions[session.ID]
-	if !ok || current != session {
-		return false, nil
-	}
-
-	done := make(chan struct{})
-	m.finalizing[session.ID] = done
-	return true, done
-}
-
-// WaitForFinalizations blocks until all in-flight finalization routines finish.
-func (m *Manager) WaitForFinalizations(ctx context.Context) error {
-	if m == nil {
-		return nil
-	}
-	if ctx == nil {
-		return errors.New("session: wait for finalizations context is required")
-	}
-
-	for {
-		m.mu.RLock()
-		pending := make([]<-chan struct{}, 0, len(m.finalizing))
-		for _, done := range m.finalizing {
-			if done != nil {
-				pending = append(pending, done)
-			}
-		}
-		m.mu.RUnlock()
-
-		if len(pending) == 0 {
-			return nil
-		}
-
-		for _, done := range pending {
-			select {
-			case <-done:
-			case <-ctx.Done():
-				return ctx.Err()
-			}
-		}
 	}
 }

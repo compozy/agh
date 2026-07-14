@@ -94,6 +94,8 @@ const (
 	TransitionCauseWatchPoll TransitionCause = "watch_poll"
 	// TransitionCauseWatchEvents records a watch-events source yielding dormancy.
 	TransitionCauseWatchEvents TransitionCause = "watch_events"
+	// TransitionCauseCoordinatorFailure records an execution failure before a boundary settled.
+	TransitionCauseCoordinatorFailure TransitionCause = "coordinator_failure"
 )
 
 // StopReason captures the operator-visible stop reason.

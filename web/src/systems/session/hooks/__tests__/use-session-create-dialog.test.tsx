@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,7 +9,7 @@ import type { AllModelsListResponse, AllModelsRefreshResponse } from "@/systems/
 import type { WorkspaceDetailPayload, WorkspacePayload } from "@/systems/workspace";
 
 import type { SessionPayload } from "../../types";
-import { useSessionCreateDialog } from "../use-session-create-dialog";
+import { useSessionCreateDialog, type SessionCreateDialogApi } from "../use-session-create-dialog";
 
 type ProviderModelPayload = AllModelsListResponse["models"][number];
 
@@ -124,6 +124,19 @@ const agentsWithDefaultModel: AgentPayload[] = [
   },
 ];
 
+const agentsWithCursorAlias: AgentPayload[] = [
+  ...agents,
+  {
+    name: "cursor-agent",
+    provider: "cursor",
+    model: "cursor-grok-4.5-high",
+    prompt: "edit",
+    origin: "workspace",
+    workspace_id: "ws_alpha",
+    definition_digest: FIXTURE_AGENT_DEFINITION_DIGEST,
+  },
+];
+
 const createdSession: SessionPayload = {
   id: "sess-new",
   agent_name: "codex-agent",
@@ -215,7 +228,7 @@ describe("useSessionCreateDialog", () => {
     workspaceQueryResult = {
       data: {
         workspace: activeWorkspace,
-        providers: [{ name: "claude" }, { name: "codex" }, { name: "gemini" }],
+        providers: [{ name: "claude" }, { name: "codex" }, { name: "cursor" }, { name: "gemini" }],
       },
       isLoading: false,
       error: null,
@@ -291,6 +304,74 @@ describe("useSessionCreateDialog", () => {
     });
   });
 
+  it("Should release the creation dialog before destination navigation settles", async () => {
+    let resolveNavigation: (() => void) | undefined;
+    const navigation = new Promise<void>(resolve => {
+      resolveNavigation = resolve;
+    });
+    let blockingDialogPresentWhenNavigationStarted: boolean | undefined;
+    let composerPresentWhenNavigationStarted: boolean | undefined;
+    let dialog: SessionCreateDialogApi | undefined;
+
+    const { wrapper } = createWrapper();
+    const Harness = () => {
+      dialog = useSessionCreateDialog({ agents, activeWorkspace });
+      return dialog.open
+        ? createElement("div", { role: "dialog" }, "Starting session")
+        : createElement("textarea", { "aria-label": "Session composer", readOnly: true });
+    };
+    const getDialog = () => {
+      if (!dialog) throw new Error("Session create dialog harness did not render");
+      return dialog;
+    };
+
+    render(createElement(Harness), { wrapper });
+    mockNavigate.mockImplementation(() => {
+      blockingDialogPresentWhenNavigationStarted =
+        document.querySelector('[role="dialog"]') !== null;
+      composerPresentWhenNavigationStarted =
+        document.querySelector('[aria-label="Session composer"]') !== null;
+      return navigation;
+    });
+
+    act(() => {
+      getDialog().openForAgent("codex-agent");
+    });
+
+    let submitSettled = false;
+    let submitPromise: Promise<void> | undefined;
+    act(() => {
+      submitPromise = getDialog()
+        .submit()
+        .then(() => {
+          submitSettled = true;
+        });
+    });
+
+    try {
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith({
+          to: "/agents/$name/sessions/$id",
+          params: { name: "codex-agent", id: "sess-new" },
+        });
+      });
+
+      expect(blockingDialogPresentWhenNavigationStarted).toBe(false);
+      expect(composerPresentWhenNavigationStarted).toBe(true);
+      expect(getDialog().open).toBe(false);
+      await waitFor(() => {
+        expect(submitSettled).toBe(true);
+      });
+      expect(getDialog().pendingAgentName).toBeNull();
+      expect(getDialog().pendingWorkspaceId).toBeNull();
+    } finally {
+      await act(async () => {
+        resolveNavigation?.();
+        await submitPromise;
+      });
+    }
+  });
+
   it("Should map workspace providers onto the runtime rail options", () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
@@ -305,6 +386,7 @@ describe("useSessionCreateDialog", () => {
     expect(result.current.runtimeProviders.map(option => option.id)).toEqual([
       "claude",
       "codex",
+      "cursor",
       "gemini",
     ]);
   });
@@ -365,7 +447,7 @@ describe("useSessionCreateDialog", () => {
     );
   });
 
-  it("Should keep manual model entry available when the catalog is empty", async () => {
+  it("Should reject a non-catalog model for an authoritative provider when the catalog is empty", async () => {
     mockListAllModels.mockResolvedValueOnce({ models: [] });
 
     const { wrapper } = createWrapper();
@@ -381,6 +463,38 @@ describe("useSessionCreateDialog", () => {
       expect(result.current.catalogLoading).toBe(false);
     });
     expect(result.current.runtimeModels).toEqual([]);
+
+    act(() => {
+      result.current.onRuntimeChange({
+        provider: "cursor",
+        model: "cursor-grok-4.5-high",
+        reasoning_effort: "",
+      });
+    });
+
+    await act(async () => {
+      await result.current.submit();
+    });
+
+    expect(mockMutateAsync).not.toHaveBeenCalled();
+    expect(result.current.submitError).toContain("not in the selected provider catalog");
+  });
+
+  it("Should preserve a free-form model for a non-authoritative provider when the catalog is empty", async () => {
+    mockListAllModels.mockResolvedValueOnce({ models: [] });
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    act(() => {
+      result.current.openForAgent("codex-agent");
+    });
+
+    await waitFor(() => {
+      expect(result.current.catalogLoading).toBe(false);
+    });
 
     act(() => {
       result.current.onRuntimeChange({
@@ -400,6 +514,7 @@ describe("useSessionCreateDialog", () => {
       provider: "codex",
       model: "custom-experimental",
     });
+    expect(result.current.submitError).toBeNull();
   });
 
   it("Should expose stale catalog rows without blocking session creation", async () => {
@@ -442,7 +557,7 @@ describe("useSessionCreateDialog", () => {
     });
   });
 
-  it("Should surface catalog source errors without blocking manual entry", async () => {
+  it("Should reject an explicit model for an authoritative provider when the catalog is unavailable", async () => {
     mockListAllModels.mockReset();
     mockListAllModels.mockRejectedValue(new Error("catalog upstream failed"));
 
@@ -465,6 +580,42 @@ describe("useSessionCreateDialog", () => {
 
     act(() => {
       result.current.onRuntimeChange({
+        provider: "cursor",
+        model: "cursor-grok-4.5-high",
+        reasoning_effort: "",
+      });
+    });
+
+    await act(async () => {
+      await result.current.submit();
+    });
+
+    expect(mockMutateAsync).not.toHaveBeenCalled();
+    expect(result.current.submitError).toContain("Model catalog is unavailable");
+  });
+
+  it("Should preserve a free-form model for a non-authoritative provider when the catalog is unavailable", async () => {
+    mockListAllModels.mockReset();
+    mockListAllModels.mockRejectedValue(new Error("catalog upstream failed"));
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    act(() => {
+      result.current.openForAgent("codex-agent");
+    });
+
+    await waitFor(
+      () => {
+        expect(result.current.catalogError).toContain("catalog upstream failed");
+      },
+      { timeout: 5000 }
+    );
+
+    act(() => {
+      result.current.onRuntimeChange({
         provider: "codex",
         model: "manual-fallback",
         reasoning_effort: "",
@@ -481,6 +632,62 @@ describe("useSessionCreateDialog", () => {
       provider: "codex",
       model: "manual-fallback",
     });
+    expect(result.current.submitError).toBeNull();
+  });
+
+  it("Should preserve the provider-native model default when the catalog is unavailable", async () => {
+    mockListAllModels.mockReset();
+    mockListAllModels.mockRejectedValue(new Error("catalog upstream failed"));
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    act(() => {
+      result.current.openForAgent("codex-agent");
+    });
+
+    await waitFor(
+      () => {
+        expect(result.current.catalogError).toContain("catalog upstream failed");
+      },
+      { timeout: 5000 }
+    );
+
+    await act(async () => {
+      await result.current.submit();
+    });
+
+    expect(mockMutateAsync).toHaveBeenCalledWith({
+      agent_name: "codex-agent",
+      workspace: "ws_alpha",
+      provider: "codex",
+    });
+  });
+
+  it("Should reject an inherited model alias before session mutation", async () => {
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(
+      () => useSessionCreateDialog({ agents: agentsWithCursorAlias, activeWorkspace }),
+      { wrapper }
+    );
+
+    act(() => {
+      result.current.openForAgent("cursor-agent");
+    });
+
+    await waitFor(() => {
+      expect(result.current.catalogLoaded).toBe(true);
+    });
+    expect(result.current.runtimeValue.model).toBe("cursor-grok-4.5-high");
+
+    await act(async () => {
+      await result.current.submit();
+    });
+
+    expect(mockMutateAsync).not.toHaveBeenCalled();
+    expect(result.current.submitError).toContain("not in the selected provider catalog");
   });
 
   it("Should invalidate catalog queries on refresh", async () => {

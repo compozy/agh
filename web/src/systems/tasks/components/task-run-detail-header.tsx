@@ -1,5 +1,5 @@
 import { Link, useRouter } from "@tanstack/react-router";
-import { ArrowUpRight, RotateCcw, Unlock, XCircle } from "lucide-react";
+import { ArrowUpRight, LifeBuoy, RotateCcw, Unlock, XCircle } from "lucide-react";
 
 import {
   Button,
@@ -19,15 +19,18 @@ import {
 
 import { useForceFailDialog } from "../hooks/use-force-fail-dialog";
 import { taskRunStatusLabel, taskRunStatusTone, taskStatusSignal } from "../lib/task-formatters";
+import { taskRunCanRecover } from "../lib/task-run-recovery";
 import type { TaskRunDetailView } from "../types";
 
 export interface TaskRunDetailHeaderProps {
   run: TaskRunDetailView;
+  maxAttempts?: number | null;
   onCancelRun?: () => void;
   onForceReleaseRun?: (reason?: string) => Promise<void> | void;
   onForceFailRun?: (reason: string) => Promise<void> | void;
+  onRecoverRun?: () => Promise<void> | void;
   onRetryRun?: () => Promise<void> | void;
-  pendingActions?: ReadonlySet<"cancel" | "force-release" | "force-fail" | "retry">;
+  pendingActions?: ReadonlySet<"cancel" | "force-release" | "force-fail" | "recover" | "retry">;
 }
 
 function computeElapsedLabel(startedAt?: string | null, endedAt?: string | null): string | null {
@@ -45,9 +48,11 @@ function normalizeText(value?: string | null): string {
 
 export function TaskRunDetailHeader({
   run,
+  maxAttempts,
   onCancelRun,
   onForceReleaseRun,
   onForceFailRun,
+  onRecoverRun,
   onRetryRun,
   pendingActions,
 }: TaskRunDetailHeaderProps) {
@@ -68,6 +73,7 @@ export function TaskRunDetailHeader({
     record.status === "running";
   const canForceRelease = record.status === "claimed";
   const canForceFail = record.status === "queued" || record.status === "claimed";
+  const canRecover = taskRunCanRecover(record, maxAttempts);
   const canRetry = record.status === "failed";
   const signal = taskStatusSignal(record.status);
   const elapsedLabel = computeElapsedLabel(record.started_at, record.ended_at);
@@ -231,6 +237,19 @@ export function TaskRunDetailHeader({
               >
                 <RotateCcw className="size-3" strokeWidth={1.75} />
                 Retry run
+              </Button>
+            ) : null}
+            {canRecover && onRecoverRun ? (
+              <Button
+                data-testid="task-run-detail-recover"
+                disabled={pendingActions?.has("recover")}
+                onClick={() => void onRecoverRun()}
+                size="sm"
+                title="Terminalize this needs-attention run and queue one continuation."
+                type="button"
+              >
+                <LifeBuoy className="size-3" strokeWidth={1.75} />
+                Recover
               </Button>
             ) : null}
             {canCancel && onCancelRun ? (

@@ -109,7 +109,9 @@ func detectInspectStaleLease(snapshot *inspectDiagnosticSnapshot) (diagnosticcon
 
 func detectInspectOrphanRun(snapshot *inspectDiagnosticSnapshot) (diagnosticcontract.DiagnosticItem, bool) {
 	run := snapshot.CurrentRun
-	if strings.TrimSpace(run.ClaimTokenHashTruncated) == "" || !inspectSessionIsTerminal(snapshot.BoundSession) {
+	if IsTerminalRunStatus(run.Status) ||
+		strings.TrimSpace(run.ClaimTokenHashTruncated) == "" ||
+		!inspectSessionIsTerminal(snapshot.BoundSession) {
 		return noInspectDiagnosticItem()
 	}
 	return inspectDiagnosticItem(

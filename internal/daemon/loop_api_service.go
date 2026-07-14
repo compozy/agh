@@ -115,7 +115,14 @@ func newDaemonLoopAPIService(
 		looppkg.WithGoalRunActivator(loopGoalRunActivator{state: state}),
 	}
 	if revoker, ok := state.sessions.(loopManagedInputLeaseRevoker); ok {
-		options = append(options, looppkg.WithGoalPromptLeaseRevoker(loopGoalPromptLeaseRevoker{sessions: revoker}))
+		var judges *loopGateJudgeRunner
+		if state.tasks != nil {
+			judges = state.tasks.loopJudges
+		}
+		options = append(options, looppkg.WithGoalPromptLeaseRevoker(loopGoalPromptLeaseRevoker{
+			sessions: revoker,
+			judges:   judges,
+		}))
 	}
 	if state.notifier != nil {
 		options = append(options, looppkg.WithHookDispatcher(state.notifier))
@@ -189,14 +196,7 @@ func (s *daemonLoopAPIService) CreateLoop(
 		if err != nil {
 			return contract.LoopResponse{}, err
 		}
-		path, err := looppkg.ForkDefinitionFile(record.Spec.FilePath, root)
-		if err != nil {
-			return contract.LoopResponse{}, err
-		}
-		if err := s.syncLoopResources(ctx); err != nil {
-			return contract.LoopResponse{}, err
-		}
-		return s.loopResponseFromDefinitionFile(path, ws, req.ForkFromName)
+		return s.forkLoop(ctx, ws, record.Spec.FilePath, root, record.Spec.Name)
 	}
 	if req.Definition == nil {
 		return contract.LoopResponse{}, fmt.Errorf(
@@ -216,7 +216,7 @@ func (s *daemonLoopAPIService) CreateLoop(
 	if err != nil {
 		return contract.LoopResponse{}, err
 	}
-	return s.loopResponseFromDefinitionFile(path, ws, def.Meta.Name)
+	return s.loopResponseFromDefinitionFile(ctx, path, ws, def.Meta.Name)
 }
 
 func (s *daemonLoopAPIService) GetLoop(
@@ -290,7 +290,7 @@ func (s *daemonLoopAPIService) PatchLoop(
 	if err != nil {
 		return contract.LoopResponse{}, err
 	}
-	return s.loopResponseFromDefinitionFile(path, ws, name)
+	return s.loopResponseFromDefinitionFile(ctx, path, ws, name)
 }
 
 func (s *daemonLoopAPIService) ValidateLoop(

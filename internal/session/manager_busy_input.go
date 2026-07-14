@@ -26,6 +26,7 @@ const promptEvidenceQueueGenerationKey = "queue_generation"
 // SendPromptOpts carries one user-facing prompt plus optional busy-input mode.
 type SendPromptOpts struct {
 	Message           string
+	ClientMessageID   string
 	Mode              BusyInputMode
 	DeliveryContext   context.Context
 	Caller            PromptCaller
@@ -71,13 +72,10 @@ func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	session, err := m.lookupPromptSession(ctx, req.target)
-	if err != nil {
-		return SendPromptResult{}, err
-	}
+	req.clientMessageID = strings.TrimSpace(opts.ClientMessageID)
 	rejectIfBusy := false
 	if opts.AllowGoalCommands {
-		decision, handled, dispatchErr := m.dispatchGoalCommand(ctx, session, opts)
+		decision, handled, dispatchErr := m.dispatchGoalCommand(ctx, &req, opts)
 		if dispatchErr != nil {
 			return SendPromptResult{}, dispatchErr
 		}
@@ -92,6 +90,10 @@ func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts
 				return SendPromptResult{}, errors.New("session: Goal dispatcher returned an invalid decision")
 			}
 		}
+	}
+	session, err := m.lookupPromptSession(ctx, req.target)
+	if err != nil {
+		return SendPromptResult{}, err
 	}
 	if session.IsPrompting() {
 		if rejectIfBusy {

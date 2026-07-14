@@ -15,6 +15,7 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 		includeAll      bool
 		workspaceFilter string
 		stateFilter     string
+		typeFilter      string
 		agentFilter     string
 		search          string
 		resumable       bool
@@ -48,6 +49,7 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 			page, err := client.ListSessions(cmd.Context(), SessionListQuery{
 				Workspace:     workspaceFilter,
 				State:         state,
+				Type:          typeFilter,
 				Agent:         agentFilter,
 				Query:         search,
 				Resumable:     resumable,
@@ -65,6 +67,12 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().BoolVar(&includeAll, "all", false, "Include every session state when --state is omitted")
 	cmd.Flags().StringVar(&workspaceFilter, workspaceSkillSource, "", "Filter by workspace name or ID")
 	cmd.Flags().StringVar(&stateFilter, "state", "", "Filter by state (starting|active|stopping|stopped)")
+	cmd.Flags().StringVar(
+		&typeFilter,
+		"type",
+		"",
+		"Filter by session type (user|dream|system|coordinator|spawned)",
+	)
 	cmd.Flags().StringVar(&agentFilter, "agent", "", "Filter by exact agent definition name")
 	cmd.Flags().StringVar(&search, "query", "", "Search session id, name, agent, provider, or channel")
 	cmd.Flags().BoolVar(&resumable, "resumable", false, "Show only sessions eligible for resume attach")

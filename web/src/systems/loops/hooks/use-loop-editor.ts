@@ -21,6 +21,11 @@ import {
   type RawLoopNode,
 } from "../lib/codec";
 import { buildDslView, type DslLine } from "../lib/loop-dsl";
+import {
+  editorDefinitionFromLoop,
+  withLoopContractField,
+  type EditableLoopContractField,
+} from "../lib/loop-editor-definition";
 import { isNodeIdPath, renameNodeId, setNodeField } from "../lib/loop-editor-draft";
 import {
   applyLintToNodes,
@@ -41,6 +46,7 @@ export type LoopEditorView = "graph" | "dsl";
 export interface UseLoopEditorResult {
   status: LoopEditorStatus;
   loop: LoopDetail | undefined;
+  definition: LoopDefinition | undefined;
   errorMessage: string | undefined;
   version: number | undefined;
   nodes: EditorNode[];
@@ -65,6 +71,7 @@ export interface UseLoopEditorResult {
   selectNode: (id: string | null) => void;
   revealNode: (id: string) => void;
   changeField: (path: FieldPath, value: unknown) => void;
+  changeContract: (field: EditableLoopContractField, value: string) => void;
   addNode: (item: PaletteItem) => void;
   autoLayout: () => void;
   validate: () => Promise<void>;
@@ -197,8 +204,9 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
   // Seed the editable draft once the definition + settled sidecar arrive. This syncs
   // server state into local editor state (a legit external-system → draft sync).
   useEffect(() => {
-    const definition = loopQuery.data?.definition;
-    if (!definition || annotationsQuery.isLoading) return;
+    const loop = loopQuery.data;
+    if (!loop || annotationsQuery.isLoading) return;
+    const definition = editorDefinitionFromLoop(loop);
     const key = `${workspaceId}:${name}`;
     if (initedKeyRef.current === key) return;
     initedKeyRef.current = key;
@@ -260,6 +268,7 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
   // the render-local validation function identity.
   const runAutoValidation = useEffectEvent(() => runValidation());
   const structuralKey = JSON.stringify({
+    c: baseDefinition?.contract,
     n: nodes.map(node => node.data.raw),
     e: edges.map(edge => edge.data?.raw),
   });
@@ -335,6 +344,14 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
     setDirty(true);
   };
 
+  const changeContract = (field: EditableLoopContractField, value: string) => {
+    setPublishError(null);
+    setBaseDefinition(current =>
+      current ? withLoopContractField(current, field, value) : current
+    );
+    setDirty(true);
+  };
+
   const addNode = (item: PaletteItem) => {
     dispatchEditorState({
       update: current => {
@@ -378,7 +395,7 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
         name,
         data: { definition, expected_version: base.meta.version ?? null },
       });
-      setBaseDefinition(updated.definition);
+      setBaseDefinition(editorDefinitionFromLoop(updated));
       setDirty(false);
       // A successful publish means the daemon accepted the definition — a validated-clean
       // state, not the pre-validation neutral state.
@@ -454,6 +471,7 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
   return {
     status,
     loop: loopQuery.data,
+    definition: baseDefinition ?? loopQuery.data?.definition,
     errorMessage: loopQuery.error?.message,
     version: baseDefinition?.meta.version ?? loopQuery.data?.version,
     nodes,
@@ -480,6 +498,7 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
     selectNode,
     revealNode,
     changeField,
+    changeContract,
     addNode,
     autoLayout,
     validate: () => runValidation({ notify: true }),

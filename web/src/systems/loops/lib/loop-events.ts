@@ -73,6 +73,13 @@ export interface LoopGoalTurnLive {
   endedAt: string | null;
 }
 
+export interface LoopCoordinatorFailure {
+  kind: "coordinator_failure";
+  code: string;
+  cause: string;
+  recovery: string;
+}
+
 export interface LoopRunLiveState {
   events: LoopLiveEvent[];
   channelMessages: LoopChannelMessage[];
@@ -82,6 +89,8 @@ export interface LoopRunLiveState {
   /** Latest token count from `token_tick`, overlaid on the polled run when fresher. */
   tokensUsed: number | null;
   goalTurns: LoopGoalTurnLive[];
+  /** Run-level failure projected from a terminal status event before any node exists. */
+  failure: LoopCoordinatorFailure | null;
 }
 
 export function emptyLoopRunLiveState(): LoopRunLiveState {
@@ -92,6 +101,7 @@ export function emptyLoopRunLiveState(): LoopRunLiveState {
     needsApproval: null,
     tokensUsed: null,
     goalTurns: [],
+    failure: null,
   };
 }
 
@@ -133,6 +143,16 @@ function reattemptStrategyLabel(value: unknown): string {
   if (value === "failed_only") return "failed-only";
   if (value === "full_body") return "full-body";
   return str(value);
+}
+
+function parseCoordinatorFailure(value: unknown): LoopCoordinatorFailure | null {
+  const failure = asRecord(value);
+  if (!failure || failure.kind !== "coordinator_failure") return null;
+  const code = str(failure.code).trim();
+  const cause = str(failure.cause).trim();
+  const recovery = str(failure.recovery).trim();
+  if (!code || !cause || !recovery) return null;
+  return { kind: "coordinator_failure", code, cause, recovery };
 }
 
 /** Human summary for the rail line, derived per kind from the frame payload. */
@@ -296,7 +316,10 @@ export function applyLoopEventFrame(
     seq: num(frame.seq) ?? 0,
     at: str(frame.at),
     kind,
-    tone: KIND_TONE[kind] ?? "neutral",
+    tone:
+      kind === "status_changed" && parseCoordinatorFailure(payload?.failure)
+        ? "err"
+        : (KIND_TONE[kind] ?? "neutral"),
     message: eventMessage(kind, payload),
   };
   const next: LoopRunLiveState = {
@@ -325,6 +348,11 @@ export function applyLoopEventFrame(
     case "goal_turn_completed":
       next.goalTurns = applyGoalTurn(state.goalTurns, frame, payload, true);
       break;
+    case "status_changed": {
+      const failure = parseCoordinatorFailure(payload.failure);
+      if (failure) next.failure = failure;
+      break;
+    }
     default:
       break;
   }

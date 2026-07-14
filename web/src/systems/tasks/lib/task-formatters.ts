@@ -564,6 +564,7 @@ export function taskLifecyclePhase(task: TaskLifecycleInput): TaskLifecyclePhase
 
   const activeRun = task.active_run;
   if (activeRun) {
+    if (activeRun.status === "needs_attention") return "needs_attention";
     if (activeRun.status && ACTIVE_RUN_STATUSES.has(activeRun.status)) {
       return "running";
     }
@@ -572,7 +573,6 @@ export function taskLifecyclePhase(task: TaskLifecycleInput): TaskLifecyclePhase
       return "queued";
     }
   }
-
   if (task.status === "blocked") {
     return "blocked";
   }

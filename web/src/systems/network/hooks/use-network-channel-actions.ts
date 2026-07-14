@@ -39,13 +39,17 @@ export function useCreateNetworkChannel(options: { workspaceId?: string | null }
         ? createNetworkChannel(workspaceId, data)
         : Promise.reject(new NetworkApiError("No active workspace selected", 400));
     },
-    onSettled: (_data, _error, variables) =>
-      Promise.all([
+    onSettled: (_data, _error, variables) => {
+      const workspaceId = requestedWorkspaceId ?? variables.workspace_id;
+      return Promise.all([
         queryClient.invalidateQueries({
-          queryKey: networkKeys.channelsRoot(variables.workspace_id),
+          queryKey: networkKeys.channelsRoot(workspaceId),
         }),
-        queryClient.invalidateQueries({ queryKey: sessionKeys.lists() }),
-      ]),
+        queryClient.invalidateQueries({
+          queryKey: sessionKeys.workspaceLists(workspaceId),
+        }),
+      ]);
+    },
   });
 }
 
@@ -61,7 +65,7 @@ export function useUpdateNetworkChannel() {
         queryClient.invalidateQueries({
           queryKey: networkKeys.channelDetail(workspaceId, channel),
         }),
-        queryClient.invalidateQueries({ queryKey: sessionKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: sessionKeys.workspaceLists(workspaceId) }),
       ]);
     },
     onError: error => toast.error(error.message || "Failed to update channel policy"),

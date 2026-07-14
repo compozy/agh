@@ -2,11 +2,12 @@ import { startTransition, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
+  AutomationApiError,
   automationTriggerToDraft,
+  buildAutomationTriggerRequest,
   createAutomationDialogHandle,
   createAutomationTriggerDraft,
   createLoopTargetTriggerDraft,
-  normalizeAutomationRetry,
   useAutomationTrigger,
   useAutomationTriggerRuns,
   useAutomationTriggers,
@@ -32,6 +33,7 @@ export function useAutomationTriggersPage(
 ) {
   const page = useAutomationPageBase("triggers", search);
   const [editor, setEditor] = useState<TriggerEditorState | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const triggerSubmitInFlightRef = useRef(false);
   const seededRef = useRef(false);
   const [editorHandle] = useState(createAutomationDialogHandle);
@@ -70,6 +72,7 @@ export function useAutomationTriggersPage(
   };
 
   const handleCreate = () => {
+    setSubmitError(null);
     setEditor({ draft: createAutomationTriggerDraft(page.activeWorkspaceId), mode: "create" });
   };
 
@@ -77,6 +80,7 @@ export function useAutomationTriggersPage(
   useEffect(() => {
     if (seededRef.current || !seed.loop) return;
     seededRef.current = true;
+    setSubmitError(null);
     setEditor({
       draft: createLoopTargetTriggerDraft(page.activeWorkspaceId, seed.loop),
       mode: "create",
@@ -88,6 +92,7 @@ export function useAutomationTriggersPage(
       return;
     }
 
+    setSubmitError(null);
     setEditor({
       draft: automationTriggerToDraft(selectedTrigger),
       id: selectedTrigger.id,
@@ -101,11 +106,9 @@ export function useAutomationTriggersPage(
     }
 
     triggerSubmitInFlightRef.current = true;
+    setSubmitError(null);
     try {
-      const payload = {
-        ...editor.draft,
-        retry: normalizeAutomationRetry(editor.draft.retry ?? undefined),
-      };
+      const payload = buildAutomationTriggerRequest(editor.draft);
       const trigger =
         editor.mode === "create"
           ? await createTriggerMutation.mutateAsync(payload)
@@ -119,23 +122,29 @@ export function useAutomationTriggersPage(
           : `Updated trigger ${trigger.name}.`
       );
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to save automation trigger");
+      const detail =
+        error instanceof Error && error.message.trim() !== ""
+          ? error.message.trim().replace(/\.$/, "")
+          : "Failed to save automation trigger";
+      const message =
+        error instanceof AutomationApiError && error.status === 0
+          ? "Failed to save automation trigger. Check your connection and try again."
+          : `${detail}. Review the target and try again.`;
+      setSubmitError(message);
+      toast.error(detail);
+    } finally {
+      triggerSubmitInFlightRef.current = false;
     }
-    triggerSubmitInFlightRef.current = false;
   };
 
   const handleDelete = async () => {
     if (!selectedTrigger) {
-      return;
+      throw new Error("The selected trigger is no longer available.");
     }
 
-    try {
-      await deleteTriggerMutation.mutateAsync({ id: selectedTrigger.id });
-      page.setSelectedId(null);
-      toast.success(`Deleted ${selectedTrigger.name}.`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete automation trigger");
-    }
+    await deleteTriggerMutation.mutateAsync({ id: selectedTrigger.id });
+    page.setSelectedId(null);
+    toast.success(`Deleted ${selectedTrigger.name}.`);
   };
 
   const handleToggleEnabled = async (enabled: boolean) => {
@@ -192,9 +201,7 @@ export function useAutomationTriggersPage(
     },
     item: selectedTrigger,
     kind: "triggers" as const,
-    onDelete: () => {
-      void handleDelete();
-    },
+    onDelete: handleDelete,
     onEdit: handleEdit,
     onToggleEnabled: (enabled: boolean) => {
       void handleToggleEnabled(enabled);
@@ -213,12 +220,18 @@ export function useAutomationTriggersPage(
           ...editor,
           kind: "triggers" as const,
           isPending: createTriggerMutation.isPending || updateTriggerMutation.isPending,
-          onCancel: () => setEditor(null),
-          onChange: (draft: CreateAutomationTriggerRequest) =>
-            setEditor(current => (current ? { ...current, draft } : current)),
+          onCancel: () => {
+            setSubmitError(null);
+            setEditor(null);
+          },
+          onChange: (draft: CreateAutomationTriggerRequest) => {
+            setSubmitError(null);
+            setEditor(current => (current ? { ...current, draft } : current));
+          },
           onSubmit: () => {
             void handleSubmit();
           },
+          submitError,
         }
       : null,
   };

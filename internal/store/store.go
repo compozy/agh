@@ -56,7 +56,7 @@ type EventRecorder interface {
 type SessionCatalog interface {
 	RegisterSession(ctx context.Context, session SessionInfo) error
 	UpdateSessionState(ctx context.Context, update SessionStateUpdate) error
-	DeleteSession(ctx context.Context, id string) error
+	DeleteSession(ctx context.Context, sessionID string) error
 	ListSessions(ctx context.Context, query SessionListQuery) ([]SessionInfo, error)
 	AttachSession(ctx context.Context, req SessionAttachRequest) (SessionAttach, error)
 	ReconcileSessions(ctx context.Context, sessions []SessionInfo) (ReconcileResult, error)

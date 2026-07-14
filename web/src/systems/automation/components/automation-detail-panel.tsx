@@ -1,11 +1,9 @@
-import { AlertCircle, Bot, Clock3, Lock, Pencil, Play, Search, Trash2, Zap } from "lucide-react";
+import { AlertCircle, Clock3, Lock, Pencil, Play, Search, Zap } from "lucide-react";
 import {
   Button,
-  CodeBlock,
   DetailHeader,
   Empty,
   Eyebrow,
-  KindChip,
   Metric,
   Pill,
   Section,
@@ -13,19 +11,16 @@ import {
   type MetricTone,
 } from "@agh/ui";
 
-import { automationTriggerToDraft } from "../lib/automation-drafts";
 import {
   automationScopeLabel,
   automationSourceLabel,
   automationStatusTone,
-  describeFireLimit,
-  describeRetry,
   describeSchedule,
   formatDate,
   formatDateTime,
   formatRelativeTime,
 } from "../lib/automation-formatters";
-import { buildTriggerPreview } from "../lib/trigger-preview";
+import { automationTargetLabel, projectAutomationTarget } from "../lib/automation-target";
 import type {
   AutomationJob,
   AutomationRun,
@@ -33,7 +28,13 @@ import type {
   AutomationTrigger,
 } from "../types";
 import { AutomationRunHistory } from "./automation-run-history";
-import { WebhookEndpointCard } from "./trigger-form/preview/webhook-endpoint-card";
+import { AutomationDeleteAction } from "./automation-delete-action";
+import {
+  AutomationTargetSection,
+  GovernanceSection,
+  PromptSection,
+  TriggerHookSection,
+} from "./automation-detail-sections";
 
 export interface AutomationDetailEmptyState {
   actionLabel?: string;
@@ -54,7 +55,7 @@ interface AutomationDetailPanelProps {
   };
   item: AutomationJob | AutomationTrigger | undefined;
   kind: "jobs" | "triggers";
-  onDelete: () => void;
+  onDelete: () => void | Promise<void>;
   onEdit: () => void;
   onToggleEnabled: (enabled: boolean) => void;
   onTriggerNow?: () => void;
@@ -255,101 +256,6 @@ function JobSchedulerSection({ job }: { job: AutomationJob }) {
   );
 }
 
-function TriggerHookSection({ trigger }: { trigger: AutomationTrigger }) {
-  const filters = Object.entries(trigger.filter ?? {});
-  const webhook =
-    trigger.event === "webhook"
-      ? buildTriggerPreview(automationTriggerToDraft(trigger)).webhook
-      : null;
-
-  return (
-    <Section label="Hook" right={<KindChip kind={trigger.event} />}>
-      <div className="space-y-3 rounded-md border border-line bg-canvas-soft px-4 py-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Eyebrow className="text-muted">Event</Eyebrow>
-          <Pill mono tone="info">
-            {trigger.event}
-          </Pill>
-        </div>
-        <div className="space-y-1.5">
-          <Eyebrow className="text-muted">Filters</Eyebrow>
-          {filters.length === 0 ? (
-            <p className="text-xs text-subtle">No filters</p>
-          ) : (
-            <div className="flex flex-wrap items-center gap-1.5">
-              {filters.map(([key, value]) => (
-                <Pill mono key={`${key}=${value}`} tone="neutral">
-                  {`${key}=${value}`}
-                </Pill>
-              ))}
-            </div>
-          )}
-        </div>
-        {trigger.event === "webhook" ? (
-          <div className="grid gap-3 md:grid-cols-2">
-            <div>
-              <Eyebrow className="text-muted">Endpoint</Eyebrow>
-              <p className="mt-1 font-mono text-small-body text-fg">
-                {trigger.endpoint_slug ?? "--"}
-              </p>
-            </div>
-            <div>
-              <Eyebrow className="text-muted">Webhook id</Eyebrow>
-              <p className="mt-1 font-mono text-small-body text-fg">{trigger.webhook_id ?? "--"}</p>
-            </div>
-          </div>
-        ) : null}
-        <div className="flex flex-wrap items-center gap-2">
-          <Bot className="size-3 text-subtle" />
-          <span className="text-small-body text-muted">Dispatches to</span>
-          <Pill mono tone="neutral">
-            {trigger.agent_name}
-          </Pill>
-        </div>
-      </div>
-      {webhook ? (
-        <div className="mt-3">
-          <WebhookEndpointCard curl={webhook.curl} url={webhook.url} />
-        </div>
-      ) : null}
-    </Section>
-  );
-}
-
-function PromptSection({ isTrigger, prompt }: { isTrigger: boolean; prompt: string }) {
-  return (
-    <Section
-      label={isTrigger ? "Prompt template" : "Prompt"}
-      right={
-        isTrigger ? (
-          <Pill mono tone="info">
-            GO TEMPLATE
-          </Pill>
-        ) : undefined
-      }
-    >
-      <CodeBlock code={prompt} copyable={false} showPrompt={false} />
-    </Section>
-  );
-}
-
-function GovernanceSection({ item }: { item: AutomationJob | AutomationTrigger }) {
-  return (
-    <Section label="Governance">
-      <div className="grid gap-2 rounded-md border border-line bg-canvas-soft px-4 py-3 md:grid-cols-2">
-        <div>
-          <Eyebrow className="text-muted">Retry</Eyebrow>
-          <p className="mt-1 text-small-body text-muted">{describeRetry(item.retry)}</p>
-        </div>
-        <div>
-          <Eyebrow className="text-muted">Fire limit</Eyebrow>
-          <p className="mt-1 text-small-body text-muted">{describeFireLimit(item.fire_limit)}</p>
-        </div>
-      </div>
-    </Section>
-  );
-}
-
 export function AutomationDetailPanel({
   emptyState,
   error,
@@ -436,7 +342,7 @@ interface AutomationDetailLoadedPanelProps {
   isTriggerPending: boolean;
   item: AutomationJob | AutomationTrigger;
   kind: "jobs" | "triggers";
-  onDelete: () => void;
+  onDelete: () => void | Promise<void>;
   onEdit: () => void;
   onToggleEnabled: (enabled: boolean) => void;
   onTriggerNow?: () => void;
@@ -463,6 +369,7 @@ function AutomationDetailLoadedPanel({
   const isDynamic = item.source === "dynamic";
   const job = isJob ? (item as AutomationJob) : null;
   const trigger = !isJob ? (item as AutomationTrigger) : null;
+  const target = projectAutomationTarget(item);
   const enabledTone = automationStatusTone(item.enabled ? "enabled" : "disabled");
   const detailActions = (
     <>
@@ -501,23 +408,18 @@ function AutomationDetailLoadedPanel({
         </Button>
       ) : null}
       {isDynamic ? (
-        <Button
-          data-testid="delete-automation-btn"
-          disabled={isDeleting}
-          onClick={onDelete}
-          size="sm"
-          type="button"
-          variant="destructive"
-        >
-          <Trash2 className="size-3" />
-          {isDeleting ? "Deleting..." : "Delete"}
-        </Button>
+        <AutomationDeleteAction
+          isPending={isDeleting}
+          kind={kind}
+          name={item.name}
+          onConfirm={onDelete}
+        />
       ) : null}
     </>
   );
   const detailMeta = (
     <span data-testid="automation-detail-meta">
-      {`Agent: ${item.agent_name} · Scope: ${automationScopeLabel(item.scope)} · Updated ${formatDate(item.updated_at)}`}
+      {`${automationTargetLabel(target)} · Scope: ${automationScopeLabel(item.scope)} · Updated ${formatDate(item.updated_at)}`}
     </span>
   );
   const detailPills = (
@@ -562,9 +464,16 @@ function AutomationDetailLoadedPanel({
         {job ? <JobScheduleSection job={job} /> : null}
         {job ? <JobStatsSection job={job} runs={runs} /> : null}
         {job ? <JobSchedulerSection job={job} /> : null}
-        {trigger ? <TriggerHookSection trigger={trigger} /> : null}
+        {trigger ? (
+          <TriggerHookSection target={target.kind === "agent" ? target : null} trigger={trigger} />
+        ) : null}
 
-        <PromptSection isTrigger={!isJob} prompt={item.prompt} />
+        {target.kind === "loop" ? (
+          <AutomationTargetSection showInputMapping={!isJob} target={target} />
+        ) : null}
+        {target.kind === "agent" ? (
+          <PromptSection isTrigger={!isJob} prompt={target.prompt} />
+        ) : null}
         <GovernanceSection item={item} />
 
         <AutomationRunHistory

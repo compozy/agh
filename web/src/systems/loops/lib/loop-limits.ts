@@ -1,5 +1,6 @@
-import type { LoopContract } from "../types";
+import type { LoopConfig, LoopContract } from "../types";
 import { UNBOUNDED_CAP } from "./loop-catalog";
+import { resolveLoopEffectiveConfig } from "./loop-effective-config";
 
 /**
  * Hard daemon ceilings (LOOPS-DESIGN-SPEC §5.4 / ADR-012/017/022). These are
@@ -17,9 +18,6 @@ export const LOOP_CEILINGS = {
   tokensMax: 20_000_000,
   wallClockMinutes: 7 * 1_440,
 } as const;
-
-/** Canonical per-loop default for gate revisions when the definition sets none (§5.4). */
-const DEFAULT_GATE_MAX_REVISIONS = 3;
 
 /** Compact token count (`500K`, `20M`, `2.4M`); `off` when budgets are unset. */
 export function formatTokenBudget(tokens: number): string {
@@ -58,39 +56,47 @@ export interface LoopLimitRow {
 
 /**
  * The 8 limit rows shown on the Loop-detail right rail, pairing each per-loop
- * default from the contract with its daemon ceiling. Cost is display-only (no
+ * default from saved configuration with its daemon ceiling. Cost is display-only (no
  * enforced USD cap, §9.5.2); fan-out breadth is bounded by the loaded task count.
  */
-export function buildLoopLimits(contract: LoopContract): LoopLimitRow[] {
-  const onExceeded = contract.budget.on_exceeded === "escalate" ? "escalate" : "halt";
+export function buildLoopLimits(
+  contract: LoopContract,
+  config: LoopConfig | null = null
+): LoopLimitRow[] {
+  const effective = resolveLoopEffectiveConfig(contract, config);
+  const onExceeded = effective.budget_on_exceeded === "escalate" ? "escalate" : "halt";
   const onExceededTarget = onExceeded === "escalate" ? "→ needs-approval" : "→ exhausted";
   return [
     {
       label: "Iteration cap",
-      value: contract.iteration_cap === 0 ? UNBOUNDED_CAP : String(contract.iteration_cap),
+      value: effective.iteration_cap === 0 ? UNBOUNDED_CAP : String(effective.iteration_cap),
       ceiling: `/ ${LOOP_CEILINGS.iterationCap}`,
     },
     {
       label: "Token budget",
-      value: formatTokenBudget(contract.budget.tokens),
+      value: formatTokenBudget(effective.budget_tokens),
       ceiling: `/ ${LOOP_CEILINGS.tokens}`,
     },
     {
       label: "Wall clock",
-      value: formatWallClock(contract.budget.wall_clock_sec),
+      value: formatWallClock(effective.budget_wall_sec),
       ceiling: `/ ${LOOP_CEILINGS.wallClock}`,
     },
     { label: "On exceeded", value: onExceeded, ceiling: onExceededTarget },
     { label: "Cost (USD)", value: "—", ceiling: "display-only" },
     {
       label: "No-progress window",
-      value: String(contract.no_progress.window),
+      value: String(effective.no_progress_window),
       ceiling: `/ ${LOOP_CEILINGS.noProgressWindow}`,
     },
-    { label: "Fan-out breadth", value: "≤ tasks", ceiling: `/ ${LOOP_CEILINGS.fanOutBreadth}` },
+    {
+      label: "Fan-out breadth",
+      value: effective.fan_out_width > 0 ? String(effective.fan_out_width) : "≤ tasks",
+      ceiling: `/ ${LOOP_CEILINGS.fanOutBreadth}`,
+    },
     {
       label: "Gate max revisions",
-      value: String(DEFAULT_GATE_MAX_REVISIONS),
+      value: String(effective.gate_max_revisions),
       ceiling: `/ ${LOOP_CEILINGS.gateMaxRevisions}`,
     },
   ];

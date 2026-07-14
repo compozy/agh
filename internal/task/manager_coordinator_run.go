@@ -57,10 +57,8 @@ func (m *Service) startCoordinatorRun(
 		failedRun, failErr := m.FailRunLease(lifecycleCtx, LeaseFailure{
 			RunID:      run.ID,
 			ClaimToken: req.ClaimToken,
-			Failure: RunFailure{
-				Error: fmt.Sprintf("coordinator runner: %v", err),
-			},
-			Now: m.now().UTC(),
+			Failure:    coordinatorRunFailure(err),
+			Now:        m.now().UTC(),
 		}, actor)
 		if failErr != nil {
 			return nil, errorsJoin(err, failErr)
@@ -114,7 +112,13 @@ func (m *Service) recordCoordinatorCompletionEvents(
 	if result == nil {
 		return fmt.Errorf("%w: coordinator completion result is required", ErrValidation)
 	}
-	completedTask, err := m.reconcileTaskCascade(ctx, result.Run.TaskID, actor)
+	var completedTask Task
+	var err error
+	if result.Settlement != nil {
+		completedTask, err = m.publishCompletedRunSettlement(ctx, result.Settlement, actor)
+	} else {
+		completedTask, err = m.reconcileTaskCascade(ctx, result.Run.TaskID, actor)
+	}
 	if err != nil {
 		return err
 	}

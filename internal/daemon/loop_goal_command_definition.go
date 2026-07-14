@@ -12,8 +12,14 @@ import (
 func buildSessionGoalDefinition(
 	contract session.GoalObjectiveContract,
 	agent string,
+	judgeModel string,
 	maxTurns int,
 ) dsl.Definition {
+	judgeModel = strings.TrimSpace(judgeModel)
+	var modelDefaults *dsl.ModelDefaults
+	if judgeModel != "" {
+		modelDefaults = &dsl.ModelDefaults{Judge: judgeModel}
+	}
 	criterion := dsl.GateCriterion{
 		ID:     "objective_satisfied",
 		Type:   dsl.CriterionAgentJudge,
@@ -40,6 +46,7 @@ func buildSessionGoalDefinition(
 		Contract: dsl.Contract{
 			Goal:             contract.Objective,
 			DefinitionOfDone: "The objective is satisfied against the stated verification and constraints.",
+			ModelDefaults:    modelDefaults,
 			Constraints:      append([]string(nil), contract.Constraints...),
 			Verification:     []dsl.GateCriterion{},
 			TerminalStates: []dsl.TerminalState{

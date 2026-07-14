@@ -18,6 +18,8 @@ export type {
   ForceReleaseTaskRunRequest,
   PauseTaskRequest,
   RecoverTaskRequest,
+  RecoverTaskRunRequest,
+  RecoverTaskRunResult,
   RetryTaskRunRequest,
   RetryTaskRunResult,
   ResumeTaskRequest,
@@ -146,6 +148,7 @@ export {
   pauseTask,
   publishTask,
   recoverTask,
+  recoverTaskRun,
   rejectTask,
   removeTaskDependency,
   requestTaskRunReview,
@@ -212,6 +215,7 @@ export {
   taskStatusTone,
   toRunCardStatus,
 } from "./lib/task-formatters";
+export { taskRunCanRecover } from "./lib/task-run-recovery";
 
 // Templates and grouping
 export {
@@ -316,6 +320,7 @@ export {
   useStartTaskRun,
   useUpdateTask,
 } from "./hooks/use-task-actions";
+export { useRecoverTaskRun } from "./hooks/use-task-run-recovery";
 export {
   useDeleteTaskExecutionProfile,
   useSetTaskExecutionProfile,

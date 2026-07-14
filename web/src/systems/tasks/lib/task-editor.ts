@@ -44,22 +44,43 @@ export const EMPTY_TASK_EDITOR_DRAFT: TaskEditorDraft = {
   saveAsDraft: false,
 };
 
-export function createTaskEditorDraft(
-  templateId: TaskTemplateId,
-  activeWorkspaceId?: string | null
-): TaskEditorDraft {
+type TaskTemplateDraftDefaults = Pick<
+  TaskEditorDraft,
+  "priority" | "maxAttempts" | "approvalPolicy" | "networkChannel" | "saveAsDraft"
+>;
+
+function taskTemplateDraftDefaults(templateId: TaskTemplateId): TaskTemplateDraftDefaults {
   const template = getTaskTemplate(templateId);
 
   return {
-    ...EMPTY_TASK_EDITOR_DRAFT,
-    scope: activeWorkspaceId ? "workspace" : "global",
-    workspaceId: activeWorkspaceId ?? null,
     priority: template.defaults.priority ?? "medium",
     maxAttempts:
       typeof template.defaults.max_attempts === "number" ? template.defaults.max_attempts : 1,
     approvalPolicy: template.defaults.approval_policy ?? "none",
     networkChannel: template.defaults.network_channel ?? "",
     saveAsDraft: template.defaults.draft,
+  };
+}
+
+export function createTaskEditorDraft(
+  templateId: TaskTemplateId,
+  activeWorkspaceId?: string | null
+): TaskEditorDraft {
+  return {
+    ...EMPTY_TASK_EDITOR_DRAFT,
+    scope: activeWorkspaceId ? "workspace" : "global",
+    workspaceId: activeWorkspaceId ?? null,
+    ...taskTemplateDraftDefaults(templateId),
+  };
+}
+
+export function applyTaskTemplateToEditorDraft(
+  draft: TaskEditorDraft,
+  templateId: TaskTemplateId
+): TaskEditorDraft {
+  return {
+    ...draft,
+    ...taskTemplateDraftDefaults(templateId),
   };
 }
 
@@ -86,14 +107,13 @@ function resolveOwnerInput(draft: TaskEditorDraft) {
   const ownerKind = draft.ownerKind || undefined;
   const ownerRef = draft.ownerRef.trim();
 
+  if (!ownerKind) {
+    return { owner: undefined, ownerIsEmpty: true };
+  }
+
   return {
-    owner:
-      ownerKind && ownerRef
-        ? { kind: ownerKind, ref: ownerRef }
-        : ownerKind === undefined && ownerRef === ""
-          ? undefined
-          : null,
-    ownerIsEmpty: ownerKind === undefined && ownerRef === "",
+    owner: ownerRef ? { kind: ownerKind, ref: ownerRef } : null,
+    ownerIsEmpty: false,
   };
 }
 
@@ -158,8 +178,7 @@ export function buildUpdateTaskRequest(draft: TaskEditorDraft): UpdateTaskReques
     title: draft.title.trim() || undefined,
     description: draft.description.trim() || null,
     priority: draft.priority,
-    owner: ownerIsEmpty ? undefined : owner,
-    clear_owner: ownerIsEmpty ? true : undefined,
+    ...(ownerIsEmpty ? { clear_owner: true } : { owner }),
     max_attempts: draft.maxAttempts ?? null,
     approval_policy: draft.approvalPolicy === "manual" ? "manual" : "none",
     network_channel: draft.networkChannel.trim() || null,

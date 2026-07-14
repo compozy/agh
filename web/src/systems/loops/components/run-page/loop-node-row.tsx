@@ -8,6 +8,7 @@ import type { LoopGateVerdict } from "../../lib/loop-events";
 import type { LoopTimelineNode } from "../../lib/loop-timeline";
 import { MonoTag } from "../mono-tag";
 import { LoopGateCard } from "./loop-gate-card";
+import { LoopNodeFailureDetail } from "./loop-node-failure-detail";
 
 interface LoopNodeRowProps {
   node: LoopTimelineNode;
@@ -100,6 +101,7 @@ export function LoopNodeRow({ node, gateVerdict, children }: LoopNodeRowProps) {
           <ExternalLink className="size-3" aria-hidden="true" />
         </Link>
       ) : null}
+      {node.failure ? <LoopNodeFailureDetail failure={node.failure} /> : null}
       {gateVerdict ? <LoopGateCard verdict={gateVerdict} /> : null}
       {children}
     </div>

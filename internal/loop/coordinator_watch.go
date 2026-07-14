@@ -91,7 +91,7 @@ func evaluateWatchSourceNode(
 		Now:                 runtime.now().UTC(),
 	})
 	if err != nil {
-		return GenerationOutput{}, nil, err
+		return GenerationOutput{}, nil, newWatchPollFailureError(err)
 	}
 	logWatchTransitions(runtime, run, node, result.Transitions)
 	switch result.Outcome {

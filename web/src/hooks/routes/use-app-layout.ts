@@ -3,7 +3,12 @@ import { useState } from "react";
 import { useSidebarStore } from "@/hooks/use-sidebar-store";
 import { useAgentCatalog, useAgentCreateDialog, useAgents } from "@/systems/agent";
 import { useDaemonHealth } from "@/systems/status";
-import { useSessionCreateDialog, useSessions } from "@/systems/session";
+import {
+  useSessionCatalogStreams,
+  useSessionCreateDialog,
+  useSessions,
+  useWorkspaceSessionActivity,
+} from "@/systems/session";
 import { useActiveWorkspace, useWorkspace } from "@/systems/workspace";
 import { useSyncUserHomeDir } from "@/systems/workspace/hooks/use-sync-user-home-dir";
 
@@ -42,6 +47,8 @@ function useAppLayout() {
     enabled: activeWorkspaceId !== null,
     filters: { state: "active", limit: 1 },
   });
+  const workspaceSessionActivity = useWorkspaceSessionActivity(workspaces, hasWorkspaces);
+  useSessionCatalogStreams(workspaces, { enabled: hasWorkspaces });
   const sessionCreate = useSessionCreateDialog({
     agents: workspaceAgents,
     activeWorkspace,
@@ -87,6 +94,7 @@ function useAppLayout() {
           }
         : undefined,
     activeSessionCount: activeSessions.total,
+    workspaceSessionActivity,
     handleNewSession,
     isCreatingSession: sessionCreate.isSubmitting,
     pendingSessionAgentName: sessionCreate.pendingAgentName,

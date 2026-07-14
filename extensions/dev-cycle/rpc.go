@@ -60,8 +60,9 @@ type rpcResponse struct {
 }
 
 type rpcError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
+	Code    int             `json:"code"`
+	Message string          `json:"message"`
+	Data    json.RawMessage `json:"data,omitempty"`
 }
 
 func newRPCServer(stdout io.Writer) (*rpcServer, error) {
@@ -133,7 +134,7 @@ func (s *rpcServer) handle(ctx context.Context, request rpcRequest) (bool, error
 		}
 		result, err := s.runtime.CallTool(ctx, params)
 		if err != nil {
-			return false, s.sendError(request.ID, -32010, err.Error())
+			return false, s.sendToolError(request.ID, -32010, err)
 		}
 		return false, s.sendResult(request.ID, toolspkg.ExtensionToolCallResponse{Result: result})
 	case rpcMethodWatchPoll:
@@ -190,12 +191,34 @@ func (s *rpcServer) sendResult(id json.RawMessage, result any) error {
 }
 
 func (s *rpcServer) sendError(id json.RawMessage, code int, message string) error {
+	return s.sendErrorData(id, code, message, nil)
+}
+
+func (s *rpcServer) sendToolError(id json.RawMessage, code int, err error) error {
+	var toolErr *toolspkg.ToolError
+	if !errors.As(err, &toolErr) {
+		return s.sendError(id, code, err.Error())
+	}
+	data, marshalErr := json.Marshal(toolErr)
+	if marshalErr != nil {
+		return fmt.Errorf("dev-cycle: encode tool error: %w", marshalErr)
+	}
+	return s.sendErrorData(id, code, toolErr.Error(), data)
+}
+
+func (s *rpcServer) sendErrorData(
+	id json.RawMessage,
+	code int,
+	message string,
+	data json.RawMessage,
+) error {
 	return s.write(rpcResponse{
 		JSONRPC: jsonRPCVersion,
 		ID:      cloneRawMessage(id),
 		Error: &rpcError{
 			Code:    code,
 			Message: strings.TrimSpace(message),
+			Data:    cloneRawMessage(data),
 		},
 	})
 }

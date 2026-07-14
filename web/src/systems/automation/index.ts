@@ -50,6 +50,10 @@ export {
 // Query infrastructure
 export { automationKeys } from "./lib/query-keys";
 export {
+  buildAutomationJobRequest,
+  buildAutomationTriggerRequest,
+} from "./lib/automation-requests";
+export {
   automationJobDetailOptions,
   automationJobRunsOptions,
   automationJobsListOptions,
@@ -94,7 +98,6 @@ export {
   formatRunDuration,
   formatRunTitle,
 } from "./lib/automation-formatters";
-
 // Hooks
 export {
   useAutomationJob,

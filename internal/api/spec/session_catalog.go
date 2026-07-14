@@ -2,6 +2,13 @@ package spec
 
 import "github.com/compozy/agh/internal/api/contract"
 
+func sessionCatalogOperations() []OperationSpec {
+	return []OperationSpec{
+		sessionCatalogListOperation(),
+		sessionCatalogStreamOperation(),
+	}
+}
+
 func sessionCatalogListOperation() OperationSpec {
 	return OperationSpec{
 		Method:      httpMethodGet,
@@ -18,6 +25,7 @@ func sessionCatalogListOperation() OperationSpec {
 				"Filter by exact session state",
 				[]string{"starting", "active", "stopping", "stopped"},
 			),
+			enumQueryParam("type", "Filter by exact session type", sessionTypeValues()),
 			queryParam("agent", "Filter by exact agent definition name", false),
 			queryParam("q", "Search session id, name, agent, provider, or channel", false),
 			boolQueryParam("resumable", "Only list sessions eligible for explicit attach"),
@@ -36,6 +44,27 @@ func sessionCatalogListOperation() OperationSpec {
 				Body:        contract.ErrorPayload{},
 			},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func sessionCatalogStreamOperation() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodGet,
+		Path:        "/api/sessions/catalog-stream",
+		OperationID: "streamSessionCatalog",
+		Summary:     "Stream session catalog changes across workspaces",
+		Tags:        []string{specSessionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{
+				Status:      200,
+				Description: "Workspace-identified session catalog event stream",
+				Body:        contract.SessionCatalogEventPayload{},
+				ContentType: specContentTypeEventStream,
+			},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Session catalog stream is unavailable", Body: contract.ErrorPayload{}},
 		},
 	}
 }

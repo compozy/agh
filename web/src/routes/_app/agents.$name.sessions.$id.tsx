@@ -1,18 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MessageCircle } from "lucide-react";
 
-import type { TopbarRouteContext } from "@/types/topbar";
+import { sessionReturnWorkspaceIdFromState } from "@/systems/session";
 import { prefetchAgentSessionRoute } from "./-agent-session-route-loader";
 import { SessionPage, SessionRouteLoading } from "./-session-page";
 
 export const Route = createFileRoute("/_app/agents/$name/sessions/$id")({
-  beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
+  beforeLoad: ({ params, location }) => ({
     topbar: { title: `${params.name} · Session`, icon: MessageCircle },
+    sessionReturnWorkspaceId: sessionReturnWorkspaceIdFromState(location.state, params.id),
   }),
-  loader: ({ context, params }) =>
+  loader: ({ context, params, preload }) =>
     prefetchAgentSessionRoute({
       queryClient: context.queryClient,
       sessionId: params.id,
+      returnWorkspaceId: preload ? undefined : context.sessionReturnWorkspaceId,
     }),
   pendingComponent: SessionRouteLoading,
   component: SessionRoutePage,

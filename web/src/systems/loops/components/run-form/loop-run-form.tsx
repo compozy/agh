@@ -3,7 +3,7 @@ import { CheckCircle2, Info, Play } from "lucide-react";
 import { Button, Section } from "@agh/ui";
 
 import { useLoopRunForm } from "../../hooks/use-loop-run-form";
-import type { LoopDetail } from "../../types";
+import type { LoopConfig, LoopDetail } from "../../types";
 import { LoopRunInputField } from "./loop-run-input-field";
 import { LoopRunOverrides } from "./loop-run-overrides";
 import { LoopRunPreview } from "./loop-run-preview";
@@ -11,6 +11,7 @@ import { LoopRunPreview } from "./loop-run-preview";
 interface LoopRunFormProps {
   workspaceId: string;
   loop: LoopDetail;
+  config: LoopConfig | null;
   onRunStarted?: (runId: string) => void;
   onCancel?: () => void;
 }
@@ -21,8 +22,14 @@ interface LoopRunFormProps {
  * preview, and the Dry run / Run actions. State + the run/dry calls live in
  * `useLoopRunForm`; this component is the presentation.
  */
-export function LoopRunForm({ workspaceId, loop, onRunStarted, onCancel }: LoopRunFormProps) {
-  const form = useLoopRunForm({ workspaceId, loop, onRunStarted });
+export function LoopRunForm({
+  workspaceId,
+  loop,
+  config,
+  onRunStarted,
+  onCancel,
+}: LoopRunFormProps) {
+  const form = useLoopRunForm({ workspaceId, loop, config, onRunStarted });
   const inputNames = form.schema ? Object.keys(form.schema) : [];
 
   return (
@@ -73,6 +80,7 @@ export function LoopRunForm({ workspaceId, loop, onRunStarted, onCancel }: LoopR
 
         <LoopRunOverrides
           contract={form.contract}
+          config={config}
           draft={form.overrides}
           disabled={form.busy}
           onChange={form.setOverridesDraft}
@@ -93,6 +101,8 @@ export function LoopRunForm({ workspaceId, loop, onRunStarted, onCancel }: LoopR
           <LoopRunPreview
             loopName={loop.name}
             contract={form.contract}
+            config={config}
+            configOverrides={form.configOverrides}
             inputs={form.schema}
             plan={form.plan}
           />

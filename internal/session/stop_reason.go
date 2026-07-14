@@ -185,9 +185,19 @@ func (m *Manager) prepareStopWithCause(
 	cause StopCause,
 	detail string,
 ) (*Session, *AgentProcess, bool, bool, bool, error) {
-	session, err := m.lookup(id)
+	session, finalization, err := m.stopTarget(id)
 	if err != nil {
 		return nil, nil, false, false, false, err
+	}
+	if finalization != nil {
+		if finalizationErr := waitForSessionFinalization(ctx, finalization); finalizationErr != nil {
+			return nil, nil, false, false, false, fmt.Errorf(
+				"session: wait for finalization of %q: %w",
+				id,
+				finalizationErr,
+			)
+		}
+		return session, nil, true, false, true, nil
 	}
 	process := session.processHandle()
 	stopWasAlreadyRequested := session.stopWasRequested()

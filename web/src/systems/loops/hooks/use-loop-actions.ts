@@ -123,9 +123,13 @@ export function useDeleteLoop() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ workspaceId, name }: LoopNameParams) => deleteLoop(workspaceId, name),
-    onSettled: (_result, _error, { workspaceId, name }) => {
+    onSuccess: (_result, { workspaceId, name }) => {
       queryClient.removeQueries({ queryKey: loopsKeys.detail(workspaceId, name) });
-      return invalidateLoopDefinitionQueries(queryClient, workspaceId, name);
+      queryClient.removeQueries({ queryKey: loopsKeys.config(workspaceId, name) });
+      queryClient.removeQueries({ queryKey: loopsKeys.annotations(workspaceId, name) });
+      return queryClient.invalidateQueries({
+        queryKey: loopsKeys.catalogByWorkspace(workspaceId),
+      });
     },
   });
 }

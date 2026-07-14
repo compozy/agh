@@ -92,8 +92,8 @@ export function LoopEditorInspector({
 
   if (!node) {
     return (
-      <aside
-        className="flex min-h-0 flex-col items-center justify-center border-l border-line bg-canvas px-6 py-10"
+      <section
+        className="flex h-full min-h-0 flex-col items-center justify-center bg-canvas px-6 py-10"
         data-testid="loop-editor-inspector-empty"
       >
         <Empty
@@ -102,14 +102,14 @@ export function LoopEditorInspector({
           title="No node selected"
           description="Select a node on the canvas to edit its fields."
         />
-      </aside>
+      </section>
     );
   }
 
   const raw = node.data.raw;
   return (
-    <aside
-      className="flex min-h-0 flex-col overflow-y-auto border-l border-line bg-canvas"
+    <section
+      className="flex h-full min-h-0 flex-col overflow-y-auto bg-canvas"
       data-testid="loop-editor-inspector"
     >
       <div className="sticky top-0 z-10 border-b border-line-soft bg-canvas px-4 py-3.5">
@@ -142,6 +142,6 @@ export function LoopEditorInspector({
           />
         ))}
       </div>
-    </aside>
+    </section>
   );
 }

@@ -1,14 +1,20 @@
-import { ArrowRight, GitFork, Play, SlidersHorizontal } from "lucide-react";
+import { ArrowRight, GitFork, PencilLine, Play, SlidersHorizontal } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import { Button, DetailHeader, Pill, Section } from "@agh/ui";
 
 import type { LoopBindingRow } from "../../lib/loop-bindings";
 import type { LoopGraph } from "../../lib/loop-graph";
-import type { LoopAggregate30d, LoopDetail as LoopDetailData, LoopRun } from "../../types";
+import type {
+  LoopAggregate30d,
+  LoopConfig,
+  LoopDetail as LoopDetailData,
+  LoopRun,
+} from "../../types";
 import { LoopBodyDag } from "./loop-body-dag";
 import { LoopContractPanel } from "./loop-contract-panel";
 import { LoopDeclaredInputs } from "./loop-declared-inputs";
+import { LoopDeleteAction } from "./loop-delete-action";
 import { LoopLimitsPanel } from "./loop-limits-panel";
 import { LoopRecentRuns } from "./loop-recent-runs";
 import { LoopStartBindingsPanel, type LoopBindingPagination } from "./loop-start-bindings-panel";
@@ -17,6 +23,7 @@ import { LoopVersionsPanel } from "./loop-versions-panel";
 
 interface LoopDetailProps {
   loop: LoopDetailData;
+  config: LoopConfig | null;
   graph: LoopGraph;
   recentRuns: readonly LoopRun[];
   bindings: readonly LoopBindingRow[];
@@ -28,7 +35,11 @@ interface LoopDetailProps {
   onBack: () => void;
   onRun: () => void;
   onConfigure: () => void;
-  onFork: () => void;
+  onOpenEditor: () => void;
+  onDelete: () => Promise<void>;
+  onDeleteReset: () => void;
+  deletePending: boolean;
+  deleteError: string | null;
   onAddTrigger: () => void;
   onAddSchedule: () => void;
 }
@@ -41,6 +52,7 @@ interface LoopDetailProps {
  */
 export function LoopDetailView({
   loop,
+  config,
   graph,
   recentRuns,
   bindings,
@@ -52,13 +64,18 @@ export function LoopDetailView({
   onBack,
   onRun,
   onConfigure,
-  onFork,
+  onOpenEditor,
+  onDelete,
+  onDeleteReset,
+  deletePending,
+  deleteError,
   onAddTrigger,
   onAddSchedule,
 }: LoopDetailProps) {
   const definition = loop.definition;
   const category = loop.catalog?.category;
   const sourceLabel = loop.source === "workspace" ? "Workspace" : "Read-only";
+  const writable = loop.source === "workspace";
   const declaredKinds = (definition.start ?? []).map(binding => binding.kind);
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-testid="loop-detail">
@@ -100,15 +117,28 @@ export function LoopDetailView({
               <SlidersHorizontal aria-hidden="true" className="size-3.5" />
               Configure
             </Button>
+            {writable ? (
+              <LoopDeleteAction
+                loopName={loop.name}
+                isPending={deletePending}
+                error={deleteError}
+                onConfirm={onDelete}
+                onReset={onDeleteReset}
+              />
+            ) : null}
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={onFork}
-              data-testid="loop-fork-action"
+              onClick={onOpenEditor}
+              data-testid="loop-edit-action"
             >
-              <GitFork aria-hidden="true" className="size-3.5" />
-              Fork & edit
+              {writable ? (
+                <PencilLine aria-hidden="true" className="size-3.5" />
+              ) : (
+                <GitFork aria-hidden="true" className="size-3.5" />
+              )}
+              {writable ? "Edit" : "Fork & edit"}
             </Button>
             <Button type="button" size="sm" onClick={onRun} data-testid="loop-run-action">
               <Play aria-hidden="true" className="size-3.5" />
@@ -129,7 +159,7 @@ export function LoopDetailView({
               right={
                 <button
                   type="button"
-                  onClick={onFork}
+                  onClick={onOpenEditor}
                   className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted transition-colors hover:text-fg-strong"
                   data-testid="loop-open-builder"
                 >
@@ -167,7 +197,7 @@ export function LoopDetailView({
               onAddSchedule={onAddSchedule}
               triggers={bindingTriggers}
             />
-            <LoopLimitsPanel contract={definition.contract} />
+            <LoopLimitsPanel contract={definition.contract} config={config} />
             <LoopVersionsPanel version={loop.version} />
             {aggregate && successRate !== null ? (
               <LoopStatsPanel successRate={successRate} aggregate={aggregate} />

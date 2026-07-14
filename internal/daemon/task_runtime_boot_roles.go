@@ -236,6 +236,15 @@ func newBootLoopCoordinatorRunner(
 	state *bootState,
 	homePaths aghconfig.HomePaths,
 ) (*looppkg.CoordinatorRunner, error) {
+	runner, _, err := newBootLoopCoordinatorRuntime(store, state, homePaths)
+	return runner, err
+}
+
+func newBootLoopCoordinatorRuntime(
+	store taskStore,
+	state *bootState,
+	homePaths aghconfig.HomePaths,
+) (*looppkg.CoordinatorRunner, *loopGateJudgeRunner, error) {
 	var hooks looppkg.HookDispatcher
 	if state.notifier != nil {
 		hooks = state.notifier
@@ -257,13 +266,15 @@ func newBootLoopCoordinatorRunner(
 			heartbeat: state.heartbeatCatalog,
 		}),
 	}
+	judgeRunner := &loopGateJudgeRunner{
+		sessions:            state.sessions,
+		globalWorkspacePath: homePaths.HomeDir,
+		policyGate:          policyGate,
+		executions:          newLoopJudgeExecutionRegistry(),
+	}
 	gateEvaluator := gate.NewEvaluator(
 		gate.WithCommandRunner(loopGateCommandRunner{}),
-		gate.WithJudgeRunner(&loopGateJudgeRunner{
-			sessions:            state.sessions,
-			globalWorkspacePath: homePaths.HomeDir,
-			policyGate:          policyGate,
-		}),
+		gate.WithJudgeRunner(judgeRunner),
 		gate.WithToolCaller(toolRegistry),
 	)
 	actions, err := newBootLoopActionRegistry(
@@ -275,9 +286,9 @@ func newBootLoopCoordinatorRunner(
 		gateEvaluator,
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return newLoopCoordinatorRunner(
+	runner, err := newLoopCoordinatorRunner(
 		store,
 		hooks,
 		daemonExtensionWatchPoller{runtime: state.currentExtensionRuntime},
@@ -285,6 +296,10 @@ func newBootLoopCoordinatorRunner(
 		actions,
 		state.logger,
 	)
+	if err != nil {
+		return nil, nil, err
+	}
+	return runner, judgeRunner, nil
 }
 
 type daemonExtensionWatchPoller struct {

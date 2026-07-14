@@ -1,6 +1,7 @@
 package storeschema
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -324,13 +325,17 @@ func (sequentialGooseFormatter) Format(plan *migrate.Plan) ([]migrate.File, erro
 	if len(files) != 1 {
 		return nil, fmt.Errorf("format goose migration: got %d files, want 1", len(files))
 	}
+	contents := files[0].Bytes()
+	if downIndex := bytes.Index(contents, []byte("\n-- +goose Down")); downIndex >= 0 {
+		contents = append(contents[:downIndex], '\n')
+	}
 	name := strings.Trim(strings.ToLower(plan.Name), " _-")
 	name = strings.NewReplacer(" ", "_", "-", "_").Replace(name)
 	if name == "" {
 		name = "schema"
 	}
 	return []migrate.File{
-		migrate.NewLocalFile(fmt.Sprintf("%s_%s.sql", plan.Version, name), files[0].Bytes()),
+		migrate.NewLocalFile(fmt.Sprintf("%s_%s.sql", plan.Version, name), contents),
 	}, nil
 }
 

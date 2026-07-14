@@ -375,6 +375,9 @@ func (m *Manager) prepareSessionStartRuntime(
 	if err := spec.validateRuntimeOverrides(); err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: validate runtime overrides for %q: %w", spec.sessionID, err)
 	}
+	if err := m.validateExplicitModel(ctx, spec, resolved); err != nil {
+		return sessionStartRuntime{}, fmt.Errorf("session: validate model for %q: %w", spec.sessionID, err)
+	}
 	if err := spec.applyResolvedReasoningEffort(resolved); err != nil {
 		return sessionStartRuntime{}, err
 	}
@@ -418,6 +421,9 @@ func (m *Manager) sessionMCPServers(
 	spec *sessionStartSpec,
 	resolved aghconfig.ResolvedAgent,
 ) ([]aghconfig.MCPServer, error) {
+	if strings.EqualFold(spec.runtimeMode, RuntimeModeVerdictOnly) {
+		return nil, nil
+	}
 	if !resolved.SessionMCP {
 		spec.startLogger(m).Info(
 			"session.mcp.skipped",

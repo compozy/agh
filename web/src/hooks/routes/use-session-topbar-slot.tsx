@@ -3,6 +3,7 @@ import { Eraser, Play, Square, Trash2 } from "lucide-react";
 import { Button, Pill, Spinner, useTopbarSlot, type PillTone } from "@agh/ui";
 
 import {
+  getSessionDisplayTitle,
   isUserControllableSession,
   type SessionBadge,
   type SessionPayload,
@@ -47,8 +48,8 @@ interface UseSessionTopbarSlotInput {
 }
 
 /**
- * Composes the session detail-route topbar slot — agent name as
- * the slot title, daemon badge + provider as the meta slot, and the lifecycle
+ * Composes the session detail-route topbar slot — persisted session identity as
+ * the slot title, daemon badge + agent/provider as the meta slot, and the lifecycle
  * controls (clear/delete/stop/attach) as the actions slot. Clear-conversation
  * lives here rather than beside the composer input so a destructive reset is not
  * one keystroke from the prompt field.
@@ -67,6 +68,7 @@ export function useSessionTopbarSlot({
 }: UseSessionTopbarSlotInput): void {
   const badge = session.badge ?? STATE_BADGE_FALLBACK[session.state] ?? "unknown";
   const signal = BADGE_SIGNAL[badge] ?? BADGE_SIGNAL.unknown;
+  const agentLabel = session.agent_name.trim();
   const providerLabel = session.provider?.trim();
   const isActive = session.state === "active" || session.state === "starting";
   const isAttachable = session.attachable === true;
@@ -85,6 +87,16 @@ export function useSessionTopbarSlot({
       <span data-testid="session-topbar-badge" className="font-mono text-eyebrow text-faint">
         {signal.label}
       </span>
+      {agentLabel ? (
+        <>
+          <span aria-hidden="true" className="text-subtle">
+            ·
+          </span>
+          <span data-testid="session-topbar-agent" className="truncate text-eyebrow text-muted">
+            {agentLabel}
+          </span>
+        </>
+      ) : null}
       {providerLabel ? (
         <>
           <span aria-hidden="true" className="text-subtle">
@@ -92,16 +104,6 @@ export function useSessionTopbarSlot({
           </span>
           <span data-testid="session-topbar-provider" className="font-mono text-eyebrow text-faint">
             {providerLabel}
-          </span>
-        </>
-      ) : null}
-      {session.name?.trim() && session.name.trim() !== session.id ? (
-        <>
-          <span aria-hidden="true" className="text-subtle">
-            ·
-          </span>
-          <span data-testid="session-topbar-name" className="truncate text-eyebrow text-muted">
-            {session.name.trim()}
           </span>
         </>
       ) : null}
@@ -161,7 +163,7 @@ export function useSessionTopbarSlot({
     </div>
   );
 
-  const slot = { title: session.agent_name, meta, actions };
+  const slot = { title: getSessionDisplayTitle(session), meta, actions };
 
   useTopbarSlot(slot);
 }

@@ -19,26 +19,52 @@ func (g *TaskRunRepo) CompleteRunLease(
 	ctx context.Context,
 	completion taskpkg.LeaseCompletion,
 ) (taskpkg.Run, error) {
-	if err := g.checkReady(ctx, "complete task run lease"); err != nil {
-		return taskpkg.Run{}, err
-	}
-	normalized, err := completion.Normalize(g.now())
+	settlement, err := g.CompleteRunLeaseSettlement(ctx, completion)
 	if err != nil {
 		return taskpkg.Run{}, err
 	}
+	return settlement.Run, nil
+}
+
+// CompleteRunLeaseSettlement completes one fenced run and atomically applies
+// successful task-hierarchy aggregation.
+func (g *TaskRunRepo) CompleteRunLeaseSettlement(
+	ctx context.Context,
+	completion taskpkg.LeaseCompletion,
+) (taskpkg.CompletedRunSettlement, error) {
+	if err := g.checkReady(ctx, "complete task run lease"); err != nil {
+		return taskpkg.CompletedRunSettlement{}, err
+	}
+	normalized, err := completion.Normalize(g.now())
+	if err != nil {
+		return taskpkg.CompletedRunSettlement{}, err
+	}
 	if err := normalized.Actor.Validate(); err != nil {
-		return taskpkg.Run{}, err
+		return taskpkg.CompletedRunSettlement{}, err
 	}
 
-	var updated taskpkg.Run
+	var settlement taskpkg.CompletedRunSettlement
 	if err := g.tasks.withTaskImmediateTransaction(ctx, "complete task run lease", func(exec taskSQLExecutor) error {
-		var err error
-		updated, err = g.completeRunLeaseWithExecutor(ctx, exec, normalized)
-		return err
+		updated, err := g.completeRunLeaseWithExecutor(ctx, exec, normalized)
+		if err != nil {
+			return err
+		}
+		settlement, err = g.tasks.settleCompletedTaskHierarchyWithExecutor(
+			ctx,
+			exec,
+			updated.TaskID,
+			normalized.Actor,
+			normalized.Now,
+		)
+		if err != nil {
+			return err
+		}
+		settlement.Run = updated
+		return nil
 	}); err != nil {
-		return taskpkg.Run{}, err
+		return taskpkg.CompletedRunSettlement{}, err
 	}
-	return updated, nil
+	return settlement, nil
 }
 
 func (g *TaskRunRepo) completeRunLeaseWithExecutor(
@@ -375,7 +401,11 @@ func loopNodeMetadataFromTaskRun(raw json.RawMessage) (loopNodeRunMetadata, bool
 	return metadata, true, nil
 }
 
-func loopFailureReasonCode(failure taskpkg.RunFailure) string {
+func loopFailureOutputRef(failure taskpkg.RunFailure) string {
+	if outputRef, ok := looppkg.ActionFailureOutputRefFromMetadata(failure.Metadata); ok {
+		return outputRef
+	}
+
 	type reasonEnvelope struct {
 		ReasonCode string `json:"reason_code"`
 		Code       string `json:"code"`

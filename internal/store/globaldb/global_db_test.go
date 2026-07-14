@@ -190,8 +190,8 @@ func TestOpenGlobalDBAppliesGlobalBaselineAndEnablesWAL(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(global) error = %v", err)
 		}
-		if status.Version != 2 || status.AppliedCount != 2 {
-			t.Fatalf("Status(global) = %#v, want version/applied count 2", status)
+		if status.Version != 3 || status.AppliedCount != 3 {
+			t.Fatalf("Status(global) = %#v, want version/applied count 3", status)
 		}
 		workspaces, err := globalDB.ListWorkspaces(testutil.Context(t))
 		if err != nil {

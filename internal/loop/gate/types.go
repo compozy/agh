@@ -95,6 +95,13 @@ type GateInput struct {
 	ToolSensitiveInputFields []string
 	JudgeModel               string
 	JudgeUsageReporter       JudgeUsageReporter
+	JudgeEvidence            JudgeEvidence
+}
+
+// JudgeEvidence is the authoritative completed candidate supplied to an agent judge.
+type JudgeEvidence struct {
+	Text       string
+	Structured json.RawMessage
 }
 
 // HumanDecision captures one human gate decision made through a trusted actor context.
@@ -239,13 +246,14 @@ type JudgeRunner interface {
 
 // JudgeRequest is the rendered agent-judge invocation.
 type JudgeRequest struct {
-	GateID      string
-	CriterionID string
-	WorkspaceID string
-	Agent       string
-	Model       string
-	Rubric      string
-	Contract    dsl.Contract
+	GateID        string
+	CriterionID   string
+	CorrelationID string
+	WorkspaceID   string
+	Agent         string
+	Model         string
+	Rubric        string
+	Contract      dsl.Contract
 }
 
 // JudgeResponse is the raw judge response payload.

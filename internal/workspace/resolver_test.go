@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"maps"
@@ -1176,7 +1177,7 @@ func TestChangeHookRunsAfterWorkspaceMutations(t *testing.T) {
 		}
 	})
 
-	t.Run("Should roll back unregister when change hook fails", func(t *testing.T) {
+	t.Run("Should keep a committed unregister authoritative when derived sync fails", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
@@ -1196,21 +1197,48 @@ func TestChangeHookRunsAfterWorkspaceMutations(t *testing.T) {
 				return hookErr
 			}),
 		)
+		preparation := &recordingUnregisterPreparation{}
+		resolver.SetUnregisterPreparer(
+			func(context.Context, Workspace) (UnregisterPreparation, error) {
+				return preparation, nil
+			},
+		)
 
-		err := resolver.Unregister(ctx, existing.ID)
-		if !errors.Is(err, hookErr) {
-			t.Fatalf("Unregister() error = %v, want hook error %v", err, hookErr)
+		if err := resolver.Unregister(ctx, existing.ID); err != nil {
+			t.Fatalf("Unregister() error = %v, want committed deletion", err)
 		}
 		if got := len(store.deleteCalls); got != 1 {
 			t.Fatalf("DeleteWorkspace() calls = %d, want 1", got)
 		}
-		if got := len(store.insertCalls); got != 1 {
-			t.Fatalf("InsertWorkspace() calls = %d, want 1", got)
+		if got := len(store.insertCalls); got != 0 {
+			t.Fatalf("InsertWorkspace() calls = %d, want no partial rollback", got)
 		}
-		if got := store.mustWorkspace(existing.ID); got.Name != existing.Name {
-			t.Fatalf("persisted name after rollback = %q, want %q", got.Name, existing.Name)
+		if preparation.commits != 1 || preparation.rollbacks != 0 {
+			t.Fatalf(
+				"preparation calls = (commit=%d, rollback=%d), want (1, 0)",
+				preparation.commits,
+				preparation.rollbacks,
+			)
+		}
+		if _, err := store.GetWorkspace(ctx, existing.ID); !errors.Is(err, ErrWorkspaceNotFound) {
+			t.Fatalf("GetWorkspace(committed unregister) error = %v, want %v", err, ErrWorkspaceNotFound)
 		}
 	})
+}
+
+type recordingUnregisterPreparation struct {
+	commits   int
+	rollbacks int
+}
+
+func (p *recordingUnregisterPreparation) Commit(context.Context) error {
+	p.commits++
+	return nil
+}
+
+func (p *recordingUnregisterPreparation) Rollback(context.Context) error {
+	p.rollbacks++
+	return nil
 }
 
 func TestResolveOrRegisterReturnsConcurrentWinnerWhenPathTaken(t *testing.T) {
@@ -1301,6 +1329,188 @@ func TestListReturnsClonedWorkspaces(t *testing.T) {
 	if stored.AdditionalDirs[0] != "one" {
 		t.Fatalf("store AdditionalDirs after List() mutation = %#v, want %#v", stored.AdditionalDirs, []string{"one"})
 	}
+}
+
+func TestListReconcilesWorkspaceRoots(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should durably prune missing roots and preserve healthy workspaces", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		healthyRoot := mustCanonicalRoot(t, t.TempDir())
+		missingRoot := removedWorkspaceRoot(t)
+		store := newMockWorkspaceStore(
+			Workspace{ID: "ws_healthy", RootDir: healthyRoot, Name: "healthy"},
+			Workspace{ID: "ws_missing", RootDir: missingRoot, Name: "missing"},
+		)
+		var hookCalls int
+		resolver := newTestResolver(t, store, WithChangeHook(func(context.Context) error {
+			hookCalls++
+			return nil
+		}))
+
+		listed, err := resolver.List(ctx)
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		if len(listed) != 1 || listed[0].ID != "ws_healthy" {
+			t.Fatalf("List() = %#v, want only healthy workspace", listed)
+		}
+		if _, err := store.GetWorkspace(ctx, "ws_missing"); !errors.Is(err, ErrWorkspaceNotFound) {
+			t.Fatalf("GetWorkspace(pruned) error = %v, want %v", err, ErrWorkspaceNotFound)
+		}
+		if got := store.mustWorkspace("ws_healthy"); got.RootDir != healthyRoot {
+			t.Fatalf("healthy workspace root = %q, want %q", got.RootDir, healthyRoot)
+		}
+		if hookCalls != 1 {
+			t.Fatalf("change hook calls = %d, want 1", hookCalls)
+		}
+
+		listed, err = resolver.List(ctx)
+		if err != nil {
+			t.Fatalf("List(second read) error = %v", err)
+		}
+		if len(listed) != 1 || listed[0].ID != "ws_healthy" {
+			t.Fatalf("List(second read) = %#v, want only healthy workspace", listed)
+		}
+		if got := len(store.deleteCalls); got != 1 {
+			t.Fatalf("DeleteWorkspace() calls = %d, want 1", got)
+		}
+	})
+
+	t.Run("Should preserve registrations when root inspection fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		workspace := Workspace{ID: "ws_unreadable", RootDir: "\x00", Name: "unreadable"}
+		store := newMockWorkspaceStore(workspace)
+		resolver := newTestResolver(t, store)
+
+		if _, err := resolver.List(ctx); err == nil {
+			t.Fatal("List() error = nil, want root inspection failure")
+		}
+		if got := len(store.deleteCalls); got != 0 {
+			t.Fatalf("DeleteWorkspace() calls = %d, want 0", got)
+		}
+		if got := store.mustWorkspace(workspace.ID); got.RootDir != workspace.RootDir {
+			t.Fatalf("preserved workspace root = %q, want %q", got.RootDir, workspace.RootDir)
+		}
+	})
+
+	t.Run("Should preserve a missing registration when durable deletion fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		workspace := Workspace{ID: "ws_delete_error", RootDir: removedWorkspaceRoot(t), Name: "delete-error"}
+		store := newMockWorkspaceStore(workspace)
+		deleteErr := errors.New("delete failed")
+		store.deleteErr = deleteErr
+		resolver := newTestResolver(t, store)
+		preparation := &recordingUnregisterPreparation{}
+		resolver.SetUnregisterPreparer(
+			func(context.Context, Workspace) (UnregisterPreparation, error) {
+				return preparation, nil
+			},
+		)
+
+		if _, err := resolver.List(ctx); !errors.Is(err, deleteErr) {
+			t.Fatalf("List() error = %v, want %v", err, deleteErr)
+		}
+		if preparation.commits != 0 || preparation.rollbacks != 1 {
+			t.Fatalf(
+				"preparation calls = (commit=%d, rollback=%d), want (0, 1)",
+				preparation.commits,
+				preparation.rollbacks,
+			)
+		}
+		if got := store.mustWorkspace(workspace.ID); got.ID != workspace.ID {
+			t.Fatalf("preserved workspace ID = %q, want %q", got.ID, workspace.ID)
+		}
+	})
+
+	t.Run("Should converge concurrent list reconciliation", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		store := newMockWorkspaceStore(
+			Workspace{ID: "ws_concurrent_healthy", RootDir: mustCanonicalRoot(t, t.TempDir()), Name: "healthy"},
+			Workspace{ID: "ws_concurrent_missing", RootDir: removedWorkspaceRoot(t), Name: "missing"},
+		)
+		resolver := newTestResolver(t, store)
+
+		const callers = 8
+		start := make(chan struct{})
+		results := make(chan error, callers)
+		var callersDone sync.WaitGroup
+		for range callers {
+			callersDone.Go(func() {
+				<-start
+				listed, err := resolver.List(ctx)
+				if err != nil {
+					results <- err
+					return
+				}
+				if len(listed) != 1 || listed[0].ID != "ws_concurrent_healthy" {
+					results <- fmt.Errorf("List() = %#v, want only healthy workspace", listed)
+					return
+				}
+				results <- nil
+			})
+		}
+
+		close(start)
+		callersDone.Wait()
+		close(results)
+		for err := range results {
+			if err != nil {
+				t.Fatalf("concurrent List() error = %v", err)
+			}
+		}
+		if got := len(store.deleteCalls); got != 1 {
+			t.Fatalf("DeleteWorkspace() calls = %d, want 1", got)
+		}
+	})
+
+	t.Run("Should converge when a concurrent unregister wins durable deletion", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		store := &concurrentUnregisterStore{mockWorkspaceStore: newMockWorkspaceStore(Workspace{
+			ID:      "ws_concurrent_unregister",
+			RootDir: removedWorkspaceRoot(t),
+			Name:    "concurrent-unregister",
+		})}
+		resolver := newTestResolver(t, store)
+
+		listed, err := resolver.List(ctx)
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		if len(listed) != 0 {
+			t.Fatalf("List() = %#v, want no workspaces", listed)
+		}
+		listed, err = resolver.List(ctx)
+		if err != nil {
+			t.Fatalf("List(second read) error = %v", err)
+		}
+		if len(listed) != 0 {
+			t.Fatalf("List(second read) = %#v, want no workspaces", listed)
+		}
+	})
+}
+
+func removedWorkspaceRoot(t *testing.T) string {
+	t.Helper()
+
+	root := filepath.Join(t.TempDir(), "removed-workspace")
+	if err := os.Mkdir(root, 0o755); err != nil {
+		t.Fatalf("Mkdir(%q) error = %v", root, err)
+	}
+	if err := os.Remove(root); err != nil {
+		t.Fatalf("Remove(%q) error = %v", root, err)
+	}
+	return root
 }
 
 func TestCloneConfigProducesDeepCopy(t *testing.T) {
@@ -1607,6 +1817,7 @@ type mockWorkspaceStore struct {
 	mu sync.Mutex
 
 	workspaces map[string]Workspace
+	deleteErr  error
 
 	insertCalls       []Workspace
 	updateCalls       []Workspace
@@ -1672,6 +1883,9 @@ func (m *mockWorkspaceStore) DeleteWorkspace(_ context.Context, id string) error
 	defer m.mu.Unlock()
 
 	m.deleteCalls = append(m.deleteCalls, id)
+	if m.deleteErr != nil {
+		return m.deleteErr
+	}
 	if _, ok := m.workspaces[id]; !ok {
 		return ErrWorkspaceNotFound
 	}
@@ -1756,6 +1970,17 @@ type countingConfigLoader struct {
 type concurrentPathStore struct {
 	existing       Workspace
 	getByPathCalls int
+}
+
+type concurrentUnregisterStore struct {
+	*mockWorkspaceStore
+}
+
+func (s *concurrentUnregisterStore) DeleteWorkspace(ctx context.Context, id string) error {
+	if err := s.mockWorkspaceStore.DeleteWorkspace(ctx, id); err != nil {
+		return err
+	}
+	return ErrWorkspaceNotFound
 }
 
 type cancelOnInsertStore struct {

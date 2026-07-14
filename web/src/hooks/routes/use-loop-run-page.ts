@@ -44,7 +44,9 @@ export function useLoopRunPage(workspaceId: string, runId: string) {
 
   const [live, dispatch] = useReducer(applyLoopEventFrame, undefined, emptyLoopRunLiveState);
   const isLive = runQuery.isSuccess && !isTerminalLoopStatus(run?.status);
-  useLoopStream(workspaceId, runId, { enabled: isLive, onEvent: dispatch });
+  // Terminal runs replay their retained status event once so generation-zero
+  // failures remain visible after navigation or reload; the hook closes on it.
+  useLoopStream(workspaceId, runId, { enabled: runQuery.isSuccess, onEvent: dispatch });
   const goalTurnsQuery = useGoalTurns(workspaceId, runId, { enabled: runQuery.isSuccess });
   const goalTurns = mergeGoalTurnTimeline(goalTurnsQuery.data?.turns ?? [], live.goalTurns);
 

@@ -593,112 +593,200 @@ func TestAutomationResourceProjectionRejectsInvalidInputs(t *testing.T) {
 func TestAutomationResourceManagerCRUDUsesTypedResourceStores(t *testing.T) {
 	t.Parallel()
 
-	h := newManagerResourceHarness(t)
-	manager := h.newResourceManager(t)
-	if err := manager.Start(h.ctx); err != nil {
-		t.Fatalf("manager.Start() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := manager.Shutdown(testutil.Context(t)); err != nil {
-			t.Fatalf("manager.Shutdown() error = %v", err)
+	t.Run("Should persist typed resource definitions and preserve Loop target execution", func(t *testing.T) {
+		t.Parallel()
+
+		h := newManagerResourceHarness(t)
+		loopStarter := &recordingLoopStarter{}
+		manager := h.newResourceManager(t, WithLoopStarter(loopStarter))
+		if err := manager.Start(h.ctx); err != nil {
+			t.Fatalf("manager.Start() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("manager.Shutdown() error = %v", err)
+			}
+		})
+
+		createdJob, err := manager.CreateJob(h.ctx, testJob(AutomationScopeGlobal, "resource-crud-job", ""))
+		if err != nil {
+			t.Fatalf("CreateJob(resource) error = %v", err)
+		}
+		if createdJob.Source != JobSourceDynamic {
+			t.Fatalf("created job source = %q, want %q", createdJob.Source, JobSourceDynamic)
+		}
+		jobRecord, err := h.jobStore.Get(h.ctx, h.actor, createdJob.ID)
+		if err != nil {
+			t.Fatalf("jobStore.Get(created) error = %v", err)
+		}
+		if jobRecord.Spec.Name != createdJob.Name {
+			t.Fatalf("job resource name = %q, want %q", jobRecord.Spec.Name, createdJob.Name)
+		}
+
+		nextJob := createdJob
+		nextJob.Prompt = "Review the resource-backed scheduler"
+		updatedJob, err := manager.UpdateJob(h.ctx, nextJob)
+		if err != nil {
+			t.Fatalf("UpdateJob(resource) error = %v", err)
+		}
+		if updatedJob.Prompt != nextJob.Prompt {
+			t.Fatalf("updated job prompt = %q, want %q", updatedJob.Prompt, nextJob.Prompt)
+		}
+		disabledJob, err := manager.SetJobEnabled(h.ctx, createdJob.ID, false)
+		if err != nil {
+			t.Fatalf("SetJobEnabled(resource) error = %v", err)
+		}
+		if disabledJob.Enabled {
+			t.Fatal("SetJobEnabled(resource) returned enabled job, want disabled")
+		}
+		jobRecord, err = h.jobStore.Get(h.ctx, h.actor, createdJob.ID)
+		if err != nil {
+			t.Fatalf("jobStore.Get(disabled) error = %v", err)
+		}
+		if jobRecord.Spec.Enabled {
+			t.Fatal("resource job spec enabled = true, want false")
+		}
+		if err := manager.DeleteJob(h.ctx, createdJob.ID); err != nil {
+			t.Fatalf("DeleteJob(resource) error = %v", err)
+		}
+		if _, err := manager.GetJob(h.ctx, createdJob.ID); !errors.Is(err, ErrJobNotFound) {
+			t.Fatalf("GetJob(deleted resource) error = %v, want ErrJobNotFound", err)
+		}
+		if _, err := h.jobStore.Get(h.ctx, h.actor, createdJob.ID); !errors.Is(err, resources.ErrNotFound) {
+			t.Fatalf("jobStore.Get(deleted) error = %v, want resources.ErrNotFound", err)
+		}
+
+		trigger := testTrigger(AutomationScopeGlobal, "resource-crud-trigger", "")
+		trigger.Event = "session.stopped"
+		trigger.WebhookID = ""
+		createdTrigger, err := manager.CreateTrigger(h.ctx, trigger, WebhookSecretWrite{})
+		if err != nil {
+			t.Fatalf("CreateTrigger(resource) error = %v", err)
+		}
+		triggerRecord, err := h.triggerStore.Get(h.ctx, h.actor, createdTrigger.ID)
+		if err != nil {
+			t.Fatalf("triggerStore.Get(created) error = %v", err)
+		}
+		if triggerRecord.Spec.Event != "session.stopped" {
+			t.Fatalf("trigger resource event = %q, want session.stopped", triggerRecord.Spec.Event)
+		}
+
+		nextTrigger := createdTrigger
+		nextTrigger.Prompt = `Review stopped session {{ index .Data "session_id" }}`
+		updatedTrigger, err := manager.UpdateTrigger(h.ctx, nextTrigger, nil)
+		if err != nil {
+			t.Fatalf("UpdateTrigger(resource) error = %v", err)
+		}
+		if updatedTrigger.Prompt != nextTrigger.Prompt {
+			t.Fatalf("updated trigger prompt = %q, want %q", updatedTrigger.Prompt, nextTrigger.Prompt)
+		}
+		disabledTrigger, err := manager.SetTriggerEnabled(h.ctx, createdTrigger.ID, false)
+		if err != nil {
+			t.Fatalf("SetTriggerEnabled(resource) error = %v", err)
+		}
+		if disabledTrigger.Enabled {
+			t.Fatal("SetTriggerEnabled(resource) returned enabled trigger, want disabled")
+		}
+		triggerRecord, err = h.triggerStore.Get(h.ctx, h.actor, createdTrigger.ID)
+		if err != nil {
+			t.Fatalf("triggerStore.Get(disabled) error = %v", err)
+		}
+		if triggerRecord.Spec.Enabled {
+			t.Fatal("resource trigger spec enabled = true, want false")
+		}
+		if err := manager.DeleteTrigger(h.ctx, createdTrigger.ID); err != nil {
+			t.Fatalf("DeleteTrigger(resource) error = %v", err)
+		}
+		if _, err := manager.GetTrigger(h.ctx, createdTrigger.ID); !errors.Is(err, ErrTriggerNotFound) {
+			t.Fatalf("GetTrigger(deleted resource) error = %v, want ErrTriggerNotFound", err)
+		}
+		if _, err := h.triggerStore.Get(h.ctx, h.actor, createdTrigger.ID); !errors.Is(err, resources.ErrNotFound) {
+			t.Fatalf("triggerStore.Get(deleted) error = %v, want resources.ErrNotFound", err)
+		}
+
+		loopTrigger := testTrigger(AutomationScopeWorkspace, "resource-crud-loop-trigger", h.workspace.ID)
+		loopTrigger.AgentName = ""
+		loopTrigger.Prompt = ""
+		loopTrigger.Event = "ext.qa.loop-ready"
+		loopTrigger.WebhookID = ""
+		loopTrigger.WebhookSecretRef = ""
+		loopTrigger.TargetKind = TargetKindLoop
+		loopTrigger.LoopTarget = &LoopTarget{
+			WorkspaceID: h.workspace.ID,
+			LoopName:    "reviews-watch",
+			Inputs:      map[string]any{"pr": float64(2)},
+		}
+		createdLoopTrigger, err := manager.CreateTrigger(h.ctx, loopTrigger, WebhookSecretWrite{})
+		if err != nil {
+			t.Fatalf("CreateTrigger(resource loop target) error = %v", err)
+		}
+		if createdLoopTrigger.TargetKind != TargetKindLoop || createdLoopTrigger.LoopTarget == nil {
+			t.Fatalf(
+				"created Loop trigger target = kind:%q target:%#v",
+				createdLoopTrigger.TargetKind,
+				createdLoopTrigger.LoopTarget,
+			)
+		}
+		if got, want := createdLoopTrigger.LoopTarget.Inputs["pr"], float64(2); got != want {
+			t.Fatalf("created Loop trigger input pr = %#v, want %#v", got, want)
+		}
+		loopTriggerRecord, err := h.triggerStore.Get(h.ctx, h.actor, createdLoopTrigger.ID)
+		if err != nil {
+			t.Fatalf("triggerStore.Get(created Loop target) error = %v", err)
+		}
+		if loopTriggerRecord.Spec.LoopTarget == nil ||
+			loopTriggerRecord.Spec.LoopTarget.WorkspaceID != h.workspace.ID {
+			t.Fatalf("stored Loop trigger target = %#v", loopTriggerRecord.Spec.LoopTarget)
+		}
+		loopStartErr := errors.New("Loop start integration probe")
+		loopStarter.startErr = loopStartErr
+		fired, err := manager.FireExtensionTrigger(h.ctx, ExtensionTriggerRequest{
+			Event:       loopTrigger.Event,
+			Scope:       AutomationScopeWorkspace,
+			WorkspaceID: h.workspace.ID,
+			Payload:     map[string]any{"source": "qa"},
+		})
+		if !errors.Is(err, loopStartErr) {
+			t.Fatalf("FireExtensionTrigger(resource Loop target) error = %v, want Loop starter error", err)
+		}
+		if got, want := fired.Matched, 1; got != want {
+			t.Fatalf("FireExtensionTrigger(resource Loop target).Matched = %d, want %d", got, want)
+		}
+		startCalls := loopStarter.startCallSnapshot()
+		if got, want := len(startCalls), 1; got != want {
+			t.Fatalf("len(StartLoop calls) = %d, want %d", got, want)
+		}
+		if got, want := startCalls[0].WorkspaceID, h.workspace.ID; got != want {
+			t.Fatalf("StartLoop().WorkspaceID = %q, want %q", got, want)
+		}
+		if got, want := startCalls[0].Inputs["pr"], float64(2); got != want {
+			t.Fatalf("StartLoop().Inputs[pr] = %#v, want %#v", got, want)
+		}
+
+		crossWorkspace := cloneTrigger(loopTrigger)
+		crossWorkspace.ID = "trigger-resource-crud-loop-cross-workspace"
+		crossWorkspace.Name = "resource-crud-loop-cross-workspace"
+		crossWorkspace.LoopTarget.WorkspaceID = "ws-other"
+		if _, err := manager.CreateTrigger(h.ctx, crossWorkspace, WebhookSecretWrite{}); err == nil {
+			t.Fatal("CreateTrigger(cross-workspace Loop target) error = nil, want validation error")
+		}
+		if _, err := h.triggerStore.Get(h.ctx, h.actor, crossWorkspace.ID); !errors.Is(err, resources.ErrNotFound) {
+			t.Fatalf("triggerStore.Get(cross-workspace Loop target) error = %v, want resources.ErrNotFound", err)
+		}
+
+		loopStarter.validateErr = errors.New("start_kind_not_allowed: trigger not declared")
+		incompatible := cloneTrigger(loopTrigger)
+		incompatible.ID = "trigger-resource-crud-loop-incompatible"
+		incompatible.Name = "resource-crud-loop-incompatible"
+		if _, err := manager.CreateTrigger(h.ctx, incompatible, WebhookSecretWrite{}); err == nil {
+			t.Fatal("CreateTrigger(incompatible Loop target) error = nil, want start kind error")
+		} else if !strings.Contains(err.Error(), "start_kind_not_allowed") {
+			t.Fatalf("CreateTrigger(incompatible Loop target) error = %v, want start_kind_not_allowed", err)
+		}
+		if _, err := h.triggerStore.Get(h.ctx, h.actor, incompatible.ID); !errors.Is(err, resources.ErrNotFound) {
+			t.Fatalf("triggerStore.Get(incompatible Loop target) error = %v, want resources.ErrNotFound", err)
 		}
 	})
-
-	createdJob, err := manager.CreateJob(h.ctx, testJob(AutomationScopeGlobal, "resource-crud-job", ""))
-	if err != nil {
-		t.Fatalf("CreateJob(resource) error = %v", err)
-	}
-	if createdJob.Source != JobSourceDynamic {
-		t.Fatalf("created job source = %q, want %q", createdJob.Source, JobSourceDynamic)
-	}
-	jobRecord, err := h.jobStore.Get(h.ctx, h.actor, createdJob.ID)
-	if err != nil {
-		t.Fatalf("jobStore.Get(created) error = %v", err)
-	}
-	if jobRecord.Spec.Name != createdJob.Name {
-		t.Fatalf("job resource name = %q, want %q", jobRecord.Spec.Name, createdJob.Name)
-	}
-
-	nextJob := createdJob
-	nextJob.Prompt = "Review the resource-backed scheduler"
-	updatedJob, err := manager.UpdateJob(h.ctx, nextJob)
-	if err != nil {
-		t.Fatalf("UpdateJob(resource) error = %v", err)
-	}
-	if updatedJob.Prompt != nextJob.Prompt {
-		t.Fatalf("updated job prompt = %q, want %q", updatedJob.Prompt, nextJob.Prompt)
-	}
-	disabledJob, err := manager.SetJobEnabled(h.ctx, createdJob.ID, false)
-	if err != nil {
-		t.Fatalf("SetJobEnabled(resource) error = %v", err)
-	}
-	if disabledJob.Enabled {
-		t.Fatal("SetJobEnabled(resource) returned enabled job, want disabled")
-	}
-	jobRecord, err = h.jobStore.Get(h.ctx, h.actor, createdJob.ID)
-	if err != nil {
-		t.Fatalf("jobStore.Get(disabled) error = %v", err)
-	}
-	if jobRecord.Spec.Enabled {
-		t.Fatal("resource job spec enabled = true, want false")
-	}
-	if err := manager.DeleteJob(h.ctx, createdJob.ID); err != nil {
-		t.Fatalf("DeleteJob(resource) error = %v", err)
-	}
-	if _, err := manager.GetJob(h.ctx, createdJob.ID); !errors.Is(err, ErrJobNotFound) {
-		t.Fatalf("GetJob(deleted resource) error = %v, want ErrJobNotFound", err)
-	}
-	if _, err := h.jobStore.Get(h.ctx, h.actor, createdJob.ID); !errors.Is(err, resources.ErrNotFound) {
-		t.Fatalf("jobStore.Get(deleted) error = %v, want resources.ErrNotFound", err)
-	}
-
-	trigger := testTrigger(AutomationScopeGlobal, "resource-crud-trigger", "")
-	trigger.Event = "session.stopped"
-	trigger.WebhookID = ""
-	createdTrigger, err := manager.CreateTrigger(h.ctx, trigger, WebhookSecretWrite{})
-	if err != nil {
-		t.Fatalf("CreateTrigger(resource) error = %v", err)
-	}
-	triggerRecord, err := h.triggerStore.Get(h.ctx, h.actor, createdTrigger.ID)
-	if err != nil {
-		t.Fatalf("triggerStore.Get(created) error = %v", err)
-	}
-	if triggerRecord.Spec.Event != "session.stopped" {
-		t.Fatalf("trigger resource event = %q, want session.stopped", triggerRecord.Spec.Event)
-	}
-
-	nextTrigger := createdTrigger
-	nextTrigger.Prompt = `Review stopped session {{ index .Data "session_id" }}`
-	updatedTrigger, err := manager.UpdateTrigger(h.ctx, nextTrigger, nil)
-	if err != nil {
-		t.Fatalf("UpdateTrigger(resource) error = %v", err)
-	}
-	if updatedTrigger.Prompt != nextTrigger.Prompt {
-		t.Fatalf("updated trigger prompt = %q, want %q", updatedTrigger.Prompt, nextTrigger.Prompt)
-	}
-	disabledTrigger, err := manager.SetTriggerEnabled(h.ctx, createdTrigger.ID, false)
-	if err != nil {
-		t.Fatalf("SetTriggerEnabled(resource) error = %v", err)
-	}
-	if disabledTrigger.Enabled {
-		t.Fatal("SetTriggerEnabled(resource) returned enabled trigger, want disabled")
-	}
-	triggerRecord, err = h.triggerStore.Get(h.ctx, h.actor, createdTrigger.ID)
-	if err != nil {
-		t.Fatalf("triggerStore.Get(disabled) error = %v", err)
-	}
-	if triggerRecord.Spec.Enabled {
-		t.Fatal("resource trigger spec enabled = true, want false")
-	}
-	if err := manager.DeleteTrigger(h.ctx, createdTrigger.ID); err != nil {
-		t.Fatalf("DeleteTrigger(resource) error = %v", err)
-	}
-	if _, err := manager.GetTrigger(h.ctx, createdTrigger.ID); !errors.Is(err, ErrTriggerNotFound) {
-		t.Fatalf("GetTrigger(deleted resource) error = %v, want ErrTriggerNotFound", err)
-	}
-	if _, err := h.triggerStore.Get(h.ctx, h.actor, createdTrigger.ID); !errors.Is(err, resources.ErrNotFound) {
-		t.Fatalf("triggerStore.Get(deleted) error = %v, want resources.ErrNotFound", err)
-	}
 }
 
 func TestAutomationResourceManagerCRUDRollsBackCommittedMutationsOnApplyFailure(t *testing.T) {

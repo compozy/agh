@@ -64,11 +64,12 @@ const (
 
 // ToolError carries stable reason codes with a wrapped cause.
 type ToolError struct {
-	Code        ErrorCode    `json:"code"`
-	ToolID      ToolID       `json:"tool_id,omitempty"`
-	Message     string       `json:"message"`
-	ReasonCodes []ReasonCode `json:"reason_codes,omitempty"`
-	Err         error        `json:"-"`
+	Code        ErrorCode        `json:"code"`
+	ToolID      ToolID           `json:"tool_id,omitempty"`
+	Message     string           `json:"message"`
+	ReasonCodes []ReasonCode     `json:"reason_codes,omitempty"`
+	Operator    *OperatorFailure `json:"operator,omitempty"`
+	Err         error            `json:"-"`
 }
 
 // Error returns the public error message.

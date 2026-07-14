@@ -2,12 +2,14 @@ package extensionpkg
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
 	extensionprotocol "github.com/compozy/agh/internal/extensionprotocol"
+	"github.com/compozy/agh/internal/subprocess"
 	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
@@ -71,9 +73,57 @@ func (m *Manager) CallTool(
 	req.Input = cloneRawMessage(req.Input)
 	var response toolspkg.ExtensionToolCallResponse
 	if err := process.Call(ctx, string(extensionprotocol.ExtensionServiceMethodToolsCall), req, &response); err != nil {
-		return toolspkg.ToolResult{}, fmt.Errorf("extension: call tool via %q: %w", name, err)
+		return toolspkg.ToolResult{}, fmt.Errorf(
+			"extension: call tool via %q: %w",
+			name,
+			extensionToolCallError(req.ToolID, err),
+		)
 	}
 	return response.Result, nil
+}
+
+func extensionToolCallError(id toolspkg.ToolID, err error) error {
+	var rpcErr *subprocess.RPCError
+	if !errors.As(err, &rpcErr) || len(rpcErr.Data) == 0 {
+		return err
+	}
+	var toolErr toolspkg.ToolError
+	if decodeErr := json.Unmarshal(rpcErr.Data, &toolErr); decodeErr != nil {
+		return errors.Join(err, fmt.Errorf("extension: decode tool error data: %w", decodeErr))
+	}
+	if !extensionToolErrorCodeAllowed(toolErr.Code) || strings.TrimSpace(toolErr.Message) == "" {
+		return err
+	}
+	toolErr.ToolID = id
+	toolErr.Err = err
+	if toolErr.Operator != nil {
+		toolErr.Operator.Cause = strings.TrimSpace(toolErr.Operator.Cause)
+		toolErr.Operator.Recovery = strings.TrimSpace(toolErr.Operator.Recovery)
+		if toolErr.Operator.Cause == "" || toolErr.Operator.Recovery == "" {
+			toolErr.Operator = nil
+		}
+	}
+	return &toolErr
+}
+
+func extensionToolErrorCodeAllowed(code toolspkg.ErrorCode) bool {
+	switch code {
+	case toolspkg.ErrorCodeNotFound,
+		toolspkg.ErrorCodeConflict,
+		toolspkg.ErrorCodeUnavailable,
+		toolspkg.ErrorCodeDenied,
+		toolspkg.ErrorCodeApprovalRequired,
+		toolspkg.ErrorCodeInvalidInput,
+		toolspkg.ErrorCodeResultTooLarge,
+		toolspkg.ErrorCodeBackendFailed,
+		toolspkg.ErrorCodeCanceled,
+		toolspkg.ErrorCodeTimedOut,
+		toolspkg.ErrorCodeModelNotFound,
+		toolspkg.ErrorCodeReasoningEffortUnsupported:
+		return true
+	default:
+		return false
+	}
 }
 
 func (m *Manager) extensionServiceProcess(

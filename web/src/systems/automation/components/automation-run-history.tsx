@@ -53,6 +53,9 @@ function AutomationRunRow({ run }: AutomationRunRowProps) {
         {run.fire_id ? (
           <p className="break-all font-mono text-badge text-subtle">{run.fire_id}</p>
         ) : null}
+        {run.loop_run_id ? (
+          <p className="break-all font-mono text-badge text-subtle">{run.loop_run_id}</p>
+        ) : null}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1 text-right">
         <span className="text-small-body text-muted">{startedAt}</span>
@@ -65,6 +68,27 @@ function AutomationRunRow({ run }: AutomationRunRowProps) {
       </div>
     </>
   );
+
+  if (run.loop_run_id) {
+    return (
+      <Link
+        aria-label={`${ariaLabel} · Loop run ${run.loop_run_id}`}
+        className="group/run-row flex min-w-0 items-start gap-4 px-4 py-3 text-left text-fg transition-colors duration-base ease-out hover:bg-hover focus-visible:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-line-strong"
+        data-testid={testId}
+        params={{ runId: run.loop_run_id }}
+        to="/loop-runs/$runId"
+      >
+        {body}
+        <ChevronRight
+          aria-hidden="true"
+          className="ml-2 mt-1 size-3 shrink-0 text-subtle transition-colors duration-base ease-out group-hover/run-row:text-fg"
+          strokeWidth={1.75}
+          width={12}
+          height={12}
+        />
+      </Link>
+    );
+  }
 
   if (run.session_id) {
     return (

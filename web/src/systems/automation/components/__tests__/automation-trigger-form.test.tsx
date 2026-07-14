@@ -1,12 +1,25 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+// Suite: Automation Trigger form
+// Invariant: The live preview and displayed request preserve the selected Trigger target union.
+// Boundary IN: controlled Trigger form, pure preview projection, and rendered preview cards.
+// Boundary OUT: HTTP submission and persisted reads, owned by route and detail suites.
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/systems/loops/hooks/use-loops", async () => {
-  const { loopCatalogFixtures } = await import("@/systems/loops/mocks/fixtures");
-  return { useLoops: () => ({ loops: loopCatalogFixtures, isLoading: false }) };
-});
+const loopsState = vi.hoisted(() => ({ current: [] as unknown[] }));
+
+vi.mock("@/systems/loops/hooks/use-loops", () => ({
+  useLoops: () => ({
+    error: null,
+    fetchNextPage: vi.fn(),
+    hasNextPage: false,
+    isError: false,
+    isFetchingNextPage: false,
+    isLoading: false,
+    loops: loopsState.current,
+  }),
+}));
 
 import { AutomationTriggerForm } from "../automation-trigger-form";
 import { createAutomationTriggerDraft } from "../../lib/automation-drafts";
@@ -74,6 +87,23 @@ function fillIdentity() {
 }
 
 describe("AutomationTriggerForm", () => {
+  beforeEach(async () => {
+    const { loopCatalogFixtures } = await import("@/systems/loops/mocks/fixtures");
+    const softwareDelivery = loopCatalogFixtures.find(loop => loop.name === "software-delivery");
+    const reviewsWatch = loopCatalogFixtures.find(loop => loop.name === "reviews-watch");
+    if (!softwareDelivery || !reviewsWatch) throw new Error("Loop fixtures are incomplete");
+
+    loopsState.current = [
+      { ...softwareDelivery, start: [{ kind: "schedule" }, { kind: "trigger" }] },
+      {
+        ...reviewsWatch,
+        inputs: { pr: { type: "number", required: true } },
+        start: [{ kind: "trigger" }],
+      },
+      { ...reviewsWatch, name: "webhook-intake", start: [{ kind: "webhook" }] },
+    ];
+  });
+
   it("selects a webhook event, forces global scope, and submits the webhook payload", () => {
     const { onCancel, onChange, onSubmit } = renderTriggerForm();
 
@@ -274,5 +304,153 @@ describe("AutomationTriggerForm", () => {
     );
     // A trigger fires from an event, so the payload mapping table is present.
     expect(screen.getByTestId("loop-input-mapping")).toBeInTheDocument();
+  });
+
+  it("Should filter Loop targets by trigger versus webhook start kinds", () => {
+    const { onChange } = renderTriggerForm();
+    fireEvent.click(screen.getByTestId("target-mode-loop"));
+
+    let select = screen.getByRole("combobox", { name: "Loop" });
+    expect(select).toHaveTextContent("software-delivery");
+    expect(select).toHaveTextContent("reviews-watch");
+    expect(select).not.toHaveTextContent("webhook-intake");
+
+    fireEvent.click(screen.getByTestId("trigger-event-webhook"));
+    select = screen.getByRole("combobox", { name: "Loop" });
+    expect(select).toHaveTextContent("webhook-intake");
+    expect(select).not.toHaveTextContent("software-delivery");
+    expect(select).not.toHaveTextContent("reviews-watch");
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        loop_target: expect.objectContaining({ loop_name: "" }),
+        target_kind: "loop",
+      })
+    );
+  });
+
+  it("Should bind a non-webhook Loop target to the selected workspace after leaving webhook", () => {
+    const { onChange, onSubmit } = renderTriggerForm();
+
+    fireEvent.change(screen.getByTestId("trigger-name-input"), {
+      target: { value: "review-on-stop" },
+    });
+    fireEvent.click(screen.getByTestId("trigger-event-webhook"));
+    fireEvent.click(screen.getByTestId("trigger-event-session.stopped"));
+    fireEvent.click(screen.getByTestId("target-mode-loop"));
+    fireEvent.change(screen.getByTestId("loop-target-select"), {
+      target: { value: "reviews-watch" },
+    });
+    fireEvent.change(screen.getByTestId("loop-input-field-pr"), {
+      target: { value: "2" },
+    });
+    fireEvent.click(screen.getByTestId("trigger-scope-workspace"));
+    fireEvent.click(screen.getByTestId("trigger-workspace-select"));
+    fireEvent.click(screen.getByTestId("trigger-workspace-item-ws_beta"));
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        loop_target: expect.objectContaining({
+          inputs: { pr: 2 },
+          loop_name: "reviews-watch",
+          workspace_id: "ws_beta",
+        }),
+        scope: "workspace",
+        workspace_id: "ws_beta",
+      })
+    );
+    expect(screen.getByTestId("automation-target-details")).toHaveTextContent("ws_beta");
+    expect(screen.getByTestId("automation-target-details")).not.toHaveTextContent("Not selected");
+    expect(screen.getByTestId("automation-request-payload")).toHaveTextContent(
+      '"workspace_id": "ws_beta"'
+    );
+    expect(screen.getByTestId("submit-trigger-form")).toBeEnabled();
+
+    fireEvent.click(screen.getByTestId("submit-trigger-form"));
+    expect(onSubmit).toHaveBeenCalledOnce();
+  });
+
+  it("Should retain an edit target when an event change makes its start kind incompatible", () => {
+    const { onSubmit } = renderTriggerForm({
+      mode: "edit",
+      draft: {
+        ...createAutomationTriggerDraft("ws_alpha"),
+        event: "session.stopped",
+        name: "delivery-trigger",
+        agent_name: "",
+        prompt: "",
+        target_kind: "loop",
+        loop_target: {
+          workspace_id: "ws_alpha",
+          loop_name: "software-delivery",
+          inputs: { goal: "Ship it" },
+          input_mapping: {},
+        },
+      },
+    });
+
+    expect(screen.getByTestId("submit-trigger-form")).toBeEnabled();
+    fireEvent.click(screen.getByTestId("trigger-event-webhook"));
+
+    expect(screen.getByRole("combobox", { name: "Loop" })).toHaveValue("software-delivery");
+    expect(within(screen.getByTestId("loop-target-fields")).getByRole("alert")).toHaveTextContent(
+      "software-delivery does not declare the webhook start kind"
+    );
+    expect(screen.getByTestId("trigger-preview")).toHaveTextContent("Request blocked");
+    expect(screen.getByTestId("automation-request-payload")).toHaveTextContent(
+      "Blocked · PATCH /api/automation/triggers/{id}"
+    );
+    expect(screen.getByTestId("submit-trigger-form")).toBeDisabled();
+
+    fireEvent.submit(screen.getByTestId("automation-trigger-form"));
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("Should preview a Loop target with static inputs, event mappings, and its request union", () => {
+    renderTriggerForm({
+      mode: "edit",
+      draft: {
+        ...createAutomationTriggerDraft("ws_alpha"),
+        name: "delivery-on-stop",
+        agent_name: "",
+        prompt: "",
+        target_kind: "loop",
+        loop_target: {
+          workspace_id: "ws_alpha",
+          loop_name: "software-delivery",
+          inputs: { slug: "helix-v1-launch" },
+          input_mapping: { branch: "data.branch" },
+        },
+      },
+    });
+
+    const preview = screen.getByTestId("trigger-preview");
+    expect(preview).toHaveTextContent("start Loop software-delivery");
+    expect(preview).toHaveTextContent("helix-v1-launch");
+    expect(preview).toHaveTextContent("data.branch");
+    expect(preview).not.toHaveTextContent("Prompt the agent receives");
+
+    const request = screen.getByTestId("automation-request-payload");
+    expect(request).toHaveTextContent("PATCH /api/automation/triggers/{id}");
+    expect(request).toHaveTextContent('"target_kind": "loop"');
+    expect(request).toHaveTextContent('"input_mapping"');
+  });
+
+  it("Should preserve the agent target in the Trigger preview and displayed request", () => {
+    renderTriggerForm({
+      draft: {
+        ...createAutomationTriggerDraft("ws_alpha"),
+        name: "push-review",
+        agent_name: "reviewer",
+        prompt: "Review stopped session.",
+      },
+    });
+
+    const preview = screen.getByTestId("trigger-preview");
+    expect(preview).toHaveTextContent("run reviewer");
+    expect(preview).toHaveTextContent("Prompt the agent receives");
+    expect(preview).toHaveTextContent("Review stopped session.");
+    expect(screen.getByTestId("automation-request-payload")).toHaveTextContent(
+      '"target_kind": "agent"'
+    );
   });
 });

@@ -8,18 +8,29 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 )
 
+const (
+	sessionConfigModelKey        = "model"
+	sessionModeAgent             = "agent"
+	sessionModeAsk               = "ask"
+	sessionModeBypassPermissions = "bypassPermissions"
+)
+
 func (d *Driver) applySessionMode(
 	ctx context.Context,
 	process *AgentProcess,
 	permissions aghconfig.PermissionMode,
-) error {
+) (bool, error) {
 	if ctx == nil || process == nil || process.conn == nil {
-		return nil
+		return false, nil
 	}
 
 	modeID := preferredSessionMode(process.CapsSnapshot().SupportedModes, permissions, process.toolGateway != nil)
 	if modeID == "" {
-		return nil
+		return false, nil
+	}
+	if option, ok := findSelectConfigOption(process.CapsSnapshot().ConfigOptions, "mode"); ok &&
+		strings.TrimSpace(option.Current) == modeID {
+		return false, nil
 	}
 
 	_, err := acpsdk.SendRequest[acpsdk.SetSessionModeResponse](
@@ -31,46 +42,56 @@ func (d *Driver) applySessionMode(
 			ModeId:    acpsdk.SessionModeId(modeID),
 		},
 	)
-	return err
+	if err == nil {
+		process.setConfigOptionCurrent("mode", modeID)
+	}
+	return true, err
 }
 
-func (d *Driver) applySessionModel(ctx context.Context, process *AgentProcess, preferredModel string) error {
+func (d *Driver) applySessionModel(
+	ctx context.Context,
+	process *AgentProcess,
+	preferredModel string,
+) (bool, error) {
 	if ctx == nil || process == nil || process.conn == nil {
-		return nil
+		return false, nil
 	}
 	modelID := strings.TrimSpace(preferredModel)
 	if modelID == "" {
-		return nil
+		return false, nil
 	}
 
 	caps := process.CapsSnapshot()
 	if option, ok := findModelConfigOption(caps.ConfigOptions); ok {
 		if !configOptionAllowsValue(option, modelID) {
-			return newNegotiationError(
+			return false, newNegotiationError(
 				NegotiationCodeModelUnavailable,
-				"model",
+				sessionConfigModelKey,
 				modelID,
 				option.ID,
 				configOptionChoices(option),
 				nil,
 			)
 		}
+		if strings.TrimSpace(option.Current) == modelID {
+			return false, nil
+		}
 		if err := d.applySessionConfigOption(ctx, process, option.ID, modelID); err != nil {
-			return newNegotiationError(
+			return true, newNegotiationError(
 				NegotiationCodeModelUnavailable,
-				"model",
+				sessionConfigModelKey,
 				modelID,
 				option.ID,
 				configOptionChoices(option),
 				err,
 			)
 		}
-		return nil
+		return true, nil
 	}
 
-	return newNegotiationError(
+	return false, newNegotiationError(
 		NegotiationCodeModelUnavailable,
-		"model",
+		sessionConfigModelKey,
 		modelID,
 		"",
 		nil,
@@ -78,19 +99,23 @@ func (d *Driver) applySessionModel(ctx context.Context, process *AgentProcess, p
 	)
 }
 
-func (d *Driver) applySessionReasoningEffort(ctx context.Context, process *AgentProcess, effort string) error {
+func (d *Driver) applySessionReasoningEffort(
+	ctx context.Context,
+	process *AgentProcess,
+	effort string,
+) (bool, error) {
 	if ctx == nil || process == nil || process.conn == nil {
-		return nil
+		return false, nil
 	}
 	effortID := strings.TrimSpace(effort)
 	if effortID == "" {
-		return nil
+		return false, nil
 	}
 
 	caps := process.CapsSnapshot()
 	option, ok := findReasoningConfigOption(caps.ConfigOptions)
 	if !ok {
-		return newNegotiationError(
+		return false, newNegotiationError(
 			NegotiationCodeReasoningOptionMissing,
 			"reasoning effort",
 			effortID,
@@ -100,7 +125,7 @@ func (d *Driver) applySessionReasoningEffort(ctx context.Context, process *Agent
 		)
 	}
 	if !configOptionAllowsValue(option, effortID) {
-		return newNegotiationError(
+		return false, newNegotiationError(
 			NegotiationCodeReasoningEffortUnsupported,
 			"reasoning effort",
 			effortID,
@@ -109,8 +134,11 @@ func (d *Driver) applySessionReasoningEffort(ctx context.Context, process *Agent
 			nil,
 		)
 	}
+	if strings.TrimSpace(option.Current) == effortID {
+		return false, nil
+	}
 	if err := d.applySessionConfigOption(ctx, process, option.ID, effortID); err != nil {
-		return newNegotiationError(
+		return true, newNegotiationError(
 			NegotiationCodeReasoningEffortUnsupported,
 			"reasoning effort",
 			effortID,
@@ -119,7 +147,7 @@ func (d *Driver) applySessionReasoningEffort(ctx context.Context, process *Agent
 			err,
 		)
 	}
-	return nil
+	return true, nil
 }
 
 func (d *Driver) applySessionConfigOption(
@@ -165,6 +193,14 @@ func preferredSessionMode(
 		lookup[strings.ToLower(trimmed)] = trimmed
 	}
 
+	if permissions == aghconfig.PermissionModeApproveAll {
+		for _, candidate := range sessionModeCandidates(permissions) {
+			if matched, ok := lookup[strings.ToLower(candidate)]; ok {
+				return matched
+			}
+		}
+	}
+
 	if toolGatewayEnabled {
 		for _, candidate := range permissionGatewayModeCandidates() {
 			if matched, ok := lookup[strings.ToLower(candidate)]; ok {
@@ -184,7 +220,7 @@ func preferredSessionMode(
 func permissionGatewayModeCandidates() []string {
 	return []string{
 		clientDefaultKey,
-		"ask",
+		sessionModeAsk,
 	}
 }
 
@@ -192,9 +228,10 @@ func sessionModeCandidates(permissions aghconfig.PermissionMode) []string {
 	switch permissions {
 	case aghconfig.PermissionModeApproveAll:
 		return []string{
+			sessionModeAgent,
 			"full-access",
 			"full_access",
-			"bypassPermissions",
+			sessionModeBypassPermissions,
 			"bypass_permissions",
 			"auto",
 			"acceptEdits",
@@ -204,8 +241,8 @@ func sessionModeCandidates(permissions aghconfig.PermissionMode) []string {
 			"read-only",
 			"read_only",
 			"readOnly",
-			"plan",
-			"ask",
+			EventTypePlan,
+			sessionModeAsk,
 		}
 	default:
 		return nil

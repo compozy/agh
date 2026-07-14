@@ -23,6 +23,7 @@ import {
   formatPromptPreview,
   formatRelativeTime,
 } from "../lib/automation-formatters";
+import { describeAutomationTarget, projectAutomationTarget } from "../lib/automation-target";
 import type {
   AutomationJob,
   AutomationKind,
@@ -107,6 +108,7 @@ interface TriggerListItemProps {
 
 function TriggerListItem({ isSelected, onSelect, trigger }: TriggerListItemProps) {
   const enabledTone = automationStatusTone(trigger.enabled ? "enabled" : "disabled");
+  const target = projectAutomationTarget(trigger);
 
   return (
     <Item
@@ -131,7 +133,9 @@ function TriggerListItem({ isSelected, onSelect, trigger }: TriggerListItemProps
       </ItemHeader>
 
       <ItemDescription className="line-clamp-2 text-xs text-muted">
-        {formatPromptPreview(trigger.prompt)}
+        {target.kind === "loop"
+          ? describeAutomationTarget(target)
+          : formatPromptPreview(target.prompt)}
       </ItemDescription>
 
       <ItemActions className="flex-wrap gap-1.5">
@@ -221,8 +225,8 @@ export function AutomationListPanel({
                 searchQuery.trim() !== ""
                   ? "Try a different search term or adjust the scope filter."
                   : kind === "jobs"
-                    ? "Create your first job to dispatch prompts on a schedule."
-                    : "Create your first trigger to react to daemon events and webhooks."
+                    ? "Create your first job to run a configured target on a schedule."
+                    : "Create your first trigger to react to daemon events and run its target."
               }
               icon={EmptyIcon}
               title={emptyTitle}

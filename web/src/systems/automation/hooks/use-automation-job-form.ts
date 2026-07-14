@@ -1,9 +1,14 @@
 import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 
-import type { LoopTargetDraft } from "@/systems/loops";
+import {
+  loopTargetAvailabilityMessage,
+  useLoopTargetCatalog,
+  type LoopTargetDraft,
+} from "@/systems/loops";
 
 import {
+  automationTargetMode,
   jobOutputMode,
   retryDraftForStrategy,
   setJobOutputMode,
@@ -80,18 +85,22 @@ function scheduleValid(draft: CreateAutomationJobRequest, now: number): boolean 
 export type JobTargetMode = "agent" | "task" | "loop";
 
 function jobTargetMode(draft: CreateAutomationJobRequest): JobTargetMode {
-  if (draft.loop_target) return "loop";
+  if (automationTargetMode(draft) === "loop") return "loop";
   return jobOutputMode(draft);
 }
 
-function computeCanSubmit(draft: CreateAutomationJobRequest, now: number): boolean {
+function computeCanSubmit(
+  draft: CreateAutomationJobRequest,
+  now: number,
+  loopTargetCompatible: boolean
+): boolean {
   const baseValid =
     draft.name.trim() !== "" && (draft.scope === "global" || Boolean(draft.workspace_id));
   if (!baseValid) return false;
   if (!scheduleValid(draft, now)) return false;
   const target = jobTargetMode(draft);
   if (target === "loop") {
-    return Boolean(draft.loop_target?.loop_name.trim());
+    return Boolean(draft.loop_target?.loop_name.trim()) && loopTargetCompatible;
   }
   if (target === "task") {
     // Task mode: owner is optional, title/description fall back to the job — nothing more required.
@@ -136,8 +145,19 @@ export function useAutomationJobForm({
         ? [{ id: activeWorkspaceId, name: activeWorkspaceId }]
         : [];
 
-  const preview = buildJobPreview(draft);
-  const canSubmit = computeCanSubmit(draft, now);
+  const loopTarget: LoopTargetDraft = draft.loop_target ?? {
+    loop_name: "",
+    inputs: {},
+    input_mapping: {},
+  };
+  const loopCatalog = useLoopTargetCatalog(
+    draft.workspace_id ?? activeWorkspaceId ?? "",
+    loopTarget.loop_name,
+    "schedule"
+  );
+  const loopTargetIssue = loopTargetAvailabilityMessage(loopCatalog, mode);
+  const preview = buildJobPreview(draft, now, mode, loopTargetIssue);
+  const canSubmit = computeCanSubmit(draft, now, loopCatalog.status === "compatible");
 
   const patch = (next: Partial<CreateAutomationJobRequest>) => onChange({ ...draft, ...next });
 
@@ -181,12 +201,6 @@ export function useAutomationJobForm({
 
   const handleLoopTargetChange = (next: LoopTargetDraft) => {
     patch({ loop_target: { ...next, workspace_id: draft.workspace_id ?? "" } });
-  };
-
-  const loopTarget: LoopTargetDraft = draft.loop_target ?? {
-    loop_name: "",
-    inputs: {},
-    input_mapping: {},
   };
 
   const handleOwnerKind = (kind: JobOwnerKind | "") => {
@@ -257,6 +271,7 @@ export function useAutomationJobForm({
   return {
     output,
     targetMode: jobTargetMode(draft),
+    loopCatalog,
     loopTarget,
     retry,
     cronModel,

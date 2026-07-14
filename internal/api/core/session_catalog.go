@@ -78,9 +78,14 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 			return session.ListQuery{}, false, fmt.Errorf("%w: %w", errSessionListWorkspaceResolution, err)
 		}
 	}
+	sessionType, err := parseSessionListType(c.Query("type"))
+	if err != nil {
+		return session.ListQuery{}, false, err
+	}
 	query := session.ListQuery{
 		WorkspaceID: workspaceID,
 		State:       strings.TrimSpace(c.Query("state")),
+		SessionType: sessionType,
 		AgentName:   strings.TrimSpace(c.Query("agent")),
 		Search:      strings.TrimSpace(c.Query("q")),
 		Resumable:   resumable,
@@ -89,4 +94,15 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 		Limit:       limit,
 	}
 	return query, includeHealth, nil
+}
+
+func parseSessionListType(raw string) (session.Type, error) {
+	sessionType := session.Type(strings.TrimSpace(raw))
+	switch sessionType {
+	case "", session.SessionTypeUser, session.SessionTypeDream, session.SessionTypeSystem,
+		session.SessionTypeCoordinator, session.SessionTypeSpawned:
+		return sessionType, nil
+	default:
+		return "", fmt.Errorf("%w: unsupported type %q", session.ErrListQueryInvalid, sessionType)
+	}
 }

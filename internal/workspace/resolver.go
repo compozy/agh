@@ -43,8 +43,11 @@ type Resolver struct {
 	idGenerator func(prefix string) string
 	changeHook  ChangeHook
 
-	mu    sync.RWMutex
-	cache map[string]*cachedEntry
+	reconcileMu        sync.Mutex
+	unregisterMu       sync.RWMutex
+	unregisterPreparer UnregisterPreparer
+	mu                 sync.RWMutex
+	cache              map[string]*cachedEntry
 }
 
 var _ RuntimeResolver = (*Resolver)(nil)

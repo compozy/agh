@@ -14,12 +14,13 @@ import {
   missingRequiredInputs,
   serializeRunInputs,
 } from "../lib/loop-run-form";
-import type { LoopDetail, LoopDryRunPreview } from "../types";
+import type { LoopConfig, LoopDetail, LoopDryRunPreview } from "../types";
 import { useRunLoop } from "./use-loop-actions";
 
 interface UseLoopRunFormOptions {
   workspaceId: string;
   loop: LoopDetail;
+  config: LoopConfig | null;
   onRunStarted?: (runId: string) => void;
 }
 
@@ -30,12 +31,12 @@ interface UseLoopRunFormOptions {
  * the started run's id back for navigation. Any input/override edit clears the last
  * plan (it no longer matches).
  */
-export function useLoopRunForm({ workspaceId, loop, onRunStarted }: UseLoopRunFormOptions) {
+export function useLoopRunForm({ workspaceId, loop, config, onRunStarted }: UseLoopRunFormOptions) {
   const contract = loop.definition.contract;
   const schema = loop.definition.inputs;
   const [inputs, setInputs] = useState<LoopRunInputs>(() => initialRunInputs(schema));
   const [overrides, setOverrides] = useState<LoopOverrideDraft>(() =>
-    initialOverrideDraft(contract)
+    initialOverrideDraft(contract, config)
   );
   const [plan, setPlan] = useState<LoopDryRunPreview | null>(null);
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -45,11 +46,12 @@ export function useLoopRunForm({ workspaceId, loop, onRunStarted }: UseLoopRunFo
   const missing = new Set(missingRequiredInputs(schema, inputs));
   const valid = isRunFormValid(schema, inputs);
   const busy = runMutation.isPending || dryMutation.isPending;
+  const configOverrides = buildConfigOverrides(overrides, contract, config);
 
   function requestBody() {
     return {
       inputs: serializeRunInputs(schema, inputs),
-      config_overrides: buildConfigOverrides(overrides, contract),
+      config_overrides: configOverrides,
     };
   }
 
@@ -100,6 +102,7 @@ export function useLoopRunForm({ workspaceId, loop, onRunStarted }: UseLoopRunFo
     schema,
     inputs,
     overrides,
+    configOverrides,
     plan,
     submitAttempted,
     missing,

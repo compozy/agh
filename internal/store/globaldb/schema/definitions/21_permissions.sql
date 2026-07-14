@@ -1,6 +1,6 @@
 CREATE TABLE permission_log (
 		id          TEXT PRIMARY KEY,
-		session_id  TEXT NOT NULL REFERENCES sessions(id),
+		session_id  TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
 		agent_name  TEXT NOT NULL,
 		action      TEXT NOT NULL,
 		resource    TEXT NOT NULL,

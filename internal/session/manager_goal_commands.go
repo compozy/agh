@@ -23,20 +23,27 @@ func (m *Manager) SetGoalCommandHandler(handler GoalCommandHandler) {
 
 func (m *Manager) dispatchGoalCommand(
 	ctx context.Context,
-	session *Session,
+	req *promptRequest,
 	opts SendPromptOpts,
 ) (GoalDispatchDecision, bool, error) {
-	command, matched, err := ParseGoalCommand(opts.Message)
+	command, matched, parseErr := ParseGoalCommand(req.authoredMessage)
 	if !matched {
 		return GoalDispatchDecision{}, false, nil
+	}
+	workspaceID, lookupErr := m.goalCommandWorkspaceID(ctx, req.target)
+	if lookupErr != nil {
+		return GoalDispatchDecision{}, true, lookupErr
 	}
 	if err := opts.Caller.Validate(); err != nil {
 		return GoalDispatchDecision{}, true, err
 	}
-	if err != nil {
+	if err := m.recordPromptInputEvent(ctx, nil, req); err != nil {
+		return GoalDispatchDecision{}, true, err
+	}
+	if parseErr != nil {
 		var commandErr *GoalCommandError
-		if !errors.As(err, &commandErr) {
-			return GoalDispatchDecision{}, true, err
+		if !errors.As(parseErr, &commandErr) {
+			return GoalDispatchDecision{}, true, parseErr
 		}
 		return goalErrorDecision(commandErr.Code), true, nil
 	}
@@ -44,11 +51,7 @@ func (m *Manager) dispatchGoalCommand(
 	if handler == nil {
 		return GoalDispatchDecision{}, true, errors.New("session: Goal command handler is unavailable")
 	}
-	info := session.Info()
-	if info == nil || strings.TrimSpace(info.WorkspaceID) == "" {
-		return GoalDispatchDecision{}, true, errors.New("session: Goal command workspace is unavailable")
-	}
-	decision, err := handler.Handle(ctx, info.WorkspaceID, session.ID, opts.Caller, command)
+	decision, err := handler.Handle(ctx, workspaceID, req.target, opts.Caller, command)
 	if err != nil {
 		return GoalDispatchDecision{}, true, err
 	}
@@ -56,6 +59,25 @@ func (m *Manager) dispatchGoalCommand(
 		return GoalDispatchDecision{}, true, err
 	}
 	return decision, true, nil
+}
+
+func (m *Manager) goalCommandWorkspaceID(ctx context.Context, sessionID string) (string, error) {
+	if session, ok := m.Get(sessionID); ok {
+		info := session.Info()
+		if info != nil && strings.TrimSpace(info.WorkspaceID) != "" {
+			return strings.TrimSpace(info.WorkspaceID), nil
+		}
+		return "", errors.New("session: Goal command workspace is unavailable")
+	}
+	meta, err := m.readMetaWithContext(ctx, sessionID)
+	if err != nil {
+		return "", err
+	}
+	workspaceID := strings.TrimSpace(meta.WorkspaceID)
+	if workspaceID == "" {
+		return "", errors.New("session: Goal command workspace is unavailable")
+	}
+	return workspaceID, nil
 }
 
 func (m *Manager) currentGoalCommandHandler() GoalCommandHandler {

@@ -16,6 +16,14 @@ export function SummaryCard({ summary }: SummaryCardProps) {
             <span className="text-accent-strong font-semibold">{summary.agentName}</span>{" "}
             {summary.scopeLabel}.
           </>
+        ) : summary.output === "loop" ? (
+          <>
+            {summary.scheduleLabel} UTC, start Loop{" "}
+            <span className="text-accent-strong font-semibold">
+              {summary.loopTarget?.loopName || "not selected"}
+            </span>{" "}
+            {summary.scopeLabel}.
+          </>
         ) : (
           <>
             {summary.scheduleLabel} UTC, materialize a{" "}

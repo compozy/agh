@@ -9,6 +9,7 @@ import (
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb/sqlcgen"
+	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 const (
@@ -31,6 +32,7 @@ const (
 
 	loopRunEventPayloadKeyGeneration = "generation"
 	loopRunEventPayloadKeyFrom       = "from"
+	loopRunEventPayloadKeyFailure    = "failure"
 	loopRunEventPayloadKeyTo         = "to"
 	loopRunEventPayloadKeyCause      = "cause"
 	loopRunEventPayloadKeyActorKind  = "actor_kind"
@@ -66,15 +68,33 @@ func appendLoopRunStatusEvent(
 	cause looppkg.TransitionCause,
 	at time.Time,
 ) error {
+	return appendLoopRunStatusEventWithFailure(ctx, exec, runID, ws, from, to, cause, nil, at)
+}
+
+func appendLoopRunStatusEventWithFailure(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	runID looppkg.RunID,
+	ws looppkg.WorkspaceID,
+	from looppkg.Status,
+	to looppkg.Status,
+	cause looppkg.TransitionCause,
+	failure *taskpkg.CoordinatorFailure,
+	at time.Time,
+) error {
 	if from == to {
 		return nil
 	}
-	return appendLoopRunEventWithExecutor(ctx, exec, runID, ws, loopRunEventStatusChanged, map[string]string{
+	payload := map[string]any{
 		loopRunEventPayloadKeyFrom:   string(from),
 		loopRunEventPayloadKeyTo:     string(to),
 		loopRunEventPayloadKeyStatus: string(to),
 		loopRunEventPayloadKeyCause:  string(cause),
-	}, at)
+	}
+	if failure != nil {
+		payload[loopRunEventPayloadKeyFailure] = failure
+	}
+	return appendLoopRunEventWithExecutor(ctx, exec, runID, ws, loopRunEventStatusChanged, payload, at)
 }
 
 func appendLoopRunEventWithExecutor(

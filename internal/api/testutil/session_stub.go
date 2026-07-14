@@ -16,6 +16,7 @@ type StubSessionManager struct {
 	ListFn              func() []*session.Info
 	ListAllFn           func(context.Context) ([]*session.Info, error)
 	ListPageFn          func(context.Context, session.ListQuery) (session.ListPage, error)
+	SubscribeCatalogFn  func(context.Context) (<-chan session.CatalogEvent, func(), error)
 	MetricsByAgentFn    func(context.Context, string) (map[string]session.AgentSessionMetrics, error)
 	ListSessionsFn      func(context.Context, store.SessionListQuery) ([]store.SessionInfo, error)
 	StatusFn            func(context.Context, string) (*session.Info, error)
@@ -83,6 +84,17 @@ func (s StubSessionManager) ListPage(ctx context.Context, query session.ListQuer
 		return session.ListPage{}, err
 	}
 	return stubSessionListPage(infos, query), nil
+}
+
+func (s StubSessionManager) SubscribeSessionCatalogEvents(
+	ctx context.Context,
+) (<-chan session.CatalogEvent, func(), error) {
+	if s.SubscribeCatalogFn != nil {
+		return s.SubscribeCatalogFn(ctx)
+	}
+	events := make(chan session.CatalogEvent)
+	close(events)
+	return events, func() {}, nil
 }
 
 func (s StubSessionManager) AggregateSessionsByAgent(
@@ -379,6 +391,7 @@ func (s StubSessionManager) InputQueueSummary(ctx context.Context, id string) (s
 
 var _ core.SessionManager = (*StubSessionManager)(nil)
 var _ core.SessionCatalog = (*StubSessionManager)(nil)
+var _ core.SessionCatalogEventSubscriber = (*StubSessionManager)(nil)
 var _ core.AgentSessionMetricsReader = (*StubSessionManager)(nil)
 
 func storeSessionInfoFromRuntime(info *session.Info) store.SessionInfo {

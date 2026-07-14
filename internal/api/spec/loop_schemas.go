@@ -1,8 +1,11 @@
 package spec
 
 import (
+	"github.com/compozy/agh/internal/api/contract"
 	"github.com/getkin/kin-openapi/openapi3"
 )
+
+const loopKindField = "kind"
 
 func customizeLoopGraphSchema(schema *openapi3.Schema) {
 	*schema = *openapi3.NewObjectSchema().
@@ -16,7 +19,7 @@ func loopGraphNodeSchema() *openapi3.Schema {
 	schema := openapi3.NewObjectSchema().
 		WithProperty("id", openapi3.NewStringSchema()).
 		WithProperty("class", openapi3.NewStringSchema().WithEnum(enumAsAny(loopNodeClassValues())...)).
-		WithProperty("kind", openapi3.NewStringSchema()).
+		WithProperty(loopKindField, openapi3.NewStringSchema()).
 		WithProperty("session", loopFreeformObjectSchema()).
 		WithProperty("timeout", openapi3.NewStringSchema()).
 		WithProperty("retry", loopFreeformObjectSchema()).
@@ -39,8 +42,20 @@ func loopGraphNodeSchema() *openapi3.Schema {
 		WithProperty("pattern", openapi3.NewStringSchema()).
 		WithProperty("parse", openapi3.NewStringSchema()).
 		WithProperty("watch", loopFreeformObjectSchema()).
+		WithProperty("events", openapi3.NewArraySchema().WithItems(loopWatchEventSubscriptionSchema())).
 		WithAdditionalProperties(openapi3.NewSchema())
-	schema.Required = []string{"class", "id", "kind"}
+	schema.Required = []string{"class", "id", loopKindField}
+	return schema
+}
+
+func loopWatchEventSubscriptionSchema() *openapi3.Schema {
+	schema := openapi3.NewObjectSchema().
+		WithProperty(
+			loopKindField,
+			openapi3.NewStringSchema().WithEnum(enumAsAny(contract.LoopWatchEventKindValues())...),
+		).
+		WithProperty("filter", openapi3.NewStringSchema())
+	schema.Required = []string{loopKindField}
 	return schema
 }
 

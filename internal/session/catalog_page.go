@@ -36,6 +36,7 @@ var (
 type ListQuery struct {
 	WorkspaceID string
 	State       string
+	SessionType Type
 	AgentName   string
 	Search      string
 	Resumable   bool
@@ -56,6 +57,7 @@ type ListPage struct {
 type sessionListFingerprint struct {
 	WorkspaceID string `json:"workspace_id"`
 	State       string `json:"state"`
+	SessionType Type   `json:"type"`
 	AgentName   string `json:"agent"`
 	Search      string `json:"q"`
 	Resumable   bool   `json:"resumable"`
@@ -90,6 +92,7 @@ func (m *Manager) ListPage(ctx context.Context, query ListQuery) (ListPage, erro
 	durable, err := pager.PageSessions(ctx, store.SessionCatalogPageQuery{
 		WorkspaceID:         normalized.WorkspaceID,
 		State:               normalized.State,
+		SessionType:         string(normalized.SessionType),
 		AgentName:           normalized.AgentName,
 		Search:              normalized.Search,
 		Resumable:           normalized.Resumable,
@@ -164,6 +167,7 @@ func (m *Manager) activeSessionCatalogRows(
 func normalizeListQuery(query ListQuery) (ListQuery, error) {
 	query.WorkspaceID = strings.TrimSpace(query.WorkspaceID)
 	query.State = strings.TrimSpace(query.State)
+	query.SessionType = Type(strings.TrimSpace(string(query.SessionType)))
 	query.AgentName = strings.TrimSpace(query.AgentName)
 	query.Search = strings.ToLower(strings.TrimSpace(query.Search))
 	query.Sort = strings.TrimSpace(query.Sort)
@@ -187,6 +191,11 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 	default:
 		return ListQuery{}, fmt.Errorf("%w: unsupported state %q", ErrListQueryInvalid, query.State)
 	}
+	switch query.SessionType {
+	case "", SessionTypeUser, SessionTypeDream, SessionTypeSystem, SessionTypeCoordinator, SessionTypeSpawned:
+	default:
+		return ListQuery{}, fmt.Errorf("%w: unsupported type %q", ErrListQueryInvalid, query.SessionType)
+	}
 	return query, nil
 }
 
@@ -201,6 +210,9 @@ func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 		return false
 	}
 	if query.State != "" && strings.TrimSpace(string(info.State)) != query.State {
+		return false
+	}
+	if query.SessionType != "" && normalizeSessionType(info.Type) != query.SessionType {
 		return false
 	}
 	if query.AgentName != "" && strings.TrimSpace(info.AgentName) != query.AgentName {
@@ -262,6 +274,7 @@ func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 	fingerprint, err := listcursor.Fingerprint(sessionListFingerprint{
 		WorkspaceID: query.WorkspaceID,
 		State:       query.State,
+		SessionType: query.SessionType,
 		AgentName:   query.AgentName,
 		Search:      query.Search,
 		Resumable:   query.Resumable,

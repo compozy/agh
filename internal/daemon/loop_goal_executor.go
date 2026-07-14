@@ -113,6 +113,10 @@ func (e *loopGoalJudgeEvaluator) EvaluateGoal(
 		ToolCallCorrelationID: strings.TrimSpace(req.AttemptID),
 		JudgeModel:            strings.TrimSpace(resolved.EffectiveConfig.ModelDefaults.Judge),
 		JudgeUsageReporter:    usage,
+		JudgeEvidence: gate.JudgeEvidence{
+			Text:       req.Result.Text,
+			Structured: append([]byte(nil), req.Result.Structured...),
+		},
 	})
 	if err != nil {
 		return goalpkg.JudgeResult{}, err

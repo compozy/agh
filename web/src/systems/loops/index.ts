@@ -248,6 +248,7 @@ export type {
   LoopApprovalFact,
   LoopApprovalRequest,
   LoopChannelMessage,
+  LoopCoordinatorFailure,
   LoopGateVerdict,
   LoopGoalTurnLive,
   LoopLiveEvent,
@@ -334,6 +335,11 @@ export { LoopConfigureSheet } from "./components/configure/loop-configure-sheet"
 
 // Run page
 export { LoopRunContractHeader } from "./components/run-page/loop-run-contract-header";
+export { LoopFailureDetail } from "./components/run-page/loop-failure-detail";
+export type {
+  LoopFailureDetailData,
+  LoopFailureDetailProps,
+} from "./components/run-page/loop-failure-detail";
 export { LoopRunControls } from "./components/run-page/loop-run-controls";
 export { LoopRunMeters } from "./components/run-page/loop-run-meters";
 export { LoopGenerationTimeline } from "./components/run-page/loop-generation-timeline";
@@ -352,3 +358,14 @@ export { LoopWatchEventsPanel } from "./components/run-page/loop-watch-events-pa
 // Loop-target editing (automation Target step)
 export type { LoopTargetDraft } from "./lib/loop-target";
 export { setLoopTargetInput, setLoopTargetLoop, setLoopTargetMapping } from "./lib/loop-target";
+export type {
+  LoopAutomationStartKind,
+  LoopTargetAvailabilityStatus,
+  LoopTargetCatalog,
+} from "./lib/loop-target-availability";
+export {
+  loopDeclaresStartKind,
+  loopTargetAvailabilityMessage,
+  projectLoopTargetCatalog,
+} from "./lib/loop-target-availability";
+export { useLoopTargetCatalog } from "./hooks/use-loop-target-catalog";

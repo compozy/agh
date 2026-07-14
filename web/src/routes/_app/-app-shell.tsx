@@ -93,6 +93,7 @@ function AppShell() {
             onAddWorkspace={page.openWorkspaceSetup}
             agentsCount={page.agentsCount}
             activeSessionCount={page.activeSessionCount}
+            workspaceSessionActivity={page.workspaceSessionActivity}
             activeWorkspace={page.activeWorkspace}
           />
           <TopbarShell>
@@ -143,7 +144,7 @@ function AppShell() {
           isSubmitting={page.sessionCreate.isSubmitting}
           onAgentChange={page.sessionCreate.onAgentChange}
           onCatalogRefresh={page.sessionCreate.refreshCatalog}
-          onOpenChange={page.sessionCreate.setOpen}
+          onOpenChange={page.sessionCreate.onOpenChange}
           onOpenProviderSettings={page.sessionCreate.openProviderSettings}
           onRuntimeChange={page.sessionCreate.onRuntimeChange}
           onSubmit={page.sessionCreate.submit}

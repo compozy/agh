@@ -119,8 +119,25 @@ func (f Fixture) Agent(name string) (AgentFixture, error) {
 
 // SelectTurn returns the first turn that matches the supplied prompt occurrence.
 func (a AgentFixture) SelectTurn(prompt string, occurrence int, meta ...acp.PromptMeta) (TurnFixture, error) {
+	return a.SelectTurnAtGlobalOccurrence(prompt, occurrence, occurrence, meta...)
+}
+
+// SelectTurnAtGlobalOccurrence matches both the session-local prompt count and
+// an explicit cross-process fixture count maintained by the test driver.
+func (a AgentFixture) SelectTurnAtGlobalOccurrence(
+	prompt string,
+	occurrence int,
+	globalOccurrence int,
+	meta ...acp.PromptMeta,
+) (TurnFixture, error) {
 	if occurrence <= 0 {
 		return TurnFixture{}, fmt.Errorf("acpmock: prompt occurrence %d must be >= 1", occurrence)
+	}
+	if globalOccurrence <= 0 {
+		return TurnFixture{}, fmt.Errorf(
+			"acpmock: global prompt occurrence %d must be >= 1",
+			globalOccurrence,
+		)
 	}
 
 	input := turnMatchInput{
@@ -131,17 +148,19 @@ func (a AgentFixture) SelectTurn(prompt string, occurrence int, meta ...acp.Prom
 	}
 
 	for _, turn := range a.Turns {
-		if turn.Match.matches(input, occurrence) {
+		if turn.Match.matches(input, occurrence, globalOccurrence) {
 			return turn, nil
 		}
 	}
 
 	return TurnFixture{}, fmt.Errorf(
-		"acpmock: no turn matched agent %q canonical_prompt %q raw_prompt %q at occurrence %d with meta %#v",
+		"acpmock: no turn matched agent %q canonical_prompt %q raw_prompt %q at occurrence %d "+
+			"global occurrence %d with meta %#v",
 		a.Name,
 		canonicalUserText(input.UserText),
 		input.UserText,
 		occurrence,
+		globalOccurrence,
 		input.Meta,
 	)
 }
@@ -226,10 +245,13 @@ func (t TurnFixture) Validate(path string) error {
 	return nil
 }
 
-// Validate ensures the turn match contains only supported exact selectors.
+// Validate ensures the turn match contains at least one supported stable selector.
 func (m TurnMatch) Validate(path string) error {
 	if m.Occurrence < 0 {
 		return fmt.Errorf("acpmock: %s.occurrence must be >= 0", path)
+	}
+	if m.GlobalOccurrence < 0 {
+		return fmt.Errorf("acpmock: %s.global_occurrence must be >= 0", path)
 	}
 	normalized := m.Normalize()
 	switch normalized.TurnSource {
@@ -237,8 +259,9 @@ func (m TurnMatch) Validate(path string) error {
 	default:
 		return fmt.Errorf("acpmock: %s.turn_source %q is invalid", path, normalized.TurnSource)
 	}
-	if normalized.TurnSource == "" && normalized.UserText == "" && normalized.Network == nil {
-		return fmt.Errorf("acpmock: %s requires at least one exact selector", path)
+	if normalized.TurnSource == "" && normalized.UserText == "" && normalized.UserTextContains == "" &&
+		normalized.Network == nil {
+		return fmt.Errorf("acpmock: %s requires at least one stable selector", path)
 	}
 	if normalized.Network != nil {
 		if err := normalized.Network.Validate(path + ".network"); err != nil {
@@ -251,9 +274,11 @@ func (m TurnMatch) Validate(path string) error {
 // Normalize returns a trimmed copy of the turn matcher.
 func (m TurnMatch) Normalize() TurnMatch {
 	normalized := TurnMatch{
-		TurnSource: strings.TrimSpace(m.TurnSource),
-		UserText:   strings.TrimSpace(m.UserText),
-		Occurrence: m.Occurrence,
+		TurnSource:       strings.TrimSpace(m.TurnSource),
+		UserText:         strings.TrimSpace(m.UserText),
+		UserTextContains: strings.TrimSpace(m.UserTextContains),
+		Occurrence:       m.Occurrence,
+		GlobalOccurrence: m.GlobalOccurrence,
 	}
 	if m.Network != nil {
 		network := m.Network.Normalize()
@@ -269,15 +294,22 @@ type turnMatchInput struct {
 	Meta     acp.PromptMeta
 }
 
-func (m TurnMatch) matches(input turnMatchInput, occurrence int) bool {
+func (m TurnMatch) matches(input turnMatchInput, occurrence int, globalOccurrence int) bool {
 	normalized := m.Normalize()
 	if normalized.Occurrence > 0 && normalized.Occurrence != occurrence {
+		return false
+	}
+	if normalized.GlobalOccurrence > 0 && normalized.GlobalOccurrence != globalOccurrence {
 		return false
 	}
 	if normalized.TurnSource != "" && input.Meta.Normalize().TurnSource != normalized.TurnSource {
 		return false
 	}
 	if normalized.UserText != "" && canonicalUserText(input.UserText) != normalized.UserText {
+		return false
+	}
+	if normalized.UserTextContains != "" &&
+		!strings.Contains(canonicalUserText(input.UserText), normalized.UserTextContains) {
 		return false
 	}
 	if normalized.Network != nil {

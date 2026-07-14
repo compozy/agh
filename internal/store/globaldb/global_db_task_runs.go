@@ -45,32 +45,87 @@ func (g *TaskRepo) UpdateTaskRun(ctx context.Context, run taskpkg.Run) error {
 	}
 
 	return g.withTaskImmediateTransaction(ctx, "update task run", func(exec taskSQLExecutor) error {
-		current, err := g.getTaskRunWithExecutor(ctx, exec, normalized.ID)
+		return g.updateTaskRunWithExecutor(ctx, exec, normalized)
+	})
+}
+
+// CompleteRunSettlement completes one unfenced run and atomically applies
+// successful task-hierarchy aggregation.
+func (g *TaskRepo) CompleteRunSettlement(
+	ctx context.Context,
+	run taskpkg.Run,
+	actor taskpkg.ActorContext,
+) (taskpkg.CompletedRunSettlement, error) {
+	if err := g.checkReady(ctx, "complete task run settlement"); err != nil {
+		return taskpkg.CompletedRunSettlement{}, err
+	}
+	if err := actor.Validate(); err != nil {
+		return taskpkg.CompletedRunSettlement{}, err
+	}
+	normalized, err := g.normalizeTaskRunForUpdate(run)
+	if err != nil {
+		return taskpkg.CompletedRunSettlement{}, err
+	}
+	if normalized.Status.Normalize() != taskpkg.TaskRunStatusCompleted {
+		return taskpkg.CompletedRunSettlement{}, fmt.Errorf(
+			"%w: completed run settlement requires completed status",
+			taskpkg.ErrInvalidStatusTransition,
+		)
+	}
+
+	var settlement taskpkg.CompletedRunSettlement
+	if err := g.withTaskImmediateTransaction(ctx, "complete task run settlement", func(exec taskSQLExecutor) error {
+		if err := g.updateTaskRunWithExecutor(ctx, exec, normalized); err != nil {
+			return err
+		}
+		settlement, err = g.settleCompletedTaskHierarchyWithExecutor(
+			ctx,
+			exec,
+			normalized.TaskID,
+			actor,
+			normalized.EndedAt,
+		)
 		if err != nil {
 			return err
 		}
-		currentSessionID := strings.TrimSpace(current.SessionID)
-		nextSessionID := strings.TrimSpace(normalized.SessionID)
-		if currentSessionID != "" &&
-			nextSessionID != currentSessionID &&
-			(nextSessionID != "" || normalized.Status.Normalize() != taskpkg.TaskRunStatusQueued) &&
-			!allowsManagedTaskRunStartSessionTransfer(current, normalized) {
-			return taskpkg.ErrSessionAlreadyBound
-		}
-		if normalized.QueuedAt.IsZero() {
-			normalized.QueuedAt = current.QueuedAt
-		}
-		if err := g.ensureTaskExistsWithExecutor(ctx, exec, normalized.TaskID); err != nil {
-			return err
-		}
-		if err := updateTaskRunRecordWithExecutor(ctx, exec, normalized); err != nil {
-			return err
-		}
-		if err := updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, current, normalized); err != nil {
-			return err
-		}
-		return replaceTaskRunCapabilitiesWithExecutor(ctx, exec, normalized)
-	})
+		settlement.Run = normalized
+		return nil
+	}); err != nil {
+		return taskpkg.CompletedRunSettlement{}, err
+	}
+	return settlement, nil
+}
+
+func (g *TaskRepo) updateTaskRunWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	normalized taskpkg.Run,
+) error {
+	current, err := g.getTaskRunWithExecutor(ctx, exec, normalized.ID)
+	if err != nil {
+		return err
+	}
+	currentSessionID := strings.TrimSpace(current.SessionID)
+	nextSessionID := strings.TrimSpace(normalized.SessionID)
+	if currentSessionID != "" &&
+		nextSessionID != currentSessionID &&
+		(nextSessionID != "" || normalized.Status.Normalize() != taskpkg.TaskRunStatusQueued) &&
+		!allowsManagedTaskRunStartSessionTransfer(current, normalized) {
+		return taskpkg.ErrSessionAlreadyBound
+	}
+	if normalized.QueuedAt.IsZero() {
+		normalized.QueuedAt = current.QueuedAt
+	}
+	if err := g.ensureTaskExistsWithExecutor(ctx, exec, normalized.TaskID); err != nil {
+		return err
+	}
+	if err := updateTaskRunRecordWithExecutor(ctx, exec, normalized); err != nil {
+		return err
+	}
+	if err := updateTaskCurrentRunProjectionForRunUpdate(ctx, exec, current, normalized); err != nil {
+		return err
+	}
+	return replaceTaskRunCapabilitiesWithExecutor(ctx, exec, normalized)
 }
 
 func updateTaskRunRecordWithExecutor(

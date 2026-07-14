@@ -340,7 +340,8 @@ func StatusForAutomationError(err error) int {
 		errors.Is(err, automationpkg.ErrRunNotFound),
 		errors.Is(err, automationpkg.ErrWebhookTriggerNotRegistered),
 		errors.Is(err, automationpkg.ErrJobOverlayNotFound),
-		errors.Is(err, automationpkg.ErrTriggerOverlayNotFound):
+		errors.Is(err, automationpkg.ErrTriggerOverlayNotFound),
+		errors.Is(err, looppkg.ErrDefinitionNotFound):
 		return http.StatusNotFound
 	case errors.Is(err, automationpkg.ErrJobNameTaken),
 		errors.Is(err, automationpkg.ErrTriggerNameTaken),

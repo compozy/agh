@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
 import { AutomationApiError } from "@/systems/automation";
-import { localInputToDate, toRfc3339 } from "@/systems/automation/lib/cron-engine";
 import type {
   AutomationScopeFilter,
   AutomationSource,
@@ -58,7 +57,7 @@ export function buildEmptyState({
     return {
       actionLabel: "Create Job",
       description:
-        "Scheduled jobs dispatch prompts to agents on a time-based cadence. Create your first job to start automating.",
+        "Scheduled jobs run an agent, materialize a task, or start a Loop on a time-based cadence. Create your first job to start automating.",
       icon: "jobs" as const,
       onAction: onCreate,
       title: "No jobs configured",
@@ -68,7 +67,7 @@ export function buildEmptyState({
   return {
     actionLabel: "Create Trigger",
     description:
-      "Event-driven triggers react to daemon events, webhooks, and extension signals. Create your first trigger to enable reactive automation.",
+      "Event-driven triggers react to daemon events, webhooks, and extension signals, then run their configured target. Create your first trigger to enable reactive automation.",
     icon: "triggers" as const,
     onAction: onCreate,
     title: "No triggers configured",
@@ -99,19 +98,6 @@ export function automationUnavailableMessage(
   }
 
   return null;
-}
-
-export function normalizeAutomationSchedule(
-  schedule: CreateAutomationJobRequest["schedule"]
-): CreateAutomationJobRequest["schedule"] {
-  if (schedule.mode !== "at") {
-    return schedule;
-  }
-
-  return {
-    ...schedule,
-    time: toRfc3339(localInputToDate(schedule.time ?? "")),
-  };
 }
 
 export function useAutomationPageBase(

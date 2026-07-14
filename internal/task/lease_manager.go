@@ -191,7 +191,7 @@ func (m *Service) CompleteRunLease(
 		return nil, err
 	}
 	normalized.Actor = actor
-	run, err := m.store.CompleteRunLease(ctx, normalized)
+	settlement, err := m.store.CompleteRunLeaseSettlement(ctx, normalized)
 	if err != nil {
 		if hallucinated, ok := errors.AsType[*HallucinatedTaskRefsError](err); ok {
 			if eventErr := m.recordCompletionHallucinationBlocked(ctx, hallucinated, actor); eventErr != nil {
@@ -200,24 +200,7 @@ func (m *Service) CompleteRunLease(
 		}
 		return nil, err
 	}
-	reconciledTask, err := m.reconcileTaskCascade(ctx, run.TaskID, actor)
-	if err != nil {
-		return nil, err
-	}
-	m.dispatchTerminalWake(ctx, reconciledTask, run, actor)
-	advisoryCtx, advisoryCancel := context.WithTimeout(context.WithoutCancel(ctx), autoEnqueueDispatchTimeout)
-	defer advisoryCancel()
-	m.recordCompletionHallucinationSuspected(advisoryCtx, run, actor)
-	m.dispatchTaskRunCompleted(ctx, run, reconciledTask, actor)
-	if !run.IsLoopWorker() {
-		autoCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), autoEnqueueDispatchTimeout)
-		defer cancel()
-		m.autoEnqueueReadyDependents(autoCtx, run.TaskID, autoEnqueueTrigger{
-			Kind: autoEnqueueTriggerDependencyCompletion,
-			Ref:  run.ID,
-		}, actor)
-	}
-	return &run, nil
+	return m.publishCompletedLeaseSettlement(ctx, &settlement, actor)
 }
 
 func (m *Service) recordCompletionHallucinationBlocked(

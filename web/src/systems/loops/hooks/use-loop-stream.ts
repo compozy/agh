@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { LOOP_RUN_EVENT_KINDS, LOOP_RUN_LIFECYCLE_EVENT_KINDS } from "@/generated/loop-enums";
 
 import { buildLoopStreamUrl } from "../adapters/loops-api";
+import { isTerminalLoopStatus } from "../lib/loop-formatters";
 import { loopsKeys } from "../lib/query-keys";
 import type { LoopRunEventFrame, LoopRunEventKind } from "../types";
 
@@ -45,6 +46,14 @@ const LOOP_LIFECYCLE_EVENT_KINDS = new Set<LoopRunEventKind>(
 
 function isLifecycleKind(kind: string): boolean {
   return LOOP_LIFECYCLE_EVENT_KINDS.has(kind as LoopRunEventKind);
+}
+
+function isTerminalStatusFrame(kind: string, frame: LoopRunEventFrame): boolean {
+  if (kind !== "status_changed" || typeof frame.payload !== "object" || frame.payload === null) {
+    return false;
+  }
+  const status = (frame.payload as Record<string, unknown>).status;
+  return typeof status === "string" && isTerminalLoopStatus(status);
 }
 
 function defaultEventSourceFactory(url: string): LoopStreamEventSource {
@@ -165,6 +174,9 @@ export function useLoopStream(
         );
       }
       notifyEvent(payload);
+      if (isTerminalStatusFrame(kind, payload)) {
+        source.close();
+      }
     };
 
     const handleError = (event: Event) => {

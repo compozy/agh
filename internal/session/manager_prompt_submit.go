@@ -37,6 +37,9 @@ func (m *Manager) submitPromptInReservedSlot(
 	message string,
 	turnState *promptTurnDispatchState,
 ) (<-chan acp.AgentEvent, error) {
+	if err := m.ensureAutomaticSessionTitle(ctx, session, req.authoredMessage); err != nil {
+		return nil, err
+	}
 	session.setCurrentTurnID(req.turnID)
 	session.setCurrentTurnSource(turnState.turnSource)
 	session.setCurrentPromptMeta(req.meta)
@@ -53,9 +56,8 @@ func (m *Manager) submitPromptInReservedSlot(
 		}
 	}()
 
-	recordReq := req
-	recordReq.message = message
-	if err := m.recordPromptInputEvent(ctx, session, recordReq); err != nil {
+	req.message = message
+	if err := m.recordPromptInputEvent(ctx, session, &req); err != nil {
 		return nil, err
 	}
 	dispatchMessage, err := m.promptDispatchMessage(ctx, session, message)

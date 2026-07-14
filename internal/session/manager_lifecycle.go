@@ -152,7 +152,7 @@ func (m *Manager) handleProcessExit(ctx context.Context, session *Session, waitE
 	return m.finalizeStopped(ctx, session, waitErr)
 }
 
-func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr error) error {
+func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr error) (err error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -164,7 +164,7 @@ func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr
 		return err
 	}
 
-	defer m.finishFinalization(session.ID)
+	defer func() { m.finishFinalization(session.ID, err) }()
 
 	var errs []error
 	errs = appendLifecycleErr(errs, m.beginStoppingSession(ctx, session))
@@ -228,20 +228,6 @@ func (m *Manager) resolveStartMCPServers(
 	}
 
 	return aghconfig.MergeMCPServers(base, m.mcpResolver.Resolve(activeSkills)), nil
-}
-
-func (m *Manager) claimOrWaitFinalization(ctx context.Context, session *Session) (bool, error) {
-	owned, done := m.claimFinalization(session)
-	if owned || done == nil {
-		return owned, nil
-	}
-
-	select {
-	case <-done:
-		return false, nil
-	case <-ctx.Done():
-		return false, ctx.Err()
-	}
 }
 
 func appendLifecycleErr(errs []error, err error) []error {

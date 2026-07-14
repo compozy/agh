@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 
 import { Card, MetadataList, Pill, Section, Skeleton } from "@agh/ui";
 
-import type { SessionPayload } from "@/systems/session";
+import { getSessionDisplayTitle, type SessionPayload } from "@/systems/session";
 
 import {
   formatAbsentListLabels,
@@ -177,7 +177,7 @@ export function AgentOverviewTab({
                         >
                           <span className="min-w-0">
                             <span className="block truncate text-body font-medium text-fg-strong">
-                              {session.name || session.id}
+                              {getSessionDisplayTitle(session)}
                             </span>
                             {detail ? (
                               <span className="mt-1 block font-mono text-badge tracking-mono text-muted">

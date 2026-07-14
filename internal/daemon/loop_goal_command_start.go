@@ -23,7 +23,7 @@ func (s *daemonLoopAPIService) startSessionGoal(
 	if err != nil {
 		return s.commandErrorDecision(ctx, workspaceID, sessionID, err)
 	}
-	origin, agent, maxTurns, decision, err := s.prepareSessionGoalDefinition(
+	prepared, decision, err := s.prepareSessionGoalDefinition(
 		ctx,
 		workspaceID,
 		sessionID,
@@ -31,13 +31,18 @@ func (s *daemonLoopAPIService) startSessionGoal(
 	if err != nil || decision.Result != nil {
 		return decision, err
 	}
-	definition := buildSessionGoalDefinition(contract, agent, maxTurns)
+	definition := buildSessionGoalDefinition(
+		contract,
+		prepared.agentName,
+		prepared.judgeModel,
+		prepared.maxTurns,
+	)
 	run, err := s.aggregate.StartInline(
 		ctx,
 		looppkg.WorkspaceID(strings.TrimSpace(workspaceID)),
 		definition,
 		looppkg.Inputs{},
-		origin,
+		prepared.origin,
 		actor,
 	)
 	if err != nil {
@@ -62,7 +67,7 @@ func (s *daemonLoopAPIService) replaceSessionGoal(
 	if err != nil {
 		return s.commandErrorDecision(ctx, workspaceID, sessionID, err)
 	}
-	origin, agent, maxTurns, decision, err := s.prepareSessionGoalDefinition(
+	prepared, decision, err := s.prepareSessionGoalDefinition(
 		ctx,
 		workspaceID,
 		sessionID,
@@ -70,14 +75,19 @@ func (s *daemonLoopAPIService) replaceSessionGoal(
 	if err != nil || decision.Result != nil {
 		return decision, err
 	}
-	definition := buildSessionGoalDefinition(contract, agent, maxTurns)
+	definition := buildSessionGoalDefinition(
+		contract,
+		prepared.agentName,
+		prepared.judgeModel,
+		prepared.maxTurns,
+	)
 	replaced, err := s.aggregate.ReplaceInline(
 		ctx,
 		looppkg.RunID(strings.TrimSpace(expectedRunID)),
 		looppkg.WorkspaceID(strings.TrimSpace(workspaceID)),
 		definition,
 		looppkg.Inputs{},
-		origin,
+		prepared.origin,
 		actor,
 	)
 	if err != nil {
@@ -94,23 +104,34 @@ func (s *daemonLoopAPIService) replaceSessionGoal(
 	return goalCommandSuccessDecision(session.GoalOutcomeReplaced, snapshot, &replacedRunID), nil
 }
 
+type sessionGoalDefinitionInput struct {
+	origin     looppkg.RunOrigin
+	agentName  string
+	judgeModel string
+	maxTurns   int
+}
+
+type sessionGoalOriginDetails struct {
+	origin      looppkg.RunOrigin
+	profile     store.SessionCreationProfile
+	activeModel string
+}
+
 func (s *daemonLoopAPIService) prepareSessionGoalDefinition(
 	ctx context.Context,
 	workspaceID string,
 	sessionID string,
 ) (
-	looppkg.RunOrigin,
-	string,
-	int,
+	sessionGoalDefinitionInput,
 	session.GoalDispatchDecision,
 	error,
 ) {
-	origin, profile, reason, err := s.sessionGoalOrigin(ctx, workspaceID, sessionID)
+	details, reason, err := s.sessionGoalOrigin(ctx, workspaceID, sessionID)
 	if err != nil {
-		return looppkg.RunOrigin{}, "", 0, session.GoalDispatchDecision{}, err
+		return sessionGoalDefinitionInput{}, session.GoalDispatchDecision{}, err
 	}
 	if reason != "" {
-		return looppkg.RunOrigin{}, "", 0, goalCommandErrorDecision(reason, nil), nil
+		return sessionGoalDefinitionInput{}, goalCommandErrorDecision(reason, nil), nil
 	}
 	cfg, err := resolveLoopServiceConfig(
 		ctx,
@@ -119,80 +140,102 @@ func (s *daemonLoopAPIService) prepareSessionGoalDefinition(
 		looppkg.WorkspaceID(strings.TrimSpace(workspaceID)),
 	)
 	if err != nil {
-		return looppkg.RunOrigin{}, "", 0, session.GoalDispatchDecision{}, err
+		return sessionGoalDefinitionInput{}, session.GoalDispatchDecision{}, err
 	}
-	return origin, profile.AgentName, cfg.Goals.MaxTurns, session.GoalDispatchDecision{}, nil
+	judgeModel := strings.TrimSpace(details.profile.Model)
+	if judgeModel == "" {
+		judgeModel = strings.TrimSpace(details.activeModel)
+	}
+	return sessionGoalDefinitionInput{
+		origin:     details.origin,
+		agentName:  details.profile.AgentName,
+		judgeModel: judgeModel,
+		maxTurns:   cfg.Goals.MaxTurns,
+	}, session.GoalDispatchDecision{}, nil
 }
 
 func (s *daemonLoopAPIService) sessionGoalOrigin(
 	ctx context.Context,
 	workspaceID string,
 	sessionID string,
-) (looppkg.RunOrigin, store.SessionCreationProfile, session.GoalReasonCode, error) {
+) (sessionGoalOriginDetails, session.GoalReasonCode, error) {
 	if s.sessionStatus == nil {
-		return looppkg.RunOrigin{}, store.SessionCreationProfile{}, "", errors.New(
+		return sessionGoalOriginDetails{}, "", errors.New(
 			"daemon: Goal origin session reader is unavailable",
 		)
 	}
 	info, err := s.sessionStatus.Status(ctx, strings.TrimSpace(sessionID))
 	if err != nil {
 		if errors.Is(err, store.ErrSessionNotFound) {
-			return looppkg.RunOrigin{}, store.SessionCreationProfile{},
+			return sessionGoalOriginDetails{},
 				session.GoalReasonCode(looppkg.ReasonCodeGoalOriginInvalid), nil
 		}
-		return looppkg.RunOrigin{}, store.SessionCreationProfile{}, "", fmt.Errorf(
+		return sessionGoalOriginDetails{}, "", fmt.Errorf(
 			"daemon: read Goal origin session %q: %w",
 			sessionID,
 			err,
 		)
 	}
 	if info == nil || info.State != session.StateActive {
-		return looppkg.RunOrigin{}, store.SessionCreationProfile{},
+		return sessionGoalOriginDetails{},
 			session.GoalReasonCode(looppkg.ReasonCodeGoalOriginInvalid), nil
 	}
 	if strings.TrimSpace(info.WorkspaceID) != strings.TrimSpace(workspaceID) {
-		return looppkg.RunOrigin{}, store.SessionCreationProfile{},
+		return sessionGoalOriginDetails{},
 			session.GoalReasonCode(looppkg.ReasonCodeGoalOriginWorkspaceMismatch), nil
 	}
 	if s.creationStore == nil {
-		return looppkg.RunOrigin{}, store.SessionCreationProfile{},
+		return sessionGoalOriginDetails{},
 			session.GoalReasonCode(looppkg.ReasonCodeGoalOriginProfileUnavailable), nil
 	}
 	identity, err := s.creationStore.GetSessionCreationIdentity(ctx, info.ID)
 	if err != nil {
 		if errors.Is(err, store.ErrSessionNotFound) {
-			return looppkg.RunOrigin{}, store.SessionCreationProfile{},
+			return sessionGoalOriginDetails{},
 				session.GoalReasonCode(looppkg.ReasonCodeGoalOriginProfileUnavailable), nil
 		}
-		return looppkg.RunOrigin{}, store.SessionCreationProfile{}, "", err
+		return sessionGoalOriginDetails{}, "", fmt.Errorf(
+			"daemon: read Goal origin creation identity for session %q: %w",
+			info.ID,
+			err,
+		)
 	}
 	if err := identity.Validate(); err != nil {
-		return looppkg.RunOrigin{}, store.SessionCreationProfile{},
+		return sessionGoalOriginDetails{},
 			session.GoalReasonCode(looppkg.ReasonCodeGoalOriginProfileUnavailable), nil
 	}
 	profile, err := s.creationStore.GetSessionCreationProfile(ctx, identity.CreationProfileRef)
 	if err != nil {
 		if errors.Is(err, store.ErrSessionNotFound) {
-			return looppkg.RunOrigin{}, store.SessionCreationProfile{},
+			return sessionGoalOriginDetails{},
 				session.GoalReasonCode(looppkg.ReasonCodeGoalOriginProfileUnavailable), nil
 		}
-		return looppkg.RunOrigin{}, store.SessionCreationProfile{}, "", err
+		return sessionGoalOriginDetails{}, "", fmt.Errorf(
+			"daemon: read Goal origin creation profile %q: %w",
+			identity.CreationProfileRef,
+			err,
+		)
 	}
-	if err := validateSessionGoalProfile(profile, identity, workspaceID); err != nil {
-		return looppkg.RunOrigin{}, store.SessionCreationProfile{},
+	if err := validateSessionGoalProfile(profile, identity, info, workspaceID); err != nil {
+		return sessionGoalOriginDetails{},
 			session.GoalReasonCode(looppkg.ReasonCodeGoalOriginProfileUnavailable), nil
 	}
-	return looppkg.RunOrigin{
-		Kind: looppkg.RunOriginSession, SessionID: info.ID,
-		CreationProfileRef: identity.CreationProfileRef,
-		PolicySpecDigest:   identity.PolicySpecDigest,
-		CreationDigest:     identity.CreationDigest,
-	}, profile, "", nil
+	return sessionGoalOriginDetails{
+		origin: looppkg.RunOrigin{
+			Kind: looppkg.RunOriginSession, SessionID: info.ID,
+			CreationProfileRef: identity.CreationProfileRef,
+			PolicySpecDigest:   identity.PolicySpecDigest,
+			CreationDigest:     identity.CreationDigest,
+		},
+		profile:     profile,
+		activeModel: info.Model,
+	}, "", nil
 }
 
 func validateSessionGoalProfile(
 	profile store.SessionCreationProfile,
 	identity store.SessionCreationIdentity,
+	info *session.Info,
 	workspaceID string,
 ) error {
 	profile = store.NormalizeSessionCreationProfile(profile)
@@ -209,7 +252,9 @@ func validateSessionGoalProfile(
 	}
 	if profileRef != strings.TrimSpace(identity.CreationProfileRef) ||
 		policyDigest != strings.TrimSpace(identity.PolicySpecDigest) ||
-		profile.WorkspaceID != strings.TrimSpace(workspaceID) {
+		profile.WorkspaceID != strings.TrimSpace(workspaceID) ||
+		info == nil || profile.AgentName != strings.TrimSpace(info.AgentName) ||
+		profile.Provider != strings.TrimSpace(info.Provider) {
 		return fmt.Errorf("%w: Goal origin creation profile identity is inconsistent", looppkg.ErrValidation)
 	}
 	return nil

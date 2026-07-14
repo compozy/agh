@@ -78,7 +78,7 @@ function LoopConfigureRoute() {
       onOpenChange={next => {
         if (!next) close();
       }}
-      onFork={() => void navigate({ to: "/loops/$name/editor", params: { name } })}
+      onOpenEditor={() => void navigate({ to: "/loops/$name/editor", params: { name } })}
     />
   );
 }

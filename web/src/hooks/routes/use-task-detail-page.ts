@@ -7,7 +7,9 @@ import {
   usePauseTask,
   usePublishTask,
   useRecoverTask,
+  useRecoverTaskRun,
   useResumeTask,
+  taskRunCanRecover,
   useTask,
   useTaskInspect,
   useTaskRuns,
@@ -98,7 +100,8 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
   const enqueueMutation = useEnqueueTaskRun();
   const pauseMutation = usePauseTask();
   const resumeMutation = useResumeTask();
-  const recoverMutation = useRecoverTask();
+  const recoverTaskMutation = useRecoverTask();
+  const recoverRunMutation = useRecoverTaskRun();
 
   const detail = detailQuery.data ?? null;
   const runs = runsQuery.data ?? [];
@@ -107,6 +110,9 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
   const inspect = inspectQuery.data ?? null;
 
   const activeRun = detail?.summary?.active_run ?? null;
+  const activeRunNeedsAttention = activeRun?.status === "needs_attention";
+  const recoverableRunId =
+    activeRun && taskRunCanRecover(activeRun, detail?.task.max_attempts) ? activeRun.id : null;
   const isLive = isRunActive(activeRun?.status ?? null);
 
   // Keep the always-visible header/overview surfaces (status, blocked-reasons,
@@ -214,13 +220,23 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
   };
 
   const handleRecoverTask = async () => {
-    if (!hasTaskId) {
+    if (
+      !hasTaskId ||
+      (activeRunNeedsAttention && !recoverableRunId) ||
+      recoverTaskMutation.isPending ||
+      recoverRunMutation.isPending
+    ) {
       return;
     }
 
     try {
-      await recoverMutation.mutateAsync({ id: taskId });
-      toast.success("Task recovered.");
+      if (recoverableRunId) {
+        await recoverRunMutation.mutateAsync({ runId: recoverableRunId, taskId });
+        toast.success("Run recovered.");
+      } else {
+        await recoverTaskMutation.mutateAsync({ id: taskId });
+        toast.success("Task recovered.");
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to recover task";
       toast.error(message);
@@ -251,7 +267,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
     isLive,
     isPausePending: pauseMutation.isPending,
     isPublishPending: publishMutation.isPending,
-    isRecoverPending: recoverMutation.isPending,
+    isRecoverPending: recoverTaskMutation.isPending || recoverRunMutation.isPending,
     isResumePending: resumeMutation.isPending,
     isTimelineSaturated,
     inspect,

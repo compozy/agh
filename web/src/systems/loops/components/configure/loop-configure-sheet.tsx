@@ -15,8 +15,8 @@ interface LoopConfigureSheetProps {
   loop: LoopDetail;
   config: LoopConfig | null;
   onOpenChange: (open: boolean) => void;
-  /** Opens the fork-and-edit builder for the structural edits the sheet can't make. */
-  onFork?: () => void;
+  /** Opens the builder for structural edits. */
+  onOpenEditor?: () => void;
 }
 
 /**
@@ -24,7 +24,7 @@ interface LoopConfigureSheetProps {
  * writes the per-loop `loop_config` store (verification-check toggles + command overrides, the
  * human-approval-gate flag, the re-attempt strategy, and the 6 clamped limit overrides).
  * Structural fields (node order / kinds / inputs / contract / goal) are non-editable here —
- * they need a fork (ADR-009). There is NO cost-cap field; cost is display-only (ADR-017).
+ * they belong in the builder (ADR-009). There is NO cost-cap field; cost is display-only (ADR-017).
  */
 export function LoopConfigureSheet({
   open,
@@ -32,7 +32,7 @@ export function LoopConfigureSheet({
   loop,
   config,
   onOpenChange,
-  onFork,
+  onOpenEditor,
 }: LoopConfigureSheetProps) {
   const model = useLoopConfigure({
     workspaceId,
@@ -83,17 +83,17 @@ export function LoopConfigureSheet({
             data-testid="loop-configure-structural-note"
           >
             Adjust how this loop runs without changing its structure. Steps, inputs, node kinds and
-            the goal stay fixed. To change those,{" "}
+            the goal stay fixed here. To change those,{" "}
             <button
               type="button"
-              onClick={onFork}
-              disabled={!onFork || model.busy}
+              onClick={onOpenEditor}
+              disabled={!onOpenEditor || model.busy}
               className="font-medium text-accent-strong underline-offset-2 hover:underline disabled:no-underline disabled:opacity-70"
-              data-testid="loop-configure-fork-link"
+              data-testid="loop-configure-edit-link"
             >
-              Fork &amp; edit
+              {loop.source === "workspace" ? "Edit" : "Fork & edit"}
             </button>{" "}
-            the body instead.
+            the definition in the builder.
           </p>
 
           <ConfigureGroup label="Review gate" lock="declared in the loop">

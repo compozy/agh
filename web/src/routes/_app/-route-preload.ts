@@ -52,6 +52,20 @@ export async function adoptRouteWorkspaceWhenSelectionInvalid(
   }
 }
 
+export async function selectRouteWorkspaceForNavigation(
+  queryClient: QueryClient,
+  routeWorkspaceId: string
+): Promise<void> {
+  const [hydrationResult, workspacesResult] = await loadWorkspaceSelection(queryClient);
+  if (hydrationResult.status === "rejected" || workspacesResult.status === "rejected") {
+    return;
+  }
+  if (!workspacesResult.value.some(workspace => workspace.id === routeWorkspaceId)) {
+    return;
+  }
+  useActiveWorkspaceStore.getState().setSelectedWorkspaceId(routeWorkspaceId);
+}
+
 function loadWorkspaceSelection(queryClient: QueryClient) {
   const hydration = useActiveWorkspaceStore.persist.hasHydrated()
     ? Promise.resolve()

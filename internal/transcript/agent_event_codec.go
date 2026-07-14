@@ -12,16 +12,28 @@ import (
 
 // MarshalAgentEvent converts a runtime ACP event into the canonical stored payload.
 func MarshalAgentEvent(event acp.AgentEvent) (string, error) {
+	return marshalAgentEvent(event, "")
+}
+
+// MarshalPromptInputEvent preserves the exact authored text alongside the
+// effective input sent through prompt hooks.
+func MarshalPromptInputEvent(event acp.AgentEvent, authoredText string) (string, error) {
+	return marshalAgentEvent(event, authoredText)
+}
+
+func marshalAgentEvent(event acp.AgentEvent, authoredText string) (string, error) {
 	typedToolPayload := event.HasToolPayload()
 	payload := canonicalEventPayload{
 		Schema:            CanonicalSchema,
 		Type:              event.Type,
 		SessionID:         event.SessionID,
 		TurnID:            event.TurnID,
+		ClientMessageID:   event.ClientMessageIDValue(),
 		RequestID:         event.RequestID,
 		EventCorrelation:  event.Normalize(),
 		Timestamp:         event.Timestamp,
 		Text:              event.Text,
+		AuthoredText:      authoredText,
 		Title:             event.Title,
 		ToolName:          event.ToolName(),
 		ToolCallID:        event.ToolCallID,
@@ -121,6 +133,9 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Usage:            decoded.Usage,
 		Runtime:          cloneRuntimeActivity(decoded.Runtime),
 		Raw:              acp.CloneRawMessage(decoded.Raw),
+	}
+	if clientMessageID := strings.TrimSpace(decoded.ClientMessageID); clientMessageID != "" {
+		event.ClientMessageID = &clientMessageID
 	}
 	toolErrorDetail := ""
 	if event.Type == acp.EventTypeToolResult && decoded.ToolResult != nil {

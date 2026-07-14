@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/dsl"
 	"github.com/compozy/agh/internal/loop/gate"
 )
@@ -68,6 +69,7 @@ type JudgeRequest struct {
 	Key       TurnKey
 	Turn      int
 	Criteria  []dsl.GateCriterion
+	Result    loop.ActionPromptResult
 }
 
 // JudgeResult carries the evaluator verdict and nullable-token truth.

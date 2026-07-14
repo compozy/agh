@@ -1,6 +1,7 @@
 package devcycle
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -86,6 +87,9 @@ func importMarkdownTasks(pattern string) (markdownTasksImportResult, error) {
 	}
 	manifest, err := readCompozyTaskManifest(tasksDir)
 	if err != nil {
+		if len(matches) == 0 && errors.Is(err, os.ErrNotExist) {
+			return markdownTasksImportResult{}, &taskSetNotFoundError{Pattern: pattern}
+		}
 		return markdownTasksImportResult{}, err
 	}
 	if err := validateCompozyTaskManifest(tasksDir, manifest, matches); err != nil {

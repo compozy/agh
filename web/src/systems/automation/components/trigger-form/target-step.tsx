@@ -1,5 +1,5 @@
 import { PillGroup } from "@agh/ui";
-import { LoopTargetFields, type LoopTargetDraft } from "@/systems/loops";
+import { LoopTargetFields, type LoopTargetCatalog, type LoopTargetDraft } from "@/systems/loops";
 
 import type { AutomationTargetMode } from "../../lib/automation-drafts";
 import { AgentPromptStep } from "./agent-prompt-step";
@@ -15,7 +15,8 @@ interface TriggerTargetStepProps {
   onAgentChange: (next: string) => void;
   onPromptChange: (next: string) => void;
   /** Loop-mode fields. */
-  workspaceId: string;
+  catalog: LoopTargetCatalog;
+  editorMode: "create" | "edit";
   loopTarget: LoopTargetDraft;
   onLoopTargetChange: (next: LoopTargetDraft) => void;
 }
@@ -39,7 +40,8 @@ export function TriggerTargetStep({
   variables,
   onAgentChange,
   onPromptChange,
-  workspaceId,
+  catalog,
+  editorMode,
   loopTarget,
   onLoopTargetChange,
 }: TriggerTargetStepProps) {
@@ -54,7 +56,8 @@ export function TriggerTargetStep({
       />
       {mode === "loop" ? (
         <LoopTargetFields
-          workspaceId={workspaceId}
+          catalog={catalog}
+          mode={editorMode}
           value={loopTarget}
           onChange={onLoopTargetChange}
           showMapping

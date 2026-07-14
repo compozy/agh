@@ -56,12 +56,14 @@ type TurnFixture struct {
 	StopReason string    `json:"stop_reason,omitempty"`
 }
 
-// TurnMatch routes a prompt to a turn fixture using exact stable fields only.
+// TurnMatch routes a prompt to a turn fixture using stable prompt fields.
 type TurnMatch struct {
-	TurnSource string            `json:"turn_source,omitempty"`
-	UserText   string            `json:"user_text,omitempty"`
-	Occurrence int               `json:"occurrence,omitempty"`
-	Network    *TurnMatchNetwork `json:"network,omitempty"`
+	TurnSource       string            `json:"turn_source,omitempty"`
+	UserText         string            `json:"user_text,omitempty"`
+	UserTextContains string            `json:"user_text_contains,omitempty"`
+	Occurrence       int               `json:"occurrence,omitempty"`
+	GlobalOccurrence int               `json:"global_occurrence,omitempty"`
+	Network          *TurnMatchNetwork `json:"network,omitempty"`
 }
 
 // TurnMatchNetwork captures exact AGH network envelope field matching.

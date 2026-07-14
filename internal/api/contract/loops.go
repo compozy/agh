@@ -404,31 +404,32 @@ type LoopGraph struct {
 }
 
 type LoopGraphNode struct {
-	ID            string              `json:"id"`
-	Class         LoopNodeClass       `json:"class"`
-	Kind          string              `json:"kind"`
-	Session       map[string]any      `json:"session,omitempty"`
-	Timeout       string              `json:"timeout,omitempty"`
-	Retry         map[string]any      `json:"retry,omitempty"`
-	Harvest       map[string]any      `json:"harvest,omitempty"`
-	Produces      map[string]any      `json:"produces,omitempty"`
-	Params        map[string]any      `json:"params,omitempty"`
-	Collection    string              `json:"collection,omitempty"`
-	Filter        string              `json:"filter,omitempty"`
-	BatchSize     int                 `json:"batch_size,omitempty"`
-	MaxParallel   int                 `json:"max_parallel,omitempty"`
-	MaxFanOut     int                 `json:"max_fan_out,omitempty"`
-	Condition     string              `json:"condition,omitempty"`
-	Criteria      []LoopGateCriterion `json:"criteria,omitempty"`
-	VerdictPolicy string              `json:"verdict_policy,omitempty"`
-	OnResult      map[string]any      `json:"on_result,omitempty"`
-	MaxRevisions  int                 `json:"max_revisions,omitempty"`
-	Body          *LoopGraph          `json:"body,omitempty"`
-	Contract      *LoopContract       `json:"contract,omitempty"`
-	InputRef      string              `json:"input_ref,omitempty"`
-	Pattern       string              `json:"pattern,omitempty"`
-	Parse         string              `json:"parse,omitempty"`
-	WatchSpec     map[string]any      `json:"watch,omitempty"`
+	ID            string                       `json:"id"`
+	Class         LoopNodeClass                `json:"class"`
+	Kind          string                       `json:"kind"`
+	Session       map[string]any               `json:"session,omitempty"`
+	Timeout       string                       `json:"timeout,omitempty"`
+	Retry         map[string]any               `json:"retry,omitempty"`
+	Harvest       map[string]any               `json:"harvest,omitempty"`
+	Produces      map[string]any               `json:"produces,omitempty"`
+	Params        map[string]any               `json:"params,omitempty"`
+	Collection    string                       `json:"collection,omitempty"`
+	Filter        string                       `json:"filter,omitempty"`
+	BatchSize     int                          `json:"batch_size,omitempty"`
+	MaxParallel   int                          `json:"max_parallel,omitempty"`
+	MaxFanOut     int                          `json:"max_fan_out,omitempty"`
+	Condition     string                       `json:"condition,omitempty"`
+	Criteria      []LoopGateCriterion          `json:"criteria,omitempty"`
+	VerdictPolicy string                       `json:"verdict_policy,omitempty"`
+	OnResult      map[string]any               `json:"on_result,omitempty"`
+	MaxRevisions  int                          `json:"max_revisions,omitempty"`
+	Body          *LoopGraph                   `json:"body,omitempty"`
+	Contract      *LoopContract                `json:"contract,omitempty"`
+	InputRef      string                       `json:"input_ref,omitempty"`
+	Pattern       string                       `json:"pattern,omitempty"`
+	Parse         string                       `json:"parse,omitempty"`
+	WatchSpec     map[string]any               `json:"watch,omitempty"`
+	Events        []LoopWatchEventSubscription `json:"events,omitempty"`
 }
 
 type LoopGateCriterion struct {

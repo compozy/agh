@@ -89,13 +89,14 @@ const (
 
 // ListOptions filters persisted catalog source rows.
 type ListOptions struct {
-	ProviderID   string
-	SourceID     string
-	View         CatalogView
-	Refresh      bool
-	IncludeAll   bool
-	IncludeStale bool
-	Now          time.Time
+	ProviderID         string
+	SourceID           string
+	View               CatalogView
+	Refresh            bool
+	SkipRefreshIfEmpty bool
+	IncludeAll         bool
+	IncludeStale       bool
+	Now                time.Time
 }
 
 // RefreshOptions controls a model catalog refresh request.

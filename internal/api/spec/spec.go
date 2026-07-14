@@ -292,7 +292,7 @@ func Document() (*openapi3.T, error) {
 	return doc, nil
 }
 
-var operationRegistry = []OperationSpec{
+var operationRegistry = append([]OperationSpec{
 	{
 		Method:      httpMethodGet,
 		Path:        "/api/resources",
@@ -2932,7 +2932,6 @@ var operationRegistry = []OperationSpec{
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	},
-	sessionCatalogListOperation(),
 	{
 		Method:      httpMethodPost,
 		Path:        "/api/sessions",
@@ -5351,7 +5350,7 @@ var operationRegistry = []OperationSpec{
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	},
-}
+}, sessionCatalogOperations()...)
 
 // Operations returns the canonical REST operation registry in deterministic order.
 func notificationPresetOperations() []OperationSpec {

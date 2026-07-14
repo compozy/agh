@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { useCreateChildTask, useCreateTask, useEnqueueTaskRun } from "@/systems/tasks";
 import {
+  applyTaskTemplateToEditorDraft,
   buildCreateChildTaskRequest,
   buildCreateTaskRequest,
   createTaskEditorDraft,
@@ -34,29 +35,41 @@ export function useTaskCreateRouteState(search: { template?: TaskTemplateId }) {
   const activeTaskScope = taskScopeForActiveWorkspace(activeWorkspace, userHomeDir);
   const createDraftWorkspaceId =
     activeTaskScope?.scope === "workspace" ? activeTaskScope.workspace : undefined;
-  const draftKey = `${templateId}:${createDraftWorkspaceId ?? "global"}`;
+  const draftKey = createDraftWorkspaceId ?? "global";
   const [draftState, setDraftState] = useState(() => ({
     draft: createTaskEditorDraft(templateId, createDraftWorkspaceId),
     key: draftKey,
+    templateId,
   }));
-  const draft =
-    draftState.key === draftKey
-      ? draftState.draft
-      : createTaskEditorDraft(templateId, createDraftWorkspaceId);
+
+  const resolveDraft = (state: typeof draftState, nextTemplateId: TaskTemplateId) => {
+    if (state.key !== draftKey) {
+      return createTaskEditorDraft(nextTemplateId, createDraftWorkspaceId);
+    }
+    if (state.templateId !== nextTemplateId) {
+      return applyTaskTemplateToEditorDraft(state.draft, nextTemplateId);
+    }
+    return state.draft;
+  };
+
+  const draft = resolveDraft(draftState, templateId);
   const setDraft = (update: SetStateAction<TaskEditorDraft>) => {
     setDraftState(current => {
-      const currentDraft =
-        current.key === draftKey
-          ? current.draft
-          : createTaskEditorDraft(templateId, createDraftWorkspaceId);
+      const currentDraft = resolveDraft(current, templateId);
       return {
         draft: typeof update === "function" ? update(currentDraft) : update,
         key: draftKey,
+        templateId,
       };
     });
   };
 
   const handleTemplateChange = (nextTemplateId: TaskTemplateId) => {
+    setDraftState(current => ({
+      draft: applyTaskTemplateToEditorDraft(resolveDraft(current, templateId), nextTemplateId),
+      key: draftKey,
+      templateId: nextTemplateId,
+    }));
     void navigate({
       to: "/tasks/new",
       search: () =>

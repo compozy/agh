@@ -147,7 +147,7 @@ function useHomePage(): HomePageView {
     isError: sessionsError,
   } = useSessions(activeWorkspaceId, {
     enabled: activeWorkspaceId !== null,
-    filters: { state: "active", limit: 1 },
+    filters: { state: "active", type: "user", limit: 1 },
   });
 
   const daemonStatus = deriveDaemonStatus(connectionStatus, health);

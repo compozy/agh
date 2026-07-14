@@ -226,18 +226,24 @@ func (h *BaseHandlers) DeleteWorkspace(c *gin.Context) {
 		return
 	}
 
-	stoppedSessionIDs, err := h.stoppedWorkspaceSessionIDs(c.Request.Context(), workspace.ID)
-	if err != nil {
-		h.respondError(c, StatusForWorkspaceError(err), err)
-		return
-	}
-
-	if err := h.Workspaces.Unregister(c.Request.Context(), workspace.ID); err != nil {
-		h.respondError(c, StatusForWorkspaceError(err), err)
-		return
-	}
-
-	if err := h.deleteStoppedWorkspaceSessions(c.Request.Context(), workspace.ID, stoppedSessionIDs); err != nil {
+	cleanupOwner, ownsSessionCleanup := h.Workspaces.(interface {
+		HasUnregisterPreparer() bool
+	})
+	if !ownsSessionCleanup || !cleanupOwner.HasUnregisterPreparer() {
+		stoppedSessionIDs, err := h.stoppedWorkspaceSessionIDs(c.Request.Context(), workspace.ID)
+		if err != nil {
+			h.respondError(c, StatusForWorkspaceError(err), err)
+			return
+		}
+		if err := h.Workspaces.Unregister(c.Request.Context(), workspace.ID); err != nil {
+			h.respondError(c, StatusForWorkspaceError(err), err)
+			return
+		}
+		if err := h.deleteStoppedWorkspaceSessions(c.Request.Context(), workspace.ID, stoppedSessionIDs); err != nil {
+			h.respondError(c, StatusForWorkspaceError(err), err)
+			return
+		}
+	} else if err := h.Workspaces.Unregister(c.Request.Context(), workspace.ID); err != nil {
 		h.respondError(c, StatusForWorkspaceError(err), err)
 		return
 	}

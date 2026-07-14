@@ -381,7 +381,7 @@ func parseEvent(sessionEvent store.SessionEvent) event {
 
 func parseCanonicalEvent(parsed event, payload map[string]any) event {
 	parsed.Type = firstNonEmpty(nestedString(payload, "type"), parsed.Type)
-	parsed.Text = nestedString(payload, "text")
+	parsed.Text = firstNonEmpty(nestedString(payload, "authored_text"), nestedString(payload, "text"))
 	parsed.StopReason = nestedString(payload, "stop_reason")
 	parsed.Error = nestedString(payload, "error")
 	parsed.Failure = sessionFailureFromValue(payload["failure"])

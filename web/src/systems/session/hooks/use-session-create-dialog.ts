@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -18,11 +18,21 @@ import type {
 import type { SessionProviderOption, WorkspacePayload } from "@/systems/workspace";
 import { useWorkspace } from "@/systems/workspace";
 
+import {
+  MODEL_CATALOG_PENDING,
+  validateSessionModelSelection,
+} from "../lib/session-model-selection";
+import type { SessionPayload } from "../types";
 import { useCreateSession } from "./use-session-actions";
 
 interface SessionCreateDialogContext {
   agents: AgentPayload[] | undefined;
   activeWorkspace: WorkspacePayload | undefined;
+}
+
+interface SessionNavigationTarget {
+  agentName: string;
+  sessionId: string;
 }
 
 export interface SessionCreateDialogDraft {
@@ -57,7 +67,7 @@ export interface SessionCreateDialogState {
 
 export interface SessionCreateDialogApi extends SessionCreateDialogState {
   openForAgent: (agentName: string) => void;
-  setOpen: (open: boolean) => void;
+  onOpenChange: (open: boolean) => void;
   onAgentChange: (agentName: string) => void;
   onRuntimeChange: (next: RuntimeSelectorValue) => void;
   refreshCatalog: () => void;
@@ -136,6 +146,17 @@ export function useSessionCreateDialog({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [pendingAgentName, setPendingAgentName] = useState<string | null>(null);
   const [pendingWorkspaceId, setPendingWorkspaceId] = useState<string | null>(null);
+  const [navigationTarget, setNavigationTarget] = useState<SessionNavigationTarget | null>(null);
+  const navigatedTarget = useRef<SessionNavigationTarget | null>(null);
+
+  useEffect(() => {
+    if (!navigationTarget || navigatedTarget.current === navigationTarget) return;
+    navigatedTarget.current = navigationTarget;
+    void navigate({
+      to: "/agents/$name/sessions/$id",
+      params: { name: navigationTarget.agentName, id: navigationTarget.sessionId },
+    });
+  }, [navigate, navigationTarget]);
 
   const agentList = agents ?? [];
   const selectedAgent = agentList.find(agent => agent.name === draft.agentName);
@@ -185,6 +206,15 @@ export function useSessionCreateDialog({
     reasoning_effort: selectedReasoning,
   };
 
+  const modelSelection = validateSessionModelSelection({
+    provider: selectedProvider,
+    model: effectiveSelectedModel,
+    models: runtimeModels,
+    catalogLoading: catalog.loading,
+    catalogLoaded: catalog.loaded,
+    catalogError: catalog.error,
+  });
+
   const catalogStale = catalog.stale;
   const catalogLoading = catalog.loading;
   const catalogLoaded = catalog.loaded;
@@ -208,7 +238,7 @@ export function useSessionCreateDialog({
     setOpenState(true);
   };
 
-  const setOpen = (next: boolean) => {
+  const handleOpenChange = (next: boolean) => {
     setOpenState(next);
     if (!next) {
       setSubmitError(null);
@@ -216,10 +246,12 @@ export function useSessionCreateDialog({
   };
 
   const onAgentChange = (agentName: string) => {
+    setSubmitError(null);
     setDraft({ agentName, providerOverride: "", modelOverride: "", reasoningEffort: "" });
   };
 
   const onRuntimeChange = (next: RuntimeSelectorValue) => {
+    setSubmitError(null);
     setDraft(current => ({
       ...current,
       providerOverride: next.provider,
@@ -240,6 +272,10 @@ export function useSessionCreateDialog({
     const agentName = draft.agentName.trim();
     const provider = selectedProvider.trim();
     if (agentName.length === 0 || provider.length === 0) return;
+    if (!modelSelection.valid) {
+      setSubmitError(modelSelection.error ?? MODEL_CATALOG_PENDING);
+      return;
+    }
 
     setSubmitError(null);
     setPendingAgentName(agentName);
@@ -252,26 +288,31 @@ export function useSessionCreateDialog({
       effectiveSelectedModel.length > 0 && effectiveSelectedModel !== trimmedAgentModel;
     const reasoningEffort = selectedReasoning === "" ? undefined : selectedReasoning;
 
+    let session: SessionPayload;
     try {
-      const session = await createSession.mutateAsync({
+      session = await createSession.mutateAsync({
         agent_name: agentName,
         workspace: activeWorkspace.id,
         provider,
         ...(modelDiffersFromDefault ? { model: effectiveSelectedModel } : {}),
         ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
       });
-      setOpenState(false);
-      await navigate({
-        to: "/agents/$name/sessions/$id",
-        params: { name: session.agent_name, id: session.id },
-      });
     } catch (error) {
       const message = describeError("Failed to create session.", error);
       setSubmitError(message);
       toast.error(message);
+      setPendingAgentName(null);
+      setPendingWorkspaceId(null);
+      return;
     }
+
+    setOpenState(false);
     setPendingAgentName(null);
     setPendingWorkspaceId(null);
+    setNavigationTarget({
+      agentName: session.agent_name,
+      sessionId: session.id,
+    });
   };
 
   const providersError = workspaceDetailError ? describeWorkspaceError(workspaceDetailError) : null;
@@ -298,7 +339,7 @@ export function useSessionCreateDialog({
     pendingAgentName,
     pendingWorkspaceId,
     openForAgent,
-    setOpen,
+    onOpenChange: handleOpenChange,
     onAgentChange,
     onRuntimeChange,
     refreshCatalog,

@@ -2,8 +2,16 @@ import type { SessionGoalCommandResult } from "../types";
 
 interface GoalAwareFetchOptions {
   fetch?: typeof globalThis.fetch;
+  onRequest?: () => void;
   onResult: (result: SessionGoalCommandResult, requestText: string | null) => void;
 }
+
+const GOAL_COMMAND_FAILURE_GUIDANCE = {
+  goal_judge_unavailable:
+    "Goal judge is not configured. Set loops.defaults.delivery.model_defaults.judge or use a session created with an explicit model, then retry.",
+  goal_objective_required: "Add an objective after /goal, then try again.",
+  goal_objective_too_large: "Shorten the Goal objective, then try again.",
+} as const;
 
 function requestText(init?: RequestInit): string | null {
   if (typeof init?.body !== "string") return null;
@@ -56,12 +64,31 @@ function completionBody(messageId: string): string {
   ].join("");
 }
 
+export function describeGoalCommandFailure(
+  reasonCode: SessionGoalCommandResult["reason_code"]
+): string | null {
+  if (reasonCode && reasonCode in GOAL_COMMAND_FAILURE_GUIDANCE) {
+    return GOAL_COMMAND_FAILURE_GUIDANCE[reasonCode as keyof typeof GOAL_COMMAND_FAILURE_GUIDANCE];
+  }
+  return null;
+}
+
+export function isGoalCommandFailureGuidance(message: string): boolean {
+  return Object.values(GOAL_COMMAND_FAILURE_GUIDANCE).some(guidance => guidance === message);
+}
+
+function goalCommandFailureMessage(reasonCode: SessionGoalCommandResult["reason_code"]): string {
+  return describeGoalCommandFailure(reasonCode) ?? reasonCode ?? "Goal command failed";
+}
+
 export function createGoalAwareFetch({
   fetch = globalThis.fetch.bind(globalThis),
+  onRequest,
   onResult,
 }: GoalAwareFetchOptions): typeof globalThis.fetch {
   let sequence = 0;
   return async (input, init) => {
+    onRequest?.();
     const submittedText = requestText(init);
     const response = await fetch(input, init);
     if (!isJsonContentType(response.headers.get("content-type"))) {
@@ -80,7 +107,7 @@ export function createGoalAwareFetch({
 
     onResult(payload, submittedText);
     if (!response.ok) {
-      return new Response(payload.reason_code ?? "Goal command failed", {
+      return new Response(goalCommandFailureMessage(payload.reason_code), {
         status: response.status,
         statusText: response.statusText,
         headers: { "content-type": "text/plain; charset=utf-8" },

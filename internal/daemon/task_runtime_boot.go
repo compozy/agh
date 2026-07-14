@@ -46,7 +46,7 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		store,
 		reentry,
 	)
-	coordinatorRunner, err := newBootLoopCoordinatorRunner(store, state, d.homePaths)
+	coordinatorRunner, loopJudges, err := newBootLoopCoordinatorRuntime(store, state, d.homePaths)
 	if err != nil {
 		return fmt.Errorf("daemon: create loop coordinator runner: %w", err)
 	}
@@ -87,6 +87,7 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 		loopActions,
 		reviewRequests,
 		coordinatorBackstop,
+		loopJudges,
 	)
 
 	return recoverInstalledTaskRuntime(ctx, state, manager, store, reentry)
@@ -223,6 +224,7 @@ func installTaskRuntime(
 	loopActions *loopActionRuntime,
 	reviewRequests *runReviewRequestedForwarder,
 	coordinatorBackstop *loopCoordinatorBootGate,
+	loopJudges *loopGateJudgeRunner,
 ) {
 	state.tasks = &taskRuntime{
 		manager:             manager,
@@ -234,6 +236,7 @@ func installTaskRuntime(
 		networkTaskStatus:   networkTaskStatus,
 		loopActions:         loopActions,
 		coordinatorBackstop: coordinatorBackstop,
+		loopJudges:          loopJudges,
 	}
 	state.reviewRequests = reviewRequests
 	state.deps.Tasks = manager

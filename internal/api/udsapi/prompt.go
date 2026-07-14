@@ -38,7 +38,14 @@ func (h *Handlers) promptSession(c *gin.Context) {
 	}
 
 	if strings.EqualFold(strings.TrimSpace(c.Query("format")), promptStreamFormatRaw) {
-		h.promptSessionRaw(c, sessionID, req.Message, session.BusyInputMode(req.Mode), caller)
+		h.promptSessionRaw(
+			c,
+			sessionID,
+			req.Message,
+			strings.TrimSpace(req.MessageID),
+			session.BusyInputMode(req.Mode),
+			caller,
+		)
 		return
 	}
 
@@ -47,6 +54,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 	defer cancelDelivery()
 	result, err := h.Sessions.SendPrompt(executionCtx, sessionID, session.SendPromptOpts{
 		Message:           req.Message,
+		ClientMessageID:   strings.TrimSpace(req.MessageID),
 		Mode:              session.BusyInputMode(req.Mode),
 		DeliveryContext:   deliveryCtx,
 		Caller:            caller,
@@ -88,6 +96,7 @@ func (h *Handlers) promptSessionRaw(
 	c *gin.Context,
 	sessionID string,
 	message string,
+	clientMessageID string,
 	mode session.BusyInputMode,
 	caller session.PromptCaller,
 ) {
@@ -96,6 +105,7 @@ func (h *Handlers) promptSessionRaw(
 	defer cancelDelivery()
 	result, err := h.Sessions.SendPrompt(executionCtx, sessionID, session.SendPromptOpts{
 		Message:           message,
+		ClientMessageID:   clientMessageID,
 		Mode:              mode,
 		DeliveryContext:   deliveryCtx,
 		Caller:            caller,

@@ -5,6 +5,7 @@ import {
   LayoutGrid,
   Maximize,
   Minus,
+  PencilLine,
   Save,
   Share2,
   Upload,
@@ -63,13 +64,14 @@ export function LoopEditorToolbar({
   const flow = useReactFlow();
   const { zoom } = useViewport();
   const readOnlySource = source !== "workspace";
+  const ContextIcon = readOnlySource ? GitFork : PencilLine;
 
   return (
     <div className="flex-none border-b border-line">
       <div className="flex h-12 items-center gap-2.5 bg-canvas px-4">
-        <GitFork aria-hidden="true" className="size-4 text-accent-strong" />
+        <ContextIcon aria-hidden="true" className="size-4 text-accent-strong" />
         <span className="text-sm font-medium text-fg-strong">{loopName}</span>
-        <span className="text-sm text-muted">· Fork &amp; edit</span>
+        <span className="text-sm text-muted">· {readOnlySource ? "Fork & edit" : "Edit"}</span>
         <div className="ml-auto flex items-center gap-2.5">
           {isDirty ? (
             <span

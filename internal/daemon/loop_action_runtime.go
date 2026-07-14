@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -351,10 +350,7 @@ func (r *loopActionRuntime) failClaimedRun(
 	if claim == nil {
 		return cause
 	}
-	metadata, err := json.Marshal(map[string]string{
-		"reason_code":              "loop_action_failed",
-		loopActionRuntimeReasonKey: strings.TrimSpace(reason),
-	})
+	metadata, err := marshalLoopActionFailureMetadata(reason, cause)
 	if err != nil {
 		return errors.Join(cause, err)
 	}

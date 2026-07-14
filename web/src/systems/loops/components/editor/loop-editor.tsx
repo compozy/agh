@@ -7,6 +7,7 @@ import { Empty, Spinner } from "@agh/ui";
 import { useLoopEditor } from "../../hooks/use-loop-editor";
 import type { LoopDetail } from "../../types";
 import { LoopEditorCanvas } from "./loop-editor-canvas";
+import { LoopEditorContract } from "./loop-editor-contract";
 import { LoopEditorDslView } from "./loop-editor-dsl-view";
 import { LoopEditorInspector } from "./loop-editor-inspector";
 import { LoopEditorPalette } from "./loop-editor-palette";
@@ -48,7 +49,7 @@ export function LoopEditor({ workspaceId, name, onPublished }: LoopEditorProps) 
       </CenteredState>
     );
   }
-  if (editor.status === "error" || !editor.loop) {
+  if (editor.status === "error" || !editor.loop || !editor.definition) {
     return (
       <CenteredState testId="loop-editor-not-found">
         <div className="flex flex-col items-center gap-2 text-center">
@@ -59,7 +60,7 @@ export function LoopEditor({ workspaceId, name, onPublished }: LoopEditorProps) 
     );
   }
 
-  const definition = editor.loop.definition;
+  const definition = editor.definition;
   const handlePublish = async () => {
     const updated = await editor.publish();
     if (updated) {
@@ -138,16 +139,25 @@ export function LoopEditor({ workspaceId, name, onPublished }: LoopEditorProps) 
             />
           </section>
 
-          <LoopEditorInspector
-            node={editor.selectedNode}
-            fields={editor.selectedFields}
-            nodes={editor.nodes}
-            edges={editor.edges}
-            selectionKey={editor.selectionSeq}
-            definition={definition}
-            disabled={editor.busy}
-            onChange={editor.changeField}
-          />
+          <aside className="flex min-h-0 flex-col border-l border-line bg-canvas">
+            <LoopEditorContract
+              contract={definition.contract}
+              disabled={editor.busy || editor.loop.source !== "workspace"}
+              onChange={editor.changeContract}
+            />
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <LoopEditorInspector
+                node={editor.selectedNode}
+                fields={editor.selectedFields}
+                nodes={editor.nodes}
+                edges={editor.edges}
+                selectionKey={editor.selectionSeq}
+                definition={definition}
+                disabled={editor.busy}
+                onChange={editor.changeField}
+              />
+            </div>
+          </aside>
         </div>
       </div>
     </ReactFlowProvider>

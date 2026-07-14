@@ -44,6 +44,7 @@ import {
   taskStatusTone,
   taskWakeIndicatorApplies,
 } from "../lib/task-formatters";
+import { taskRunCanRecover } from "../lib/task-run-recovery";
 import type { TaskDetailView } from "../types";
 import { TaskDeleteAction } from "./task-delete-action";
 
@@ -216,15 +217,19 @@ export function TasksDetailHeaderActions({
   const isDraft = taskIsDraft(record);
   const isDirectlyPaused = Boolean(record.paused);
   const isEffectivelyPaused = Boolean(detail.summary?.effective_paused ?? record.paused);
-  const canRecover = taskCanRecover(record);
+  const activeRun = detail.summary?.active_run ?? null;
+  const activeRunNeedsAttention = activeRun?.status === "needs_attention";
+  const canRecoverRun =
+    activeRunNeedsAttention && taskRunCanRecover(activeRun, record.max_attempts);
+  const canRecover = activeRunNeedsAttention ? canRecoverRun : taskCanRecover(record);
   const canCancel =
     record.status === "ready" || record.status === "in_progress" || record.status === "blocked";
-  const activeRun = detail.summary?.active_run ?? null;
   const hasOpenRun =
     activeRun?.status === "queued" ||
     activeRun?.status === "claimed" ||
     activeRun?.status === "starting" ||
-    activeRun?.status === "running";
+    activeRun?.status === "running" ||
+    activeRunNeedsAttention;
   const canEnqueueRun = !isDraft && !hasOpenRun && record.status !== "needs_attention";
   const publishCopy = taskHandoffActionCopy("publish");
   const startCopy = taskHandoffActionCopy("start");
@@ -250,7 +255,11 @@ export function TasksDetailHeaderActions({
             disabled={pending?.recover}
             onClick={() => void onRecover()}
             size="sm"
-            title="Clear the needs_attention escalation and return the task to the claimable set."
+            title={
+              canRecoverRun
+                ? "Terminalize the needs-attention run and queue one continuation."
+                : "Clear the needs_attention escalation and return the task to the claimable set."
+            }
             type="button"
           >
             <LifeBuoy className="size-3" aria-hidden="true" />

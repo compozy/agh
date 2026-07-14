@@ -7,6 +7,7 @@ import (
 	"time"
 
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/compozy/agh/internal/sandbox"
 	"github.com/compozy/agh/internal/session/inputqueue"
 	"github.com/compozy/agh/internal/store"
@@ -68,15 +69,21 @@ type ProviderSecretResolver interface {
 	ResolveRef(ctx context.Context, ref string) (string, error)
 }
 
+// ModelCatalog exposes the provider/model projection needed for startup preflight.
+type ModelCatalog interface {
+	ListModels(ctx context.Context, opts modelcatalog.ListOptions) ([]modelcatalog.Model, error)
+}
+
 // Option customizes the session manager.
 type Option func(*Manager)
 
 // Manager owns active session lifecycle and runtime orchestration.
 type Manager struct {
 	mu                 sync.RWMutex
+	deleteMu           sync.Mutex
 	sessions           map[string]*Session
 	pending            map[string]struct{}
-	finalizing         map[string]chan struct{}
+	finalizing         map[string]*sessionFinalization
 	promptDrains       map[chan struct{}]struct{}
 	spawnMu            sync.Mutex
 	managedInputMu     sync.Mutex
@@ -92,6 +99,8 @@ type Manager struct {
 	sessionHealthHookLast map[string]time.Time
 	streamEventsMu        sync.Mutex
 	streamEvents          *sessionEventBroadcaster
+	catalogEventsMu       sync.Mutex
+	catalogEvents         *sessionCatalogBroadcaster
 
 	logger                       *slog.Logger
 	driver                       AgentDriver
@@ -108,6 +117,7 @@ type Manager struct {
 	sandbox                      *sandbox.Registry
 	agentResolver                AgentResolver
 	providerSecrets              ProviderSecretResolver
+	modelCatalog                 ModelCatalog
 	skillRegistry                SkillRegistry
 	toolsetCatalog               toolspkg.ToolsetCatalog
 	mcpResolver                  MCPResolver
@@ -134,6 +144,8 @@ type Manager struct {
 	newSessionID                 IDGenerator
 	newSandboxID                 IDGenerator
 	newTurnID                    IDGenerator
+	renamePath                   func(oldPath string, newPath string) error
+	removeAllPath                func(path string) error
 	promptBufSize                int
 	soulRefreshTimeout           time.Duration
 	sessionHealthHookMinInterval time.Duration
