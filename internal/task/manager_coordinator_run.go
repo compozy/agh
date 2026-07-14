@@ -80,11 +80,9 @@ func (m *Service) startCoordinatorRun(
 	if strings.TrimSpace(result.Run.ID) == "" {
 		return nil, completionErr
 	}
-	if eventErr := m.recordCoordinatorCompletionEvents(lifecycleCtx, &result, actor); eventErr != nil {
-		return &result.Run, errorsJoin(completionErr, eventErr)
-	}
+	eventErr := m.recordCoordinatorCompletionEvents(lifecycleCtx, &result, actor)
 	m.dispatchCoordinatorTerminal(lifecycleCtx, &result, actor)
-	return &result.Run, completionErr
+	return &result.Run, errorsJoin(completionErr, eventErr)
 }
 
 func (m *Service) validateCoordinatorRuntime(runID string, req StartRun) error {
@@ -112,18 +110,32 @@ func (m *Service) recordCoordinatorCompletionEvents(
 	if result == nil {
 		return fmt.Errorf("%w: coordinator completion result is required", ErrValidation)
 	}
+	publicationCtx, publicationCancel := completedSettlementPublicationContext(ctx)
+	defer publicationCancel()
+
+	var publicationErrs []error
 	var completedTask Task
 	var err error
 	if result.Settlement != nil {
-		completedTask, err = m.publishCompletedRunSettlement(ctx, result.Settlement, actor)
+		completedTask, err = m.publishCompletedRunSettlement(publicationCtx, result.Settlement, actor)
 	} else {
-		completedTask, err = m.reconcileTaskCascade(ctx, result.Run.TaskID, actor)
+		completedTask, err = m.reconcileTaskCascade(publicationCtx, result.Run.TaskID, actor)
 	}
 	if err != nil {
-		return err
+		publicationErrs = append(publicationErrs, err)
+	}
+	if strings.TrimSpace(completedTask.ID) == "" {
+		completedTask, err = m.store.GetTask(publicationCtx, result.Run.TaskID)
+		if err != nil {
+			publicationErrs = append(publicationErrs, fmt.Errorf(
+				"task: load committed coordinator task %q for publication: %w",
+				result.Run.TaskID,
+				err,
+			))
+		}
 	}
 	if err := m.recordTaskEvent(
-		ctx,
+		publicationCtx,
 		result.Run.TaskID,
 		result.Run.ID,
 		taskEventRunCompleted,
@@ -135,26 +147,11 @@ func (m *Service) recordCoordinatorCompletionEvents(
 			ClaimTokenHash: result.Run.ClaimTokenHash,
 		},
 	); err != nil {
-		return err
+		publicationErrs = append(publicationErrs, err)
 	}
-	m.dispatchTaskRunCompleted(ctx, result.Run, completedTask, actor)
-
-	for _, enqueued := range result.EnqueuedRuns {
-		enqueuedTask, err := m.reconcileTaskCascade(ctx, enqueued.TaskID, actor)
-		if err != nil {
-			return err
-		}
-		if err := m.recordTaskEvent(ctx, enqueued.TaskID, enqueued.ID, taskEventRunEnqueued, actor, runEnqueuedPayload{
-			Attempt:               int(enqueued.Attempt),
-			Status:                enqueued.Status,
-			TaskStatus:            enqueuedTask.Status,
-			NetworkChannel:        enqueued.NetworkChannel,
-			CoordinationChannelID: enqueued.CoordinationChannelID,
-			IdempotencyKey:        enqueued.IdempotencyKey,
-		}); err != nil {
-			return err
-		}
-		m.dispatchTaskRunEnqueued(ctx, enqueued, enqueuedTask, actor, enqueued.IdempotencyKey)
+	m.dispatchTaskRunCompleted(publicationCtx, result.Run, completedTask, actor)
+	if err := m.publishCoordinatorEnqueuedRuns(publicationCtx, result.EnqueuedRuns, actor); err != nil {
+		publicationErrs = append(publicationErrs, err)
 	}
-	return nil
+	return errorsJoin(publicationErrs...)
 }

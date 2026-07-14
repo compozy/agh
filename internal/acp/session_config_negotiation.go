@@ -73,9 +73,6 @@ func (d *Driver) applySessionModel(
 				nil,
 			)
 		}
-		if strings.TrimSpace(option.Current) == modelID {
-			return false, nil
-		}
 		if err := d.applySessionConfigOption(ctx, process, option.ID, modelID); err != nil {
 			return true, newNegotiationError(
 				NegotiationCodeModelUnavailable,

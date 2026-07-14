@@ -186,6 +186,9 @@ func taskRunObservationHookContext(ctx context.Context) context.Context {
 	if ctx == nil {
 		return context.TODO()
 	}
+	if isCompletedSettlementPublicationContext(ctx) {
+		return ctx
+	}
 	return context.WithoutCancel(ctx)
 }
 

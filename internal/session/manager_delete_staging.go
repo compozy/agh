@@ -49,10 +49,19 @@ func (m *Manager) PrepareWorkspaceRemoval(
 		return nil, errors.New("session: workspace id is required")
 	}
 
-	m.deleteMu.Lock()
+	m.lifecycleMu.Lock()
+	if sessionID, pending := m.pendingSessionForWorkspace(targetWorkspace); pending {
+		m.lifecycleMu.Unlock()
+		return nil, fmt.Errorf(
+			"session: remove workspace %q: %w: %s",
+			targetWorkspace,
+			workspacepkg.ErrWorkspaceHasActiveSessions,
+			sessionID,
+		)
+	}
 	infos, err := m.ListAll(ctx)
 	if err != nil {
-		m.deleteMu.Unlock()
+		m.lifecycleMu.Unlock()
 		return nil, fmt.Errorf("session: list sessions before workspace removal %q: %w", targetWorkspace, err)
 	}
 	sort.Slice(infos, func(i, j int) bool { return infos[i].ID < infos[j].ID })
@@ -63,7 +72,7 @@ func (m *Manager) PrepareWorkspaceRemoval(
 		}
 		if info.State == StateActive {
 			rollbackErr := m.rollbackStagedSessionDeletes(staged)
-			m.deleteMu.Unlock()
+			m.lifecycleMu.Unlock()
 			activeErr := fmt.Errorf(
 				"session: remove workspace %q: %w: %s",
 				targetWorkspace,
@@ -75,7 +84,7 @@ func (m *Manager) PrepareWorkspaceRemoval(
 		entry, stageErr := m.stageSessionDelete(ctx, info.ID, false)
 		if stageErr != nil {
 			rollbackErr := m.rollbackStagedSessionDeletes(staged)
-			m.deleteMu.Unlock()
+			m.lifecycleMu.Unlock()
 			return nil, errors.Join(stageErr, rollbackErr)
 		}
 		staged = append(staged, entry)
@@ -88,7 +97,7 @@ func (p *workspaceUnregisterPreparation) Commit(context.Context) error {
 	if p == nil || p.manager == nil {
 		return nil
 	}
-	defer p.release.Do(p.manager.deleteMu.Unlock)
+	defer p.release.Do(p.manager.lifecycleMu.Unlock)
 	return p.manager.commitStagedSessionDeletes(p.staged)
 }
 
@@ -96,7 +105,7 @@ func (p *workspaceUnregisterPreparation) Rollback(context.Context) error {
 	if p == nil || p.manager == nil {
 		return nil
 	}
-	defer p.release.Do(p.manager.deleteMu.Unlock)
+	defer p.release.Do(p.manager.lifecycleMu.Unlock)
 	return p.manager.rollbackStagedSessionDeletes(p.staged)
 }
 
@@ -108,6 +117,13 @@ func (m *Manager) stageSessionDelete(
 	info, err := m.Status(ctx, target)
 	if err != nil {
 		return stagedSessionDelete{}, err
+	}
+	if m.isPending(target) {
+		return stagedSessionDelete{}, fmt.Errorf(
+			"session: stage %q: %w",
+			target,
+			workspacepkg.ErrWorkspaceHasActiveSessions,
+		)
 	}
 	if _, active := m.Get(target); active {
 		if !stopActive {

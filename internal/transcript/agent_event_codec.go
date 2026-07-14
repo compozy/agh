@@ -135,7 +135,7 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Raw:              acp.CloneRawMessage(decoded.Raw),
 	}
 	if clientMessageID := strings.TrimSpace(decoded.ClientMessageID); clientMessageID != "" {
-		event.ClientMessageID = &clientMessageID
+		event = event.WithClientMessageID(clientMessageID)
 	}
 	toolErrorDetail := ""
 	if event.Type == acp.EventTypeToolResult && decoded.ToolResult != nil {

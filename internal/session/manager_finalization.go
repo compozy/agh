@@ -8,11 +8,16 @@ import (
 )
 
 type sessionFinalization struct {
-	done chan struct{}
-	err  error
+	done      chan struct{}
+	err       error
+	claimable bool
+	completed bool
 }
 
 func (m *Manager) claimOrWaitFinalization(ctx context.Context, session *Session) (bool, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	owned, finalization := m.claimFinalization(session)
 	if owned || finalization == nil {
 		return owned, nil
@@ -31,6 +36,7 @@ func (m *Manager) finishFinalization(id string, err error) {
 	defer m.mu.Unlock()
 	if finalization, ok := m.finalizing[id]; ok {
 		finalization.err = err
+		finalization.completed = true
 		close(finalization.done)
 	}
 	delete(m.finalizing, id)
@@ -70,6 +76,10 @@ func (m *Manager) claimFinalization(session *Session) (bool, *sessionFinalizatio
 	defer m.mu.Unlock()
 
 	if finalization, ok := m.finalizing[session.ID]; ok {
+		if finalization.claimable && !finalization.completed {
+			finalization.claimable = false
+			return true, finalization
+		}
 		return false, finalization
 	}
 
@@ -81,6 +91,58 @@ func (m *Manager) claimFinalization(session *Session) (bool, *sessionFinalizatio
 	finalization := &sessionFinalization{done: make(chan struct{})}
 	m.finalizing[session.ID] = finalization
 	return true, finalization
+}
+
+// observeFinalization registers a waiter before a stop request can wake the
+// process watcher. The observer does not own finalization: the watcher or the
+// stopping caller may claim it, but both retain the same result channel.
+func (m *Manager) observeFinalization(session *Session) *sessionFinalization {
+	if session == nil {
+		return nil
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if finalization, ok := m.finalizing[session.ID]; ok {
+		return finalization
+	}
+	current, ok := m.sessions[session.ID]
+	if !ok || current != session {
+		return nil
+	}
+
+	finalization := &sessionFinalization{done: make(chan struct{}), claimable: true}
+	m.finalizing[session.ID] = finalization
+	return finalization
+}
+
+func (m *Manager) claimOrWaitObservedFinalization(
+	ctx context.Context,
+	session *Session,
+	observed *sessionFinalization,
+) (bool, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if observed == nil {
+		return m.claimOrWaitFinalization(ctx, session)
+	}
+
+	m.mu.Lock()
+	switch {
+	case observed.completed:
+		err := observed.err
+		m.mu.Unlock()
+		return false, err
+	case observed.claimable && m.finalizing[session.ID] == observed && m.sessions[session.ID] == session:
+		observed.claimable = false
+		m.mu.Unlock()
+		return true, nil
+	default:
+		m.mu.Unlock()
+	}
+
+	return false, waitForSessionFinalization(ctx, observed)
 }
 
 // WaitForFinalizations blocks until all in-flight finalization routines finish.

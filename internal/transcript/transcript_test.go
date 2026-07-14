@@ -687,12 +687,11 @@ func TestToUIMessagesPreservesUserClientIdentity(t *testing.T) {
 		timestamp := time.Date(2026, 7, 13, 23, 55, 0, 0, time.UTC)
 		clientMessageID := "client-user-identity"
 		event := acp.AgentEvent{
-			Type:            acp.EventTypeUserMessage,
-			TurnID:          "turn-user-identity",
-			ClientMessageID: &clientMessageID,
-			Timestamp:       timestamp,
-			Text:            "Transformed provider input.",
-		}
+			Type:      acp.EventTypeUserMessage,
+			TurnID:    "turn-user-identity",
+			Timestamp: timestamp,
+			Text:      "Transformed provider input.",
+		}.WithClientMessageID(clientMessageID)
 		authoredText := "Keep this message after reload."
 		payload, err := MarshalPromptInputEvent(event, authoredText)
 		if err != nil {

@@ -34,7 +34,7 @@ func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 		if err != nil {
 			t.Fatalf("fixture.Agent(alpha) error = %v", err)
 		}
-		turn, err := alpha.SelectTurn("hello alpha", 1, acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser})
+		turn, err := alpha.SelectTurn("hello alpha", acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser})
 		if err != nil {
 			t.Fatalf("alpha.SelectTurn() error = %v", err)
 		}
@@ -63,7 +63,6 @@ func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 		}
 		permissionTurn, err := approver.SelectTurn(
 			"request permission",
-			1,
 			acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
 		)
 		if err != nil {
@@ -82,7 +81,6 @@ func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 		}
 		sandboxTurn, err := runner.SelectTurn(
 			"run sandbox",
-			1,
 			acp.PromptMeta{TurnSource: acp.PromptTurnSourceNetwork},
 		)
 		if err != nil {
@@ -96,69 +94,78 @@ func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 		}
 	})
 
-	t.Run("Should select a turn by stable canonical user text content", func(t *testing.T) {
+	t.Run("Should select a judge turn by exact structured metadata", func(t *testing.T) {
 		t.Parallel()
 
 		fixture, err := ParseFixture(
 			[]byte(
 				`{"version":2,"agents":[{"name":"judge","provider":"claude","turns":[` +
-					`{"name":"turn-two","match":{"turn_source":"user","user_text_contains":"Goal turn 2 is current."},` +
+					`{"name":"turn-two","match":{"turn_source":"user","judge":{"role":"agent-judge","attempt":2}},` +
 					`"steps":[{"kind":"assistant","text":"revise"}]}]}]}`,
 			),
 		)
 		if err != nil {
-			t.Fatalf("ParseFixture(user_text_contains) error = %v", err)
+			t.Fatalf("ParseFixture(judge metadata) error = %v", err)
 		}
 		judge, err := fixture.Agent("judge")
 		if err != nil {
 			t.Fatalf("fixture.Agent(judge) error = %v", err)
 		}
 		turn, err := judge.SelectTurn(
-			"Loop contract:\nGoal turn 2 is current.\nReturn exactly one JSON object.",
-			1,
-			acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+			"rendered rubric is not routing authority",
+			acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser, Judge: &acp.PromptJudgeMeta{
+				Role: acp.PromptJudgeRoleAgent, Attempt: 2, CorrelationID: "goal-judge:stable",
+				GateID: "goal:goal-judge", CriterionID: "review",
+			}},
 		)
 		if err != nil {
-			t.Fatalf("judge.SelectTurn(user_text_contains) error = %v", err)
+			t.Fatalf("judge.SelectTurn(judge metadata) error = %v", err)
 		}
 		if got, want := turn.Name, "turn-two"; got != want {
 			t.Fatalf("turn.Name = %q, want %q", got, want)
 		}
 		if _, err := judge.SelectTurn(
-			"Loop contract:\nGoal turn 3 is current.\nReturn exactly one JSON object.",
-			1,
-			acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+			"same rendered rubric",
+			acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser, Judge: &acp.PromptJudgeMeta{
+				Role: acp.PromptJudgeRoleAgent, Attempt: 3, CorrelationID: "goal-judge:stable",
+				GateID: "goal:goal-judge", CriterionID: "review",
+			}},
 		); err == nil || !strings.Contains(err.Error(), "no turn matched") {
-			t.Fatalf("judge.SelectTurn(non-matching user_text_contains) error = %v, want no-match error", err)
+			t.Fatalf("judge.SelectTurn(non-matching attempt) error = %v, want no-match error", err)
 		}
 	})
 
-	t.Run("Should select a turn by explicit cross-process occurrence", func(t *testing.T) {
+	t.Run("Should select a Goal turn by exact structured metadata", func(t *testing.T) {
 		t.Parallel()
 
 		fixture, err := ParseFixture([]byte(
 			`{"version":2,"agents":[{"name":"judge","provider":"claude","turns":[` +
-				`{"name":"second-judge","match":{"turn_source":"user","global_occurrence":2},` +
+				`{"name":"second-work","match":{"turn_source":"synthetic","goal":{"kind":"goal-work","turn":2}},` +
 				`"steps":[{"kind":"assistant","text":"pass"}]}]}]}`,
 		))
 		if err != nil {
-			t.Fatalf("ParseFixture(global occurrence) error = %v", err)
+			t.Fatalf("ParseFixture(Goal metadata) error = %v", err)
 		}
 		judge, err := fixture.Agent("judge")
 		if err != nil {
 			t.Fatalf("fixture.Agent(judge) error = %v", err)
 		}
-		turn, err := judge.SelectTurnAtGlobalOccurrence(
-			"judge the result",
-			1,
-			2,
-			acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+		turnValue := 2
+		turn, err := judge.SelectTurn(
+			"work prompt",
+			acp.PromptMeta{TurnSource: acp.PromptTurnSourceSynthetic, Synthetic: &acp.PromptSyntheticMeta{
+				Reason: "goal_work",
+				Goal: &acp.GoalPromptMeta{
+					Kind: acp.GoalPromptKindWork, RunID: "run-1", NodeID: "goal", Generation: 1,
+					ItemIndex: 0, Turn: &turnValue, PromptAttempt: 0, PromptID: "prompt-2",
+				},
+			}},
 		)
 		if err != nil {
-			t.Fatalf("judge.SelectTurnAtGlobalOccurrence() error = %v", err)
+			t.Fatalf("judge.SelectTurn(Goal metadata) error = %v", err)
 		}
-		if turn.Name != "second-judge" {
-			t.Fatalf("turn.Name = %q, want second-judge", turn.Name)
+		if turn.Name != "second-work" {
+			t.Fatalf("turn.Name = %q, want second-work", turn.Name)
 		}
 	})
 }
@@ -511,12 +518,8 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("fixture.Agent(alpha) error = %v", err)
 	}
-	if _, err := alpha.SelectTurn("hello alpha", 0); err == nil || !strings.Contains(err.Error(), "must be >= 1") {
-		t.Fatalf("alpha.SelectTurn(occurrence=0) error = %v, want validation error", err)
-	}
 	if _, err := alpha.SelectTurn(
 		"different prompt",
-		1,
 		acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
 	); err == nil ||
 		!strings.Contains(err.Error(), "no turn matched") {
@@ -551,7 +554,6 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 	}, "\n")
 	turn, err := alpha.SelectTurn(
 		augmentedPrompt,
-		1,
 		acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
 	)
 	if err != nil {
@@ -586,7 +588,6 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 	}, "\n")
 	turn, err = alpha.SelectTurn(
 		startupAugmentedPrompt,
-		1,
 		acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
 	)
 	if err != nil {
@@ -608,7 +609,6 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 	}, "\n")
 	turn, err = alpha.SelectTurn(
 		memoryAugmentedPrompt,
-		1,
 		acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
 	)
 	if err != nil {
@@ -626,7 +626,7 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("fixture.Agent(ops-coordinator) error = %v", err)
 	}
-	turn, err = ops.SelectTurn("", 1, acp.PromptMeta{
+	turn, err = ops.SelectTurn("", acp.PromptMeta{
 		TurnSource: acp.PromptTurnSourceNetwork,
 		Network: &acp.PromptNetworkMeta{
 			MessageID:   "msg_direct_01",
@@ -653,7 +653,7 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("fixture.Agent(capability-curator) error = %v", err)
 	}
-	turn, err = capabilityCurator.SelectTurn("", 1, acp.PromptMeta{
+	turn, err = capabilityCurator.SelectTurn("", acp.PromptMeta{
 		TurnSource: acp.PromptTurnSourceNetwork,
 		Network: &acp.PromptNetworkMeta{
 			MessageID: "msg_capability_say_01",
@@ -1134,8 +1134,8 @@ func TestValidationAndDriverHelpers(t *testing.T) {
 		if err := validatePermissionDecision("decision", "bogus"); err == nil {
 			t.Fatal("validatePermissionDecision(invalid) error = nil, want non-nil")
 		}
-		if (TurnMatch{Occurrence: -1}).Validate("match") == nil {
-			t.Fatal("TurnMatch.Validate(negative occurrence) error = nil, want non-nil")
+		if (TurnMatch{Judge: &TurnMatchJudge{Attempt: -1}}).Validate("match") == nil {
+			t.Fatal("TurnMatch.Validate(negative judge attempt) error = nil, want non-nil")
 		}
 		if (TurnMatch{TurnSource: acp.PromptTurnSourceUser}).Validate("match") != nil {
 			t.Fatal("TurnMatch.Validate(user selector) error != nil, want nil")

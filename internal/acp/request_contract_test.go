@@ -2,6 +2,7 @@ package acp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,6 +15,41 @@ import (
 
 func TestACPBehaviorContracts(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should isolate authored identity and typed tool metadata in one optional payload", func(t *testing.T) {
+		t.Parallel()
+
+		input := json.RawMessage(`{"path":"README.md"}`)
+		event := AgentEvent{}.
+			WithClientMessageID(" client-message-1 ").
+			WithToolDetail("read_file", input, true, "permission denied")
+		input[2] = 'X'
+
+		if got, want := event.ClientMessageIDValue(), "client-message-1"; got != want {
+			t.Fatalf("ClientMessageIDValue() = %q, want %q", got, want)
+		}
+		if !event.HasToolPayload() || event.ToolName() != "read_file" || !event.ToolError() ||
+			event.ToolErrorDetail() != "permission denied" {
+			t.Fatalf(
+				"typed tool payload = (%q, %t, %q), want preserved failure metadata",
+				event.ToolName(),
+				event.ToolError(),
+				event.ToolErrorDetail(),
+			)
+		}
+		if got, want := string(event.ToolInput()), `{"path":"README.md"}`; got != want {
+			t.Fatalf("ToolInput() = %s, want %s", got, want)
+		}
+
+		clientOnly := event.WithToolDetail("", nil, false, "")
+		if clientOnly.HasToolPayload() || clientOnly.ClientMessageIDValue() != "client-message-1" {
+			t.Fatalf("cleared tool payload lost authored identity: %#v", clientOnly)
+		}
+		toolOnly := event.WithClientMessageID("")
+		if toolOnly.ClientMessageIDValue() != "" || !toolOnly.HasToolPayload() {
+			t.Fatalf("cleared authored identity lost tool payload: %#v", toolOnly)
+		}
+	})
 
 	t.Run("Should classify load session resource missing from structured request data", func(t *testing.T) {
 		t.Parallel()

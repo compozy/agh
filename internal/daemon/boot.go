@@ -703,20 +703,15 @@ func (d *Daemon) bootMemorySessionRuntime(ctx context.Context, state *bootState)
 		return fmt.Errorf("daemon: create session manager: %w", err)
 	}
 	state.sessions = sessions
-	if state.workspaceResolver != nil {
-		if preparer, ok := sessions.(interface {
-			PrepareWorkspaceRemoval(
-				context.Context,
-				string,
-			) (workspacepkg.UnregisterPreparation, error)
-		}); ok {
-			state.workspaceResolver.SetUnregisterPreparer(
-				func(ctx context.Context, workspace workspacepkg.Workspace) (workspacepkg.UnregisterPreparation, error) {
-					return preparer.PrepareWorkspaceRemoval(ctx, workspace.ID)
-				},
-			)
-		}
+	preparer, ok := sessions.(workspaceRemovalPreparer)
+	if !ok {
+		return errMissingWorkspaceRemovalPreparation
 	}
+	state.workspaceResolver.SetUnregisterPreparer(
+		func(ctx context.Context, workspace workspacepkg.Workspace) (workspacepkg.UnregisterPreparation, error) {
+			return preparer.PrepareWorkspaceRemoval(ctx, workspace.ID)
+		},
+	)
 	memoryExtractor, err := newDaemonMemoryExtractor(ctx, state, sessions, d.now)
 	if err != nil {
 		return err
@@ -729,6 +724,10 @@ func (d *Daemon) bootMemorySessionRuntime(ctx context.Context, state *bootState)
 	}
 	state.deps.Resources = resourceService
 	return nil
+}
+
+type workspaceRemovalPreparer interface {
+	PrepareWorkspaceRemoval(context.Context, string) (workspacepkg.UnregisterPreparation, error)
 }
 
 func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error {

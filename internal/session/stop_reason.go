@@ -151,6 +151,7 @@ func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause,
 		return m.finalizeStopped(ctx, session, waitErr)
 	}
 
+	finalization := m.observeFinalization(session)
 	doneBeforeStop := isProcessDone(proc)
 	stopErr := m.driver.Stop(ctx, proc)
 	doneAfterStop := isProcessDone(proc)
@@ -159,12 +160,16 @@ func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause,
 		case <-proc.Done():
 			doneAfterStop = true
 		case <-ctx.Done():
-			return fmt.Errorf("session: wait for process stop completion for %q: %w", id, ctx.Err())
+			waitErr := fmt.Errorf("session: wait for process stop completion for %q: %w", id, ctx.Err())
+			m.finishFinalization(session.ID, waitErr)
+			return waitErr
 		}
 	}
 	if stopErr != nil {
 		if !doneBeforeStop && !doneAfterStop {
-			return fmt.Errorf("session: stop session process for %q: %w", id, stopErr)
+			stopErr = fmt.Errorf("session: stop session process for %q: %w", id, stopErr)
+			m.finishFinalization(session.ID, stopErr)
+			return stopErr
 		}
 		stopErr = nil
 	}
@@ -172,7 +177,7 @@ func (m *Manager) StopWithCause(ctx context.Context, id string, cause StopCause,
 	waitErr := proc.Wait()
 	reconcileObservedTerminalStop(session, stopWasAlreadyRequested, waitErr)
 
-	finalizeErr := m.finalizeStopped(ctx, session, waitErr)
+	finalizeErr := m.finalizeObservedStop(ctx, session, finalization, waitErr)
 	if finalizeErr != nil {
 		return errors.Join(stopErr, finalizeErr)
 	}

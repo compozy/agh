@@ -419,7 +419,7 @@ func (a *mockAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (ac
 	}
 
 	prompt := extractPromptText(params.Prompt)
-	turn, occurrence, err := a.selectTurn(sessionID, prompt, promptMeta)
+	turn, promptIndex, err := a.selectTurn(sessionID, prompt, promptMeta)
 	if err != nil {
 		return acpsdk.PromptResponse{}, err
 	}
@@ -427,7 +427,7 @@ func (a *mockAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (ac
 	record := acpmock.DiagnosticsRecord{
 		AgentName:   a.agent.Name,
 		SessionID:   sessionID,
-		PromptIndex: occurrence,
+		PromptIndex: promptIndex,
 		Prompt:      prompt,
 		PromptMeta:  promptMeta,
 		TurnName:    strings.TrimSpace(turn.Name),
@@ -545,43 +545,13 @@ func (a *mockAgent) selectTurn(
 		session = &sessionState{}
 		a.sessions[sessionID] = session
 	}
-	occurrence := session.PromptCount + 1
-	globalOccurrence, err := a.globalPromptOccurrence(promptMeta)
+	promptIndex := session.PromptCount + 1
+	turn, err := a.agent.SelectTurn(prompt, promptMeta)
 	if err != nil {
-		return acpmock.TurnFixture{}, occurrence, err
+		return acpmock.TurnFixture{}, promptIndex, err
 	}
-	turn, err := a.agent.SelectTurnAtGlobalOccurrence(
-		prompt,
-		occurrence,
-		globalOccurrence,
-		promptMeta,
-	)
-	if err != nil {
-		return acpmock.TurnFixture{}, occurrence, err
-	}
-	session.PromptCount = occurrence
-	return turn, occurrence, nil
-}
-
-func (a *mockAgent) globalPromptOccurrence(promptMeta acp.PromptMeta) (int, error) {
-	if a.diagnosticsPath == "" {
-		return 1, nil
-	}
-	records, err := acpmock.ReadDiagnostics(a.diagnosticsPath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return 1, nil
-		}
-		return 0, fmt.Errorf("acpmock-driver: read global prompt occurrence: %w", err)
-	}
-	wantSource := promptMeta.Normalize().TurnSource
-	count := 0
-	for _, record := range acpmock.PromptDiagnostics(records) {
-		if record.AgentName == a.agent.Name && record.PromptMeta.Normalize().TurnSource == wantSource {
-			count++
-		}
-	}
-	return count + 1, nil
+	session.PromptCount = promptIndex
+	return turn, promptIndex, nil
 }
 
 func (a *mockAgent) executeStep(

@@ -10,7 +10,7 @@ import (
 
 const sessionModelConfigKey = "model"
 
-func (s *Session) updateFromProcess(proc *AgentProcess, now time.Time) {
+func (s *Session) updateFromProcess(proc *AgentProcess, now time.Time, adoptCurrentModel bool) {
 	if s == nil {
 		return
 	}
@@ -23,7 +23,7 @@ func (s *Session) updateFromProcess(proc *AgentProcess, now time.Time) {
 		caps := proc.CapsSnapshot()
 		s.ACPSessionID = strings.TrimSpace(proc.SessionID)
 		s.ACPCaps = cloneCaps(caps)
-		if currentModel := currentACPModel(caps.ConfigOptions); currentModel != "" {
+		if currentModel := currentACPModel(caps.ConfigOptions); adoptCurrentModel && currentModel != "" {
 			s.Model = currentModel
 		}
 		if s.Liveness == nil {

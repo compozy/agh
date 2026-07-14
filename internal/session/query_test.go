@@ -819,7 +819,7 @@ func TestManagerStatusDoesNotRepairPendingStartMetadata(t *testing.T) {
 	}
 
 	h.manager.mu.Lock()
-	h.manager.pending[sessionID] = struct{}{}
+	h.manager.pending[sessionID] = sessionReservation{workspaceID: h.workspaceID}
 	h.manager.mu.Unlock()
 
 	info, err := h.manager.Status(testutil.Context(t), sessionID)

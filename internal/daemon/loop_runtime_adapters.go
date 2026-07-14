@@ -29,6 +29,7 @@ type loopPromptSessionManager interface {
 
 type loopJudgeSessionManager interface {
 	loopPromptSessionManager
+	PromptWithOpts(ctx context.Context, id string, opts session.PromptOpts) (<-chan acp.AgentEvent, error)
 	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
 }
 
@@ -109,7 +110,7 @@ func (r *loopGateJudgeRunner) Judge(
 	if info == nil {
 		return gate.JudgeResponse{}, errors.New("daemon: loop judge session create returned nil info")
 	}
-	result, err := collectLoopJudgeResult(ctx, r.sessions, sessionID, req.Rubric)
+	result, err := collectLoopJudgeResult(ctx, r.sessions, sessionID, req)
 	if err != nil {
 		return gate.JudgeResponse{}, err
 	}

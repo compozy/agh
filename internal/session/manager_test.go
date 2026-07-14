@@ -83,11 +83,13 @@ func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
 	if meta := readMeta(t, session.MetaPath()); meta.Channel != "" {
 		t.Fatalf("meta channel = %q, want empty", meta.Channel)
 	}
-	if got := len(h.resolver.resolveCalls); got != 1 {
-		t.Fatalf("resolver Resolve() calls = %d, want 1", got)
+	if got := len(h.resolver.resolveCalls); got != 2 {
+		t.Fatalf("resolver Resolve() calls = %d, want 2", got)
 	}
-	if got := h.resolver.resolveCalls[0]; got != h.workspaceID {
-		t.Fatalf("resolver Resolve() arg = %q, want %q", got, h.workspaceID)
+	for index, got := range h.resolver.resolveCalls {
+		if got != h.workspaceID {
+			t.Fatalf("resolver Resolve() call %d arg = %q, want %q", index, got, h.workspaceID)
+		}
 	}
 	if got := len(h.resolver.resolveOrRegisterCalls); got != 0 {
 		t.Fatalf("resolver ResolveOrRegister() calls = %d, want 0", got)
@@ -459,8 +461,11 @@ func TestCreateWithWorkspacePathUsesResolveOrRegister(t *testing.T) {
 		_ = h.manager.Stop(testutil.Context(t), session.ID)
 	})
 
-	if got := len(h.resolver.resolveCalls); got != 0 {
-		t.Fatalf("resolver Resolve() calls = %d, want 0", got)
+	if got := len(h.resolver.resolveCalls); got != 1 {
+		t.Fatalf("resolver Resolve() calls = %d, want 1", got)
+	}
+	if got, want := h.resolver.resolveCalls[0], session.Info().WorkspaceID; got != want {
+		t.Fatalf("resolver Resolve() arg = %q, want %q", got, want)
 	}
 	if got := len(h.resolver.resolveOrRegisterCalls); got != 1 {
 		t.Fatalf("resolver ResolveOrRegister() calls = %d, want 1", got)
@@ -1105,8 +1110,8 @@ func TestActivateAndWatchUpdatesStateAndStartsWatcher(t *testing.T) {
 		recorder:    recorder,
 	}
 
-	if err := h.manager.reserve(session.ID); err != nil {
-		t.Fatalf("reserve() error = %v", err)
+	if err := h.manager.reserveStart(testutil.Context(t), session.ID, h.workspaceID); err != nil {
+		t.Fatalf("reserveStart() error = %v", err)
 	}
 
 	proc, err := h.driver.Start(testutil.Context(t), acp.StartOpts{
@@ -1117,11 +1122,11 @@ func TestActivateAndWatchUpdatesStateAndStartsWatcher(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
-
 	if err := h.manager.activateAndWatch(
 		testutil.Context(t),
 		session,
 		proc,
+		false,
 		aghconfig.ResolvedAgent{Name: "coder"},
 		[]NetworkPeerCapability{},
 		hookspkg.HookSessionPostCreate,
@@ -1216,11 +1221,15 @@ func TestActivateAndWatchRollsBackOnMetaWriteFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
+	if err := h.manager.reserveStart(testutil.Context(t), session.ID, session.WorkspaceID); err != nil {
+		t.Fatalf("reserveStart() error = %v", err)
+	}
 
 	if err := h.manager.activateAndWatch(
 		testutil.Context(t),
 		session,
 		proc,
+		false,
 		aghconfig.ResolvedAgent{Name: "coder"},
 		[]NetworkPeerCapability{},
 		hookspkg.HookSessionPostCreate,

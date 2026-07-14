@@ -47,7 +47,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 
 	manager := &Manager{
 		sessions:              make(map[string]*Session),
-		pending:               make(map[string]struct{}),
+		pending:               make(map[string]sessionReservation),
 		finalizing:            make(map[string]*sessionFinalization),
 		promptDrains:          make(map[chan struct{}]struct{}),
 		managedInputLeases:    make(map[string]managedInputLease),
@@ -275,7 +275,34 @@ func (m *Manager) lookup(id string) (*Session, error) {
 	return session, nil
 }
 
-func (m *Manager) reserve(id string) error {
+func (m *Manager) reserveStart(ctx context.Context, id string, workspaceID string) error {
+	if ctx == nil {
+		return errors.New("session: reserve start context is required")
+	}
+	targetWorkspace := strings.TrimSpace(workspaceID)
+	if targetWorkspace == "" {
+		return errors.New("session: reserve start workspace id is required")
+	}
+
+	m.lifecycleMu.Lock()
+	defer m.lifecycleMu.Unlock()
+
+	resolver, err := m.requireWorkspaceResolver()
+	if err != nil {
+		return err
+	}
+	resolved, err := resolver.Resolve(ctx, targetWorkspace)
+	if err != nil {
+		return fmt.Errorf("session: revalidate workspace %q before start: %w", targetWorkspace, err)
+	}
+	if strings.TrimSpace(resolved.ID) != targetWorkspace {
+		return fmt.Errorf(
+			"session: revalidated workspace id %q does not match %q",
+			strings.TrimSpace(resolved.ID),
+			targetWorkspace,
+		)
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -286,7 +313,7 @@ func (m *Manager) reserve(id string) error {
 		return fmt.Errorf("session: session %q is already pending", id)
 	}
 
-	m.pending[id] = struct{}{}
+	m.pending[id] = sessionReservation{workspaceID: targetWorkspace}
 	return nil
 }
 
@@ -298,12 +325,36 @@ func (m *Manager) activate(session *Session) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	delete(m.pending, session.ID)
+	reservation, reserved := m.pending[session.ID]
+	if !reserved {
+		return fmt.Errorf("session: session %q has no start reservation", session.ID)
+	}
+	if reservation.workspaceID != strings.TrimSpace(session.WorkspaceID) {
+		return fmt.Errorf(
+			"session: session %q workspace %q does not match reserved workspace %q",
+			session.ID,
+			strings.TrimSpace(session.WorkspaceID),
+			reservation.workspaceID,
+		)
+	}
 	if _, ok := m.sessions[session.ID]; ok {
 		return fmt.Errorf("session: session %q is already active", session.ID)
 	}
+	delete(m.pending, session.ID)
 	m.sessions[session.ID] = session
 	return nil
+}
+
+func (m *Manager) pendingSessionForWorkspace(workspaceID string) (string, bool) {
+	targetWorkspace := strings.TrimSpace(workspaceID)
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for sessionID, reservation := range m.pending {
+		if reservation.workspaceID == targetWorkspace {
+			return sessionID, true
+		}
+	}
+	return "", false
 }
 
 func (m *Manager) releaseReservation(id string) {

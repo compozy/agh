@@ -117,29 +117,8 @@ func (f Fixture) Agent(name string) (AgentFixture, error) {
 	return AgentFixture{}, fmt.Errorf("acpmock: fixture agent %q not found", target)
 }
 
-// SelectTurn returns the first turn that matches the supplied prompt occurrence.
-func (a AgentFixture) SelectTurn(prompt string, occurrence int, meta ...acp.PromptMeta) (TurnFixture, error) {
-	return a.SelectTurnAtGlobalOccurrence(prompt, occurrence, occurrence, meta...)
-}
-
-// SelectTurnAtGlobalOccurrence matches both the session-local prompt count and
-// an explicit cross-process fixture count maintained by the test driver.
-func (a AgentFixture) SelectTurnAtGlobalOccurrence(
-	prompt string,
-	occurrence int,
-	globalOccurrence int,
-	meta ...acp.PromptMeta,
-) (TurnFixture, error) {
-	if occurrence <= 0 {
-		return TurnFixture{}, fmt.Errorf("acpmock: prompt occurrence %d must be >= 1", occurrence)
-	}
-	if globalOccurrence <= 0 {
-		return TurnFixture{}, fmt.Errorf(
-			"acpmock: global prompt occurrence %d must be >= 1",
-			globalOccurrence,
-		)
-	}
-
+// SelectTurn returns the first turn that matches stable prompt fields.
+func (a AgentFixture) SelectTurn(prompt string, meta ...acp.PromptMeta) (TurnFixture, error) {
 	input := turnMatchInput{
 		UserText: strings.TrimSpace(prompt),
 	}
@@ -148,19 +127,16 @@ func (a AgentFixture) SelectTurnAtGlobalOccurrence(
 	}
 
 	for _, turn := range a.Turns {
-		if turn.Match.matches(input, occurrence, globalOccurrence) {
+		if turn.Match.matches(input) {
 			return turn, nil
 		}
 	}
 
 	return TurnFixture{}, fmt.Errorf(
-		"acpmock: no turn matched agent %q canonical_prompt %q raw_prompt %q at occurrence %d "+
-			"global occurrence %d with meta %#v",
+		"acpmock: no turn matched agent %q canonical_prompt %q raw_prompt %q with meta %#v",
 		a.Name,
 		canonicalUserText(input.UserText),
 		input.UserText,
-		occurrence,
-		globalOccurrence,
 		input.Meta,
 	)
 }
@@ -247,24 +223,28 @@ func (t TurnFixture) Validate(path string) error {
 
 // Validate ensures the turn match contains at least one supported stable selector.
 func (m TurnMatch) Validate(path string) error {
-	if m.Occurrence < 0 {
-		return fmt.Errorf("acpmock: %s.occurrence must be >= 0", path)
-	}
-	if m.GlobalOccurrence < 0 {
-		return fmt.Errorf("acpmock: %s.global_occurrence must be >= 0", path)
-	}
 	normalized := m.Normalize()
 	switch normalized.TurnSource {
 	case "", acp.PromptTurnSourceUser, acp.PromptTurnSourceNetwork, acp.PromptTurnSourceSynthetic:
 	default:
 		return fmt.Errorf("acpmock: %s.turn_source %q is invalid", path, normalized.TurnSource)
 	}
-	if normalized.TurnSource == "" && normalized.UserText == "" && normalized.UserTextContains == "" &&
-		normalized.Network == nil {
+	if normalized.TurnSource == "" && normalized.UserText == "" && normalized.Network == nil &&
+		normalized.Goal == nil && normalized.Judge == nil {
 		return fmt.Errorf("acpmock: %s requires at least one stable selector", path)
 	}
 	if normalized.Network != nil {
 		if err := normalized.Network.Validate(path + ".network"); err != nil {
+			return err
+		}
+	}
+	if normalized.Goal != nil {
+		if err := normalized.Goal.Validate(path + ".goal"); err != nil {
+			return err
+		}
+	}
+	if normalized.Judge != nil {
+		if err := normalized.Judge.Validate(path + ".judge"); err != nil {
 			return err
 		}
 	}
@@ -274,11 +254,20 @@ func (m TurnMatch) Validate(path string) error {
 // Normalize returns a trimmed copy of the turn matcher.
 func (m TurnMatch) Normalize() TurnMatch {
 	normalized := TurnMatch{
-		TurnSource:       strings.TrimSpace(m.TurnSource),
-		UserText:         strings.TrimSpace(m.UserText),
-		UserTextContains: strings.TrimSpace(m.UserTextContains),
-		Occurrence:       m.Occurrence,
-		GlobalOccurrence: m.GlobalOccurrence,
+		TurnSource: strings.TrimSpace(m.TurnSource),
+		UserText:   strings.TrimSpace(m.UserText),
+	}
+	if m.Goal != nil {
+		goal := m.Goal.Normalize()
+		if !goal.IsZero() {
+			normalized.Goal = &goal
+		}
+	}
+	if m.Judge != nil {
+		judge := m.Judge.Normalize()
+		if !judge.IsZero() {
+			normalized.Judge = &judge
+		}
 	}
 	if m.Network != nil {
 		network := m.Network.Normalize()
@@ -294,22 +283,12 @@ type turnMatchInput struct {
 	Meta     acp.PromptMeta
 }
 
-func (m TurnMatch) matches(input turnMatchInput, occurrence int, globalOccurrence int) bool {
+func (m TurnMatch) matches(input turnMatchInput) bool {
 	normalized := m.Normalize()
-	if normalized.Occurrence > 0 && normalized.Occurrence != occurrence {
-		return false
-	}
-	if normalized.GlobalOccurrence > 0 && normalized.GlobalOccurrence != globalOccurrence {
-		return false
-	}
 	if normalized.TurnSource != "" && input.Meta.Normalize().TurnSource != normalized.TurnSource {
 		return false
 	}
 	if normalized.UserText != "" && canonicalUserText(input.UserText) != normalized.UserText {
-		return false
-	}
-	if normalized.UserTextContains != "" &&
-		!strings.Contains(canonicalUserText(input.UserText), normalized.UserTextContains) {
 		return false
 	}
 	if normalized.Network != nil {
@@ -317,6 +296,19 @@ func (m TurnMatch) matches(input turnMatchInput, occurrence int, globalOccurrenc
 			return false
 		}
 		if !normalized.Network.matches(*input.Meta.Network) {
+			return false
+		}
+	}
+	if normalized.Goal != nil {
+		meta := input.Meta.Normalize()
+		if meta.Synthetic == nil || meta.Synthetic.Goal == nil ||
+			!normalized.Goal.matches(*meta.Synthetic.Goal) {
+			return false
+		}
+	}
+	if normalized.Judge != nil {
+		meta := input.Meta.Normalize()
+		if meta.Judge == nil || !normalized.Judge.matches(*meta.Judge) {
 			return false
 		}
 	}

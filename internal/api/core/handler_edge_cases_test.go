@@ -196,13 +196,12 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 	usageValue := int64(10)
 	goalTurn := 2
 	clientMessageID := "client-message-1"
-	agentEvent := core.AgentEventPayloadFromEvent(acp.AgentEvent{
-		Type:            acp.EventTypePermission,
-		SessionID:       "sess-1",
-		TurnID:          "turn-1",
-		ClientMessageID: &clientMessageID,
-		Timestamp:       time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-		Action:          "fs/read_text_file",
+	event := acp.AgentEvent{
+		Type:      acp.EventTypePermission,
+		SessionID: "sess-1",
+		TurnID:    "turn-1",
+		Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		Action:    "fs/read_text_file",
 		Failure: &store.SessionFailure{
 			Kind:    store.FailurePermission,
 			Summary: "permission policy denied",
@@ -216,7 +215,8 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 			ItemIndex: 1, Turn: &goalTurn, PromptAttempt: 2, PromptID: "goal-prompt-2",
 		},
 		Raw: []byte(`{"ok":true}`),
-	})
+	}.WithClientMessageID(clientMessageID)
+	agentEvent := core.AgentEventPayloadFromEvent(event)
 	if agentEvent.Type != acp.EventTypePermission || agentEvent.Usage == nil || agentEvent.Usage.InputTokens == nil {
 		t.Fatalf("agent event payload = %#v", agentEvent)
 	}

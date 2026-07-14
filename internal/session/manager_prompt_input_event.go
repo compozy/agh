@@ -46,7 +46,7 @@ func (m *Manager) recordPromptInputEvent(
 		Text:      req.message,
 	}
 	if clientMessageID := strings.TrimSpace(req.clientMessageID); clientMessageID != "" {
-		event.ClientMessageID = &clientMessageID
+		event = event.WithClientMessageID(clientMessageID)
 	}
 	if req.turnSource == TurnSourceSynthetic {
 		event.Type = acp.EventTypeSyntheticReentry

@@ -33,6 +33,7 @@ type StubSessionManager struct {
 	AttachSessionFn     func(context.Context, store.SessionAttachRequest) (store.SessionAttach, error)
 	ClearFn             func(context.Context, string) (*session.Session, error)
 	PromptFn            func(context.Context, string, string) (<-chan acp.AgentEvent, error)
+	PromptWithOptsFn    func(context.Context, string, session.PromptOpts) (<-chan acp.AgentEvent, error)
 	PromptSyntheticFn   func(
 		context.Context,
 		string,
@@ -306,6 +307,17 @@ func (s StubSessionManager) Prompt(ctx context.Context, id string, msg string) (
 	ch := make(chan acp.AgentEvent)
 	close(ch)
 	return ch, nil
+}
+
+func (s StubSessionManager) PromptWithOpts(
+	ctx context.Context,
+	id string,
+	opts session.PromptOpts,
+) (<-chan acp.AgentEvent, error) {
+	if s.PromptWithOptsFn != nil {
+		return s.PromptWithOptsFn(ctx, id, opts)
+	}
+	return s.Prompt(ctx, id, opts.Message)
 }
 
 func (s StubSessionManager) PromptSynthetic(

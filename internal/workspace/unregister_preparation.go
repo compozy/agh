@@ -23,16 +23,6 @@ func (r *Resolver) SetUnregisterPreparer(preparer UnregisterPreparer) {
 	r.unregisterMu.Unlock()
 }
 
-// HasUnregisterPreparer reports whether Unregister owns external cleanup.
-func (r *Resolver) HasUnregisterPreparer() bool {
-	if r == nil {
-		return false
-	}
-	r.unregisterMu.RLock()
-	defer r.unregisterMu.RUnlock()
-	return r.unregisterPreparer != nil
-}
-
 func (r *Resolver) prepareUnregister(
 	ctx context.Context,
 	workspace Workspace,

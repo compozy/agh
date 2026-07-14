@@ -120,7 +120,7 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			return len(page.Turns) >= 1 && page.Turns[len(page.Turns)-1].ResultStatus != nil
 		})
 		assertMonotonicGoalTurns(t, pauseTurns)
-		waitForStoppedGoalJudgeSessions(ctx, t, harness, "goal-pause", len(pauseTurns.Turns))
+		waitForStoppedGoalJudgeSessions(ctx, t, harness, "goal-pause", countGoalVerdicts(pauseTurns))
 	})
 
 	t.Run("Should recover from refusal through explicit approval", func(t *testing.T) {
@@ -763,6 +763,16 @@ func assertGoalJudgeOutcomes(t testing.TB, page aghcontract.GoalTurnPage, want [
 		}
 	}
 	assertMonotonicGoalTurns(t, page)
+}
+
+func countGoalVerdicts(page aghcontract.GoalTurnPage) int {
+	count := 0
+	for _, turn := range page.Turns {
+		if turn.VerdictOutcome != nil {
+			count++
+		}
+	}
+	return count
 }
 
 func assertMonotonicGoalTurns(t testing.TB, page aghcontract.GoalTurnPage) {

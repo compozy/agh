@@ -9,6 +9,8 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	looppkg "github.com/compozy/agh/internal/loop"
+	"github.com/compozy/agh/internal/loop/gate"
+	"github.com/compozy/agh/internal/session"
 )
 
 type loopJudgeExecution struct {
@@ -176,14 +178,25 @@ func (r *loopGateJudgeRunner) revokeExecution(ctx context.Context, correlationID
 
 func collectLoopJudgeResult(
 	ctx context.Context,
-	sessions loopPromptSessionManager,
+	sessions loopJudgeSessionManager,
 	sessionID string,
-	message string,
+	req gate.JudgeRequest,
 ) (looppkg.ActionPromptResult, error) {
 	if strings.TrimSpace(sessionID) == "" {
 		return looppkg.ActionPromptResult{}, errors.New("daemon: loop judge session id is required")
 	}
-	events, err := sessions.Prompt(ctx, sessionID, message)
+	judgeMeta := acp.PromptJudgeMeta{
+		Role:          acp.PromptJudgeRoleAgent,
+		Attempt:       req.Attempt,
+		CorrelationID: req.CorrelationID,
+		GateID:        req.GateID,
+		CriterionID:   req.CriterionID,
+	}
+	events, err := sessions.PromptWithOpts(ctx, sessionID, session.PromptOpts{
+		Message:    req.Rubric,
+		TurnSource: session.TurnSourceUser,
+		PromptMeta: acp.PromptMeta{Judge: &judgeMeta},
+	})
 	if err != nil {
 		return looppkg.ActionPromptResult{}, err
 	}

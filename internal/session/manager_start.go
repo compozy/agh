@@ -101,7 +101,7 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 		}
 	}()
 
-	if err := m.reserve(spec.sessionID); err != nil {
+	if err := m.reserveStart(ctx, spec.sessionID, spec.workspace.ID); err != nil {
 		return nil, fmt.Errorf("session: reserve %s session %q: %w", spec.startAction, spec.sessionID, err)
 	}
 	defer func() {
@@ -148,6 +148,7 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 		ctx,
 		session,
 		proc,
+		strings.TrimSpace(startOpts.PreferredModel) == "",
 		runtime.agent,
 		runtime.networkCapabilities,
 		spec.postEvent,

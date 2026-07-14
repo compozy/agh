@@ -248,14 +248,17 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 					byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
 				},
 			},
+			executions: newLoopJudgeExecutionRegistry(),
 		}
 
 		_, err := runner.Judge(context.Background(), gate.JudgeRequest{
-			GateID:      "quality-gate",
-			CriterionID: "review",
-			WorkspaceID: "ws-loop",
-			Agent:       "loop-judge",
-			Rubric:      "Review the evidence.",
+			GateID:        "quality-gate",
+			CriterionID:   "review",
+			Attempt:       2,
+			CorrelationID: "goal-judge:stable-attempt",
+			WorkspaceID:   "ws-loop",
+			Agent:         "loop-judge",
+			Rubric:        "Review the evidence.",
 		})
 		if err != nil {
 			t.Fatalf("Judge() error = %v", err)
@@ -272,6 +275,16 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		}
 		if got, want := sessions.singleStopID(t), "sess-loop-judge"; got != want {
 			t.Fatalf("Stop session ID = %q, want %q", got, want)
+		}
+		promptCall := sessions.singlePromptCall(t)
+		if promptCall.PromptMeta.Judge == nil {
+			t.Fatal("PromptOpts.PromptMeta.Judge = nil")
+		}
+		if got, want := *promptCall.PromptMeta.Judge, (acp.PromptJudgeMeta{
+			Role: acp.PromptJudgeRoleAgent, Attempt: 2, CorrelationID: "goal-judge:stable-attempt",
+			GateID: "quality-gate", CriterionID: "review",
+		}); got != want {
+			t.Fatalf("PromptOpts.PromptMeta.Judge = %#v, want %#v", got, want)
 		}
 	})
 
@@ -667,6 +680,7 @@ type loopActionBinderSessionManager struct {
 	promptReleased           chan struct{}
 	promptReleaseOnce        sync.Once
 	createCalls              []session.CreateOpts
+	promptCalls              []session.PromptOpts
 	cancelIDs                []string
 	stopIDs                  []string
 	stopSawCanceledContexts  []bool
@@ -741,6 +755,17 @@ func (m *loopActionBinderSessionManager) Prompt(
 	}
 	close(events)
 	return events, nil
+}
+
+func (m *loopActionBinderSessionManager) PromptWithOpts(
+	ctx context.Context,
+	_ string,
+	opts session.PromptOpts,
+) (<-chan acp.AgentEvent, error) {
+	m.mu.Lock()
+	m.promptCalls = append(m.promptCalls, opts)
+	m.mu.Unlock()
+	return m.Prompt(ctx, "", opts.Message)
 }
 
 func (m *loopActionBinderSessionManager) CancelPrompt(_ context.Context, id string) error {
@@ -883,6 +908,14 @@ func (m loopPromptResultSessionManager) Prompt(
 	return events, nil
 }
 
+func (m loopPromptResultSessionManager) PromptWithOpts(
+	ctx context.Context,
+	_ string,
+	_ session.PromptOpts,
+) (<-chan acp.AgentEvent, error) {
+	return m.Prompt(ctx, "", "")
+}
+
 func (m loopPromptResultSessionManager) CancelPrompt(context.Context, string) error {
 	return errors.New("unexpected CancelPrompt call")
 }
@@ -914,15 +947,28 @@ func loopJudgeRunnerForTest(
 				byID: map[string]workspacepkg.ResolvedWorkspace{"ws-loop": resolved},
 			},
 		},
+		executions: newLoopJudgeExecutionRegistry(),
 	}
 }
 
 func loopJudgeRequestForTest() gate.JudgeRequest {
 	return gate.JudgeRequest{
-		GateID:      "quality-gate",
-		CriterionID: "review",
-		WorkspaceID: "ws-loop",
-		Agent:       "loop-judge",
-		Rubric:      "Review the evidence.",
+		GateID:        "quality-gate",
+		CriterionID:   "review",
+		Attempt:       1,
+		CorrelationID: "goal-judge:test",
+		WorkspaceID:   "ws-loop",
+		Agent:         "loop-judge",
+		Rubric:        "Review the evidence.",
 	}
+}
+
+func (m *loopActionBinderSessionManager) singlePromptCall(t *testing.T) session.PromptOpts {
+	t.Helper()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if len(m.promptCalls) != 1 {
+		t.Fatalf("PromptWithOpts call count = %d, want 1", len(m.promptCalls))
+	}
+	return m.promptCalls[0]
 }

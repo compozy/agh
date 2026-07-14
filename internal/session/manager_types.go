@@ -77,12 +77,16 @@ type ModelCatalog interface {
 // Option customizes the session manager.
 type Option func(*Manager)
 
+type sessionReservation struct {
+	workspaceID string
+}
+
 // Manager owns active session lifecycle and runtime orchestration.
 type Manager struct {
 	mu                 sync.RWMutex
-	deleteMu           sync.Mutex
+	lifecycleMu        sync.Mutex
 	sessions           map[string]*Session
-	pending            map[string]struct{}
+	pending            map[string]sessionReservation
 	finalizing         map[string]*sessionFinalization
 	promptDrains       map[chan struct{}]struct{}
 	spawnMu            sync.Mutex

@@ -306,6 +306,9 @@ func TestManagerTranscriptProjectionReads(t *testing.T) {
 		h := newHarness(t)
 		activate := func(sessionID string, recorder EventRecorder) {
 			t.Helper()
+			h.manager.mu.Lock()
+			h.manager.pending[sessionID] = sessionReservation{}
+			h.manager.mu.Unlock()
 			if err := h.manager.activate(&Session{
 				ID:       sessionID,
 				State:    StateActive,

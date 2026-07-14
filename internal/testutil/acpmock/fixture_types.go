@@ -58,12 +58,32 @@ type TurnFixture struct {
 
 // TurnMatch routes a prompt to a turn fixture using stable prompt fields.
 type TurnMatch struct {
-	TurnSource       string            `json:"turn_source,omitempty"`
-	UserText         string            `json:"user_text,omitempty"`
-	UserTextContains string            `json:"user_text_contains,omitempty"`
-	Occurrence       int               `json:"occurrence,omitempty"`
-	GlobalOccurrence int               `json:"global_occurrence,omitempty"`
-	Network          *TurnMatchNetwork `json:"network,omitempty"`
+	TurnSource string            `json:"turn_source,omitempty"`
+	UserText   string            `json:"user_text,omitempty"`
+	Network    *TurnMatchNetwork `json:"network,omitempty"`
+	Goal       *TurnMatchGoal    `json:"goal,omitempty"`
+	Judge      *TurnMatchJudge   `json:"judge,omitempty"`
+}
+
+// TurnMatchGoal captures exact Goal prompt metadata fields.
+type TurnMatchGoal struct {
+	Kind          string `json:"kind,omitempty"`
+	RunID         string `json:"run_id,omitempty"`
+	NodeID        string `json:"node_id,omitempty"`
+	Generation    int64  `json:"generation,omitempty"`
+	ItemIndex     *int   `json:"item_index,omitempty"`
+	Turn          *int   `json:"turn,omitempty"`
+	PromptAttempt *int   `json:"prompt_attempt,omitempty"`
+	PromptID      string `json:"prompt_id,omitempty"`
+}
+
+// TurnMatchJudge captures exact daemon-owned judge prompt metadata fields.
+type TurnMatchJudge struct {
+	Role          string `json:"role,omitempty"`
+	Attempt       int    `json:"attempt,omitempty"`
+	CorrelationID string `json:"correlation_id,omitempty"`
+	GateID        string `json:"gate_id,omitempty"`
+	CriterionID   string `json:"criterion_id,omitempty"`
 }
 
 // TurnMatchNetwork captures exact AGH network envelope field matching.

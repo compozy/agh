@@ -152,53 +152,6 @@ func (m *Manager) handleProcessExit(ctx context.Context, session *Session, waitE
 	return m.finalizeStopped(ctx, session, waitErr)
 }
 
-func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr error) (err error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if session == nil {
-		return nil
-	}
-	owned, err := m.claimOrWaitFinalization(ctx, session)
-	if err != nil || !owned {
-		return err
-	}
-
-	defer func() { m.finishFinalization(session.ID, err) }()
-
-	var errs []error
-	errs = appendLifecycleErr(errs, m.beginStoppingSession(ctx, session))
-	errs = appendLifecycleErr(errs, m.persistStopClassification(ctx, session, waitErr))
-	errs = appendLifecycleErr(errs, m.recordProcessExitEvent(ctx, session, waitErr))
-	errs = appendLifecycleErr(errs, m.recordSessionStoppedEvent(ctx, session, waitErr))
-
-	m.dispatchAgentStopped(ctx, session, session.processHandle(), waitErr)
-
-	m.logSandboxTransport(session, sandboxEventTransportDisconnect, nil, 0)
-	errs = appendLifecycleErr(errs, m.finalizeSandbox(ctx, session, sandboxSyncReasonForStop(session)))
-
-	errs = appendLifecycleErr(errs, m.closeSessionRecorder(session))
-	errs = appendLifecycleErr(errs, m.markSessionStopped(ctx, session))
-	errs = appendLifecycleErr(errs, m.materializeSessionLedger(ctx, session))
-	errs = appendLifecycleErr(errs, m.leaveSessionNetwork(ctx, session))
-	m.failQueuedSyntheticPrompts(session.ID, ErrSessionNotActive)
-
-	m.removeActive(session.ID)
-	if m.hostedMCP != nil {
-		m.hostedMCP.ReleaseSession(session.ID)
-	}
-	m.dispatchSessionPostStop(ctx, session)
-	if m.notifier != nil {
-		m.notifier.OnSessionStopped(ctx, session)
-	}
-	if _, healthErr := m.persistSessionStoppedHealth(ctx, session, m.now()); healthErr != nil {
-		m.sessionLogger(session).Warn("session: persist stopped health failed", "error", healthErr)
-	}
-	session.clearProviderSecretRedactions()
-
-	return errors.Join(errs...)
-}
-
 func (m *Manager) resolveStartMCPServers(
 	ctx context.Context,
 	resolvedWorkspace *workspacepkg.ResolvedWorkspace,

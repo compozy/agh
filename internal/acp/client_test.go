@@ -1093,10 +1093,10 @@ func TestStartUsesSetConfigOptionForPreferredModelWhenAvailable(t *testing.T) {
 	assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "model", "other-model", "other-model")
 }
 
-func TestStartSkipsCurrentSessionConfigValues(t *testing.T) {
+func TestStartHandlesCurrentSessionConfigValues(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should skip an explicit model that is already current", func(t *testing.T) {
+	t.Run("Should explicitly apply a preferred model that is already current", func(t *testing.T) {
 		t.Parallel()
 
 		driver := New()
@@ -1107,8 +1107,12 @@ func TestStartSkipsCurrentSessionConfigValues(t *testing.T) {
 		})
 		defer stopProcess(t, driver, proc)
 
-		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
-			t.Fatal("set_config_option was sent when the requested model was already current")
+		request := decodeCapturedSetSessionConfigOptionRequest(
+			t,
+			captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption),
+		)
+		if request.ConfigID != "model" || request.Value != "new-model" {
+			t.Fatalf("set-config request = %#v, want explicit current model", request)
 		}
 	})
 

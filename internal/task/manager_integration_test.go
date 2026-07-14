@@ -14,10 +14,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	eventspkg "github.com/compozy/agh/internal/events"
+	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/store/sessiondb"
@@ -40,6 +42,37 @@ type integrationSessionExecutor struct {
 type integrationRuntimeViewReader struct {
 	registry     *globaldb.GlobalDB
 	sessionStore map[string]*sessiondb.SessionDB
+}
+
+type rollupPublicationFailureStore struct {
+	taskpkg.Store
+	cancel         context.CancelFunc
+	reconcileErr   error
+	failDependents atomic.Bool
+}
+
+func (s *rollupPublicationFailureStore) CompleteRunLeaseSettlement(
+	ctx context.Context,
+	completion taskpkg.LeaseCompletion,
+) (taskpkg.CompletedRunSettlement, error) {
+	settlement, err := s.Store.CompleteRunLeaseSettlement(ctx, completion)
+	if err == nil && len(settlement.RolledUpRuns) > 0 {
+		s.failDependents.Store(true)
+		if s.cancel != nil {
+			s.cancel()
+		}
+	}
+	return settlement, err
+}
+
+func (s *rollupPublicationFailureStore) ListDependents(
+	ctx context.Context,
+	taskID string,
+) ([]taskpkg.Dependency, error) {
+	if s.failDependents.Load() {
+		return nil, s.reconcileErr
+	}
+	return s.Store.ListDependents(ctx, taskID)
 }
 
 func (e *integrationSessionExecutor) StartTaskSession(
@@ -1182,6 +1215,131 @@ func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
 		}
 		if got, want := len(replayedRecords), len(records); got != want {
 			t.Fatalf("parent event count after replay = %d, want unchanged %d", got, want)
+		}
+	})
+
+	t.Run("Should publish the committed parent completion after request cancellation and reconcile failure", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openTaskManagerGlobalDB(t)
+		requestCtx, cancelRequest := context.WithCancel(ctx)
+		reconcileErr := errors.New("forced dependent reconciliation failure")
+		store := &rollupPublicationFailureStore{
+			Store: db, cancel: cancelRequest, reconcileErr: reconcileErr,
+		}
+		var hookMu sync.Mutex
+		completedByTask := make(map[string]int)
+		hooks := integrationTaskRunHooks{
+			completed: func(
+				hookCtx context.Context,
+				payload hookspkg.TaskRunCompletedPayload,
+			) (hookspkg.TaskRunCompletedPayload, error) {
+				if hookCtx.Err() != nil {
+					t.Errorf("TaskRunCompleted hook context error = %v", hookCtx.Err())
+				}
+				if _, ok := hookCtx.Deadline(); !ok {
+					t.Error("TaskRunCompleted hook context has no publication deadline")
+				}
+				hookMu.Lock()
+				completedByTask[payload.TaskID]++
+				hookMu.Unlock()
+				return payload, nil
+			},
+		}
+		manager := newTaskManagerIntegration(t, store, taskpkg.WithTaskRunHooks(hooks))
+		actor, err := taskpkg.DeriveHumanActorContext(
+			"user-parent-publication",
+			taskpkg.OriginKindCLI,
+			"agh task create",
+		)
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		parent, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope: taskpkg.ScopeGlobal, Title: "Parent publication",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask(parent) error = %v", err)
+		}
+		parentRun, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: parent.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun(parent) error = %v", err)
+		}
+		if _, err := manager.MarkRunNeedsAttention(ctx, parentRun.ID, "await child", actor); err != nil {
+			t.Fatalf("MarkRunNeedsAttention(parent) error = %v", err)
+		}
+		child, err := manager.CreateChildTask(ctx, parent.ID, taskpkg.CreateTask{
+			Scope: taskpkg.ScopeGlobal, Title: "Only child",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateChildTask() error = %v", err)
+		}
+		completion, worker := claimTaskRunForRollupIntegration(
+			t,
+			ctx,
+			manager,
+			child.ID,
+			actor,
+			"sess-parent-publication",
+		)
+
+		completedRun, err := manager.CompleteRunLease(requestCtx, completion, worker)
+		if completedRun == nil {
+			t.Fatal("CompleteRunLease() run = nil after committed settlement")
+		}
+		if !errors.Is(err, reconcileErr) {
+			t.Fatalf("CompleteRunLease() error = %v, want %v", err, reconcileErr)
+		}
+		if requestCtx.Err() != context.Canceled {
+			t.Fatalf("request context error = %v, want %v", requestCtx.Err(), context.Canceled)
+		}
+
+		storedParent, err := db.GetTask(ctx, parent.ID)
+		if err != nil {
+			t.Fatalf("GetTask(parent) error = %v", err)
+		}
+		if got, want := storedParent.Status.Normalize(), taskpkg.TaskStatusCompleted; got != want {
+			t.Fatalf("parent status = %q, want %q", got, want)
+		}
+		parentRuns, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: parent.ID})
+		if err != nil {
+			t.Fatalf("ListTaskRuns(parent) error = %v", err)
+		}
+		if len(parentRuns) != 1 || parentRuns[0].Status.Normalize() != taskpkg.TaskRunStatusCompleted {
+			t.Fatalf("parent runs = %#v, want one completed run", parentRuns)
+		}
+		parentEvents, err := db.ListTaskEventRecords(ctx, taskpkg.EventRecordQuery{TaskID: parent.ID})
+		if err != nil {
+			t.Fatalf("ListTaskEventRecords(parent) error = %v", err)
+		}
+		completedEventCount := 0
+		for _, record := range parentEvents {
+			if record.Event.EventType == "task.run.completed" {
+				completedEventCount++
+			}
+		}
+		if completedEventCount != 1 {
+			t.Fatalf("parent task.run.completed event count = %d, want 1", completedEventCount)
+		}
+		hookMu.Lock()
+		parentHookCount := completedByTask[parent.ID]
+		hookMu.Unlock()
+		if parentHookCount != 1 {
+			t.Fatalf("parent TaskRunCompleted hook count = %d, want 1", parentHookCount)
+		}
+
+		if _, replayErr := manager.CompleteRunLease(ctx, completion, worker); !errors.Is(
+			replayErr,
+			taskpkg.ErrInvalidStatusTransition,
+		) {
+			t.Fatalf("CompleteRunLease(replay) error = %v, want %v", replayErr, taskpkg.ErrInvalidStatusTransition)
+		}
+		hookMu.Lock()
+		parentHookCount = completedByTask[parent.ID]
+		hookMu.Unlock()
+		if parentHookCount != 1 {
+			t.Fatalf("parent TaskRunCompleted hook count after replay = %d, want 1", parentHookCount)
 		}
 	})
 

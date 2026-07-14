@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
@@ -338,6 +339,102 @@ func TestManagerDelete(t *testing.T) {
 						t.Fatalf("Close(stored reader after logical delete) error = %v", err)
 					}
 				}
+			},
+		},
+		{
+			name: "Should reject workspace removal while a session start is reserved",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t)
+				db, err := globaldb.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), "global.db"))
+				if err != nil {
+					t.Fatalf("OpenGlobalDB() error = %v", err)
+				}
+				t.Cleanup(func() {
+					if err := db.Close(testutil.Context(t)); err != nil {
+						t.Errorf("Close() error = %v", err)
+					}
+				})
+				h := newHarness(t, WithSessionCatalog(db))
+				now := time.Date(2026, 7, 14, 9, 0, 0, 0, time.UTC)
+				if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+					ID: h.workspaceID, RootDir: h.workspace, Name: h.workspaceName,
+					CreatedAt: now, UpdatedAt: now,
+				}); err != nil {
+					t.Fatalf("InsertWorkspace() error = %v", err)
+				}
+				resolver, err := workspacepkg.NewResolver(
+					db,
+					workspacepkg.WithHomePaths(h.homePaths),
+					workspacepkg.WithConfigLoader(func(string) (aghconfig.Config, error) { return h.cfg, nil }),
+				)
+				if err != nil {
+					t.Fatalf("NewResolver() error = %v", err)
+				}
+				resolver.SetUnregisterPreparer(
+					func(ctx context.Context, workspace workspacepkg.Workspace) (workspacepkg.UnregisterPreparation, error) {
+						return h.manager.PrepareWorkspaceRemoval(ctx, workspace.ID)
+					},
+				)
+
+				startEntered := make(chan struct{})
+				releaseStart := make(chan struct{})
+				h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+					close(startEntered)
+					<-releaseStart
+					return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-starting"), nil
+				}
+				type createResult struct {
+					session *Session
+					err     error
+				}
+				created := make(chan createResult, 1)
+				go func() {
+					session, createErr := h.manager.Create(ctx, CreateOpts{
+						AgentName: "coder", Workspace: h.workspaceID,
+					})
+					created <- createResult{session: session, err: createErr}
+				}()
+				select {
+				case <-startEntered:
+				case <-ctx.Done():
+					t.Fatalf("Create() did not reach provider start: %v", ctx.Err())
+				}
+
+				unregisterErr := resolver.Unregister(ctx, h.workspaceID)
+				if !errors.Is(unregisterErr, workspacepkg.ErrWorkspaceHasActiveSessions) {
+					t.Fatalf(
+						"Unregister(starting workspace) error = %v, want %v",
+						unregisterErr,
+						workspacepkg.ErrWorkspaceHasActiveSessions,
+					)
+				}
+				if _, err := db.GetWorkspace(ctx, h.workspaceID); err != nil {
+					t.Fatalf("GetWorkspace(after rejected unregister) error = %v", err)
+				}
+				metaPath := store.SessionMetaFile(filepath.Join(h.homePaths.SessionsDir, "sess-1"))
+				meta, err := store.ReadSessionMeta(metaPath)
+				if err != nil {
+					t.Fatalf("ReadSessionMeta(starting) error = %v", err)
+				}
+				if meta.State != string(StateStarting) || meta.WorkspaceID != h.workspaceID {
+					t.Fatalf("starting session metadata = %#v", meta)
+				}
+
+				close(releaseStart)
+				var result createResult
+				select {
+				case result = <-created:
+				case <-ctx.Done():
+					t.Fatalf("Create() did not finish after release: %v", ctx.Err())
+				}
+				if result.err != nil || result.session == nil || result.session.Info().State != StateActive {
+					t.Fatalf("Create() result = session:%#v error:%v", result.session, result.err)
+				}
+				t.Cleanup(func() {
+					if err := h.manager.Stop(testutil.Context(t), result.session.ID); err != nil {
+						t.Errorf("Stop() cleanup error = %v", err)
+					}
+				})
 			},
 		},
 		{

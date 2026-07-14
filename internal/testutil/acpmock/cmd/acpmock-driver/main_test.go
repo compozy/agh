@@ -73,7 +73,6 @@ func TestMockAgentSelectTurnDoesNotCountUnmatchedPrompts(t *testing.T) {
 						Match: acpmock.TurnMatch{
 							TurnSource: acp.PromptTurnSourceUser,
 							UserText:   "first prompt",
-							Occurrence: 1,
 						},
 					},
 					{
@@ -81,7 +80,6 @@ func TestMockAgentSelectTurnDoesNotCountUnmatchedPrompts(t *testing.T) {
 						Match: acpmock.TurnMatch{
 							TurnSource: acp.PromptTurnSourceUser,
 							UserText:   "second prompt",
-							Occurrence: 2,
 						},
 					},
 				},
@@ -90,28 +88,28 @@ func TestMockAgentSelectTurnDoesNotCountUnmatchedPrompts(t *testing.T) {
 		}
 		meta := acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser}
 
-		first, occurrence, err := agent.selectTurn("acp-session-1", "first prompt", meta)
+		first, promptIndex, err := agent.selectTurn("acp-session-1", "first prompt", meta)
 		if err != nil {
 			t.Fatalf("selectTurn(first) error = %v", err)
 		}
-		if first.Name != "first" || occurrence != 1 {
-			t.Fatalf("selectTurn(first) = (%q, %d), want (first, 1)", first.Name, occurrence)
+		if first.Name != "first" || promptIndex != 1 {
+			t.Fatalf("selectTurn(first) = (%q, %d), want (first, 1)", first.Name, promptIndex)
 		}
 
-		_, occurrence, err = agent.selectTurn("acp-session-1", "extractor internal prompt", meta)
+		_, promptIndex, err = agent.selectTurn("acp-session-1", "extractor internal prompt", meta)
 		if err == nil || !strings.Contains(err.Error(), "no turn matched") {
 			t.Fatalf("selectTurn(unmatched) error = %v, want no-match error", err)
 		}
-		if occurrence != 2 {
-			t.Fatalf("selectTurn(unmatched) occurrence = %d, want next occurrence 2", occurrence)
+		if promptIndex != 2 {
+			t.Fatalf("selectTurn(unmatched) prompt index = %d, want 2", promptIndex)
 		}
 
-		second, occurrence, err := agent.selectTurn("acp-session-1", "second prompt", meta)
+		second, promptIndex, err := agent.selectTurn("acp-session-1", "second prompt", meta)
 		if err != nil {
 			t.Fatalf("selectTurn(second) error = %v", err)
 		}
-		if second.Name != "second" || occurrence != 2 {
-			t.Fatalf("selectTurn(second) = (%q, %d), want (second, 2)", second.Name, occurrence)
+		if second.Name != "second" || promptIndex != 2 {
+			t.Fatalf("selectTurn(second) = (%q, %d), want (second, 2)", second.Name, promptIndex)
 		}
 	})
 }

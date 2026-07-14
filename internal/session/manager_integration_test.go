@@ -611,7 +611,7 @@ func TestManagerIntegrationRemovePurgesSyntheticState(t *testing.T) {
 				sessions: map[string]*Session{
 					"sess-synth": {ID: "sess-synth"},
 				},
-				pending: map[string]struct{}{
+				pending: map[string]sessionReservation{
 					"sess-synth": {},
 				},
 				finalizing: map[string]*sessionFinalization{

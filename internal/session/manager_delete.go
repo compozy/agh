@@ -22,8 +22,8 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 		return fmt.Errorf("session: normalize delete id %q: %w", id, err)
 	}
 
-	m.deleteMu.Lock()
-	defer m.deleteMu.Unlock()
+	m.lifecycleMu.Lock()
+	defer m.lifecycleMu.Unlock()
 
 	staged, err := m.stageSessionDelete(ctx, target, true)
 	if err != nil {

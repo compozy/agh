@@ -226,89 +226,12 @@ func (h *BaseHandlers) DeleteWorkspace(c *gin.Context) {
 		return
 	}
 
-	cleanupOwner, ownsSessionCleanup := h.Workspaces.(interface {
-		HasUnregisterPreparer() bool
-	})
-	if !ownsSessionCleanup || !cleanupOwner.HasUnregisterPreparer() {
-		stoppedSessionIDs, err := h.stoppedWorkspaceSessionIDs(c.Request.Context(), workspace.ID)
-		if err != nil {
-			h.respondError(c, StatusForWorkspaceError(err), err)
-			return
-		}
-		if err := h.Workspaces.Unregister(c.Request.Context(), workspace.ID); err != nil {
-			h.respondError(c, StatusForWorkspaceError(err), err)
-			return
-		}
-		if err := h.deleteStoppedWorkspaceSessions(c.Request.Context(), workspace.ID, stoppedSessionIDs); err != nil {
-			h.respondError(c, StatusForWorkspaceError(err), err)
-			return
-		}
-	} else if err := h.Workspaces.Unregister(c.Request.Context(), workspace.ID); err != nil {
+	if err := h.Workspaces.Unregister(c.Request.Context(), workspace.ID); err != nil {
 		h.respondError(c, StatusForWorkspaceError(err), err)
 		return
 	}
 
 	c.Status(http.StatusNoContent)
-}
-
-func (h *BaseHandlers) stoppedWorkspaceSessionIDs(ctx context.Context, workspaceID string) ([]string, error) {
-	if h.Sessions == nil {
-		return nil, errors.New("api: session manager is required")
-	}
-
-	infos, err := h.Sessions.ListAll(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("api: list sessions before deleting workspace %q: %w", workspaceID, err)
-	}
-
-	active := make([]string, 0)
-	stopped := make([]string, 0)
-	for _, info := range infos {
-		if info == nil || strings.TrimSpace(info.WorkspaceID) != workspaceID {
-			continue
-		}
-		sessionID := strings.TrimSpace(info.ID)
-		if sessionID == "" {
-			continue
-		}
-		if info.State == session.StateActive {
-			active = append(active, sessionID)
-			continue
-		}
-		stopped = append(stopped, sessionID)
-	}
-	if len(active) > 0 {
-		sort.Strings(active)
-		return nil, fmt.Errorf(
-			"api: delete workspace %q: %w: %s",
-			workspaceID,
-			workspacepkg.ErrWorkspaceHasActiveSessions,
-			strings.Join(active, ", "),
-		)
-	}
-
-	sort.Strings(stopped)
-	return stopped, nil
-}
-
-func (h *BaseHandlers) deleteStoppedWorkspaceSessions(
-	ctx context.Context,
-	workspaceID string,
-	sessionIDs []string,
-) error {
-	if h.Sessions == nil {
-		return errors.New("api: session manager is required")
-	}
-
-	for _, sessionID := range sessionIDs {
-		if err := h.Sessions.Delete(ctx, sessionID); err != nil {
-			if errors.Is(err, session.ErrSessionNotFound) {
-				continue
-			}
-			return fmt.Errorf("api: delete session %q after workspace %q: %w", sessionID, workspaceID, err)
-		}
-	}
-	return nil
 }
 
 // ResolveWorkspace resolves or registers a workspace from a path.

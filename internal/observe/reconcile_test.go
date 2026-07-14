@@ -1,6 +1,7 @@
 package observe
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -94,6 +95,31 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 		stopReason := store.StopAgentCrashed
 		ttl := now.Add(time.Hour)
 		acpSessionID := "acp-child"
+		creationProfile := store.SessionCreationProfile{
+			Version: store.SessionCreationProfileVersion, AgentName: "coder", Provider: "claude",
+			WorkspaceID: h.workspaceID, CWD: h.workspace, SandboxMode: store.SessionCreationSandboxNone,
+			Permissions: "approve-reads",
+		}
+		creationOptions := store.SessionCreationOptions{
+			SessionID: childID, Name: "Child", SessionType: "worker",
+		}
+		creationProfileRef, err := creationProfile.Ref()
+		if err != nil {
+			t.Fatalf("SessionCreationProfile.Ref() error = %v", err)
+		}
+		policySpecDigest, err := creationProfile.PolicySpecDigest()
+		if err != nil {
+			t.Fatalf("SessionCreationProfile.PolicySpecDigest() error = %v", err)
+		}
+		creationDigest, err := creationProfile.CreationDigest(creationOptions)
+		if err != nil {
+			t.Fatalf("SessionCreationProfile.CreationDigest() error = %v", err)
+		}
+		creationIdentity := store.SessionCreationIdentity{
+			CreationProfileRef: creationProfileRef,
+			PolicySpecDigest:   policySpecDigest,
+			CreationDigest:     creationDigest,
+		}
 		snapshot, err := h.registry.UpsertSoulSnapshot(testutil.Context(t), soul.Snapshot{
 			ID:          "soul-snapshot-1",
 			WorkspaceID: h.workspaceID,
@@ -179,11 +205,16 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 						WorkspacePaths: []string{h.workspace},
 					},
 				},
-				SoulSnapshotID:   " " + snapshot.ID + " ",
-				SoulDigest:       " " + snapshot.Digest + " ",
-				ParentSoulDigest: " parent-soul-digest ",
-				CreatedAt:        now,
-				UpdatedAt:        now,
+				SoulSnapshotID:     " " + snapshot.ID + " ",
+				SoulDigest:         " " + snapshot.Digest + " ",
+				ParentSoulDigest:   " parent-soul-digest ",
+				CreationProfile:    &creationProfile,
+				CreationOptions:    &creationOptions,
+				CreationProfileRef: creationIdentity.CreationProfileRef,
+				PolicySpecDigest:   creationIdentity.PolicySpecDigest,
+				CreationDigest:     creationIdentity.CreationDigest,
+				CreatedAt:          now,
+				UpdatedAt:          now,
 			},
 		); err != nil {
 			t.Fatalf("WriteSessionMeta(child) error = %v", err)
@@ -242,6 +273,39 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 		}
 		if got, want := indexed.ParentSoulDigest, "parent-soul-digest"; got != want {
 			t.Fatalf("indexed.ParentSoulDigest = %q, want %q", got, want)
+		}
+		indexedIdentity, err := h.registry.GetSessionCreationIdentity(testutil.Context(t), childID)
+		if err != nil {
+			t.Fatalf("GetSessionCreationIdentity() error = %v", err)
+		}
+		if indexedIdentity != creationIdentity {
+			t.Fatalf("GetSessionCreationIdentity() = %#v, want %#v", indexedIdentity, creationIdentity)
+		}
+		indexedProfile, err := h.registry.GetSessionCreationProfile(testutil.Context(t), creationProfileRef)
+		if err != nil {
+			t.Fatalf("GetSessionCreationProfile() error = %v", err)
+		}
+		indexedProfileJSON, err := indexedProfile.CanonicalJSON()
+		if err != nil {
+			t.Fatalf("indexed SessionCreationProfile.CanonicalJSON() error = %v", err)
+		}
+		wantProfileJSON, err := creationProfile.CanonicalJSON()
+		if err != nil {
+			t.Fatalf("expected SessionCreationProfile.CanonicalJSON() error = %v", err)
+		}
+		if !bytes.Equal(indexedProfileJSON, wantProfileJSON) {
+			t.Fatalf("GetSessionCreationProfile() = %s, want %s", indexedProfileJSON, wantProfileJSON)
+		}
+		registration, err := h.registry.RegisterSessionWithCreationIdentity(
+			testutil.Context(t),
+			indexed,
+			creationIdentity,
+		)
+		if err != nil {
+			t.Fatalf("RegisterSessionWithCreationIdentity(reuse) error = %v", err)
+		}
+		if registration.Created {
+			t.Fatal("RegisterSessionWithCreationIdentity(reuse) created duplicate session")
 		}
 
 		health, err := h.observer.Health(testutil.Context(t))

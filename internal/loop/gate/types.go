@@ -248,6 +248,7 @@ type JudgeRunner interface {
 type JudgeRequest struct {
 	GateID        string
 	CriterionID   string
+	Attempt       int
 	CorrelationID string
 	WorkspaceID   string
 	Agent         string

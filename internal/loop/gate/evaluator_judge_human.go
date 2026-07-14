@@ -50,6 +50,7 @@ func (e *Evaluator) evaluateAgentJudge(
 	response, err := e.judges.Judge(ctx, JudgeRequest{
 		GateID:        gate.ID,
 		CriterionID:   criterion.ID,
+		Attempt:       in.Revision + 1,
 		CorrelationID: strings.TrimSpace(in.ToolCallCorrelationID),
 		WorkspaceID:   in.ToolScope.WorkspaceID,
 		Agent:         criterion.Agent,

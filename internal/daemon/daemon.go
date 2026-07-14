@@ -45,8 +45,13 @@ import (
 
 const defaultShutdownTimeout = 10 * time.Second
 
-var errMissingNetworkBindingSurface = errors.New(
-	"daemon: session manager does not implement the network binding surface",
+var (
+	errMissingNetworkBindingSurface = errors.New(
+		"daemon: session manager does not implement the network binding surface",
+	)
+	errMissingWorkspaceRemovalPreparation = errors.New(
+		"daemon: session manager does not implement workspace removal preparation",
+	)
 )
 
 // Option customizes daemon construction.

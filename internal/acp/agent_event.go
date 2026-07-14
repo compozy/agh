@@ -2,7 +2,6 @@ package acp
 
 import (
 	"encoding/json"
-	"strings"
 	"time"
 
 	"github.com/compozy/agh/internal/store"
@@ -32,17 +31,16 @@ func (s *AvailableCommandSet) Values() []store.SessionAdvertisedCommand {
 
 // AgentEvent is the stream item exposed to session/.
 type AgentEvent struct {
-	Type            string
-	SessionID       string
-	TurnID          string
-	ClientMessageID *string
-	RequestID       string
+	Type      string
+	SessionID string
+	TurnID    string
+	RequestID string
 	store.EventCorrelation
 	Timestamp         time.Time
 	Text              string
 	Title             string
 	ToolCallID        string
-	tool              *agentToolPayload
+	payload           *agentEventPayload
 	StopReason        string
 	PromptStopReason  PromptStopReason
 	Action            string
@@ -57,13 +55,4 @@ type AgentEvent struct {
 	Runtime           *RuntimeActivity
 	Raw               json.RawMessage
 	ToolPrechecked    bool
-}
-
-// ClientMessageIDValue returns the normalized client identity for an authored
-// user message, or an empty string when the event has no client identity.
-func (e *AgentEvent) ClientMessageIDValue() string {
-	if e == nil || e.ClientMessageID == nil {
-		return ""
-	}
-	return strings.TrimSpace(*e.ClientMessageID)
 }
