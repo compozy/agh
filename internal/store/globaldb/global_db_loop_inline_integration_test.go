@@ -23,7 +23,7 @@ func TestGlobalDBInlineGoalStartAndReplaceIntegration(t *testing.T) {
 	t.Run("Should serialize same-session starts while allowing different sessions", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-inline-race")
+		globalDB := openLoopTestGlobalDB(t, "ws-inline-race")
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 11, 0, 0, 0, 0, time.UTC)
 		origins := []looppkg.RunOrigin{
@@ -82,7 +82,7 @@ func TestGlobalDBInlineGoalStartAndReplaceIntegration(t *testing.T) {
 	t.Run("Should give one concurrent replacement winner and recover it after reopen", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-inline-replace-race")
+		globalDB := openLoopTestGlobalDB(t, "ws-inline-replace-race")
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 11, 0, 30, 0, 0, time.UTC)
 		origin := inlineGoalOriginForTest("session-inline-replace-race")
@@ -173,7 +173,7 @@ func TestGlobalDBInlineGoalStartAndReplaceIntegration(t *testing.T) {
 	t.Run("Should map the active-session unique index and roll its injected conflict back", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-inline-index")
+		globalDB := openLoopTestGlobalDB(t, "ws-inline-index")
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 11, 1, 0, 0, 0, time.UTC)
 		origin := inlineGoalOriginForTest("session-inline-index")
@@ -242,7 +242,7 @@ func TestGlobalDBInlineGoalStartAndReplaceIntegration(t *testing.T) {
 	t.Run("Should roll back the old Run when replacement persistence fails before commit", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-inline-replace-rollback")
+		globalDB := openLoopTestGlobalDB(t, "ws-inline-replace-rollback")
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 11, 1, 30, 0, 0, time.UTC)
 		origin := inlineGoalOriginForTest("session-inline-replace-rollback")
@@ -311,7 +311,7 @@ func TestGlobalDBInlineGoalStartAndReplaceIntegration(t *testing.T) {
 	t.Run("Should enforce one active Goal per session and atomically replace the expected Run", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-inline")
+		globalDB := openLoopTestGlobalDB(t, "ws-inline")
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 10, 23, 0, 0, 0, time.UTC)
 		origin := inlineGoalOriginForTest("session-inline")
@@ -432,7 +432,7 @@ func TestGlobalDBInlineGoalStartAndReplaceIntegration(t *testing.T) {
 	t.Run("Should clear only the newest terminal Goal without changing its audit status", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-inline-terminal")
+		globalDB := openLoopTestGlobalDB(t, "ws-inline-terminal")
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 10, 23, 30, 0, 0, time.UTC)
 		origin := inlineGoalOriginForTest("session-inline-terminal")

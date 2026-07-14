@@ -4994,7 +4994,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					))
 				},
 				wantFor: func(fixture nativeMemoryAdminFixture) []byte {
-					return []byte(fmt.Sprintf(`"id":%q`, fixture.decision.ID))
+					return fmt.Appendf(nil, `"id":%q`, fixture.decision.ID)
 				},
 			},
 			{

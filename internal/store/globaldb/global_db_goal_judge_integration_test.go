@@ -18,7 +18,7 @@ func TestGoalJudgeAttemptLifecycleIntegration(t *testing.T) {
 	t.Run("Should persist before evaluator effect and complete once with reported zero tokens", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-judge")
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-judge")
 		insertGoalSchemaLoopRun(t, globalDB, "run-judge", "ws-goal-judge", "catalog", nil)
 		now := time.Date(2026, 7, 10, 18, 0, 0, 0, time.UTC)
 		key := goal.TurnKey{
@@ -192,7 +192,7 @@ func TestGoalJudgeAmbiguityIntegration(t *testing.T) {
 	t.Run("Should terminalize one running attempt and its open turn without evaluator replay", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-judge-ambiguous")
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-judge-ambiguous")
 		insertGoalSchemaLoopRun(
 			t,
 			globalDB,

@@ -14,9 +14,9 @@ const reactRuntimePattern =
 const apiProxyTarget = resolveApiProxyTarget(process.env);
 const apiProxyOrigin = resolveApiProxyOrigin(process.env);
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [
-    devtools(),
+    command === "serve" && devtools(),
     tanstackRouter({
       target: "react",
       autoCodeSplitting: true,
@@ -24,7 +24,6 @@ export default defineConfig({
     viteReact(),
     babel({
       presets: [reactCompilerPreset()],
-      plugins: ["@babel/plugin-syntax-jsx"],
     }),
     tailwindcss(),
   ],
@@ -59,4 +58,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

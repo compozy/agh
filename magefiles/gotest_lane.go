@@ -62,7 +62,7 @@ func goUnitTestPackageLimitFor(effectiveCPU, parallelism int) int {
 	if totalBudget < parallelism {
 		totalBudget = parallelism
 	}
-	limit := totalBudget / parallelism
+	limit := (totalBudget + parallelism - 1) / parallelism
 	if limit < 1 {
 		return 1
 	}

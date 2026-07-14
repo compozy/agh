@@ -21,7 +21,7 @@ func TestGlobalDBLoopCatalogRunsShouldReturnTruthfulBatchSummaries(t *testing.T)
 	t.Run("Should return exact lean summaries without decoding rich run fields", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a", "ws-b")
+		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
 
@@ -124,7 +124,7 @@ func TestGlobalDBLoopCatalogRunsShouldReturnTruthfulBatchSummaries(t *testing.T)
 	t.Run("Should reject missing scope malformed names and missing aggregate window", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
 		queries := []looppkg.CatalogRunQuery{
 			{LoopNames: []string{"alpha"}, AggregateAfter: time.Now().UTC()},
 			{WorkspaceID: "ws-a", LoopNames: []string{"Not Valid"}, AggregateAfter: time.Now().UTC()},
@@ -144,7 +144,7 @@ func TestGlobalDBLoopCatalogRunsShouldUseCatalogIndex(t *testing.T) {
 	t.Run("Should seek newest all-status ids without a temporary order sort", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
 		names, err := json.Marshal([]string{"alpha", "beta"})
 		if err != nil {
 			t.Fatalf("json.Marshal(loop names) error = %v", err)
@@ -240,7 +240,7 @@ func TestGlobalDBLoopAPIRunsShouldRemainWorkspaceScoped(t *testing.T) {
 	t.Run("Should list only the requested workspace runs with filters and aggregates inputs", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a", "ws-b")
+		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 5, 10, 0, 0, 0, time.UTC)
 
@@ -367,7 +367,7 @@ func TestGlobalDBLoopAPIEventsShouldResumeBySequenceAndWorkspace(t *testing.T) {
 	t.Run("Should return status_changed events after seq without leaking another workspace", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a", "ws-b")
+		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 5, 11, 0, 0, 0, time.UTC)
 		run := testLoopRun("looprun-api-events", now, looppkg.StatusRunning)
@@ -421,7 +421,7 @@ func TestGlobalDBLoopAPIAnnotationsShouldRemainWorkspaceScoped(t *testing.T) {
 	t.Run("Should round trip positions for same loop name independently per workspace", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a", "ws-b")
+		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
 		ctx := testutil.Context(t)
 
 		if err := globalDB.ReplaceLoopUIAnnotations(ctx, "ws-a", "delivery", []looppkg.UIAnnotation{

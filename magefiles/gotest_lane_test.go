@@ -47,7 +47,8 @@ func TestGoUnitTestPackageLimitFor(t *testing.T) {
 		want         int
 	}{
 		{name: "Should keep one group on four CPUs", effectiveCPU: 4, parallelism: 4, want: 1},
-		{name: "Should keep one group on twelve CPUs", effectiveCPU: 12, parallelism: 4, want: 1},
+		{name: "Should keep one group on eight CPUs", effectiveCPU: 8, parallelism: 4, want: 1},
+		{name: "Should use the partial second group on twelve CPUs", effectiveCPU: 12, parallelism: 4, want: 2},
 		{name: "Should allow two groups on sixteen CPUs", effectiveCPU: 16, parallelism: 4, want: 2},
 		{name: "Should allow four groups on thirty two CPUs", effectiveCPU: 32, parallelism: 4, want: 4},
 	}

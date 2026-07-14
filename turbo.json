@@ -1,26 +1,19 @@
 {
     "$schema": "https://turbo.build/schema.json",
-    "globalDependencies": [
-        "cmd/agh-codegen/**",
-        "internal/api/contract/**",
-        "internal/api/spec/**",
-        "internal/codegen/openapits/**",
-        "internal/codegen/sdkts/**",
-        "internal/extension/contract/**",
-        "internal/extensionprotocol/**",
-        "internal/hooks/**",
-        "internal/subprocess/handshake.go",
-        "magefiles/**",
-        "openapi/agh.json",
-        "openapi/compozy-daemon.json"
-    ],
     "tasks": {
         "//#codegen-check": {
+            "cache": false,
+            "inputs": ["scripts/codegen-check.sh"],
             "outputs": [],
-            "env": ["AGH_CODEGEN_CHECKED"]
+            "passThroughEnv": ["AGH_CODEGEN_CHECKED"]
         },
         "build": {
             "dependsOn": ["//#codegen-check", "^build"],
+            "outputs": ["dist/**"],
+            "env": ["VITE_AGH_API_URL"]
+        },
+        "agh-web#build": {
+            "dependsOn": ["//#codegen-check", "typecheck", "^build"],
             "outputs": ["dist/**"],
             "env": ["VITE_AGH_API_URL"]
         },
@@ -28,9 +21,57 @@
             "dependsOn": [],
             "outputs": []
         },
+        "@agh/site#generate:openapi": {
+            "inputs": [
+                "scripts/generate-openapi.ts",
+                "lib/openapi.ts",
+                "lib/runtime-navigation.ts",
+                "$TURBO_ROOT$/internal/api/httpapi/*routes.go",
+                "$TURBO_ROOT$/internal/api/udsapi/*routes.go",
+                "$TURBO_ROOT$/openapi/agh.json"
+            ],
+            "outputs": [
+                "content/runtime/api-reference/*.mdx",
+                "!content/runtime/api-reference/index.mdx",
+                "content/runtime/api-reference/meta.json"
+            ]
+        },
+        "@agh/site#generate:content": {
+            "dependsOn": ["generate:openapi"],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!content/runtime/api-reference/meta.json",
+                "!content/runtime/api-reference/support.mdx"
+            ],
+            "outputs": [".source/**", ".velite/**"]
+        },
         "@agh/site#build": {
-            "dependsOn": ["^build"],
-            "outputs": ["out/**", ".next/**"]
+            "dependsOn": ["//#codegen-check", "generate:content", "^build"],
+            "outputs": ["out/**", ".next/**", "!.next/cache/**"]
+        },
+        "@agh/site#typecheck": {
+            "dependsOn": ["//#codegen-check", "generate:content", "transit"],
+            "outputs": []
+        },
+        "@agh/site#test": {
+            "dependsOn": ["//#codegen-check", "generate:content", "transit"],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!content/runtime/api-reference/meta.json",
+                "!content/runtime/api-reference/support.mdx",
+                "$TURBO_ROOT$/docs/_memory/glossary.md",
+                "$TURBO_ROOT$/docs/rfcs/003_agh-network-v0.md",
+                "$TURBO_ROOT$/docs/rfcs/004_agh-network-v1.md",
+                "$TURBO_ROOT$/internal/api/core/errors.go",
+                "$TURBO_ROOT$/internal/api/httpapi/*routes.go",
+                "$TURBO_ROOT$/internal/api/udsapi/*routes.go",
+                "$TURBO_ROOT$/internal/config/config.go",
+                "$TURBO_ROOT$/internal/config/mcp_resource.go",
+                "$TURBO_ROOT$/internal/config/provider.go",
+                "$TURBO_ROOT$/internal/tools/builtin_ids.go",
+                "$TURBO_ROOT$/openapi/agh.json"
+            ],
+            "outputs": []
         },
         "dev": {
             "cache": false,

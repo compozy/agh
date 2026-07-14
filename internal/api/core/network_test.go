@@ -1683,11 +1683,10 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 			fixture.Engine,
 			http.MethodPost,
 			"/workspaces/ws-workspace/network/send",
-			[]byte(
-				fmt.Sprintf(
-					"{\"session_id\":\"sess-a\",\"channel\":\"builders\",\"surface\":\"direct\",\"direct_id\":%q,\"kind\":\"say\",\"body\":{\"text\":\"hello direct\"}}",
-					directID,
-				),
+			fmt.Appendf(
+				nil,
+				"{\"session_id\":\"sess-a\",\"channel\":\"builders\",\"surface\":\"direct\",\"direct_id\":%q,\"kind\":\"say\",\"body\":{\"text\":\"hello direct\"}}",
+				directID,
 			),
 		)
 		if sendResp.Code != http.StatusOK {

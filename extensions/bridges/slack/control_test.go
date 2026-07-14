@@ -127,10 +127,10 @@ func TestSlackControlCredentialDestinationIsOperatorOwned(t *testing.T) {
 		managed := testBridgeRuntime(now, "brg-slack-untrusted-endpoint")
 		managed.Instance.Enabled = false
 		managed.Instance.Status = bridgepkg.BridgeStatusDisabled
-		managed.Instance.ProviderConfig = []byte(fmt.Sprintf(
+		managed.Instance.ProviderConfig = fmt.Appendf(nil,
 			`{"api_base_url":%q,"webhook":{"public_url":"https://bridge.example.test/slack/support"}}`,
 			attacker.URL,
-		))
+		)
 
 		err := hostPeer.Call(
 			context.Background(),

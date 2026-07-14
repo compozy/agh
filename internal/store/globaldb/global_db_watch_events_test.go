@@ -34,7 +34,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a", "ws-b")
+		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
 		parent := workspaceTaskRecordForTest("watch-parent", "ws-a")
 		if err := globalDB.CreateTask(ctx, parent); err != nil {
 			t.Fatalf("CreateTask(parent) error = %v", err)
@@ -109,7 +109,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
 		taskRecord := workspaceTaskRecordForTest("watch-hot-task", "ws-a")
 		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
 			t.Fatalf("CreateTask() error = %v", err)
@@ -198,7 +198,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a", "ws-b")
+		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
 		base := time.Date(2026, 7, 8, 16, 0, 0, 0, time.UTC)
 		local := testLoopRun("watch-loop-local", base, looppkg.StatusRunning)
 		local.WorkspaceID = "ws-a"
@@ -264,7 +264,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a", "ws-b")
+		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
 		jobA, err := globalDB.CreateJob(
 			ctx,
 			automationJobForTest(
@@ -403,7 +403,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
 		job, err := globalDB.CreateJob(
 			ctx,
 			automationJobForTest(
@@ -481,7 +481,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
 		job := automationJobForTest(
 			automation.AutomationScopeWorkspace,
 			"watch-auto-malformed-retry",
@@ -527,7 +527,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a", "ws-b")
+		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
 		base := time.Date(2026, 7, 8, 20, 30, 0, 0, time.UTC)
 		opening := networkWatchThreadMessageForTest(
 			"ws-a",
@@ -657,7 +657,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 9, 9, 0, 0, 0, time.UTC)
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a", "ws-b")
+		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
 		appendCoordinatorWatchSummaryForTest(
 			ctx,
 			t,
@@ -743,7 +743,7 @@ func TestGlobalDBWatchEventsReadMatches(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 9, 10, 0, 0, 0, time.UTC)
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a", "ws-b")
+		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
 		registerWatchSessionForTest(ctx, t, globalDB, "sess-watch-a", "ws-a", "coder")
 		registerWatchSessionForTest(ctx, t, globalDB, "sess-watch-b", "ws-b", "reviewer")
 		appendSessionWatchEventForTest(
@@ -832,7 +832,7 @@ func TestGlobalDBWatchEventsCoordinatorIntegration(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 8, 16, 0, 0, 0, time.UTC)
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
 		targetTask := workspaceTaskRecordForTest("watch-integration-target", "ws-a")
 		if err := globalDB.CreateTask(ctx, targetTask); err != nil {
 			t.Fatalf("CreateTask(target) error = %v", err)
@@ -974,7 +974,7 @@ func TestGlobalDBWatchEventsCoordinatorIntegration(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 8, 21, 0, 0, 0, time.UTC)
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
 		job, err := globalDB.CreateJob(
 			ctx,
 			automationJobForTest(
@@ -1064,7 +1064,7 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 8, 18, 30, 0, 0, time.UTC)
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
 		created, targetTask := parkWatchEventsLoopForRecoveryTest(ctx, t, globalDB, now)
 
 		parked, err := globalDB.ListParkedWatchEventSubscriptions(ctx)
@@ -1094,7 +1094,7 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 8, 18, 35, 0, 0, time.UTC)
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
 		definition := compileWatchEventsIntegrationDefinitionForTest(t)
 		loopIDs := []string{"watch-page-a", "watch-page-b", "watch-page-c"}
 		for index, loopID := range loopIDs {
@@ -1167,7 +1167,7 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 8, 18, 40, 0, 0, time.UTC)
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
 		definition := compileWatchEventsIntegrationDefinitionForTest(t)
 		poisonTask := workspaceTaskRecordForTest("watch-gap-poison-target", "ws-a")
 		if err := globalDB.CreateTask(ctx, poisonTask); err != nil {
@@ -1239,7 +1239,7 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 8, 18, 45, 0, 0, time.UTC)
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
 		created, targetTask := parkWatchEventsLoopForRecoveryTest(ctx, t, globalDB, now)
 		appendTaskWatchEventForTest(ctx, t, globalDB, targetTask.ID, now.Add(time.Second), "blocked")
 		actor := coordinatorActorContextForTest()
@@ -1291,7 +1291,7 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 8, 18, 50, 0, 0, time.UTC)
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
 		definition := compileWatchEventsIntegrationDefinitionForTest(t)
 		firstTask := workspaceTaskRecordForTest("watch-partial-target-a", "ws-a")
 		if err := globalDB.CreateTask(ctx, firstTask); err != nil {
@@ -1356,7 +1356,7 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 8, 19, 0, 0, 0, time.UTC)
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
 		created, targetTask := parkWatchEventsLoopForRecoveryTest(ctx, t, globalDB, now)
 		appendTaskWatchEventForTest(ctx, t, globalDB, targetTask.ID, now.Add(time.Second), "blocked")
 		actor := coordinatorActorContextForTest()
@@ -1378,7 +1378,7 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 8, 21, 30, 0, 0, time.UTC)
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a", "ws-b")
+		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
 		created := parkWatchEventsLoopWithDefinitionForTest(
 			ctx,
 			t,
@@ -1468,7 +1468,7 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 
 			ctx := testutil.Context(t)
 			now := time.Date(2026, 7, 9, 12, 0, 0, 0, time.UTC)
-			globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+			globalDB := openLoopTestGlobalDB(t, "ws-a")
 			created := parkWatchEventsLoopWithDefinitionForTest(
 				ctx,
 				t,
@@ -1544,7 +1544,7 @@ func TestGlobalDBWatchEventsParkedIndexAndRecovery(t *testing.T) {
 
 			ctx := testutil.Context(t)
 			now := time.Date(2026, 7, 9, 12, 30, 0, 0, time.UTC)
-			globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+			globalDB := openLoopTestGlobalDB(t, "ws-a")
 			registerWatchSessionForTest(ctx, t, globalDB, "sess-target", "ws-a", "coder")
 			registerWatchSessionForTest(ctx, t, globalDB, "sess-foreign", "ws-a", "reviewer")
 			appendSessionWatchEventForTest(ctx, t, globalDB, "sess-target", store.SessionEvent{
@@ -2412,7 +2412,7 @@ func TestGlobalDBWatchEventsReadMatchesShouldRejectInvalidQuery(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-a")
+		globalDB := openLoopTestGlobalDB(t, "ws-a")
 		_, err := globalDB.ReadMatches(ctx, looppkg.WatchEventsQuery{
 			WorkspaceID: "ws-a",
 			Streams:     map[string]int64{"unsupported": 0},

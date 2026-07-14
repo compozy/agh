@@ -17,7 +17,7 @@ func TestGoalSessionOutboxIntegration(t *testing.T) {
 	t.Run("Should claim retry and acknowledge deterministic events exactly once", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-outbox")
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-outbox")
 		now := time.Date(2026, 7, 10, 19, 0, 0, 0, time.UTC)
 		registerGoalSessionIdentityForTest(
 			t,
@@ -139,7 +139,7 @@ func TestGoalSessionOutboxIntegration(t *testing.T) {
 	t.Run("Should preserve a null bound session for clear projections", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-outbox-clear")
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-outbox-clear")
 		now := time.Date(2026, 7, 10, 19, 30, 0, 0, time.UTC)
 		registerGoalSessionIdentityForTest(
 			t,
@@ -180,7 +180,7 @@ func TestGoalSessionOutboxIntegration(t *testing.T) {
 	t.Run("Should reject cross workspace or mismatched session projections without a write", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-outbox", "ws-foreign")
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-outbox", "ws-foreign")
 		now := time.Date(2026, 7, 10, 20, 0, 0, 0, time.UTC)
 		registerGoalSessionIdentityForTest(
 			t,

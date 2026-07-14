@@ -269,7 +269,7 @@ func TestGlobalDBClaimNextRunShouldFilterByRunKind(t *testing.T) {
 func testGlobalDBClaimNextRunShouldFilterByRunKind(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshLoopTestGlobalDB(t)
+	globalDB := openLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 17, 0, 0, 0, time.UTC)
 	loopRun, err := globalDB.CreateLoopRunForStart(
@@ -2315,7 +2315,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackWhenFinalizerFai
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldRollbackWhenFinalizerFails(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshLoopTestGlobalDB(t)
+	globalDB := openLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 15, 0, 0, 0, time.UTC)
 	loopRun, err := globalDB.CreateLoopRunForStart(
@@ -2393,7 +2393,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldPauseAtBoundaryWithoutEn
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldPauseAtBoundaryWithoutEnqueue(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshLoopTestGlobalDB(t)
+	globalDB := openLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 15, 30, 0, 0, time.UTC)
 	loopRun, err := globalDB.CreateLoopRunForStart(
@@ -2519,7 +2519,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldKeepNodeOutputsPendingWh
 		t.Run("Should keep pending outputs on "+tc.name+" boundary", func(t *testing.T) {
 			t.Parallel()
 
-			globalDB := openFreshLoopTestGlobalDB(t)
+			globalDB := openLoopTestGlobalDB(t)
 			ctx := testutil.Context(t)
 			now := time.Date(2026, 7, 4, 15, 35, 0, 0, time.UTC)
 			seed := testLoopRun("looprun-coordinator-skip-"+tc.name, now, looppkg.StatusRunning)
@@ -2650,7 +2650,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldDeferBoundaryWhileGenera
 		t.Run("Should defer "+tc.name+" boundary while generation is in flight", func(t *testing.T) {
 			t.Parallel()
 
-			globalDB := openFreshLoopTestGlobalDB(t)
+			globalDB := openLoopTestGlobalDB(t)
 			ctx := testutil.Context(t)
 			now := time.Date(2026, 7, 4, 15, 37, 0, 0, time.UTC)
 			seed := testLoopRun("looprun-coordinator-inflight-"+tc.name, now, looppkg.StatusRunning)
@@ -2764,7 +2764,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldNotDispatchWhenLoopIsSus
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldNotDispatchWhenLoopIsSuspended(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshLoopTestGlobalDB(t)
+	globalDB := openLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 15, 39, 0, 0, time.UTC)
 	loopRun, err := globalDB.CreateLoopRunForStart(
@@ -2861,7 +2861,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldResumeWatchingLoopForRea
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldResumeWatchingLoopForReadyPoll(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshLoopTestGlobalDB(t)
+	globalDB := openLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 5, 15, 39, 0, 0, time.UTC)
 	loopRun, err := globalDB.CreateLoopRunForStart(
@@ -2962,7 +2962,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldNotPauseWhileYielding(t 
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldNotPauseWhileYielding(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshLoopTestGlobalDB(t)
+	globalDB := openLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 15, 45, 0, 0, time.UTC)
 	loopRun, err := globalDB.CreateLoopRunForStart(
@@ -3039,7 +3039,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldEnqueuePostCommitWakes(t
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldEnqueuePostCommitWakes(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshLoopTestGlobalDB(t)
+	globalDB := openLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 8, 16, 30, 0, 0, time.UTC)
 	loopRun, err := globalDB.CreateLoopRunForStart(
@@ -3108,7 +3108,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldEnqueuePostCommitWakes(t
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldPreserveResultOnWakeFailure(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshLoopTestGlobalDB(t)
+	globalDB := openLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 8, 16, 35, 0, 0, time.UTC)
 	loopRun, err := globalDB.CreateLoopRunForStart(
@@ -3189,7 +3189,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldLetVerdictPreemptPause(t
 		t.Run("Should apply "+tc.name+" instead of pending pause", func(t *testing.T) {
 			t.Parallel()
 
-			globalDB := openFreshLoopTestGlobalDB(t)
+			globalDB := openLoopTestGlobalDB(t)
 			ctx := testutil.Context(t)
 			now := time.Date(2026, 7, 4, 15, 50, 0, 0, time.UTC)
 			loopRun, err := globalDB.CreateLoopRunForStart(
@@ -3285,7 +3285,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldRefreshTokensAndApplyBud
 		t.Run("Should apply "+tc.name+" after refreshing task-run token sum", func(t *testing.T) {
 			t.Parallel()
 
-			globalDB := openFreshLoopTestGlobalDB(t)
+			globalDB := openLoopTestGlobalDB(t)
 			ctx := testutil.Context(t)
 			now := time.Date(2026, 7, 4, 16, 0, 0, 0, time.UTC)
 			seed := testLoopRun("looprun-coordinator-budget-"+tc.name, now, looppkg.StatusRunning)
@@ -3399,7 +3399,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyWallClockBudget(t *
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyWallClockBudget(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshLoopTestGlobalDB(t)
+	globalDB := openLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 16, 20, 0, 0, time.UTC)
 	seed := testLoopRun("looprun-coordinator-wall-budget", now, looppkg.StatusRunning)
@@ -3458,7 +3458,7 @@ func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyWallClockBudget(t *
 func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldUseStartedAtForWallClockBudget(t *testing.T) {
 	t.Parallel()
 
-	globalDB := openFreshLoopTestGlobalDB(t)
+	globalDB := openLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	startedAt := time.Date(2026, 7, 4, 16, 35, 0, 0, time.UTC)
 	seed := testLoopRun("looprun-coordinator-wall-started-at", startedAt, looppkg.StatusRunning)
@@ -3523,7 +3523,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldUseStartedAtForWallClock
 func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldConsumeBudgetApprovalOnce(t *testing.T) {
 	t.Parallel()
 
-	globalDB := openFreshLoopTestGlobalDB(t)
+	globalDB := openLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 16, 45, 0, 0, time.UTC)
 	seed := testLoopRun("looprun-coordinator-budget-approval-once", now, looppkg.StatusRunning)
@@ -3654,7 +3654,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyRunStops(t *testing
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldApplyRunStops(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshLoopTestGlobalDB(t)
+	globalDB := openLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 16, 25, 0, 0, time.UTC)
 	parentRun, err := globalDB.CreateLoopRunForStart(
@@ -3734,7 +3734,7 @@ func TestGlobalDBReconcileLoopCoordinatorsOnBootShouldPromoteOldestQueuedRun(t *
 func testGlobalDBReconcileLoopCoordinatorsOnBootShouldPromoteOldestQueuedRun(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshLoopTestGlobalDB(t)
+	globalDB := openLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 16, 28, 0, 0, time.UTC)
 	activeRun, err := globalDB.CreateLoopRunForStart(
@@ -3832,7 +3832,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenc
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldCreateNodeTasksDependenciesAndRuns(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshLoopTestGlobalDB(t)
+	globalDB := openLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 16, 30, 0, 0, time.UTC)
 	loopRun, err := globalDB.CreateLoopRunForStart(
@@ -4007,7 +4007,7 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 		t.Run("Should record loop node terminal progress on "+tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			globalDB := openFreshLoopTestGlobalDB(t)
+			globalDB := openLoopTestGlobalDB(t)
 			ctx := testutil.Context(t)
 			now := time.Date(2026, 7, 4, 17, 0, 0, 0, time.UTC)
 			terminalAt := now.Add(2 * time.Second)
@@ -4157,7 +4157,7 @@ func TestGlobalDBCompleteRunLeaseShouldCommitCoordinatorControlWithoutNodeSucces
 	t.Run("Should preserve task completion while leaving the Goal output control pending", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t)
+		globalDB := openLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 10, 18, 0, 0, 0, time.UTC)
 		definition := dsl.Definition{
@@ -4423,7 +4423,7 @@ func TestGlobalDBCompleteRunLeaseShouldCommitCoordinatorControlWithoutNodeSucces
 func TestGlobalDBHeartbeatRunLeaseShouldPersistCoalescedLoopTokenTicks(t *testing.T) {
 	t.Parallel()
 
-	globalDB := openFreshLoopTestGlobalDB(t)
+	globalDB := openLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 17, 30, 0, 0, time.UTC)
 	loopRun, err := globalDB.CreateLoopRunForStart(
@@ -4668,7 +4668,7 @@ func TestGlobalDBCompleteRunLeaseShouldStoreLargeLoopOutputByRef(t *testing.T) {
 	t.Run("Should externalize large loop node result and carry ref on generation output", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t)
+		globalDB := openLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 4, 17, 10, 0, 0, time.UTC)
 		loopRun, err := globalDB.CreateLoopRunForStart(
@@ -4798,7 +4798,7 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldSweepOrphanedLoopOutputB
 func testGlobalDBCompleteCoordinatorAndEnqueueNextShouldSweepOrphanedLoopOutputBlobsAtTerminalBoundary(t *testing.T) {
 	t.Helper()
 
-	globalDB := openFreshLoopTestGlobalDB(t)
+	globalDB := openLoopTestGlobalDB(t)
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 4, 17, 20, 0, 0, time.UTC)
 	loopRun, err := globalDB.CreateLoopRunForStart(

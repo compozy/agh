@@ -23,7 +23,7 @@ func TestGoalSessionCreationIdentityIntegration(t *testing.T) {
 	t.Run("Should create once match exact identity and reject changed or absent identity", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-identity", "ws-goal-foreign")
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-identity", "ws-goal-foreign")
 		now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
 		identity := store.SessionCreationIdentity{
 			CreationProfileRef: "profile-v1",
@@ -80,7 +80,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 	t.Run("Should release an unsettled Stop creation cleanup after database reopen", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-cleanup-reopen")
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-cleanup-reopen")
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 11, 8, 15, 0, 0, time.UTC)
 		insertGoalSchemaLoopRun(
@@ -143,7 +143,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-cleanup")
+			globalDB := openLoopTestGlobalDB(t, "ws-goal-cleanup")
 			ctx := testutil.Context(t)
 			now := time.Date(2026, 7, 11, 8, 30, 0, 0, time.UTC)
 			insertGoalSchemaLoopRun(t, globalDB, "run-goal-cleanup", "ws-goal-cleanup", "catalog", nil)
@@ -300,7 +300,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		func(t *testing.T) {
 			t.Parallel()
 
-			globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-binding-retry")
+			globalDB := openLoopTestGlobalDB(t, "ws-goal-binding-retry")
 			ctx := testutil.Context(t)
 			now := time.Date(2026, 7, 11, 9, 0, 0, 0, time.UTC)
 			insertGoalSchemaLoopRun(t, globalDB, "run-goal-binding-retry", "ws-goal-binding-retry", "catalog", nil)
@@ -467,7 +467,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 	t.Run("Should preserve one active epoch and terminalize failed creation before activation", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-binding", "ws-goal-binding-foreign")
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-binding", "ws-goal-binding-foreign")
 		now := time.Date(2026, 7, 10, 13, 0, 0, 0, time.UTC)
 		originIdentity := store.SessionCreationIdentity{
 			CreationProfileRef: "profile-v1",
@@ -679,7 +679,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 	t.Run("Should consume one reseed grant across concurrent activation and reopen", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-reseed-grant")
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-reseed-grant")
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 10, 13, 30, 0, 0, time.UTC)
 		originIdentity := store.SessionCreationIdentity{
@@ -843,7 +843,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 	t.Run("Should converge concurrent origin adoption on one active epoch", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-binding-race")
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-binding-race")
 		now := time.Date(2026, 7, 10, 14, 0, 0, 0, time.UTC)
 		identity := store.SessionCreationIdentity{
 			CreationProfileRef: "profile-race",

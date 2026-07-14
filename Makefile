@@ -7,7 +7,7 @@ else
 MAGE_RUN = $(MAGE)
 endif
 
-.PHONY: deps fmt lint test test-integration test-e2e-runtime test-e2e-web test-e2e test-e2e-nightly codegen codegen-check build boundaries verify help bun-lint bun-typecheck bun-test installer-check
+.PHONY: deps fmt fmt-check lint go-lint test test-integration test-e2e-runtime test-e2e-web test-e2e test-e2e-nightly codegen codegen-check build build-go boundaries verify help bun-lint bun-typecheck bun-test installer-check
 
 deps:
 	@$(MAGE_RUN) deps
@@ -15,8 +15,14 @@ deps:
 fmt:
 	@$(MAGE_RUN) fmt
 
+fmt-check:
+	@$(MAGE_RUN) fmtCheck
+
 lint:
 	@$(MAGE_RUN) lint
+
+go-lint:
+	@$(MAGE_RUN) goLint
 
 test:
 	@$(MAGE_RUN) test
@@ -44,6 +50,9 @@ codegen-check:
 
 build:
 	@$(MAGE_RUN) build
+
+build-go:
+	@$(MAGE_RUN) buildGo
 
 boundaries:
 	@$(MAGE_RUN) boundaries
@@ -73,7 +82,7 @@ site-dev:
 	@cd packages/site && bun run dev
 
 site-build:
-	@cd packages/site && bun run build
+	@bunx turbo run build --filter=./packages/site
 
 cli-docs:
 	@go run ./cmd/agh doc --output-dir packages/site/content/runtime/cli-reference
@@ -86,7 +95,7 @@ web-dev:
 	@cd web && bun run dev
 
 web-build:
-	@cd web && bun run build
+	@bunx turbo run build --filter=./web
 
 web-fmt:
 	@cd web && bun run format

@@ -12,8 +12,7 @@ import (
 
 // Test runs unit tests only (no integration tag).
 func Test() error {
-	return runRaceEnabledGoCommand(context.Background(), nil,
-		"run", "gotest.tools/gotestsum@"+gotestsumVersion,
+	return runGotestsum(context.Background(), nil,
 		"--format", "pkgname", "--", "-race", "-p", goUnitTestPackageLimit(),
 		"-parallel="+strconv.Itoa(goUnitTestParallelism),
 		"-timeout", goUnitTestTimeout, "./...")
@@ -21,16 +20,13 @@ func Test() error {
 
 // TestIntegration runs all tests including integration tests.
 func TestIntegration() error {
-	return runRaceEnabledGoCommand(context.Background(), nil,
-		"run", "gotest.tools/gotestsum@"+gotestsumVersion,
+	return runGotestsum(context.Background(), nil,
 		"--format", "pkgname", "--", "-race", "-p", goIntegrationPackageLimit, "-parallel=4",
 		"-timeout", goIntegrationTestTimeout, "-tags", "integration", "./...")
 }
 
 func runIntegrationSuite(ctx context.Context, suite e2elane.GoSuite, env map[string]string) error {
 	args := []string{
-		"run",
-		"gotest.tools/gotestsum@" + gotestsumVersion,
 		"--format",
 		"pkgname",
 		"--",
@@ -48,5 +44,13 @@ func runIntegrationSuite(ctx context.Context, suite e2elane.GoSuite, env map[str
 		args = append(args, "-run", suite.Run)
 	}
 	args = append(args, suite.Packages...)
-	return runRaceEnabledGoCommand(ctx, env, args...)
+	return runGotestsum(ctx, env, args...)
+}
+
+func runGotestsum(ctx context.Context, env map[string]string, args ...string) error {
+	if hasPinnedTool("gotestsum", gotestsumVersion, "--version") {
+		return runRaceEnabledCommand(ctx, env, "gotestsum", args...)
+	}
+	goArgs := append([]string{"run", "gotest.tools/gotestsum@" + gotestsumVersion}, args...)
+	return runRaceEnabledGoCommand(ctx, env, goArgs...)
 }

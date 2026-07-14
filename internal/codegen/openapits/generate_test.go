@@ -292,8 +292,8 @@ func TestRunCommand(t *testing.T) {
 	t.Run("Should succeed for zero exit status", func(t *testing.T) {
 		t.Parallel()
 
-		script := writeExecutableScript(t, "#!/bin/sh\nexit 0\n")
-		if err := runCommand(context.Background(), script); err != nil {
+		script := writeShellScript(t, "exit 0\n")
+		if err := runCommand(context.Background(), "/bin/sh", script); err != nil {
 			t.Fatalf("runCommand() error = %v", err)
 		}
 	})
@@ -301,8 +301,8 @@ func TestRunCommand(t *testing.T) {
 	t.Run("Should prefer stderr details", func(t *testing.T) {
 		t.Parallel()
 
-		script := writeExecutableScript(t, "#!/bin/sh\necho 'stderr detail' >&2\nexit 1\n")
-		err := runCommand(context.Background(), script)
+		script := writeShellScript(t, "echo 'stderr detail' >&2\nexit 1\n")
+		err := runCommand(context.Background(), "/bin/sh", script)
 		if err == nil {
 			t.Fatal("runCommand() error = nil, want non-nil")
 		}
@@ -314,8 +314,8 @@ func TestRunCommand(t *testing.T) {
 	t.Run("Should fall back to stdout details", func(t *testing.T) {
 		t.Parallel()
 
-		script := writeExecutableScript(t, "#!/bin/sh\necho 'stdout detail'\nexit 1\n")
-		err := runCommand(context.Background(), script)
+		script := writeShellScript(t, "echo 'stdout detail'\nexit 1\n")
+		err := runCommand(context.Background(), "/bin/sh", script)
 		if err == nil {
 			t.Fatal("runCommand() error = nil, want non-nil")
 		}
@@ -339,11 +339,11 @@ func TestRunCommand(t *testing.T) {
 	t.Run("Should preserve context cancellation", func(t *testing.T) {
 		t.Parallel()
 
-		script := writeExecutableScript(t, "#!/bin/sh\nsleep 1\n")
+		script := writeShellScript(t, "sleep 1\n")
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		err := runCommand(ctx, script)
+		err := runCommand(ctx, "/bin/sh", script)
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("runCommand() error = %v, want context.Canceled", err)
 		}
@@ -450,11 +450,11 @@ func writeTestSpec(t *testing.T, path string) {
 	}
 }
 
-func writeExecutableScript(t *testing.T, content string) string {
+func writeShellScript(t *testing.T, content string) string {
 	t.Helper()
 
 	path := filepath.Join(t.TempDir(), "script.sh")
-	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
 	}
 	return path

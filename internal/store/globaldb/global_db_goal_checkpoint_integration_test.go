@@ -80,7 +80,7 @@ func TestGoalCheckpointControlIntegration(t *testing.T) {
 	t.Run("Should preserve the first pause writer and reject a pause after terminal status", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t)
+		globalDB := openLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		firstAt := time.Date(2026, 7, 11, 7, 15, 0, 0, time.UTC)
 		run, err := globalDB.CreateLoopRunForStart(
@@ -272,7 +272,7 @@ func TestGoalCheckpointControlIntegration(t *testing.T) {
 	t.Run("Should persist complete checkpoint shape and advance one typed grant by CAS", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-checkpoint", "ws-goal-checkpoint-foreign")
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-checkpoint", "ws-goal-checkpoint-foreign")
 		insertGoalSchemaLoopRun(t, globalDB, "run-checkpoint", "ws-goal-checkpoint", "catalog", nil)
 		now := time.Date(2026, 7, 10, 15, 0, 0, 0, time.UTC)
 		usageSequence := int64(0)
@@ -373,7 +373,7 @@ func TestGoalCheckpointControlIntegration(t *testing.T) {
 	t.Run("Should inherit a pause that commits before the initial checkpoint", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-pause-before-checkpoint")
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-pause-before-checkpoint")
 		originSessionID := "session-goal-pause-before-checkpoint"
 		registeredAt := time.Date(2026, 7, 10, 20, 59, 0, 0, time.UTC)
 		registerGoalSessionIdentityForTest(
@@ -444,7 +444,7 @@ func TestGoalCheckpointControlIntegration(t *testing.T) {
 	t.Run("Should advance context freshness only for a newer exact-binding observation", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-context", "ws-goal-context-foreign")
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-context", "ws-goal-context-foreign")
 		insertGoalSchemaLoopRun(t, globalDB, "run-context", "ws-goal-context", "catalog", nil)
 		now := time.Date(2026, 7, 10, 15, 30, 0, 0, time.UTC)
 		key := goal.TurnKey{
@@ -627,7 +627,7 @@ func TestGoalCheckpointIntentsIntegration(t *testing.T) {
 	t.Run("Should atomically materialize report evidence for the active bound prompt", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-tool-report")
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-tool-report")
 		originSessionID := "session-origin"
 		insertGoalSchemaLoopRun(
 			t,
@@ -775,7 +775,7 @@ func TestGoalCheckpointIntentsIntegration(t *testing.T) {
 	t.Run("Should dedupe identical report intent and reject conflicting or stale reports", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-report")
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-report")
 		insertGoalSchemaLoopRun(t, globalDB, "run-report", "ws-goal-report", "catalog", nil)
 		now := time.Date(2026, 7, 10, 16, 0, 0, 0, time.UTC)
 		key := goal.TurnKey{
@@ -869,7 +869,7 @@ func TestGoalCheckpointIntentsIntegration(t *testing.T) {
 	t.Run("Should persist one compaction timeout cancel intent idempotently", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-cancel")
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-cancel")
 		insertGoalSchemaLoopRun(t, globalDB, "run-cancel", "ws-goal-cancel", "catalog", nil)
 		now := time.Date(2026, 7, 10, 17, 0, 0, 0, time.UTC)
 		key := goal.TurnKey{

@@ -33,7 +33,15 @@ func WebTest() error {
 }
 
 func WebBuild() error {
-	if err := runCommandInDir(context.Background(), "web", "bun", "run", "build:raw"); err != nil {
+	if err := runCommandInDir(
+		context.Background(),
+		".",
+		"bunx",
+		"turbo",
+		"run",
+		"build",
+		"--filter=./web",
+	); err != nil {
 		return err
 	}
 	return ensureWebDist()

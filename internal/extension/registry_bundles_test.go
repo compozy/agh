@@ -2,7 +2,6 @@ package extensionpkg
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"os"
 	"path/filepath"
@@ -11,7 +10,6 @@ import (
 
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/testutil"
 )
 
@@ -57,18 +55,7 @@ func TestRegistryBlocksDisableAndUninstallWithActiveBundles(t *testing.T) {
 func newRegistryTestEnvWithBundleActivations(t *testing.T) registryTestEnv {
 	t.Helper()
 
-	dbPath := t.TempDir() + "/agh-registry.db"
-	db, err := store.OpenSQLiteDatabase(testutil.Context(t), dbPath, func(ctx context.Context, db *sql.DB) error {
-		return store.Apply(ctx, db, globaldb.MigrationStream())
-	})
-	if err != nil {
-		t.Fatalf("OpenSQLiteDatabase() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
-			t.Fatalf("db.Close() error = %v", err)
-		}
-	})
+	db := openExtensionTestGlobalSQLDB(t)
 
 	installedAt := time.Date(2026, 4, 10, 15, 30, 0, 0, time.UTC)
 	registry := NewRegistry(db)

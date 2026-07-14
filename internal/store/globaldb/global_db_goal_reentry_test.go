@@ -18,7 +18,7 @@ func TestGlobalDBReactivateGoalRunShouldEnqueueOneEpochScopedSuccessor(t *testin
 	t.Run("Should make concurrent plain resumes idempotent in one transaction", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t)
+		globalDB := openLoopTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 7, 10, 20, 0, 0, 0, time.UTC)
 		loopRun, err := globalDB.CreateLoopRunForStart(

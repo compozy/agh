@@ -31,6 +31,26 @@ func Fmt() error {
 	return sh.RunV("gofmt", args...)
 }
 
+// FmtCheck verifies that every Go source file is gofmt-clean without mutating the worktree.
+func FmtCheck() error {
+	files, err := goFiles(".")
+	if err != nil {
+		return err
+	}
+	if len(files) == 0 {
+		return nil
+	}
+	args := append([]string{"-l"}, files...)
+	output, err := sh.Output("gofmt", args...)
+	if err != nil {
+		return fmt.Errorf("check gofmt: %w", err)
+	}
+	if unformatted := strings.TrimSpace(output); unformatted != "" {
+		return fmt.Errorf("gofmt required for:\n%s", unformatted)
+	}
+	return nil
+}
+
 func Lint() error {
 	if err := goLint(); err != nil {
 		return err
@@ -38,18 +58,26 @@ func Lint() error {
 	return BunLint()
 }
 
+// GoLint runs the complete Go-only static analysis gate.
+func GoLint() error {
+	return goLint()
+}
+
 func goLint() error {
-	if err := runGolangCILint(); err != nil {
-		return err
-	}
-	return Modernize()
+	return runGolangCILint()
 }
 
 func runGolangCILint() error {
-	cacheDir, err := filepath.Abs(filepath.Join(".cache", "golangci-lint"))
+	userCacheDir, err := os.UserCacheDir()
 	if err != nil {
-		return fmt.Errorf("resolve golangci-lint cache directory: %w", err)
+		return fmt.Errorf("resolve user cache directory: %w", err)
 	}
+	cacheDir := filepath.Join(
+		userCacheDir,
+		"agh-dev",
+		"golangci-lint",
+		strings.TrimPrefix(golangciLintVersion, "v"),
+	)
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return fmt.Errorf("create golangci-lint cache directory: %w", err)
 	}
@@ -62,7 +90,7 @@ func runGolangCILint() error {
 		golangciLintTimeout,
 		"./...",
 	}
-	if hasPinnedTool("golangci-lint", golangciLintVersion) {
+	if hasPinnedTool("golangci-lint", golangciLintVersion, "version") {
 		return sh.RunWithV(env, "golangci-lint", args...)
 	}
 	goRunArgs := append(
@@ -72,28 +100,18 @@ func runGolangCILint() error {
 	return sh.RunWithV(env, "go", goRunArgs...)
 }
 
-func hasPinnedTool(name string, wantVersion string) bool {
+func hasPinnedTool(name string, wantVersion string, versionArgs ...string) bool {
 	path, err := exec.LookPath(name)
 	if err != nil {
 		return false
 	}
-	output, err := exec.Command(path, "version").CombinedOutput()
+	output, err := exec.Command(path, versionArgs...).CombinedOutput()
 	if err != nil {
 		return false
 	}
-	versionToken := "version " + strings.TrimPrefix(wantVersion, "v")
-	return bytes.Contains(output, []byte(versionToken))
-}
-
-// Modernize runs gopls' modernize analyzer for min/max/slices idiom suggestions.
-func Modernize() error {
-	return sh.RunWithV(
-		map[string]string{"CGO_ENABLED": "0"},
-		"go",
-		"run",
-		"golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@"+goplsModernizeVersion,
-		"./...",
-	)
+	version := strings.TrimPrefix(wantVersion, "v")
+	return bytes.Contains(output, []byte("version "+version)) ||
+		bytes.Contains(output, []byte("version v"+version))
 }
 
 func goFiles(root string) ([]string, error) {

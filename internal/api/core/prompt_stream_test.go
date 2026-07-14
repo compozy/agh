@@ -332,12 +332,7 @@ func promptToolFramesFromSSE(t *testing.T, body string) []promptToolFrame {
 		if record == "" {
 			continue
 		}
-		data := ""
-		for line := range strings.SplitSeq(record, "\n") {
-			if after, ok := strings.CutPrefix(line, "data: "); ok {
-				data += after
-			}
-		}
+		data := promptSSEData(record)
 		if data == "" || data == "[DONE]" {
 			continue
 		}
@@ -363,12 +358,7 @@ func promptFrameSignatures(t *testing.T, body string) []string {
 		if record == "" {
 			continue
 		}
-		data := ""
-		for line := range strings.SplitSeq(record, "\n") {
-			if after, ok := strings.CutPrefix(line, "data: "); ok {
-				data += after
-			}
-		}
+		data := promptSSEData(record)
 		if data == "" || data == "[DONE]" {
 			continue
 		}
@@ -422,12 +412,7 @@ func promptPermissionFramesFromSSE(t *testing.T, body string) []promptPermission
 		if record == "" {
 			continue
 		}
-		data := ""
-		for line := range strings.SplitSeq(record, "\n") {
-			if after, ok := strings.CutPrefix(line, "data: "); ok {
-				data += after
-			}
-		}
+		data := promptSSEData(record)
 		if data == "" || data == "[DONE]" {
 			continue
 		}
@@ -441,4 +426,14 @@ func promptPermissionFramesFromSSE(t *testing.T, body string) []promptPermission
 		}
 	}
 	return frames
+}
+
+func promptSSEData(record string) string {
+	var data strings.Builder
+	for line := range strings.SplitSeq(record, "\n") {
+		if after, ok := strings.CutPrefix(line, "data: "); ok {
+			data.WriteString(after)
+		}
+	}
+	return data.String()
 }

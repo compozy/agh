@@ -2275,23 +2275,6 @@ func openGlobalDBForTest(t *testing.T, path string) *GlobalDB {
 	return globalDB
 }
 
-func openMemoryCatalogForGlobalDBTest(t *testing.T, globalDB *GlobalDB) {
-	t.Helper()
-	if globalDB == nil {
-		t.Fatal("global database is required")
-	}
-	memoryStore := memorypkg.NewStore(
-		filepath.Join(t.TempDir(), "memory"),
-		memorypkg.WithCatalogDatabasePath(globalDB.Path()),
-	)
-	if err := memoryStore.OpenCatalog(testutil.Context(t)); err != nil {
-		t.Fatalf("Store.OpenCatalog() error = %v", err)
-	}
-	if err := memoryStore.CloseCatalog(testutil.Context(t)); err != nil {
-		t.Fatalf("Store.CloseCatalog() error = %v", err)
-	}
-}
-
 func copyCurrentSchemaGlobalDBSeed(t *testing.T, targetPath string) {
 	t.Helper()
 

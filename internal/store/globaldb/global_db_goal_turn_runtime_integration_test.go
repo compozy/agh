@@ -2778,7 +2778,7 @@ func TestGoalTurnReaderIntegration(t *testing.T) {
 	t.Run("Should paginate one run wide sequence without skips or duplicates", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-reader")
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-reader")
 		insertGoalSchemaLoopRun(t, globalDB, "run-goal-reader", "ws-goal-reader", "catalog", nil)
 		startedAt := time.Date(2026, 7, 10, 18, 0, 0, 0, time.UTC)
 		rows := []struct {
@@ -2885,7 +2885,7 @@ func TestGoalTurnReaderIntegration(t *testing.T) {
 	t.Run("Should enforce workspace ownership and return deterministic empty results", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-reader", "ws-foreign")
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-reader", "ws-foreign")
 		insertGoalSchemaLoopRun(t, globalDB, "run-goal-reader-empty", "ws-goal-reader", "catalog", nil)
 		ctx := testutil.Context(t)
 
@@ -2959,7 +2959,7 @@ func seedGoalTurnRuntime(
 ) (*GlobalDB, goal.TurnKey, string, time.Time) {
 	t.Helper()
 
-	globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-runtime")
+	globalDB := openLoopTestGlobalDB(t, "ws-goal-runtime")
 	now := time.Date(2026, 7, 10, 16, 0, 0, 0, time.UTC)
 	globalDB.now = func() time.Time { return now }
 	registerGoalSessionIdentityForTest(
@@ -3025,7 +3025,7 @@ func TestGoalSessionProjectionReader(t *testing.T) {
 	t.Run("Should apply clear only after selecting the newest session Goal", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openFreshLoopTestGlobalDB(t, "ws-goal-snapshot")
+		globalDB := openLoopTestGlobalDB(t, "ws-goal-snapshot")
 		ctx := testutil.Context(t)
 		sessionID := "session-goal-snapshot"
 		insertGoalSchemaLoopRun(t, globalDB, "run-goal-older", "ws-goal-snapshot", "session", &sessionID)

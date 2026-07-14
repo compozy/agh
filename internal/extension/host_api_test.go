@@ -4992,6 +4992,9 @@ Review the workspace changes carefully.
 	workspaces := newHostAPIFakeWorkspaceResolver(&resolvedWorkspace)
 	driver := newHostAPIFakeDriver(baseNow)
 	source := &hostAPISessionSource{}
+	if err := extensionTestGlobalSeed.Clone(homePaths.DatabaseFile); err != nil {
+		t.Fatalf("global store seed Clone() error = %v", err)
+	}
 	registry, err := globaldb.OpenGlobalDB(testutil.Context(t), homePaths.DatabaseFile)
 	if err != nil {
 		t.Fatalf("globaldb.OpenGlobalDB() error = %v", err)
@@ -5062,9 +5065,13 @@ Review the workspace changes carefully.
 	}
 	source.manager = sessions
 
+	memoryCatalogPath := filepath.Join(homePaths.HomeDir, "memory-catalog.db")
+	if err := extensionTestMemorySeed.Clone(memoryCatalogPath); err != nil {
+		t.Fatalf("memory store seed Clone() error = %v", err)
+	}
 	memoryStore := memory.NewStore(
 		homePaths.MemoryDir,
-		memory.WithCatalogDatabasePath(filepath.Join(homePaths.HomeDir, "memory-catalog.db")),
+		memory.WithCatalogDatabasePath(memoryCatalogPath),
 	)
 	if err := memoryStore.OpenCatalog(testutil.Context(t)); err != nil {
 		t.Fatalf("memory.OpenCatalog() error = %v", err)

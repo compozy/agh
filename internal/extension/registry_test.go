@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/store"
-	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/testutil"
 )
 
@@ -1095,18 +1094,7 @@ type registryManifestOptions struct {
 func newRegistryTestEnv(t *testing.T) registryTestEnv {
 	t.Helper()
 
-	dbPath := filepath.Join(t.TempDir(), "agh-registry.db")
-	db, err := store.OpenSQLiteDatabase(testutil.Context(t), dbPath, func(ctx context.Context, db *sql.DB) error {
-		return store.Apply(ctx, db, globaldb.MigrationStream())
-	})
-	if err != nil {
-		t.Fatalf("OpenSQLiteDatabase() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
-			t.Fatalf("db.Close() error = %v", err)
-		}
-	})
+	db := openExtensionTestGlobalSQLDB(t)
 
 	installedAt := time.Date(2026, 4, 10, 15, 30, 0, 0, time.UTC)
 	registry := NewRegistry(db)
