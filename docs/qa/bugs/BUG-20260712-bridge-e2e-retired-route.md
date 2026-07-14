@@ -41,4 +41,3 @@ After the current bundle was served, the Bridge Playwright owner still expected 
 
 - **Retested:** 2026-07-12, focused daemon-served Playwright.
 - **Result:** the create/edit/enable/ingress route scenario passed in 13.7 seconds; the create/secret rotation/auth failure/restart recovery scenario passed in 15.4 seconds.
-

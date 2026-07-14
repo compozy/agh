@@ -341,12 +341,12 @@ func TestNormalizeDeliveryDefaultsJSONContract(t *testing.T) {
 		t.Parallel()
 
 		got, err := NormalizeDeliveryDefaultsJSON(json.RawMessage(
-			` {"progress":{"tool_progress":" ALL ","grouping":" Separate ","typing":true,"reactions":false},"parse_mode":"MarkdownV2","mode":" DIRECT_SEND "} `,
+			` {"progress":{"tool_progress":" ALL ","grouping":" Separate ","typing":true,"reactions":false},"parse_mode":"MarkdownV2","thread_id":"thread-1","mode":" DIRECT_SEND "} `,
 		))
 		if err != nil {
 			t.Fatalf("NormalizeDeliveryDefaultsJSON() error = %v", err)
 		}
-		want := `{"mode":"direct-send","parse_mode":"MarkdownV2","progress":{"tool_progress":"all","grouping":"separate","typing":true,"reactions":false}}`
+		want := `{"mode":"direct-send","parse_mode":"MarkdownV2","progress":{"tool_progress":"all","grouping":"separate","typing":true,"reactions":false},"thread_id":"thread-1"}`
 		if string(got) != want {
 			t.Fatalf("NormalizeDeliveryDefaultsJSON() = %s, want %s", got, want)
 		}

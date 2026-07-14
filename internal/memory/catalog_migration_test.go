@@ -50,9 +50,6 @@ func TestCatalogMigrationStreams(t *testing.T) {
 		if globalBefore != globalAfter {
 			t.Fatalf("global status changed after memory apply: before=%#v after=%#v", globalBefore, globalAfter)
 		}
-		if globalAfter.Version != 1 || memoryStatus.Version != 1 {
-			t.Fatalf("shared statuses = global %#v memory %#v, want version 1", globalAfter, memoryStatus)
-		}
 		for _, table := range []string{globaldb.MigrationStream().VersionTable, MigrationStream().VersionTable} {
 			if !catalogMigrationTableExists(t, catalog.catalog.db, table) {
 				t.Fatalf("shared database missing version table %q", table)
@@ -64,12 +61,26 @@ func TestCatalogMigrationStreams(t *testing.T) {
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(global only) error = %v", err)
 		}
+		globalOnlyStatus, err := storepkg.Status(ctx, globalOnly.DB(), globaldb.MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(global only) error = %v", err)
+		}
 		globalTables := catalogDomainTables(t, globalOnly.DB())
 		if err := globalOnly.Close(ctx); err != nil {
 			t.Fatalf("GlobalDB.Close(global only) error = %v", err)
 		}
+		if globalAfter != globalOnlyStatus {
+			t.Fatalf("shared global status = %#v, want global-only status %#v", globalAfter, globalOnlyStatus)
+		}
 
 		memoryOnly := openCatalogMigrationTestStore(t, filepath.Join(baseDir, "memory-only.db"))
+		memoryOnlyStatus, err := storepkg.Status(ctx, memoryOnly.catalog.db, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(memory only) error = %v", err)
+		}
+		if memoryStatus != memoryOnlyStatus {
+			t.Fatalf("shared memory status = %#v, want memory-only status %#v", memoryStatus, memoryOnlyStatus)
+		}
 		memoryTables := catalogDomainTables(t, memoryOnly.catalog.db)
 		for table := range globalTables {
 			if _, overlaps := memoryTables[table]; overlaps {
@@ -89,6 +100,7 @@ func TestCatalogMigrationStreams(t *testing.T) {
 			t.Fatalf("OpenGlobalDB(global first) error = %v", err)
 		}
 		globalFirstMemory := openCatalogMigrationTestStore(t, globalFirstPath)
+		globalFirstStatuses := catalogMigrationStatuses(t, globalFirstMemory.catalog.db)
 		globalFirstSchema := catalogSchemaObjects(t, globalFirstMemory.catalog.db)
 		if err := globalFirst.Close(ctx); err != nil {
 			t.Fatalf("GlobalDB.Close(global first) error = %v", err)
@@ -113,14 +125,13 @@ func TestCatalogMigrationStreams(t *testing.T) {
 				memoryFirstSchema,
 			)
 		}
-		for _, stream := range []storepkg.MigrationStream{globaldb.MigrationStream(), MigrationStream()} {
-			status, err := storepkg.Status(ctx, memoryFirst.catalog.db, stream)
-			if err != nil {
-				t.Fatalf("Status(%s) error = %v", stream.Name, err)
-			}
-			if status.Version != 1 || status.AppliedCount != 1 {
-				t.Fatalf("Status(%s) = %#v, want version/applied count 1", stream.Name, status)
-			}
+		memoryFirstStatuses := catalogMigrationStatuses(t, memoryFirst.catalog.db)
+		if !reflect.DeepEqual(memoryFirstStatuses, globalFirstStatuses) {
+			t.Fatalf(
+				"migration statuses differ by open order:\nglobal-first=%#v\nmemory-first=%#v",
+				globalFirstStatuses,
+				memoryFirstStatuses,
+			)
 		}
 	})
 
@@ -201,6 +212,20 @@ func TestCatalogMigrationStreams(t *testing.T) {
 			})
 		}
 	})
+}
+
+func catalogMigrationStatuses(t *testing.T, db *sql.DB) map[string]storepkg.StreamStatus {
+	t.Helper()
+
+	statuses := make(map[string]storepkg.StreamStatus, 2)
+	for _, stream := range []storepkg.MigrationStream{globaldb.MigrationStream(), MigrationStream()} {
+		status, err := storepkg.Status(testutil.Context(t), db, stream)
+		if err != nil {
+			t.Fatalf("Status(%s) error = %v", stream.Name, err)
+		}
+		statuses[stream.Name] = status
+	}
+	return statuses
 }
 
 func openCatalogMigrationTestStore(t *testing.T, databasePath string) *Store {

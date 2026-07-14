@@ -338,8 +338,9 @@ func TestBridgeHandlersValidateTypedProgressSettings(t *testing.T) {
 					t.Fatalf("UpdateInstance().DeliveryDefaults = %v", req.DeliveryDefaults)
 				}
 				defaults := decodeBridgeProgressDefaults(t, *req.DeliveryDefaults)
-				if defaults.Progress.Grouping != bridgepkg.ProgressGroupingAccumulate {
-					t.Fatalf("request progress = %#v", defaults.Progress)
+				if defaults.ThreadID != "thread-1" ||
+					defaults.Progress.Grouping != bridgepkg.ProgressGroupingAccumulate {
+					t.Fatalf("request delivery defaults = %#v", defaults)
 				}
 				return &bridgepkg.BridgeInstance{
 					ID:               req.ID,
@@ -363,6 +364,7 @@ func TestBridgeHandlersValidateTypedProgressSettings(t *testing.T) {
 			[]byte(`{
 				"delivery_defaults":{
 					"peer_id":"peer-1",
+					"thread_id":"thread-1",
 					"mode":"reply",
 					"progress":{
 						"tool_progress":"new",
@@ -388,6 +390,7 @@ func TestBridgeHandlersValidateTypedProgressSettings(t *testing.T) {
 type bridgeProgressDefaultsTestPayload struct {
 	Mode      bridgepkg.DeliveryMode               `json:"mode"`
 	PeerID    string                               `json:"peer_id"`
+	ThreadID  string                               `json:"thread_id"`
 	ParseMode string                               `json:"parse_mode"`
 	Progress  contract.BridgeProgressConfigPayload `json:"progress"`
 }
@@ -1606,33 +1609,6 @@ func TestBridgeHandlersRequestDecodeAndServiceErrorPaths(t *testing.T) {
 				"update service error status = %d, want %d body=%s",
 				resp.Code,
 				http.StatusConflict,
-				resp.Body.String(),
-			)
-		}
-	})
-
-	t.Run("Should update rejects semantically invalid payload", func(t *testing.T) {
-		t.Parallel()
-
-		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
-			UpdateInstanceFn: func(context.Context, bridgepkg.UpdateInstanceRequest) (*bridgepkg.BridgeInstance, error) {
-				t.Fatal("UpdateInstance() should not be called for invalid payload")
-				return nil, nil
-			},
-		})
-
-		resp := performRequest(
-			t,
-			engine,
-			http.MethodPatch,
-			"/bridges/brg-core",
-			[]byte(`{"delivery_defaults":{"thread_id":"thr-1"}}`),
-		)
-		if resp.Code != http.StatusBadRequest {
-			t.Fatalf(
-				"update invalid payload status = %d, want %d body=%s",
-				resp.Code,
-				http.StatusBadRequest,
 				resp.Body.String(),
 			)
 		}

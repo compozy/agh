@@ -1300,6 +1300,28 @@ func TestProgressAccumulatorPropagatesSinkFailures(t *testing.T) {
 		assertProgressOperationError(t, err, wantErr, "post progress bubble")
 	})
 
+	t.Run("Should not replay a typed nil committed progress post", func(t *testing.T) {
+		t.Parallel()
+
+		var committed *CommittedMutationError
+		sink := newProgressFailingSink()
+		sink.postError = committed
+		accumulator := NewProgressAccumulator(progressTestConfig(), sink, nil)
+		ctx := testutil.Context(t)
+
+		err := accumulator.OnProgress(ctx, progressTestEvent(1, "Inspecting"))
+		if !IsCommittedMutation(err) {
+			t.Fatalf("OnProgress() error = %T %v, want committed mutation", err, err)
+		}
+		sink.postError = nil
+		if err := accumulator.Flush(ctx); err != nil {
+			t.Fatalf("Flush() error = %v, want committed post consumed", err)
+		}
+		if got := len(sink.PostCalls()); got != 0 {
+			t.Fatalf("progress post replays = %d, want zero", got)
+		}
+	})
+
 	t.Run("Should propagate a separate progress post failure", func(t *testing.T) {
 		t.Parallel()
 
@@ -1406,6 +1428,35 @@ func TestProgressAccumulatorPropagatesSinkFailures(t *testing.T) {
 		}
 		if got, want := edits[0].remoteID, "progress-1"; got != want {
 			t.Fatalf("next progress edit remote id = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should consume a typed nil committed progress edit", func(t *testing.T) {
+		t.Parallel()
+
+		clock := progressTestClock{current: time.Unix(8_300, 0)}
+		sink := newProgressFailingSink()
+		accumulator := NewProgressAccumulator(progressTestConfig(), sink, clock.Now)
+		ctx := testutil.Context(t)
+		if err := accumulator.OnProgress(ctx, progressTestEvent(1, "Inspecting")); err != nil {
+			t.Fatalf("OnProgress(first) error = %v", err)
+		}
+		if err := accumulator.OnProgress(ctx, progressTestEvent(2, "Reading")); err != nil {
+			t.Fatalf("OnProgress(second) error = %v", err)
+		}
+		var committed *CommittedMutationError
+		sink.editError = committed
+
+		err := accumulator.Flush(ctx)
+		if !IsCommittedMutation(err) {
+			t.Fatalf("Flush() error = %T %v, want committed mutation", err, err)
+		}
+		sink.editError = nil
+		if err := accumulator.Flush(ctx); err != nil {
+			t.Fatalf("Flush(retry) error = %v, want committed edit consumed", err)
+		}
+		if got := len(sink.recording.EditCalls()); got != 0 {
+			t.Fatalf("progress edit replays = %d, want zero", got)
 		}
 	})
 

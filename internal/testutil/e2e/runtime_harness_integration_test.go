@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -25,6 +26,19 @@ import (
 )
 
 const e2eACPHelperEnvKey = "AGH_TEST_E2E_ACP_HELPER"
+
+type runtimeMigrationExpectation struct {
+	stream       string
+	version      int64
+	appliedCount int
+}
+
+func runtimeMigrationExpectations() []runtimeMigrationExpectation {
+	return []runtimeMigrationExpectation{
+		{stream: "global", version: 2, appliedCount: 2},
+		{stream: "memory", version: 1, appliedCount: 1},
+	}
+}
 
 type e2eACPAgent struct {
 	conn *acpsdk.AgentSideConnection
@@ -107,19 +121,22 @@ func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 
 func assertSchemaStreamStatuses(t *testing.T, statuses []aghcontract.SchemaStreamStatus) {
 	t.Helper()
-	wantStreams := []string{"global", "memory"}
-	if len(statuses) != len(wantStreams) {
+	expectations := runtimeMigrationExpectations()
+	if len(statuses) != len(expectations) {
 		t.Fatalf("schema streams = %#v, want global and memory", statuses)
 	}
-	for index, wantStream := range wantStreams {
+	for index, expectation := range expectations {
 		status := statuses[index]
-		if status.Stream != wantStream || status.Version != 1 || status.AppliedCount != 1 ||
+		if status.Stream != expectation.stream || status.Version != expectation.version ||
+			status.AppliedCount != expectation.appliedCount ||
 			strings.TrimSpace(status.SumDigest) == "" {
 			t.Fatalf(
-				"schema stream[%d] = %#v, want stream=%q version=1 applied_count=1 and digest",
+				"schema stream[%d] = %#v, want stream=%q version=%d applied_count=%d and digest",
 				index,
 				status,
-				wantStream,
+				expectation.stream,
+				expectation.version,
+				expectation.appliedCount,
 			)
 		}
 	}
@@ -146,22 +163,32 @@ func assertMigrationAppliedLogs(t *testing.T, processLog string) {
 			}
 			continue
 		}
-		for _, stream := range []string{"global", "memory"} {
-			needle := "store.migrations.applied stream=" + stream + " version=1 applied_count=1"
+		for _, expectation := range runtimeMigrationExpectations() {
+			needle := fmt.Sprintf(
+				"store.migrations.applied stream=%s version=%d applied_count=%d",
+				expectation.stream,
+				expectation.version,
+				expectation.appliedCount,
+			)
 			if strings.Contains(line, needle) {
-				found[stream] = migrationLog{
-					Message: "store.migrations.applied", Stream: stream, Version: 1, AppliedCount: 1,
+				found[expectation.stream] = migrationLog{
+					Message:      "store.migrations.applied",
+					Stream:       expectation.stream,
+					Version:      expectation.version,
+					AppliedCount: expectation.appliedCount,
 				}
 			}
 		}
 	}
-	for _, stream := range []string{"global", "memory"} {
-		record, ok := found[stream]
-		if !ok || record.Version != 1 || record.AppliedCount != 1 {
+	for _, expectation := range runtimeMigrationExpectations() {
+		record, ok := found[expectation.stream]
+		if !ok || record.Version != expectation.version || record.AppliedCount != expectation.appliedCount {
 			t.Fatalf(
-				"migration applied logs = %#v, want %q version=1 applied_count=1; process log=%s",
+				"migration applied logs = %#v, want %q version=%d applied_count=%d; process log=%s",
 				found,
-				stream,
+				expectation.stream,
+				expectation.version,
+				expectation.appliedCount,
 				processLog,
 			)
 		}

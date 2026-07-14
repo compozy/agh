@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -40,10 +40,12 @@ function setupEvidenceFingerprints(
   provider: BridgeProvider | undefined
 ): BridgeSetupEvidenceFingerprints {
   if (!bridge) return { registration: "", verification: "" };
-  const bindingState = bindings
-    .filter(binding => binding.bridge_instance_id === bridge.id)
-    .map(binding => [binding.binding_name, binding.secret_ref, binding.updated_at] as const)
-    .sort(([left], [right]) => left.localeCompare(right));
+  const bindingState: [string, string, string][] = [];
+  for (const binding of bindings) {
+    if (binding.bridge_instance_id !== bridge.id) continue;
+    bindingState.push([binding.binding_name, binding.secret_ref, binding.updated_at]);
+  }
+  bindingState.sort(([left], [right]) => left.localeCompare(right));
   const providerState = provider
     ? {
         configSchema: provider.config_schema ?? null,
@@ -92,8 +94,10 @@ export function useBridgeSetupFlow({ bindings, bridge, health, provider }: Bridg
   const fingerprints = setupEvidenceFingerprints(bridge, bindings, provider);
   const registrationRevisionRef = useRef(fingerprints.registration);
   const verificationRevisionRef = useRef(fingerprints.verification);
-  registrationRevisionRef.current = fingerprints.registration;
-  verificationRevisionRef.current = fingerprints.verification;
+  useEffect(() => {
+    registrationRevisionRef.current = fingerprints.registration;
+    verificationRevisionRef.current = fingerprints.verification;
+  }, [fingerprints.registration, fingerprints.verification]);
   const evidenceMatchesBridge = evidence !== null && evidence.bridgeId === bridge?.id;
   const currentRegistration =
     evidenceMatchesBridge && evidence.registrationFingerprint === fingerprints.registration
@@ -103,27 +107,23 @@ export function useBridgeSetupFlow({ bindings, bridge, health, provider }: Bridg
     evidenceMatchesBridge && evidence.verificationFingerprint === fingerprints.verification
       ? evidence.verification
       : null;
-  const projection = useMemo(
-    () =>
-      bridge
-        ? projectBridgeSetup({
-            bindings,
-            bridge,
-            health: health ?? null,
-            provider: provider ?? null,
-            registration: currentRegistration,
-            verification: currentVerification,
-          })
-        : null,
-    [bindings, bridge, currentRegistration, currentVerification, health, provider]
-  );
+  const projection = bridge
+    ? projectBridgeSetup({
+        bindings,
+        bridge,
+        health: health ?? null,
+        provider: provider ?? null,
+        registration: currentRegistration,
+        verification: currentVerification,
+      })
+    : null;
 
-  const clearEvidence = useCallback(() => {
+  const clearEvidence = () => {
     operationRef.current += 1;
     setEvidence(null);
-  }, []);
+  };
 
-  const clearVerification = useCallback(() => {
+  const clearVerification = () => {
     operationRef.current += 1;
     setEvidence(current =>
       current === null
@@ -134,7 +134,7 @@ export function useBridgeSetupFlow({ bindings, bridge, health, provider }: Bridg
             verificationFingerprint: verificationRevisionRef.current,
           }
     );
-  }, []);
+  };
 
   const verify = async () => {
     if (!bridge) return;

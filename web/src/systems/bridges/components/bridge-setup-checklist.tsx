@@ -274,6 +274,15 @@ function profileIssueMessage(issue: BridgeSetupProjection["profileIssues"][numbe
   return `Verification check ${issue.check} references unavailable secret slot ${issue.slot}.`;
 }
 
+function profileIssueKey(issue: BridgeSetupProjection["profileIssues"][number]): string {
+  switch (issue.kind) {
+    case "provider-mismatch":
+      return `${issue.kind}-${issue.expectedPlatform}-${issue.actualPlatform}`;
+    case "missing-secret-slot":
+      return `${issue.kind}-${issue.check}-${issue.slot}`;
+  }
+}
+
 export function BridgeSetupChecklist(props: BridgeSetupChecklistProps) {
   const { projection } = props;
   if (projection === null) {
@@ -377,8 +386,8 @@ export function BridgeSetupChecklist(props: BridgeSetupChecklistProps) {
         >
           <p className="text-small-body font-medium text-warning">Setup mapping needs attention</p>
           <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted">
-            {projection.profileIssues.map((issue, index) => (
-              <li key={`${issue.kind}-${index}`}>{profileIssueMessage(issue)}</li>
+            {projection.profileIssues.map(issue => (
+              <li key={profileIssueKey(issue)}>{profileIssueMessage(issue)}</li>
             ))}
           </ul>
         </div>

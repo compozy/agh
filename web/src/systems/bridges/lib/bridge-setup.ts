@@ -186,14 +186,16 @@ export function projectBridgeSetup(input: BridgeSetupProjectionInput): BridgeSet
   const providerState =
     provider === null ? "action-needed" : providerMatches ? "complete" : "unknown";
   const providerIssues = getProviderIssues(provider, bridge.platform, providerMatches);
-  const requiredSecretSlots = providerMatches
-    ? (provider.secret_slots ?? []).filter(slot => slot.required !== false).map(slot => slot.name)
-    : [];
-  const boundSecretSlots = new Set(
-    input.bindings
-      .filter(binding => binding.bridge_instance_id === bridge.id)
-      .map(binding => binding.binding_name)
-  );
+  const requiredSecretSlots: string[] = [];
+  if (providerMatches) {
+    for (const slot of provider.secret_slots ?? []) {
+      if (slot.required !== false) requiredSecretSlots.push(slot.name);
+    }
+  }
+  const boundSecretSlots = new Set<string>();
+  for (const binding of input.bindings) {
+    if (binding.bridge_instance_id === bridge.id) boundSecretSlots.add(binding.binding_name);
+  }
   const missingRequiredSecretSlots = requiredSecretSlots.filter(
     slot => !boundSecretSlots.has(slot)
   );

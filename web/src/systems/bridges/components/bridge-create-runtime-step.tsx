@@ -1,5 +1,5 @@
 import { Plug, Settings2 } from "lucide-react";
-import { useMemo, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import {
   Eyebrow,
@@ -59,10 +59,7 @@ export function BridgeCreateRuntimeStep({
   provider,
   providerConfigError,
 }: BridgeCreateRuntimeStepProps) {
-  const configSchema = useMemo(
-    () => describeBridgeProviderConfigSchema(provider.config_schema),
-    [provider.config_schema]
-  );
+  const configSchema = describeBridgeProviderConfigSchema(provider.config_schema);
 
   return (
     <>

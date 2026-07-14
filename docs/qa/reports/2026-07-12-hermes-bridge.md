@@ -199,4 +199,3 @@ strict_audit=/home/pedronauck/dev/qa-labs/agh-hermes-bridge-task-10-20260713-022
 teardown_report=/home/pedronauck/dev/qa-labs/agh-hermes-bridge-task-10-20260713-022226-583543-lab/qa-artifacts/qa/teardown.json
 health_status=teardown-clean
 [/QA_BOOTSTRAP]
-

@@ -62,7 +62,7 @@ func (b *Broker) enqueueEventLocked(route *routeWorker, delivery *activeDelivery
 			delivery.pendingTerminal = &cloned
 			return nil
 		}
-		_ = b.makeQueueRoomLocked(route)
+		b.makeQueueRoomLocked(route)
 		cloned := cloneDeliveryEvent(event)
 		delivery.pendingTerminal = &cloned
 		delivery.queuedTerminal = true

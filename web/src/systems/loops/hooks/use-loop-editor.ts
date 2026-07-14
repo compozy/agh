@@ -361,6 +361,15 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
   const publish = async (): Promise<LoopDetail | null> => {
     const base = baseDefinition;
     if (!base) return null;
+
+    // Publish validates atomically on the daemon. Its verdict must not be overwritten by an
+    // older passive validation that was queued or already in flight for the same draft.
+    validateSeqRef.current += 1;
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+
     setPublishError(null);
     const definition = graphToDefinition(base, nodes, edges);
     try {

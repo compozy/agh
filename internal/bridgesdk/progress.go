@@ -317,7 +317,7 @@ func (a *ProgressAccumulator) flushLocked(ctx context.Context, force bool) error
 	if a.currentBubbleID == "" || !a.canEdit {
 		remoteID, err := a.sink.Post(ctx, a.config.Target, a.currentText)
 		if err != nil {
-			if committed, ok := errors.AsType[*CommittedMutationError](err); ok && committed != nil {
+			if IsCommittedMutation(err) {
 				a.resetBubbleLocked()
 			}
 			return fmt.Errorf("bridgesdk: post progress bubble: %w", err)
@@ -340,7 +340,7 @@ func (a *ProgressAccumulator) flushLocked(ctx context.Context, force bool) error
 		return nil
 	}
 	if err := a.sink.Edit(ctx, a.config.Target, a.currentBubbleID, a.currentText); err != nil {
-		if committed, ok := errors.AsType[*CommittedMutationError](err); ok && committed != nil {
+		if IsCommittedMutation(err) {
 			a.lastEditAt = now
 			a.dirty = false
 		}

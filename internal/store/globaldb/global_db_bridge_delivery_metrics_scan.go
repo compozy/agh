@@ -25,25 +25,6 @@ type bridgeDeliveryMetricStorageRow struct {
 	updatedAt                   string
 }
 
-func scanBridgeDeliveryMetricRecord(scanner rowScanner) (bridges.DeliveryMetricRecord, error) {
-	var row bridgeDeliveryMetricStorageRow
-	if err := scanner.Scan(
-		&row.bridgeInstanceID,
-		&row.scope,
-		&row.workspaceID,
-		&row.deliveryDroppedTotal,
-		&row.deliveryDroppedByReasonJSON,
-		&row.deliveryFailuresTotal,
-		&row.lastError,
-		&row.lastErrorAt,
-		&row.lastSuccessAt,
-		&row.updatedAt,
-	); err != nil {
-		return bridges.DeliveryMetricRecord{}, err
-	}
-	return bridgeDeliveryMetricRecordFromStorageRow(row)
-}
-
 func bridgeDeliveryMetricFromGenerated(row sqlcgen.BridgeDeliveryMetric) (bridges.DeliveryMetricRecord, error) {
 	return bridgeDeliveryMetricRecordFromStorageRow(bridgeDeliveryMetricStorageRow{
 		bridgeInstanceID: row.BridgeInstanceID, scope: row.Scope, workspaceID: row.WorkspaceID,
