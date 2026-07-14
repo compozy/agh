@@ -1,4 +1,4 @@
-import type { LoopConfig, LoopContract, RunLoopRequest } from "../types";
+import type { LoopEffectiveConfig, RunLoopRequest } from "../types";
 import { resolveLoopEffectiveConfig } from "./loop-effective-config";
 import { LOOP_CEILINGS } from "./loop-limits";
 
@@ -37,11 +37,8 @@ export interface LoopOverrideField {
  * display-only metric with no enforced cap (ADR-017 §9.5.2), so the run form
  * renders NO cost-cap input.
  */
-export function buildOverrideFields(
-  contract: LoopContract,
-  config: LoopConfig | null = null
-): LoopOverrideField[] {
-  const effective = resolveLoopEffectiveConfig(contract, config);
+export function buildOverrideFields(effectiveConfig: LoopEffectiveConfig): LoopOverrideField[] {
+  const effective = resolveLoopEffectiveConfig(effectiveConfig);
   const iterationDefault = effective.iteration_cap > 0 ? effective.iteration_cap : null;
   const tokensDefault = effective.budget_tokens > 0 ? effective.budget_tokens : null;
   const wallDefaultMin =
@@ -105,11 +102,8 @@ export interface LoopOverrideDraft {
 }
 
 /** Seeds an empty draft with the contract's own budget policy so "no override" is truthful. */
-export function initialOverrideDraft(
-  contract: LoopContract,
-  config: LoopConfig | null = null
-): LoopOverrideDraft {
-  const effective = resolveLoopEffectiveConfig(contract, config);
+export function initialOverrideDraft(effectiveConfig: LoopEffectiveConfig): LoopOverrideDraft {
+  const effective = resolveLoopEffectiveConfig(effectiveConfig);
   return {
     values: {},
     budgetOnExceeded: effective.budget_on_exceeded === "escalate" ? "escalate" : "halt",
@@ -140,15 +134,14 @@ function isFieldDefault(field: LoopOverrideField, value: number): boolean {
  */
 export function hasActiveOverrides(
   draft: LoopOverrideDraft,
-  contract: LoopContract,
-  config: LoopConfig | null = null
+  effectiveConfig: LoopEffectiveConfig
 ): boolean {
-  const fields = buildOverrideFields(contract, config);
+  const fields = buildOverrideFields(effectiveConfig);
   for (const field of fields) {
     const value = draft.values[field.key];
     if (value !== undefined && !isFieldDefault(field, value)) return true;
   }
-  const effective = resolveLoopEffectiveConfig(contract, config);
+  const effective = resolveLoopEffectiveConfig(effectiveConfig);
   return draft.budgetOnExceeded !== effective.budget_on_exceeded;
 }
 
@@ -160,11 +153,10 @@ export function hasActiveOverrides(
  */
 export function buildConfigOverrides(
   draft: LoopOverrideDraft,
-  contract: LoopContract,
-  config: LoopConfig | null = null
+  effectiveConfig: LoopEffectiveConfig
 ): NonNullable<RunLoopRequest["config_overrides"]> | null {
-  if (!hasActiveOverrides(draft, contract, config)) return null;
-  const fields = buildOverrideFields(contract, config);
+  if (!hasActiveOverrides(draft, effectiveConfig)) return null;
+  const fields = buildOverrideFields(effectiveConfig);
   const overrides: NonNullable<RunLoopRequest["config_overrides"]> = {};
   for (const field of fields) {
     const value = draft.values[field.key];
@@ -175,7 +167,7 @@ export function buildConfigOverrides(
       overrides[field.key] = value;
     }
   }
-  const effective = resolveLoopEffectiveConfig(contract, config);
+  const effective = resolveLoopEffectiveConfig(effectiveConfig);
   if (draft.budgetOnExceeded !== effective.budget_on_exceeded) {
     overrides.budget_on_exceeded = draft.budgetOnExceeded;
   }

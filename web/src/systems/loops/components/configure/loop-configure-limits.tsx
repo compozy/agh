@@ -7,10 +7,10 @@ import {
   type LoopOverrideDraft,
   type LoopOverrideField,
 } from "../../lib/loop-overrides";
-import type { LoopContract } from "../../types";
+import type { LoopEffectiveConfig } from "../../types";
 
 interface LoopConfigureLimitsProps {
-  contract: LoopContract;
+  effectiveConfig: LoopEffectiveConfig;
   draft: LoopOverrideDraft;
   disabled?: boolean;
   onChange: (draft: LoopOverrideDraft) => void;
@@ -40,12 +40,12 @@ function setOverrideValue(
  * display-only (ADR-017 §9.5.2).
  */
 export function LoopConfigureLimits({
-  contract,
+  effectiveConfig,
   draft,
   disabled = false,
   onChange,
 }: LoopConfigureLimitsProps) {
-  const fields = buildOverrideFields(contract);
+  const fields = buildOverrideFields(effectiveConfig);
   return (
     <div data-testid="loop-configure-limits">
       <div className="grid grid-cols-1 gap-x-4 gap-y-3.5 sm:grid-cols-2">

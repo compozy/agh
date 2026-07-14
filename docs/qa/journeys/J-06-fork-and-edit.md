@@ -13,7 +13,11 @@ flowchart TD
     G --> H{Publish}
     H -->|expected_version matches| I[Side effect: PATCH /loops bumps meta.version; resolved form compiled + persisted]
     H -->|stale version| J[409 conflict + current version — no lost update]
-    I --> K[True end: fork → edit → publish → Run → lands on the run page J-01]
+    I --> K[Run the goal-bearing version to a truthful terminal outcome]
+    K --> NG[Remove the optional goal and publish a goal-less version]
+    NG --> KR[Run the goal-less version and compare truthful terminal behavior]
+    KR --> DL[Delete the custom fork from its destructive-action modal]
+    DL --> TE[True end: the fork is absent after refresh while the built-in source remains]
     C --> L[Graph/DSL toggle → agh.loop/v1 YAML read-only, offending field highlighted]
     D -->|positions| M[Persist via GET/PUT /annotations sidecar — NEVER in the definition]
     B -.->|edits then closes without publishing| X1[Abandon: draft/unsaved chip warns; nothing published; canonical definition unchanged]
@@ -42,12 +46,15 @@ journey:
       verb: "Validate and resolve linter issues"
       expected_observable: "A blocking issue (e.g. fan_out_ceiling_exceeded) maps onto the node and disables Publish; resolving it clears the issue and enables Publish"
     - step: 4
-      verb: "Publish and run"
-      expected_observable: "PATCH /loops bumps the version under expected_version CAS (409 on stale); the resolved form compiles + persists; the fork is runnable"
+      verb: "Publish and run with and without an optional goal"
+      expected_observable: "PATCH /loops bumps the version under expected_version CAS (409 on stale); both goal-bearing and goal-less versions compile, persist, and run truthfully"
+    - step: 5
+      verb: "Delete the custom fork"
+      expected_observable: "The destructive-action modal names the fork and requires an intentional confirmation; refresh removes only the custom fork while the built-in source remains"
   goal:
     observable: "A new version publishes only when the shared linter passes, and the forked Loop runs to a terminal outcome"
     side_effects: [writable-fs-definition, meta.version-bump, annotations-sidecar-write, resolved-form-compile]
-  true_end_state: "The published version appears in the version list, the DSL view renders the exact agh.loop/v1 on disk, node positions round-trip via the sidecar (not the definition), and running the fork lands on the run page (J-01)."
+  true_end_state: "Goal-bearing and goal-less versions both survive refresh and run truthfully; after intentional deletion the custom fork is absent from fresh catalog/detail reads while the built-in source remains."
   exit:
     natural: "Author lands on the published Loop / a run of the fork."
   abandonment:

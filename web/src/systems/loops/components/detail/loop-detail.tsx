@@ -7,8 +7,8 @@ import type { LoopBindingRow } from "../../lib/loop-bindings";
 import type { LoopGraph } from "../../lib/loop-graph";
 import type {
   LoopAggregate30d,
-  LoopConfig,
   LoopDetail as LoopDetailData,
+  LoopEffectiveConfig,
   LoopRun,
 } from "../../types";
 import { LoopBodyDag } from "./loop-body-dag";
@@ -23,7 +23,7 @@ import { LoopVersionsPanel } from "./loop-versions-panel";
 
 interface LoopDetailProps {
   loop: LoopDetailData;
-  config: LoopConfig | null;
+  effectiveConfig: LoopEffectiveConfig;
   graph: LoopGraph;
   recentRuns: readonly LoopRun[];
   bindings: readonly LoopBindingRow[];
@@ -52,7 +52,7 @@ interface LoopDetailProps {
  */
 export function LoopDetailView({
   loop,
-  config,
+  effectiveConfig,
   graph,
   recentRuns,
   bindings,
@@ -197,7 +197,7 @@ export function LoopDetailView({
               onAddSchedule={onAddSchedule}
               triggers={bindingTriggers}
             />
-            <LoopLimitsPanel contract={definition.contract} config={config} />
+            <LoopLimitsPanel effectiveConfig={effectiveConfig} />
             <LoopVersionsPanel version={loop.version} />
             {aggregate && successRate !== null ? (
               <LoopStatsPanel successRate={successRate} aggregate={aggregate} />

@@ -95,6 +95,72 @@ func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 			t.Fatalf("sandbox step command = %q, want %q", got, want)
 		}
 	})
+
+	t.Run("Should select a turn by stable canonical user text content", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, err := ParseFixture(
+			[]byte(
+				`{"version":2,"agents":[{"name":"judge","provider":"claude","turns":[` +
+					`{"name":"turn-two","match":{"turn_source":"user","user_text_contains":"Goal turn 2 is current."},` +
+					`"steps":[{"kind":"assistant","text":"revise"}]}]}]}`,
+			),
+		)
+		if err != nil {
+			t.Fatalf("ParseFixture(user_text_contains) error = %v", err)
+		}
+		judge, err := fixture.Agent("judge")
+		if err != nil {
+			t.Fatalf("fixture.Agent(judge) error = %v", err)
+		}
+		turn, err := judge.SelectTurn(
+			"Loop contract:\nGoal turn 2 is current.\nReturn exactly one JSON object.",
+			1,
+			acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+		)
+		if err != nil {
+			t.Fatalf("judge.SelectTurn(user_text_contains) error = %v", err)
+		}
+		if got, want := turn.Name, "turn-two"; got != want {
+			t.Fatalf("turn.Name = %q, want %q", got, want)
+		}
+		if _, err := judge.SelectTurn(
+			"Loop contract:\nGoal turn 3 is current.\nReturn exactly one JSON object.",
+			1,
+			acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+		); err == nil || !strings.Contains(err.Error(), "no turn matched") {
+			t.Fatalf("judge.SelectTurn(non-matching user_text_contains) error = %v, want no-match error", err)
+		}
+	})
+
+	t.Run("Should select a turn by explicit cross-process occurrence", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, err := ParseFixture([]byte(
+			`{"version":2,"agents":[{"name":"judge","provider":"claude","turns":[` +
+				`{"name":"second-judge","match":{"turn_source":"user","global_occurrence":2},` +
+				`"steps":[{"kind":"assistant","text":"pass"}]}]}]}`,
+		))
+		if err != nil {
+			t.Fatalf("ParseFixture(global occurrence) error = %v", err)
+		}
+		judge, err := fixture.Agent("judge")
+		if err != nil {
+			t.Fatalf("fixture.Agent(judge) error = %v", err)
+		}
+		turn, err := judge.SelectTurnAtGlobalOccurrence(
+			"judge the result",
+			1,
+			2,
+			acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+		)
+		if err != nil {
+			t.Fatalf("judge.SelectTurnAtGlobalOccurrence() error = %v", err)
+		}
+		if turn.Name != "second-judge" {
+			t.Fatalf("turn.Name = %q, want second-judge", turn.Name)
+		}
+	})
 }
 
 func TestRegisterRendersValidatedAgentDefinition(t *testing.T) {
@@ -441,7 +507,6 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 	if got, want := trimmedAgent.Name, "alpha"; got != want {
 		t.Fatalf("trimmedAgent.Name = %q, want %q", got, want)
 	}
-
 	alpha, err := fixture.Agent("alpha")
 	if err != nil {
 		t.Fatalf("fixture.Agent(alpha) error = %v", err)

@@ -295,6 +295,8 @@ func TestSessionListPassesServerOwnedPageFilters(t *testing.T) {
 		"--all",
 		"--state",
 		"stopped",
+		"--type",
+		"user",
 		"--agent",
 		"general",
 		"--query",
@@ -312,7 +314,7 @@ func TestSessionListPassesServerOwnedPageFilters(t *testing.T) {
 	if err != nil {
 		t.Fatalf("executeRootCommand(session list) error = %v", err)
 	}
-	if seenQuery.Workspace != "ws-filtered" || seenQuery.State != "stopped" ||
+	if seenQuery.Workspace != "ws-filtered" || seenQuery.State != "stopped" || seenQuery.Type != "user" ||
 		seenQuery.Agent != "general" || seenQuery.Query != "demo" ||
 		!seenQuery.IncludeHealth ||
 		seenQuery.Sort != "last_activity" || seenQuery.Cursor != "cursor-prev" || seenQuery.Limit != 2 {

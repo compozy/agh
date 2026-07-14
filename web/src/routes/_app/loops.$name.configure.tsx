@@ -68,6 +68,17 @@ function LoopConfigureRoute() {
     );
   }
 
+  if (!configQuery.effectiveConfig) {
+    return (
+      <ConfigureState
+        description="The daemon did not return effective loop configuration."
+        icon={AlertCircle}
+        testId="loop-configure-effective-error"
+        title="Unable to load loop configuration"
+      />
+    );
+  }
+
   return (
     <LoopConfigureSheet
       key={name}
@@ -75,6 +86,7 @@ function LoopConfigureRoute() {
       workspaceId={workspaceId}
       loop={loopQuery.data}
       config={configQuery.data ?? null}
+      effectiveConfig={configQuery.effectiveConfig}
       onOpenChange={next => {
         if (!next) close();
       }}

@@ -68,11 +68,22 @@ function LoopDetailRoute() {
     );
   }
 
+  if (!configQuery.effectiveConfig) {
+    return (
+      <DetailState
+        description="The daemon did not return effective loop configuration."
+        icon={AlertCircle}
+        testId="loop-detail-config-error"
+        title="Unable to load loop configuration"
+      />
+    );
+  }
+
   const loop = loopQuery.data;
   return (
     <LoopDetailView
       loop={loop}
-      config={configQuery.data ?? null}
+      effectiveConfig={configQuery.effectiveConfig}
       graph={readGraph(loop.definition)}
       recentRuns={runsQuery.data?.runs ?? []}
       bindings={bindings.rows}

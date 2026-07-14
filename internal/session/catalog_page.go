@@ -192,7 +192,7 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 		return ListQuery{}, fmt.Errorf("%w: unsupported state %q", ErrListQueryInvalid, query.State)
 	}
 	switch query.SessionType {
-	case "", SessionTypeUser, SessionTypeDream, SessionTypeSystem, SessionTypeCoordinator, SessionTypeSpawned:
+	case "", SessionTypeUser, SessionTypeSystem, SessionTypeCoordinator, SessionTypeSpawned:
 	default:
 		return ListQuery{}, fmt.Errorf("%w: unsupported type %q", ErrListQueryInvalid, query.SessionType)
 	}

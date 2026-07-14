@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/acp"
+	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/events"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/sessiondb"
@@ -136,6 +137,86 @@ func TestManagerListAllMergesActiveAndStoppedSessions(t *testing.T) {
 func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should keep managed onboarding sessions out of user pages", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		ctx := testutil.Context(t)
+		resolved, err := h.resolver.Resolve(ctx, h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve(workspace) error = %v", err)
+		}
+		resolved.Agents = append(resolved.Agents, aghconfig.AgentDef{
+			Name:     aghconfig.OnboardingAgentName,
+			Provider: "claude",
+			Prompt:   "Internal onboarding.",
+		})
+		h.resolver.upsert(&resolved)
+
+		onboarding, err := h.manager.Create(ctx, CreateOpts{
+			AgentName: aghconfig.OnboardingAgentName,
+			Workspace: h.workspaceID,
+			Type:      SessionTypeUser,
+		})
+		if err != nil {
+			t.Fatalf("Create(onboarding) error = %v", err)
+		}
+		user, err := h.manager.Create(ctx, CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+			Type:      SessionTypeUser,
+		})
+		if err != nil {
+			t.Fatalf("Create(user) error = %v", err)
+		}
+		for _, created := range []*Session{onboarding, user} {
+			t.Cleanup(func() {
+				if stopErr := h.manager.Stop(testutil.Context(t), created.ID); stopErr != nil &&
+					!errors.Is(stopErr, ErrSessionNotFound) {
+					t.Errorf("Stop(%q) error = %v", created.ID, stopErr)
+				}
+			})
+		}
+
+		if got, want := onboarding.Info().Type, SessionTypeSystem; got != want {
+			t.Errorf("onboarding session type = %q, want %q", got, want)
+		}
+		if got, want := readMeta(t, onboarding.MetaPath()).SessionType, string(SessionTypeSystem); got != want {
+			t.Errorf("onboarding metadata session type = %q, want %q", got, want)
+		}
+		if got, want := user.Info().Type, SessionTypeUser; got != want {
+			t.Errorf("user session type = %q, want %q", got, want)
+		}
+
+		userPage, err := h.manager.ListPage(ctx, ListQuery{
+			State:       string(StateActive),
+			SessionType: SessionTypeUser,
+			Sort:        ListSortRecent,
+		})
+		if err != nil {
+			t.Fatalf("ListPage(user) error = %v", err)
+		}
+		if userPage.Total != 1 || len(userPage.Sessions) != 1 || userPage.Sessions[0].ID != user.ID {
+			t.Errorf("ListPage(user) = %#v, want only %q", userPage, user.ID)
+		}
+
+		allPage, err := h.manager.ListPage(ctx, ListQuery{
+			State: string(StateActive),
+			Sort:  ListSortRecent,
+		})
+		if err != nil {
+			t.Fatalf("ListPage(all) error = %v", err)
+		}
+		allIDs := make([]string, 0, len(allPage.Sessions))
+		for _, info := range allPage.Sessions {
+			allIDs = append(allIDs, info.ID)
+		}
+		if allPage.Total != 2 || !slices.Contains(allIDs, onboarding.ID) || !slices.Contains(allIDs, user.ID) {
+			t.Errorf("ListPage(all) = %#v, want onboarding %q and user %q", allPage, onboarding.ID, user.ID)
+		}
+	})
+
 	t.Run("Should page the active and durable union from the indexed projection", func(t *testing.T) {
 		t.Parallel()
 
@@ -145,6 +226,7 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 			AgentName: "coder",
 			Name:      "catalog active",
 			Workspace: h.workspaceID,
+			Type:      SessionTypeUser,
 		})
 		if err != nil {
 			t.Fatalf("Create(active) error = %v", err)
@@ -166,6 +248,21 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		if err := h.manager.Stop(testutil.Context(t), stopped.ID); err != nil {
 			t.Fatalf("Stop(stopped) error = %v", err)
 		}
+		internal, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Name:      "catalog internal",
+			Workspace: h.workspaceID,
+			Type:      SessionTypeSystem,
+		})
+		if err != nil {
+			t.Fatalf("Create(internal) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if stopErr := h.manager.Stop(testutil.Context(t), internal.ID); stopErr != nil &&
+				!errors.Is(stopErr, ErrSessionNotFound) {
+				t.Errorf("Stop(internal cleanup) error = %v", stopErr)
+			}
+		})
 		catalog.durable = sessionCatalogInfoFromRuntime(stopped.Info())
 		metaReads := 0
 		h.manager.readSessionMeta = func(path string) (store.SessionMeta, error) {
@@ -178,6 +275,7 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 
 		query := ListQuery{
 			WorkspaceID: h.workspaceID,
+			SessionType: SessionTypeUser,
 			AgentName:   "coder",
 			Search:      "CATALOG",
 			Sort:        ListSortRecent,
@@ -192,6 +290,9 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		}
 		if !slices.Contains(catalog.lastQuery.ExcludeIDs, active.ID) {
 			t.Fatalf("PageSessions().ExcludeIDs = %#v, want active id %q", catalog.lastQuery.ExcludeIDs, active.ID)
+		}
+		if catalog.lastQuery.SessionType != string(SessionTypeUser) {
+			t.Fatalf("PageSessions().SessionType = %q, want %q", catalog.lastQuery.SessionType, SessionTypeUser)
 		}
 
 		query.Cursor = first.NextCursor
@@ -238,6 +339,11 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 			t.Fatalf("ListPage(workspace mismatch) error = %v, want ErrListCursorInvalid", err)
 		}
 		query.WorkspaceID = h.workspaceID
+		query.SessionType = SessionTypeSystem
+		if _, err := h.manager.ListPage(testutil.Context(t), query); !errors.Is(err, ErrListCursorInvalid) {
+			t.Fatalf("ListPage(type mismatch) error = %v, want ErrListCursorInvalid", err)
+		}
+		query.SessionType = SessionTypeUser
 		query.Cursor = "not-an-opaque-cursor"
 		if _, err := h.manager.ListPage(testutil.Context(t), query); !errors.Is(err, ErrListCursorInvalid) {
 			t.Fatalf("ListPage(malformed cursor) error = %v, want ErrListCursorInvalid", err)
@@ -390,6 +496,7 @@ func TestSessionMatchesListQuery(t *testing.T) {
 		if !sessionMatchesListQuery(base, ListQuery{
 			WorkspaceID: "ws-alpha",
 			State:       "active",
+			SessionType: SessionTypeUser,
 			AgentName:   "coder",
 			Search:      "review",
 		}, now) {
@@ -398,6 +505,7 @@ func TestSessionMatchesListQuery(t *testing.T) {
 		for _, query := range []ListQuery{
 			{WorkspaceID: "ws-foreign"},
 			{State: "stopped"},
+			{SessionType: SessionTypeSystem},
 			{AgentName: "reviewer"},
 			{Search: "missing"},
 		} {
@@ -458,6 +566,8 @@ func TestNormalizeListQuery(t *testing.T) {
 		query ListQuery
 	}{
 		{name: "state", query: ListQuery{State: "unknown"}},
+		{name: "type", query: ListQuery{SessionType: "unknown"}},
+		{name: "dream type", query: ListQuery{SessionType: SessionTypeDream}},
 		{name: "sort", query: ListQuery{Sort: "oldest"}},
 		{name: "negative limit", query: ListQuery{Limit: -1}},
 		{name: "oversized limit", query: ListQuery{Limit: MaxListLimit + 1}},
@@ -1016,10 +1126,10 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 		session := createSession(t, h)
 		done := make(chan struct{})
 		h.manager.mu.Lock()
-		h.manager.finalizing[session.ID] = done
+		h.manager.finalizing[session.ID] = &sessionFinalization{done: done}
 		h.manager.mu.Unlock()
 		t.Cleanup(func() {
-			h.manager.finishFinalization(session.ID)
+			h.manager.finishFinalization(session.ID, nil)
 			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil &&
 				!errors.Is(err, ErrSessionNotFound) {
 				t.Errorf("Stop(%q) error = %v", session.ID, err)
@@ -1064,7 +1174,7 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 
 		done := make(chan struct{})
 		h.manager.mu.Lock()
-		h.manager.finalizing[session.ID] = done
+		h.manager.finalizing[session.ID] = &sessionFinalization{done: done}
 		h.manager.mu.Unlock()
 
 		type queryResult struct {
@@ -1100,7 +1210,7 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 			t.Fatalf("writeMeta(stopped) error = %v", err)
 		}
 		h.manager.removeActive(session.ID)
-		h.manager.finishFinalization(session.ID)
+		h.manager.finishFinalization(session.ID, nil)
 
 		result := <-resultCh
 		if result.err != nil {
@@ -1144,7 +1254,7 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 
 		done := make(chan struct{})
 		h.manager.mu.Lock()
-		h.manager.finalizing[session.ID] = done
+		h.manager.finalizing[session.ID] = &sessionFinalization{done: done}
 		h.manager.mu.Unlock()
 
 		type queryResult struct {
@@ -1191,7 +1301,7 @@ func TestManagerOpenQueryRecorderValidationAndCleanup(t *testing.T) {
 			t.Fatalf("writeMeta(stopped) error = %v", err)
 		}
 		h.manager.removeActive(session.ID)
-		h.manager.finishFinalization(session.ID)
+		h.manager.finishFinalization(session.ID, nil)
 
 		result := <-resultCh
 		if result.err != nil {

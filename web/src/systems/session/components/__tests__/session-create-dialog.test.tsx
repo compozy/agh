@@ -41,6 +41,7 @@ const workspace: WorkspacePayload = {
 const runtimeProviders: RuntimeProviderOption[] = [
   { id: "claude", name: "Claude Code", harness: "acp", runtime_provider: "claude" },
   { id: "codex", name: "Codex", runtime_provider: "codex" },
+  { id: "cursor", name: "Cursor", harness: "acp", runtime_provider: "cursor" },
   { id: "openrouter", name: "OpenRouter", harness: "pi_acp", runtime_provider: "openrouter" },
 ];
 
@@ -232,6 +233,23 @@ describe("SessionCreateDialog", () => {
     expect(screen.getByTestId("session-create-dialog-submit")).toBeDisabled();
   });
 
+  it("Should block a non-catalog model and explain how to recover inline", () => {
+    renderDialog({
+      runtimeModels,
+      runtimeValue: {
+        provider: "cursor",
+        model: "cursor-grok-4.5-high",
+        reasoning_effort: "",
+      },
+    });
+
+    expect(screen.getByTestId("session-create-dialog-submit")).toBeDisabled();
+    expect(screen.getByTestId("session-create-model-error")).toHaveTextContent(
+      "not in the selected provider catalog"
+    );
+    expect(screen.getByTestId("session-create-model-error")).toHaveAttribute("role", "alert");
+  });
+
   it("Should disable the runtime selector while providers are loading", () => {
     renderDialog({
       runtimeProviders: [],
@@ -286,10 +304,14 @@ describe("SessionCreateDialog", () => {
     expect(screen.getByTestId("session-create-runtime-select")).toHaveTextContent("Codex");
   });
 
-  it("Should block backdrop dismissal while submit is in flight", () => {
+  it("Should announce truthful pending feedback and block dismissal while submit is in flight", () => {
     const onOpenChange = vi.fn();
     render(<SessionCreateDialog {...makeProps({ isSubmitting: true, onOpenChange })} />);
 
+    expect(screen.getByRole("status")).toHaveTextContent("Waiting for provider startup");
+    expect(screen.getByTestId("session-create-dialog-submit")).toHaveTextContent(
+      "Starting session"
+    );
     fireEvent.click(getDialogBackdrop());
     expect(onOpenChange).not.toHaveBeenCalled();
   });

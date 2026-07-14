@@ -83030,7 +83030,6 @@
             "schema": {
               "enum": [
                 "user",
-                "dream",
                 "system",
                 "coordinator",
                 "spawned"
@@ -163164,8 +163163,80 @@
                         }
                       },
                       "type": "object"
+                    },
+                    "effective_config": {
+                      "properties": {
+                        "budget_on_exceeded": {
+                          "enum": [
+                            "halt",
+                            "escalate"
+                          ],
+                          "type": "string"
+                        },
+                        "budget_tokens": {
+                          "type": "integer"
+                        },
+                        "budget_wall_sec": {
+                          "type": "integer"
+                        },
+                        "enabled_checks_json": {},
+                        "fan_out_width": {
+                          "type": "integer"
+                        },
+                        "gate_max_revisions": {
+                          "type": "integer"
+                        },
+                        "human_gate_enabled": {
+                          "type": "boolean"
+                        },
+                        "iteration_cap": {
+                          "type": "integer"
+                        },
+                        "model_defaults": {
+                          "properties": {
+                            "judge": {
+                              "type": "string"
+                            },
+                            "worker": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "judge",
+                            "worker"
+                          ],
+                          "type": "object"
+                        },
+                        "no_progress_window": {
+                          "type": "integer"
+                        },
+                        "reattempt_strategy": {
+                          "enum": [
+                            "failed_only",
+                            "full_body"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "budget_on_exceeded",
+                        "budget_tokens",
+                        "budget_wall_sec",
+                        "enabled_checks_json",
+                        "fan_out_width",
+                        "gate_max_revisions",
+                        "human_gate_enabled",
+                        "iteration_cap",
+                        "model_defaults",
+                        "no_progress_window",
+                        "reattempt_strategy"
+                      ],
+                      "type": "object"
                     }
                   },
+                  "required": [
+                    "effective_config"
+                  ],
                   "type": "object"
                 }
               }
@@ -163610,8 +163681,80 @@
                         }
                       },
                       "type": "object"
+                    },
+                    "effective_config": {
+                      "properties": {
+                        "budget_on_exceeded": {
+                          "enum": [
+                            "halt",
+                            "escalate"
+                          ],
+                          "type": "string"
+                        },
+                        "budget_tokens": {
+                          "type": "integer"
+                        },
+                        "budget_wall_sec": {
+                          "type": "integer"
+                        },
+                        "enabled_checks_json": {},
+                        "fan_out_width": {
+                          "type": "integer"
+                        },
+                        "gate_max_revisions": {
+                          "type": "integer"
+                        },
+                        "human_gate_enabled": {
+                          "type": "boolean"
+                        },
+                        "iteration_cap": {
+                          "type": "integer"
+                        },
+                        "model_defaults": {
+                          "properties": {
+                            "judge": {
+                              "type": "string"
+                            },
+                            "worker": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "judge",
+                            "worker"
+                          ],
+                          "type": "object"
+                        },
+                        "no_progress_window": {
+                          "type": "integer"
+                        },
+                        "reattempt_strategy": {
+                          "enum": [
+                            "failed_only",
+                            "full_body"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "budget_on_exceeded",
+                        "budget_tokens",
+                        "budget_wall_sec",
+                        "enabled_checks_json",
+                        "fan_out_width",
+                        "gate_max_revisions",
+                        "human_gate_enabled",
+                        "iteration_cap",
+                        "model_defaults",
+                        "no_progress_window",
+                        "reattempt_strategy"
+                      ],
+                      "type": "object"
                     }
                   },
+                  "required": [
+                    "effective_config"
+                  ],
                   "type": "object"
                 }
               }

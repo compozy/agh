@@ -292,24 +292,30 @@ func TestManagerTranscriptProjectionReads(t *testing.T) {
 		t.Parallel()
 
 		releaseSlowQuery := make(chan struct{})
+		var releaseSlowQueryOnce sync.Once
+		releaseSlowQueryFn := func() {
+			releaseSlowQueryOnce.Do(func() { close(releaseSlowQuery) })
+		}
+		t.Cleanup(releaseSlowQueryFn)
 		slowRecorder := &blockingTranscriptRecorder{
 			filteringTranscriptRecorder: filteringTranscriptRecorder{},
 			started:                     make(chan struct{}),
 			release:                     releaseSlowQuery,
 		}
 		fastRecorder := &filteringTranscriptRecorder{}
-		recorders := map[string]EventRecorder{
-			"sess-cache-slow": slowRecorder,
-			"sess-cache-fast": fastRecorder,
+		h := newHarness(t)
+		activate := func(sessionID string, recorder EventRecorder) {
+			t.Helper()
+			if err := h.manager.activate(&Session{
+				ID:       sessionID,
+				State:    StateActive,
+				recorder: recorder,
+			}); err != nil {
+				t.Fatalf("activate(%s) error = %v", sessionID, err)
+			}
 		}
-		h := newHarness(
-			t,
-			WithStore(func(_ context.Context, sessionID string, _ string) (EventRecorder, error) {
-				return recorders[sessionID], nil
-			}),
-		)
-		writeStoppedSessionArtifacts(t, h, "sess-cache-slow", true)
-		writeStoppedSessionArtifacts(t, h, "sess-cache-fast", true)
+		activate("sess-cache-slow", slowRecorder)
+		activate("sess-cache-fast", fastRecorder)
 		slowRecorder.Append(transcriptProjectionEvent(
 			t,
 			"sess-cache-slow",
@@ -354,15 +360,15 @@ func TestManagerTranscriptProjectionReads(t *testing.T) {
 		select {
 		case err := <-fastDone:
 			if err != nil {
-				close(releaseSlowQuery)
+				releaseSlowQueryFn()
 				t.Fatalf("TranscriptPage(fast) error = %v", err)
 			}
 		case <-time.After(100 * time.Millisecond):
-			close(releaseSlowQuery)
+			releaseSlowQueryFn()
 			t.Fatal("Transcript(fast) blocked behind unrelated transcript cache query")
 		}
 
-		close(releaseSlowQuery)
+		releaseSlowQueryFn()
 		if err := <-slowDone; err != nil {
 			t.Fatalf("TranscriptPage(slow) error = %v", err)
 		}

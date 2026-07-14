@@ -614,8 +614,8 @@ func TestManagerIntegrationRemovePurgesSyntheticState(t *testing.T) {
 				pending: map[string]struct{}{
 					"sess-synth": {},
 				},
-				finalizing: map[string]chan struct{}{
-					"sess-synth": finalizing,
+				finalizing: map[string]*sessionFinalization{
+					"sess-synth": {done: finalizing},
 				},
 				syntheticQueues: map[string][]queuedSyntheticPrompt{
 					"sess-synth": {{

@@ -1,15 +1,21 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
+import { HttpResponse } from "msw";
 
 import {
   storyAgentNames,
   storyWorkspaceIds,
   storyWorkspaceNames,
 } from "@/storybook/fintech-scenario";
+import { storybookMswParameters } from "@/storybook/msw";
+import { aghApiMock } from "@/storybook/openapi-msw";
 import { CenteredSurface } from "@/storybook/story-layout";
 import { createAutomationTriggerDraft } from "@/systems/automation";
 import type { CreateAutomationTriggerRequest } from "@/systems/automation";
+import { loopCatalogFixtures } from "@/systems/loops/mocks/fixtures";
 
+import { AutomationRequestPayload } from "../automation-request-payload";
 import { AutomationTriggerForm } from "../automation-trigger-form";
 
 const meta: Meta<typeof AutomationTriggerForm> = {
@@ -112,6 +118,34 @@ export const WebhookSelected: Story = {
   ),
 };
 
+export const WebhookRequestRedacted: Story = {
+  render: () => (
+    <CenteredSurface className="p-8">
+      <div className="w-full max-w-3xl">
+        <AutomationRequestPayload
+          request={{
+            method: "POST",
+            path: "/api/automation/triggers",
+            payload: baseDraft({
+              event: "webhook",
+              scope: "global",
+              workspace_id: undefined,
+              endpoint_slug: "ci-deploys",
+              webhook_id: "wbh_a1b2c3",
+              webhook_secret_value: "whsec_live_8f3a9c2e",
+            }),
+          }}
+        />
+      </div>
+    </CenteredSurface>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByTestId("automation-request-payload")).toHaveTextContent("[redacted]");
+    await expect(canvas.queryByText("whsec_live_8f3a9c2e")).not.toBeInTheDocument();
+  },
+};
+
 export const ExtensionEvent: Story = {
   args: {},
   render: () => (
@@ -127,18 +161,57 @@ export const ExtensionEvent: Story = {
   ),
 };
 
-export const NoFilters: Story = {
+export const WorkspaceLoopTarget: Story = {
   args: {},
+  parameters: storybookMswParameters({
+    loops: [
+      aghApiMock.get("/api/workspaces/{workspace_id}/loops", () => {
+        const reviewsWatch = loopCatalogFixtures.find(loop => loop.name === "reviews-watch");
+        if (!reviewsWatch) {
+          return HttpResponse.json(
+            { error: "reviews-watch fixture is unavailable" },
+            { status: 500 }
+          );
+        }
+
+        const loop = {
+          ...reviewsWatch,
+          inputs: { pr: { type: "number" as const, required: true } },
+          start: [{ kind: "trigger" as const }],
+        };
+        return HttpResponse.json({
+          facets: { categories: { watch: 1 }, kinds: {}, statuses: {} },
+          loops: [loop],
+          page: { has_more: false, limit: 50, total: 1 },
+        });
+      }),
+    ],
+  }),
   render: () => (
     <TriggerFormHarness
       initialDraft={baseDraft({
-        name: "session-watch",
-        event: "session.created",
+        agent_name: "",
         filter: {},
-        prompt: "Session {{ .Data.session_id }} started for agent {{ .Data.agent_name }}.",
+        loop_target: {
+          input_mapping: {},
+          inputs: { pr: 2 },
+          loop_name: "reviews-watch",
+          workspace_id: storyWorkspaceIds.hq,
+        },
+        name: "review-on-stop",
+        prompt: "",
+        target_kind: "loop",
       })}
     />
   ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const target = await canvas.findByTestId("automation-target-details");
+    target.scrollIntoView({ block: "center" });
+    await expect(target).toHaveTextContent("reviews-watch");
+    await expect(target).toHaveTextContent(storyWorkspaceIds.hq);
+    await expect(canvas.getByTestId("submit-trigger-form")).toBeEnabled();
+  },
 };
 
 export const ReliabilityExpanded: Story = {
@@ -171,20 +244,29 @@ export const EditMode: Story = {
   ),
 };
 
-export const ValidationDisabled: Story = {
+/** A saved Trigger keeps a schedule-only Loop visible while blocking trigger dispatch. */
+export const EditIncompatibleLoop: Story = {
   args: {},
   render: () => (
     <TriggerFormHarness
-      initialDraft={{
-        ...createAutomationTriggerDraft(null),
-        event: "session.stopped",
-        scope: "workspace",
-        workspace_id: undefined,
-        name: "",
+      initialDraft={baseDraft({
+        name: "delivery-on-stop",
         agent_name: "",
         prompt: "",
-        filter: {},
-      }}
+        target_kind: "loop",
+        loop_target: {
+          workspace_id: storyWorkspaceIds.hq,
+          loop_name: "software-delivery",
+          inputs: { goal: "Ship the queued delivery" },
+          input_mapping: {},
+        },
+      })}
+      mode="edit"
     />
   ),
+  play: async ({ canvasElement }) => {
+    const targetFields = await within(canvasElement).findByTestId("loop-target-fields");
+    targetFields.scrollIntoView({ block: "center" });
+    await expect(targetFields).toBeVisible();
+  },
 };

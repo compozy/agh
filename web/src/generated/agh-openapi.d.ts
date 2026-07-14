@@ -36099,7 +36099,7 @@ export interface operations {
         /** @description Filter by exact session state */
         state?: "starting" | "active" | "stopping" | "stopped";
         /** @description Filter by exact session type */
-        type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+        type?: "user" | "system" | "coordinator" | "spawned";
         /** @description Filter by exact agent definition name */
         agent?: string;
         /** @description Search session id, name, agent, provider, or channel */
@@ -68222,6 +68222,24 @@ export interface operations {
               /** @enum {string|null} */
               reattempt_strategy?: "failed_only" | "full_body" | null;
             } | null;
+            effective_config: {
+              /** @enum {string} */
+              budget_on_exceeded: "halt" | "escalate";
+              budget_tokens: number;
+              budget_wall_sec: number;
+              enabled_checks_json: unknown;
+              fan_out_width: number;
+              gate_max_revisions: number;
+              human_gate_enabled: boolean;
+              iteration_cap: number;
+              model_defaults: {
+                judge: string;
+                worker: string;
+              };
+              no_progress_window: number;
+              /** @enum {string} */
+              reattempt_strategy: "failed_only" | "full_body";
+            };
           };
         };
       };
@@ -68390,6 +68408,24 @@ export interface operations {
               /** @enum {string|null} */
               reattempt_strategy?: "failed_only" | "full_body" | null;
             } | null;
+            effective_config: {
+              /** @enum {string} */
+              budget_on_exceeded: "halt" | "escalate";
+              budget_tokens: number;
+              budget_wall_sec: number;
+              enabled_checks_json: unknown;
+              fan_out_width: number;
+              gate_max_revisions: number;
+              human_gate_enabled: boolean;
+              iteration_cap: number;
+              model_defaults: {
+                judge: string;
+                worker: string;
+              };
+              no_progress_window: number;
+              /** @enum {string} */
+              reattempt_strategy: "failed_only" | "full_body";
+            };
           };
         };
       };

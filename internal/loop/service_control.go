@@ -2,7 +2,6 @@ package loop
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -60,21 +59,10 @@ func (s *service) Stop(
 		if err != nil {
 			return err
 		}
-		var revokeErr error
-		if s.goalLeaseRevoker != nil {
-			for _, lease := range result.RevokedPromptLeases {
-				if err := s.goalLeaseRevoker.RevokeGoalPromptLease(
-					ctx,
-					lease,
-					string(TransitionCauseOperatorStop),
-				); err != nil {
-					revokeErr = errors.Join(revokeErr, fmt.Errorf("loop: revoke stopped Goal runtime: %w", err))
-				}
-			}
-		}
+		s.revokeGoalPromptLeases(ctx, result.RevokedPromptLeases, TransitionCauseOperatorStop)
 		run.Status = StatusFailed
 		s.dispatchCoordinatorTerminal(ctx, run, TransitionCauseOperatorStop, stoppedAt)
-		return revokeErr
+		return nil
 	}
 	return s.Transition(ctx, runID, StatusFailed, TransitionCauseOperatorStop)
 }

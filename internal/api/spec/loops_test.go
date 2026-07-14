@@ -242,6 +242,40 @@ func TestLoopOpenAPIContract(t *testing.T) {
 		assertNotRequired(t, updateTriggerSchema, "target_kind", "loop_target")
 	})
 
+	t.Run("Should expose watch-events subscriptions in Loop authoring requests", func(t *testing.T) {
+		t.Parallel()
+
+		doc, err := Document()
+		if err != nil {
+			t.Fatalf("Document() error = %v", err)
+		}
+		validate := operationFor(
+			t,
+			doc,
+			"/api/workspaces/{workspace_id}/loops/{name}/validate",
+			"POST",
+		)
+		definition := propertySchema(t, jsonRequestSchema(t, validate), "definition")
+		graph := propertySchema(t, definition, "graph")
+		nodes := propertySchema(t, graph, "nodes")
+		if nodes.Items == nil || nodes.Items.Value == nil {
+			t.Fatal("Loop graph nodes have no item schema")
+		}
+		events := propertySchema(t, nodes.Items.Value, "events")
+		if events.Items == nil || events.Items.Value == nil {
+			t.Fatal("Loop watch-events subscriptions have no item schema")
+		}
+		subscription := events.Items.Value
+		assertRequired(t, subscription, "kind")
+		assertNotRequired(t, subscription, "filter")
+		assertEnumValues(
+			t,
+			propertySchema(t, subscription, "kind"),
+			contract.LoopWatchEventKindValues()...,
+		)
+		propertySchema(t, subscription, "filter")
+	})
+
 	t.Run("Should describe structured Goal prompt outcomes beside ordinary prompt results", func(t *testing.T) {
 		t.Parallel()
 

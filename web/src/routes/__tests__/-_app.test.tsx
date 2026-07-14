@@ -172,6 +172,8 @@ vi.mock("@/systems/agent", () => ({
 }));
 
 vi.mock("@/systems/session", () => ({
+  useSessionCatalogStreams: () => undefined,
+  useWorkspaceSessionActivity: () => ({}),
   useCreateSession: () => ({
     mutateAsync: mockCreateSessionMutateAsync,
     isPending: false,
@@ -194,7 +196,7 @@ vi.mock("@/systems/session", () => ({
     pendingAgentName: null,
     pendingWorkspaceId: null,
     openForAgent: vi.fn(),
-    setOpen: vi.fn(),
+    onOpenChange: vi.fn(),
     onAgentChange: vi.fn(),
     onProviderChange: vi.fn(),
     submit: vi.fn(),

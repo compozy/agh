@@ -2,6 +2,7 @@ package loop
 
 import (
 	"context"
+	"log/slog"
 	"time"
 )
 
@@ -10,6 +11,15 @@ type DefaultsResolver func(context.Context, WorkspaceID) (LoopDefaults, error)
 
 // Option configures a loop service.
 type Option func(*service)
+
+// WithLogger injects structured observability for post-commit service failures.
+func WithLogger(logger *slog.Logger) Option {
+	return func(s *service) {
+		if logger != nil {
+			s.logger = logger
+		}
+	}
+}
 
 // WithDefaults injects the `[loops.defaults.*]` layer consumed by the resolver.
 func WithDefaults(defaults LoopDefaults) Option {

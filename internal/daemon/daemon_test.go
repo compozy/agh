@@ -6513,6 +6513,14 @@ func (r *recordingRegistry) UpdateTaskRun(context.Context, taskpkg.Run) error {
 	return nil
 }
 
+func (r *recordingRegistry) CompleteRunSettlement(
+	context.Context,
+	taskpkg.Run,
+	taskpkg.ActorContext,
+) (taskpkg.CompletedRunSettlement, error) {
+	return taskpkg.CompletedRunSettlement{}, taskpkg.ErrTaskRunNotFound
+}
+
 func (r *recordingRegistry) GetTaskRun(context.Context, string) (taskpkg.Run, error) {
 	return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
 }
@@ -6665,6 +6673,13 @@ func (r *recordingRegistry) CompleteRunLease(
 	taskpkg.LeaseCompletion,
 ) (taskpkg.Run, error) {
 	return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
+}
+
+func (r *recordingRegistry) CompleteRunLeaseSettlement(
+	context.Context,
+	taskpkg.LeaseCompletion,
+) (taskpkg.CompletedRunSettlement, error) {
+	return taskpkg.CompletedRunSettlement{}, taskpkg.ErrTaskRunNotFound
 }
 
 func (r *recordingRegistry) FailRunLease(

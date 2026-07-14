@@ -1,4 +1,9 @@
-import type { LoopConfig, LoopConfigUpdateRequest, LoopContract } from "../types";
+import type {
+  LoopConfig,
+  LoopConfigUpdateRequest,
+  LoopContract,
+  LoopEffectiveConfig,
+} from "../types";
 import {
   buildCheckDescriptors,
   defaultCheckStates,
@@ -69,11 +74,14 @@ function storedLimitValue(key: LoopOverrideKey, stored: LoopConfig): number | nu
 }
 
 /** Seeds the limit-override draft from the stored config, clamping every value to its ceiling. */
-function limitsFromStored(contract: LoopContract, stored: LoopConfig | null): LoopOverrideDraft {
-  const base = initialOverrideDraft(contract);
+function limitsFromStored(
+  effectiveConfig: LoopEffectiveConfig,
+  stored: LoopConfig | null
+): LoopOverrideDraft {
+  const base = initialOverrideDraft(effectiveConfig);
   if (!stored) return base;
   const values = { ...base.values };
-  for (const field of buildOverrideFields(contract)) {
+  for (const field of buildOverrideFields(effectiveConfig)) {
     const raw = storedLimitValue(field.key, stored);
     if (raw == null) continue;
     values[field.key] = clampOverrideValue(field, raw);
@@ -90,28 +98,28 @@ function limitsFromStored(contract: LoopContract, stored: LoopConfig | null): Lo
  * `failed_only`, limits at the loop defaults) so an unconfigured loop opens truthfully.
  */
 export function initialConfigDraft(
-  contract: LoopContract,
   descriptors: LoopConfigCheckDescriptor[],
-  stored: LoopConfig | null
+  stored: LoopConfig | null,
+  effectiveConfig: LoopEffectiveConfig
 ): LoopConfigDraft {
   return {
     checks: initialCheckStates(descriptors, stored?.enabled_checks_json ?? null),
     humanGateEnabled: stored?.human_gate_enabled ?? false,
     reattemptStrategy: normalizeReattempt(stored?.reattempt_strategy),
-    limits: limitsFromStored(contract, stored),
+    limits: limitsFromStored(effectiveConfig, stored),
   };
 }
 
 /** The inherited-defaults draft used by Reset: every check on, human off, `failed_only`, no limits. */
 export function resetConfigDraft(
-  contract: LoopContract,
-  descriptors: LoopConfigCheckDescriptor[]
+  descriptors: LoopConfigCheckDescriptor[],
+  effectiveConfig: LoopEffectiveConfig
 ): LoopConfigDraft {
   return {
     checks: defaultCheckStates(descriptors),
     humanGateEnabled: false,
     reattemptStrategy: DEFAULT_REATTEMPT,
-    limits: initialOverrideDraft(contract),
+    limits: initialOverrideDraft(effectiveConfig),
   };
 }
 
@@ -146,7 +154,11 @@ export function buildLoopConfigRequest(
 }
 
 /** Convenience: build the descriptors + seeded draft in one call for the view-model hook. */
-export function buildConfigureModel(contract: LoopContract, stored: LoopConfig | null) {
+export function buildConfigureModel(
+  contract: LoopContract,
+  stored: LoopConfig | null,
+  effectiveConfig: LoopEffectiveConfig
+) {
   const descriptors = buildCheckDescriptors(contract);
-  return { descriptors, draft: initialConfigDraft(contract, descriptors, stored) };
+  return { descriptors, draft: initialConfigDraft(descriptors, stored, effectiveConfig) };
 }

@@ -33,6 +33,7 @@ import {
   taskStatusTone,
   taskWakeIndicatorApplies,
 } from "../task-formatters";
+import { taskRunCanRecover } from "../task-run-recovery";
 
 function makeTask(overrides: Partial<TaskListItem> = {}): TaskListItem {
   return {
@@ -80,6 +81,26 @@ describe("task status and priority labels", () => {
     expect(taskApprovalStateLabel("approved")).toBe("Approved");
     expect(taskApprovalStateLabel(undefined)).toBe("Not Required");
   });
+});
+
+describe("task run recovery eligibility", () => {
+  it.each([
+    { attempt: 1, expected: true, maxAttempts: 2 },
+    { attempt: 1, expected: false, maxAttempts: 1 },
+  ])(
+    "returns $expected for needs_attention attempt $attempt of $maxAttempts",
+    ({ attempt, expected, maxAttempts }) => {
+      expect(
+        taskRunCanRecover(
+          {
+            attempt,
+            status: "needs_attention",
+          },
+          maxAttempts
+        )
+      ).toBe(expected);
+    }
+  );
 });
 
 describe("task semantic tones", () => {
@@ -262,6 +283,17 @@ describe("task lifecycle phases — manual-first signaling", () => {
     expect(taskLifecyclePhaseLabel(phase)).toBe("Needs attention");
     expect(taskLifecyclePhaseDescription(phase)).toMatch(/recover it before/i);
     expect(taskLifecyclePhaseDescription(phase)).toMatch(/enqueued or claimed/i);
+  });
+
+  it("Should project an active needs_attention run as recovery-only when the task is ready", () => {
+    const phase = taskLifecyclePhase(
+      makeTask({
+        status: "ready",
+        active_run: makeRun("needs_attention"),
+      } as Partial<TaskListItem>)
+    );
+
+    expect(phase).toBe("needs_attention");
   });
 
   it("Should never mark saved intent or ready as activity in lifecycle tones", () => {

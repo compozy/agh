@@ -15,6 +15,7 @@ import (
 
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/sandbox"
+	storepkg "github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
@@ -139,6 +140,109 @@ func TestResolverIntegrationResolveUpdatesStaleSymlinkRegistration(t *testing.T)
 	}
 	if stored.RootDir != canonicalTargetTwo {
 		t.Fatalf("stored RootDir = %q, want %q", stored.RootDir, canonicalTargetTwo)
+	}
+}
+
+func TestResolverIntegrationListPrunesMissingWorkspaceAcrossReopen(t *testing.T) {
+	t.Run(
+		"Should persist pruning across reopen without deleting healthy workspace data",
+		resolverIntegrationListPrunesMissingWorkspaceAcrossReopen,
+	)
+}
+
+func resolverIntegrationListPrunesMissingWorkspaceAcrossReopen(t *testing.T) {
+	t.Helper()
+
+	ctx := context.Background()
+	homePaths := newIntegrationHomePaths(t)
+	databasePath := filepath.Join(t.TempDir(), "agh.db")
+	db, err := globaldb.OpenGlobalDB(ctx, databasePath)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB() error = %v", err)
+	}
+	dbClosed := false
+	t.Cleanup(func() {
+		if dbClosed {
+			return
+		}
+		if err := db.Close(ctx); err != nil {
+			t.Errorf("GlobalDB.Close() cleanup error = %v", err)
+		}
+	})
+
+	healthyRoot := t.TempDir()
+	missingRoot := filepath.Join(t.TempDir(), "removed-workspace")
+	if err := os.Mkdir(missingRoot, 0o755); err != nil {
+		t.Fatalf("Mkdir(%q) error = %v", missingRoot, err)
+	}
+	now := time.Now().UTC()
+	for _, workspace := range []aghworkspace.Workspace{
+		{ID: "ws_reopen_healthy", RootDir: healthyRoot, Name: "healthy", CreatedAt: now, UpdatedAt: now},
+		{ID: "ws_reopen_missing", RootDir: missingRoot, Name: "missing", CreatedAt: now, UpdatedAt: now},
+	} {
+		if err := db.InsertWorkspace(ctx, workspace); err != nil {
+			t.Fatalf("InsertWorkspace(%q) error = %v", workspace.ID, err)
+		}
+	}
+	for _, session := range []storepkg.SessionInfo{
+		{ID: "sess_reopen_healthy", AgentName: "coder", WorkspaceID: "ws_reopen_healthy", State: "stopped", CreatedAt: now, UpdatedAt: now},
+		{ID: "sess_reopen_missing", AgentName: "coder", WorkspaceID: "ws_reopen_missing", State: "stopped", CreatedAt: now, UpdatedAt: now},
+	} {
+		if err := db.RegisterSession(ctx, session); err != nil {
+			t.Fatalf("RegisterSession(%q) error = %v", session.ID, err)
+		}
+	}
+	if err := os.Remove(missingRoot); err != nil {
+		t.Fatalf("Remove(%q) error = %v", missingRoot, err)
+	}
+
+	resolver := newIntegrationResolver(t, db, homePaths)
+	listed, err := resolver.List(ctx)
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(listed) != 1 || listed[0].ID != "ws_reopen_healthy" {
+		t.Fatalf("List() = %#v, want only healthy workspace", listed)
+	}
+
+	if err := db.Close(ctx); err != nil {
+		t.Fatalf("GlobalDB.Close() error = %v", err)
+	}
+	dbClosed = true
+	reopened, err := globaldb.OpenGlobalDB(ctx, databasePath)
+	if err != nil {
+		t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := reopened.Close(ctx); err != nil {
+			t.Errorf("GlobalDB.Close(reopened) cleanup error = %v", err)
+		}
+	})
+
+	restartedResolver := newIntegrationResolver(t, reopened, homePaths)
+	listed, err = restartedResolver.List(ctx)
+	if err != nil {
+		t.Fatalf("List(after reopen) error = %v", err)
+	}
+	if len(listed) != 1 || listed[0].ID != "ws_reopen_healthy" {
+		t.Fatalf("List(after reopen) = %#v, want only healthy workspace", listed)
+	}
+	if _, err := reopened.GetWorkspace(ctx, "ws_reopen_missing"); !errors.Is(err, aghworkspace.ErrWorkspaceNotFound) {
+		t.Fatalf("GetWorkspace(pruned after reopen) error = %v, want %v", err, aghworkspace.ErrWorkspaceNotFound)
+	}
+	healthySessions, err := reopened.ListSessions(ctx, storepkg.SessionListQuery{WorkspaceID: "ws_reopen_healthy"})
+	if err != nil {
+		t.Fatalf("ListSessions(healthy after reopen) error = %v", err)
+	}
+	if len(healthySessions) != 1 || healthySessions[0].ID != "sess_reopen_healthy" {
+		t.Fatalf("ListSessions(healthy after reopen) = %#v, want healthy session", healthySessions)
+	}
+	missingSessions, err := reopened.ListSessions(ctx, storepkg.SessionListQuery{WorkspaceID: "ws_reopen_missing"})
+	if err != nil {
+		t.Fatalf("ListSessions(missing after reopen) error = %v", err)
+	}
+	if len(missingSessions) != 0 {
+		t.Fatalf("ListSessions(missing after reopen) = %#v, want no sessions", missingSessions)
 	}
 }
 

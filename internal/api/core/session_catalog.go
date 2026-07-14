@@ -99,7 +99,7 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 func parseSessionListType(raw string) (session.Type, error) {
 	sessionType := session.Type(strings.TrimSpace(raw))
 	switch sessionType {
-	case "", session.SessionTypeUser, session.SessionTypeDream, session.SessionTypeSystem,
+	case "", session.SessionTypeUser, session.SessionTypeSystem,
 		session.SessionTypeCoordinator, session.SessionTypeSpawned:
 		return sessionType, nil
 	default:

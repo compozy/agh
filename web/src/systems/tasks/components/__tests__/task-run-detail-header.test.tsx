@@ -147,4 +147,53 @@ describe("TaskRunDetailHeader", () => {
     fireEvent.click(screen.getByTestId("task-run-detail-retry"));
     expect(onRetryRun).toHaveBeenCalledTimes(1);
   });
+
+  it("recovers a needs_attention run and disables duplicate submission while pending", () => {
+    const onRecoverRun = vi.fn();
+    const { rerender } = render(
+      <TaskRunDetailHeader
+        maxAttempts={2}
+        onRecoverRun={onRecoverRun}
+        run={buildRun({
+          attempt: 1,
+          status: "needs_attention",
+          session_id: undefined,
+        })}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Recover" }));
+    expect(onRecoverRun).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <TaskRunDetailHeader
+        maxAttempts={2}
+        onRecoverRun={onRecoverRun}
+        pendingActions={new Set(["recover"])}
+        run={buildRun({
+          attempt: 1,
+          status: "needs_attention",
+          session_id: undefined,
+        })}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Recover" })).toBeDisabled();
+  });
+
+  it("hides Recover when a needs_attention run exhausted its attempts", () => {
+    render(
+      <TaskRunDetailHeader
+        maxAttempts={1}
+        onRecoverRun={() => {}}
+        run={buildRun({
+          attempt: 1,
+          status: "needs_attention",
+          session_id: undefined,
+        })}
+      />
+    );
+
+    expect(screen.queryByTestId("task-run-detail-recover")).not.toBeInTheDocument();
+  });
 });

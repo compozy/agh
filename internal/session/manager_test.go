@@ -130,6 +130,62 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		}
 	})
 
+	t.Run("Should recommend only available explicit models", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := modelCatalogFunc(func(
+			_ context.Context,
+			_ modelcatalog.ListOptions,
+		) ([]modelcatalog.Model, error) {
+			return []modelcatalog.Model{
+				{ProviderID: "cursor", ModelID: "available-model", Available: new(true)},
+				{ProviderID: "cursor", ModelID: "unavailable-model", Available: new(false)},
+			}, nil
+		})
+		h := newHarness(t, WithModelCatalog(catalog))
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Provider:  "cursor",
+			Model:     "missing-model",
+			Workspace: h.workspaceID,
+		})
+		if !errors.Is(err, ErrInvalidRuntimeOverride) {
+			t.Fatalf("Create() error = %v, want ErrInvalidRuntimeOverride", err)
+		}
+		if !strings.Contains(err.Error(), "choose one of: available-model") {
+			t.Fatalf("Create() error = %v, want available-model recommendation", err)
+		}
+		if strings.Contains(err.Error(), "unavailable-model") {
+			t.Fatalf("Create() error = %v, want unavailable model omitted", err)
+		}
+	})
+
+	t.Run("Should report when a provider has no available explicit models", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := modelCatalogFunc(func(
+			_ context.Context,
+			_ modelcatalog.ListOptions,
+		) ([]modelcatalog.Model, error) {
+			return []modelcatalog.Model{
+				{ProviderID: "cursor", ModelID: "unavailable-model", Available: new(false)},
+			}, nil
+		})
+		h := newHarness(t, WithModelCatalog(catalog))
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Provider:  "cursor",
+			Model:     "unavailable-model",
+			Workspace: h.workspaceID,
+		})
+		if !errors.Is(err, ErrInvalidRuntimeOverride) {
+			t.Fatalf("Create() error = %v, want ErrInvalidRuntimeOverride", err)
+		}
+		if !strings.Contains(err.Error(), "has no available explicit models") {
+			t.Fatalf("Create() error = %v, want no available explicit models", err)
+		}
+	})
+
 	t.Run("Should accept and persist the exact catalog descriptor", func(t *testing.T) {
 		t.Parallel()
 

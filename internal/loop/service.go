@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"time"
 
@@ -35,6 +36,7 @@ type service struct {
 	defaultsResolver DefaultsResolver
 	goalRunActivator GoalRunActivator
 	goalLeaseRevoker GoalPromptLeaseRevoker
+	logger           *slog.Logger
 	now              func() time.Time
 	newRunID         func() RunID
 }
@@ -60,6 +62,7 @@ func NewService(
 		resolver:   resolver,
 		goalPolicy: goalPolicy,
 		defaults:   DefaultLoopDefaults(),
+		logger:     slog.Default(),
 		now:        func() time.Time { return time.Now().UTC() },
 		newRunID: func() RunID {
 			return RunID(storepkg.NewID("looprun"))
@@ -137,6 +140,33 @@ func (s *service) GetConfig(ctx context.Context, ws WorkspaceID, name string) (*
 		return nil, err
 	}
 	return s.store.GetLoopConfig(ctx, ws, loopName)
+}
+
+func (s *service) GetConfigSnapshot(
+	ctx context.Context,
+	ws WorkspaceID,
+	name string,
+) (ConfigSnapshot, error) {
+	resolved, loopName, err := s.resolveDefinition(ctx, ws, name)
+	if err != nil {
+		return ConfigSnapshot{}, err
+	}
+	stored, err := s.store.GetLoopConfig(ctx, ws, loopName)
+	if err != nil && !errors.Is(err, ErrConfigNotFound) {
+		return ConfigSnapshot{}, err
+	}
+	if errors.Is(err, ErrConfigNotFound) {
+		stored = nil
+	}
+	defaults, err := s.resolveDefaults(ctx, ws)
+	if err != nil {
+		return ConfigSnapshot{}, fmt.Errorf("resolve loop defaults: %w", err)
+	}
+	effective, err := ResolveEffectiveConfig(resolved, defaults, stored, LoopConfig{})
+	if err != nil {
+		return ConfigSnapshot{}, err
+	}
+	return ConfigSnapshot{Stored: stored, Effective: effective}, nil
 }
 
 func (s *service) Get(ctx context.Context, ws WorkspaceID, runID RunID) (*Run, error) {

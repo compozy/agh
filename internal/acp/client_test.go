@@ -871,30 +871,82 @@ func TestStartApproveAllSetsPermissiveSessionModeWhenSupported(t *testing.T) {
 	}
 }
 
-func TestStartWithToolGatewayPrefersApprovalMediatedSessionMode(t *testing.T) {
+func TestStartWithToolGatewayPreservesPermissiveSessionMode(t *testing.T) {
 	t.Parallel()
 
-	driver := New()
-	captureFile := filepath.Join(t.TempDir(), "session-set-mode-gateway.jsonl")
-	proc := startHelperProcess(t, driver, "mode_mapping", "", StartOpts{
-		Permissions: aghconfig.PermissionModeApproveAll,
-		Env:         helperEnvWithCapture("mode_mapping", "", captureFile),
-		ToolGateway: toolExecutionGatewayFunc(
-			func(_ context.Context, req ToolExecutionRequest) (ToolExecutionRequest, error) {
-				return req, nil
-			},
-		),
-	})
-	defer stopProcess(t, driver, proc)
+	t.Run("Should keep approve-all semantics when tool execution is intercepted", func(t *testing.T) {
+		t.Parallel()
 
-	params := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetMode)
-	request := decodeCapturedSetSessionModeRequest(t, params)
-	if got, want := request.SessionID, "sess-new"; got != want {
-		t.Fatalf("set-mode session id = %q, want %q", got, want)
-	}
-	if got, want := request.ModeID, "default"; got != want {
-		t.Fatalf("set-mode mode id = %q, want %q", got, want)
-	}
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "session-set-mode-gateway.jsonl")
+		proc := startHelperProcess(t, driver, "mode_mapping", "", StartOpts{
+			Permissions: aghconfig.PermissionModeApproveAll,
+			Env:         helperEnvWithCapture("mode_mapping", "", captureFile),
+			ToolGateway: toolExecutionGatewayFunc(
+				func(_ context.Context, req ToolExecutionRequest) (ToolExecutionRequest, error) {
+					return req, nil
+				},
+			),
+		})
+		defer stopProcess(t, driver, proc)
+
+		params := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetMode)
+		request := decodeCapturedSetSessionModeRequest(t, params)
+		if got, want := request.SessionID, "sess-new"; got != want {
+			t.Fatalf("set-mode session id = %q, want %q", got, want)
+		}
+		if got, want := request.ModeID, "bypassPermissions"; got != want {
+			t.Fatalf("set-mode mode id = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should select Cursor agent mode and expose it as current", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "session-set-mode-cursor.jsonl")
+		proc := startHelperProcess(t, driver, "cursor_mode_mapping", "", StartOpts{
+			Permissions: aghconfig.PermissionModeApproveAll,
+			Env:         helperEnvWithCapture("cursor_mode_mapping", "", captureFile),
+			ToolGateway: toolExecutionGatewayFunc(
+				func(_ context.Context, req ToolExecutionRequest) (ToolExecutionRequest, error) {
+					return req, nil
+				},
+			),
+		})
+		defer stopProcess(t, driver, proc)
+
+		request := decodeCapturedSetSessionModeRequest(
+			t,
+			captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetMode),
+		)
+		if got, want := request.ModeID, "agent"; got != want {
+			t.Fatalf("set-mode mode id = %q, want %q", got, want)
+		}
+		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "mode", "agent", "agent", "plan", "ask")
+	})
+
+	t.Run("Should avoid changing Cursor when its native mode is already agent", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "session-current-agent-cursor.jsonl")
+		proc := startHelperProcess(t, driver, "cursor_mode_current_agent", "", StartOpts{
+			Permissions: aghconfig.PermissionModeApproveAll,
+			Env:         helperEnvWithCapture("cursor_mode_current_agent", "", captureFile),
+			ToolGateway: toolExecutionGatewayFunc(
+				func(_ context.Context, req ToolExecutionRequest) (ToolExecutionRequest, error) {
+					return req, nil
+				},
+			),
+		})
+		defer stopProcess(t, driver, proc)
+
+		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetMode) {
+			t.Fatal("set_mode was sent when Cursor already reported agent mode")
+		}
+		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "mode", "agent", "agent", "plan", "ask")
+	})
 }
 
 func TestStartResumeApproveReadsSetsReadOnlyLikeSessionModeWhenSupported(t *testing.T) {
@@ -1041,6 +1093,43 @@ func TestStartUsesSetConfigOptionForPreferredModelWhenAvailable(t *testing.T) {
 	assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "model", "other-model", "other-model")
 }
 
+func TestStartSkipsCurrentSessionConfigValues(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should skip an explicit model that is already current", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "session-current-model.jsonl")
+		proc := startHelperProcess(t, driver, "config_options", "", StartOpts{
+			PreferredModel: "new-model",
+			Env:            helperEnvWithCapture("config_options", "", captureFile),
+		})
+		defer stopProcess(t, driver, proc)
+
+		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
+			t.Fatal("set_config_option was sent when the requested model was already current")
+		}
+	})
+
+	t.Run("Should skip an explicit reasoning effort that is already current", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "session-current-reasoning.jsonl")
+		proc := startHelperProcess(t, driver, "config_options", "", StartOpts{
+			ReasoningEffort: "medium",
+			ProviderConfig:  reasoningACPProviderConfig(),
+			Env:             helperEnvWithCapture("config_options", "", captureFile),
+		})
+		defer stopProcess(t, driver, proc)
+
+		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
+			t.Fatal("set_config_option was sent when the requested reasoning effort was already current")
+		}
+	})
+}
+
 func TestStartUsesSetConfigOptionForReasoningEffortWhenAvailable(t *testing.T) {
 	t.Parallel()
 
@@ -1116,6 +1205,14 @@ func TestStartPassesThroughEveryAdvertisedCanonicalReasoningEffort(t *testing.T)
 				Env:             helperEnvWithCapture("config_options", "", captureFile),
 			})
 			defer stopProcess(t, driver, proc)
+
+			if effort == "medium" {
+				if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
+					t.Fatal("set_config_option was sent for the already-current reasoning effort")
+				}
+				assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", effort, effort)
+				return
+			}
 
 			request := decodeCapturedSetSessionConfigOptionRequest(
 				t,
@@ -2443,6 +2540,21 @@ func (a *helperACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (
 		return acpsdk.NewSessionResponse{
 			SessionId: "sess-new",
 			Modes:     helperModeStateWithCurrent("default", "default", "plan", "bypassPermissions"),
+		}, nil
+	}
+	if a.scenario == "cursor_mode_mapping" || a.scenario == "cursor_mode_current_agent" {
+		current := "plan"
+		if a.scenario == "cursor_mode_current_agent" {
+			current = "agent"
+		}
+		configOptions := []acpsdk.SessionConfigOption{
+			helperSelectConfigOption("mode", "Mode", current, "agent", "plan", "ask"),
+		}
+		a.setHelperConfigOptions(configOptions)
+		return acpsdk.NewSessionResponse{
+			SessionId:     "sess-new",
+			Modes:         helperModeStateWithCurrent(current, "agent", "plan", "ask"),
+			ConfigOptions: configOptions,
 		}, nil
 	}
 	if a.scenario == "config_options" ||

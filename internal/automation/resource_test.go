@@ -769,6 +769,11 @@ func TestAutomationResourceManagerCRUDUsesTypedResourceStores(t *testing.T) {
 		crossWorkspace.LoopTarget.WorkspaceID = "ws-other"
 		if _, err := manager.CreateTrigger(h.ctx, crossWorkspace, WebhookSecretWrite{}); err == nil {
 			t.Fatal("CreateTrigger(cross-workspace Loop target) error = nil, want validation error")
+		} else if !strings.Contains(
+			err.Error(),
+			"trigger.loop_target.workspace_id must equal automation workspace_id",
+		) {
+			t.Fatalf("CreateTrigger(cross-workspace Loop target) error = %v, want workspace mismatch", err)
 		}
 		if _, err := h.triggerStore.Get(h.ctx, h.actor, crossWorkspace.ID); !errors.Is(err, resources.ErrNotFound) {
 			t.Fatalf("triggerStore.Get(cross-workspace Loop target) error = %v, want resources.ErrNotFound", err)

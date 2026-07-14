@@ -29,7 +29,7 @@ describe("useAgentSessions", () => {
     });
   });
 
-  it("Should wait for an explicit workspace before issuing one agent session query", async () => {
+  it("Should query the agent's complete visible session population after workspace resolution", async () => {
     const initialProps: { workspaceId: string | null } = { workspaceId: null };
     const { rerender } = renderHook(
       ({ workspaceId }) => useAgentSessions(workspaceId, "claude-agent"),
@@ -48,6 +48,9 @@ describe("useAgentSessions", () => {
     });
     for (const [filters] of vi.mocked(fetchSessions).mock.calls) {
       expect(filters?.workspace).toBe("ws_alpha");
+      expect(filters?.agent).toBe("claude-agent");
+      expect(filters?.sort).toBe("last_activity");
+      expect(filters?.type).toBeUndefined();
     }
   });
 });

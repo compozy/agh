@@ -1,18 +1,31 @@
+// Suite: Automation run history
+// Invariant: Every delegated run links to its concrete runtime correlation when one exists.
+// Boundary IN: AutomationRun read models and run-row navigation.
+// Boundary OUT: run creation and correlation persistence, owned by runtime/store suites.
 import { render, screen, within } from "@testing-library/react";
 import type { AnchorHTMLAttributes } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 interface MockLinkParams {
   id?: string;
+  runId?: string;
 }
 
 interface MockLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
   params?: MockLinkParams;
+  to?: string;
 }
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children, params, ...props }: MockLinkProps) => (
-    <a href={`/session/${params?.id ?? ""}`} {...props}>
+  Link: ({ children, params, to, ...props }: MockLinkProps) => (
+    <a
+      href={
+        to === "/loop-runs/$runId"
+          ? `/loop-runs/${params?.runId ?? ""}`
+          : `/session/${params?.id ?? ""}`
+      }
+      {...props}
+    >
       {children}
     </a>
   ),
@@ -106,5 +119,23 @@ describe("AutomationRunHistory", () => {
     const row = screen.getByTestId("automation-run-run_003");
     expect(row.tagName).toBe("DIV");
     expect(within(row).getByText("pending")).toBeInTheDocument();
+  });
+
+  it("Should link a delegated automation run to its correlated Loop run", () => {
+    const loopRun: AutomationRun = {
+      ...pendingRun,
+      id: "run_loop",
+      status: "delegated",
+      loop_run_id: "looprun_aeb24d4f17cf1feb",
+      started_at: "2026-04-11T12:00:00Z",
+    };
+
+    render(<AutomationRunHistory error={null} isLoading={false} runs={[loopRun]} />);
+
+    const row = screen.getByTestId("automation-run-run_loop");
+    expect(row.tagName).toBe("A");
+    expect(row).toHaveAttribute("href", "/loop-runs/looprun_aeb24d4f17cf1feb");
+    expect(within(row).getByText("looprun_aeb24d4f17cf1feb")).toBeInTheDocument();
+    expect(within(row).queryByText("pending")).not.toBeInTheDocument();
   });
 });

@@ -8,6 +8,7 @@ import { buildRunTimeline, latestGenerationBreadth } from "../../lib/loop-timeli
 import { isTerminalLoopStatus } from "../../lib/loop-formatters";
 import { loopDetailByName, loopRunDetailByRunId } from "../../mocks/fixtures";
 import type { LoopRunRecord } from "../../types";
+import { LoopFailureDetail } from "../run-page/loop-failure-detail";
 import { LoopApprovalGate } from "../run-page/loop-approval-gate";
 import { LoopGenerationTimeline } from "../run-page/loop-generation-timeline";
 import { LoopRunContractHeader } from "../run-page/loop-run-contract-header";
@@ -112,6 +113,7 @@ const liveState: LoopRunLiveState = {
   },
   tokensUsed: null,
   goalTurns: [],
+  failure: null,
 };
 
 interface RunPageProps {
@@ -143,6 +145,7 @@ function RunPage({ run, definition, generations, live }: RunPageProps) {
           meters={<LoopRunMeters meters={meters} />}
         />
         <div className="flex flex-col gap-4 px-6 py-5">
+          {live.failure ? <LoopFailureDetail failure={live.failure} /> : null}
           {run.status === "needs-approval" ? (
             <LoopApprovalGate run={run} request={live.needsApproval} onDecision={() => undefined} />
           ) : null}
@@ -212,6 +215,63 @@ export const TerminalExhausted: Story = {
       definition={deliveryDefinition}
       generations={deliveryDetail.generations}
       live={{ ...liveState, events: [] }}
+    />
+  ),
+};
+
+export const StalledActionFailure: Story = {
+  render: () => (
+    <RunPage
+      run={{ ...deliveryDetail.run, status: "stalled" }}
+      definition={deliveryDefinition}
+      generations={[
+        {
+          generation: 1,
+          outputs: [
+            {
+              node_id: "load_tasks",
+              status: "failed",
+              output_ref: JSON.stringify({
+                kind: "action_failure",
+                code: "tool_invalid_input",
+                cause: "No task set matched .compozy/tasks/helix-v1-launch/task_*.md.",
+                recovery:
+                  "Create the matching task set or correct the Loop input, then retry the run.",
+              }),
+            },
+          ],
+        },
+      ]}
+      live={{ ...liveState, events: [] }}
+    />
+  ),
+};
+
+export const GenerationZeroWatchFailure: Story = {
+  render: () => (
+    <RunPage
+      run={{ ...watchDetail.run, status: "failed", generation: 0 }}
+      definition={watchDefinition}
+      generations={[]}
+      live={{
+        ...liveState,
+        events: [
+          {
+            seq: 1,
+            at: "2026-07-13T11:27:32Z",
+            kind: "status_changed",
+            tone: "err",
+            message: "failed",
+          },
+        ],
+        failure: {
+          kind: "coordinator_failure",
+          code: "watch_poll_failed",
+          cause: "The watch source failed before it could produce a generation.",
+          recovery:
+            "Verify the Loop watch provider and workspace prerequisites, then start a new run.",
+        },
+      }}
     />
   ),
 };

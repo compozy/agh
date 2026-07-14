@@ -4075,7 +4075,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDSessionList,
 				Input: json.RawMessage(
-					`{"workspace":"ws-stable","state":"active","agent":"coder","q":"review",` +
+					`{"workspace":"ws-stable","state":"active","type":"user","agent":"coder","q":"review",` +
 						`"resumable":true,"include_health":true,"sort":"last_activity",` +
 						`"cursor":"cursor-prev","limit":2}`,
 				),
@@ -4085,6 +4085,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(session_list page) error = %v; cause=%v", err, errors.Unwrap(err))
 		}
 		if seenListQuery.WorkspaceID == "" || seenListQuery.State != "active" ||
+			seenListQuery.SessionType != session.SessionTypeUser ||
 			seenListQuery.AgentName != "coder" || seenListQuery.Search != "review" ||
 			!seenListQuery.Resumable || seenListQuery.Sort != "last_activity" ||
 			seenListQuery.Cursor != "cursor-prev" || seenListQuery.Limit != 2 {

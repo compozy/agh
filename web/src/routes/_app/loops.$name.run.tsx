@@ -60,12 +60,23 @@ function LoopRunFormRoute() {
     );
   }
 
+  if (!configQuery.effectiveConfig) {
+    return (
+      <RunFormState
+        description="The daemon did not return effective loop configuration."
+        icon={AlertCircle}
+        testId="loop-run-form-effective-error"
+        title="Unable to load loop configuration"
+      />
+    );
+  }
+
   return (
     <LoopRunForm
       key={loopQuery.data.name}
       workspaceId={workspaceId}
       loop={loopQuery.data}
-      config={configQuery.data ?? null}
+      effectiveConfig={configQuery.effectiveConfig}
       onCancel={() => navigate({ to: "/loops/$name", params: { name } })}
       onRunStarted={runId => navigate({ to: "/loop-runs/$runId", params: { runId } })}
     />

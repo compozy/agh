@@ -65,6 +65,32 @@ export const TaskMode: Story = {
   ),
 };
 
+export const LoopMode: Story = {
+  args: {},
+  render: () => (
+    <JobPreviewHarness
+      preview={buildJobPreview(
+        {
+          ...createAutomationJobDraft(storyWorkspaceIds.hq),
+          name: "software-delivery-daily-qa",
+          agent_name: "",
+          prompt: "",
+          schedule: { mode: "cron", expr: "0 9 * * 1-5" },
+          target_kind: "loop",
+          loop_target: {
+            workspace_id: storyWorkspaceIds.hq,
+            loop_name: "software-delivery",
+            inputs: { slug: "helix-v1-launch", dry_run: false },
+            input_mapping: {},
+          },
+        },
+        STORY_NOW,
+        "edit"
+      )}
+    />
+  ),
+};
+
 export const InvalidSchedule: Story = {
   args: {},
   render: () => (

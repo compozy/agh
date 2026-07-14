@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,7 +38,12 @@ func TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary(t *tes
 				t.Errorf("Close() error = %v", err)
 			}
 		})
-		option, err := composeLoopGoalExecutor(store, inertLoopGoalRuntime{}, inertGateEvaluator{})
+		option, err := composeLoopGoalExecutor(
+			store,
+			inertLoopGoalRuntime{},
+			inertGateEvaluator{},
+			newLoopJudgeExecutionRegistry(),
+		)
 		if err != nil {
 			t.Fatalf("composeLoopGoalExecutor() error = %v", err)
 		}
@@ -85,7 +91,12 @@ func TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary(t *tes
 			time.Now,
 			discardLogger(),
 		)
-		option, err := composeLoopGoalExecutor(store, runtime, inertGateEvaluator{})
+		option, err := composeLoopGoalExecutor(
+			store,
+			runtime,
+			inertGateEvaluator{},
+			newLoopJudgeExecutionRegistry(),
+		)
 		if err != nil {
 			t.Fatalf("composeLoopGoalExecutor(real Manager) error = %v", err)
 		}
@@ -437,14 +448,27 @@ func TestLoopGoalJudgeEvaluatorShouldReturnAggregateUsage(t *testing.T) {
 			},
 		}
 		evaluator := gate.NewEvaluator(gate.WithJudgeRunner(goalJudgeRunnerFunc(
-			func(context.Context, gate.JudgeRequest) (gate.JudgeResponse, error) {
+			func(_ context.Context, req gate.JudgeRequest) (gate.JudgeResponse, error) {
+				const evidenceHeading = "\nJudge rubric:\nCheck\n\n" +
+					"Authoritative completed candidate evidence"
+				if strings.Contains(req.Rubric, "Review attempt:") ||
+					!strings.Contains(req.Rubric, evidenceHeading) ||
+					!strings.Contains(req.Rubric, "Candidate text:\nThe implementation satisfies the criterion.") ||
+					!strings.Contains(req.Rubric, "Candidate structured output:\n{\"status\":\"complete\"}") {
+					t.Fatalf("Goal judge rubric = %q, want unchanged rubric plus authoritative candidate", req.Rubric)
+				}
+				if req.CorrelationID != "judge-attempt-usage" {
+					t.Fatalf("Goal judge correlation id = %q, want judge-attempt-usage", req.CorrelationID)
+				}
 				return gate.JudgeResponse{
 					Raw:        `{"verdict":"approved","evidence":{"checked":true}}`,
 					TokensUsed: 9, TokensReported: true,
 				}, nil
 			},
 		)))
-		adapter := &loopGoalJudgeEvaluator{store: &storeStub, evaluator: evaluator}
+		adapter := &loopGoalJudgeEvaluator{
+			store: &storeStub, evaluator: evaluator, executions: newLoopJudgeExecutionRegistry(),
+		}
 		result, err := adapter.EvaluateGoal(testutil.Context(t), goalpkg.JudgeRequest{
 			AttemptID: "judge-attempt-usage",
 			Key: goalpkg.TurnKey{
@@ -455,6 +479,10 @@ func TestLoopGoalJudgeEvaluatorShouldReturnAggregateUsage(t *testing.T) {
 			Criteria: []dsl.GateCriterion{{
 				ID: "judge", Type: dsl.CriterionAgentJudge, Agent: "reviewer", Rubric: "Check",
 			}},
+			Result: looppkg.ActionPromptResult{
+				Text:       "The implementation satisfies the criterion.",
+				Structured: json.RawMessage(`{"status":"complete"}`),
+			},
 		})
 		if err != nil {
 			t.Fatalf("EvaluateGoal() error = %v", err)

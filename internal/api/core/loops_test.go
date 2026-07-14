@@ -174,6 +174,10 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 			*configPayload.Config.IterationCap != 4 {
 			t.Fatalf("GET /config payload = %#v", configPayload)
 		}
+		if configPayload.EffectiveConfig.FanOutWidth != 4 ||
+			configPayload.EffectiveConfig.GateMaxRevisions != 10 {
+			t.Fatalf("GET /config effective config = %#v", configPayload.EffectiveConfig)
+		}
 
 		putConfigResp := performRequest(
 			t,
@@ -900,6 +904,7 @@ func happyLoopService(t testing.TB) *stubLoopService {
 	t.Helper()
 
 	cfg := loopConfig()
+	effectiveCfg := contract.LoopEffectiveConfig{FanOutWidth: 4, GateMaxRevisions: 10}
 	annotations := []contract.LoopAnnotationPayload{{NodeID: "draft", X: 12, Y: 34}}
 	return &stubLoopService{
 		listLoopsFn: func(context.Context, string, looppkg.CatalogQuery) (contract.LoopsResponse, error) {
@@ -940,10 +945,10 @@ func happyLoopService(t testing.TB) *stubLoopService {
 			return contract.RunLoopResponse{Run: loopRunPayload("run-1", looppkg.StatusRunning)}, nil
 		},
 		getLoopConfigFn: func(context.Context, string, string) (contract.LoopConfigResponse, error) {
-			return contract.LoopConfigResponse{Config: &cfg}, nil
+			return contract.LoopConfigResponse{Config: &cfg, EffectiveConfig: effectiveCfg}, nil
 		},
 		putLoopConfigFn: func(context.Context, string, string, contract.PutLoopConfigRequest) (contract.LoopConfigResponse, error) {
-			return contract.LoopConfigResponse{Config: &cfg}, nil
+			return contract.LoopConfigResponse{Config: &cfg, EffectiveConfig: effectiveCfg}, nil
 		},
 		getAnnotationsFn: func(context.Context, string, string) (contract.LoopAnnotationsResponse, error) {
 			return contract.LoopAnnotationsResponse{Annotations: annotations}, nil

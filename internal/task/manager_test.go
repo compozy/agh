@@ -1215,6 +1215,33 @@ func (s *inMemoryManagerStore) UpdateTaskRun(_ context.Context, run Run) error {
 	return nil
 }
 
+func (s *inMemoryManagerStore) CompleteRunSettlement(
+	ctx context.Context,
+	run Run,
+	_ ActorContext,
+) (CompletedRunSettlement, error) {
+	if err := s.UpdateTaskRun(ctx, run); err != nil {
+		return CompletedRunSettlement{}, err
+	}
+	taskRecord, ok := s.tasks[run.TaskID]
+	if !ok {
+		return CompletedRunSettlement{}, ErrTaskNotFound
+	}
+	previousStatus := taskRecord.Status
+	taskRecord.Status = TaskStatusCompleted
+	taskRecord.UpdatedAt = run.EndedAt
+	taskRecord.ClosedAt = run.EndedAt
+	s.tasks[taskRecord.ID] = cloneTask(taskRecord)
+	return CompletedRunSettlement{
+		Run:  cloneTaskRun(run),
+		Task: cloneTask(taskRecord),
+		StatusTransitions: []StatusTransition{{
+			Task:           cloneTask(taskRecord),
+			PreviousStatus: previousStatus,
+		}},
+	}, nil
+}
+
 func (s *inMemoryManagerStore) GetTaskRun(_ context.Context, id string) (Run, error) {
 	run, ok := s.runs[strings.TrimSpace(id)]
 	if !ok {
@@ -1533,6 +1560,33 @@ func (s *inMemoryManagerStore) CompleteRunLease(
 		return Run{}, err
 	}
 	return cloneTaskRun(run), nil
+}
+
+func (s *inMemoryManagerStore) CompleteRunLeaseSettlement(
+	ctx context.Context,
+	completion LeaseCompletion,
+) (CompletedRunSettlement, error) {
+	run, err := s.CompleteRunLease(ctx, completion)
+	if err != nil {
+		return CompletedRunSettlement{}, err
+	}
+	taskRecord, ok := s.tasks[run.TaskID]
+	if !ok {
+		return CompletedRunSettlement{}, ErrTaskNotFound
+	}
+	previousStatus := taskRecord.Status
+	taskRecord.Status = TaskStatusCompleted
+	taskRecord.UpdatedAt = run.EndedAt
+	taskRecord.ClosedAt = run.EndedAt
+	s.tasks[taskRecord.ID] = cloneTask(taskRecord)
+	return CompletedRunSettlement{
+		Run:  cloneTaskRun(run),
+		Task: cloneTask(taskRecord),
+		StatusTransitions: []StatusTransition{{
+			Task:           cloneTask(taskRecord),
+			PreviousStatus: previousStatus,
+		}},
+	}, nil
 }
 
 func (s *inMemoryManagerStore) verifyCompletionCreatedTaskClaimsForTest(
@@ -4135,6 +4189,52 @@ func TestManagerApprovalGateBlocksExecutionUntilApproved(t *testing.T) {
 	if !containsEventType(events, taskEventApproved) {
 		t.Fatalf("event types = %v, want %q", sortedEventTypes(events), taskEventApproved)
 	}
+
+	t.Run("Should reuse a pre-enqueued gated run instead of creating a second run", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+		gatedTask, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope:          ScopeGlobal,
+			Title:          "Pre-enqueued manual approval task",
+			ApprovalPolicy: ApprovalPolicyManual,
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		pendingRun, err := manager.EnqueueRun(
+			context.Background(),
+			EnqueueRun{TaskID: gatedTask.ID},
+			actor,
+		)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+
+		approvedExecution, err := manager.ApproveTask(
+			context.Background(),
+			gatedTask.ID,
+			ExecutionRequest{},
+			actor,
+		)
+		if err != nil {
+			t.Fatalf("ApproveTask() error = %v", err)
+		}
+		if got, want := approvedExecution.Run.ID, pendingRun.ID; got != want {
+			t.Fatalf("ApproveTask().Run.ID = %q, want existing %q", got, want)
+		}
+		if !approvedExecution.ExistingRun {
+			t.Fatal("ApproveTask().ExistingRun = false, want true")
+		}
+		if got, want := approvedExecution.Task.Status, TaskStatusReady; got != want {
+			t.Fatalf("ApproveTask().Task.Status = %q, want %q", got, want)
+		}
+		if got, want := len(store.runs), 1; got != want {
+			t.Fatalf("runs after approval = %d, want %d", got, want)
+		}
+	})
 }
 
 func TestManagerRejectTaskKeepsManualApprovalBlocked(t *testing.T) {

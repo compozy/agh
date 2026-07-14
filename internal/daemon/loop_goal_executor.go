@@ -50,14 +50,15 @@ func composeLoopGoalExecutor(
 	store loopGoalExecutorStore,
 	runtime loopGoalRuntimePorts,
 	evaluator gate.GateEvaluator,
+	executions *loopJudgeExecutionRegistry,
 ) (looppkg.ActionRegistryOption, error) {
-	if store == nil || runtime == nil || evaluator == nil {
+	if store == nil || runtime == nil || evaluator == nil || executions == nil {
 		return nil, fmt.Errorf("%w: Goal runtime ports are incomplete", looppkg.ErrActionDependencyMissing)
 	}
 	executor, err := goalpkg.NewExecutor(goalpkg.Dependencies{
 		Store:    store,
 		Binder:   runtime,
-		Judge:    &loopGoalJudgeEvaluator{store: store, evaluator: evaluator},
+		Judge:    &loopGoalJudgeEvaluator{store: store, evaluator: evaluator, executions: executions},
 		Budget:   store,
 		Context:  runtime,
 		Recovery: runtime,
@@ -69,20 +70,26 @@ func composeLoopGoalExecutor(
 }
 
 type loopGoalJudgeEvaluator struct {
-	store     looppkg.Store
-	evaluator gate.GateEvaluator
+	store      looppkg.Store
+	evaluator  gate.GateEvaluator
+	executions *loopJudgeExecutionRegistry
 }
 
 func (e *loopGoalJudgeEvaluator) EvaluateGoal(
 	ctx context.Context,
 	req goalpkg.JudgeRequest,
 ) (goalpkg.JudgeResult, error) {
-	if e == nil || e.store == nil || e.evaluator == nil {
+	if e == nil || e.store == nil || e.evaluator == nil || e.executions == nil {
 		return goalpkg.JudgeResult{}, fmt.Errorf(
 			"%w: Goal judge evaluator is unavailable",
 			looppkg.ErrActionDependencyMissing,
 		)
 	}
+	release, err := e.executions.reserve(req.AttemptID)
+	if err != nil {
+		return goalpkg.JudgeResult{}, err
+	}
+	defer release()
 	run, err := e.store.GetLoopRun(ctx, req.Key.WorkspaceID, req.Key.LoopRunID)
 	if err != nil {
 		return goalpkg.JudgeResult{}, err

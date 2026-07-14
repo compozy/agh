@@ -1,3 +1,7 @@
+// Suite: Automation detail panel
+// Invariant: Persisted automation reads render the stored execution target without agent-only loss.
+// Boundary IN: Job/Trigger API read models and the detail/run-history presentation.
+// Boundary OUT: persistence and dispatch, owned by daemon/store suites.
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AnchorHTMLAttributes } from "react";
@@ -5,15 +9,24 @@ import { describe, expect, it, vi } from "vitest";
 
 interface MockLinkParams {
   id?: string;
+  runId?: string;
 }
 
 interface MockLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
   params?: MockLinkParams;
+  to?: string;
 }
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children, params, ...props }: MockLinkProps) => (
-    <a href={`/session/${params?.id ?? ""}`} {...props}>
+  Link: ({ children, params, to, ...props }: MockLinkProps) => (
+    <a
+      href={
+        to === "/loop-runs/$runId"
+          ? `/loop-runs/${params?.runId ?? ""}`
+          : `/session/${params?.id ?? ""}`
+      }
+      {...props}
+    >
       {children}
     </a>
   ),
@@ -152,7 +165,7 @@ describe("AutomationDetailPanel", () => {
     expect(screen.getByText("No jobs configured")).toBeInTheDocument();
   });
 
-  it("renders dynamic job details and dispatches action callbacks", () => {
+  it("renders dynamic job details and dispatches non-destructive action callbacks", () => {
     const { onDelete, onEdit, onToggleEnabled, onTriggerNow } = renderPanel();
 
     expect(screen.getByTestId("automation-detail-panel")).toBeInTheDocument();
@@ -171,12 +184,108 @@ describe("AutomationDetailPanel", () => {
     fireEvent.click(screen.getByTestId("toggle-automation-btn"));
     fireEvent.click(screen.getByTestId("edit-automation-btn"));
     fireEvent.click(screen.getByTestId("trigger-job-btn"));
-    fireEvent.click(screen.getByTestId("delete-automation-btn"));
 
     expect(onToggleEnabled).toHaveBeenCalledWith(false);
     expect(onEdit).toHaveBeenCalledOnce();
     expect(onTriggerNow).toHaveBeenCalledOnce();
+    expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { item: jobFixture, kind: "jobs" as const, noun: "job" },
+    {
+      item: { ...triggerFixture, source: "dynamic" as const },
+      kind: "triggers" as const,
+      noun: "trigger",
+    },
+  ])("Should require explicit name confirmation before deleting a dynamic $noun", async case_ => {
+    const user = userEvent.setup();
+    const { onDelete } = renderPanel({ item: case_.item, kind: case_.kind, runs: [] });
+
+    await user.click(screen.getByTestId("delete-automation-btn"));
+    expect(onDelete).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: `Delete ${case_.noun}?` })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onDelete).not.toHaveBeenCalled();
+    expect(screen.getByTestId("automation-detail-panel")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("delete-automation-btn"));
+    const confirmButton = screen.getByTestId("confirm-delete-automation-btn");
+    await user.type(screen.getByLabelText("Type to confirm"), `${case_.item.name}-wrong`);
+    expect(confirmButton).toBeDisabled();
+
+    await user.clear(screen.getByLabelText("Type to confirm"));
+    await user.type(screen.getByLabelText("Type to confirm"), case_.item.name);
+    expect(confirmButton).toBeEnabled();
+    await user.click(confirmButton);
+
     expect(onDelete).toHaveBeenCalledOnce();
+  });
+
+  it("Should render a persisted Loop Job target, typed inputs, and delegated Loop correlation", () => {
+    renderPanel({
+      item: {
+        ...jobFixture,
+        agent_name: "",
+        prompt: "",
+        target_kind: "loop",
+        loop_target: {
+          workspace_id: "ws_alpha",
+          loop_name: "software-delivery",
+          inputs: { slug: "helix-v1-launch", dry_run: false },
+          input_mapping: {},
+        },
+      },
+      runs: [
+        {
+          ...runFixture,
+          id: "run_loop",
+          status: "delegated",
+          session_id: undefined,
+          loop_run_id: "looprun_aeb24d4f17cf1feb",
+        },
+      ],
+    });
+
+    expect(screen.getByTestId("automation-detail-meta")).toHaveTextContent(
+      "Loop: software-delivery"
+    );
+    expect(screen.getByTestId("automation-target-details")).toHaveTextContent("software-delivery");
+    expect(screen.getByTestId("automation-target-details")).toHaveTextContent("helix-v1-launch");
+    expect(screen.queryByText("Prompt")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Agent:/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("automation-run-run_loop")).toHaveAttribute(
+      "href",
+      "/loop-runs/looprun_aeb24d4f17cf1feb"
+    );
+  });
+
+  it("Should render a persisted Loop Trigger target and event input mapping", () => {
+    renderPanel({
+      item: {
+        ...triggerFixture,
+        source: "dynamic" as const,
+        agent_name: "",
+        prompt: "",
+        target_kind: "loop",
+        loop_target: {
+          workspace_id: "ws_alpha",
+          loop_name: "software-delivery",
+          inputs: { slug: "helix-v1-launch" },
+          input_mapping: { branch: "data.branch" },
+        },
+      },
+      kind: "triggers",
+      runs: [],
+    });
+
+    expect(screen.getByTestId("automation-detail-meta")).toHaveTextContent(
+      "Loop: software-delivery"
+    );
+    expect(screen.getByTestId("automation-target-details")).toHaveTextContent("data.branch");
+    expect(screen.queryByText("Prompt template")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Dispatches to/)).not.toBeInTheDocument();
   });
 
   it("Should render the 24 px DetailHeader anatomy with the job name as H1", () => {

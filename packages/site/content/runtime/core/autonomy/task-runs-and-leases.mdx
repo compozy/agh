@@ -90,6 +90,14 @@ agh task complete run-123 \
 
 The optional result JSON must not contain raw lease credentials.
 
+### Parent task rollup
+
+A parent task remains nonterminal until every direct child completes successfully. Completing the
+final direct child completes the parent exactly once and settles an eligible parent run parked in
+`needs_attention`. Concurrent completion or replay does not emit another parent transition or
+wake. A failed or canceled child does not satisfy successful rollup; recover or resolve that child
+through its existing terminal-state path.
+
 ### Auto-enqueue on ready
 
 Tasks are opt-in for dependency-driven auto-enqueue. When a task carries

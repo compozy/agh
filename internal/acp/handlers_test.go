@@ -1433,81 +1433,94 @@ func TestHandleReleaseTerminalRemovesExternalOwnership(t *testing.T) {
 }
 
 func TestHandleSessionUpdateVariants(t *testing.T) {
-	t.Parallel()
+	t.Run("Should translate updates and retain the current ACP mode", func(t *testing.T) {
+		t.Parallel()
 
-	proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
-	active, err := proc.beginPrompt("turn-update", 16)
-	if err != nil {
-		t.Fatalf("beginPrompt() error = %v", err)
-	}
-	defer proc.endPrompt(active)
-
-	title := "permission"
-	agentMessage := mustMarshalJSON(wireSessionNotification{
-		SessionID: "sess-direct",
-		Update: mustMarshalJSON(map[string]any{
-			"sessionUpdate": "agent_message_chunk",
-			"content":       map[string]any{"type": "text", "text": "hello"},
-		}),
-	})
-	if err := proc.handleSessionUpdate(agentMessage); err != nil {
-		t.Fatalf("handleSessionUpdate(agent_message_chunk) error = %v", err)
-	}
-
-	usageUpdate := mustMarshalJSON(wireSessionNotification{
-		SessionID: "sess-direct",
-		Update: mustMarshalJSON(map[string]any{
-			"sessionUpdate": "usage_update",
-			"used":          10,
-			"size":          20,
-			"cost": map[string]any{
-				"amount":   1.5,
-				"currency": "USD",
+		proc := newDirectProcess(t, aghconfig.PermissionModeApproveAll)
+		proc.setCaps(Caps{ConfigOptions: []SessionConfigOption{{
+			ID:      "mode",
+			Kind:    SessionConfigOptionKindSelect,
+			Current: "ask",
+			Values: []SessionConfigOptionValue{
+				{Value: "agent"},
+				{Value: "plan"},
+				{Value: "ask"},
 			},
-		}),
-	})
-	if err := proc.handleSessionUpdate(usageUpdate); err != nil {
-		t.Fatalf("handleSessionUpdate(usage_update) error = %v", err)
-	}
+		}}})
+		active, err := proc.beginPrompt("turn-update", 16)
+		if err != nil {
+			t.Fatalf("beginPrompt() error = %v", err)
+		}
+		defer proc.endPrompt(active)
 
-	toolCall := mustMarshalJSON(wireSessionNotification{
-		SessionID: "sess-direct",
-		Update: mustMarshalJSON(map[string]any{
-			"sessionUpdate": "tool_call",
-			"toolCallId":    "tool-1",
-			"title":         title,
-			"status":        "in_progress",
-		}),
-	})
-	if err := proc.handleSessionUpdate(toolCall); err != nil {
-		t.Fatalf("handleSessionUpdate(tool_call) error = %v", err)
-	}
+		title := "permission"
+		agentMessage := mustMarshalJSON(wireSessionNotification{
+			SessionID: "sess-direct",
+			Update: mustMarshalJSON(map[string]any{
+				"sessionUpdate": "agent_message_chunk",
+				"content":       map[string]any{"type": "text", "text": "hello"},
+			}),
+		})
+		if err := proc.handleSessionUpdate(agentMessage); err != nil {
+			t.Fatalf("handleSessionUpdate(agent_message_chunk) error = %v", err)
+		}
 
-	modeUpdate := mustMarshalJSON(wireSessionNotification{
-		SessionID: "sess-direct",
-		Update: mustMarshalJSON(map[string]any{
-			"sessionUpdate": "current_mode_update",
-			"currentModeId": "code",
-		}),
-	})
-	if err := proc.handleSessionUpdate(modeUpdate); err != nil {
-		t.Fatalf("handleSessionUpdate(current_mode_update) error = %v", err)
-	}
+		usageUpdate := mustMarshalJSON(wireSessionNotification{
+			SessionID: "sess-direct",
+			Update: mustMarshalJSON(map[string]any{
+				"sessionUpdate": "usage_update",
+				"used":          10,
+				"size":          20,
+				"cost": map[string]any{
+					"amount":   1.5,
+					"currency": "USD",
+				},
+			}),
+		})
+		if err := proc.handleSessionUpdate(usageUpdate); err != nil {
+			t.Fatalf("handleSessionUpdate(usage_update) error = %v", err)
+		}
 
-	events := collectEventsUntilCount(t, active.events, 4)
-	if events[0].Type != EventTypeAgentMessage {
-		t.Fatalf("agent message event = %#v, want agent message", events[0])
-	}
-	if events[1].Type != EventTypeUsage || events[1].Usage == nil || events[1].Usage.ContextUsed == nil ||
-		*events[1].Usage.ContextUsed != 10 {
-		t.Fatalf("usage event = %#v, want usage metadata", events[1])
-	}
-	if events[2].Type != EventTypeToolCall {
-		t.Fatalf("tool call event = %#v, want tool call", events[2])
-	}
-	if events[3].Type != EventTypeSystem {
-		t.Fatalf("system event = %#v, want system", events[3])
-	}
+		toolCall := mustMarshalJSON(wireSessionNotification{
+			SessionID: "sess-direct",
+			Update: mustMarshalJSON(map[string]any{
+				"sessionUpdate": "tool_call",
+				"toolCallId":    "tool-1",
+				"title":         title,
+				"status":        "in_progress",
+			}),
+		})
+		if err := proc.handleSessionUpdate(toolCall); err != nil {
+			t.Fatalf("handleSessionUpdate(tool_call) error = %v", err)
+		}
+
+		modeUpdate := mustMarshalJSON(wireSessionNotification{
+			SessionID: "sess-direct",
+			Update: mustMarshalJSON(map[string]any{
+				"sessionUpdate": "current_mode_update",
+				"currentModeId": "code",
+			}),
+		})
+		if err := proc.handleSessionUpdate(modeUpdate); err != nil {
+			t.Fatalf("handleSessionUpdate(current_mode_update) error = %v", err)
+		}
+
+		events := collectEventsUntilCount(t, active.events, 4)
+		if events[0].Type != EventTypeAgentMessage {
+			t.Fatalf("agent message event = %#v, want agent message", events[0])
+		}
+		if events[1].Type != EventTypeUsage || events[1].Usage == nil || events[1].Usage.ContextUsed == nil ||
+			*events[1].Usage.ContextUsed != 10 {
+			t.Fatalf("usage event = %#v, want usage metadata", events[1])
+		}
+		if events[2].Type != EventTypeToolCall {
+			t.Fatalf("tool call event = %#v, want tool call", events[2])
+		}
+		if events[3].Type != EventTypeSystem {
+			t.Fatalf("system event = %#v, want system", events[3])
+		}
+		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "mode", "code", "agent", "plan", "ask")
+	})
 }
 
 func TestHandleSessionUpdateAvailableCommands(t *testing.T) {

@@ -25,7 +25,7 @@ func sessionCatalogListOperation() OperationSpec {
 				"Filter by exact session state",
 				[]string{"starting", "active", "stopping", "stopped"},
 			),
-			enumQueryParam("type", "Filter by exact session type", sessionTypeValues()),
+			enumQueryParam("type", "Filter by exact session type", sessionCatalogTypeValues()),
 			queryParam("agent", "Filter by exact agent definition name", false),
 			queryParam("q", "Search session id, name, agent, provider, or channel", false),
 			boolQueryParam("resumable", "Only list sessions eligible for explicit attach"),
@@ -46,6 +46,10 @@ func sessionCatalogListOperation() OperationSpec {
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}
+}
+
+func sessionCatalogTypeValues() []string {
+	return []string{"user", "system", "coordinator", "spawned"}
 }
 
 func sessionCatalogStreamOperation() OperationSpec {

@@ -311,6 +311,9 @@ func TestPromptUsesPatchedInputMessage(t *testing.T) {
 	if !strings.Contains(userMessage.Content, `"text":"patched message"`) {
 		t.Fatalf("stored user message content = %q, want patched text", userMessage.Content)
 	}
+	if !strings.Contains(userMessage.Content, `"authored_text":"original message"`) {
+		t.Fatalf("stored user message content = %q, want exact authored text", userMessage.Content)
+	}
 }
 
 func TestPromptNetworkUsesNetworkInputClass(t *testing.T) {
@@ -664,6 +667,152 @@ func TestStopWithCauseLifecycle(t *testing.T) {
 		}
 		if got := h.notifier.stoppedCount(); got != 1 {
 			t.Fatalf("stopped notifications = %d, want 1", got)
+		}
+	})
+
+	t.Run("Should return watcher finalization error to concurrent stop", func(t *testing.T) {
+		t.Parallel()
+
+		postStopStarted := make(chan struct{})
+		releasePostStop := make(chan struct{})
+		dispatcher := &spyHookDispatcher{
+			dispatchSessionPostStopFn: func(
+				_ context.Context,
+				payload hookspkg.SessionPostStopPayload,
+			) (hookspkg.SessionPostStopPayload, error) {
+				close(postStopStarted)
+				<-releasePostStop
+				return payload, nil
+			},
+		}
+		catalog := newRecordingSessionCatalog()
+		h := newHarness(t, WithHookSet(fullHookSet(dispatcher)), WithSessionCatalog(catalog))
+		session := createSession(t, h)
+		updateErr := errors.New("publish stopped session")
+		h.driver.stopHook = func(proc *fakeProcess) error {
+			catalog.setUpdateErr(updateErr)
+			proc.exit()
+			select {
+			case <-postStopStarted:
+				return nil
+			case <-time.After(time.Second):
+				return errors.New("test: watcher did not reach session.post_stop")
+			}
+		}
+
+		stopDone := make(chan error, 1)
+		go func() {
+			stopDone <- h.manager.StopWithCause(
+				testutil.Context(t),
+				session.ID,
+				CauseUserRequested,
+				"",
+			)
+		}()
+
+		select {
+		case err := <-stopDone:
+			t.Fatalf("StopWithCause() returned before watcher finalization completed: %v", err)
+		case <-postStopStarted:
+		}
+		close(releasePostStop)
+
+		if err := <-stopDone; !errors.Is(err, updateErr) {
+			t.Fatalf("StopWithCause() error = %v, want watcher finalization error", err)
+		}
+	})
+
+	t.Run("Should wait when watcher has marked session stopped before publishing", func(t *testing.T) {
+		t.Parallel()
+
+		stoppedWriteStarted := make(chan struct{})
+		releaseStoppedWrite := make(chan struct{})
+		updateErr := errors.New("publish stopped session")
+		catalog := newRecordingSessionCatalog()
+		catalog.updateHook = func(update store.SessionStateUpdate) error {
+			if update.State != string(StateStopped) {
+				return nil
+			}
+			close(stoppedWriteStarted)
+			<-releaseStoppedWrite
+			return updateErr
+		}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		session := createSession(t, h)
+
+		h.driver.lastProcess().exit()
+		select {
+		case <-stoppedWriteStarted:
+		case <-time.After(time.Second):
+			t.Fatal("watcher did not begin stopped catalog publication")
+		}
+
+		stopDone := make(chan error, 1)
+		go func() {
+			stopDone <- h.manager.StopWithCause(
+				testutil.Context(t),
+				session.ID,
+				CauseUserRequested,
+				"",
+			)
+		}()
+
+		select {
+		case err := <-stopDone:
+			t.Fatalf("StopWithCause() returned before stopped catalog publication completed: %v", err)
+		case <-time.After(50 * time.Millisecond):
+		}
+		close(releaseStoppedWrite)
+
+		if err := <-stopDone; !errors.Is(err, updateErr) {
+			t.Fatalf("StopWithCause() error = %v, want stopped catalog publication error", err)
+		}
+	})
+
+	t.Run("Should wait after watcher removes active session", func(t *testing.T) {
+		t.Parallel()
+
+		postStopStarted := make(chan struct{})
+		releasePostStop := make(chan struct{})
+		dispatcher := &spyHookDispatcher{
+			dispatchSessionPostStopFn: func(
+				_ context.Context,
+				payload hookspkg.SessionPostStopPayload,
+			) (hookspkg.SessionPostStopPayload, error) {
+				close(postStopStarted)
+				<-releasePostStop
+				return payload, nil
+			},
+		}
+		h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
+		session := createSession(t, h)
+
+		h.driver.lastProcess().exit()
+		select {
+		case <-postStopStarted:
+		case <-time.After(time.Second):
+			t.Fatal("watcher did not remove the active session before post-stop dispatch")
+		}
+
+		stopDone := make(chan error, 1)
+		go func() {
+			stopDone <- h.manager.StopWithCause(
+				testutil.Context(t),
+				session.ID,
+				CauseUserRequested,
+				"",
+			)
+		}()
+
+		select {
+		case err := <-stopDone:
+			t.Fatalf("StopWithCause() returned before removed session finalization completed: %v", err)
+		case <-time.After(50 * time.Millisecond):
+		}
+		close(releasePostStop)
+
+		if err := <-stopDone; err != nil {
+			t.Fatalf("StopWithCause() error = %v, want completed watcher finalization", err)
 		}
 	})
 }

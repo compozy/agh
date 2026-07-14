@@ -156,6 +156,31 @@ describe("applyLoopEventFrame", () => {
     expect(state.goalTurns).toEqual([]);
   });
 
+  it("Should project a generation-zero coordinator failure from the terminal status event", () => {
+    const state = applyLoopEventFrame(
+      emptyLoopRunLiveState(),
+      frame("status_changed", {
+        status: "failed",
+        generation: 0,
+        failure: {
+          kind: "coordinator_failure",
+          code: "watch_poll_failed",
+          cause: "The watch source failed before it could produce a generation.",
+          recovery:
+            "Verify the Loop watch provider and workspace prerequisites, then start a new run.",
+        },
+      })
+    );
+
+    expect(state.failure).toEqual({
+      kind: "coordinator_failure",
+      code: "watch_poll_failed",
+      cause: "The watch source failed before it could produce a generation.",
+      recovery: "Verify the Loop watch provider and workspace prerequisites, then start a new run.",
+    });
+    expect(state.events[0]).toMatchObject({ tone: "err", message: "failed" });
+  });
+
   it("Should degrade a malformed frame to a rail line without throwing", () => {
     const state = applyLoopEventFrame(emptyLoopRunLiveState(), frame("gate_verdict", null));
     expect(state.events).toHaveLength(1);

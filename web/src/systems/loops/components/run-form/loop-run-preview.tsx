@@ -4,14 +4,19 @@ import {
   resolveLoopEffectiveConfig,
   type LoopRunConfigOverrides,
 } from "../../lib/loop-effective-config";
-import type { LoopConfig, LoopContract, LoopDryRunPreview, LoopInputSchema } from "../../types";
+import type {
+  LoopContract,
+  LoopDryRunPreview,
+  LoopEffectiveConfig,
+  LoopInputSchema,
+} from "../../types";
 import { LoopContractPanel } from "../detail/loop-contract-panel";
 import { LoopRunPlan } from "./loop-run-plan";
 
 interface LoopRunPreviewProps {
   loopName: string;
   contract: LoopContract;
-  config: LoopConfig | null;
+  effectiveConfig: LoopEffectiveConfig;
   configOverrides: LoopRunConfigOverrides | null;
   inputs?: LoopInputSchema;
   /** Present only after a successful Dry run. */
@@ -26,14 +31,14 @@ interface LoopRunPreviewProps {
 export function LoopRunPreview({
   loopName,
   contract,
-  config,
+  effectiveConfig,
   configOverrides,
   inputs,
   plan,
 }: LoopRunPreviewProps) {
   const inputCount = inputs ? Object.keys(inputs).length : 0;
   const effective =
-    plan?.effective_config ?? resolveLoopEffectiveConfig(contract, config, configOverrides);
+    plan?.effective_config ?? resolveLoopEffectiveConfig(effectiveConfig, configOverrides);
   const reattemptLabel = effective.reattempt_strategy === "full_body" ? "full-body" : "failed-only";
   return (
     <aside className="flex flex-col gap-3.5" data-testid="loop-run-preview">

@@ -3,7 +3,7 @@ import { RotateCcw, Save, SlidersHorizontal, X } from "lucide-react";
 import { Button, Eyebrow, Sheet, SheetContent } from "@agh/ui";
 
 import { useLoopConfigure } from "../../hooks/use-loop-configure";
-import type { LoopConfig, LoopDetail } from "../../types";
+import type { LoopConfig, LoopDetail, LoopEffectiveConfig } from "../../types";
 import { LoopConfigureChecks } from "./loop-configure-checks";
 import { LoopConfigureLimits } from "./loop-configure-limits";
 import { LoopConfigureStrategy } from "./loop-configure-strategy";
@@ -14,6 +14,7 @@ interface LoopConfigureSheetProps {
   workspaceId: string;
   loop: LoopDetail;
   config: LoopConfig | null;
+  effectiveConfig: LoopEffectiveConfig;
   onOpenChange: (open: boolean) => void;
   /** Opens the builder for structural edits. */
   onOpenEditor?: () => void;
@@ -31,6 +32,7 @@ export function LoopConfigureSheet({
   workspaceId,
   loop,
   config,
+  effectiveConfig,
   onOpenChange,
   onOpenEditor,
 }: LoopConfigureSheetProps) {
@@ -38,6 +40,7 @@ export function LoopConfigureSheet({
     workspaceId,
     loop,
     config,
+    effectiveConfig,
     onSaved: () => onOpenChange(false),
   });
 
@@ -130,7 +133,7 @@ export function LoopConfigureSheet({
 
           <ConfigureGroup label="Stop limits" lock="per-loop defaults" last>
             <LoopConfigureLimits
-              contract={loop.definition.contract}
+              effectiveConfig={effectiveConfig}
               draft={model.draft.limits}
               disabled={model.busy}
               onChange={model.setLimits}

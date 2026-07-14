@@ -284,6 +284,7 @@ func newBootLoopCoordinatorRuntime(
 		toolRegistry,
 		policyGate,
 		gateEvaluator,
+		judgeRunner.executions,
 	)
 	if err != nil {
 		return nil, nil, err

@@ -95,6 +95,41 @@ func TestEvaluatorEvaluateCriteriaMapping(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject judge output outside the exact single-object contract", func(t *testing.T) {
+		cases := []struct {
+			name string
+			raw  string
+		}{
+			{
+				name: "Should reject prose around an otherwise valid verdict",
+				raw:  `Result: {"verdict":"pass","evidence":{"checked":true}}`,
+			},
+			{
+				name: "Should reject a fenced verdict",
+				raw:  "```json\n{\"verdict\":\"pass\",\"evidence\":{\"checked\":true}}\n```",
+			},
+			{
+				name: "Should reject multiple JSON objects",
+				raw:  `{"verdict":"pass","evidence":{"checked":true}} {"verdict":"revise"}`,
+			},
+			{
+				name: "Should reject fields outside the verdict schema",
+				raw:  `{"verdict":"pass","evidence":{"checked":true},"commentary":"done"}`,
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				result := ParseJudgeVerdict("judge", dsl.CriterionAgentJudge, tc.raw)
+				if result.Outcome != VerdictOutcomeRejected || result.Broken {
+					t.Fatalf("ParseJudgeVerdict() = %#v, want non-broken rejection", result)
+				}
+				requireIssueID(t, result.BlockingIssues, JudgeMalformedOutputIssueID)
+			})
+		}
+	})
+
 	t.Run("Should route agent judge through criterion model before effective default", func(t *testing.T) {
 		t.Parallel()
 
@@ -920,7 +955,7 @@ func TestEvaluatorAgentJudgeRubricAndEvidence(t *testing.T) {
 			ID:     "judge",
 			Type:   dsl.CriterionAgentJudge,
 			Rubric: "Check {{ .artifact }} against {{ .goal }}",
-		}, validContract(), map[string]any{"artifact": "summary"})
+		}, validContract(), map[string]any{"artifact": "summary"}, JudgeEvidence{})
 		if err != nil {
 			t.Fatalf("RenderAgentJudgeRubric() error = %v", err)
 		}

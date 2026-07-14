@@ -269,20 +269,43 @@ func TestProviderConfigSources(t *testing.T) {
 	t.Run("Should expose builtin provider model defaults", func(t *testing.T) {
 		t.Parallel()
 
-		source := NewBuiltinSource()
-		rows, err := source.ListModels(testutil.Context(t), ListOptions{ProviderID: "codex", Now: testTime(0)})
-		if err != nil {
-			t.Fatalf("ListModels() error = %v", err)
-		}
-		if len(rows) == 0 {
-			t.Fatal("len(rows) = 0, want builtin codex models")
-		}
-		if rows[0].SourceID != SourceIDBuiltin || rows[0].SourceKind != SourceKindBuiltin ||
-			rows[0].Priority != PriorityBuiltin {
-			t.Fatalf("row source = %#v, want builtin source metadata", rows[0])
-		}
-		if !rows[0].ExplicitlyCurated {
-			t.Fatal("builtin curated row ExplicitlyCurated = false, want true")
+		for _, tc := range []struct {
+			name       string
+			providerID string
+			modelID    string
+		}{
+			{name: "Should expose Codex defaults", providerID: "codex"},
+			{
+				name:       "Should expose the canonical Cursor descriptor",
+				providerID: "cursor",
+				modelID:    "grok-4.5[effort=high,fast=true]",
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				source := NewBuiltinSource()
+				rows, err := source.ListModels(
+					testutil.Context(t),
+					ListOptions{ProviderID: tc.providerID, Now: testTime(0)},
+				)
+				if err != nil {
+					t.Fatalf("ListModels() error = %v", err)
+				}
+				if len(rows) == 0 {
+					t.Fatalf("len(rows) = 0, want builtin %s models", tc.providerID)
+				}
+				if tc.modelID != "" && rows[0].ModelID != tc.modelID {
+					t.Fatalf("ModelID = %q, want %q", rows[0].ModelID, tc.modelID)
+				}
+				if rows[0].SourceID != SourceIDBuiltin || rows[0].SourceKind != SourceKindBuiltin ||
+					rows[0].Priority != PriorityBuiltin {
+					t.Fatalf("row source = %#v, want builtin source metadata", rows[0])
+				}
+				if !rows[0].ExplicitlyCurated {
+					t.Fatal("builtin curated row ExplicitlyCurated = false, want true")
+				}
+			})
 		}
 	})
 }

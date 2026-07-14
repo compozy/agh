@@ -4,8 +4,10 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"ariga.io/atlas/sql/migrate"
 	"github.com/compozy/agh/internal/testutil"
 )
 
@@ -74,6 +76,38 @@ func TestCloseAtlasDatabase(t *testing.T) {
 		}
 		if !errors.Is(err, closeErr) {
 			t.Fatalf("closeAtlasDatabase() error = %v, want typed close failure", err)
+		}
+	})
+}
+
+func TestSequentialGooseFormatter(t *testing.T) {
+	t.Run("Should emit only the forward plan for append-only migration streams", func(t *testing.T) {
+		t.Parallel()
+
+		files, err := (sequentialGooseFormatter{}).Format(&migrate.Plan{
+			Name:       "schema",
+			Version:    "00002",
+			Reversible: true,
+			Changes: []*migrate.Change{
+				{
+					Cmd:     "CREATE TABLE records (id TEXT PRIMARY KEY)",
+					Reverse: "DROP TABLE records",
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("sequentialGooseFormatter.Format() error = %v", err)
+		}
+		if len(files) != 1 {
+			t.Fatalf("len(files) = %d, want 1", len(files))
+		}
+		contents := string(files[0].Bytes())
+		if !strings.Contains(contents, "-- +goose Up") ||
+			!strings.Contains(contents, "CREATE TABLE records") {
+			t.Fatalf("formatted migration does not contain the forward plan:\n%s", contents)
+		}
+		if strings.Contains(contents, "-- +goose Down") || strings.Contains(contents, "DROP TABLE records") {
+			t.Fatalf("formatted append-only migration contains a reverse plan:\n%s", contents)
 		}
 	})
 }

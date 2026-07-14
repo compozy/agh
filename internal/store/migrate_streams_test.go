@@ -148,22 +148,23 @@ func TestProductionMigrationStreams(t *testing.T) {
 		if err := store.Apply(ctx, db, memoryStream); err != nil {
 			t.Fatalf("Apply(memory) error = %v", err)
 		}
+		wantStatus := map[string]store.StreamStatus{
+			globalStream.Name: {Version: 3, AppliedCount: 3},
+			memoryStream.Name: {Version: 1, AppliedCount: 1},
+		}
 		for _, stream := range []store.MigrationStream{globalStream, memoryStream} {
 			status, err := store.Status(ctx, db, stream)
 			if err != nil {
 				t.Fatalf("Status(%s) error = %v", stream.Name, err)
 			}
-			wantVersion := int64(1)
-			if stream.Name == "global" {
-				wantVersion = 2
-			}
-			if status.Version != wantVersion || status.AppliedCount != int(wantVersion) {
+			want := wantStatus[stream.Name]
+			if status.Version != want.Version || status.AppliedCount != want.AppliedCount {
 				t.Fatalf(
-					"Status(%s) = %#v, want version %d with %d applied migrations",
+					"Status(%s) = %#v, want version %d with %d applied",
 					stream.Name,
 					status,
-					wantVersion,
-					wantVersion,
+					want.Version,
+					want.AppliedCount,
 				)
 			}
 		}

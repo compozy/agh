@@ -435,6 +435,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		sessionListDescriptor := descriptors[toolspkg.ToolIDSessionList]
 		if !strings.Contains(string(sessionListDescriptor.InputSchema), `"cursor"`) ||
 			!strings.Contains(string(sessionListDescriptor.InputSchema), `"include_health"`) ||
+			!strings.Contains(string(sessionListDescriptor.InputSchema), `"type"`) ||
 			!strings.Contains(string(sessionListDescriptor.InputSchema), `"last_activity"`) ||
 			!strings.Contains(string(sessionListDescriptor.OutputSchema), `"page"`) ||
 			!strings.Contains(string(sessionListDescriptor.OutputSchema), `"next_cursor"`) {
@@ -443,6 +444,9 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 				sessionListDescriptor.InputSchema,
 				sessionListDescriptor.OutputSchema,
 			)
+		}
+		if strings.Contains(string(sessionListDescriptor.InputSchema), `"dream"`) {
+			t.Fatalf("session list input schema exposes internal dream type: %s", sessionListDescriptor.InputSchema)
 		}
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionStatus], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionHistory], toolspkg.RiskRead, true, false, false)

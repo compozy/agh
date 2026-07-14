@@ -111,6 +111,7 @@ func newDaemonLoopAPIService(
 	}
 	options := []looppkg.Option{
 		looppkg.WithClock(now),
+		looppkg.WithLogger(logger),
 		looppkg.WithDefaultsResolver(newLoopDefaultsResolver(homePaths, state.workspaceResolver)),
 		looppkg.WithGoalRunActivator(loopGoalRunActivator{state: state}),
 	}

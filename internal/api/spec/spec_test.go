@@ -133,6 +133,14 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				)
 				assertParameter(t, listSessions, "resumable", openapi3.ParameterInQuery, false)
 				assertParameter(t, listSessions, "state", openapi3.ParameterInQuery, false)
+				assertEnumValues(
+					t,
+					parameterSchema(t, listSessions, "type", openapi3.ParameterInQuery),
+					"user",
+					"system",
+					"coordinator",
+					"spawned",
+				)
 				assertParameter(t, listSessions, "agent", openapi3.ParameterInQuery, false)
 				assertParameter(t, listSessions, "q", openapi3.ParameterInQuery, false)
 				assertParameter(t, listSessions, "sort", openapi3.ParameterInQuery, false)

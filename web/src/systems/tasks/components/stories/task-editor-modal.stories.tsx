@@ -1,11 +1,16 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, userEvent, within } from "storybook/test";
 
 import { storyWorkspaceIds, storyWorkspaceNames } from "@/storybook/fintech-scenario";
 import { CenteredSurface } from "@/storybook/story-layout";
 
 import { TaskEditorModal, type TaskEditorModalMode } from "../task-editor-modal";
-import { createTaskEditorDraft, type TaskEditorDraft } from "../../lib/task-editor";
+import {
+  applyTaskTemplateToEditorDraft,
+  createTaskEditorDraft,
+  type TaskEditorDraft,
+} from "../../lib/task-editor";
 import {
   DEFAULT_TASK_TEMPLATE_ID,
   getTaskTemplate,
@@ -73,7 +78,7 @@ function TaskEditorModalHarness({
           isNewMode
             ? next => {
                 setActiveTemplate(next);
-                setDraft(createTaskEditorDraft(next, storyWorkspaceIds.hq));
+                setDraft(current => applyTaskTemplateToEditorDraft(current, next));
               }
             : undefined
         }
@@ -114,12 +119,29 @@ function buildEditDraft(): TaskEditorDraft {
   };
 }
 
+function buildAuthoredCreateDraft(): TaskEditorDraft {
+  return {
+    ...createTaskEditorDraft("one_shot", storyWorkspaceIds.hq),
+    title: "Preserve release contract",
+    description: "Keep this authored description while changing the task template.",
+  };
+}
+
+function buildExactOwnerEditDraft(): TaskEditorDraft {
+  return {
+    ...buildEditDraft(),
+    ownerKind: "agent_session",
+    ownerRef: "sess-exact-launch-owner",
+  };
+}
+
 /**
  * Default create surface — Simple mode with the three approachable template
  * cards. Click the Advanced pill (`task-mode-advanced`) to reveal the numbered
  * Placement / Queue / Ingress sections and the Execution collapsible.
  */
 export const NewSimple: Story = {
+  args: {},
   render: () => <TaskEditorModalHarness />,
 };
 
@@ -128,6 +150,7 @@ export const NewSimple: Story = {
  * play function so the numbered advanced sections render on load.
  */
 export const NewAdvanced: Story = {
+  args: {},
   render: () => <TaskEditorModalHarness />,
   play: async ({ canvasElement }) => {
     const advancedPill = canvasElement.querySelector<HTMLButtonElement>(
@@ -138,11 +161,20 @@ export const NewAdvanced: Story = {
 };
 
 /**
- * Human-in-the-loop template — manual approval is preset; the Queue & ownership
- * approval hint flips to the approval gate in Advanced mode.
+ * Authored contract retained after switching from Run once to Needs approval.
  */
-export const HumanInLoopTemplate: Story = {
-  render: () => <TaskEditorModalHarness templateId="human_in_loop" />,
+export const DraftRetainedAfterTemplateSwitch: Story = {
+  args: {},
+  render: () => <TaskEditorModalHarness initialDraft={buildAuthoredCreateDraft()} />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByTestId("task-template-human_in_loop"));
+    await expect(canvas.getByTestId("task-title-input")).toHaveValue("Preserve release contract");
+    await expect(canvas.getByTestId("task-description-input")).toHaveValue(
+      "Keep this authored description while changing the task template."
+    );
+  },
 };
 
 /**
@@ -150,18 +182,31 @@ export const HumanInLoopTemplate: Story = {
  * later; the submit label reads `Save draft`.
  */
 export const RecurringDraft: Story = {
+  args: {},
   render: () => <TaskEditorModalHarness templateId="recurring" />,
 };
 
-/** Edit an existing task — no mode toolbar, no template grid, channel input present. */
-export const EditMode: Story = {
+/** Edit state after changing an exact-session owner to Unassigned. */
+export const EditModeUnassigned: Story = {
+  args: {},
   render: () => (
-    <TaskEditorModalHarness mode="edit" initialDraft={buildEditDraft()} task={editTask} />
+    <TaskEditorModalHarness mode="edit" initialDraft={buildExactOwnerEditDraft()} task={editTask} />
   ),
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement.ownerDocument.body);
+    const ownerKind = await canvas.findByTestId("task-owner-kind");
+    await userEvent.selectOptions(ownerKind, "");
+    ownerKind.scrollIntoView({ block: "center" });
+    await expect(ownerKind).toHaveValue("");
+    await expect(canvas.getByTestId("task-owner-ref")).toBeDisabled();
+    await expect(canvas.getByTestId("task-owner-ref")).toHaveValue("");
+  },
 };
 
 /** Validation disabled — empty title keeps the submit action disabled. */
 export const ValidationDisabled: Story = {
+  args: {},
   render: () => (
     <TaskEditorModalHarness
       initialDraft={createTaskEditorDraft(DEFAULT_TASK_TEMPLATE_ID, storyWorkspaceIds.hq)}

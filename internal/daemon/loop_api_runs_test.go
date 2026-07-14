@@ -238,6 +238,14 @@ func (s *loopApprovalAggregateStub) GetConfig(
 	return nil, errors.New("unexpected GetConfig call")
 }
 
+func (s *loopApprovalAggregateStub) GetConfigSnapshot(
+	context.Context,
+	looppkg.WorkspaceID,
+	string,
+) (looppkg.ConfigSnapshot, error) {
+	return looppkg.ConfigSnapshot{}, errors.New("unexpected GetConfigSnapshot call")
+}
+
 func (s *loopApprovalAggregateStub) Get(
 	context.Context,
 	looppkg.WorkspaceID,

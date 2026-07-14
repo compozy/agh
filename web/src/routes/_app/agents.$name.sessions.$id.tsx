@@ -14,7 +14,8 @@ export const Route = createFileRoute("/_app/agents/$name/sessions/$id")({
     prefetchAgentSessionRoute({
       queryClient: context.queryClient,
       sessionId: params.id,
-      returnWorkspaceId: preload ? undefined : context.sessionReturnWorkspaceId,
+      returnWorkspaceId: context.sessionReturnWorkspaceId,
+      preload,
     }),
   pendingComponent: SessionRouteLoading,
   component: SessionRoutePage,

@@ -485,6 +485,11 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		sessions := &loopActionBinderSessionManager{sessionID: "sess-loop-judge-late"}
 		runner := loopJudgeRunnerForTest(t, sessions)
 		runner.executions = newLoopJudgeExecutionRegistry()
+		release, err := runner.executions.reserve("judge-attempt-revoked-before-begin")
+		if err != nil {
+			t.Fatalf("reserve judge execution: %v", err)
+		}
+		defer release()
 		revoker := loopGoalPromptLeaseRevoker{judges: runner}
 		if err := revoker.RevokeGoalPromptLease(
 			context.Background(),
@@ -495,12 +500,38 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		}
 		req := loopJudgeRequestForTest()
 		req.CorrelationID = "judge-attempt-revoked-before-begin"
-		_, err := runner.Judge(context.Background(), req)
+		_, err = runner.Judge(context.Background(), req)
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("Judge() error = %v, want context.Canceled", err)
 		}
 		if got := sessions.createCount(); got != 0 {
 			t.Fatalf("Create call count = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should release an abandoned revoked reservation", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newLoopJudgeExecutionRegistry()
+		release, err := registry.reserve("judge-attempt-abandoned")
+		if err != nil {
+			t.Fatalf("reserve judge execution: %v", err)
+		}
+		runner := loopJudgeRunnerForTest(t, &loopActionBinderSessionManager{})
+		runner.executions = registry
+		if err := runner.revokeExecution(context.Background(), "judge-attempt-abandoned"); err != nil {
+			t.Fatalf("revokeExecution() error = %v", err)
+		}
+		release()
+
+		registry.mu.Lock()
+		defer registry.mu.Unlock()
+		if len(registry.pending) != 0 || len(registry.revoked) != 0 {
+			t.Fatalf(
+				"registry pending = %d revoked = %d, want no abandoned state",
+				len(registry.pending),
+				len(registry.revoked),
+			)
 		}
 	})
 

@@ -45,7 +45,12 @@ export type LoopRunEventKind = LoopRunEventFrame["kind"];
 
 // Config --------------------------------------------------------------------
 
-export type LoopConfig = NonNullable<OperationResponse<"getLoopConfig", 200>["config"]>;
+export type LoopConfigResponse = OperationResponse<"getLoopConfig", 200>;
+export type LoopConfig = NonNullable<LoopConfigResponse["config"]>;
+export interface LoopConfigSnapshot {
+  config: LoopConfig | null;
+  effectiveConfig: LoopConfigResponse["effective_config"];
+}
 export type LoopConfigUpdateRequest = OperationRequestBody<"putLoopConfig">;
 
 // Editor annotations (node positions) ---------------------------------------
@@ -61,7 +66,7 @@ export type RunLoopRequest = OperationRequestBody<"runLoop">;
 export type RunLoopResult = OperationResponse<"runLoop", 201>;
 export type LoopDryRunPreview = NonNullable<RunLoopResult["dry_run"]>;
 export type LoopDryRunNode = LoopDryRunPreview["nodes"][number];
-export type LoopEffectiveConfig = LoopDryRunPreview["effective_config"];
+export type LoopEffectiveConfig = LoopConfigResponse["effective_config"];
 export type ValidateLoopRequest = OperationRequestBody<"validateLoop">;
 export type ValidateLoopResult = OperationResponse<"validateLoop", 200>;
 export type LoopValidationIssue = NonNullable<ValidateLoopResult["errors"]>[number];

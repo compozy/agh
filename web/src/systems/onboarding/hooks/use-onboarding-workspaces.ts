@@ -20,6 +20,7 @@ export interface OnboardingWorkspacesApi {
   workspaces: OnboardingWorkspaceDraft[];
   isResolving: boolean;
   resolveError: string | null;
+  catalogError: string | null;
   navigateTo: (path: string) => void;
   goToParent: () => void;
   goHome: () => void;
@@ -27,6 +28,8 @@ export interface OnboardingWorkspacesApi {
   removeWorkspace: (path: string) => Promise<void>;
   isAdded: (path: string) => boolean;
   isRemoving: boolean;
+  isCatalogLoading: boolean;
+  reloadCatalog: () => Promise<void>;
 }
 
 function basename(path: string): string {
@@ -139,6 +142,11 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
   };
 
   const isAdded = (path: string) => workspaces.some(item => item.path === path);
+  const catalogError = registeredWorkspaces.error
+    ? registeredWorkspaces.error instanceof Error
+      ? registeredWorkspaces.error.message
+      : "Failed to load registered workspaces."
+    : null;
 
   return {
     currentPath: data?.path ?? currentPath,
@@ -153,7 +161,9 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
       : null,
     workspaces,
     isResolving: resolveWorkspace.isPending,
-    isRemoving: workspaceCatalog === undefined || deleteWorkspace.isPending,
+    isRemoving: deleteWorkspace.isPending,
+    isCatalogLoading: registeredWorkspaces.isLoading,
+    catalogError,
     resolveError,
     navigateTo,
     goToParent,
@@ -161,5 +171,8 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
     addWorkspace,
     removeWorkspace,
     isAdded,
+    reloadCatalog: async () => {
+      await registeredWorkspaces.refetch();
+    },
   };
 }

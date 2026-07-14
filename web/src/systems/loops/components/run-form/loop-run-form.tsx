@@ -3,7 +3,7 @@ import { CheckCircle2, Info, Play } from "lucide-react";
 import { Button, Section } from "@agh/ui";
 
 import { useLoopRunForm } from "../../hooks/use-loop-run-form";
-import type { LoopConfig, LoopDetail } from "../../types";
+import type { LoopDetail, LoopEffectiveConfig } from "../../types";
 import { LoopRunInputField } from "./loop-run-input-field";
 import { LoopRunOverrides } from "./loop-run-overrides";
 import { LoopRunPreview } from "./loop-run-preview";
@@ -11,7 +11,7 @@ import { LoopRunPreview } from "./loop-run-preview";
 interface LoopRunFormProps {
   workspaceId: string;
   loop: LoopDetail;
-  config: LoopConfig | null;
+  effectiveConfig: LoopEffectiveConfig;
   onRunStarted?: (runId: string) => void;
   onCancel?: () => void;
 }
@@ -25,11 +25,11 @@ interface LoopRunFormProps {
 export function LoopRunForm({
   workspaceId,
   loop,
-  config,
+  effectiveConfig,
   onRunStarted,
   onCancel,
 }: LoopRunFormProps) {
-  const form = useLoopRunForm({ workspaceId, loop, config, onRunStarted });
+  const form = useLoopRunForm({ workspaceId, loop, effectiveConfig, onRunStarted });
   const inputNames = form.schema ? Object.keys(form.schema) : [];
 
   return (
@@ -79,8 +79,7 @@ export function LoopRunForm({
         </Section>
 
         <LoopRunOverrides
-          contract={form.contract}
-          config={config}
+          effectiveConfig={effectiveConfig}
           draft={form.overrides}
           disabled={form.busy}
           onChange={form.setOverridesDraft}
@@ -101,7 +100,7 @@ export function LoopRunForm({
           <LoopRunPreview
             loopName={loop.name}
             contract={form.contract}
-            config={config}
+            effectiveConfig={effectiveConfig}
             configOverrides={form.configOverrides}
             inputs={form.schema}
             plan={form.plan}

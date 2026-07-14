@@ -274,7 +274,7 @@ describe("useHomePage", () => {
     expect(metricsByKey.agents.value).toBe("3");
     expect(metricsByKey.uptime.value).toBe("1h 15m");
     expect(fetchSessions).toHaveBeenCalledWith(
-      { workspace: "ws_main", state: "active", limit: 1 },
+      { workspace: "ws_main", state: "active", type: "user", limit: 1 },
       expect.any(AbortSignal)
     );
   });

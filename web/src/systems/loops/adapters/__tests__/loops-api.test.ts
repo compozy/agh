@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { expectFetchRequest, fetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
 import { createMswFetch } from "@/test/msw-fetch";
 import { handlers } from "@/systems/loops/mocks";
+import { loopEffectiveConfigFixture } from "@/systems/loops/mocks/fixtures";
 import {
   LoopsApiError,
   approveLoopRun,
@@ -139,13 +140,16 @@ describe("loops-api (request construction + error mapping)", () => {
     });
   });
 
-  it("Should treat a 404 config read as an absent override (null), not an error", async () => {
+  it("Should treat a 404 config read as a missing Loop", async () => {
     mockJsonResponse({ error: "no config" }, { status: 404 });
-    await expect(getLoopConfig(WS, "software-delivery")).resolves.toBeNull();
+    await expect(getLoopConfig(WS, "software-delivery")).rejects.toMatchObject({ status: 404 });
   });
 
   it("Should PUT the config override", async () => {
-    mockJsonResponse({ config: { iteration_cap: 8 } });
+    mockJsonResponse({
+      config: { iteration_cap: 8 },
+      effective_config: loopEffectiveConfigFixture,
+    });
     await putLoopConfig(WS, "software-delivery", { config: { iteration_cap: 8 } });
     await expectFetchRequest({
       path: "/api/workspaces/ws_1/loops/software-delivery/config",
@@ -352,11 +356,15 @@ describe("loops-api (against MSW mock handlers)", () => {
   });
 
   it("Should resolve config, annotations, validate, run controls and a dry run from the fixtures", async () => {
-    expect(await getLoopConfig(WS, "software-delivery")).toMatchObject({ iteration_cap: 16 });
+    expect(await getLoopConfig(WS, "software-delivery")).toMatchObject({
+      config: { iteration_cap: 16 },
+      effectiveConfig: { fan_out_width: 4 },
+    });
     expect(
       await putLoopConfig(WS, "software-delivery", { config: { iteration_cap: 9 } })
     ).toMatchObject({
-      iteration_cap: 9,
+      config: { iteration_cap: 9 },
+      effectiveConfig: { fan_out_width: 4 },
     });
     expect(await getLoopAnnotations(WS, "software-delivery")).toHaveLength(2);
     expect(
@@ -373,10 +381,5 @@ describe("loops-api (against MSW mock handlers)", () => {
       "dry_run"
     );
     await expect(deleteLoop(WS, "software-delivery")).resolves.toBeUndefined();
-  });
-
-  it("Should return null when no config override exists (404) but not for a present one", async () => {
-    // The handler returns a config for known loops; unknown names 404 -> null.
-    expect(await getLoopConfig(WS, "ghost")).toBeNull();
   });
 });

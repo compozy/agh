@@ -1346,6 +1346,72 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 			}); err == nil {
 				t.Fatal("FinalizeGoalPrompt(after operator Stop) error = nil")
 			}
+
+			var eventsBefore, turnsBefore int
+			if err := globalDB.db.QueryRowContext(
+				ctx,
+				`SELECT COUNT(*) FROM loop_run_events WHERE loop_run_id = ?`,
+				string(key.LoopRunID),
+			).Scan(&eventsBefore); err != nil {
+				t.Fatalf("count events before Stop replay error = %v", err)
+			}
+			if err := globalDB.db.QueryRowContext(
+				ctx,
+				`SELECT COUNT(*) FROM loop_goal_turns WHERE loop_run_id = ?`,
+				string(key.LoopRunID),
+			).Scan(&turnsBefore); err != nil {
+				t.Fatalf("count turns before Stop replay error = %v", err)
+			}
+
+			const replayCount = 8
+			replayErrors := make(chan error, replayCount)
+			var replayWG sync.WaitGroup
+			for range replayCount {
+				replayWG.Add(1)
+				go func() {
+					defer replayWG.Done()
+					_, replayErr := globalDB.StopGoalRun(ctx, looppkg.GoalRunStopRequest{
+						WorkspaceID:    key.WorkspaceID,
+						RunID:          key.LoopRunID,
+						ExpectedStatus: looppkg.StatusRunning,
+						Actor:          actor,
+						StoppedAt:      stoppedAt.Add(2 * time.Second),
+					})
+					replayErrors <- replayErr
+				}()
+			}
+			replayWG.Wait()
+			close(replayErrors)
+			for replayErr := range replayErrors {
+				if replayErr == nil {
+					t.Fatal("StopGoalRun(concurrent replay) error = nil")
+				}
+			}
+
+			var eventsAfter, turnsAfter int
+			if err := globalDB.db.QueryRowContext(
+				ctx,
+				`SELECT COUNT(*) FROM loop_run_events WHERE loop_run_id = ?`,
+				string(key.LoopRunID),
+			).Scan(&eventsAfter); err != nil {
+				t.Fatalf("count events after Stop replay error = %v", err)
+			}
+			if err := globalDB.db.QueryRowContext(
+				ctx,
+				`SELECT COUNT(*) FROM loop_goal_turns WHERE loop_run_id = ?`,
+				string(key.LoopRunID),
+			).Scan(&turnsAfter); err != nil {
+				t.Fatalf("count turns after Stop replay error = %v", err)
+			}
+			if eventsAfter != eventsBefore || turnsAfter != turnsBefore {
+				t.Fatalf(
+					"concurrent Stop replay changed events/turns from %d/%d to %d/%d",
+					eventsBefore,
+					turnsBefore,
+					eventsAfter,
+					turnsAfter,
+				)
+			}
 		},
 	)
 

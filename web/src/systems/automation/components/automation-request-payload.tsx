@@ -2,7 +2,10 @@ import { Code } from "lucide-react";
 
 import { Alert, AlertDescription, JsonViewer } from "@agh/ui";
 
-import type { AutomationRequestProjection } from "../lib/automation-requests";
+import {
+  automationRequestPayloadForDisplay,
+  type AutomationRequestProjection,
+} from "../lib/automation-requests";
 import { PreviewCard } from "./trigger-form/preview/preview-card";
 
 interface AutomationRequestPayloadProps {
@@ -19,7 +22,7 @@ export function AutomationRequestPayload({
     <div data-testid="automation-request-payload">
       <PreviewCard
         icon={Code}
-        label={blockedReason ? "Request blocked" : "Request payload"}
+        label={blockedReason ? "Request blocked" : "Request payload · write-only values redacted"}
         right={
           <span className="min-w-0 break-all text-right font-mono text-form-hint text-subtle">
             {blockedReason ? "Blocked · " : ""}
@@ -32,7 +35,10 @@ export function AutomationRequestPayload({
             <AlertDescription>{blockedReason} This request will not be sent.</AlertDescription>
           </Alert>
         ) : null}
-        <JsonViewer className="bg-rail p-3 leading-relaxed" value={request.payload} />
+        <JsonViewer
+          className="bg-rail p-3 leading-relaxed"
+          value={automationRequestPayloadForDisplay(request.payload)}
+        />
       </PreviewCard>
     </div>
   );

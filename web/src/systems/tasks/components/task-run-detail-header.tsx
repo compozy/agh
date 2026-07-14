@@ -245,7 +245,7 @@ export function TaskRunDetailHeader({
                 disabled={pendingActions?.has("recover")}
                 onClick={() => void onRecoverRun()}
                 size="sm"
-                title="Terminalize this needs-attention run and queue one continuation."
+                title="Mark this needs-attention run as failed and queue one continuation."
                 type="button"
               >
                 <LifeBuoy className="size-3" strokeWidth={1.75} />

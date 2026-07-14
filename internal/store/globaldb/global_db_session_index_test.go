@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -97,6 +98,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			globalDBSessionStateActive,
 			baseAt,
 		)
+		normal.SessionType = "user"
 		internal := sessionInfoForWorkspaceStateIndexTest(
 			"sess-memory",
 			workspaceID,
@@ -104,6 +106,13 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			baseAt,
 		)
 		internal.Lineage = &store.SessionLineage{SpawnRole: "memory-extractor"}
+		system := sessionInfoForWorkspaceStateIndexTest(
+			"sess-system",
+			workspaceID,
+			globalDBSessionStateActive,
+			baseAt,
+		)
+		system.SessionType = "system"
 		dream := sessionInfoForWorkspaceStateIndexTest(
 			"sess-dream",
 			workspaceID,
@@ -117,7 +126,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 			globalDBSessionStateActive,
 			baseAt,
 		)
-		for _, sessionInfo := range []store.SessionInfo{normal, internal, dream, overlaid} {
+		for _, sessionInfo := range []store.SessionInfo{normal, internal, system, dream, overlaid} {
 			if err := globalDB.RegisterSession(ctx, sessionInfo); err != nil {
 				t.Fatalf("RegisterSession(%q) error = %v", sessionInfo.ID, err)
 			}
@@ -125,6 +134,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 
 		page, err := globalDB.PageSessions(ctx, store.SessionCatalogPageQuery{
 			WorkspaceID:         workspaceID,
+			SessionType:         "user",
 			Sort:                "recent",
 			Limit:               10,
 			ExcludeIDs:          []string{overlaid.ID},
@@ -296,6 +306,110 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 				wantRuntime,
 				coderStopped.UpdatedAt,
 			)
+		}
+	})
+}
+
+func TestDeleteSessionRemovesDurableCatalogTruth(t *testing.T) {
+	t.Run("Should delete only the target session and its owned history", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"workspace-session-delete",
+			filepath.Join(t.TempDir(), "workspace-session-delete"),
+		)
+		info := sessionInfoForWorkspaceStateIndexTest(
+			"sess-delete",
+			workspaceID,
+			globalDBSessionStateStopped,
+			time.Date(2026, 7, 13, 15, 0, 0, 0, time.UTC),
+		)
+		info.SessionType = "user"
+		if err := globalDB.RegisterSession(ctx, info); err != nil {
+			t.Fatalf("RegisterSession() error = %v", err)
+		}
+		foreign := sessionInfoForWorkspaceStateIndexTest(
+			"sess-delete-foreign",
+			workspaceID,
+			globalDBSessionStateStopped,
+			info.UpdatedAt.Add(time.Minute),
+		)
+		foreign.SessionType = "user"
+		if err := globalDB.RegisterSession(ctx, foreign); err != nil {
+			t.Fatalf("RegisterSession(foreign) error = %v", err)
+		}
+		for _, sessionInfo := range []store.SessionInfo{info, foreign} {
+			if _, err := globalDB.db.ExecContext(
+				ctx,
+				`INSERT INTO permission_log (
+				id, session_id, agent_name, action, resource, decision, policy_used, timestamp
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+				"perm-"+sessionInfo.ID,
+				sessionInfo.ID,
+				sessionInfo.AgentName,
+				"invoke",
+				"agh__task_run_complete",
+				"allow",
+				"test",
+				sessionInfo.UpdatedAt.Format(time.RFC3339Nano),
+			); err != nil {
+				t.Fatalf("Insert permission log for %q error = %v", sessionInfo.ID, err)
+			}
+			if _, err := globalDB.db.ExecContext(
+				ctx,
+				`INSERT INTO token_stats (
+				id, session_id, agent_name, turn_count, updated_at
+			) VALUES (?, ?, ?, ?, ?)`,
+				"tokens-"+sessionInfo.ID,
+				sessionInfo.ID,
+				sessionInfo.AgentName,
+				1,
+				sessionInfo.UpdatedAt.Format(time.RFC3339Nano),
+			); err != nil {
+				t.Fatalf("Insert token stats for %q error = %v", sessionInfo.ID, err)
+			}
+		}
+		if err := globalDB.DeleteSession(ctx, info.ID); err != nil {
+			t.Fatalf("DeleteSession() error = %v", err)
+		}
+
+		page, err := globalDB.PageSessions(ctx, store.SessionCatalogPageQuery{
+			WorkspaceID: workspaceID,
+			SessionType: "user",
+			Sort:        "recent",
+			Limit:       1,
+		})
+		if err != nil {
+			t.Fatalf("PageSessions(after delete) error = %v", err)
+		}
+		if page.Total != 1 || len(page.Sessions) != 1 || page.Sessions[0].ID != foreign.ID {
+			t.Fatalf("PageSessions(after delete) = %#v, want only foreign session %q", page, foreign.ID)
+		}
+		for table, want := range map[string]int{
+			"permission_log": 0,
+			"token_stats":    0,
+		} {
+			var got int
+			query := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE session_id = ?", table)
+			if err := globalDB.db.QueryRowContext(ctx, query, info.ID).Scan(&got); err != nil {
+				t.Fatalf("Count deleted %s rows error = %v", table, err)
+			}
+			if got != want {
+				t.Fatalf("%s rows for deleted session = %d, want %d", table, got, want)
+			}
+			if err := globalDB.db.QueryRowContext(ctx, query, foreign.ID).Scan(&got); err != nil {
+				t.Fatalf("Count preserved %s rows error = %v", table, err)
+			}
+			if got != 1 {
+				t.Fatalf("%s rows for foreign session = %d, want 1", table, got)
+			}
+		}
+		if err := globalDB.DeleteSession(ctx, info.ID); !errors.Is(err, store.ErrSessionNotFound) {
+			t.Fatalf("DeleteSession(missing) error = %v, want ErrSessionNotFound", err)
 		}
 	})
 }

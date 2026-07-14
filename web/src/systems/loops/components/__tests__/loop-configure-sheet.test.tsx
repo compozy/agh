@@ -7,7 +7,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMswFetch } from "@/test/msw-fetch";
 import { LoopConfigureSheet } from "../configure/loop-configure-sheet";
 import { handlers } from "../../mocks";
-import { loopConfigFixture, loopDetailByName } from "../../mocks/fixtures";
+import {
+  loopConfigFixture,
+  loopDetailByName,
+  loopEffectiveConfigFixture,
+} from "../../mocks/fixtures";
 
 const WS = "ws_default";
 const delivery = loopDetailByName.get("software-delivery")!;
@@ -48,7 +52,7 @@ function renderSheet(
   const loop = options.loop ?? delivery;
   const config = options.config === undefined ? loopConfigFixture : options.config;
   const onOpenChange = vi.fn<(open: boolean) => void>();
-  const onFork = vi.fn<() => void>();
+  const onOpenEditor = vi.fn<() => void>();
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client: queryClient }, children);
@@ -58,12 +62,13 @@ function renderSheet(
       workspaceId={WS}
       loop={loop}
       config={config}
+      effectiveConfig={loopEffectiveConfigFixture}
       onOpenChange={onOpenChange}
-      onFork={onFork}
+      onOpenEditor={onOpenEditor}
     />,
     { wrapper }
   );
-  return { onOpenChange, onFork };
+  return { onOpenChange, onOpenEditor };
 }
 
 function rowSwitch(testId: string) {
@@ -80,13 +85,15 @@ describe("LoopConfigureSheet", () => {
     vi.unstubAllGlobals();
   });
 
-  it("Should lock structural edits and route them to a fork", () => {
-    const { onFork } = renderSheet({ config: null });
+  it("Should lock structural edits and label the workspace editor action truthfully", () => {
+    const { onOpenEditor } = renderSheet({ config: null });
     expect(screen.getByTestId("loop-configure-structural-note")).toHaveTextContent(
       /steps, inputs, node kinds and the goal stay fixed/i
     );
-    fireEvent.click(screen.getByTestId("loop-configure-fork-link"));
-    expect(onFork).toHaveBeenCalledTimes(1);
+    const editAction = screen.getByTestId("loop-configure-edit-link");
+    expect(editAction).toHaveTextContent("Edit");
+    fireEvent.click(editAction);
+    expect(onOpenEditor).toHaveBeenCalledTimes(1);
   });
 
   it("Should render NO cost-cap field anywhere in the sheet", () => {
@@ -174,7 +181,7 @@ describe("LoopConfigureSheet", () => {
       iteration_cap: 80,
       human_gate_enabled: true,
       reattempt_strategy: "full_body",
-      budget_on_exceeded: "halt",
+      budget_on_exceeded: "escalate",
       enabled_checks_json: { verify_build: { enabled: true, command: "go test ./..." } },
     });
     expect(putBodies[0].config).not.toHaveProperty("budget_usd");
@@ -229,14 +236,14 @@ describe("LoopConfigureSheet", () => {
       expect(screen.getByTestId("loop-configure-strategy-full-body")).toBeDisabled()
     );
     expect(screen.getByTestId("loop-configure-save")).toBeDisabled();
-    // Header close + fork link disable in lockstep with the footer while a save is in flight.
+    // Header close + editor link disable in lockstep with the footer while a save is in flight.
     expect(screen.getByTestId("loop-configure-close")).toBeDisabled();
-    expect(screen.getByTestId("loop-configure-fork-link")).toBeDisabled();
+    expect(screen.getByTestId("loop-configure-edit-link")).toBeDisabled();
   });
 
   it("Should keep the sheet open when the save fails", async () => {
     const onOpenChange = vi.fn<(open: boolean) => void>();
-    const onFork = vi.fn<() => void>();
+    const onOpenEditor = vi.fn<() => void>();
     vi.stubGlobal("fetch", createMswFetch(failingHandlers));
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const wrapper = ({ children }: { children: ReactNode }) =>
@@ -247,8 +254,9 @@ describe("LoopConfigureSheet", () => {
         workspaceId={WS}
         loop={delivery}
         config={null}
+        effectiveConfig={loopEffectiveConfigFixture}
         onOpenChange={onOpenChange}
-        onFork={onFork}
+        onOpenEditor={onOpenEditor}
       />,
       { wrapper }
     );

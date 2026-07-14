@@ -94,6 +94,14 @@ func (fakeStore) CreateTaskRun(context.Context, taskpkg.Run) error { return nil 
 
 func (fakeStore) UpdateTaskRun(context.Context, taskpkg.Run) error { return nil }
 
+func (fakeStore) CompleteRunSettlement(
+	context.Context,
+	taskpkg.Run,
+	taskpkg.ActorContext,
+) (taskpkg.CompletedRunSettlement, error) {
+	return taskpkg.CompletedRunSettlement{}, nil
+}
+
 func (fakeStore) GetTaskRun(context.Context, string) (taskpkg.Run, error) {
 	return taskpkg.Run{}, nil
 }
@@ -120,6 +128,13 @@ func (fakeStore) ReleaseRunLease(context.Context, taskpkg.LeaseRelease) (taskpkg
 
 func (fakeStore) CompleteRunLease(context.Context, taskpkg.LeaseCompletion) (taskpkg.Run, error) {
 	return taskpkg.Run{}, nil
+}
+
+func (fakeStore) CompleteRunLeaseSettlement(
+	context.Context,
+	taskpkg.LeaseCompletion,
+) (taskpkg.CompletedRunSettlement, error) {
+	return taskpkg.CompletedRunSettlement{}, nil
 }
 
 func (fakeStore) FailRunLease(context.Context, taskpkg.LeaseFailure) (taskpkg.Run, error) {

@@ -3,7 +3,6 @@ package loop
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -116,22 +115,11 @@ func (s *service) ReplaceInline(
 	if err != nil {
 		return InlineReplaceResult{}, err
 	}
-	var revokeErr error
-	if s.goalLeaseRevoker != nil {
-		for _, lease := range committed.RevokedPromptLeases {
-			if err := s.goalLeaseRevoker.RevokeGoalPromptLease(
-				ctx,
-				lease,
-				string(TransitionCauseGoalReplace),
-			); err != nil {
-				revokeErr = errors.Join(revokeErr, fmt.Errorf("loop: revoke replaced Goal runtime: %w", err))
-			}
-		}
-	}
+	s.revokeGoalPromptLeases(ctx, committed.RevokedPromptLeases, TransitionCauseGoalReplace)
 	s.dispatchCoordinatorTerminal(ctx, committed.ReplacedRun, TransitionCauseGoalReplace, replacedAt)
 	s.dispatchLoopStarted(ctx, committed.Run, actor)
 	created := committed.Run
-	return InlineReplaceResult{ReplacedRunID: committed.ReplacedRunID, Run: &created}, revokeErr
+	return InlineReplaceResult{ReplacedRunID: committed.ReplacedRunID, Run: &created}, nil
 }
 
 func compileInlineGoalDefinition(definition dsl.Definition) (*ResolvedDefinition, error) {

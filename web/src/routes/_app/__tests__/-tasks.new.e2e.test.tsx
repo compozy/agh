@@ -514,6 +514,10 @@ describe("TaskCreateRoute create modal", () => {
         to: "/tasks/new",
       })
     );
+    expect(screen.getByTestId("task-template-human_in_loop")).toHaveAttribute(
+      "aria-checked",
+      "false"
+    );
 
     searchParams = { template: "human_in_loop" };
     rerender(

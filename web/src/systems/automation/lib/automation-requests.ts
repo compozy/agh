@@ -10,6 +10,26 @@ export interface AutomationRequestProjection<T> {
   payload: T;
 }
 
+const REDACTED_AUTOMATION_VALUE = "[redacted]";
+const WRITE_ONLY_AUTOMATION_FIELDS = new Set(["webhook_secret_value"]);
+
+/** Produces a JSON-safe display projection without mutating the submitted request. */
+export function automationRequestPayloadForDisplay(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(automationRequestPayloadForDisplay);
+  }
+  if (typeof value !== "object" || value === null) {
+    return value;
+  }
+  const projected: { [key: string]: unknown } = {};
+  for (const [key, fieldValue] of Object.entries(value)) {
+    projected[key] = WRITE_ONLY_AUTOMATION_FIELDS.has(key)
+      ? REDACTED_AUTOMATION_VALUE
+      : automationRequestPayloadForDisplay(fieldValue);
+  }
+  return projected;
+}
+
 export function normalizeAutomationSchedule(
   schedule: CreateAutomationJobRequest["schedule"]
 ): CreateAutomationJobRequest["schedule"] {

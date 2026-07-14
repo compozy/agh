@@ -12,6 +12,7 @@ import {
   loopAnnotationsFixture,
   loopCatalogFixtures,
   loopConfigFixture,
+  loopEffectiveConfigFixture,
   loopDetailByName,
   loopRunAggregatesFixture,
   loopRunDetailByRunId,
@@ -198,11 +199,17 @@ export const handlers: HttpHandler[] = [
         { status: 404 }
       );
     }
-    return HttpResponse.json({ config: loopConfigFixture });
+    return HttpResponse.json({
+      config: loopConfigFixture,
+      effective_config: loopEffectiveConfigFixture,
+    });
   }),
   aghApiMock.put("/api/workspaces/{workspace_id}/loops/{name}/config", async ({ request }) => {
     const body = (await request.json().catch(() => ({}))) as Partial<LoopConfigUpdateRequest>;
-    return HttpResponse.json({ config: body.config ?? loopConfigFixture });
+    return HttpResponse.json({
+      config: body.config ?? loopConfigFixture,
+      effective_config: loopEffectiveConfigFixture,
+    });
   }),
   aghApiMock.get("/api/workspaces/{workspace_id}/loops/{name}/annotations", () =>
     HttpResponse.json({ annotations: loopAnnotationsFixture })

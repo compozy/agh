@@ -22,14 +22,37 @@ type loopJudgeExecution struct {
 type loopJudgeExecutionRegistry struct {
 	mu      sync.Mutex
 	active  map[string]*loopJudgeExecution
+	pending map[string]struct{}
 	revoked map[string]struct{}
 }
 
 func newLoopJudgeExecutionRegistry() *loopJudgeExecutionRegistry {
 	return &loopJudgeExecutionRegistry{
 		active:  make(map[string]*loopJudgeExecution),
+		pending: make(map[string]struct{}),
 		revoked: make(map[string]struct{}),
 	}
+}
+
+func (r *loopJudgeExecutionRegistry) reserve(correlationID string) (func(), error) {
+	id := strings.TrimSpace(correlationID)
+	if id == "" {
+		return nil, errors.New("daemon: loop judge reservation id is required")
+	}
+	r.mu.Lock()
+	if _, exists := r.pending[id]; exists {
+		r.mu.Unlock()
+		return nil, fmt.Errorf("daemon: loop judge execution %q is already reserved", id)
+	}
+	r.pending[id] = struct{}{}
+	r.mu.Unlock()
+
+	return func() {
+		r.mu.Lock()
+		delete(r.pending, id)
+		delete(r.revoked, id)
+		r.mu.Unlock()
+	}, nil
 }
 
 func (r *loopGateJudgeRunner) beginExecution(
@@ -122,7 +145,7 @@ func (r *loopGateJudgeRunner) revokeExecution(ctx context.Context, correlationID
 	}
 	r.executions.mu.Lock()
 	execution := r.executions.active[id]
-	if execution == nil {
+	if _, pending := r.executions.pending[id]; execution == nil && pending {
 		r.executions.revoked[id] = struct{}{}
 	}
 	if execution != nil {

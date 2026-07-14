@@ -257,7 +257,7 @@ export function TasksDetailHeaderActions({
             size="sm"
             title={
               canRecoverRun
-                ? "Terminalize the needs-attention run and queue one continuation."
+                ? "Mark this needs-attention run as failed and queue one continuation."
                 : "Clear the needs_attention escalation and return the task to the claimable set."
             }
             type="button"

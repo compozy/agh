@@ -71,7 +71,7 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 		&typeFilter,
 		"type",
 		"",
-		"Filter by session type (user|dream|system|coordinator|spawned)",
+		"Filter by session type (user|system|coordinator|spawned)",
 	)
 	cmd.Flags().StringVar(&agentFilter, "agent", "", "Filter by exact agent definition name")
 	cmd.Flags().StringVar(&search, "query", "", "Search session id, name, agent, provider, or channel")

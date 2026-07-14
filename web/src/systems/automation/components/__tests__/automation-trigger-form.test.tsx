@@ -139,6 +139,7 @@ describe("AutomationTriggerForm", () => {
     fireEvent.click(screen.getByText("Cancel"));
 
     expect(onSubmit).toHaveBeenCalledOnce();
+    expect(onSubmit.mock.calls[0]).toEqual([]);
     expect(onCancel).toHaveBeenCalledOnce();
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -150,6 +151,10 @@ describe("AutomationTriggerForm", () => {
         webhook_secret_value: "shared-secret",
       })
     );
+    const requestPayload = screen.getByTestId("automation-request-payload");
+    expect(requestPayload).not.toHaveTextContent("shared-secret");
+    expect(requestPayload).toHaveTextContent("[redacted]");
+    expect(requestPayload).toHaveTextContent("write-only values redacted");
   });
 
   it("composes a hook event id from the inline sub-config", () => {

@@ -288,7 +288,9 @@ const cases: PreloadCase[] = [
         useAgents(workspace.id);
         useAgentCatalog(workspace.id, { limit: 1 });
         useWorkspace(workspace.id);
-        useSessions(workspace.id, { filters: { state: "active", limit: 1 } });
+        useSessions(workspace.id, {
+          filters: { state: "active", limit: 1 },
+        });
       }),
     requests: [
       adapterMocks.fetchOnboardingStatus,
@@ -306,7 +308,9 @@ const cases: PreloadCase[] = [
       mountQueries(queryClient, () => {
         useWorkspaces();
         useAgents(workspace.id);
-        useSessions(workspace.id, { filters: { state: "active", limit: 1 } });
+        useSessions(workspace.id, {
+          filters: { state: "active", type: "user", limit: 1 },
+        });
       }),
     requests: [adapterMocks.fetchWorkspaces, adapterMocks.fetchAgents, adapterMocks.fetchSessions],
   },
@@ -383,12 +387,14 @@ const cases: PreloadCase[] = [
       mountQueries(queryClient, () => {
         useWorkspaces();
         useAgent("codex", workspace.id);
-        useSessions(workspace.id, { filters: { agent: "codex", sort: "last_activity" } });
         useSessions(workspace.id, {
-          filters: { agent: "codex", state: "active", limit: 1 },
+          filters: { agent: "codex", type: "user", sort: "last_activity" },
         });
         useSessions(workspace.id, {
-          filters: { agent: "codex", resumable: true, limit: 1 },
+          filters: { agent: "codex", state: "active", type: "user", limit: 1 },
+        });
+        useSessions(workspace.id, {
+          filters: { agent: "codex", type: "user", resumable: true, limit: 1 },
         });
       }),
     requests: [adapterMocks.fetchWorkspaces, adapterMocks.fetchAgent],
@@ -611,7 +617,7 @@ const cases: PreloadCase[] = [
     requests: [adapterMocks.fetchWorkspaces, adapterMocks.listLoops],
   },
   {
-    name: "loop detail → detail/catalog/recent-runs options",
+    name: "loop detail → detail/config/catalog/recent-runs options",
     load: queryClient =>
       invokeLoader(LoopDetailRoute, {
         ...context(queryClient),
@@ -622,18 +628,20 @@ const cases: PreloadCase[] = [
       mountQueries(queryClient, () => {
         useWorkspaces();
         useLoop(workspace.id, "review");
+        useLoopConfig(workspace.id, "review");
         useLoops(workspace.id, { limit: 50, q: "review", sort: "name" });
         useLoopRuns(workspace.id, { loop: "review", limit: 5 });
       }),
     requests: [
       adapterMocks.fetchWorkspaces,
       adapterMocks.getLoop,
+      adapterMocks.getLoopConfig,
       adapterMocks.listLoops,
       adapterMocks.listLoopRuns,
     ],
   },
   {
-    name: "loop run form → loopDetailOptions",
+    name: "loop run form → loopDetailOptions + loopConfigOptions",
     load: queryClient =>
       invokeLoader(LoopRunFormRoute, {
         ...context(queryClient),
@@ -643,8 +651,9 @@ const cases: PreloadCase[] = [
       mountQueries(queryClient, () => {
         useWorkspaces();
         useLoop(workspace.id, "review");
+        useLoopConfig(workspace.id, "review");
       }),
-    requests: [adapterMocks.fetchWorkspaces, adapterMocks.getLoop],
+    requests: [adapterMocks.fetchWorkspaces, adapterMocks.getLoop, adapterMocks.getLoopConfig],
   },
   {
     name: "loop editor → loopDetailOptions + loopAnnotationsOptions",

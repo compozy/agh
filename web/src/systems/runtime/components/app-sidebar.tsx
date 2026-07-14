@@ -2,6 +2,7 @@ import { Link, useMatchRoute } from "@tanstack/react-router";
 import {
   Book,
   Boxes,
+  CircleAlert,
   Clock3,
   Home,
   KeyRound,
@@ -33,7 +34,11 @@ import {
   WorkspaceCommandSelect,
   type WorkspacePayload,
 } from "@/systems/workspace";
-import { createSessionReturnHistoryState } from "@/systems/session";
+import {
+  createSessionReturnHistoryState,
+  type WorkspaceSessionActivity,
+  type WorkspaceSessionActivityMap,
+} from "@/systems/session";
 
 import { RuntimeConnectionIndicator } from "./connection-indicator";
 import { RestartDaemonButton } from "./restart-daemon-button";
@@ -50,19 +55,6 @@ interface RailSlotProps {
   onSelectWorkspace: (id: string) => void;
   onAddWorkspace: () => void;
 }
-
-export interface WorkspaceSessionReturnTarget {
-  sessionId: string;
-  agentName: string;
-  title: string;
-}
-
-export interface WorkspaceSessionActivity {
-  count: number;
-  returnTarget?: WorkspaceSessionReturnTarget;
-}
-
-export type WorkspaceSessionActivityMap = Record<string, WorkspaceSessionActivity>;
 
 interface WorkspaceRailItemProps {
   workspace: WorkspacePayload;
@@ -97,14 +89,16 @@ function WorkspaceRailItem({
   const workspaceLabel = isHome
     ? `Home workspace: ${workspace.name}`
     : `Workspace: ${workspace.name}`;
-  const activityCount = !isActive && activity && activity.count > 0 ? activity.count : 0;
+  const activityCount =
+    !isActive && activity?.state === "ready" && activity.count > 0 ? activity.count : 0;
+  const activityError = activity?.state === "error" ? activity.message : null;
   const glyph = isHome ? (
     <Home aria-hidden="true" className="size-3.5" />
   ) : (
     workspace.name.charAt(0).toUpperCase() || "·"
   );
 
-  if (activityCount > 0 && activity?.returnTarget) {
+  if (activityCount > 0 && activity?.state === "ready" && activity.returnTarget) {
     const target = activity.returnTarget;
     return (
       <Link
@@ -128,6 +122,7 @@ function WorkspaceRailItem({
     activityCount > 0
       ? `, ${activityCount} active ${activityCount === 1 ? "session" : "sessions"}`
       : "";
+  const availabilityDescription = activityError ? ", session activity unavailable" : "";
   return (
     <button
       type="button"
@@ -136,13 +131,23 @@ function WorkspaceRailItem({
       data-active={isActive}
       data-home={isHome ? "true" : undefined}
       title={isHome ? "Home workspace" : workspace.name}
-      aria-label={`${workspaceLabel}${activityDescription}`}
+      aria-label={`${workspaceLabel}${activityDescription}${availabilityDescription}`}
       aria-pressed={isActive}
+      aria-busy={activity?.state === "loading" || undefined}
       className={cn(workspaceRailItemClassName, isActive && "border-accent text-fg")}
     >
       {glyph}
       {activityCount > 0 ? (
         <WorkspaceSessionCount workspaceId={workspace.id} count={activityCount} />
+      ) : null}
+      {activityError ? (
+        <span
+          className="absolute -right-1.5 -bottom-1.5 grid size-3.5 place-items-center rounded-pill border border-rail bg-warning-tint text-warning"
+          data-testid={`workspace-session-activity-error-${workspace.id}`}
+          title={activityError}
+        >
+          <CircleAlert aria-hidden="true" className="size-2.5" />
+        </span>
       ) : null}
     </button>
   );

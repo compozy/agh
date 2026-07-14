@@ -107,16 +107,24 @@ interface DetailSurfaceProps {
   run: TaskRunDetailView;
   items?: TaskTimelineItem[];
   isLive?: boolean;
+  maxAttempts?: number;
 }
 
-function DetailSurface({ run, items = sampleEvents, isLive = true }: DetailSurfaceProps) {
+function DetailSurface({
+  run,
+  items = sampleEvents,
+  isLive = true,
+  maxAttempts = 3,
+}: DetailSurfaceProps) {
   return (
     <PanelSurface className="min-h-[820px] flex-col p-0">
       <div className="flex min-h-0 flex-1 flex-col">
         <TaskRunDetailHeader
+          maxAttempts={maxAttempts}
           onCancelRun={() => undefined}
           onForceFailRun={() => undefined}
           onForceReleaseRun={() => undefined}
+          onRecoverRun={() => undefined}
           onRetryRun={() => undefined}
           run={run}
         />
@@ -260,6 +268,46 @@ export const NeedsAttention: Story = {
           task: { id: "task_001", identifier: "TASK-42" },
         } as unknown as TaskTimelineItem,
       ]}
+    />
+  ),
+};
+
+/** Needs-attention run with no continuation attempts left. */
+export const ExhaustedNeedsAttention: Story = {
+  args: {},
+  render: () => (
+    <DetailSurface
+      isLive={false}
+      maxAttempts={1}
+      items={[
+        {
+          event_id: "evt_exhausted",
+          sequence: 20,
+          event_type: "task.run_needs_attention",
+          timestamp: "2026-04-11T14:46:00Z",
+          payload: { diagnostic: "Run exhausted max_attempts=1." },
+          run: {
+            id: "run_7k2m9x",
+            attempt: 1,
+            status: "needs_attention",
+            error: "Run exhausted max_attempts=1.",
+          },
+          origin: { kind: "scheduler", ref: "convergence" },
+          task: { id: "task_001", identifier: "TASK-42" },
+        } as unknown as TaskTimelineItem,
+      ]}
+      run={buildRun({
+        run: {
+          ...buildRun().run,
+          attempt: 1,
+          status: "needs_attention",
+          started_at: null,
+          session_id: undefined,
+          claimed_by: undefined,
+          error: "Run exhausted max_attempts=1.",
+        },
+        session: undefined,
+      } as Partial<TaskRunDetailView>)}
     />
   ),
 };

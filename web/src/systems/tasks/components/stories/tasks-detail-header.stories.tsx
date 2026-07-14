@@ -75,3 +75,60 @@ export const Paused: Story = {
     );
   },
 };
+
+/** Ready Task projection whose active run requires operator recovery. */
+export const ActiveRunNeedsAttention: Story = {
+  args: {},
+  render: () => {
+    const detail = buildDetailFixture();
+    const activeRun = {
+      ...detail.summary.active_run!,
+      status: "needs_attention" as const,
+      session_id: undefined,
+      started_at: undefined,
+      error: "No capable agent claimed this run before escalation.",
+    };
+
+    detail.task = { ...detail.task, status: "ready", max_attempts: 3 };
+    detail.summary = { ...detail.summary, status: "ready", active_run: activeRun };
+
+    return (
+      <PanelSurface>
+        <TasksDetailHeader
+          detail={detail}
+          onEnqueueRun={() => undefined}
+          onRecover={() => undefined}
+        />
+      </PanelSurface>
+    );
+  },
+};
+
+/** Ready Task projection whose active run has no continuation attempts left. */
+export const ExhaustedActiveRunNeedsAttention: Story = {
+  args: {},
+  render: () => {
+    const detail = buildDetailFixture();
+    const activeRun = {
+      ...detail.summary.active_run!,
+      attempt: 1,
+      status: "needs_attention" as const,
+      session_id: undefined,
+      started_at: undefined,
+      error: "Run exhausted max_attempts=1.",
+    };
+
+    detail.task = { ...detail.task, status: "ready", max_attempts: 1 };
+    detail.summary = { ...detail.summary, status: "ready", active_run: activeRun };
+
+    return (
+      <PanelSurface>
+        <TasksDetailHeader
+          detail={detail}
+          onEnqueueRun={() => undefined}
+          onRecover={() => undefined}
+        />
+      </PanelSurface>
+    );
+  },
+};

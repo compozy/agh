@@ -1,19 +1,18 @@
 import { Section } from "@agh/ui";
 
 import { buildLoopLimits } from "../../lib/loop-limits";
-import type { LoopConfig, LoopContract } from "../../types";
+import type { LoopEffectiveConfig } from "../../types";
 
 interface LoopLimitsPanelProps {
-  contract: LoopContract;
-  config: LoopConfig | null;
+  effectiveConfig: LoopEffectiveConfig;
 }
 
 /**
  * Right-rail Limits & budget panel: each per-loop default paired with its hard
  * daemon ceiling (§5.4). Cost is display-only; budgets are opt-in but enforced.
  */
-export function LoopLimitsPanel({ contract, config }: LoopLimitsPanelProps) {
-  const rows = buildLoopLimits(contract, config);
+export function LoopLimitsPanel({ effectiveConfig }: LoopLimitsPanelProps) {
+  const rows = buildLoopLimits(effectiveConfig);
   return (
     <Section label="Limits & budget" data-testid="loop-limits">
       <div className="rounded-lg border border-line bg-canvas-soft">

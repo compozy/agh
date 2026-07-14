@@ -1,4 +1,4 @@
-import type { LoopConfig, LoopContract } from "../types";
+import type { LoopEffectiveConfig } from "../types";
 import { UNBOUNDED_CAP } from "./loop-catalog";
 import { resolveLoopEffectiveConfig } from "./loop-effective-config";
 
@@ -59,11 +59,8 @@ export interface LoopLimitRow {
  * default from saved configuration with its daemon ceiling. Cost is display-only (no
  * enforced USD cap, §9.5.2); fan-out breadth is bounded by the loaded task count.
  */
-export function buildLoopLimits(
-  contract: LoopContract,
-  config: LoopConfig | null = null
-): LoopLimitRow[] {
-  const effective = resolveLoopEffectiveConfig(contract, config);
+export function buildLoopLimits(effectiveConfig: LoopEffectiveConfig): LoopLimitRow[] {
+  const effective = resolveLoopEffectiveConfig(effectiveConfig);
   const onExceeded = effective.budget_on_exceeded === "escalate" ? "escalate" : "halt";
   const onExceededTarget = onExceeded === "escalate" ? "→ needs-approval" : "→ exhausted";
   return [

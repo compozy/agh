@@ -1,11 +1,25 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+// Suite: Automation Job form
+// Invariant: The live preview and displayed request preserve the selected Job execution target.
+// Boundary IN: controlled Job form, pure preview projection, and rendered preview cards.
+// Boundary OUT: HTTP submission and persisted reads, owned by route and detail suites.
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/systems/loops/hooks/use-loops", async () => {
   const { loopCatalogFixtures } = await import("@/systems/loops/mocks/fixtures");
-  return { useLoops: () => ({ loops: loopCatalogFixtures, isLoading: false }) };
+  return {
+    useLoops: () => ({
+      error: null,
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isError: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+      loops: loopCatalogFixtures,
+    }),
+  };
 });
 
 import { AutomationJobForm } from "../automation-job-form";
@@ -181,6 +195,98 @@ describe("AutomationJobForm", () => {
     // Jobs fire on a schedule, not an event, so there is no payload mapping table.
     expect(screen.queryByTestId("loop-input-mapping")).not.toBeInTheDocument();
     expect(screen.getAllByTestId("loop-input-control").length).toBeGreaterThan(0);
+  });
+
+  it("Should offer only Loops that declare schedule starts", () => {
+    renderJobForm();
+
+    fireEvent.click(screen.getByTestId("job-target-loop"));
+
+    const select = screen.getByRole("combobox", { name: "Loop" });
+    expect(select).toHaveTextContent("software-delivery");
+    expect(select).not.toHaveTextContent("reviews-watch");
+  });
+
+  it("Should preserve an incompatible edit target while blocking its preview and submit", () => {
+    const { onSubmit } = renderJobForm({
+      mode: "edit",
+      draft: {
+        ...createAutomationJobDraft(WORKSPACE_ID),
+        name: "reviews-watch-daily",
+        agent_name: "",
+        prompt: "",
+        target_kind: "loop",
+        loop_target: {
+          workspace_id: WORKSPACE_ID,
+          loop_name: "reviews-watch",
+          inputs: {},
+          input_mapping: {},
+        },
+      },
+    });
+
+    expect(screen.getByRole("combobox", { name: "Loop" })).toHaveValue("reviews-watch");
+    expect(within(screen.getByTestId("loop-target-fields")).getByRole("alert")).toHaveTextContent(
+      "reviews-watch does not declare the schedule start kind"
+    );
+    expect(screen.getByTestId("job-preview")).toHaveTextContent("Request blocked");
+    expect(screen.getByTestId("automation-request-payload")).toHaveTextContent(
+      "Blocked · PATCH /api/automation/jobs/{id}"
+    );
+    expect(screen.getByTestId("submit-job-form")).toBeDisabled();
+
+    fireEvent.submit(screen.getByTestId("automation-job-form"));
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("Should preview a Loop target and its typed request without projecting an empty agent", () => {
+    renderJobForm({
+      mode: "edit",
+      draft: {
+        ...createAutomationJobDraft(WORKSPACE_ID),
+        name: "software-delivery-daily-qa",
+        agent_name: "",
+        prompt: "",
+        target_kind: "loop",
+        loop_target: {
+          workspace_id: WORKSPACE_ID,
+          loop_name: "software-delivery",
+          inputs: { slug: "helix-v1-launch", dry_run: false },
+          input_mapping: {},
+        },
+      },
+    });
+
+    const preview = screen.getByTestId("job-preview");
+    expect(preview).toHaveTextContent("start Loop software-delivery");
+    expect(preview).toHaveTextContent("helix-v1-launch");
+    expect(preview).toHaveTextContent("dry_run");
+    expect(preview).not.toHaveTextContent("Prompt the agent receives");
+
+    const request = screen.getByTestId("automation-request-payload");
+    expect(request).toHaveTextContent("PATCH /api/automation/jobs/{id}");
+    expect(request).toHaveTextContent('"target_kind": "loop"');
+    expect(request).toHaveTextContent('"loop_target"');
+    expect(request).toHaveTextContent('"slug": "helix-v1-launch"');
+  });
+
+  it("Should preserve the agent target in the live preview and displayed request", () => {
+    renderJobForm({
+      draft: {
+        ...createAutomationJobDraft(WORKSPACE_ID),
+        name: "daily-review",
+        agent_name: "reviewer",
+        prompt: "Review recent changes.",
+      },
+    });
+
+    const preview = screen.getByTestId("job-preview");
+    expect(preview).toHaveTextContent("run agent reviewer");
+    expect(preview).toHaveTextContent("Prompt the agent receives");
+    expect(preview).toHaveTextContent("Review recent changes.");
+    expect(screen.getByTestId("automation-request-payload")).toHaveTextContent(
+      '"target_kind": "agent"'
+    );
   });
 
   it("Should switch the schedule mode to every and then to at", () => {

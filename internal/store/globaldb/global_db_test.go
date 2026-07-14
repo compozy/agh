@@ -112,8 +112,8 @@ func reportTestMainError(format string, args ...any) {
 	}
 }
 
-func TestOpenGlobalDBAppliesGlobalBaselineAndEnablesWAL(t *testing.T) {
-	t.Run("Should apply only the global baseline before repository use", func(t *testing.T) {
+func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
+	t.Run("Should apply the global migration stream before repository use", func(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openFreshTestGlobalDB(t)

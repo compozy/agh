@@ -62,9 +62,50 @@ func TestRPCServerShouldCallImportTasksTool(t *testing.T) {
 		if response.Error == nil {
 			t.Fatalf("tools/call error = nil, want missing pattern error")
 		}
-		if response.Error.Code != -32010 ||
-			!strings.Contains(response.Error.Message, "import_tasks pattern is required") {
-			t.Fatalf("tools/call error = %#v, want missing pattern validation", response.Error)
+		if response.Error.Code != -32010 || response.Error.Message != "The task import pattern is required." {
+			t.Fatalf("tools/call error = %#v, want safe missing-pattern validation", response.Error)
+		}
+		var toolErr toolspkg.ToolError
+		if err := json.Unmarshal(response.Error.Data, &toolErr); err != nil {
+			t.Fatalf("Unmarshal(tools/call error data) error = %v", err)
+		}
+		if toolErr.Code != toolspkg.ErrorCodeInvalidInput || toolErr.Operator == nil ||
+			toolErr.Operator.Cause == "" || toolErr.Operator.Recovery == "" {
+			t.Fatalf("tools/call error data = %#v, want operator-safe invalid-input detail", toolErr)
+		}
+	})
+
+	t.Run("Should surface safe recovery when the task set is missing", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceDir := t.TempDir()
+		pattern := filepath.Join(workspaceDir, ".compozy", "tasks", "helix-v1-launch", "task_*.md")
+		response := runImportTasksRPC(t, json.RawMessage(fmt.Sprintf(`{"pattern":%q}`, pattern)))
+		if response.Error == nil {
+			t.Fatalf("tools/call error = nil, want missing task set error")
+		}
+		var toolErr toolspkg.ToolError
+		if err := json.Unmarshal(response.Error.Data, &toolErr); err != nil {
+			t.Fatalf("Unmarshal(tools/call error data) error = %v", err)
+		}
+		if got, want := toolErr.Code, toolspkg.ErrorCodeInvalidInput; got != want {
+			t.Fatalf("tools/call error code = %q, want %q", got, want)
+		}
+		if toolErr.Operator == nil {
+			t.Fatal("tools/call operator detail = nil, want safe missing-task-set detail")
+		}
+		if got, want := toolErr.Operator.Cause,
+			"No task set matched .compozy/tasks/helix-v1-launch/task_*.md."; got != want {
+			t.Fatalf("tools/call operator cause = %q, want %q", got, want)
+		}
+		if got, want := toolErr.Operator.Recovery,
+			"Create the matching task set or correct the Loop input, then retry the run."; got != want {
+			t.Fatalf("tools/call operator recovery = %q, want %q", got, want)
+		}
+		if strings.Contains(response.Error.Message, workspaceDir) ||
+			strings.Contains(toolErr.Operator.Cause, workspaceDir) ||
+			strings.Contains(toolErr.Operator.Recovery, workspaceDir) {
+			t.Fatalf("tools/call error leaked workspace path %q: %#v", workspaceDir, response.Error)
 		}
 	})
 

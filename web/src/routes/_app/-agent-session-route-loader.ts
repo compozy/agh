@@ -21,20 +21,24 @@ export async function prefetchAgentSessionRoute({
   queryClient,
   sessionId,
   returnWorkspaceId,
+  preload = false,
 }: {
   queryClient: QueryClient;
   sessionId: string;
   returnWorkspaceId?: string;
+  preload?: boolean;
 }): Promise<AgentSessionRouteLoaderData> {
   const workspaceId = await resolveSessionRouteWorkspace(queryClient, sessionId);
   if (!workspaceId) {
     return { workspaceId: null };
   }
 
-  if (returnWorkspaceId === workspaceId) {
-    await selectRouteWorkspaceForNavigation(queryClient, workspaceId);
-  } else {
-    await adoptRouteWorkspaceWhenSelectionInvalid(queryClient, workspaceId);
+  if (!preload) {
+    if (returnWorkspaceId === workspaceId) {
+      await selectRouteWorkspaceForNavigation(queryClient, workspaceId);
+    } else {
+      await adoptRouteWorkspaceWhenSelectionInvalid(queryClient, workspaceId);
+    }
   }
   await Promise.allSettled([
     queryClient.ensureQueryData(sessionDetailOptions(workspaceId, sessionId)),

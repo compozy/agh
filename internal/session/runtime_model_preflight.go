@@ -41,8 +41,11 @@ func (m *Manager) validateExplicitModel(
 		if candidate == "" {
 			continue
 		}
+		if model.Available != nil && !*model.Available {
+			continue
+		}
 		choices = append(choices, candidate)
-		if candidate == modelID && (model.Available == nil || *model.Available) {
+		if candidate == modelID {
 			return nil
 		}
 	}

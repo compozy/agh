@@ -13,15 +13,17 @@ export interface WorkspaceSessionReturnTarget {
   title: string;
 }
 
-export interface WorkspaceSessionActivity {
-  count: number;
-  returnTarget?: WorkspaceSessionReturnTarget;
-}
+export type WorkspaceSessionActivity =
+  | { state: "loading" }
+  | { state: "error"; message: string }
+  | { state: "ready"; count: number; returnTarget?: WorkspaceSessionReturnTarget };
 
 export type WorkspaceSessionActivityMap = Record<string, WorkspaceSessionActivity>;
 
 interface WorkspaceSessionActivityResult {
   data: SessionsResponse | undefined;
+  error?: unknown;
+  isError?: boolean;
 }
 
 export function workspaceSessionActivityFromResults(
@@ -30,12 +32,25 @@ export function workspaceSessionActivityFromResults(
 ): WorkspaceSessionActivityMap {
   const activity: WorkspaceSessionActivityMap = {};
   workspaceIds.forEach((workspaceId, index) => {
-    const data = results[index]?.data;
-    const count = data?.page.total ?? 0;
-    if (count <= 0) return;
+    const result = results[index];
+    if (result?.isError) {
+      activity[workspaceId] = {
+        state: "error",
+        message:
+          result.error instanceof Error ? result.error.message : "Session activity is unavailable.",
+      };
+      return;
+    }
+    const data = result?.data;
+    if (!data) {
+      activity[workspaceId] = { state: "loading" };
+      return;
+    }
+    const count = data.page.total;
 
-    const latest = data?.sessions[0];
+    const latest = data.sessions[0];
     activity[workspaceId] = {
+      state: "ready",
       count,
       ...(latest
         ? {

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { TopbarSlotProvider, useTopbarSlotValue, type TopbarSlotValue } from "@agh/ui";
 import {
+  createSessionReturnHistoryState,
   sessionKeys,
   type InspectorMemoryState,
   type NormalizedSessionTranscriptResponse,
@@ -15,6 +16,7 @@ import type { SessionTranscriptData } from "@/systems/session/lib/session-transc
 import { sessionTranscriptFixture } from "@/systems/session/mocks/fixtures";
 import { useActiveWorkspaceStore, type WorkspacePayload } from "@/systems/workspace";
 import type { VaultSecret } from "@/systems/vault";
+import { routeBeforeLoad, routeLoader } from "@/test/route-options";
 
 type SessionVaultQueryState = {
   data: VaultSecret[];
@@ -145,6 +147,7 @@ vi.mock("@tanstack/react-router", () => ({
       useParams: () => ({ name: "claude-agent", id: "sess_123" }),
       useLoaderData: () => mockRouteLoaderData,
     }),
+  useMatchRoute: () => () => false,
   useNavigate: () => mockNavigate,
   redirect: mockRedirect,
 }));
@@ -397,19 +400,39 @@ describe("Nested agent session route — Topbar slot migration", () => {
     expect(screen.queryByTestId("chat-breadcrumb")).not.toBeInTheDocument();
   });
 
-  it("Should push the agent name into the Topbar title slot", () => {
+  it("Should push the persisted session name into the Topbar title slot", () => {
     const { getSlot } = renderSessionPage();
-    expect(getSlot()?.title).toBe("claude-agent");
+    expect(getSlot()?.title).toBe("Old runtime");
   });
 
-  it("Should render the daemon badge + provider as bare mono identifiers in the Topbar meta slot", () => {
+  it("Should keep the agent name and provider as Topbar metadata", () => {
     renderSessionPage();
     const meta = screen.getByTestId("session-topbar-meta");
     expect(meta).toBeInTheDocument();
     const badge = screen.getByTestId("session-topbar-badge");
     expect(badge).toHaveTextContent("stopped");
+    const agent = screen.getByTestId("session-topbar-agent");
+    expect(agent).toHaveTextContent("claude-agent");
     const provider = screen.getByTestId("session-topbar-provider");
     expect(provider).toHaveTextContent("codex");
+    expect(screen.queryByTestId("session-topbar-name")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["an empty name", ""],
+    ["a legacy raw-id name", "sess_123"],
+    ["a generic agent name", "claude-agent"],
+  ])("Should use New session instead of agent or id for %s", (_case, name) => {
+    mockUseSession.mockReturnValue({
+      data: makeSession({ name }),
+      isLoading: false,
+      error: null,
+    });
+
+    const { getSlot } = renderSessionPage();
+    expect(getSlot()?.title).toBe("New session");
+    expect(getSlot()?.title).not.toBe("claude-agent");
+    expect(getSlot()?.title).not.toBe("sess_123");
   });
 
   it("Should expose delete without attach controls for stopped sessions", () => {
@@ -631,6 +654,94 @@ describe("Nested agent session route — Topbar slot migration", () => {
     await prefetchAgentSessionRoute({ queryClient, sessionId: session.id });
 
     expect(useActiveWorkspaceStore.getState().selectedWorkspaceId).toBe("ws_beta");
+  });
+
+  it("Should select the Return target workspace during destination preload", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const destinationSession = makeSession({
+      id: "sess_beta",
+      workspace_id: "ws_beta",
+      workspace_path: "/workspace/beta",
+    });
+    useActiveWorkspaceStore.setState({ selectedWorkspaceId: "ws_stale" });
+    vi.mocked(fetchWorkspaces).mockResolvedValue([
+      makeWorkspace(),
+      makeWorkspace({ id: "ws_beta", name: "beta", root_dir: "/workspace/beta" }),
+    ]);
+    vi.mocked(fetchSessionById).mockResolvedValue(destinationSession);
+    vi.mocked(fetchSession).mockResolvedValue(destinationSession);
+    vi.mocked(fetchSessionTranscript).mockResolvedValue(transcriptResponse([]));
+    const returnNavigation = {
+      queryClient,
+      sessionId: destinationSession.id,
+      returnWorkspaceId: destinationSession.workspace_id,
+    };
+
+    await prefetchAgentSessionRoute(returnNavigation);
+
+    expect(useActiveWorkspaceStore.getState().selectedWorkspaceId).toBe("ws_beta");
+    expect(fetchSession).toHaveBeenCalledWith(
+      "ws_beta",
+      destinationSession.id,
+      expect.any(AbortSignal)
+    );
+  });
+
+  it("Should keep intent preload side-effect free and select on committed Return navigation", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const destinationSession = makeSession({
+      id: "sess_beta",
+      workspace_id: "ws_beta",
+      workspace_path: "/workspace/beta",
+    });
+    useActiveWorkspaceStore.setState({ selectedWorkspaceId: "ws_stale" });
+    vi.mocked(fetchWorkspaces).mockResolvedValue([
+      makeWorkspace(),
+      makeWorkspace({ id: "ws_beta", name: "beta", root_dir: "/workspace/beta" }),
+    ]);
+    vi.mocked(fetchSessionById).mockResolvedValue(destinationSession);
+    vi.mocked(fetchSession).mockResolvedValue(destinationSession);
+    vi.mocked(fetchSessionTranscript).mockResolvedValue(transcriptResponse([]));
+    const loadSessionRoute = routeLoader<{
+      context: { queryClient: QueryClient; sessionReturnWorkspaceId: string };
+      params: { id: string };
+      preload: boolean;
+    }>(Route);
+    const loaderInput = {
+      context: { queryClient, sessionReturnWorkspaceId: "ws_beta" },
+      params: { id: destinationSession.id },
+    };
+
+    await loadSessionRoute({ ...loaderInput, preload: true });
+    expect(useActiveWorkspaceStore.getState().selectedWorkspaceId).toBe("ws_stale");
+
+    await loadSessionRoute({ ...loaderInput, preload: false });
+    expect(useActiveWorkspaceStore.getState().selectedWorkspaceId).toBe("ws_beta");
+  });
+
+  it("Should bind Return workspace intent to the exact destination session", () => {
+    const beforeLoad = routeBeforeLoad<{
+      params: { id: string; name: string };
+      location: { state: ReturnType<typeof createSessionReturnHistoryState> };
+      cause: "enter" | "stay";
+    }>(Route);
+    const location = {
+      state: createSessionReturnHistoryState("sess_beta", "ws_beta"),
+    };
+
+    expect(
+      beforeLoad({ params: { id: "sess_beta", name: "claude-agent" }, location, cause: "enter" })
+    ).toMatchObject({ sessionReturnWorkspaceId: "ws_beta" });
+    expect(
+      beforeLoad({ params: { id: "sess_other", name: "claude-agent" }, location, cause: "enter" })
+    ).toMatchObject({ sessionReturnWorkspaceId: undefined });
+    expect(
+      beforeLoad({ params: { id: "sess_beta", name: "claude-agent" }, location, cause: "stay" })
+    ).toMatchObject({ sessionReturnWorkspaceId: "ws_beta" });
   });
 
   it("Should resolve /session/$id by id once and seed the canonical route cache", async () => {

@@ -225,6 +225,28 @@ describe("useLoopStream", () => {
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["loops", "runs", "ws_1"] });
   });
 
+  it("Should deliver a terminal status frame before closing its replay source", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const eventSource = new FakeLoopStreamEventSource();
+    const factory = vi.fn(() => eventSource);
+    const onEvent = vi.fn();
+
+    renderHook(() => useLoopStream("ws_1", "looprun_1", { eventSourceFactory: factory, onEvent }), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    const terminal = buildFrame({
+      kind: "status_changed",
+      payload: { status: "failed", failure: { kind: "coordinator_failure" } },
+    });
+    act(() => {
+      eventSource.emitNamed("status_changed", terminal);
+    });
+
+    await waitFor(() => expect(onEvent).toHaveBeenCalledWith(terminal));
+    expect(eventSource.close).toHaveBeenCalledTimes(1);
+  });
+
   it("Should not reopen the EventSource when only onEvent identity changes", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const eventSource = new FakeLoopStreamEventSource();

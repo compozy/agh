@@ -158,9 +158,10 @@ type LoopPlanNodePreview struct {
 	DependsOn []string      `json:"depends_on,omitempty"`
 }
 
-// LoopConfigResponse returns the stored no-fork config override.
+// LoopConfigResponse returns the stored override and daemon-resolved runtime config.
 type LoopConfigResponse struct {
-	Config *LoopConfig `json:"config,omitempty"`
+	Config          *LoopConfig         `json:"config,omitempty"`
+	EffectiveConfig LoopEffectiveConfig `json:"effective_config"`
 }
 
 // PutLoopConfigRequest replaces the stored no-fork config override.

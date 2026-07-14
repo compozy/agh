@@ -161,6 +161,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/providers",
 		"GET /api/providers/:provider_id",
 		"GET /api/sessions",
+		"GET /api/sessions/catalog-stream",
 		"GET /api/sessions/:session_id",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/events",
@@ -2184,12 +2185,16 @@ func TestPromptSessionHandlerReturnsBusyInputDecision(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
-			[]byte("{\"message\":\"queue me\",\"mode\":\"queue\"}"),
+			[]byte(
+				`{"messages":[{"id":"client-queue-1","role":"user",`+
+					`"parts":[{"type":"text","text":"queue me"}]}],"mode":"queue"}`,
+			),
 		)
 		if recorder.Code != http.StatusAccepted {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusAccepted, recorder.Body.String())
 		}
-		if gotOpts.Message != "queue me" || gotOpts.Mode != session.BusyInputModeQueue {
+		if gotOpts.Message != "queue me" || gotOpts.Mode != session.BusyInputModeQueue ||
+			gotOpts.ClientMessageID != "client-queue-1" {
 			t.Fatalf("SendPrompt() opts = %#v, want queue me queue", gotOpts)
 		}
 		var decoded contract.SendPromptResultResponse

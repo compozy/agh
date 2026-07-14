@@ -48,6 +48,8 @@ When an agent session creates a task, AGH wakes that creator session on the chil
 
 When you complete a run that created child tasks, list exactly the task ids you created this run in the completion's `created_task_ids`. AGH verifies each id (exists, same workspace, created by your session) before the terminal write; a phantom or cross-session id rejects the completion and leaves your run running with its lease intact so you can correct the claim and complete again. Never claim tasks created by another session, and never fabricate task ids in the result prose — an advisory scan flags task-id-shaped tokens absent from the store.
 
+A parent task stays nonterminal while any direct child is not completed. The successful completion of the final direct child completes the parent exactly once and settles an eligible parent run parked in `needs_attention`; repeated or concurrent child completion delivery does not create another parent transition or wake. Failed or canceled children do not satisfy successful parent rollup, so recover or resolve those children according to their existing terminal-state contract.
+
 ## Scheduler Controls
 
 `agh scheduler status -o json` reports pause state, active claims, queued runs, and paused-task pressure. `agh scheduler pause --reason <reason>` stops new dispatch while active claims continue. `agh scheduler resume` reopens dispatch.

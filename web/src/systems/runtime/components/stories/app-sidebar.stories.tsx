@@ -60,7 +60,7 @@ const meta: Meta<typeof AppSidebarHarness> = {
     docs: {
       description: {
         component:
-          "Runtime shell sidebar. The rail owns the brand logo plus workspace avatars; the body holds Dashboard plus Operate (Agents first with live/total badge), Catalog, and System; the footer mounts the single `RuntimeConnectionIndicator` (no rail LED) alongside the Restart-daemon control. The wordmark lives in the app-shell header one level up.",
+          "Runtime shell sidebar. The rail owns the brand logo plus workspace avatars; inactive workspaces can expose an exact active-session count and direct return link. The body holds Dashboard plus Operate (Agents first with live/total badge), Catalog, and System; the footer mounts the single `RuntimeConnectionIndicator` (no rail LED) alongside the Restart-daemon control. The wordmark lives in the app-shell header one level up.",
       },
     },
   },
@@ -70,6 +70,7 @@ const meta: Meta<typeof AppSidebarHarness> = {
     onAddWorkspace: () => undefined,
     agentsCount: { live: 2, total: 6 },
     activeSessionCount: 2,
+    workspaceSessionActivity: {},
   },
 };
 
@@ -126,6 +127,80 @@ export const AgentsOperateBadge: Story = {
     await expect(agentsNav).toHaveAttribute("href", "/agents");
     await expect(canvas.getByTestId("agents-live-count")).toBeInTheDocument();
     await expect(canvas.queryByTestId("sidebar-create-agent")).toBeNull();
+  },
+};
+
+/**
+ * Background user sessions remain visible from another workspace and link back to the latest one.
+ */
+export const BackgroundSessionActivity: Story = {
+  args: {
+    activeWorkspaceId: workspaceFixtures[1].id,
+    defaultWorkspaceId: workspaceFixtures[1].id,
+    workspaceSessionActivity: {
+      [workspaceFixtures[0].id]: {
+        state: "ready",
+        count: 2,
+        returnTarget: {
+          sessionId: "sess_reconcile_payouts",
+          agentName: "fraud-investigator",
+          title: "Reconcile payout ledger",
+        },
+      },
+    },
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "An inactive workspace shows its exact active-session count. The workspace avatar is a direct, accessible return link to its latest active user session.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const returnLink = await canvas.findByRole("link", {
+      name: `Return to ${workspaceFixtures[0].name}: 2 active sessions. Latest: Reconcile payout ledger`,
+    });
+    await expect(returnLink).toHaveAttribute(
+      "href",
+      "/agents/fraud-investigator/sessions/sess_reconcile_payouts"
+    );
+    await expect(
+      canvas.getByTestId(`workspace-active-session-count-${workspaceFixtures[0].id}`)
+    ).toHaveTextContent("2");
+  },
+};
+
+export const BackgroundSessionActivityError: Story = {
+  args: {
+    activeWorkspaceId: workspaceFixtures[1].id,
+    defaultWorkspaceId: workspaceFixtures[1].id,
+    workspaceSessionActivity: {
+      [workspaceFixtures[0].id]: {
+        state: "error",
+        message: "Session activity is unavailable for this workspace.",
+      },
+    },
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "A failed workspace activity query renders a warning badge instead of a false zero count.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByTestId(`workspace-session-activity-error-${workspaceFixtures[0].id}`)
+    ).toBeInTheDocument();
+    await expect(
+      canvas.getByRole("button", {
+        name: `Workspace: ${workspaceFixtures[0].name}, session activity unavailable`,
+      })
+    ).toBeEnabled();
   },
 };
 

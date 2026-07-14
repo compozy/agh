@@ -1,3 +1,7 @@
+// Suite: onboarding workspace draft reconciliation
+// Invariant: persisted workspace identities are valid only when present in the current daemon catalog.
+// Boundary IN: onboarding workspace hook and persisted draft store.
+// Boundary OUT: workspace HTTP adapters and browser journey replay.
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -8,8 +12,11 @@ import { useOnboardingWorkspaces } from "../use-onboarding-workspaces";
 
 const mocks = vi.hoisted(() => ({
   deleteWorkspace: vi.fn(),
-  registeredWorkspaces: [] as WorkspacePayload[],
+  registeredWorkspaces: [] as WorkspacePayload[] | undefined,
   resolveWorkspace: vi.fn(),
+  workspacesIsLoading: false,
+  workspacesError: null as Error | null,
+  refetchWorkspaces: vi.fn(),
 }));
 
 vi.mock("@/systems/workspace", () => ({
@@ -23,9 +30,10 @@ vi.mock("@/systems/workspace", () => ({
   }),
   useWorkspaces: () => ({
     data: mocks.registeredWorkspaces,
-    error: null,
-    isFetching: false,
-    isLoading: false,
+    error: mocks.workspacesError,
+    isFetching: mocks.workspacesIsLoading,
+    isLoading: mocks.workspacesIsLoading,
+    refetch: mocks.refetchWorkspaces,
   }),
 }));
 
@@ -44,6 +52,7 @@ vi.mock("../use-directory-browser", () => ({
 }));
 
 const now = "2026-05-27T00:00:00Z";
+const onboardingDraftStorageKey = "agh:onboarding:draft:v2";
 
 function workspace(overrides: Partial<WorkspacePayload> = {}): WorkspacePayload {
   return {
@@ -62,6 +71,8 @@ describe("useOnboardingWorkspaces", () => {
     vi.clearAllMocks();
     window.localStorage.clear();
     mocks.registeredWorkspaces = [];
+    mocks.workspacesIsLoading = false;
+    mocks.workspacesError = null;
     useOnboardingDraftStore.getState().reset();
   });
 
@@ -109,17 +120,92 @@ describe("useOnboardingWorkspaces", () => {
     ]);
   });
 
-  it("deletes the registered workspace before removing a resolved folder from the draft", async () => {
-    mocks.resolveWorkspace.mockResolvedValue(
-      workspace({
-        id: "ws_project",
-        root_dir: "/Users/operator/project",
-        name: "project",
-      })
+  it("blocks removal while the current daemon workspace catalog is unresolved", async () => {
+    const currentWorkspace = {
+      path: "/Users/operator/current-daemon",
+      name: "current-daemon",
+      workspaceId: "ws_current_daemon",
+    };
+    window.localStorage.setItem(
+      onboardingDraftStorageKey,
+      JSON.stringify({ state: { workspaces: [currentWorkspace] }, version: 0 })
     );
-    mocks.deleteWorkspace.mockResolvedValue(undefined);
+    await act(async () => {
+      await useOnboardingDraftStore.persist.rehydrate();
+    });
+    mocks.registeredWorkspaces = undefined;
+    mocks.workspacesIsLoading = true;
 
     const { result } = renderHook(() => useOnboardingWorkspaces());
+
+    expect.soft(result.current.isRemoving).toBe(false);
+    expect.soft(result.current.isCatalogLoading).toBe(true);
+    await act(async () => {
+      await result.current.removeWorkspace(currentWorkspace.path);
+    });
+
+    expect(mocks.deleteWorkspace).not.toHaveBeenCalled();
+    expect(useOnboardingDraftStore.getState().workspaces).toEqual([currentWorkspace]);
+  });
+
+  it("exposes catalog failure separately and allows an explicit retry", async () => {
+    mocks.registeredWorkspaces = undefined;
+    mocks.workspacesError = new Error("workspace catalog unavailable");
+    mocks.refetchWorkspaces.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useOnboardingWorkspaces());
+
+    expect(result.current.catalogError).toBe("workspace catalog unavailable");
+    expect(result.current.isCatalogLoading).toBe(false);
+    expect(result.current.isRemoving).toBe(false);
+    await act(async () => {
+      await result.current.reloadCatalog();
+    });
+    expect(mocks.refetchWorkspaces).toHaveBeenCalledOnce();
+  });
+
+  it("removes a persisted workspace from another daemon without deleting through the current daemon", async () => {
+    const staleWorkspace = {
+      path: "/Users/operator/previous-daemon",
+      name: "previous-daemon",
+      workspaceId: "ws_previous_daemon",
+    };
+    window.localStorage.setItem(
+      onboardingDraftStorageKey,
+      JSON.stringify({ state: { workspaces: [staleWorkspace] }, version: 0 })
+    );
+    await act(async () => {
+      await useOnboardingDraftStore.persist.rehydrate();
+    });
+    mocks.deleteWorkspace.mockRejectedValue(
+      new Error(
+        'workspace: lookup workspace "ws_previous_daemon" by name fallback: workspace not found'
+      )
+    );
+
+    const { result } = renderHook(() => useOnboardingWorkspaces());
+
+    await act(async () => {
+      await result.current.removeWorkspace(staleWorkspace.path);
+    });
+
+    expect(mocks.deleteWorkspace).not.toHaveBeenCalled();
+    expect(result.current.resolveError).toBeNull();
+    expect(useOnboardingDraftStore.getState().workspaces).toEqual([]);
+  });
+
+  it("deletes the registered workspace before removing a resolved folder from the draft", async () => {
+    const registeredWorkspace = workspace({
+      id: "ws_project",
+      root_dir: "/Users/operator/project",
+      name: "project",
+    });
+    mocks.resolveWorkspace.mockResolvedValue(registeredWorkspace);
+    mocks.deleteWorkspace.mockImplementation(async () => {
+      mocks.registeredWorkspaces = [];
+    });
+
+    const { result, rerender } = renderHook(() => useOnboardingWorkspaces());
 
     await act(async () => {
       await result.current.addWorkspace("/Users/operator/project");
@@ -129,6 +215,8 @@ describe("useOnboardingWorkspaces", () => {
         { path: "/Users/operator/project", name: "project", workspaceId: "ws_project" },
       ]);
     });
+    mocks.registeredWorkspaces = [registeredWorkspace];
+    rerender();
 
     await act(async () => {
       await result.current.removeWorkspace("/Users/operator/project");
@@ -146,6 +234,13 @@ describe("useOnboardingWorkspaces", () => {
         workspaceId: "ws_project",
       });
     });
+    mocks.registeredWorkspaces = [
+      workspace({
+        id: "ws_project",
+        root_dir: "/Users/operator/project",
+        name: "project",
+      }),
+    ];
     mocks.deleteWorkspace.mockRejectedValue(new Error("workspace has active sessions"));
 
     const { result } = renderHook(() => useOnboardingWorkspaces());

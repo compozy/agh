@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
+import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@agh/ui";
@@ -17,6 +17,7 @@ const onCollapseChange = vi.fn();
 const onAddWorkspace = vi.fn();
 let matchedRoute: Record<string, boolean> = {};
 let matchedRouteFuzzy: Record<string, boolean> = {};
+let linkStates: Record<string, unknown> = {};
 
 type MatchRouteParams = Record<string, string>;
 
@@ -34,18 +35,30 @@ vi.mock("@tanstack/react-router", () => ({
     children,
     to,
     params,
+    onClick,
+    state,
     ...props
   }: {
     children: ReactNode;
     to: string;
     params?: MatchRouteParams;
+    onClick?: (event: ReactMouseEvent<HTMLAnchorElement>) => void;
+    state?: unknown;
     [key: string]: unknown;
   }) => {
     const href = params
       ? Object.entries(params).reduce((acc, [key, value]) => acc.replace(`$${key}`, value), to)
       : to;
+    linkStates[href] = state;
     return (
-      <a href={href} {...props}>
+      <a
+        href={href}
+        onClick={event => {
+          event.preventDefault();
+          onClick?.(event);
+        }}
+        {...props}
+      >
         {children}
       </a>
     );
@@ -142,6 +155,7 @@ function makeProps(overrides: Partial<AppSidebarProps> = {}): AppSidebarProps {
     onAddWorkspace,
     agentsCount: undefined,
     activeSessionCount: 0,
+    workspaceSessionActivity: {},
     ...overrides,
   };
 }
@@ -151,6 +165,7 @@ describe("AppSidebar", () => {
     resetUserHomeDirStore();
     matchedRoute = {};
     matchedRouteFuzzy = {};
+    linkStates = {};
     mockConnectionStatus = "connected";
     mockRestartFlags.isTriggerPending = false;
     mockRestartFlags.isPolling = false;
@@ -252,6 +267,80 @@ describe("AppSidebar", () => {
       renderSidebar(makeProps());
       fireEvent.click(screen.getByTestId("workspace-avatar-ws_beta"));
       expect(onSelectWorkspace).toHaveBeenCalledWith("ws_beta");
+    });
+
+    it("Should expose the exact inactive-workspace session count as an accessible return link", () => {
+      renderSidebar(
+        makeProps({
+          workspaceSessionActivity: {
+            ws_beta: {
+              state: "ready",
+              count: 2,
+              returnTarget: {
+                sessionId: "sess_reconcile",
+                agentName: "codex-agent",
+                title: "Reconcile payout ledger",
+              },
+            },
+          },
+        })
+      );
+
+      const returnLink = screen.getByRole("link", {
+        name: "Return to beta: 2 active sessions. Latest: Reconcile payout ledger",
+      });
+      expect(returnLink).toHaveAttribute("href", "/agents/codex-agent/sessions/sess_reconcile");
+      expect(screen.getByTestId("workspace-active-session-count-ws_beta")).toHaveTextContent("2");
+      expect(linkStates["/agents/codex-agent/sessions/sess_reconcile"]).toEqual({
+        sessionReturn: { sessionId: "sess_reconcile", workspaceId: "ws_beta" },
+      });
+
+      fireEvent.click(returnLink);
+      expect(onSelectWorkspace).not.toHaveBeenCalled();
+    });
+
+    it("Should not render an activity count on the selected workspace", () => {
+      renderSidebar(
+        makeProps({
+          workspaceSessionActivity: {
+            ws_alpha: {
+              state: "ready",
+              count: 3,
+              returnTarget: {
+                sessionId: "sess_selected",
+                agentName: "codex-agent",
+                title: "Selected workspace task",
+              },
+            },
+          },
+        })
+      );
+
+      expect(
+        screen.queryByTestId("workspace-active-session-count-ws_alpha")
+      ).not.toBeInTheDocument();
+      expect(screen.getByTestId("workspace-avatar-ws_alpha").tagName).toBe("BUTTON");
+    });
+
+    it("Should expose unavailable workspace activity without fabricating a zero count", () => {
+      renderSidebar(
+        makeProps({
+          workspaceSessionActivity: {
+            ws_beta: { state: "error", message: "session catalog unavailable" },
+          },
+        })
+      );
+
+      expect(
+        screen.getByRole("button", { name: "Workspace: beta, session activity unavailable" })
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("workspace-session-activity-error-ws_beta")).toHaveAttribute(
+        "title",
+        "session catalog unavailable"
+      );
+      expect(
+        screen.queryByTestId("workspace-active-session-count-ws_beta")
+      ).not.toBeInTheDocument();
     });
 
     it("Should open the workspace setup flow from the add button", () => {

@@ -166,6 +166,12 @@ type EffectiveConfig struct {
 	ModelDefaults     EffectiveModelDefaults `json:"model_defaults"`
 }
 
+// ConfigSnapshot keeps the stored override and daemon-resolved runtime config from one read.
+type ConfigSnapshot struct {
+	Stored    *LoopConfig
+	Effective EffectiveConfig
+}
+
 // EffectiveModelDefaults is the fully resolved loop-owned session model routing.
 type EffectiveModelDefaults struct {
 	Worker string `json:"worker"`
@@ -356,6 +362,7 @@ type Service interface {
 	) error
 	Configure(ctx context.Context, ws WorkspaceID, name string, cfg LoopConfig) error
 	GetConfig(ctx context.Context, ws WorkspaceID, name string) (*LoopConfig, error)
+	GetConfigSnapshot(ctx context.Context, ws WorkspaceID, name string) (ConfigSnapshot, error)
 	Get(ctx context.Context, ws WorkspaceID, runID RunID) (*Run, error)
 	Transition(ctx context.Context, runID RunID, to Status, cause TransitionCause) error
 }

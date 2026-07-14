@@ -21,15 +21,19 @@ func (s *daemonLoopAPIService) GetLoopConfig(
 	if err != nil {
 		return contract.LoopConfigResponse{}, err
 	}
-	cfg, err := s.aggregate.GetConfig(ctx, ws, name)
+	snapshot, err := s.aggregate.GetConfigSnapshot(ctx, ws, name)
 	if err != nil {
 		return contract.LoopConfigResponse{}, err
 	}
-	payload, err := loopConfigPayload(cfg)
+	payload, err := loopConfigPayload(snapshot.Stored)
 	if err != nil {
 		return contract.LoopConfigResponse{}, err
 	}
-	return contract.LoopConfigResponse{Config: payload}, nil
+	effective, err := loopEffectiveConfigPayload(snapshot.Effective)
+	if err != nil {
+		return contract.LoopConfigResponse{}, err
+	}
+	return contract.LoopConfigResponse{Config: payload, EffectiveConfig: effective}, nil
 }
 
 func (s *daemonLoopAPIService) PutLoopConfig(
@@ -49,15 +53,19 @@ func (s *daemonLoopAPIService) PutLoopConfig(
 	if err := s.aggregate.Configure(ctx, ws, name, cfg); err != nil {
 		return contract.LoopConfigResponse{}, err
 	}
-	stored, err := s.aggregate.GetConfig(ctx, ws, name)
+	snapshot, err := s.aggregate.GetConfigSnapshot(ctx, ws, name)
 	if err != nil {
 		return contract.LoopConfigResponse{}, err
 	}
-	payload, err := loopConfigPayload(stored)
+	payload, err := loopConfigPayload(snapshot.Stored)
 	if err != nil {
 		return contract.LoopConfigResponse{}, err
 	}
-	return contract.LoopConfigResponse{Config: payload}, nil
+	effective, err := loopEffectiveConfigPayload(snapshot.Effective)
+	if err != nil {
+		return contract.LoopConfigResponse{}, err
+	}
+	return contract.LoopConfigResponse{Config: payload, EffectiveConfig: effective}, nil
 }
 
 func (s *daemonLoopAPIService) GetLoopAnnotations(
