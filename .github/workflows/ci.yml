@@ -233,6 +233,11 @@ jobs:
           install-mage: "true"
           install-gotestsum: "true"
 
+      - name: Set up Bun for codegen contract tests
+        uses: ./.github/actions/setup-bun
+        with:
+          install-playwright: "false"
+
       - name: Run Go runtime verification
         run: |
           make test
