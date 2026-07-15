@@ -91,6 +91,33 @@ class CyLoopTasksScriptTests(unittest.TestCase):
         state_io.dump(state, state_path)
         return state_path
 
+    # ---- skill behavior contract ----------------------------------------
+
+    def test_skill_contract_repairs_stale_codegen_inside_current_action(self) -> None:
+        skill = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        recovery = (SKILL_ROOT / "references" / "recovery-loop.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("**self-healing continue** loop", skill)
+        self.assertIn("Do not write final iteration state", skill)
+        self.assertIn("A failure is **repairable by default**", recovery)
+        self.assertIn("A stale Daytona sidecar is this case, not a blocker", recovery)
+        self.assertIn("run the canonical generator", recovery.lower())
+
+    def test_skill_contract_reserves_blocked_for_external_dependencies(self) -> None:
+        skill = (SKILL_ROOT / "SKILL.md").read_text(encoding="utf-8")
+        recovery = (SKILL_ROOT / "references" / "recovery-loop.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("## External-blocker test", recovery)
+        self.assertIn("Stop only when all of these are true", recovery)
+        self.assertIn("Every safe in-scope alternative", recovery)
+        self.assertNotIn("Verify FAIL blocks the iteration", skill)
+        self.assertNotIn("Two consecutive verify failures", skill)
+        self.assertNotIn("a second failure is a blocker", skill)
+
     # ---- update-state.py -------------------------------------------------
 
     def test_complete_progress_requires_exact_existing_text(self) -> None:
@@ -306,6 +333,39 @@ class CyLoopTasksScriptTests(unittest.TestCase):
             self.assertEqual(state["review"]["rounds"], 0)
             self.assertIsNone(state["review"]["last_verdict"])
             self.assertFalse(state["review"]["ship"])
+
+    def test_init_state_preserves_multiline_goal_through_update(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tasks_root = Path(tmp) / "tasks"
+            slug = "multiline-goal"
+            slug_dir = tasks_root / slug
+            slug_dir.mkdir(parents=True)
+            (slug_dir / "_techspec.md").write_text("# spec\n", encoding="utf-8")
+            goal = "ship the workflow\n- delegate frontend work"
+
+            initialized = self.run_script(
+                "init-state.py",
+                slug,
+                "--tasks-root",
+                str(tasks_root),
+                "--goal",
+                goal,
+            )
+
+            self.assertEqual(initialized.returncode, 0, initialized.stderr)
+            updated = self.run_script(
+                "update-state.py",
+                slug,
+                "--tasks-root",
+                str(tasks_root),
+                "--phase",
+                "0",
+                "--action",
+                "bootstrap",
+            )
+            self.assertEqual(updated.returncode, 0, updated.stderr)
+            state = state_io.load(slug_dir / "state.yaml")
+            self.assertEqual(state["goal_signature"], goal)
 
     def test_init_state_defaults_frontend_agent_to_null(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

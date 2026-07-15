@@ -11,10 +11,10 @@ For a feature with slug `<slug>` whose techspec lives at
 `.compozy/tasks/<slug>/_techspec.md`:
 
 ```text
-[[CODEX_LOOP name="<slug>" goal="ship <slug> end-to-end via cy-loop-tasks: every iteration runs .agents/skills/cy-loop-tasks/scripts/detect-phase.py and executes the printed action; every Phase B checkpoint gets one logged CodeRabbit review before Phase D; continue until qa-report and qa-execution are complete, consecutive cy-impl-peer-review rounds reach SHIP, and make verify is PASS"]]
+[[CODEX_LOOP name="<slug>" goal="ship <slug> end-to-end via cy-loop-tasks: every iteration runs .agents/skills/cy-loop-tasks/scripts/detect-phase.py and executes the printed action; every Phase B checkpoint runs scoped validation then cy-final-verify before commit; continue until qa-report and qa-execution are complete, consecutive deep-review rounds reach SHIP, and make verify is PASS"]]
 
 Use the cy-loop-tasks skill at .agents/skills/cy-loop-tasks/SKILL.md.
-The skill is a continue loop — one phase action per iteration, then the next, until Phase E or a blocker. Slug: <slug>.
+The skill is a self-healing continue loop — repair command and gate failures inside the current phase action, then continue until Phase E or a proven external blocker. Slug: <slug>.
 ```
 
 The `goal=` text becomes `state.yaml.goal_signature` and is shown to the
@@ -29,13 +29,13 @@ parameter to the invocation line:
 
 ```text
 Use the cy-loop-tasks skill at .agents/skills/cy-loop-tasks/SKILL.md.
-The skill is a continue loop — one phase action per iteration, then the next, until Phase E or a blocker. Slug: <slug>. --frontend claude
+The skill is a self-healing continue loop — repair command and gate failures inside the current phase action, then continue until Phase E or a proven external blocker. Slug: <slug>. --frontend claude
 ```
 
 - `--frontend claude` → Claude Code workers (`claude
---dangerously-skip-permissions --model opus --effort xhigh`)
+  --dangerously-skip-permissions --model opus --effort xhigh`)
 - `--frontend cursor` → Cursor workers (`cursor-agent --yolo --model
-grok-4.5`)
+  grok-4.5`)
 
 Bootstrap passes the value to `init-state.py --frontend`; it lands in
 `state.yaml.frontend_agent` and holds for the whole loop. Omit the parameter
@@ -45,7 +45,7 @@ to run every task locally.
 
 ```
 Activate the cy-loop-tasks skill at .agents/skills/cy-loop-tasks/SKILL.md
-for slug <slug>. Continue until Phase E or a blocker.
+for slug <slug>. Repair in-scope failures autonomously and continue until Phase E or a proven external blocker.
 ```
 
 The agent runs detect → one action → summary, then continues at detect in

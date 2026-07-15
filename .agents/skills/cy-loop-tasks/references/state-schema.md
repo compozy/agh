@@ -28,12 +28,12 @@ No other writer is permitted. Hand-editing voids resume guarantees.
 | `progress.checklist[]` | list[obj] | Free-form checklist the LLM maintains in `mode=free`. Each entry: `text` (string), `status` (`pending`\|`in_progress`\|`completed`), `iteration` (int — the iteration that last touched it). Items only get added or status-flipped, never deleted. |
 | `qa.report_done` | bool | True once the delegated `qa-report` worker's artifacts are verified. |
 | `qa.execution_done` | bool | True once `qa-execution` produced its dated report. |
-| `review.rounds` | int ≥ 0 | Count of closed `cy-impl-peer-review` rounds. Incremented by `update-state.py --review-round-done`. |
+| `review.rounds` | int ≥ 0 | Count of closed `deep-review` rounds. Incremented by `update-state.py --review-round-done`. |
 | `review.last_verdict` | `SHIP` \| `FIX_BEFORE_SHIP` \| `REWORK` \| null | Verdict of the last closed round. |
 | `review.ship` | bool | True once a round closes with verdict `SHIP`. Phase E requires it. |
 | `verify.last_run` | RFC3339 \| null | Last `make verify` execution. |
-| `verify.last_status` | `PASS` \| `FAIL` \| null | Result of last `make verify`. |
-| `iterations[]` | list[obj] | Append-only log capped at the last 50 entries by `update-state.py`. Each entry: `n` (int), `timestamp` (RFC3339), `phase` (string), `action` (string), `outcome` (`completed`\|`partial`\|`blocked`), `memory_written` (list[string]), `blockers` (list[string]). |
+| `verify.last_status` | `PASS` \| `FAIL` \| null | Result of the final `make verify` observation for a completed action or proven external blocker. Intermediate repair-loop failures are not written. |
+| `iterations[]` | list[obj] | Append-only log capped at the last 50 entries by `update-state.py`. Each entry: `n` (int), `timestamp` (RFC3339), `phase` (string), `action` (string), `outcome` (`completed`\|`partial`\|`blocked`), `memory_written` (list[string]), `blockers` (list[string]). `blocked` is reserved for the external-blocker test in `references/recovery-loop.md`. |
 
 ## Invariants
 
@@ -51,3 +51,6 @@ No other writer is permitted. Hand-editing voids resume guarantees.
    (via a `SHIP` round).
 6. `iterations[]` is append-only; older entries get pruned by
    `update-state.py` once it exceeds 50, never edited.
+7. Repair-loop failures do not append `iterations[]` entries or set
+   `verify.last_status=FAIL`; only the phase's final PASS or a proven external
+   blocker mutates those fields.

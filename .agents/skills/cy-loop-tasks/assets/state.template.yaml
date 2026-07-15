@@ -23,7 +23,7 @@ qa:
   execution_done: false
 
 review:
-  rounds: 0           # closed cy-impl-peer-review rounds
+  rounds: 0           # closed deep-review rounds
   last_verdict: null  # SHIP | FIX_BEFORE_SHIP | REWORK | null
   ship: false         # true once a round closes with verdict SHIP
 

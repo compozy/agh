@@ -50,10 +50,10 @@ Reuse the canonical task-memory sections from `cy-workflow-memory`:
 
 Phase-specific addenda (append after the canonical sections):
 
-- **Phase B**: add `## CodeRabbit Review` with the canonical log path and one
-  disposition per finding (`fixed`, or `rejected` with a concrete
-  justification), or `no findings`. Record that the provider review ran
-  exactly once and that final verification followed its remediation.
+- **Phase B**: record scoped-validation commands, intermediate failures and
+  repairs under `## Errors / Corrections`, and the final `cy-final-verify`
+  PASS evidence under `## Ready for Next Run`. A final FAIL appears only with
+  a proven external blocker.
 - **Phase B mode=free**: add `## Slice Picked` (the exact text added to
   `progress.checklist[]`) and `## Acceptance Mapping` (which techspec
   acceptance criterion this slice advances).

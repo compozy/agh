@@ -1,10 +1,10 @@
-# cy-loop-tasks — Iteration {{ iteration }} summary
+# cy-implement-spec — Iteration {{ iteration }} summary
 
 - **Slug:** {{ slug }}
 - **Phase entered:** {{ phase_in }} → **Phase exiting:** {{ phase_out }}
-- **Mode:** {{ mode }}
 - **Action taken:** {{ action }}
 - **Outcome:** {{ outcome }}     <!-- completed | partial | blocked -->
+- **Criteria:** {{ met }}/{{ total }} met{{ criteria_flipped_this_iteration_or_none }}
 - **Memory written:** {{ memory_paths_csv }}
 - **State updated:** `.compozy/tasks/{{ slug }}/state.yaml`
 - **Verify:** {{ verify_status }} ({{ verify_evidence }})

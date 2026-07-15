@@ -79,24 +79,21 @@ Packet additions for this lane: read the task file / `_techspec.md` / design
 docs plus the scoped `AGENTS.md`/`CLAUDE.md` for the touched surfaces; apply
 `cy-spec-preflight` (task-body) and `cy-execute-task` discipline; use
 `cy-workflow-memory` with the provided memory paths; run the frontend
-validation lane for the touched packages; run exactly one CodeRabbit review
-and write the canonical log path specified by the orchestrator; remediate and
-record every finding without rerunning CodeRabbit; run `cy-final-verify`
-after remediation; print changed files plus explicit PASS/FAIL evidence.
+validation lane for the touched packages; run `cy-final-verify`; print
+changed files plus explicit PASS/FAIL evidence.
 
 Completion gate — mark the Phase B action complete only when ALL hold:
 
 - the worker reached `done` (or reported completion verified on screen)
 - the required memory files were updated
 - task/status artifacts reflect completion
-- the canonical CodeRabbit log ends with
-  `CODEX_CODERABBIT_REVIEW_COMPLETE exit=0 head=<review-head>` matching the
-  pre-dispatch HEAD, and every finding has a recorded disposition
 - the worker report contains explicit `cy-final-verify` PASS evidence
 - HEAD is unchanged (no worker commit)
 
-Missing any item → keep the phase open and record a blocker or verify
-failure instead of advancing `state.yaml`.
+Missing any item → keep the phase action open and follow
+`references/recovery-loop.md`: recover the evidence or rerun the lane before
+advancing `state.yaml`. Record a blocker only when its external-blocker test
+passes.
 
 ## QA-report lane (Phase C)
 
@@ -121,3 +118,7 @@ Completion gate — record `--qa-report-done` only when:
 - the affected `docs/qa/scenarios/` files reflect the cycle plan
 - the memory paths were updated
 - HEAD is unchanged (no worker commit)
+
+Missing any item keeps the Phase C action open. Follow
+`references/recovery-loop.md`, repair or rerun the lane, and recheck every
+item before updating state.

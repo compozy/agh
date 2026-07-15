@@ -1,5 +1,5 @@
 """
-Minimal block-YAML reader/writer for cy-loop-tasks' state.yaml.
+Minimal block-YAML reader/writer for cy-implement-spec's state.yaml.
 
 Both ends (init-state.py, update-state.py) use this module. The format
 emitted by ``dump`` is the only format ``load`` is required to parse;
@@ -51,41 +51,32 @@ def _flow_list(items: list[Any]) -> str:
 def dump(state: dict, path: Path) -> None:
     out: list[str] = []
     out.append(
-        "# cy-loop-tasks state.yaml -- managed by "
-        ".agents/skills/cy-loop-tasks/scripts/update-state.py. "
+        "# cy-implement-spec state.yaml -- managed by "
+        ".agents/skills/cy-implement-spec/scripts/update-state.py. "
         "Do not hand-edit."
     )
     for key in (
         "slug",
         "created_at",
         "last_updated",
-        "mode",
         "iteration",
         "goal_signature",
-        "frontend_agent",
     ):
         out.append(f"{key}: {_scalar(state.get(key))}")
-
-    tasks = state.get("tasks", {})
-    out.append("")
-    out.append("tasks:")
-    out.append(f"  total: {_scalar(tasks.get('total', 0))}")
-    out.append(f"  completed: {_flow_list(tasks.get('completed', []))}")
-    out.append(f"  current: {_scalar(tasks.get('current'))}")
-    out.append(f"  pending: {_flow_list(tasks.get('pending', []))}")
 
     progress = state.get("progress", {})
     out.append("")
     out.append("progress:")
     out.append(
-        f"  deliverables_complete: {_scalar(progress.get('deliverables_complete', False))}"
+        "  implementation_complete: "
+        f"{_scalar(progress.get('implementation_complete', False))}"
     )
-    checklist = progress.get("checklist", [])
-    if not checklist:
-        out.append("  checklist: []")
+    criteria = progress.get("criteria", [])
+    if not criteria:
+        out.append("  criteria: []")
     else:
-        out.append("  checklist:")
-        for item in checklist:
+        out.append("  criteria:")
+        for item in criteria:
             out.append(f"    - text: {_scalar(item.get('text', ''))}")
             out.append(f"      status: {_scalar(item.get('status', 'pending'))}")
             out.append(f"      iteration: {_scalar(item.get('iteration', 0))}")
