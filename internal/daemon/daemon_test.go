@@ -312,6 +312,72 @@ func TestBootRunsResourceReconcileBeforeObserverReconcile(t *testing.T) {
 	}
 }
 
+func TestBootRunsObserverReconcileBeforeTaskRoleRecovery(t *testing.T) {
+	t.Run("Should fence recovered task activation until session reconciliation finishes", func(t *testing.T) {
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		cfg.Network.Enabled = false
+
+		var mu sync.Mutex
+		observerReconciled := false
+		queuedRecoveryObserved := false
+		queuedRecoveryBeforeObserver := false
+		registry := &recordingRegistry{
+			path: homePaths.DatabaseFile,
+			onListTaskRunsByStatus: func(statuses []taskpkg.RunStatus) {
+				if !slices.Equal(statuses, []taskpkg.RunStatus{taskpkg.TaskRunStatusQueued}) {
+					return
+				}
+				mu.Lock()
+				defer mu.Unlock()
+				queuedRecoveryObserved = true
+				queuedRecoveryBeforeObserver = queuedRecoveryBeforeObserver || !observerReconciled
+			},
+		}
+
+		d := newTestDaemon(t, homePaths, &cfg)
+		d.openRegistry = func(context.Context, string) (Registry, error) {
+			return registry, nil
+		}
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+			return &fakeSessionManager{}, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+			return &fakeObserver{onReconcile: func() {
+				mu.Lock()
+				observerReconciled = true
+				mu.Unlock()
+			}}, nil
+		}
+		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "uds"}, nil
+		}
+
+		if err := d.boot(testutil.Context(t)); err != nil {
+			t.Fatalf("boot() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+		})
+
+		mu.Lock()
+		observed := queuedRecoveryObserved
+		beforeObserver := queuedRecoveryBeforeObserver
+		mu.Unlock()
+		if !observed {
+			t.Fatal("boot() did not run task-role recovery")
+		}
+		if beforeObserver {
+			t.Fatal("boot() ran task-role recovery before observer reconciliation")
+		}
+	})
+}
+
 func TestLoopCoordinatorBootGate(t *testing.T) {
 	t.Run("Should suppress observer and scheduler activation until reconciliation finishes", func(t *testing.T) {
 		t.Parallel()
@@ -573,6 +639,23 @@ func TestBootEnabledNetworkRejectsSessionManagersMissingBindingSurface(t *testin
 	err := d.boot(testutil.Context(t))
 	if !errors.Is(err, errMissingNetworkBindingSurface) {
 		t.Fatalf("boot() error = %v, want errMissingNetworkBindingSurface", err)
+	}
+}
+
+func TestBootRejectsSessionManagersMissingWorkspaceRemovalPreparation(t *testing.T) {
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	d := newTestDaemon(t, homePaths, &cfg)
+	d.openRegistry = func(context.Context, string) (Registry, error) {
+		return &recordingRegistry{path: homePaths.DatabaseFile}, nil
+	}
+	d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+		return sessionManagerWithoutWorkspaceRemoval{SessionManager: &fakeSessionManager{}}, nil
+	}
+
+	err := d.boot(testutil.Context(t))
+	if !errors.Is(err, errMissingWorkspaceRemovalPreparation) {
+		t.Fatalf("boot() error = %v, want %v", err, errMissingWorkspaceRemovalPreparation)
 	}
 }
 
@@ -4935,6 +5018,13 @@ type fakeSessionManager struct {
 var _ SessionManager = (*fakeSessionManager)(nil)
 var _ memoryExtractorSessionManager = (*fakeSessionManager)(nil)
 
+func (f *fakeSessionManager) PrepareWorkspaceRemoval(
+	context.Context,
+	string,
+) (workspacepkg.UnregisterPreparation, error) {
+	return nil, nil
+}
+
 type blockingStatusSessionManager struct {
 	*fakeSessionManager
 	blockSessionID string
@@ -5428,6 +5518,14 @@ func (f *fakeSessionManager) Prompt(ctx context.Context, id string, msg string) 
 	return ch, nil
 }
 
+func (f *fakeSessionManager) PromptWithOpts(
+	ctx context.Context,
+	id string,
+	opts session.PromptOpts,
+) (<-chan acp.AgentEvent, error) {
+	return f.Prompt(ctx, id, opts.Message)
+}
+
 func (f *fakeSessionManager) SendPrompt(
 	ctx context.Context,
 	id string,
@@ -5668,6 +5766,10 @@ type nonBindableHarnessSessionManager struct {
 	syntheticPrompter syntheticPrompter
 }
 
+type sessionManagerWithoutWorkspaceRemoval struct {
+	SessionManager
+}
+
 var (
 	_ SessionManager                = (*fakeSessionManager)(nil)
 	_ SessionManager                = (*fakeNetworkBindableSessionManager)(nil)
@@ -5695,6 +5797,17 @@ func (m nonBindableHarnessSessionManager) PromptSynthetic(
 	opts session.SyntheticPromptOpts,
 ) (<-chan acp.AgentEvent, error) {
 	return m.syntheticPrompter.PromptSynthetic(ctx, id, opts)
+}
+
+func (m nonBindableHarnessSessionManager) PrepareWorkspaceRemoval(
+	ctx context.Context,
+	workspaceID string,
+) (workspacepkg.UnregisterPreparation, error) {
+	preparer, ok := m.SessionManager.(workspaceRemovalPreparer)
+	if !ok {
+		return nil, errMissingWorkspaceRemovalPreparation
+	}
+	return preparer.PrepareWorkspaceRemoval(ctx, workspaceID)
 }
 
 type fakeNetworkRuntime struct {
@@ -6039,10 +6152,11 @@ func (f *fakeResourceReconcileDriver) Close(context.Context) error {
 }
 
 type recordingRegistry struct {
-	path       string
-	onClose    func()
-	mu         sync.Mutex
-	workspaces map[string]workspacepkg.Workspace
+	path                   string
+	onClose                func()
+	onListTaskRunsByStatus func([]taskpkg.RunStatus)
+	mu                     sync.Mutex
+	workspaces             map[string]workspacepkg.Workspace
 }
 
 var (
@@ -6513,6 +6627,14 @@ func (r *recordingRegistry) UpdateTaskRun(context.Context, taskpkg.Run) error {
 	return nil
 }
 
+func (r *recordingRegistry) CompleteRunSettlement(
+	context.Context,
+	taskpkg.Run,
+	taskpkg.ActorContext,
+) (taskpkg.CompletedRunSettlement, error) {
+	return taskpkg.CompletedRunSettlement{}, taskpkg.ErrTaskRunNotFound
+}
+
 func (r *recordingRegistry) GetTaskRun(context.Context, string) (taskpkg.Run, error) {
 	return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
 }
@@ -6521,7 +6643,13 @@ func (r *recordingRegistry) ListTaskRuns(context.Context, taskpkg.RunQuery) ([]t
 	return nil, nil
 }
 
-func (r *recordingRegistry) ListTaskRunsByStatus(context.Context, []taskpkg.RunStatus) ([]taskpkg.Run, error) {
+func (r *recordingRegistry) ListTaskRunsByStatus(
+	_ context.Context,
+	statuses []taskpkg.RunStatus,
+) ([]taskpkg.Run, error) {
+	if r.onListTaskRunsByStatus != nil {
+		r.onListTaskRunsByStatus(append([]taskpkg.RunStatus(nil), statuses...))
+	}
 	return nil, nil
 }
 
@@ -6665,6 +6793,13 @@ func (r *recordingRegistry) CompleteRunLease(
 	taskpkg.LeaseCompletion,
 ) (taskpkg.Run, error) {
 	return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
+}
+
+func (r *recordingRegistry) CompleteRunLeaseSettlement(
+	context.Context,
+	taskpkg.LeaseCompletion,
+) (taskpkg.CompletedRunSettlement, error) {
+	return taskpkg.CompletedRunSettlement{}, taskpkg.ErrTaskRunNotFound
 }
 
 func (r *recordingRegistry) FailRunLease(

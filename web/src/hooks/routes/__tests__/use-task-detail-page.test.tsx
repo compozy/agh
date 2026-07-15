@@ -14,6 +14,8 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   inspectRun: vi.fn().mockResolvedValue(null),
   getTaskDashboard: vi.fn(),
   getTaskInbox: vi.fn(),
+  recoverTask: vi.fn(),
+  recoverTaskRun: vi.fn(),
 }));
 
 import {
@@ -21,6 +23,8 @@ import {
   getTaskTimeline,
   getTaskTree,
   listTaskRuns,
+  recoverTask,
+  recoverTaskRun,
 } from "@/systems/tasks/adapters/tasks-api";
 
 import { useTaskDetailPage } from "../use-task-detail-page";
@@ -149,6 +153,80 @@ describe("useTaskDetailPage", () => {
     await waitFor(() => {
       expect(result.current.isLive).toBe(true);
     });
+  });
+
+  it("recovers the active needs_attention run by run id exactly once", async () => {
+    vi.mocked(getTask).mockResolvedValue({
+      task: {
+        id: "task_001",
+        title: "Review",
+        status: "ready",
+        scope: "workspace",
+        max_attempts: 2,
+      },
+      summary: {
+        id: "task_001",
+        title: "Review",
+        status: "ready",
+        scope: "workspace",
+        active_run: {
+          id: "run_attention",
+          attempt: 1,
+          status: "needs_attention",
+        },
+      },
+    } as never);
+    vi.mocked(recoverTaskRun).mockResolvedValue({
+      previous_run: { id: "run_attention", status: "canceled" },
+      run: { id: "run_continuation", status: "queued" },
+    } as never);
+
+    const { result } = renderHook(() => useTaskDetailPage("task_001"), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.activeRun?.id).toBe("run_attention"));
+    await act(async () => {
+      await result.current.handleRecoverTask();
+    });
+
+    expect(recoverTaskRun).toHaveBeenCalledTimes(1);
+    expect(recoverTaskRun).toHaveBeenCalledWith("run_attention", {});
+  });
+
+  it("does not recover through either mutation when the active run exhausted attempts", async () => {
+    vi.mocked(getTask).mockResolvedValue({
+      task: {
+        id: "task_001",
+        title: "Review",
+        status: "ready",
+        scope: "workspace",
+        max_attempts: 1,
+      },
+      summary: {
+        id: "task_001",
+        title: "Review",
+        status: "ready",
+        scope: "workspace",
+        active_run: {
+          id: "run_exhausted",
+          attempt: 1,
+          status: "needs_attention",
+        },
+      },
+    } as never);
+
+    const { result } = renderHook(() => useTaskDetailPage("task_001"), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.activeRun?.id).toBe("run_exhausted"));
+    await act(async () => {
+      await result.current.handleRecoverTask();
+    });
+
+    expect(recoverTaskRun).not.toHaveBeenCalled();
+    expect(recoverTask).not.toHaveBeenCalled();
   });
 
   it("derives multi-agent view counts and live states from the tree read", async () => {

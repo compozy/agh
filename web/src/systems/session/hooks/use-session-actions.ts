@@ -1,4 +1,4 @@
-import { type QueryClient, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
   cancelQueuedSessionPrompt,
@@ -16,6 +16,10 @@ import {
 import { useActiveWorkspace } from "@/systems/workspace";
 import { useSessionStore } from "./use-session-store";
 import { sessionKeys } from "../lib/query-keys";
+import {
+  invalidateSessionMutationQueries,
+  invalidateWorkspaceSessionCatalog,
+} from "../lib/session-query-invalidation";
 import type {
   SessionPayload,
   SessionPromptPayload,
@@ -42,17 +46,6 @@ function resolveWorkspaceId(
   return workspaceId ?? activeWorkspaceId ?? null;
 }
 
-function invalidateSessionPromptSurfaces(
-  queryClient: QueryClient,
-  workspaceId: string,
-  id: string
-) {
-  void queryClient.invalidateQueries({ queryKey: sessionKeys.detail(workspaceId, id) });
-  void queryClient.invalidateQueries({ queryKey: sessionKeys.events(workspaceId, id) });
-  void queryClient.invalidateQueries({ queryKey: sessionKeys.history(workspaceId, id) });
-  void queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
-}
-
 export function useCreateSession() {
   const queryClient = useQueryClient();
 
@@ -61,8 +54,9 @@ export function useCreateSession() {
     onSuccess: session => {
       const workspaceId = requireWorkspace(session.workspace_id);
       queryClient.setQueryData(sessionKeys.detail(workspaceId, session.id), session);
+      queryClient.setQueryData(sessionKeys.byId(session.id), session);
       void queryClient.invalidateQueries({ queryKey: sessionKeys.detail(workspaceId, session.id) });
-      void queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
+      void invalidateWorkspaceSessionCatalog(queryClient, workspaceId);
     },
   });
 }
@@ -75,9 +69,7 @@ export function useStopSession(options: UseSessionWorkspaceOptions = {}) {
   return useMutation({
     mutationFn: (id: string) => stopSession(requireWorkspace(workspaceId), id),
     onSettled: (_data, _error, id) => {
-      const settledWorkspaceId = workspaceId ?? "";
-      queryClient.invalidateQueries({ queryKey: sessionKeys.detail(settledWorkspaceId, id) });
-      queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
+      if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, id);
     },
   });
 }
@@ -90,14 +82,12 @@ export function useDeleteSession(options: UseSessionWorkspaceOptions = {}) {
   return useMutation({
     mutationFn: (id: string) => deleteSession(requireWorkspace(workspaceId), id),
     onSuccess: (_data, id) => {
-      const successWorkspaceId = workspaceId ?? "";
+      const successWorkspaceId = requireWorkspace(workspaceId);
       useSessionStore.getState().clearDraft(id);
       queryClient.removeQueries({ queryKey: sessionKeys.detail(successWorkspaceId, id) });
-      queryClient.removeQueries({ queryKey: sessionKeys.history(successWorkspaceId, id) });
-      queryClient.removeQueries({ queryKey: sessionKeys.transcript(successWorkspaceId, id) });
-      queryClient.removeQueries({ queryKey: sessionKeys.events(successWorkspaceId, id) });
+      queryClient.removeQueries({ queryKey: sessionKeys.byId(id), exact: true });
 
-      return queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
+      return invalidateWorkspaceSessionCatalog(queryClient, successWorkspaceId);
     },
   });
 }
@@ -110,9 +100,7 @@ export function useResumeSession(options: UseSessionWorkspaceOptions = {}) {
   return useMutation({
     mutationFn: (id: string) => resumeSession(requireWorkspace(workspaceId), id),
     onSettled: (_data, _error, id) => {
-      const settledWorkspaceId = workspaceId ?? "";
-      queryClient.invalidateQueries({ queryKey: sessionKeys.detail(settledWorkspaceId, id) });
-      queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
+      if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, id);
     },
   });
 }
@@ -130,20 +118,9 @@ export function useRepairSession(options: UseSessionWorkspaceOptions = {}) {
     mutationFn: ({ id, ...query }: RepairSessionParams) =>
       repairSession(requireWorkspace(workspaceId), id, query),
     onSettled: (_data, _error, params) => {
-      const settledWorkspaceId = workspaceId ?? "";
-      queryClient.invalidateQueries({
-        queryKey: sessionKeys.detail(settledWorkspaceId, params.id),
-      });
-      queryClient.invalidateQueries({
-        queryKey: sessionKeys.history(settledWorkspaceId, params.id),
-      });
-      queryClient.invalidateQueries({
-        queryKey: sessionKeys.transcript(settledWorkspaceId, params.id),
-      });
-      queryClient.invalidateQueries({
-        queryKey: sessionKeys.events(settledWorkspaceId, params.id),
-      });
-      queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
+      if (workspaceId) {
+        void invalidateSessionMutationQueries(queryClient, workspaceId, params.id);
+      }
     },
   });
 }
@@ -196,7 +173,7 @@ export function useClearSessionConversation(options: UseSessionWorkspaceOptions 
         );
       }
 
-      const errorWorkspaceId = workspaceId ?? "";
+      const errorWorkspaceId = requireWorkspace(workspaceId);
       if (snapshot.transcript !== undefined) {
         queryClient.setQueryData(sessionKeys.transcript(errorWorkspaceId, id), snapshot.transcript);
       }
@@ -212,11 +189,7 @@ export function useClearSessionConversation(options: UseSessionWorkspaceOptions 
       queryClient.setQueryData(sessionKeys.history(workspaceId, id), []);
     },
     onSettled: (_data, _error, id) => {
-      const settledWorkspaceId = workspaceId ?? "";
-      queryClient.invalidateQueries({ queryKey: sessionKeys.detail(settledWorkspaceId, id) });
-      queryClient.invalidateQueries({ queryKey: sessionKeys.history(settledWorkspaceId, id) });
-      queryClient.invalidateQueries({ queryKey: sessionKeys.transcript(settledWorkspaceId, id) });
-      queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
+      if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, id);
     },
   });
 }
@@ -244,7 +217,7 @@ export function useSendSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
     mutationFn: ({ id, message, mode }) =>
       sendSessionPrompt(requireWorkspace(workspaceId), id, { message, mode }),
     onSettled: (_data, _error, params) => {
-      invalidateSessionPromptSurfaces(queryClient, workspaceId ?? "", params.id);
+      if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, params.id);
     },
   });
 }
@@ -258,7 +231,7 @@ export function useQueueSessionPrompt(options: UseSessionWorkspaceOptions = {}) 
     mutationFn: ({ id, message }) =>
       sendSessionPrompt(requireWorkspace(workspaceId), id, { message, mode: "queue" }),
     onSettled: (_data, _error, params) => {
-      invalidateSessionPromptSurfaces(queryClient, workspaceId ?? "", params.id);
+      if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, params.id);
     },
   });
 }
@@ -272,7 +245,7 @@ export function useInterruptSessionPrompt(options: UseSessionWorkspaceOptions = 
     mutationFn: ({ id, message }) =>
       sendSessionPrompt(requireWorkspace(workspaceId), id, { message, mode: "interrupt" }),
     onSettled: (_data, _error, params) => {
-      invalidateSessionPromptSurfaces(queryClient, workspaceId ?? "", params.id);
+      if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, params.id);
     },
   });
 }
@@ -285,7 +258,7 @@ export function useSteerSessionPrompt(options: UseSessionWorkspaceOptions = {}) 
   return useMutation<SessionPromptPayload, Error, SessionPromptActionParams>({
     mutationFn: ({ id, message }) => steerSessionPrompt(requireWorkspace(workspaceId), id, message),
     onSettled: (_data, _error, params) => {
-      invalidateSessionPromptSurfaces(queryClient, workspaceId ?? "", params.id);
+      if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, params.id);
     },
   });
 }
@@ -299,7 +272,7 @@ export function useCancelQueuedSessionPrompt(options: UseSessionWorkspaceOptions
     mutationFn: ({ id, queueEntryId }) =>
       cancelQueuedSessionPrompt(requireWorkspace(workspaceId), id, queueEntryId),
     onSettled: (_data, _error, params) => {
-      invalidateSessionPromptSurfaces(queryClient, workspaceId ?? "", params.id);
+      if (workspaceId) void invalidateSessionMutationQueries(queryClient, workspaceId, params.id);
     },
   });
 }

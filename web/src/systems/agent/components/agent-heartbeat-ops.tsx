@@ -8,7 +8,7 @@ import {
 } from "@agh/ui";
 
 import type { AgentHeartbeatStatusPayload, WakeAgentHeartbeatResponse } from "../types";
-import type { SessionPayload } from "@/systems/session";
+import { getSessionDisplayTitle, type SessionPayload } from "@/systems/session";
 
 export interface AgentHeartbeatOpsProps {
   status: AgentHeartbeatStatusPayload | undefined;
@@ -145,7 +145,7 @@ export function AgentHeartbeatOps({
             ) : null}
             {activeSessions.map(session => (
               <NativeSelectOption key={session.id} value={session.id}>
-                {session.name || session.id}
+                {getSessionDisplayTitle(session)}
               </NativeSelectOption>
             ))}
           </NativeSelect>

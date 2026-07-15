@@ -28,8 +28,8 @@ interface UseTaskStreamOptions {
 // (WriteTaskStreamEvent sets Name = event.Type). EventSource routes named SSE events
 // to listeners registered with addEventListener("<type>", ...); they never reach
 // onmessage, which only handles unnamed `message` frames. Keep this list aligned with
-// the canonical task event types emitted by internal/task/manager.go and the review /
-// notification surfaces in internal/api.
+// every task event type persisted by the task manager, transactional task hooks,
+// and the review / notification surfaces in internal/api.
 const TASK_STREAM_EVENT_TYPES = [
   "task.created",
   "task.updated",
@@ -37,18 +37,23 @@ const TASK_STREAM_EVENT_TYPES = [
   "task.approved",
   "task.rejected",
   "task.canceled",
-  // Task-block lifecycle. Only the frames the daemon actually writes to the task
-  // stream are subscribed: task.needs_attention (breaker escalation) and
-  // task.recovered (recover). Plain block add/clear surfaces via task.run_released
-  // (a mid-run block parks the run) and task.run_enqueued (last-block-clear
-  // auto-enqueue), both already listed below. task.blocked/task.unblocked are
-  // typed hook events dispatched at the service call site, NOT stream frames, so
-  // they are intentionally not subscribed here.
+  // Transactional hook events are appended to the durable task stream under
+  // their dot names inside the same transaction as the state change.
+  "task.blocked",
+  "task.unblocked",
   "task.needs_attention",
   "task.recovered",
+  "task.status_changed",
+  "task.run.completed",
+  "task.run.failed",
   "task.child_created",
   "task.dependency_added",
   "task.dependency_removed",
+  "task.paused",
+  "task.resumed",
+  "task.block.created",
+  "task.block.cleared",
+  "task.block.expired",
   "task.run_enqueued",
   "task.run_claimed",
   "task.run_starting",
@@ -82,6 +87,11 @@ const TASK_STREAM_EVENT_TYPES = [
   "task.run_review_retry_enqueued",
   "task.run_review_circuit_opened",
   "task.run_review_canceled",
+  "task.auto_enqueue.triggered",
+  "task.completion.hallucination_blocked",
+  "task.completion.hallucination_suspected",
+  "task.wake.delivered",
+  "task.wake.suppressed",
   "task.notification_delivered",
 ] as const;
 

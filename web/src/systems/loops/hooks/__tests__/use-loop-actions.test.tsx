@@ -83,7 +83,7 @@ describe("loop mutation hooks", () => {
     });
   });
 
-  it("Should evict the cached detail then invalidate the catalog after useDeleteLoop", async () => {
+  it("Should evict exact Loop projections then invalidate the catalog after useDeleteLoop", async () => {
     const { invalidate, remove, wrapper } = setup();
     const { result } = renderHook(() => useDeleteLoop(), { wrapper });
 
@@ -94,7 +94,25 @@ describe("loop mutation hooks", () => {
         queryKey: ["loops", "detail", WS, "software-delivery"],
       });
     });
+    expect(remove).toHaveBeenCalledWith({
+      queryKey: ["loops", "config", WS, "software-delivery"],
+    });
+    expect(remove).toHaveBeenCalledWith({
+      queryKey: ["loops", "annotations", WS, "software-delivery"],
+    });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["loops", "catalog", WS] });
+  });
+
+  it("Should preserve cached Loop projections when useDeleteLoop fails", async () => {
+    const { invalidate, remove, wrapper } = setup();
+    const { result } = renderHook(() => useDeleteLoop(), { wrapper });
+
+    await expect(
+      result.current.mutateAsync({ workspaceId: WS, name: "missing-loop" })
+    ).rejects.toThrow("Loop not found: missing-loop");
+
+    expect(remove).not.toHaveBeenCalled();
+    expect(invalidate).not.toHaveBeenCalled();
   });
 
   it("Should invalidate runs on a real run but never on a dry run", async () => {

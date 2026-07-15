@@ -15,6 +15,7 @@ import (
 type SessionListQuery struct {
 	Workspace     string
 	State         string
+	Type          string
 	Agent         string
 	Query         string
 	Resumable     bool
@@ -79,6 +80,9 @@ func sessionListValues(query SessionListQuery) url.Values {
 	}
 	if trimmed := strings.TrimSpace(query.State); trimmed != "" {
 		values.Set("state", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.Type); trimmed != "" {
+		values.Set("type", trimmed)
 	}
 	if trimmed := strings.TrimSpace(query.Agent); trimmed != "" {
 		values.Set("agent", trimmed)

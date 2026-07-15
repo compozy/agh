@@ -9,6 +9,7 @@ import {
 import { buildSessionStreamUrl, fetchSessionTranscript } from "../adapters/session-api";
 import { normalizeTranscriptMessages } from "../lib/message-schemas";
 import { sessionKeys } from "../lib/query-keys";
+import { invalidateSessionLiveQueries } from "../lib/session-query-invalidation";
 import {
   isLiveSessionState,
   sessionDetailOptions,
@@ -245,15 +246,7 @@ export function useSessionLiveTail({
       queryClient.getQueryData<SessionTranscriptData>(transcriptQueryKey);
     const readCursor = () => transcriptStreamCursor(readTranscript()).afterSequence ?? 0;
     const invalidateSessionSurfaces = () => {
-      void queryClient.invalidateQueries({
-        queryKey: sessionKeys.detail(workspaceId, sessionId),
-        exact: true,
-      });
-      void queryClient.invalidateQueries({
-        queryKey: sessionKeys.history(workspaceId, sessionId),
-        exact: true,
-      });
-      void queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
+      void invalidateSessionLiveQueries(queryClient, workspaceId, sessionId);
     };
     const scheduleSurfaceRefresh = () => {
       if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);

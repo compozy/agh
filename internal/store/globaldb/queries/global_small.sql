@@ -46,12 +46,6 @@ SELECT id FROM sessions WHERE workspace_id = sqlc.arg(workspace_id) AND state = 
 -- name: DeleteSessionsByWorkspace :exec
 DELETE FROM sessions WHERE workspace_id = sqlc.arg(workspace_id);
 
--- name: DeletePermissionLogsBySession :exec
-DELETE FROM permission_log WHERE session_id = sqlc.arg(session_id);
-
--- name: DeleteTokenStatsBySession :exec
-DELETE FROM token_stats WHERE session_id = sqlc.arg(session_id);
-
 -- name: DeleteSession :execrows
 DELETE FROM sessions WHERE id = sqlc.arg(id);
 

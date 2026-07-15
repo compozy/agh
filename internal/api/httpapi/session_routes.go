@@ -5,6 +5,7 @@ import "github.com/gin-gonic/gin"
 func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	sessions := api.Group("/sessions")
 	sessions.GET("", handlers.ListSessions)
+	sessions.GET("/catalog-stream", handlers.StreamSessionCatalog)
 	sessions.GET("/:session_id", handlers.GetSessionByID)
 	sessions.POST("", handlers.CreateSession)
 

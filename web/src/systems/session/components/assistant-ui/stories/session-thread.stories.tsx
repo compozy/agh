@@ -1,16 +1,42 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
+import { type ComponentProps, type ReactNode, useEffect } from "react";
 import { HttpResponse } from "msw";
+import { expect, userEvent, within } from "storybook/test";
 import { aghApiMock } from "@/storybook/openapi-msw";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
+import { useSessionStore } from "@/systems/session/hooks/use-session-store";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
 import { primarySessionFixture } from "@/systems/session/mocks";
 import type { TranscriptMessage } from "@/systems/session/types";
 import { ScrollToBottomPill, SessionThread } from "@/components/assistant-ui/session-thread";
 
 const storyWorkspaceId = primarySessionFixture.workspace_id ?? "ws_alpha";
+
+function withoutSessionValue<T>(values: Record<string, T>, sessionId: string): Record<string, T> {
+  return Object.fromEntries(Object.entries(values).filter(([key]) => key !== sessionId));
+}
+
+function GoalCommandErrorFixture({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    useSessionStore.getState().setGoalResult(primarySessionFixture.id, {
+      outcome: "error",
+      reason_code: "goal_objective_required",
+      replaced_run_id: null,
+      snapshot: null,
+    });
+    return () => {
+      useSessionStore.setState(state => ({
+        goalResults: withoutSessionValue(state.goalResults, primarySessionFixture.id),
+        goalResultCommands: withoutSessionValue(state.goalResultCommands, primarySessionFixture.id),
+        goalErrorVisible: withoutSessionValue(state.goalErrorVisible, primarySessionFixture.id),
+      }));
+    };
+  }, []);
+
+  return children;
+}
 
 type TranscriptPart = NonNullable<TranscriptMessage["parts"]>[number];
 
@@ -540,9 +566,8 @@ export const ChangedFilesRollup: Story = {
 };
 
 /**
- * Hover toolbar — copy (markdown source) + timestamp reveal on a settled assistant
- * message. The decorator forces the reveal so a static capture shows the hovered
- * state; production keeps the row `opacity-0` until hover / keyboard focus-within.
+ * Goal prefill — the settled response exposes its Goal action immediately, then
+ * pointer and keyboard activation both fill and focus the cancellable local draft.
  */
 export const HoverToolbar: Story = {
   args: {
@@ -560,16 +585,55 @@ export const HoverToolbar: Story = {
       ],
     }),
   },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const action = await canvas.findByRole("button", { name: "Use as Goal" });
+    await expect(action).toBeVisible();
+    await userEvent.click(action);
+    await expect(canvas.getByRole("textbox", { name: "Session prompt" })).toHaveFocus();
+    await expect(canvas.getByRole("status")).toHaveTextContent("Goal command draft");
+    await userEvent.click(canvas.getByRole("button", { name: "Discard Goal command" }));
+    action.focus();
+    await userEvent.keyboard("{Enter}");
+    await expect(canvas.getByRole("textbox", { name: "Session prompt" })).toHaveFocus();
+    await expect(canvas.getByRole("status")).toHaveTextContent("Goal command draft");
+  },
+};
+
+/**
+ * Goal command validation — typed failures stay internal while the session-scoped
+ * runtime alert gives the operator a concrete recovery action.
+ */
+export const GoalCommandError: Story = {
+  args: {
+    sessionId: primarySessionFixture.id,
+    agentName: primarySessionFixture.agent_name,
+    canPrompt: true,
+    onCancelPrompt: () => undefined,
+  },
+  parameters: {
+    ...storybookMswParameters({
+      session: [
+        aghApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
+          HttpResponse.json(transcriptPayload(hoverToolbarTranscript))
+        ),
+      ],
+    }),
+  },
   decorators: [
     Story => (
-      <>
-        <style>
-          {`[data-testid$="-message-actions"]{opacity:1 !important;pointer-events:auto !important;}`}
-        </style>
+      <GoalCommandErrorFixture>
         <Story />
-      </>
+      </GoalCommandErrorFixture>
     ),
   ],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByRole("alert")).toHaveTextContent(
+      "Add an objective after /goal, then try again."
+    );
+    await expect(canvas.queryByText("goal_objective_required")).not.toBeInTheDocument();
+  },
 };
 
 /**

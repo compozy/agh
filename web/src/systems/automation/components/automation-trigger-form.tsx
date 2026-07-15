@@ -1,6 +1,6 @@
 import { Bot, Box, Check, Clock, Filter, Info } from "lucide-react";
 
-import { Button, DialogFooter, Field, FieldLabel, Input } from "@agh/ui";
+import { Alert, AlertDescription, Button, DialogFooter, Field, FieldLabel, Input } from "@agh/ui";
 
 import { useAutomationTriggerForm } from "../hooks/use-automation-trigger-form";
 import type { WorkspaceOption } from "../lib/trigger-preview";
@@ -21,6 +21,7 @@ interface AutomationTriggerFormProps {
   onCancel: () => void;
   onChange: (draft: CreateAutomationTriggerRequest) => void;
   onSubmit: () => void;
+  submitError?: string | null;
   /** Workspaces selectable for a workspace-scoped trigger. */
   workspaces?: ReadonlyArray<WorkspaceOption>;
   /** Known agent names; falls back to a free-text agent input when empty. */
@@ -37,6 +38,7 @@ export function AutomationTriggerForm({
   onCancel,
   onChange,
   onSubmit,
+  submitError,
   workspaces,
   agents = EMPTY_AGENTS,
 }: AutomationTriggerFormProps) {
@@ -137,6 +139,8 @@ export function AutomationTriggerForm({
               title="Run an agent, or a Loop"
             >
               <TriggerTargetStep
+                catalog={form.loopCatalog}
+                editorMode={mode}
                 mode={form.targetMode}
                 onModeChange={form.onTargetModeChange}
                 agent={draft.agent_name}
@@ -145,7 +149,6 @@ export function AutomationTriggerForm({
                 variables={form.variables}
                 onAgentChange={form.onAgentChange}
                 onPromptChange={form.onPromptChange}
-                workspaceId={draft.workspace_id ?? activeWorkspaceId ?? ""}
                 loopTarget={form.loopTarget}
                 onLoopTargetChange={form.onLoopTargetChange}
               />
@@ -168,13 +171,19 @@ export function AutomationTriggerForm({
       </div>
 
       <DialogFooter variant="ruled">
-        <div className="flex flex-1 items-center gap-2 text-form-hint text-subtle">
-          <Info aria-hidden="true" className="size-3 shrink-0 text-faint" />
-          <span>
-            Created as a <b className="font-medium text-muted">dynamic</b> trigger: editable and
-            deletable anytime.
-          </span>
-        </div>
+        {submitError ? (
+          <Alert className="flex-1" role="alert" variant="danger">
+            <AlertDescription>{submitError}</AlertDescription>
+          </Alert>
+        ) : (
+          <div className="flex flex-1 items-center gap-2 text-form-hint text-subtle">
+            <Info aria-hidden="true" className="size-3 shrink-0 text-faint" />
+            <span>
+              Created as a <b className="font-medium text-muted">dynamic</b> trigger: editable and
+              deletable anytime.
+            </span>
+          </div>
+        )}
         <Button onClick={onCancel} type="button" variant="outline">
           Cancel
         </Button>

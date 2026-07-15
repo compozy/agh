@@ -19,7 +19,7 @@ import {
 } from "@agh/ui";
 
 import { getAgentSessionStatus } from "../lib/session-status";
-import { isSessionRunning, type SessionPayload } from "@/systems/session";
+import { getSessionDisplayTitle, isSessionRunning, type SessionPayload } from "@/systems/session";
 
 const RELATIVE_TIME_REFRESH_MS = 30_000;
 
@@ -157,7 +157,7 @@ interface AgentSessionRowProps {
 function AgentSessionRow({ agentName, session, now }: AgentSessionRowProps) {
   const status = getAgentSessionStatus(session);
   const running = isSessionRunning(session);
-  const title = session.name?.trim() || session.id.slice(0, 12);
+  const title = getSessionDisplayTitle(session);
   return (
     <TableRow data-testid={`agent-session-row-${session.id}`} data-state={status.kind}>
       <TableCell>

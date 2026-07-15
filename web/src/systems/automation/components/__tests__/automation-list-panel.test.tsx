@@ -1,3 +1,7 @@
+// Suite: Automation list panel
+// Invariant: Persisted list rows summarize the selected target branch without blank agent content.
+// Boundary IN: Automation Job/Trigger list read models and row presentation.
+// Boundary OUT: detail rendering and persistence, owned by their canonical suites.
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -160,6 +164,41 @@ describe("AutomationListPanel", () => {
     rerenderPanel();
 
     expect(screen.getByTestId("automation-list-empty")).toBeInTheDocument();
+  });
+
+  it("Should summarize a Loop Trigger by Loop name and typed input instead of blank prompt", () => {
+    render(
+      <AutomationListPanel
+        activeWorkspaceName="alpha"
+        jobs={[]}
+        kind="triggers"
+        onSearchChange={vi.fn()}
+        onSelect={vi.fn()}
+        scopeFilter="workspace"
+        searchQuery=""
+        selectedId="trg_loop"
+        totalCount={1}
+        triggers={[
+          {
+            ...triggerFixture,
+            id: "trg_loop",
+            agent_name: "",
+            prompt: "",
+            target_kind: "loop",
+            loop_target: {
+              workspace_id: "ws_alpha",
+              loop_name: "software-delivery",
+              inputs: { slug: "helix-v1-launch" },
+              input_mapping: { branch: "data.branch" },
+            },
+          },
+        ]}
+      />
+    );
+
+    const row = screen.getByTestId("automation-item-trg_loop");
+    expect(row).toHaveTextContent("Loop software-delivery");
+    expect(row).toHaveTextContent("slug: helix-v1-launch");
   });
 
   it("loads the next page explicitly while preserving loaded rows and errors", async () => {

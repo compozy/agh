@@ -17,6 +17,125 @@ import (
 	"github.com/compozy/agh/internal/task"
 )
 
+func TestControlRevokedErrorShouldPublishSafeRecovery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should retain transition identity and typed operator detail", func(t *testing.T) {
+		t.Parallel()
+
+		err := newControlRevokedError()
+		if !errors.Is(err, loop.ErrTransitionConflict) {
+			t.Fatalf("newControlRevokedError() = %v, want ErrTransitionConflict", err)
+		}
+		provider, ok := errors.AsType[loop.SafeActionFailureProvider](err)
+		if !ok {
+			t.Fatalf("newControlRevokedError() = %T, want SafeActionFailureProvider", err)
+		}
+		failure := provider.SafeActionFailure()
+		if failure.Code != string(loop.ReasonCodeGoalControlRevokedInFlight) ||
+			failure.Cause != controlRevokedCause || failure.Recovery != controlRevokedRecovery {
+			t.Fatalf("SafeActionFailure() = %#v, want typed Goal revocation detail", failure)
+		}
+	})
+}
+
+func TestExecutorShouldProjectDurableRevocationAfterJudgeCancellation(t *testing.T) {
+	t.Run("Should prefer committed Goal control over the canceled judge context", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeExecutorStore()
+		contextStore := &contextAwareJudgeStore{fakeExecutorStore: store}
+		binder := newFakeManagedBinder(store, scriptedEndTurn("candidate", 10))
+		judge := &cancelBlockingJudge{started: make(chan struct{})}
+		budget := &fakeBudgetGuard{decisions: map[BudgetBoundary][]BudgetDecision{}}
+		executor, err := NewExecutor(Dependencies{
+			Store:    contextStore,
+			Binder:   binder,
+			Judge:    judge,
+			Budget:   budget,
+			Context:  &fakeContextHealth{},
+			Recovery: &fakePromptRecovery{},
+			Now:      func() time.Time { return time.Date(2026, 7, 13, 21, 0, 0, 0, time.UTC) },
+		})
+		if err != nil {
+			t.Fatalf("NewExecutor() error = %v", err)
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		input := testGoalInput(t)
+		errCh := make(chan error, 1)
+		go func() {
+			_, executeErr := executor.Execute(ctx, testGoalNode(2), input)
+			errCh <- executeErr
+		}()
+
+		select {
+		case <-judge.started:
+		case <-time.After(time.Second):
+			t.Fatal("judge did not start")
+		}
+		checkpoint, _, _ := store.snapshot()
+		if _, err := store.RevokeGoalPrompt(context.Background(), RevokePromptRequest{
+			Key:                  checkpoint.Key,
+			ExpectedControlEpoch: checkpoint.ControlEpoch,
+			ExpectedBindingEpoch: checkpoint.BindingEpoch,
+			TaskRunID:            checkpoint.TaskRunID,
+			QueueEntryID:         checkpoint.QueueEntryID,
+			PromptID:             checkpoint.PromptID,
+			Disposition:          loop.ActionDispositionPaused,
+			Status:               goalStatusPaused,
+			Cause:                loop.ReasonCodeGoalControlRevokedInFlight,
+			ActorKind:            "human",
+			ActorID:              "local-user",
+			ProjectionCause:      SessionOutboxCauseClear,
+			RevokedAt:            time.Now().UTC(),
+		}); err != nil {
+			t.Fatalf("RevokeGoalPrompt() error = %v", err)
+		}
+		cancel()
+
+		select {
+		case executeErr := <-errCh:
+			provider, ok := errors.AsType[loop.SafeActionFailureProvider](executeErr)
+			if !ok {
+				t.Fatalf("Execute() error = %T %v, want typed Goal control failure", executeErr, executeErr)
+			}
+			failure := provider.SafeActionFailure()
+			if failure.Code != string(loop.ReasonCodeGoalControlRevokedInFlight) ||
+				failure.Cause != controlRevokedCause || failure.Recovery != controlRevokedRecovery {
+				t.Fatalf("SafeActionFailure() = %#v, want durable Goal revocation", failure)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("Execute() did not return after judge cancellation")
+		}
+	})
+}
+
+type contextAwareJudgeStore struct {
+	*fakeExecutorStore
+}
+
+func (s *contextAwareJudgeStore) CompleteJudgeAttempt(
+	ctx context.Context,
+	req CompleteJudgeAttemptRequest,
+) (JudgeAttempt, error) {
+	if err := ctx.Err(); err != nil {
+		return JudgeAttempt{}, err
+	}
+	return s.fakeExecutorStore.CompleteJudgeAttempt(ctx, req)
+}
+
+type cancelBlockingJudge struct {
+	started chan struct{}
+}
+
+func (j *cancelBlockingJudge) EvaluateGoal(ctx context.Context, _ JudgeRequest) (JudgeResult, error) {
+	close(j.started)
+	<-ctx.Done()
+	return JudgeResult{}, ctx.Err()
+}
+
 func TestUsageTrackerShouldFailClosedOnOverflow(t *testing.T) {
 	t.Run("Should saturate cumulative usage when one operation exceeds int64", func(t *testing.T) {
 		t.Parallel()
@@ -507,6 +626,45 @@ func TestExecutorShouldKeepReportIntentAtPromptBoundary(t *testing.T) {
 		}
 		if judge.callCount() != 1 {
 			t.Fatalf("judge calls = %d, want 1", judge.callCount())
+		}
+	})
+}
+
+func TestExecutorShouldProjectAuthoritativeTerminalStatus(t *testing.T) {
+	t.Run("Should structure an approved plain-text candidate from the durable Goal control", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeExecutorStore()
+		binder := newFakeManagedBinder(store, scriptedEndTurn("GREEN", 1))
+		executor := newTestExecutor(
+			t,
+			store,
+			binder,
+			&fakeJudge{results: []JudgeResult{judgeResult(gate.VerdictOutcomeApproved, 0)}},
+			&fakeBudgetGuard{},
+		)
+		node := testGoalNode(1)
+		node.Params["output_schema"] = map[string]any{
+			"type":                 "object",
+			"additionalProperties": true,
+			"properties": map[string]any{
+				"status": map[string]any{"type": "string", "enum": []any{"complete", "blocked"}},
+			},
+			"required": []any{"status"},
+		}
+
+		raw, err := executor.Execute(context.Background(), node, testGoalInput(t))
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		if got, want := raw.Text, "GREEN"; got != want {
+			t.Fatalf("ActionRawResult.Text = %q, want candidate %q", got, want)
+		}
+		if got, want := string(raw.Structured), `{"status":"complete"}`; got != want {
+			t.Fatalf("ActionRawResult.Structured = %s, want %s", got, want)
+		}
+		if raw.Control == nil || raw.Control.Disposition != loop.ActionDispositionSucceeded {
+			t.Fatalf("ActionRawResult.Control = %#v, want succeeded", raw.Control)
 		}
 	})
 }

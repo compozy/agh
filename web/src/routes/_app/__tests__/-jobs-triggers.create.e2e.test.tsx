@@ -26,6 +26,7 @@ import {
   primaryAutomationJobFixture,
   primaryAutomationTriggerFixture,
 } from "@/systems/automation/mocks/fixtures";
+import { loopCatalogFixtures } from "@/systems/loops/mocks/fixtures";
 import { settingsAutomationSectionFixture } from "@/systems/settings/mocks/fixtures";
 import { workspaceKeys } from "@/systems/workspace";
 import { useActiveWorkspaceStore } from "@/systems/workspace/hooks/use-active-workspace-store";
@@ -272,6 +273,8 @@ function createdTriggerFromBody(body: CreateAutomationTriggerRequest): Automatio
     prompt: body.prompt,
     retry: body.retry ?? { strategy: "none", max_retries: 0, base_delay: "" },
     scope: body.scope,
+    target_kind: body.target_kind,
+    loop_target: body.loop_target,
     webhook_id: body.webhook_id,
     webhook_secret_present: Boolean(body.webhook_secret_value),
     workspace_id: body.workspace_id,
@@ -293,8 +296,24 @@ function omitNullish<T extends object>(value: T): Partial<T> {
 }
 
 function automationCreateHandlers(): HttpHandler[] {
+  const triggerLoops = loopCatalogFixtures.map(loop =>
+    loop.name === "reviews-watch"
+      ? {
+          ...loop,
+          inputs: { pr: { type: "number" as const, required: true } },
+          start: [{ kind: "trigger" as const }],
+        }
+      : loop
+  );
+
   return [
     http.get("/api/workspaces", () => HttpResponse.json({ workspaces })),
+    http.get("/api/workspaces/:workspaceId/loops", () =>
+      HttpResponse.json({
+        loops: triggerLoops,
+        page: { has_more: false, limit: 50, total: triggerLoops.length },
+      })
+    ),
     http.get("/api/settings/automation", () => HttpResponse.json(settingsAutomationSectionFixture)),
     http.get("/api/automation/jobs", ({ request }) => {
       const jobs = jobStore.listScoped(scopedFilterFromRequest(request));
@@ -377,6 +396,16 @@ function automationCreateHandlers(): HttpHandler[] {
       createTriggerRequests.push(body);
       if (createTriggerResponseOverride) {
         return createTriggerResponseOverride(body);
+      }
+      if (
+        body.target_kind === "loop" &&
+        (!body.loop_target?.workspace_id ||
+          (body.scope === "workspace" && body.loop_target.workspace_id !== body.workspace_id))
+      ) {
+        return HttpResponse.json(
+          { error: "Loop target workspace must match the trigger workspace." },
+          { status: 422 }
+        );
       }
 
       const trigger = createdTriggerFromBody(body);
@@ -1099,7 +1128,9 @@ describe("Triggers create modal", () => {
     fireEvent.change(screen.getByTestId("trigger-prompt-input"), {
       target: { value: "Inspect {{ .Kind }} before deploy." },
     });
-    expect(screen.getByTestId("submit-trigger-form")).toBeEnabled();
+    await waitFor(() => {
+      expect(screen.getByTestId("submit-trigger-form")).toBeEnabled();
+    });
 
     fireEvent.click(screen.getByTestId("submit-trigger-form"));
 
@@ -1391,6 +1422,11 @@ describe("Triggers create modal", () => {
     );
 
     fireEvent.click(screen.getByTestId("delete-automation-btn"));
+    expect(triggerStore.get("trg_continuity_trigger")).toBeDefined();
+    fireEvent.change(screen.getByTestId("automation-delete-confirm-typing"), {
+      target: { value: "continuity-trigger" },
+    });
+    fireEvent.click(screen.getByTestId("confirm-delete-automation-btn"));
 
     await waitFor(() => {
       expect(triggerStore.get("trg_continuity_trigger")).toBeUndefined();
@@ -1418,6 +1454,55 @@ describe("Triggers create modal", () => {
     );
   });
 
+  it("Should create a workspace Trigger Loop target after leaving webhook scope", async () => {
+    renderAutomationPage("triggers");
+
+    fireEvent.click(await screen.findByTestId("create-trigger-btn"));
+    fireEvent.change(screen.getByTestId("trigger-name-input"), {
+      target: { value: "review-on-stop" },
+    });
+    fireEvent.click(screen.getByTestId("trigger-event-webhook"));
+    fireEvent.click(screen.getByTestId("trigger-event-session.stopped"));
+    fireEvent.click(screen.getByTestId("target-mode-loop"));
+    fireEvent.change(await screen.findByTestId("loop-target-select"), {
+      target: { value: "reviews-watch" },
+    });
+    fireEvent.change(screen.getByTestId("loop-input-field-pr"), {
+      target: { value: "2" },
+    });
+    fireEvent.click(screen.getByTestId("trigger-scope-workspace"));
+    selectTriggerWorkspace("ws_beta");
+
+    expect(screen.getByTestId("automation-target-details")).toHaveTextContent("ws_beta");
+    expect(screen.getByTestId("automation-request-payload")).toHaveTextContent(
+      '"workspace_id": "ws_beta"'
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("submit-trigger-form")).toBeEnabled();
+    });
+    fireEvent.click(screen.getByTestId("submit-trigger-form"));
+
+    await waitFor(() => {
+      expect(createTriggerRequests).toHaveLength(1);
+    });
+    expect(createTriggerRequests[0]).toEqual(
+      expect.objectContaining({
+        loop_target: {
+          input_mapping: {},
+          inputs: { pr: 2 },
+          loop_name: "reviews-watch",
+          workspace_id: "ws_beta",
+        },
+        name: "review-on-stop",
+        scope: "workspace",
+        target_kind: "loop",
+        workspace_id: "ws_beta",
+      })
+    );
+    expect(await screen.findByTestId("automation-item-trg_review_on_stop")).toBeInTheDocument();
+    expect(screen.queryByTestId("automation-editor-dialog")).not.toBeInTheDocument();
+  });
+
   it("Should keep a trigger draft open through a network drop and retry without a phantom row", async () => {
     createTriggerResponseOverride = () => HttpResponse.error();
     renderAutomationPage("triggers");
@@ -1429,6 +1514,9 @@ describe("Triggers create modal", () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalled();
     });
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Failed to save automation trigger. Check your connection and try again."
+    );
     expect(screen.getByTestId("automation-editor-dialog")).toBeInTheDocument();
     expect(
       screen.queryByTestId("automation-item-trg_network_drop_trigger")

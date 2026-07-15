@@ -29,7 +29,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		return
 	}
 
-	message, err := extractPromptMessage(req)
+	input, err := extractPromptInput(req)
 	if err != nil {
 		core.RespondError(c, http.StatusBadRequest, err, true)
 		return
@@ -48,7 +48,8 @@ func (h *Handlers) promptSession(c *gin.Context) {
 	deliveryCtx, cancelDelivery := context.WithCancel(c.Request.Context())
 	defer cancelDelivery()
 	result, err := h.Sessions.SendPrompt(executionCtx, sessionID, session.SendPromptOpts{
-		Message:           message,
+		Message:           input.message,
+		ClientMessageID:   input.clientMessageID,
 		Mode:              session.BusyInputMode(req.Mode),
 		DeliveryContext:   deliveryCtx,
 		Caller:            caller,
@@ -141,17 +142,34 @@ func (h *Handlers) cancelQueuedSessionPrompt(c *gin.Context) {
 }
 
 func extractPromptMessage(req contract.SendPromptRequest) (string, error) {
+	input, err := extractPromptInput(req)
+	return input.message, err
+}
+
+type extractedPromptInput struct {
+	message         string
+	clientMessageID string
+}
+
+func extractPromptInput(req contract.SendPromptRequest) (extractedPromptInput, error) {
 	if message := strings.TrimSpace(req.Message); message != "" {
-		return message, nil
+		return extractedPromptInput{
+			message:         message,
+			clientMessageID: strings.TrimSpace(req.MessageID),
+		}, nil
 	}
 
 	for _, msg := range slices.Backward(req.Messages) {
 		if strings.TrimSpace(msg.Role) != promptUserKey {
 			continue
 		}
+		clientMessageID := strings.TrimSpace(msg.ID)
+		if clientMessageID == "" {
+			clientMessageID = strings.TrimSpace(req.MessageID)
+		}
 
 		if content := strings.TrimSpace(msg.Content); content != "" {
-			return content, nil
+			return extractedPromptInput{message: content, clientMessageID: clientMessageID}, nil
 		}
 
 		parts := make([]string, 0, len(msg.Parts))
@@ -165,11 +183,14 @@ func extractPromptMessage(req contract.SendPromptRequest) (string, error) {
 			}
 		}
 		if len(parts) > 0 {
-			return strings.Join(parts, "\n"), nil
+			return extractedPromptInput{
+				message:         strings.Join(parts, "\n"),
+				clientMessageID: clientMessageID,
+			}, nil
 		}
 	}
 
-	return "", errors.New("message is required")
+	return extractedPromptInput{}, errors.New("message is required")
 }
 
 type invalidRequestPayloadError struct {

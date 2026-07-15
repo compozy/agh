@@ -105,6 +105,7 @@ const sessionListInputSchema = `{
 	"properties":{
 		"workspace":{"type":"string"},
 		"state":{"type":"string","enum":["starting","active","stopping","stopped"]},
+		"type":{"type":"string","enum":["user","system","coordinator","spawned"]},
 		"agent":{"type":"string"},
 		"q":{"type":"string"},
 		"resumable":{"type":"boolean"},

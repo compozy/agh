@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -13,6 +14,7 @@ import (
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	looppkg "github.com/compozy/agh/internal/loop"
 	loopdsl "github.com/compozy/agh/internal/loop/dsl"
+	watchpkg "github.com/compozy/agh/internal/loop/watch"
 	"github.com/compozy/agh/internal/store/globaldb"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
@@ -222,6 +224,131 @@ func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldRecoverWatchEventsGap(t
 			}
 		},
 	)
+}
+
+func TestSchedulerTaskSourceLoopCoordinatorBackstopShouldSettleWatchPollFailure(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should terminalize a generation-zero Loop when watch polling fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 13, 11, 27, 32, 0, time.UTC)
+		db := openDaemonTestGlobalDB(t)
+		workspaceID := "ws-backstop-watch-poll-failure"
+		if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+			ID:        workspaceID,
+			RootDir:   t.TempDir(),
+			Name:      "Watch Poll Failure",
+			CreatedAt: now,
+			UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("InsertWorkspace() error = %v", err)
+		}
+		loopName := "watch-poll-failure"
+		definition, err := daemonLoopDefinitionFromSpec(testWatchLoopSpec(t, loopName))
+		if err != nil {
+			t.Fatalf("daemonLoopDefinitionFromSpec() error = %v", err)
+		}
+		resolved, err := looppkg.NewCompiler().Compile(definition)
+		if err != nil {
+			t.Fatalf("Compile(watch Loop) error = %v", err)
+		}
+		seedRun := looppkg.Run{
+			ID:                "looprun-watch-poll-failure",
+			WorkspaceID:       looppkg.WorkspaceID(workspaceID),
+			LoopName:          loopName,
+			Status:            looppkg.StatusRunning,
+			ReattemptStrategy: looppkg.ReattemptFailedOnly,
+			CreatedAt:         now,
+			LastProgressAt:    now,
+			IterationCap:      3,
+			BudgetOnExceeded:  loopdsl.BudgetExceededHalt,
+			Inputs:            map[string]any{},
+		}
+		applyResolvedLoopRunPinningForTest(t, &seedRun, now, resolved)
+		created, err := db.CreateLoopRunForStart(ctx, seedRun, loopdsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		pollErr := errors.New("gh repo view failed in /private/operator/workspace with token secret-value")
+		runner, err := looppkg.NewCoordinatorRunner(
+			db,
+			db,
+			db,
+			discardLogger(),
+			looppkg.WithCoordinatorWatchPoller(schedulerWatchPollerFunc(
+				func(context.Context, watchpkg.PollRequest) (watchpkg.PollResponse, error) {
+					return watchpkg.PollResponse{}, pollErr
+				},
+			)),
+		)
+		if err != nil {
+			t.Fatalf("NewCoordinatorRunner() error = %v", err)
+		}
+		manager, err := taskpkg.NewManager(
+			taskpkg.WithStore(db),
+			taskpkg.WithCoordinatorRunner(runner),
+			taskpkg.WithGenerationStateFinalizer(looppkg.NewStoreFinalizer()),
+			taskpkg.WithCoordinatorTerminalStatusValidator(func(status string) bool {
+				return looppkg.Status(strings.TrimSpace(status)).Valid()
+			}),
+			taskpkg.WithCoordinatorTerminalHookStatusValidator(func(status string) bool {
+				return looppkg.Status(strings.TrimSpace(status)).Terminal()
+			}),
+			taskpkg.WithManagerNow(func() time.Time { return now.Add(time.Second) }),
+		)
+		if err != nil {
+			t.Fatalf("task.NewManager() error = %v", err)
+		}
+		actor := schedulerCoordinatorActorContextForTest(t)
+
+		started, err := (schedulerTaskSource{manager: manager, store: db}).RunLoopCoordinatorBackstop(
+			ctx,
+			now.Add(time.Second),
+			actor,
+		)
+		if !errors.Is(err, pollErr) {
+			t.Fatalf("RunLoopCoordinatorBackstop() error = %v, want wrapped poll error", err)
+		}
+		if started != 0 {
+			t.Fatalf("started = %d, want 0 successful starts", started)
+		}
+
+		stored, err := db.GetLoopRunByID(ctx, created.ID)
+		if err != nil {
+			t.Fatalf("GetLoopRunByID() error = %v", err)
+		}
+		if got, want := stored.Status, looppkg.StatusFailed; got != want {
+			t.Fatalf("Loop status = %q, want %q", got, want)
+		}
+		if stored.Generation != 0 {
+			t.Fatalf("Loop generation = %d, want 0", stored.Generation)
+		}
+
+		failedRuns, err := db.ListTaskRunsByStatus(ctx, []taskpkg.RunStatus{taskpkg.TaskRunStatusFailed})
+		if err != nil {
+			t.Fatalf("ListTaskRunsByStatus(failed) error = %v", err)
+		}
+		if got, want := len(failedRuns), 1; got != want {
+			t.Fatalf("failed coordinator runs = %d, want %d", got, want)
+		}
+		failedRun := failedRuns[0]
+		if !failedRun.LeaseUntil.IsZero() || !failedRun.HeartbeatAt.IsZero() {
+			t.Fatalf("failed coordinator retained lease: %#v", failedRun)
+		}
+		if strings.Contains(failedRun.Error, "secret-value") || strings.Contains(failedRun.Error, "/private/operator") {
+			t.Fatalf("failed coordinator persisted unsafe error = %q", failedRun.Error)
+		}
+		events, err := db.ListLoopRunEvents(ctx, looppkg.RunEventQuery{
+			WorkspaceID: created.WorkspaceID,
+			RunID:       created.ID,
+		})
+		if err != nil {
+			t.Fatalf("ListLoopRunEvents() error = %v", err)
+		}
+		assertGenerationZeroCoordinatorFailureEvent(t, events)
+	})
 }
 
 func TestSchedulerTaskSourceWatchEventsGapRecoveryShouldRequireStoreCapability(t *testing.T) {
@@ -470,4 +597,58 @@ func (schedulerBackstopGenerationFinalizer) WriteGenerationSnapshot(
 	taskpkg.GenerationSnapshot,
 ) error {
 	return nil
+}
+
+type schedulerWatchPollerFunc func(context.Context, watchpkg.PollRequest) (watchpkg.PollResponse, error)
+
+func (f schedulerWatchPollerFunc) Poll(
+	ctx context.Context,
+	req watchpkg.PollRequest,
+) (watchpkg.PollResponse, error) {
+	return f(ctx, req)
+}
+
+func assertGenerationZeroCoordinatorFailureEvent(t *testing.T, events []looppkg.RunEvent) {
+	t.Helper()
+
+	var failureEvents []looppkg.RunEvent
+	for _, event := range events {
+		if event.Kind != "status_changed" {
+			continue
+		}
+		var payload struct {
+			Status  string `json:"status"`
+			Failure *struct {
+				Kind     string `json:"kind"`
+				Code     string `json:"code"`
+				Cause    string `json:"cause"`
+				Recovery string `json:"recovery"`
+			} `json:"failure"`
+		}
+		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			t.Fatalf("Unmarshal(status_changed payload) error = %v", err)
+		}
+		if payload.Status == string(looppkg.StatusFailed) && payload.Failure != nil {
+			failureEvents = append(failureEvents, event)
+			if got, want := payload.Failure.Kind, "coordinator_failure"; got != want {
+				t.Fatalf("failure.kind = %q, want %q", got, want)
+			}
+			if got, want := payload.Failure.Code, "watch_poll_failed"; got != want {
+				t.Fatalf("failure.code = %q, want %q", got, want)
+			}
+			if strings.TrimSpace(payload.Failure.Cause) == "" {
+				t.Fatal("failure.cause is empty")
+			}
+			if strings.TrimSpace(payload.Failure.Recovery) == "" {
+				t.Fatal("failure.recovery is empty")
+			}
+			if strings.Contains(string(event.Payload), "secret-value") ||
+				strings.Contains(string(event.Payload), "/private/operator") {
+				t.Fatalf("status_changed event persisted unsafe failure = %s", event.Payload)
+			}
+		}
+	}
+	if got, want := len(failureEvents), 1; got != want {
+		t.Fatalf("generation-zero coordinator failure events = %d, want %d", got, want)
+	}
 }

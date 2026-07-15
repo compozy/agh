@@ -27,7 +27,7 @@ func (e *Evaluator) evaluateAgentJudge(
 			}},
 		}
 	}
-	rubric, err := RenderAgentJudgeRubric(criterion, in.Contract, in.TemplateData)
+	rubric, err := RenderAgentJudgeRubric(criterion, in.Contract, in.TemplateData, in.JudgeEvidence)
 	if err != nil {
 		return CriterionResult{
 			ID:      criterion.ID,
@@ -48,13 +48,15 @@ func (e *Evaluator) evaluateAgentJudge(
 		model = strings.TrimSpace(in.JudgeModel)
 	}
 	response, err := e.judges.Judge(ctx, JudgeRequest{
-		GateID:      gate.ID,
-		CriterionID: criterion.ID,
-		WorkspaceID: in.ToolScope.WorkspaceID,
-		Agent:       criterion.Agent,
-		Model:       model,
-		Rubric:      rubric,
-		Contract:    in.Contract,
+		GateID:        gate.ID,
+		CriterionID:   criterion.ID,
+		Attempt:       in.Revision + 1,
+		CorrelationID: strings.TrimSpace(in.ToolCallCorrelationID),
+		WorkspaceID:   in.ToolScope.WorkspaceID,
+		Agent:         criterion.Agent,
+		Model:         model,
+		Rubric:        rubric,
+		Contract:      in.Contract,
 	})
 	if err != nil {
 		return CriterionResult{

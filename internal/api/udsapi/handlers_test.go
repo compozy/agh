@@ -266,6 +266,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/resources/:kind",
 		"GET /api/resources/:kind/:id",
 		"GET /api/sessions",
+		"GET /api/sessions/catalog-stream",
 		"GET /api/sessions/:session_id",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/events",
@@ -1783,12 +1784,13 @@ func TestPromptSessionRawHandlerPreservesBusyInputMode(t *testing.T) {
 			engine,
 			http.MethodPost,
 			"/api/workspaces/ws-workspace/sessions/sess-123/prompt?format=raw",
-			[]byte("{\"message\":\"replace\",\"mode\":\"interrupt\"}"),
+			[]byte(`{"message":"replace","messageId":"client-replace-1","mode":"interrupt"}`),
 		)
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
 		}
-		if gotOpts.Message != "replace" || gotOpts.Mode != session.BusyInputModeInterrupt {
+		if gotOpts.Message != "replace" || gotOpts.ClientMessageID != "client-replace-1" ||
+			gotOpts.Mode != session.BusyInputModeInterrupt {
 			t.Fatalf("SendPrompt() opts = %#v, want interrupt replace", gotOpts)
 		}
 		var decoded contract.SendPromptResultResponse

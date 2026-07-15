@@ -1230,7 +1230,7 @@ func TestManagerApprovalGrantedAutoEnqueuesReadyOptedInTask(t *testing.T) {
 		if execution != nil {
 			t.Fatalf("ApproveTask(alias failure) execution = %#v, want nil", execution)
 		}
-		if !strings.Contains(err.Error(), "save approval auto-enqueue idempotency alias") {
+		if !strings.Contains(err.Error(), "save approval idempotency alias") {
 			t.Fatalf("ApproveTask(alias failure) error = %v, want alias persistence context", err)
 		}
 	})

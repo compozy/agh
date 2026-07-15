@@ -164,17 +164,24 @@ export const EditMode: Story = {
   ),
 };
 
-export const ValidationDisabled: Story = {
+/** A saved Job keeps an incompatible Loop visible while blocking the request and save action. */
+export const EditIncompatibleLoop: Story = {
   args: {},
   render: () => (
     <JobFormHarness
-      initialDraft={{
-        ...createAutomationJobDraft(null),
-        name: "",
+      initialDraft={baseDraft({
+        name: "reviews-watch-daily",
         agent_name: "",
         prompt: "",
-        schedule: { mode: "cron", expr: "0 9 * * *" },
-      }}
+        target_kind: "loop",
+        loop_target: {
+          workspace_id: storyWorkspaceIds.hq,
+          loop_name: "reviews-watch",
+          inputs: {},
+          input_mapping: {},
+        },
+      })}
+      mode="edit"
     />
   ),
 };

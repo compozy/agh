@@ -1001,58 +1001,6 @@ func (e *TriggerEngine) hookCompletionEnvelope(
 	}, nil
 }
 
-func normalizeTriggerRegistration(registration TriggerRegistration) (TriggerRegistration, error) {
-	normalized := TriggerRegistration{
-		Trigger: Trigger{
-			ID:               strings.TrimSpace(registration.Trigger.ID),
-			Scope:            registration.Trigger.Scope,
-			Name:             strings.TrimSpace(registration.Trigger.Name),
-			AgentName:        strings.TrimSpace(registration.Trigger.AgentName),
-			WorkspaceID:      strings.TrimSpace(registration.Trigger.WorkspaceID),
-			Prompt:           strings.TrimSpace(registration.Trigger.Prompt),
-			Event:            strings.TrimSpace(registration.Trigger.Event),
-			Filter:           cloneStringMap(registration.Trigger.Filter),
-			Enabled:          registration.Trigger.Enabled,
-			Retry:            registration.Trigger.Retry,
-			FireLimit:        registration.Trigger.FireLimit,
-			Source:           registration.Trigger.Source,
-			WebhookID:        strings.TrimSpace(registration.Trigger.WebhookID),
-			EndpointSlug:     strings.TrimSpace(registration.Trigger.EndpointSlug),
-			WebhookSecretRef: strings.TrimSpace(registration.Trigger.WebhookSecretRef),
-			CreatedAt:        registration.Trigger.CreatedAt,
-			UpdatedAt:        registration.Trigger.UpdatedAt,
-		},
-	}
-	if err := normalized.Validate("trigger_registration"); err != nil {
-		return TriggerRegistration{}, err
-	}
-	normalized.compiledFilter = compileTriggerFilter(normalized.Trigger.Filter)
-	return normalized, nil
-}
-
-func registrationMatchesEnvelope(registration TriggerRegistration, envelope ActivationEnvelope) bool {
-	trigger := registration.Trigger
-	if !trigger.Enabled {
-		return false
-	}
-	if strings.TrimSpace(trigger.Event) != strings.TrimSpace(envelope.Kind) {
-		return false
-	}
-	if trigger.Scope != envelope.Scope {
-		return false
-	}
-	if strings.TrimSpace(trigger.WorkspaceID) != strings.TrimSpace(envelope.WorkspaceID) {
-		return false
-	}
-	if len(trigger.Filter) == 0 {
-		return true
-	}
-	if len(registration.compiledFilter.entries) == len(trigger.Filter) {
-		return registration.compiledFilter.matches(envelope)
-	}
-	return exactFilterMatch(trigger.Filter, envelope)
-}
-
 func sessionEnvelope(kind string, sess *session.Session) (ActivationEnvelope, error) {
 	if sess == nil {
 		return ActivationEnvelope{}, errors.New("automation: session is required")
@@ -1164,31 +1112,6 @@ func decodeWebhookSignature(signature string) ([]byte, error) {
 		return nil, ErrWebhookSignatureInvalid
 	}
 	return decoded, nil
-}
-
-func cloneTriggerRegistration(src TriggerRegistration) TriggerRegistration {
-	return TriggerRegistration{
-		Trigger: Trigger{
-			ID:               src.Trigger.ID,
-			Scope:            src.Trigger.Scope,
-			Name:             src.Trigger.Name,
-			AgentName:        src.Trigger.AgentName,
-			WorkspaceID:      src.Trigger.WorkspaceID,
-			Prompt:           src.Trigger.Prompt,
-			Event:            src.Trigger.Event,
-			Filter:           cloneStringMap(src.Trigger.Filter),
-			Enabled:          src.Trigger.Enabled,
-			Retry:            src.Trigger.Retry,
-			FireLimit:        src.Trigger.FireLimit,
-			Source:           src.Trigger.Source,
-			WebhookID:        src.Trigger.WebhookID,
-			EndpointSlug:     src.Trigger.EndpointSlug,
-			WebhookSecretRef: src.Trigger.WebhookSecretRef,
-			CreatedAt:        src.Trigger.CreatedAt,
-			UpdatedAt:        src.Trigger.UpdatedAt,
-		},
-		compiledFilter: cloneTriggerFilter(src.compiledFilter),
-	}
 }
 
 func cloneStringMap(src map[string]string) map[string]string {

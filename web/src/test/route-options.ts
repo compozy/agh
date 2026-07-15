@@ -48,8 +48,8 @@ export function routeNotFoundComponent<P>(route: RouteLike): (props: P) => React
   ) => ReactNode;
 }
 
-export function routeBeforeLoad(route: RouteLike): () => unknown {
-  return requireRouteFunction(route, "beforeLoad", "beforeLoad") as () => unknown;
+export function routeBeforeLoad<TArgs = void>(route: RouteLike): (args: TArgs) => unknown {
+  return requireRouteFunction(route, "beforeLoad", "beforeLoad") as (args: TArgs) => unknown;
 }
 
 export function routeLoader<TArgs>(route: RouteLike): (args: TArgs) => unknown {

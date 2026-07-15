@@ -80,7 +80,7 @@ CREATE TABLE sessions (
 
 CREATE TABLE token_stats (
 		id            TEXT PRIMARY KEY,
-		session_id    TEXT NOT NULL REFERENCES sessions(id),
+		session_id    TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
 		agent_name    TEXT NOT NULL,
 		input_tokens  INTEGER,
 		output_tokens INTEGER,

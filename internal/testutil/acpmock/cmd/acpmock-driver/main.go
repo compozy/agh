@@ -419,7 +419,7 @@ func (a *mockAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (ac
 	}
 
 	prompt := extractPromptText(params.Prompt)
-	turn, occurrence, err := a.selectTurn(sessionID, prompt, promptMeta)
+	turn, promptIndex, err := a.selectTurn(sessionID, prompt, promptMeta)
 	if err != nil {
 		return acpsdk.PromptResponse{}, err
 	}
@@ -427,7 +427,7 @@ func (a *mockAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (ac
 	record := acpmock.DiagnosticsRecord{
 		AgentName:   a.agent.Name,
 		SessionID:   sessionID,
-		PromptIndex: occurrence,
+		PromptIndex: promptIndex,
 		Prompt:      prompt,
 		PromptMeta:  promptMeta,
 		TurnName:    strings.TrimSpace(turn.Name),
@@ -545,13 +545,13 @@ func (a *mockAgent) selectTurn(
 		session = &sessionState{}
 		a.sessions[sessionID] = session
 	}
-	occurrence := session.PromptCount + 1
-	turn, err := a.agent.SelectTurn(prompt, occurrence, promptMeta)
+	promptIndex := session.PromptCount + 1
+	turn, err := a.agent.SelectTurn(prompt, promptMeta)
 	if err != nil {
-		return acpmock.TurnFixture{}, occurrence, err
+		return acpmock.TurnFixture{}, promptIndex, err
 	}
-	session.PromptCount = occurrence
-	return turn, occurrence, nil
+	session.PromptCount = promptIndex
+	return turn, promptIndex, nil
 }
 
 func (a *mockAgent) executeStep(

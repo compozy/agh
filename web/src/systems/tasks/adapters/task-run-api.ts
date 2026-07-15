@@ -13,6 +13,8 @@ import type {
   FailTaskRunRequest,
   ForceFailTaskRunRequest,
   ForceReleaseTaskRunRequest,
+  RecoverTaskRunRequest,
+  RecoverTaskRunResult,
   RetryTaskRunRequest,
   RetryTaskRunResult,
   StartTaskRunRequest,
@@ -114,6 +116,26 @@ export async function forceFailTaskRun(
   signal?: AbortSignal
 ): Promise<TaskRun> {
   return mutateRun("/api/runs/{id}/fail", id, body, "fail", signal);
+}
+
+export async function recoverTaskRun(
+  id: string,
+  body: RecoverTaskRunRequest = {},
+  signal?: AbortSignal
+): Promise<RecoverTaskRunResult> {
+  const { data, error, response } = await apiClient.POST("/api/runs/{id}/recover", {
+    params: { path: { id } },
+    body,
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) throw new TasksApiError(`Task run not found: ${id}`, 404);
+    throw new TasksApiError(
+      defaultApiErrorMessage(`Failed to recover task run "${id}"`, response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, `Failed to recover task run "${id}"`);
 }
 
 export async function retryTaskRun(

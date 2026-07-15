@@ -40,6 +40,11 @@ func (r *taskRuntime) shutdown(ctx context.Context) error {
 		r.reentry.shutdown()
 	}
 	var shutdownErr error
+	if roles := r.roles.Load(); roles != nil {
+		if err := roles.shutdown(ctx); err != nil {
+			shutdownErr = errors.Join(shutdownErr, err)
+		}
+	}
 	if r.loopActions != nil {
 		if err := r.loopActions.shutdown(ctx); err != nil {
 			shutdownErr = errors.Join(shutdownErr, err)

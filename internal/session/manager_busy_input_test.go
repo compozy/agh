@@ -94,7 +94,6 @@ func TestManagerBusyInputQueue(t *testing.T) {
 		if got := len(managerPromptCalls(h)); got != 1 {
 			t.Fatalf("len(promptCalls) while first prompt active = %d, want 1", got)
 		}
-
 		releaseOnce.Do(func() {
 			close(releaseFirstPrompt)
 		})
@@ -138,7 +137,7 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		})
 
 		result, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
-			Message: "/goal status",
+			Message: "/goal status", ClientMessageID: "client-literal-goal",
 		})
 		if err != nil {
 			t.Fatalf("SendPrompt(literal Goal) error = %v", err)
@@ -150,6 +149,14 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		calls := managerPromptCalls(h)
 		if len(calls) != 1 || calls[0].Message != "/goal status" {
 			t.Fatalf("literal prompt calls = %#v", calls)
+		}
+		persistedInputs := managerUserPromptEvents(t, h, sess.ID)
+		if got, want := len(persistedInputs), 1; got != want {
+			t.Fatalf("persisted literal inputs = %d, want %d; events=%#v", got, want, persistedInputs)
+		}
+		if persistedInputs[0].Text != "/goal status" ||
+			persistedInputs[0].ClientMessageIDValue() != "client-literal-goal" {
+			t.Fatalf("persisted literal input = %#v", persistedInputs[0])
 		}
 	})
 
@@ -188,7 +195,8 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 
 		result, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
 			Message: "/goal status", AllowGoalCommands: true,
-			Caller: PromptCaller{Kind: "human", ID: "operator", Source: "http"},
+			ClientMessageID: "client-goal-status",
+			Caller:          PromptCaller{Kind: "human", ID: "operator", Source: "http"},
 		})
 		if err != nil {
 			t.Fatalf("SendPrompt(Goal status) error = %v", err)
@@ -198,6 +206,77 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		}
 		if calls := managerPromptCalls(h); len(calls) != 0 {
 			t.Fatalf("ACP prompt calls = %d, want 0", len(calls))
+		}
+		persistedInputs := managerUserPromptEvents(t, h, sess.ID)
+		if got, want := len(persistedInputs), 1; got != want {
+			t.Fatalf("persisted Goal status inputs = %d, want %d; events=%#v", got, want, persistedInputs)
+		}
+		if persistedInputs[0].Text != "/goal status" ||
+			persistedInputs[0].ClientMessageIDValue() != "client-goal-status" {
+			t.Fatalf("persisted Goal status input = %#v", persistedInputs[0])
+		}
+	})
+
+	t.Run("Should dispatch a durable clear after the session stops without invoking ACP", func(t *testing.T) {
+		t.Parallel()
+
+		var handlerCalls int
+		var expectedWorkspaceID string
+		var expectedSessionID string
+		h := newHarness(t, WithGoalCommandHandler(GoalCommandHandlerFunc(func(
+			_ context.Context,
+			workspaceID string,
+			sessionID string,
+			caller PromptCaller,
+			command GoalCommand,
+		) (GoalDispatchDecision, error) {
+			handlerCalls++
+			if workspaceID != expectedWorkspaceID || sessionID != expectedSessionID || caller.ID != "operator" ||
+				command.Verb != GoalCommandVerbClear {
+				t.Fatalf(
+					"Goal handler input = workspace:%q session:%q caller:%#v command:%#v",
+					workspaceID,
+					sessionID,
+					caller,
+					command,
+				)
+			}
+			return GoalDispatchDecision{
+				Kind:   GoalDispatchRespond,
+				Result: &GoalCommandResult{Outcome: GoalOutcomeCleared},
+			}, nil
+		})))
+		sess := createSession(t, h)
+		expectedWorkspaceID = h.workspaceID
+		expectedSessionID = sess.ID
+		if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+
+		result, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
+			Message: "/goal clear", AllowGoalCommands: true,
+			ClientMessageID: "client-goal-clear",
+			Caller:          PromptCaller{Kind: "human", ID: "operator", Source: "http"},
+		})
+		if err != nil {
+			t.Fatalf("SendPrompt(Goal clear) error = %v", err)
+		}
+		if result.Events != nil || result.Goal == nil || result.Goal.Outcome != GoalOutcomeCleared {
+			t.Fatalf("structured Goal result = %#v", result)
+		}
+		if handlerCalls != 1 {
+			t.Fatalf("Goal handler calls = %d, want 1", handlerCalls)
+		}
+		if calls := managerPromptCalls(h); len(calls) != 0 {
+			t.Fatalf("ACP prompt calls = %d, want 0", len(calls))
+		}
+		persistedInputs := managerUserPromptEvents(t, h, sess.ID)
+		if got, want := len(persistedInputs), 1; got != want {
+			t.Fatalf("persisted stopped-session Goal inputs = %d, want %d; events=%#v", got, want, persistedInputs)
+		}
+		if persistedInputs[0].Text != "/goal clear" ||
+			persistedInputs[0].ClientMessageIDValue() != "client-goal-clear" {
+			t.Fatalf("persisted stopped-session Goal input = %#v", persistedInputs[0])
 		}
 	})
 
@@ -231,6 +310,7 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 
 		admitted, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{
 			Message: "/goal draft improve objective", AllowGoalCommands: true, Caller: caller,
+			ClientMessageID: "client-goal-draft",
 		})
 		if err != nil {
 			t.Fatalf("SendPrompt(idle draft) error = %v", err)
@@ -239,6 +319,14 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		calls := managerPromptCalls(h)
 		if len(calls) != 1 || calls[0].Message != "Draft proposal: improve objective" {
 			t.Fatalf("admitted draft prompt calls = %#v", calls)
+		}
+		persistedInputs := managerUserPromptEvents(t, h, sess.ID)
+		if got, want := len(persistedInputs), 1; got != want {
+			t.Fatalf("persisted Goal draft inputs = %d, want %d; events=%#v", got, want, persistedInputs)
+		}
+		if persistedInputs[0].Text != "/goal draft improve objective" ||
+			persistedInputs[0].ClientMessageIDValue() != "client-goal-draft" {
+			t.Fatalf("persisted Goal draft input = %#v", persistedInputs[0])
 		}
 
 		entered := make(chan struct{})
@@ -898,6 +986,26 @@ func emitDonePromptEventsWithUsage(
 		PromptStopReason: acp.PromptStopReasonEndTurn,
 		Usage:            usage,
 	}
+}
+
+func managerUserPromptEvents(t *testing.T, h *harness, sessionID string) []acp.AgentEvent {
+	t.Helper()
+	stored, err := h.manager.Events(testutil.Context(t), sessionID, store.EventQuery{})
+	if err != nil {
+		t.Fatalf("Events(%s) error = %v", sessionID, err)
+	}
+	events := make([]acp.AgentEvent, 0, len(stored))
+	for _, storedEvent := range stored {
+		if storedEvent.Type != acp.EventTypeUserMessage {
+			continue
+		}
+		event, unmarshalErr := transcript.UnmarshalAgentEvent(storedEvent.Content)
+		if unmarshalErr != nil {
+			t.Fatalf("UnmarshalAgentEvent(%s) error = %v", storedEvent.ID, unmarshalErr)
+		}
+		events = append(events, event)
+	}
+	return events
 }
 
 func managedInputQueueEntry(sessionID string, queueEntryID string) store.SessionInputQueueEntry {

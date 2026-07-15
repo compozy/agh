@@ -11,7 +11,7 @@ import {
   type LoopReattemptStrategy,
 } from "../lib/loop-config-draft";
 import type { LoopOverrideDraft } from "../lib/loop-overrides";
-import type { LoopConfig, LoopDetail } from "../types";
+import type { LoopConfig, LoopDetail, LoopEffectiveConfig } from "../types";
 import { usePutLoopConfig } from "./use-loop-actions";
 
 interface UseLoopConfigureOptions {
@@ -19,6 +19,7 @@ interface UseLoopConfigureOptions {
   loop: LoopDetail;
   /** The stored per-loop config (`loop_config`), or null when the loop uses inherited defaults. */
   config: LoopConfig | null;
+  effectiveConfig: LoopEffectiveConfig;
   /** Called after a successful save so the route can close the sheet. */
   onSaved?: () => void;
 }
@@ -46,12 +47,13 @@ export function useLoopConfigure({
   workspaceId,
   loop,
   config,
+  effectiveConfig,
   onSaved,
 }: UseLoopConfigureOptions): UseLoopConfigureResult {
   const contract = loop.definition.contract;
   const descriptors = buildCheckDescriptors(contract);
   const [draft, setDraft] = useState<LoopConfigDraft>(() =>
-    initialConfigDraft(contract, descriptors, config)
+    initialConfigDraft(descriptors, config, effectiveConfig)
   );
   const mutation = usePutLoopConfig();
 
@@ -82,7 +84,7 @@ export function useLoopConfigure({
   }
 
   function handleReset() {
-    setDraft(resetConfigDraft(contract, descriptors));
+    setDraft(resetConfigDraft(descriptors, effectiveConfig));
     toast.success("Reset to loop defaults");
   }
 

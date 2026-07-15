@@ -6,16 +6,21 @@
  * the request payload — is computed here from `draft` alone. No React, no DOM,
  * no side effects: the orchestrator wraps a single call in `useMemo`.
  *
- * Output mode is DERIVED, never stored: `output = draft.task ? "task" : "agent"`.
- * In task mode the runtime ignores `agent_name`/`prompt` and the materialized run
- * status is always `delegated`. Every label here is a faithful derivation of the
- * saved schedule/scope/task, never a fabricated metric.
+ * Output mode is DERIVED, never stored: the Loop discriminator wins, then a task
+ * body selects task mode, otherwise the target is an agent. Every label here is a
+ * faithful derivation of the saved schedule/scope/target, never a fabricated metric.
  *
  * `now` defaults to `Date.now()` but is injectable so unit tests stay
  * deterministic and the schedule math is reproducible.
  */
 
 import type { CreateAutomationJobRequest } from "../types";
+import {
+  projectAutomationJobRequest,
+  type AutomationEditorMode,
+  type AutomationRequestProjection,
+} from "./automation-requests";
+import { projectAutomationTarget, type LoopTargetProjection } from "./automation-target";
 import {
   cronNext,
   formatAbsoluteUtc,
@@ -24,7 +29,6 @@ import {
   localInputToDate,
   parseCron,
   parseDuration,
-  toRfc3339,
 } from "./cron-engine";
 
 export interface JobNextRun {
@@ -38,14 +42,16 @@ export interface JobNextRun {
 export interface JobPreviewSummary {
   scheduleLabel: string;
   scopeLabel: string;
-  output: "agent" | "task";
+  output: "agent" | "loop" | "task";
   agentName: string | null;
+  loopTarget: LoopTargetProjection | null;
   ownerLabel: string | null;
 }
 
 export interface JobRunDigest {
-  output: "agent" | "task";
+  output: "agent" | "loop" | "task";
   agentName: string | null;
+  loopTarget: LoopTargetProjection | null;
   prompt: string | null;
   task: {
     title: string;
@@ -63,7 +69,8 @@ export interface JobPreviewModel {
   nextRuns: JobNextRun[] | null;
   nextRunsEmptyReason: string | null;
   runDigest: JobRunDigest;
-  payload: CreateAutomationJobRequest;
+  request: AutomationRequestProjection<CreateAutomationJobRequest>;
+  targetIssue: string | null;
 }
 
 type Draft = CreateAutomationJobRequest;
@@ -71,8 +78,9 @@ type JobOwner = NonNullable<NonNullable<Draft["task"]>["owner"]>;
 
 const NEXT_RUNS_COUNT = 5;
 
-/** Task mode is derived purely from the presence of a `task` object. */
-function deriveOutput(draft: Draft): "agent" | "task" {
+/** Loop discrimination wins; task mode remains derived from the durable task body. */
+function deriveOutput(draft: Draft): "agent" | "loop" | "task" {
+  if (projectAutomationTarget(draft).kind === "loop") return "loop";
   return draft.task ? "task" : "agent";
 }
 
@@ -117,11 +125,13 @@ function scopeLabel(draft: Draft): string {
 
 function buildSummary(draft: Draft, now: number): JobPreviewSummary {
   const output = deriveOutput(draft);
+  const target = projectAutomationTarget(draft);
   return {
     scheduleLabel: scheduleLabel(draft, now),
     scopeLabel: scopeLabel(draft),
     output,
     agentName: output === "agent" ? draft.agent_name : null,
+    loopTarget: output === "loop" && target.kind === "loop" ? target : null,
     ownerLabel: output === "task" ? ownerLabel(draft.task?.owner) : null,
   };
 }
@@ -225,17 +235,18 @@ function buildNextRuns(draft: Draft, now: number): NextRunsResult {
 }
 
 /**
- * Run-body digest. Mirrors `renderRunBody`: agent mode renders the prompt the
- * agent receives; task mode renders the materialized task with `delegated`
- * status, falling back to the job name/prompt for an empty title/description.
+ * Run-body digest: agent mode renders its prompt, Loop mode renders its typed
+ * target, and task mode renders the materialized task with `delegated` status.
  */
 function buildRunDigest(draft: Draft): JobRunDigest {
   const output = deriveOutput(draft);
+  const target = projectAutomationTarget(draft);
   if (output === "task" && draft.task) {
     const task = draft.task;
     return {
       output: "task",
       agentName: null,
+      loopTarget: null,
       prompt: null,
       task: {
         title: task.title?.trim() ? task.title : draft.name,
@@ -246,61 +257,30 @@ function buildRunDigest(draft: Draft): JobRunDigest {
       },
     };
   }
+  if (output === "loop" && target.kind === "loop") {
+    return {
+      output: "loop",
+      agentName: null,
+      loopTarget: target,
+      prompt: null,
+      task: null,
+    };
+  }
   return {
     output: "agent",
     agentName: draft.agent_name,
+    loopTarget: null,
     prompt: draft.prompt,
     task: null,
   };
 }
 
-/**
- * Normalize the draft into the exact request body that will be POSTed. Strips
- * keys whose value is `undefined` so the displayed payload matches what the
- * client actually sends; never fabricates fields. `agent_name`/`prompt` are kept
- * verbatim — including `""` — because the contract always carries them.
- */
-function buildPayload(draft: Draft): Draft {
-  const schedule = draft.schedule;
-  const normalizedSchedule: Draft["schedule"] = { mode: schedule.mode };
-  if (schedule.expr !== undefined) {
-    normalizedSchedule.expr = schedule.expr;
-  }
-  if (schedule.interval !== undefined) {
-    normalizedSchedule.interval = schedule.interval;
-  }
-  if (schedule.time !== undefined) {
-    normalizedSchedule.time = toRfc3339(localInputToDate(schedule.time));
-  }
-
-  const payload: Draft = {
-    scope: draft.scope,
-    name: draft.name,
-    agent_name: draft.agent_name,
-    prompt: draft.prompt,
-    schedule: normalizedSchedule,
-  };
-
-  if (draft.workspace_id !== undefined) {
-    payload.workspace_id = draft.workspace_id;
-  }
-  if (draft.task !== undefined) {
-    payload.task = draft.task;
-  }
-  if (draft.retry !== undefined) {
-    payload.retry = draft.retry;
-  }
-  if (draft.fire_limit !== undefined) {
-    payload.fire_limit = draft.fire_limit;
-  }
-  if (draft.enabled !== undefined) {
-    payload.enabled = draft.enabled;
-  }
-
-  return payload;
-}
-
-export function buildJobPreview(draft: Draft, now: number = Date.now()): JobPreviewModel {
+export function buildJobPreview(
+  draft: Draft,
+  now: number = Date.now(),
+  mode: AutomationEditorMode = "create",
+  targetIssue: string | null = null
+): JobPreviewModel {
   const readout = buildScheduleReadout(draft, now);
   const nextRuns = buildNextRuns(draft, now);
   return {
@@ -310,6 +290,7 @@ export function buildJobPreview(draft: Draft, now: number = Date.now()): JobPrev
     nextRuns: nextRuns.runs,
     nextRunsEmptyReason: nextRuns.emptyReason,
     runDigest: buildRunDigest(draft),
-    payload: buildPayload(draft),
+    request: projectAutomationJobRequest(draft, mode),
+    targetIssue,
   };
 }

@@ -59,11 +59,7 @@ func (s *service) Stop(
 		if err != nil {
 			return err
 		}
-		if s.goalLeaseRevoker != nil {
-			for _, lease := range result.RevokedPromptLeases {
-				s.goalLeaseRevoker.RevokeGoalPromptLease(lease, string(TransitionCauseOperatorStop))
-			}
-		}
+		s.revokeGoalPromptLeases(ctx, result.RevokedPromptLeases, TransitionCauseOperatorStop)
 		run.Status = StatusFailed
 		s.dispatchCoordinatorTerminal(ctx, run, TransitionCauseOperatorStop, stoppedAt)
 		return nil

@@ -13,15 +13,6 @@ import (
 	"github.com/compozy/agh/internal/transcript"
 )
 
-type promptRequest struct {
-	turnID      string
-	target      string
-	message     string
-	turnSource  TurnSource
-	meta        acp.PromptMeta
-	deliveryCtx context.Context
-}
-
 type promptSubmissionPath string
 
 const (
@@ -159,12 +150,13 @@ func (m *Manager) parsePromptRequest(ctx context.Context, id string, opts Prompt
 	}
 
 	return promptRequest{
-		turnID:      m.newPromptTurnID(),
-		target:      target,
-		message:     message,
-		turnSource:  turnSource,
-		meta:        meta,
-		deliveryCtx: opts.DeliveryContext,
+		turnID:          m.newPromptTurnID(),
+		target:          target,
+		message:         message,
+		authoredMessage: message,
+		turnSource:      turnSource,
+		meta:            meta,
+		deliveryCtx:     opts.DeliveryContext,
 	}, nil
 }
 
@@ -235,44 +227,6 @@ func (m *Manager) lookupPromptSession(ctx context.Context, target string) (*Sess
 	default:
 		return nil, metaErr
 	}
-}
-
-func (m *Manager) recordPromptInputEvent(
-	ctx context.Context,
-	session *Session,
-	req promptRequest,
-) error {
-	event := acp.AgentEvent{
-		Type:      acp.EventTypeUserMessage,
-		TurnID:    req.turnID,
-		Timestamp: m.now(),
-		Text:      req.message,
-	}
-	if req.turnSource == TurnSourceSynthetic {
-		event.Type = acp.EventTypeSyntheticReentry
-		event.Synthetic = clonePromptSyntheticMeta(req.meta.Synthetic)
-		if event.Synthetic != nil {
-			event.Synthetic.Goal = nil
-		}
-	}
-	event = m.normalizeEvent(session, req.turnID, event)
-	if err := m.recordEvent(ctx, session, event); err != nil {
-		return fmt.Errorf("session: persist prompt message for %q: %w", req.target, err)
-	}
-	m.notifyAgentEvent(ctx, session, event)
-	return nil
-}
-
-func clonePromptSyntheticMeta(meta *acp.PromptSyntheticMeta) *acp.PromptSyntheticMeta {
-	if meta == nil {
-		return nil
-	}
-
-	cloned := meta.Normalize()
-	if cloned.IsZero() {
-		return nil
-	}
-	return &cloned
 }
 
 // CancelPrompt cancels prompt setup/execution for a known session.
@@ -938,13 +892,22 @@ func (m *Manager) normalizeEvent(session *Session, turnID string, event acp.Agen
 }
 
 func (m *Manager) recordEvent(ctx context.Context, session *Session, event acp.AgentEvent) error {
+	return m.recordEventWithAuthoredText(ctx, session, event, "")
+}
+
+func (m *Manager) recordEventWithAuthoredText(
+	ctx context.Context,
+	session *Session,
+	event acp.AgentEvent,
+	authoredText string,
+) error {
 	recorder := session.recorderHandle()
 	if recorder == nil {
 		return errors.New("session: event recorder is not available")
 	}
 	event = m.enrichRecordedAgentEvent(session, event)
 
-	payload, err := marshalAgentEvent(event)
+	payload, err := marshalAgentEventPreservingAuthoredText(event, authoredText)
 	if err != nil {
 		return err
 	}
@@ -998,6 +961,21 @@ func marshalAgentEvent(event acp.AgentEvent) (string, error) {
 		return "", fmt.Errorf("session: marshal agent event: %w", err)
 	}
 	return data, nil
+}
+
+func marshalPromptInputEvent(event acp.AgentEvent, authoredText string) (string, error) {
+	data, err := transcript.MarshalPromptInputEvent(event, authoredText)
+	if err != nil {
+		return "", fmt.Errorf("session: marshal prompt input event: %w", err)
+	}
+	return data, nil
+}
+
+func marshalAgentEventPreservingAuthoredText(event acp.AgentEvent, authoredText string) (string, error) {
+	if strings.TrimSpace(authoredText) == "" || authoredText == event.Text {
+		return marshalAgentEvent(event)
+	}
+	return marshalPromptInputEvent(event, authoredText)
 }
 
 func (m *Manager) enrichRecordedAgentEvent(session *Session, event acp.AgentEvent) acp.AgentEvent {

@@ -19,15 +19,6 @@ func (q *Queries) DeleteAppMetadata(ctx context.Context, key string) error {
 	return err
 }
 
-const deletePermissionLogsBySession = `-- name: DeletePermissionLogsBySession :exec
-DELETE FROM permission_log WHERE session_id = ?1
-`
-
-func (q *Queries) DeletePermissionLogsBySession(ctx context.Context, sessionID string) error {
-	_, err := q.db.ExecContext(ctx, deletePermissionLogsBySession, sessionID)
-	return err
-}
-
 const deleteSession = `-- name: DeleteSession :execrows
 DELETE FROM sessions WHERE id = ?1
 `
@@ -46,15 +37,6 @@ DELETE FROM sessions WHERE workspace_id = ?1
 
 func (q *Queries) DeleteSessionsByWorkspace(ctx context.Context, workspaceID string) error {
 	_, err := q.db.ExecContext(ctx, deleteSessionsByWorkspace, workspaceID)
-	return err
-}
-
-const deleteTokenStatsBySession = `-- name: DeleteTokenStatsBySession :exec
-DELETE FROM token_stats WHERE session_id = ?1
-`
-
-func (q *Queries) DeleteTokenStatsBySession(ctx context.Context, sessionID string) error {
-	_, err := q.db.ExecContext(ctx, deleteTokenStatsBySession, sessionID)
 	return err
 }
 

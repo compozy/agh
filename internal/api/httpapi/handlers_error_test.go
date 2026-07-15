@@ -227,18 +227,10 @@ func TestDeleteWorkspaceHandlerReturnsConflictWhenWorkspaceHasSessions(t *testin
 func TestDeleteWorkspaceHandlerReturnsConflictWhenWorkspaceHasActiveSession(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should return conflict before unregistering active workspace sessions", func(t *testing.T) {
+	t.Run("Should map the resolver active-session conflict", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := newTestHomePaths(t)
-		active := newSessionInfo("sess-active")
-		active.WorkspaceID = "ws_alpha"
-		active.State = session.StateActive
-		manager := stubSessionManager{
-			ListAllFn: func(context.Context) ([]*session.Info, error) {
-				return []*session.Info{active}, nil
-			},
-		}
 		unregisterCalled := false
 		workspaces := stubWorkspaceService{
 			GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
@@ -246,12 +238,12 @@ func TestDeleteWorkspaceHandlerReturnsConflictWhenWorkspaceHasActiveSession(t *t
 			},
 			UnregisterFn: func(context.Context, string) error {
 				unregisterCalled = true
-				return nil
+				return workspacepkg.ErrWorkspaceHasActiveSessions
 			},
 		}
 		engine := newTestRouter(
 			t,
-			newTestHandlersWithWorkspace(t, manager, stubObserver{}, workspaces, homePaths),
+			newTestHandlersWithWorkspace(t, stubSessionManager{}, stubObserver{}, workspaces, homePaths),
 		)
 
 		resp := performRequest(t, engine, http.MethodDelete, "/api/workspaces/ws_alpha", nil)
@@ -265,12 +257,11 @@ func TestDeleteWorkspaceHandlerReturnsConflictWhenWorkspaceHasActiveSession(t *t
 		}
 		var payload contract.ErrorPayload
 		decodeJSONResponse(t, resp, &payload)
-		expectedError := "api: delete workspace \"ws_alpha\": workspace has active sessions: sess-active"
-		if payload.Error != expectedError {
-			t.Fatalf("error = %q, want %q", payload.Error, expectedError)
+		if payload.Error != workspacepkg.ErrWorkspaceHasActiveSessions.Error() {
+			t.Fatalf("error = %q, want %q", payload.Error, workspacepkg.ErrWorkspaceHasActiveSessions.Error())
 		}
-		if unregisterCalled {
-			t.Fatal("Unregister() called despite active workspace session")
+		if !unregisterCalled {
+			t.Fatal("Unregister() was not called")
 		}
 	})
 }

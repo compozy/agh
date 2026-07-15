@@ -10,6 +10,7 @@ export interface SessionState {
   drafts: Record<string, ComposerDraft>;
   goalResults: Record<string, SessionGoalCommandResult>;
   goalResultCommands: Record<string, string>;
+  goalErrorVisible: Record<string, boolean>;
 }
 
 export interface SessionActions {
@@ -17,6 +18,7 @@ export interface SessionActions {
   clearDraft: (sessionId: string) => void;
   clearAllDrafts: () => void;
   setGoalResult: (sessionId: string, result: SessionGoalCommandResult, command?: string) => void;
+  dismissGoalError: (sessionId: string) => void;
 }
 
 export type SessionStore = SessionState & SessionActions;
@@ -25,6 +27,7 @@ export const initialSessionState: SessionState = {
   drafts: {},
   goalResults: {},
   goalResultCommands: {},
+  goalErrorVisible: {},
 };
 
 export const createSessionStore: StateCreator<SessionStore> = set => ({
@@ -62,5 +65,20 @@ export const createSessionStore: StateCreator<SessionStore> = set => ({
       goalResultCommands: command
         ? { ...state.goalResultCommands, [sessionId]: command }
         : state.goalResultCommands,
+      goalErrorVisible:
+        result.outcome === "error"
+          ? { ...state.goalErrorVisible, [sessionId]: true }
+          : withoutSessionKey(state.goalErrorVisible, sessionId),
     })),
+
+  dismissGoalError: sessionId =>
+    set(state => ({ goalErrorVisible: withoutSessionKey(state.goalErrorVisible, sessionId) })),
 });
+
+function withoutSessionKey<T>(values: Record<string, T>, sessionId: string): Record<string, T> {
+  if (!(sessionId in values)) {
+    return values;
+  }
+  const { [sessionId]: _removed, ...rest } = values;
+  return rest;
+}

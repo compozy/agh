@@ -82,6 +82,15 @@ func (m *Service) executeTaskBoundary(
 		return nil, err
 	}
 
+	if execution, ok, err := m.approvalExistingRunExecution(
+		ctx,
+		approvalTask,
+	); err != nil {
+		return nil, err
+	} else if ok {
+		return execution, nil
+	}
+
 	if execution, ok, err := m.approvalAutoEnqueueExecution(
 		ctx,
 		approvalTask,
@@ -112,6 +121,61 @@ func (m *Service) executeTaskBoundary(
 		Run:    *run,
 		Action: action,
 	}, nil
+}
+
+func (m *Service) approvalExistingRunExecution(
+	ctx context.Context,
+	approvalTask *Task,
+) (*Execution, bool, error) {
+	if approvalTask == nil {
+		return nil, false, nil
+	}
+	runs, err := m.store.ListTaskRuns(ctx, RunQuery{TaskID: approvalTask.ID})
+	if err != nil {
+		return nil, false, fmt.Errorf(
+			"task: list runs while approving task %q: %w",
+			approvalTask.ID,
+			err,
+		)
+	}
+	var openRun *Run
+	for idx := range runs {
+		if isTerminalRunStatus(runs[idx].Status) {
+			continue
+		}
+		if openRun != nil {
+			return nil, false, fmt.Errorf(
+				"%w: task %q has multiple open runs %q and %q",
+				ErrConflict,
+				approvalTask.ID,
+				openRun.ID,
+				runs[idx].ID,
+			)
+		}
+		openRun = &runs[idx]
+	}
+	if openRun == nil {
+		return nil, false, nil
+	}
+	if strings.TrimSpace(openRun.TaskID) != approvalTask.ID {
+		return nil, false, fmt.Errorf(
+			"%w: task %q current run %q belongs to task %q",
+			ErrValidation,
+			approvalTask.ID,
+			openRun.ID,
+			openRun.TaskID,
+		)
+	}
+	taskRecord, err := m.store.GetTask(ctx, approvalTask.ID)
+	if err != nil {
+		return nil, false, err
+	}
+	return &Execution{
+		Task:        taskRecord,
+		Run:         *openRun,
+		Action:      ExecutionActionApproval,
+		ExistingRun: true,
+	}, true, nil
 }
 
 func (m *Service) prepareTaskExecutionBoundary(
@@ -168,7 +232,7 @@ func (m *Service) approvalAutoEnqueueExecution(
 	if err != nil {
 		return nil, false, err
 	}
-	if err := m.saveApprovalAutoEnqueueIdempotencyAlias(
+	if err := m.saveApprovalIdempotencyAlias(
 		ctx,
 		approvalTask.ID,
 		run.ID,
@@ -189,7 +253,7 @@ func (m *Service) approvalAutoEnqueueExecution(
 	}, true, nil
 }
 
-func (m *Service) saveApprovalAutoEnqueueIdempotencyAlias(
+func (m *Service) saveApprovalIdempotencyAlias(
 	ctx context.Context,
 	taskID string,
 	runID string,
@@ -203,7 +267,7 @@ func (m *Service) saveApprovalAutoEnqueueIdempotencyAlias(
 		CreatedAt:      m.now().UTC(),
 	}); err != nil {
 		return fmt.Errorf(
-			"task: save approval auto-enqueue idempotency alias for task %q run %q: %w",
+			"task: save approval idempotency alias for task %q run %q: %w",
 			taskID,
 			runID,
 			err,

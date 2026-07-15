@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@tanstack/react-router", async importOriginal => {
@@ -18,7 +18,7 @@ vi.mock("@tanstack/react-router", async importOriginal => {
 });
 
 const { LoopDetailView } = await import("../detail/loop-detail");
-const { loopCatalogFixtures, loopDetailByName, loopRunFixtures } =
+const { loopCatalogFixtures, loopDetailByName, loopEffectiveConfigFixture, loopRunFixtures } =
   await import("../../mocks/fixtures");
 const { readLoopGraph } = await import("../../lib/loop-graph");
 type LoopBindingRow = import("../../lib/loop-bindings").LoopBindingRow;
@@ -29,27 +29,43 @@ const recentRuns = loopRunFixtures.filter(run => run.loop_name === "software-del
 const bindings: LoopBindingRow[] = [
   { id: "job", name: "nightly", kind: "schedule", enabled: false, meta: "Cron 0 3 * * *" },
 ];
+const savedConfig = {
+  iteration_cap: 3,
+  budget_on_exceeded: "escalate" as const,
+  no_progress_window: 2,
+  fan_out_width: 4,
+  gate_max_revisions: 2,
+};
 
-function renderDetail(handlers: Partial<Record<string, () => void>> = {}) {
+function renderDetail(
+  handlers: Partial<Record<string, () => void>> = {},
+  config = savedConfig,
+  renderedLoop = loop
+) {
   const noop = vi.fn();
   const merged = {
     onBack: noop,
     onRun: noop,
     onConfigure: noop,
-    onFork: noop,
+    onOpenEditor: noop,
+    onDelete: noop,
+    onDeleteReset: noop,
     onAddTrigger: noop,
     onAddSchedule: noop,
     ...handlers,
   };
   render(
     <LoopDetailView
-      loop={loop}
-      graph={readLoopGraph(loop.definition)}
+      loop={renderedLoop}
+      effectiveConfig={{ ...loopEffectiveConfigFixture, ...config }}
+      graph={readLoopGraph(renderedLoop.definition)}
       recentRuns={recentRuns}
       bindings={bindings}
       bindingsLoading={false}
       successRate={catalogEntry.success_rate_30d}
       aggregate={catalogEntry.aggregate_30d}
+      deleteError={null}
+      deletePending={false}
       {...merged}
     />
   );
@@ -97,19 +113,56 @@ describe("LoopDetailView", () => {
   it("Should invoke the header actions", () => {
     const onRun = vi.fn();
     const onConfigure = vi.fn();
-    const onFork = vi.fn();
-    renderDetail({ onRun, onConfigure, onFork });
+    const onOpenEditor = vi.fn();
+    renderDetail({ onRun, onConfigure, onOpenEditor });
     fireEvent.click(screen.getByTestId("loop-run-action"));
     fireEvent.click(screen.getByTestId("loop-configure-action"));
-    fireEvent.click(screen.getByTestId("loop-fork-action"));
+    fireEvent.click(screen.getByTestId("loop-edit-action"));
     expect(onRun).toHaveBeenCalledTimes(1);
     expect(onConfigure).toHaveBeenCalledTimes(1);
-    expect(onFork).toHaveBeenCalledTimes(1);
+    expect(onOpenEditor).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("loop-edit-action")).toHaveTextContent("Edit");
+  });
+
+  it("Should require the exact Loop name before deleting a workspace definition", () => {
+    const onDelete = vi.fn();
+    renderDetail({ onDelete });
+
+    fireEvent.click(screen.getByTestId("loop-delete-action"));
+    const dialog = screen.getByRole("dialog", { name: "Delete software-delivery?" });
+    const confirm = within(dialog).getByRole("button", { name: "Delete loop" });
+    expect(confirm).toBeDisabled();
+    expect(onDelete).not.toHaveBeenCalled();
+
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Type to confirm" }), {
+      target: { value: "software-delivery" },
+    });
+    expect(confirm).toBeEnabled();
+    fireEvent.click(confirm);
+    expect(onDelete).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should never offer Delete for a read-only Loop", () => {
+    const readOnlyLoop = loopDetailByName.get("reviews-watch")!;
+    renderDetail({}, savedConfig, readOnlyLoop);
+
+    expect(screen.queryByTestId("loop-delete-action")).not.toBeInTheDocument();
+    expect(screen.getByTestId("loop-edit-action")).toHaveTextContent("Fork & edit");
   });
 
   it("Should render the version without an unowned publish-state suffix", () => {
     renderDetail();
     expect(screen.getAllByText("v4").length).toBeGreaterThan(0);
     expect(screen.queryByText(/published/i)).not.toBeInTheDocument();
+  });
+
+  it("Should render saved per-Loop limits instead of authored contract values", () => {
+    renderDetail();
+    const limits = within(screen.getByTestId("loop-limits"));
+
+    expect(limits.getByText("Iteration cap").parentElement).toHaveTextContent("3 / 100");
+    expect(limits.getByText("No-progress window").parentElement).toHaveTextContent("2 / 10");
+    expect(limits.queryByText("50")).not.toBeInTheDocument();
+    expect(limits.getByText("escalate")).toBeInTheDocument();
   });
 });

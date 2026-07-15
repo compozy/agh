@@ -180,6 +180,96 @@ func TestGlobalDBTaskEventAppendFailureShouldRollbackOwningState(t *testing.T) {
 		}
 	})
 
+	t.Run("Should roll back child completion when parent rollup event append fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		parent := taskRecordForTest("task-parent-rollup-rollback")
+		if err := globalDB.CreateTask(ctx, parent); err != nil {
+			t.Fatalf("CreateTask(parent) error = %v", err)
+		}
+		parentRun := taskRunForTest("run-parent-rollup-rollback", parent.ID)
+		if err := globalDB.CreateTaskRun(ctx, parentRun); err != nil {
+			t.Fatalf("CreateTaskRun(parent) error = %v", err)
+		}
+		if _, err := globalDB.MarkTaskRunNeedsAttention(ctx, parentRun.ID, "starved"); err != nil {
+			t.Fatalf("MarkTaskRunNeedsAttention(parent) error = %v", err)
+		}
+
+		completedChild := taskRecordForTest("task-child-completed-rollup-rollback")
+		completedChild.ParentTaskID = parent.ID
+		completedChild.Status = taskpkg.TaskStatusCompleted
+		if err := globalDB.CreateTask(ctx, completedChild); err != nil {
+			t.Fatalf("CreateTask(completed child) error = %v", err)
+		}
+		settlingChild := taskRecordForTest("task-child-settling-rollup-rollback")
+		settlingChild.ParentTaskID = parent.ID
+		if err := globalDB.CreateTask(ctx, settlingChild); err != nil {
+			t.Fatalf("CreateTask(settling child) error = %v", err)
+		}
+		rawToken := "claim-token-parent-rollup-rollback"
+		leased := storeLeasedTaskRunForBlockTest(
+			ctx,
+			t,
+			globalDB,
+			settlingChild.ID,
+			"run-child-settling-rollup-rollback",
+			"sess-child-settling-rollup-rollback",
+			rawToken,
+			time.Date(2026, 4, 14, 15, 0, 0, 0, time.UTC),
+		)
+
+		observer := &recordingTaskEventCommitObserver{db: globalDB}
+		globalDB.SetTaskEventCommitObserver(observer)
+		installTaskEventInsertFailureTriggerForTaskAndType(
+			t,
+			globalDB,
+			parent.ID,
+			string(hookspkg.HookTaskStatusChanged),
+		)
+		_, err := globalDB.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+			Actor:      coordinatorActorContextForTest(),
+			RunID:      leased.ID,
+			ClaimToken: rawToken,
+			Result:     taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
+			Now:        leased.LeaseUntil.Add(-time.Minute),
+		})
+		assertForcedTaskEventInsertError(t, err, "CompleteRunLease(parent rollup)")
+
+		storedChildRun, err := globalDB.GetTaskRun(ctx, leased.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(child) error = %v", err)
+		}
+		if got, want := storedChildRun.Status, taskpkg.TaskRunStatusClaimed; got != want {
+			t.Fatalf("child run status = %q, want rollback to %q", got, want)
+		}
+		storedChild, err := globalDB.GetTask(ctx, settlingChild.ID)
+		if err != nil {
+			t.Fatalf("GetTask(child) error = %v", err)
+		}
+		if got, want := storedChild.Status, taskpkg.TaskStatusPending; got != want {
+			t.Fatalf("child task status = %q, want rollback to %q", got, want)
+		}
+		storedParent, err := globalDB.GetTask(ctx, parent.ID)
+		if err != nil {
+			t.Fatalf("GetTask(parent) error = %v", err)
+		}
+		if got, want := storedParent.Status, taskpkg.TaskStatusPending; got != want {
+			t.Fatalf("parent task status = %q, want rollback to %q", got, want)
+		}
+		storedParentRun, err := globalDB.GetTaskRun(ctx, parentRun.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(parent) error = %v", err)
+		}
+		if got, want := storedParentRun.Status, taskpkg.TaskRunStatusNeedsAttention; got != want {
+			t.Fatalf("parent run status = %q, want rollback to %q", got, want)
+		}
+		if got := len(observer.records); got != 0 {
+			t.Fatalf("len(observer.records) after rollback = %d, want 0", got)
+		}
+	})
+
 	t.Run("Should roll back block creation when task.blocked append fails", func(t *testing.T) {
 		t.Parallel()
 
@@ -475,6 +565,29 @@ func installTaskEventInsertFailureTriggerForType(t *testing.T, globalDB *GlobalD
 	)
 	if err != nil {
 		t.Fatalf("install task_event insert failure trigger error = %v", err)
+	}
+}
+
+func installTaskEventInsertFailureTriggerForTaskAndType(
+	t *testing.T,
+	globalDB *GlobalDB,
+	taskID string,
+	eventType string,
+) {
+	t.Helper()
+
+	_, err := globalDB.db.ExecContext(
+		testutil.Context(t),
+		`CREATE TRIGGER fail_task_event_insert_for_task
+		 BEFORE INSERT ON task_events
+		 WHEN NEW.task_id = '`+strings.ReplaceAll(taskID, "'", "''")+`'
+		  AND NEW.event_type = '`+strings.ReplaceAll(eventType, "'", "''")+`'
+		 BEGIN
+		 SELECT RAISE(ABORT, 'forced task event insert failure');
+		 END;`,
+	)
+	if err != nil {
+		t.Fatalf("install task_event task/type failure trigger error = %v", err)
 	}
 }
 

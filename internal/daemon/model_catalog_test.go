@@ -441,7 +441,9 @@ func bootModelCatalogTestDaemonWithSetup(
 	}
 
 	daemonInstance := newTestDaemon(t, homePaths, &cfg)
-	daemonInstance.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+	var sessionManagerCatalog modelcatalog.Service
+	daemonInstance.newSessionManager = func(_ context.Context, deps SessionManagerDeps) (SessionManager, error) {
+		sessionManagerCatalog = deps.ModelCatalog
 		return &fakeSessionManager{}, nil
 	}
 	daemonInstance.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
@@ -461,6 +463,13 @@ func bootModelCatalogTestDaemonWithSetup(
 
 	if err := daemonInstance.boot(testutil.Context(t)); err != nil {
 		t.Fatalf("boot() error = %v", err)
+	}
+	if sessionManagerCatalog != daemonInstance.modelCatalog {
+		t.Fatalf(
+			"session manager ModelCatalog = %p, want daemon runtime %p",
+			sessionManagerCatalog,
+			daemonInstance.modelCatalog,
+		)
 	}
 	t.Cleanup(func() {
 		if err := daemonInstance.Shutdown(testutil.Context(t)); err != nil {

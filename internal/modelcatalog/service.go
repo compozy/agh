@@ -101,7 +101,7 @@ func (s *CatalogService) ListModels(ctx context.Context, opts ListOptions) ([]Mo
 
 	var refreshStatuses []SourceStatus
 	var refreshErr error
-	if opts.Refresh || (needsRefresh && len(s.sources) > 0) {
+	if opts.Refresh || (needsRefresh && !opts.SkipRefreshIfEmpty && len(s.sources) > 0) {
 		refreshStatuses, refreshErr = s.Refresh(ctx, RefreshOptions{
 			ProviderID: opts.ProviderID,
 			SourceID:   opts.SourceID,
@@ -117,6 +117,7 @@ func (s *CatalogService) ListModels(ctx context.Context, opts ListOptions) ([]Mo
 	mergeOptions := cloneMergeOptions(s.mergeOptions)
 	s.mergeMu.RUnlock()
 	models := MergeRows(rows, mergeOptions)
+	models = filterAuthoritativeProviderModels(models)
 	models, err = applyCatalogView(models, opts.View)
 	if err != nil {
 		return nil, err

@@ -107,6 +107,7 @@ func (e *Executor) executeJudgeAttempt(
 		Key:       segment.key,
 		Turn:      attempt.Turn,
 		Criteria:  append([]dsl.GateCriterion(nil), segment.params.Judge...),
+		Result:    result,
 	})
 	if evaluateErr != nil {
 		judgeResult = brokenJudgeResult(evaluateErr)

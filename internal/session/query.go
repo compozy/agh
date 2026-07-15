@@ -54,7 +54,7 @@ func (m *Manager) ListAll(ctx context.Context) ([]*Info, error) {
 		}
 
 		id := strings.TrimSpace(entry.Name())
-		if id == "" {
+		if id == "" || strings.HasPrefix(id, sessionDeleteTombstonePrefix) {
 			continue
 		}
 
@@ -303,14 +303,14 @@ func (m *Manager) waitForSessionFinalization(ctx context.Context, id string) (bo
 	}
 
 	m.mu.RLock()
-	done, ok := m.finalizing[target]
+	finalization, ok := m.finalizing[target]
 	m.mu.RUnlock()
-	if !ok || done == nil {
+	if !ok || finalization == nil {
 		return false, nil
 	}
 
 	select {
-	case <-done:
+	case <-finalization.done:
 		return true, nil
 	case <-ctx.Done():
 		return true, ctx.Err()

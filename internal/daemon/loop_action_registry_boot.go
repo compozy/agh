@@ -15,6 +15,7 @@ func newBootLoopActionRegistry(
 	toolRegistry lazyToolRegistry,
 	policyGate *loopSessionPolicyGate,
 	gateEvaluator gate.GateEvaluator,
+	judgeExecutions *loopJudgeExecutionRegistry,
 ) (*looppkg.ActionRegistry, error) {
 	actionBinder := &loopActionSessionBinder{
 		sessions:            state.sessions,
@@ -44,7 +45,12 @@ func newBootLoopActionRegistry(
 			state.logger,
 		)
 		actionOptions[0] = looppkg.WithActionSessionBinder(goalRuntime)
-		goalOption, err := composeLoopGoalExecutor(goalStore, goalRuntime, gateEvaluator)
+		goalOption, err := composeLoopGoalExecutor(
+			goalStore,
+			goalRuntime,
+			gateEvaluator,
+			judgeExecutions,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("daemon: compose Goal executor: %w", err)
 		}

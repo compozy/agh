@@ -6,6 +6,7 @@ import type { TopbarRouteContext } from "@/types/topbar";
 import { useLoopRunPage } from "@/hooks/routes/use-loop-run-page";
 import {
   LoopApprovalGate,
+  LoopFailureDetail,
   LoopGenerationTimeline,
   LoopRunContractHeader,
   LoopRunControls,
@@ -106,6 +107,7 @@ function LoopRunDetail({ workspaceId, runId }: LoopRunDetailProps) {
           meters={<LoopRunMeters meters={page.meters} />}
         />
         <div className="flex flex-col gap-4 px-6 py-5">
+          {page.live.failure ? <LoopFailureDetail failure={page.live.failure} /> : null}
           {run.status === "needs-approval" ? (
             <LoopApprovalGate
               run={run}

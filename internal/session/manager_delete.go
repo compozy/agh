@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/compozy/agh/internal/store"
 )
@@ -24,49 +22,35 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 		return fmt.Errorf("session: normalize delete id %q: %w", id, err)
 	}
 
-	if _, ok := m.Get(target); ok {
-		if err := stopSessionBeforeDelete(ctx, target, m.StopWithCause); err != nil {
-			return fmt.Errorf("session: stop %q before delete: %w", target, err)
-		}
-	}
+	m.lifecycleMu.Lock()
+	defer m.lifecycleMu.Unlock()
 
-	sessionDir := filepath.Join(m.homePaths.SessionsDir, target)
-	_, statErr := os.Stat(sessionDir)
-	if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
-		return fmt.Errorf("session: stat session directory %q: %w", sessionDir, statErr)
-	}
-	resumeQueries, err := m.quiesceSessionQueries(ctx, target, sessionDir)
+	staged, err := m.stageSessionDelete(ctx, target, true)
 	if err != nil {
-		return fmt.Errorf("session: quiesce stored readers for %q: %w", target, err)
+		return err
 	}
-	defer resumeQueries()
 
-	catalogDeleted := false
 	if m.sessionCatalog != nil {
-		err := m.sessionCatalog.DeleteSession(ctx, target)
-		switch {
-		case err == nil:
-			catalogDeleted = true
-		case errors.Is(err, store.ErrSessionNotFound):
-			// A prior attempt can commit catalog deletion before filesystem removal fails.
-		case err != nil:
-			return fmt.Errorf("session: delete catalog state for %q: %w", target, err)
+		if err := m.sessionCatalog.DeleteSession(ctx, target); err != nil {
+			deleteErr := fmt.Errorf("session: delete catalog state for %q: %w", target, err)
+			if rollbackErr := m.rollbackStagedSessionDeletes([]stagedSessionDelete{staged}); rollbackErr != nil {
+				return errors.Join(deleteErr, rollbackErr)
+			}
+			return deleteErr
 		}
 	}
-
-	if errors.Is(statErr, os.ErrNotExist) {
-		if !catalogDeleted {
-			return fmt.Errorf("%w: %s", ErrSessionNotFound, target)
-		}
-		m.remove(target)
-		return nil
+	if cleanupErr := m.commitStagedSessionDeletes([]stagedSessionDelete{staged}); cleanupErr != nil {
+		// The catalog deletion is already committed. The tombstone is deliberately
+		// retained and retried during the next manager construction, while the
+		// logical deletion remains successful and cannot lose partially restored
+		// audit history.
+		m.logger.Warn(
+			"session: deferred deletion tombstone cleanup",
+			"session_id", target,
+			"error", cleanupErr,
+		)
 	}
 
-	if err := os.RemoveAll(sessionDir); err != nil {
-		return fmt.Errorf("session: delete session directory %q: %w", sessionDir, err)
-	}
-
-	m.remove(target)
 	return nil
 }
 

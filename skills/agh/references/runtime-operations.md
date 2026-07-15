@@ -17,6 +17,8 @@ AGH sessions are daemon-owned runtimes. Common states:
 
 Session types include user sessions and daemon-managed sessions such as dream, system, coordinator, worker, and reviewer sessions. Do not infer authority from a session type alone. Use the session context and daemon tools to confirm what the current session may do.
 
+An unnamed user session receives a daemon-owned durable title from its first submitted prompt. An explicit session name is preserved, and daemon-managed session types are not retitled by ordinary prompt submission. Treat the persisted session name as catalog identity; do not synthesize a competing title from client cache or transcript state.
+
 Attachability is explicit runtime state. Use `agh session list --resumable -o json` and `agh session resume` instead of assuming a stopped or idle session can be reused.
 
 After prompt admission, the daemon owns the turn lifetime. Closing a browser tab, navigating away from the web app, dropping an SSE stream, or disconnecting a CLI/UDS response only detaches that viewer; it does not cancel the accepted prompt. Use explicit runtime intent such as `agh session stop`, prompt cancel, or interrupt controls when cancellation is required.
@@ -32,6 +34,7 @@ Use structured output when agents need to inspect or route results.
     agh session new --agent general --name review-run
     agh session new --agent codex --cwd /absolute/path/to/worktree --name fix-task
     agh session list --all -o json
+    agh session list --type user --state active --sort last_activity -o json
     agh session list --resumable -o json
     agh session status <session-id> -o json
     agh session health <session-id> -o json
@@ -43,6 +46,7 @@ Use structured output when agents need to inspect or route results.
     agh session history <session-id> --last 20 --after 42
     agh session prompt <session-id> "Summarize the last three tool results."
     agh session stop <session-id>
+    agh session remove <session-id>
     agh session resume <session-id>
     agh session resume --latest --workspace checkout-api
     agh session repair <session-id> --dry-run -o json
@@ -51,6 +55,10 @@ Use structured output when agents need to inspect or route results.
     agh session wait <session-id>
 
 If an AGH-native session tool is visible, prefer the tool because it is policy-aware and easier for the daemon to audit. Use the CLI when the tool is denied, absent, or explicitly requested.
+
+`agh session stop` preserves durable history and resume state. `agh session remove` is destructive: it stops an active runtime when necessary, then removes the catalog row and persisted session directory. Use removal only when the operator intends to discard that history.
+
+The session catalog is counted and workspace-scoped. Dream sessions are internal and never appear in catalog results. HTTP and UDS clients can filter exact public session type with `type=user|system|coordinator|spawned`; the CLI exposes the same filter as `--type`. Browser integrations should subscribe once to `/api/sessions/catalog-stream`, route each wake signal by its authoritative `workspace_id`, and refetch that workspace's catalog page instead of incrementing local counters.
 
 ## Onboarding State
 

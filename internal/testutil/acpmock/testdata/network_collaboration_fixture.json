@@ -11,7 +11,6 @@
                     "name": "accept-direct-request",
                     "match": {
                         "turn_source": "network",
-                        "occurrence": 1,
                         "network": {
                             "message_id": "msg_direct_01",
                             "kind": "say",
@@ -35,7 +34,6 @@
                     "name": "trace-follow-up",
                     "match": {
                         "turn_source": "network",
-                        "occurrence": 2,
                         "network": {
                             "message_id": "msg_trace_02",
                             "kind": "trace",
@@ -59,7 +57,6 @@
                     "name": "public-summary-back",
                     "match": {
                         "turn_source": "network",
-                        "occurrence": 3,
                         "network": {
                             "message_id": "msg_summary_01",
                             "kind": "say",
@@ -91,7 +88,6 @@
                     "name": "reply-to-builders-say",
                     "match": {
                         "turn_source": "network",
-                        "occurrence": 1,
                         "network": {
                             "message_id": "msg_say_01",
                             "kind": "say",
@@ -113,7 +109,6 @@
                     "name": "send-trace-after-acceptance",
                     "match": {
                         "turn_source": "network",
-                        "occurrence": 2,
                         "network": {
                             "message_id": "msg_receipt_01",
                             "kind": "receipt",
@@ -137,7 +132,6 @@
                     "name": "observe-duplicate-receipt",
                     "match": {
                         "turn_source": "network",
-                        "occurrence": 3,
                         "network": {
                             "kind": "receipt"
                         }
@@ -161,7 +155,6 @@
                     "name": "observe-whois-response",
                     "match": {
                         "turn_source": "network",
-                        "occurrence": 1,
                         "network": {
                             "kind": "whois",
                             "reply_to": "msg_whois_01"
@@ -178,7 +171,6 @@
                     "name": "request-capability-help",
                     "match": {
                         "turn_source": "network",
-                        "occurrence": 2,
                         "network": {
                             "message_id": "msg_capability_01",
                             "kind": "capability",
@@ -201,7 +193,6 @@
                     "name": "observe-capability-trace",
                     "match": {
                         "turn_source": "network",
-                        "occurrence": 3,
                         "network": {
                             "message_id": "msg_trace_21",
                             "kind": "trace",
@@ -233,7 +224,6 @@
                     "name": "observe-capability-request",
                     "match": {
                         "turn_source": "network",
-                        "occurrence": 1,
                         "network": {
                             "message_id": "msg_capability_say_01",
                             "kind": "say",
@@ -254,7 +244,6 @@
                     "name": "reply-with-trace-guidance",
                     "match": {
                         "turn_source": "network",
-                        "occurrence": 2,
                         "network": {
                             "message_id": "msg_direct_20",
                             "kind": "say",

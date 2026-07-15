@@ -27,7 +27,7 @@ func (m *Manager) sessionStartOpts(
 		PreferredModel:  preferredACPModel(resolved, strings.TrimSpace(s.model) != ""),
 		ReasoningEffort: strings.TrimSpace(session.ReasoningEffort),
 		ResumeSessionID: s.acpSessionID,
-		ToolGateway:     newProviderNativeToolGateway(m, session),
+		ToolGateway:     newProviderNativeToolGateway(m, session, s.runtimeMode),
 	}
 }
 

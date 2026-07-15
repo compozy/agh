@@ -11,10 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	schedulerpkg "github.com/compozy/agh/internal/scheduler"
 	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
@@ -59,6 +61,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
 			TaskRunContext: hookspkg.TaskRunContext{TaskID: taskRecord.ID, RunID: run.ID},
 		})
+		runtime.wg.Wait()
 
 		if got, want := sessions.createCount(), 1; got != want {
 			t.Fatalf("create count = %d, want %d", got, want)
@@ -79,10 +82,126 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		if got := call.Provider; got != "" {
 			t.Fatalf("CreateOpts.Provider = %q, want default provider resolution", got)
 		}
+		if got := call.Model; got != "" {
+			t.Fatalf("CreateOpts.Model = %q, want provider-native default model resolution", got)
+		}
 		for _, required := range []string{"agh task next --wait -o json", "agh task run claim", run.ID, "design-review"} {
 			if !strings.Contains(call.PromptOverlay, required) {
 				t.Fatalf("PromptOverlay missing %q:\n%s", required, call.PromptOverlay)
 			}
+		}
+		if got, want := sessions.promptCount(), 1; got != want {
+			t.Fatalf("synthetic prompt count = %d, want %d", got, want)
+		}
+		prompt := sessions.promptCall(0)
+		if got, want := prompt.sessionID, "role-1"; got != want {
+			t.Fatalf("PromptSynthetic() session id = %q, want %q", got, want)
+		}
+		if got, want := prompt.opts.Metadata.TaskID, taskRecord.ID; got != want {
+			t.Fatalf("PromptSynthetic() task id = %q, want %q", got, want)
+		}
+		if got, want := prompt.opts.Metadata.TaskRunID, run.ID; got != want {
+			t.Fatalf("PromptSynthetic() run id = %q, want %q", got, want)
+		}
+		if got, want := prompt.opts.Metadata.Reason, taskRoleActivationReasonRunEnqueued; got != want {
+			t.Fatalf("PromptSynthetic() reason = %q, want %q", got, want)
+		}
+		if got, want := prompt.opts.TurnID, taskRolePromptTurnID("role-1", run.ID); got != want {
+			t.Fatalf("PromptSynthetic() turn id = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should return before session provisioning and cancel owned activation on shutdown", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskRoleRuntimeTask("task-detached", "frontend-engineer-agent", "design-review")
+		run := taskRoleRuntimeRun("run-detached", taskRecord.ID, "design-review")
+		store := newTaskRoleRuntimeStore(taskRecord, run)
+		sessions := newBlockingTaskRoleRuntimeSessions()
+		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
+		var releaseOnce sync.Once
+		t.Cleanup(func() {
+			releaseOnce.Do(func() { close(sessions.createRelease) })
+		})
+
+		returned := make(chan struct{})
+		go func() {
+			runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+				TaskRunContext: hookspkg.TaskRunContext{TaskID: taskRecord.ID, RunID: run.ID},
+			})
+			close(returned)
+		}()
+
+		select {
+		case <-sessions.createStarted:
+		case <-time.After(time.Second):
+			t.Fatal("session provisioning did not start")
+		}
+		select {
+		case <-returned:
+		case <-time.After(time.Second):
+			t.Fatal("OnTaskRunEnqueued blocked on session provisioning")
+		}
+
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := runtime.shutdown(shutdownCtx); err != nil {
+			t.Fatalf("shutdown() error = %v", err)
+		}
+		select {
+		case <-sessions.createCanceled:
+		case <-time.After(time.Second):
+			t.Fatal("shutdown did not cancel session provisioning")
+		}
+		if got := sessions.createCount(); got != 0 {
+			t.Fatalf("create count = %d, want 0 after canceled provisioning", got)
+		}
+	})
+
+	t.Run("Should drain task role activation before daemon session shutdown snapshots", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskRoleRuntimeTask("task-daemon-shutdown", "frontend-engineer-agent", "design-review")
+		run := taskRoleRuntimeRun("run-daemon-shutdown", taskRecord.ID, "design-review")
+		store := newTaskRoleRuntimeStore(taskRecord, run)
+		sessions := newShutdownOrderingSessionManager()
+		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
+		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+			TaskRunContext: hookspkg.TaskRunContext{TaskID: taskRecord.ID, RunID: run.ID},
+		})
+
+		select {
+		case <-sessions.createStarted:
+		case <-time.After(time.Second):
+			t.Fatal("session provisioning did not start")
+		}
+
+		tasks := &taskRuntime{}
+		tasks.roles.Store(runtime)
+		d, err := New(WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		var shutdownErrs []error
+		d.shutdownRuntimeWorkers(shutdownCtx, shutdownTargets{tasks: tasks, sessions: sessions}, &shutdownErrs)
+		if err := errors.Join(shutdownErrs...); err != nil {
+			t.Fatalf("shutdownRuntimeWorkers() error = %v", err)
+		}
+
+		select {
+		case <-sessions.createCanceled:
+		default:
+			t.Fatal("task role activation was not canceled before session shutdown")
+		}
+		select {
+		case <-sessions.listCalled:
+		default:
+			t.Fatal("session shutdown did not take its snapshot")
+		}
+		if got := sessions.createCount(); got != 0 {
+			t.Fatalf("create count = %d, want no session admitted during shutdown", got)
 		}
 	})
 
@@ -100,6 +219,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
 			TaskRunContext: hookspkg.TaskRunContext{TaskID: taskRecord.ID, RunID: run.ID},
 		})
+		runtime.wg.Wait()
 
 		if got, want := sessions.createCount(), 1; got != want {
 			t.Fatalf("create count = %d, want %d", got, want)
@@ -137,9 +257,16 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
 			TaskRunContext: hookspkg.TaskRunContext{TaskID: secondTask.ID, RunID: secondRun.ID},
 		})
+		runtime.wg.Wait()
 
 		if got, want := sessions.createCount(), 1; got != want {
 			t.Fatalf("create count = %d, want %d", got, want)
+		}
+		if got, want := sessions.promptCount(), 2; got != want {
+			t.Fatalf("synthetic prompt count = %d, want one per distinct run", got)
+		}
+		if first, second := sessions.promptCall(0), sessions.promptCall(1); first.opts.TurnID == second.opts.TurnID {
+			t.Fatalf("distinct runs reused activation turn id %q", first.opts.TurnID)
 		}
 	})
 
@@ -184,6 +311,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
 			TaskRunContext: hookspkg.TaskRunContext{TaskID: secondTask.ID, RunID: secondRun.ID},
 		})
+		runtime.wg.Wait()
 
 		if got, want := sessions.createCount(), 2; got != want {
 			t.Fatalf("create count = %d, want %d for different profile startup settings", got, want)
@@ -206,8 +334,8 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 			Worker: taskpkg.WorkerProfile{
 				Mode:                 taskpkg.WorkerModeSelect,
 				AgentName:            "frontend-engineer",
-				Provider:             "claude",
-				Model:                "sonnet",
+				Provider:             "cursor",
+				Model:                "grok-4.5[effort=high,fast=true]",
 				RequiredCapabilities: []string{"frontend"},
 			},
 			Sandbox: taskpkg.SandboxPolicy{
@@ -223,6 +351,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
 			TaskRunContext: hookspkg.TaskRunContext{TaskID: taskRecord.ID, RunID: run.ID},
 		})
+		runtime.wg.Wait()
 
 		if got, want := sessions.createCount(), 1; got != want {
 			t.Fatalf("create count = %d, want %d", got, want)
@@ -231,10 +360,10 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		if got, want := call.AgentName, "frontend-engineer"; got != want {
 			t.Fatalf("CreateOpts.AgentName = %q, want %q", got, want)
 		}
-		if got, want := call.Provider, "claude"; got != want {
+		if got, want := call.Provider, "cursor"; got != want {
 			t.Fatalf("CreateOpts.Provider = %q, want %q", got, want)
 		}
-		if got, want := call.Model, "sonnet"; got != want {
+		if got, want := call.Model, "grok-4.5[effort=high,fast=true]"; got != want {
 			t.Fatalf("CreateOpts.Model = %q, want %q", got, want)
 		}
 		if got, want := call.Permissions, aghconfig.PermissionModeApproveAll; got != want {
@@ -327,6 +456,92 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		}
 		if call.Lineage.SpawnBudget.TTLSeconds <= 0 || call.Lineage.SpawnBudget.MaxChildren <= 0 {
 			t.Fatalf("CreateOpts.Lineage.SpawnBudget = %#v, want positive ttl + children", call.Lineage.SpawnBudget)
+		}
+		if got, want := sessions.promptCount(), 1; got != want {
+			t.Fatalf("synthetic prompt count = %d, want %d", got, want)
+		}
+		prompt := sessions.promptCall(0)
+		if got, want := prompt.opts.Metadata.TaskID, taskRecord.ID; got != want {
+			t.Fatalf("PromptSynthetic() task id = %q, want %q", got, want)
+		}
+		if got, want := prompt.opts.Metadata.TaskRunID, run.ID; got != want {
+			t.Fatalf("PromptSynthetic() run id = %q, want %q", got, want)
+		}
+		if got, want := prompt.opts.Metadata.Reason, taskRoleActivationReasonStarvation; got != want {
+			t.Fatalf("PromptSynthetic() reason = %q, want %q", got, want)
+		}
+		if !strings.Contains(prompt.opts.Message, run.ID) {
+			t.Fatalf("PromptSynthetic() message missing run id %q: %s", run.ID, prompt.opts.Message)
+		}
+	})
+
+	t.Run("Should stop a fresh session when initial prompt dispatch fails and allow retry", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskRoleRuntimeTask("task-prompt-retry", "frontend-engineer-agent", "design-review")
+		run := taskRoleRuntimeRun("run-prompt-retry", taskRecord.ID, "design-review")
+		store := newTaskRoleRuntimeStore(taskRecord, run)
+		dispatchErr := errors.New("synthetic prompt unavailable")
+		sessions := &taskRoleRuntimeSessions{promptErrors: []error{dispatchErr, nil}}
+		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
+
+		err := runtime.activateForStarvation(context.Background(), taskRecord, run, starvationSpawner{})
+		if !errors.Is(err, dispatchErr) {
+			t.Fatalf("first activateForStarvation() error = %v, want %v", err, dispatchErr)
+		}
+		if got, want := sessions.stopCount(), 1; got != want {
+			t.Fatalf("stop count after failed prompt = %d, want %d", got, want)
+		}
+		stop := sessions.stopCall(0)
+		if got, want := stop.sessionID, "role-1"; got != want {
+			t.Fatalf("StopWithCause() session id = %q, want %q", got, want)
+		}
+		if got, want := stop.cause, session.CauseFailed; got != want {
+			t.Fatalf("StopWithCause() cause = %v, want %v", got, want)
+		}
+		if !strings.Contains(stop.detail, run.ID) {
+			t.Fatalf("StopWithCause() detail missing run id %q: %s", run.ID, stop.detail)
+		}
+
+		if err := runtime.activateForStarvation(
+			context.Background(),
+			taskRecord,
+			run,
+			starvationSpawner{},
+		); err != nil {
+			t.Fatalf("second activateForStarvation() error = %v", err)
+		}
+		if got, want := sessions.createCount(), 2; got != want {
+			t.Fatalf("create count after retry = %d, want %d", got, want)
+		}
+		if got, want := sessions.promptCount(), 2; got != want {
+			t.Fatalf("synthetic prompt count after retry = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should preserve prompt and cleanup failures when stopping the fresh session fails", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskRoleRuntimeTask("task-prompt-cleanup", "frontend-engineer-agent", "design-review")
+		run := taskRoleRuntimeRun("run-prompt-cleanup", taskRecord.ID, "design-review")
+		store := newTaskRoleRuntimeStore(taskRecord, run)
+		dispatchErr := errors.New("synthetic prompt unavailable")
+		cleanupErr := errors.New("session stop unavailable")
+		sessions := &taskRoleRuntimeSessions{
+			promptErrors: []error{dispatchErr},
+			stopError:    cleanupErr,
+		}
+		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
+
+		err := runtime.activateForStarvation(context.Background(), taskRecord, run, starvationSpawner{})
+		if !errors.Is(err, dispatchErr) {
+			t.Fatalf("activateForStarvation() error = %v, want prompt error %v", err, dispatchErr)
+		}
+		if !errors.Is(err, cleanupErr) {
+			t.Fatalf("activateForStarvation() error = %v, want cleanup error %v", err, cleanupErr)
+		}
+		if got, want := sessions.stopCount(), 1; got != want {
+			t.Fatalf("stop count after cleanup failure = %d, want %d", got, want)
 		}
 	})
 
@@ -430,7 +645,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reuse an already-active role session instead of spawning a duplicate", func(t *testing.T) {
+	t.Run("Should dispatch once after the first activation prompt completes", func(t *testing.T) {
 		t.Parallel()
 
 		taskRecord := taskRoleRuntimeTask("task-dup", "frontend-engineer-agent", "design-review")
@@ -447,6 +662,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		); err != nil {
 			t.Fatalf("first activateForStarvation() error = %v", err)
 		}
+		runtime.wg.Wait()
 		if err := runtime.activateForStarvation(
 			context.Background(),
 			taskRecord,
@@ -457,6 +673,94 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		}
 		if got, want := sessions.createCount(), 1; got != want {
 			t.Fatalf("create count = %d, want %d (dedup is the per-role cap)", got, want)
+		}
+		if got, want := sessions.promptCount(), 1; got != want {
+			t.Fatalf("synthetic prompt count = %d, want %d after the first turn completed", got, want)
+		}
+	})
+
+	t.Run("Should preserve a completed activation across runtime reconstruction", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskRoleRuntimeTask("task-reconstructed", "frontend-engineer-agent", "design-review")
+		run := taskRoleRuntimeRun("run-reconstructed", taskRecord.ID, "design-review")
+		store := newTaskRoleRuntimeStore(taskRecord, run)
+		sessions := &taskRoleRuntimeSessions{}
+		firstRuntime := newTaskRoleRuntimeForTest(t, store, sessions)
+
+		if err := firstRuntime.activateForStarvation(
+			context.Background(),
+			taskRecord,
+			run,
+			starvationSpawner{},
+		); err != nil {
+			t.Fatalf("first activateForStarvation() error = %v", err)
+		}
+		firstRuntime.wg.Wait()
+
+		reconstructed := newTaskRoleRuntimeForTest(t, store, sessions)
+		if err := reconstructed.activateForStarvation(
+			context.Background(),
+			taskRecord,
+			run,
+			starvationSpawner{},
+		); err != nil {
+			t.Fatalf("reconstructed activateForStarvation() error = %v", err)
+		}
+		if got, want := sessions.promptCount(), 1; got != want {
+			t.Fatalf("synthetic prompt count = %d, want %d after runtime reconstruction", got, want)
+		}
+	})
+
+	t.Run("Should dispatch once for a replacement session", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskRoleRuntimeTask("task-replacement", "frontend-engineer-agent", "design-review")
+		run := taskRoleRuntimeRun("run-replacement", taskRecord.ID, "design-review")
+		store := newTaskRoleRuntimeStore(taskRecord, run)
+		sessions := &taskRoleRuntimeSessions{}
+		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
+
+		if err := runtime.activateForStarvation(
+			context.Background(),
+			taskRecord,
+			run,
+			starvationSpawner{},
+		); err != nil {
+			t.Fatalf("first activateForStarvation() error = %v", err)
+		}
+		runtime.wg.Wait()
+		if err := sessions.StopWithCause(
+			context.Background(),
+			"role-1",
+			session.CauseUserRequested,
+			"explicit replacement",
+		); err != nil {
+			t.Fatalf("StopWithCause() error = %v", err)
+		}
+
+		if err := runtime.activateForStarvation(
+			context.Background(),
+			taskRecord,
+			run,
+			starvationSpawner{},
+		); err != nil {
+			t.Fatalf("replacement activateForStarvation() error = %v", err)
+		}
+		runtime.wg.Wait()
+		if err := runtime.activateForStarvation(
+			context.Background(),
+			taskRecord,
+			run,
+			starvationSpawner{},
+		); err != nil {
+			t.Fatalf("repeated replacement activateForStarvation() error = %v", err)
+		}
+		if got, want := sessions.createCount(), 2; got != want {
+			t.Fatalf("create count = %d, want %d after session replacement", got, want)
+		}
+		if got, want := sessions.promptCount(), 2; got != want {
+			t.Fatalf("synthetic prompt count = %d, want one per session assignment", got)
 		}
 	})
 }
@@ -478,7 +782,7 @@ func TestEscalationActorAdapterRequestWorkerSpawn(t *testing.T) {
 func newTaskRoleRuntimeForTest(
 	t *testing.T,
 	store *taskRoleRuntimeStore,
-	sessions *taskRoleRuntimeSessions,
+	sessions taskRoleSessionManager,
 ) *taskRoleRuntime {
 	t.Helper()
 
@@ -492,6 +796,13 @@ func newTaskRoleRuntimeForTest(
 	if err != nil {
 		t.Fatalf("newTaskRoleRuntime() error = %v", err)
 	}
+	t.Cleanup(func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := runtime.shutdown(shutdownCtx); err != nil {
+			t.Errorf("task role runtime shutdown error = %v", err)
+		}
+	})
 	return runtime
 }
 
@@ -606,9 +917,91 @@ func (s *taskRoleRuntimeStore) ListTaskRunsByStatus(
 }
 
 type taskRoleRuntimeSessions struct {
-	mu          sync.Mutex
-	infos       []*session.Info
-	createCalls []session.CreateOpts
+	mu           sync.Mutex
+	infos        []*session.Info
+	createCalls  []session.CreateOpts
+	promptCalls  []taskRoleRuntimePromptCall
+	promptErrors []error
+	stopCalls    []taskRoleRuntimeStopCall
+	stopError    error
+	events       map[string][]store.SessionEvent
+}
+
+type taskRoleRuntimePromptCall struct {
+	sessionID string
+	opts      session.SyntheticPromptOpts
+}
+
+type taskRoleRuntimeStopCall struct {
+	sessionID string
+	cause     session.StopCause
+	detail    string
+}
+
+type blockingTaskRoleRuntimeSessions struct {
+	*taskRoleRuntimeSessions
+	createStarted  chan struct{}
+	createRelease  chan struct{}
+	createCanceled chan struct{}
+	startOnce      sync.Once
+	cancelOnce     sync.Once
+}
+
+type shutdownOrderingSessionManager struct {
+	*fakeSessionManager
+	createStarted  chan struct{}
+	createCanceled chan struct{}
+	listCalled     chan struct{}
+	startOnce      sync.Once
+	cancelOnce     sync.Once
+	listOnce       sync.Once
+}
+
+func newShutdownOrderingSessionManager() *shutdownOrderingSessionManager {
+	return &shutdownOrderingSessionManager{
+		fakeSessionManager: &fakeSessionManager{},
+		createStarted:      make(chan struct{}),
+		createCanceled:     make(chan struct{}),
+		listCalled:         make(chan struct{}),
+	}
+}
+
+func (s *shutdownOrderingSessionManager) Create(
+	ctx context.Context,
+	_ session.CreateOpts,
+) (*session.Session, error) {
+	s.startOnce.Do(func() { close(s.createStarted) })
+	<-ctx.Done()
+	s.cancelOnce.Do(func() { close(s.createCanceled) })
+	return nil, fmt.Errorf("shutdown ordering create: %w", ctx.Err())
+}
+
+func (s *shutdownOrderingSessionManager) List() []*session.Info {
+	s.listOnce.Do(func() { close(s.listCalled) })
+	return s.fakeSessionManager.List()
+}
+
+func newBlockingTaskRoleRuntimeSessions() *blockingTaskRoleRuntimeSessions {
+	return &blockingTaskRoleRuntimeSessions{
+		taskRoleRuntimeSessions: &taskRoleRuntimeSessions{},
+		createStarted:           make(chan struct{}),
+		createRelease:           make(chan struct{}),
+		createCanceled:          make(chan struct{}),
+	}
+}
+
+func (s *blockingTaskRoleRuntimeSessions) Create(
+	ctx context.Context,
+	opts session.CreateOpts,
+) (*session.Session, error) {
+	s.startOnce.Do(func() { close(s.createStarted) })
+	select {
+	case <-s.createRelease:
+		return s.taskRoleRuntimeSessions.Create(ctx, opts)
+	case <-ctx.Done():
+		s.cancelOnce.Do(func() { close(s.createCanceled) })
+		return nil, fmt.Errorf("blocked task role session create: %w", ctx.Err())
+	}
 }
 
 func (s *taskRoleRuntimeSessions) Create(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
@@ -652,6 +1045,80 @@ func (s *taskRoleRuntimeSessions) ListAll(context.Context) ([]*session.Info, err
 	return infos, nil
 }
 
+func (s *taskRoleRuntimeSessions) Events(
+	_ context.Context,
+	id string,
+	query store.EventQuery,
+) ([]store.SessionEvent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	events := s.events[strings.TrimSpace(id)]
+	filtered := make([]store.SessionEvent, 0, len(events))
+	for _, event := range events {
+		if query.Type != "" && event.Type != query.Type {
+			continue
+		}
+		if query.TurnID != "" && event.TurnID != query.TurnID {
+			continue
+		}
+		filtered = append(filtered, event)
+		if query.Limit > 0 && len(filtered) == query.Limit {
+			break
+		}
+	}
+	return filtered, nil
+}
+
+func (s *taskRoleRuntimeSessions) PromptSynthetic(
+	_ context.Context,
+	id string,
+	opts session.SyntheticPromptOpts,
+) (<-chan acp.AgentEvent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.promptCalls = append(s.promptCalls, taskRoleRuntimePromptCall{sessionID: id, opts: opts})
+	if len(s.promptErrors) > 0 {
+		err := s.promptErrors[0]
+		s.promptErrors = s.promptErrors[1:]
+		if err != nil {
+			return nil, err
+		}
+	}
+	if s.events == nil {
+		s.events = make(map[string][]store.SessionEvent)
+	}
+	target := strings.TrimSpace(id)
+	s.events[target] = append(s.events[target], store.SessionEvent{
+		SessionID: target,
+		Sequence:  int64(len(s.events[target]) + 1),
+		TurnID:    opts.TurnID,
+		Type:      acp.EventTypeDone,
+	})
+	events := make(chan acp.AgentEvent)
+	close(events)
+	return events, nil
+}
+
+func (s *taskRoleRuntimeSessions) StopWithCause(
+	_ context.Context,
+	id string,
+	cause session.StopCause,
+	detail string,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.stopCalls = append(s.stopCalls, taskRoleRuntimeStopCall{sessionID: id, cause: cause, detail: detail})
+	if s.stopError != nil {
+		return s.stopError
+	}
+	for _, info := range s.infos {
+		if info != nil && info.ID == id {
+			info.State = session.StateStopped
+		}
+	}
+	return nil
+}
+
 func (s *taskRoleRuntimeSessions) createCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -665,4 +1132,34 @@ func (s *taskRoleRuntimeSessions) createCall(index int) session.CreateOpts {
 		return session.CreateOpts{}
 	}
 	return s.createCalls[index]
+}
+
+func (s *taskRoleRuntimeSessions) promptCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.promptCalls)
+}
+
+func (s *taskRoleRuntimeSessions) promptCall(index int) taskRoleRuntimePromptCall {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if index < 0 || index >= len(s.promptCalls) {
+		return taskRoleRuntimePromptCall{}
+	}
+	return s.promptCalls[index]
+}
+
+func (s *taskRoleRuntimeSessions) stopCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.stopCalls)
+}
+
+func (s *taskRoleRuntimeSessions) stopCall(index int) taskRoleRuntimeStopCall {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if index < 0 || index >= len(s.stopCalls) {
+		return taskRoleRuntimeStopCall{}
+	}
+	return s.stopCalls[index]
 }

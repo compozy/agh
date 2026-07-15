@@ -4,6 +4,7 @@ import { AssistantChatTransport, useChatRuntime } from "@assistant-ui/react-ai-s
 
 import { loopsKeys } from "@/systems/loops";
 import { sessionKeys } from "../lib/query-keys";
+import { invalidateSessionMutationQueries } from "../lib/session-query-invalidation";
 import { createGoalAwareFetch } from "../lib/session-goal-chat-transport";
 import { useSessionStore } from "./use-session-store";
 
@@ -15,6 +16,9 @@ function buildSessionRuntimeConfig(
   sessionId: string
 ) {
   const goalAwareFetch = createGoalAwareFetch({
+    onRequest: () => {
+      useSessionStore.getState().dismissGoalError(sessionId);
+    },
     onResult: (result, requestText) => {
       useSessionStore.getState().setGoalResult(sessionId, result, requestText ?? undefined);
       if (result.snapshot !== null || result.outcome === "cleared") {
@@ -40,13 +44,7 @@ function buildSessionRuntimeConfig(
     }),
     onFinish: () => {
       startTransition(() => {
-        void queryClient.invalidateQueries({
-          queryKey: sessionKeys.detail(workspaceId, sessionId),
-        });
-        void queryClient.invalidateQueries({
-          queryKey: sessionKeys.history(workspaceId, sessionId),
-        });
-        void queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
+        void invalidateSessionMutationQueries(queryClient, workspaceId, sessionId);
       });
     },
   };

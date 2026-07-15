@@ -160,7 +160,7 @@ func (g *TaskRepo) completeCoordinatorAndEnqueueNextWithExecutor(
 		return taskpkg.CoordinatorCompletionResult{}, err
 	}
 	result.Run = updated
-	return result, nil
+	return g.attachTerminalCoordinatorSettlementWithExecutor(ctx, exec, completion, &result, updated)
 }
 
 func normalizePostReserveSnapshot(

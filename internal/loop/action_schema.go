@@ -47,6 +47,11 @@ func structuredCandidate(result ActionPromptResult) (json.RawMessage, error) {
 	return extractJSONObject(result.Text)
 }
 
+// ActionStructuredCandidate returns the structured object supplied by one action prompt result.
+func ActionStructuredCandidate(result ActionPromptResult) (json.RawMessage, error) {
+	return structuredCandidate(result)
+}
+
 func validateJSONSchema(schema dsl.Schema, raw json.RawMessage) error {
 	schemaDoc, err := normalizeLoopSchema(schema)
 	if err != nil {

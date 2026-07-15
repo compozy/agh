@@ -5,6 +5,7 @@ import {
   ThreadPrimitive,
   ReadonlyThreadProvider,
   type ThreadMessage,
+  useAui,
   useAuiState,
 } from "@assistant-ui/react";
 import { ArrowDown } from "lucide-react";
@@ -12,8 +13,10 @@ import { type ComponentPropsWithoutRef, useEffect, useLayoutEffect, useRef } fro
 
 import { cn } from "@/lib/utils";
 import { SessionGoalHeaderContainer } from "@/systems/session/components/goal/session-goal-header-container";
+import { SessionGoalCommandErrorNotice } from "@/systems/session/components/goal/session-goal-command-error-notice";
 import { SessionLoadOlderButton } from "@/systems/session/components/session-load-older-button";
 import { useSessionTranscriptThreadState } from "@/systems/session";
+import { isGoalCommandFailureGuidance } from "@/systems/session/lib/session-goal-chat-transport";
 import {
   recordSessionDebugEvent,
   SESSION_DEBUG_EVENTS,
@@ -60,7 +63,7 @@ function SessionMessageErrorNotice() {
     return formatMessageError(status.error);
   });
 
-  if (error === null) {
+  if (error === null || isGoalCommandFailureGuidance(error)) {
     return null;
   }
 
@@ -365,10 +368,15 @@ export function SessionThread({
   onSteerQueuedPrompt,
   contentInset = SESSION_THREAD_CONTENT_INSET_DEFAULT,
 }: SessionThreadProps) {
+  const aui = useAui();
   const composerState = useSessionComposerState(sessionId);
+  const handleCancelPrompt = () => {
+    aui.thread().cancelRun();
+    onCancelPrompt();
+  };
   return (
     <ThreadPrimitive.Root className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <SessionComposerPrefillProvider setComposerText={composerState.setComposerText}>
+      <SessionComposerPrefillProvider setComposerText={composerState.prefillComposer}>
         {workspaceId ? (
           <SessionGoalHeaderContainer sessionId={sessionId} workspaceId={workspaceId} />
         ) : null}
@@ -378,11 +386,14 @@ export function SessionThread({
           isSessionRunning={isSessionRunning}
           contentInset={contentInset}
         />
+        <ThreadContentRail inset={contentInset} className="pt-2">
+          <SessionGoalCommandErrorNotice sessionId={sessionId} />
+        </ThreadContentRail>
         <SessionComposer
           composerState={composerState}
           contentInset={contentInset}
           canPrompt={canPrompt}
-          onCancelPrompt={onCancelPrompt}
+          onCancelPrompt={handleCancelPrompt}
           onQueuePrompt={onQueuePrompt}
           onInterruptPrompt={onInterruptPrompt}
           onSteerPrompt={onSteerPrompt}

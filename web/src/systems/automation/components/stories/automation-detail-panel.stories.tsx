@@ -124,7 +124,7 @@ export const Loading: Story = {
   ),
 };
 
-export const Deleting: Story = {
+export const LoopJob: Story = {
   args: {},
   render: () => (
     <PanelSurface>
@@ -132,18 +132,38 @@ export const Deleting: Story = {
         emptyState={null}
         error={null}
         state={{
-          isDeleting: true,
+          isDeleting: false,
           isLoading: false,
           isTogglePending: false,
           isTriggerPending: false,
         }}
-        item={primaryAutomationJobFixture}
+        item={{
+          ...primaryAutomationJobFixture,
+          agent_name: "",
+          prompt: "",
+          target_kind: "loop",
+          loop_target: {
+            workspace_id: primaryAutomationJobFixture.workspace_id ?? "ws_hq",
+            loop_name: "software-delivery",
+            inputs: { slug: "helix-v1-launch", dry_run: false },
+            input_mapping: {},
+          },
+        }}
         kind="jobs"
         onDelete={fn()}
         onEdit={fn()}
         onToggleEnabled={fn()}
         onTriggerNow={fn()}
-        runs={automationRunFixtures.filter(run => run.job_id === primaryAutomationJobFixture.id)}
+        runs={[
+          {
+            ...automationRunFixtures[0],
+            id: "run-f4489762ac431856",
+            job_id: primaryAutomationJobFixture.id,
+            status: "delegated",
+            session_id: undefined,
+            loop_run_id: "looprun-aeb24d4f17cf1feb",
+          },
+        ]}
         runsError={null}
         runsLoading={false}
       />

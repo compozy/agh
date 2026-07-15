@@ -30,7 +30,7 @@ func (e *Executor) Execute(
 	for {
 		boundary, err := e.advanceSegment(segmentCtx, segment)
 		if err != nil {
-			return loop.ActionRawResult{}, err
+			return loop.ActionRawResult{}, e.resolveExecutionError(segmentCtx, segment, err)
 		}
 		if boundary == nil || boundary.control == nil {
 			continue
@@ -296,7 +296,13 @@ func (e *Executor) rawResult(
 	}
 	structured := append([]byte(nil), segment.lastResult.Structured...)
 	if control.Disposition == loop.ActionDispositionSucceeded && segment.params.OutputSchema != nil {
-		validated, err := loop.ValidateActionStructured(*segment.params.OutputSchema, segment.lastResult)
+		result := segment.lastResult
+		structuredResult, err := authoritativeGoalStructuredResult(result, control.GoalStatus)
+		if err != nil {
+			return loop.ActionRawResult{}, err
+		}
+		result.Structured = structuredResult
+		validated, err := loop.ValidateActionStructured(*segment.params.OutputSchema, result)
 		if err != nil {
 			return loop.ActionRawResult{}, err
 		}

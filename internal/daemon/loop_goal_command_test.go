@@ -16,6 +16,11 @@ import (
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
+const (
+	goalCommandCursorModel       = "grok-4.5[effort=high,fast=true]"
+	goalCommandActiveCursorModel = "grok-4.5[effort=medium,fast=false]"
+)
+
 func TestSessionGoalDefinitionShouldKeepFreeFormClausesInsideAgentJudgeRubric(t *testing.T) {
 	t.Parallel()
 
@@ -28,7 +33,12 @@ func TestSessionGoalDefinitionShouldKeepFreeFormClausesInsideAgentJudgeRubric(t 
 		if err != nil {
 			t.Fatalf("ParseGoalObjective() error = %v", err)
 		}
-		definition := buildSessionGoalDefinition(objective, "operator-agent", 7)
+		definition := buildSessionGoalDefinition(
+			objective,
+			"operator-agent",
+			goalCommandCursorModel,
+			7,
+		)
 		resolved, err := looppkg.NewCompiler().Compile(definition)
 		if err != nil {
 			t.Fatalf("Compile(synthetic Goal) error = %v", err)
@@ -43,6 +53,14 @@ func TestSessionGoalDefinitionShouldKeepFreeFormClausesInsideAgentJudgeRubric(t 
 		}
 		if params.Agent != "operator-agent" || params.MaxTurns != 7 || len(params.Judge) != 1 {
 			t.Fatalf("Goal params = %#v", params)
+		}
+		if definition.Contract.ModelDefaults == nil ||
+			definition.Contract.ModelDefaults.Judge != goalCommandCursorModel {
+			t.Fatalf(
+				"Goal judge model default = %#v, want %s",
+				definition.Contract.ModelDefaults,
+				goalCommandCursorModel,
+			)
 		}
 		criterion := params.Judge[0]
 		if criterion.ID != "objective_satisfied" || criterion.Type != dsl.CriterionAgentJudge ||
@@ -80,7 +98,7 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			first.StartedOrigin.Kind != taskpkg.OriginKindHTTP || first.Origin.CreationProfileRef != fixture.profileRef {
 			t.Fatalf("started Goal identity = %#v", first)
 		}
-		fixture.assertPinnedGoalDefinition(t, first)
+		fixture.assertPinnedGoalDefinition(t, first, goalCommandCursorModel)
 
 		conflict, err := fixture.service.Handle(
 			ctx,
@@ -198,6 +216,36 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		assertGoalCommandOutcome(t, missing, session.GoalOutcomeError, session.GoalReasonNotActive)
 	})
 
+	t.Run("Should pin the reconciled active model for a provider-native default session", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newGoalCommandHandlerFixtureWithModels(t, "", goalCommandCursorModel)
+		decision, err := fixture.service.Handle(
+			testutil.Context(t),
+			fixture.workspaceID,
+			fixture.sessionID,
+			session.PromptCaller{
+				Kind: string(taskpkg.ActorKindHuman), ID: "operator", Source: "http",
+			},
+			session.GoalCommand{
+				Verb:      "set",
+				Objective: "Ship with the provider-native model\nverify: make verify",
+			},
+		)
+		if err != nil {
+			t.Fatalf("Handle(set provider-native model) error = %v", err)
+		}
+		assertGoalCommandOutcome(t, decision, session.GoalOutcomeStarted, "")
+		if decision.Result.Snapshot == nil {
+			t.Fatal("provider-native Goal snapshot = nil")
+		}
+		fixture.assertPinnedGoalDefinition(
+			t,
+			fixture.mustRun(t, decision.Result.Snapshot.RunID),
+			goalCommandCursorModel,
+		)
+	})
+
 	t.Run("Should rewrite draft into the ordinary idle-only prompt path", func(t *testing.T) {
 		t.Parallel()
 
@@ -245,6 +293,20 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 				name: "Should reject an origin without a persisted creation profile",
 				mutate: func(status *goalCommandSessionStatus) {
 					status.info.ID = "session-missing-creation-profile"
+				},
+				wantReason: session.GoalReasonCode(looppkg.ReasonCodeGoalOriginProfileUnavailable),
+			},
+			{
+				name: "Should reject an origin whose active agent differs from its immutable profile",
+				mutate: func(status *goalCommandSessionStatus) {
+					status.info.AgentName = "different-agent"
+				},
+				wantReason: session.GoalReasonCode(looppkg.ReasonCodeGoalOriginProfileUnavailable),
+			},
+			{
+				name: "Should reject an origin whose active provider differs from its immutable profile",
+				mutate: func(status *goalCommandSessionStatus) {
+					status.info.Provider = "different-provider"
 				},
 				wantReason: session.GoalReasonCode(looppkg.ReasonCodeGoalOriginProfileUnavailable),
 			},
@@ -321,6 +383,19 @@ type goalCommandHandlerFixture struct {
 
 func newGoalCommandHandlerFixture(t *testing.T) goalCommandHandlerFixture {
 	t.Helper()
+	return newGoalCommandHandlerFixtureWithModels(
+		t,
+		goalCommandCursorModel,
+		goalCommandActiveCursorModel,
+	)
+}
+
+func newGoalCommandHandlerFixtureWithModels(
+	t *testing.T,
+	profileModel string,
+	activeModel string,
+) goalCommandHandlerFixture {
+	t.Helper()
 
 	ctx := testutil.Context(t)
 	now := time.Date(2026, 7, 10, 23, 45, 0, 0, time.UTC)
@@ -329,9 +404,6 @@ func newGoalCommandHandlerFixture(t *testing.T) goalCommandHandlerFixture {
 [goals]
 max_turns = 7
 context_nudge_ratio = 0.0
-
-[loops.defaults.delivery.model_defaults]
-judge = "judge-v1"
 `)
 	db := openDaemonTestGlobalDB(t)
 	workspaceID := "ws-goal-command"
@@ -344,7 +416,7 @@ judge = "judge-v1"
 	}
 	profile := store.SessionCreationProfile{
 		Version: store.SessionCreationProfileVersion, AgentName: "operator-agent",
-		Provider: "claude", WorkspaceID: workspaceID, CWD: workspaceRoot,
+		Provider: "cursor", Model: profileModel, WorkspaceID: workspaceID, CWD: workspaceRoot,
 		SandboxMode: store.SessionCreationSandboxNone, Permissions: "default",
 	}
 	profileRef, err := db.PutSessionCreationProfile(ctx, profile)
@@ -405,6 +477,7 @@ judge = "judge-v1"
 	}
 	status := &goalCommandSessionStatus{info: &session.Info{
 		ID: sessionID, AgentName: profile.AgentName, Provider: profile.Provider,
+		Model:       activeModel,
 		WorkspaceID: workspaceID, Type: session.SessionTypeUser, State: session.StateActive,
 	}}
 	return goalCommandHandlerFixture{
@@ -426,7 +499,11 @@ func (f goalCommandHandlerFixture) mustRun(t *testing.T, runID string) looppkg.R
 	return run
 }
 
-func (f goalCommandHandlerFixture) assertPinnedGoalDefinition(t *testing.T, run looppkg.Run) {
+func (f goalCommandHandlerFixture) assertPinnedGoalDefinition(
+	t *testing.T,
+	run looppkg.Run,
+	wantJudgeModel string,
+) {
 	t.Helper()
 	snapshot, err := f.db.GetLoopDefinitionSnapshot(testutil.Context(t), run.WorkspaceID, run.DefinitionDigest)
 	if err != nil {
@@ -443,6 +520,13 @@ func (f goalCommandHandlerFixture) assertPinnedGoalDefinition(t *testing.T, run 
 	if len(params.Judge) != 1 || params.Judge[0].Type != dsl.CriterionAgentJudge ||
 		params.Judge[0].Check != "" || !strings.Contains(params.Judge[0].Rubric, "make verify") {
 		t.Fatalf("pinned Goal judge = %#v", params.Judge)
+	}
+	if resolved.EffectiveConfig.ModelDefaults.Judge != wantJudgeModel {
+		t.Fatalf(
+			"pinned Goal judge model = %q, want %q",
+			resolved.EffectiveConfig.ModelDefaults.Judge,
+			wantJudgeModel,
+		)
 	}
 }
 

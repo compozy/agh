@@ -18,6 +18,7 @@ export function normalizeSessionListFilters(filters: SessionListFilters = {}): S
     normalized.include_health = filters.include_health;
   }
   if (filters.state !== undefined) normalized.state = filters.state;
+  if (filters.type !== undefined) normalized.type = filters.type;
   if (agent) normalized.agent = agent;
   if (search) normalized.q = search;
   if (filters.resumable !== undefined) normalized.resumable = filters.resumable;

@@ -50,7 +50,7 @@
             "outputs": [".source/**", ".velite/**"]
         },
         "@agh/site#build": {
-            "dependsOn": ["//#codegen-check", "generate:content", "^build"],
+            "dependsOn": ["generate:content", "^build"],
             "outputs": ["out/**", ".next/**", "!.next/cache/**"]
         },
         "@agh/site#typecheck": {

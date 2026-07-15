@@ -3,13 +3,13 @@ title: Triggers
 description: Configure AGH automation triggers that react to runtime events, filters, and prompt templates.
 ---
 
-Triggers run agents in response to events. They are useful when the next agent run should depend on
-something that happened inside AGH, such as a session stopping, a memory consolidation completing,
-or a webhook delivery arriving.
+Triggers start an Agent or Loop in response to events. They are useful when the next run should
+depend on something that happened inside AGH, such as a session stopping, a memory consolidation
+completing, or a webhook delivery arriving.
 
 Triggers do not bind to jobs by ID. A trigger is its own automation definition with an event,
-filters, agent, prompt template, retry policy, and fire limit. When a matching event arrives, AGH
-uses the same dispatcher and run history model that scheduled jobs use.
+filters, target, retry policy, and fire limit. When a matching event arrives, AGH uses the same
+dispatcher and run history model that scheduled jobs use.
 
 <OperatorNote>
   Use a job when time is the input. Use a trigger when an event envelope is the input. Use a webhook
@@ -35,15 +35,51 @@ that created it; restart from the first page when any filter changes. See the ge
 | `name`                       | Yes                     | Human-readable trigger name.                                                                 |
 | `scope`                      | Yes                     | `global` or `workspace`.                                                                     |
 | `workspace` / `workspace_id` | Workspace triggers only | TOML uses `workspace`; API payloads and stored triggers use `workspace_id`.                  |
+| `target_kind`                | No                      | `agent` or `loop`. Omitted targets default to `agent` unless a `loop_target` is present.     |
 | `event`                      | Yes                     | Event name to match. Built-in events are documented below, and extension events use `ext.*`. |
-| `agent` / `agent_name`       | Yes                     | Agent to run when the trigger matches.                                                       |
-| `prompt`                     | Yes                     | Go `text/template` rendered against the activation envelope.                                 |
+| `agent` / `agent_name`       | Agent targets           | Agent to run when the trigger matches. Must be empty for Loop targets.                       |
+| `prompt`                     | Agent targets           | Go `text/template` rendered against the activation envelope. Must be empty for Loop targets. |
+| `loop_target`                | Loop targets            | Selects `workspace_id`, `loop_name`, static `inputs`, and optional event `input_mapping`.    |
 | `filter`                     | No                      | Exact-match conditions on envelope fields.                                                   |
 | `enabled`                    | No                      | Defaults to `true` for parsed config definitions.                                            |
 | `retry`                      | No                      | Same retry policy as jobs. Defaults to `none`.                                               |
 | `fire_limit`                 | No                      | Same rolling fire limit as jobs. Defaults to `12/1h` unless changed.                         |
 | `endpoint_slug`              | Webhook triggers        | Human-readable webhook endpoint segment.                                                     |
 | `webhook_secret_ref`         | Webhook triggers        | `env:NAME` or `vault:automation/...` ref for the webhook signing secret.                     |
+
+## Target a Loop from an event
+
+Set `target_kind` to `loop` and omit `agent_name` and `prompt`. The target workspace follows the
+same boundary as Jobs: a workspace trigger must use its own `workspace_id`, while a global trigger
+must name the workspace that owns the Loop. The selected Loop must support the trigger's automation
+start kind.
+
+`loop_target.inputs` provides static values. `loop_target.input_mapping` can derive additional
+Loop inputs from the activation envelope with the Loop start-binding template grammar.
+
+```json
+{
+  "name": "review-deployment",
+  "scope": "workspace",
+  "workspace_id": "ws_123",
+  "target_kind": "loop",
+  "event": "webhook",
+  "loop_target": {
+    "workspace_id": "ws_123",
+    "loop_name": "deployment-review",
+    "inputs": { "environment": "production" },
+    "input_mapping": {
+      "title": "{{ .trigger.payload.title }}"
+    }
+  },
+  "enabled": true
+}
+```
+
+Agents can submit this shape through `agh__automation_triggers_create`; HTTP and UDS expose the
+same request contract. The `agh automation triggers create|update` flags currently author Agent
+targets. The CLI can still list, inspect, enable, disable, and delete Loop-target triggers created
+through a native tool or transport API.
 
 ## Event types
 

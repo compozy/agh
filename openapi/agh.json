@@ -83,6 +83,45 @@
                                     },
                                     "type": "array"
                                 },
+                                "events": {
+                                    "items": {
+                                        "properties": {
+                                            "filter": {
+                                                "type": "string"
+                                            },
+                                            "kind": {
+                                                "enum": [
+                                                    "task.status_changed",
+                                                    "task.blocked",
+                                                    "task.unblocked",
+                                                    "task.needs_attention",
+                                                    "task.recovered",
+                                                    "task.run.completed",
+                                                    "task.run.failed",
+                                                    "loop.terminal",
+                                                    "loop.node.terminal",
+                                                    "automation.run.completed",
+                                                    "automation.run.failed",
+                                                    "network.message.persisted",
+                                                    "network.thread.opened",
+                                                    "network.direct_room.opened",
+                                                    "network.work.opened",
+                                                    "network.work.transitioned",
+                                                    "network.work.closed",
+                                                    "coordinator.spawned",
+                                                    "coordinator.decision",
+                                                    "coordinator.stopped",
+                                                    "coordinator.failed",
+                                                    "event.post_record"
+                                                ],
+                                                "type": "string"
+                                            }
+                                        },
+                                        "required": ["kind"],
+                                        "type": "object"
+                                    },
+                                    "type": "array"
+                                },
                                 "filter": {
                                     "type": "string"
                                 },
@@ -78274,6 +78313,15 @@
                         }
                     },
                     {
+                        "description": "Filter by exact session type",
+                        "in": "query",
+                        "name": "type",
+                        "schema": {
+                            "enum": ["user", "system", "coordinator", "spawned"],
+                            "type": "string"
+                        }
+                    },
+                    {
                         "description": "Filter by exact agent definition name",
                         "in": "query",
                         "name": "agent",
@@ -79984,6 +80032,162 @@
                     }
                 },
                 "summary": "Create a session",
+                "tags": ["sessions"],
+                "x-agh-transports": ["http", "uds"]
+            }
+        },
+        "/api/sessions/catalog-stream": {
+            "get": {
+                "operationId": "streamSessionCatalog",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "text/event-stream": {
+                                "schema": {
+                                    "properties": {
+                                        "kind": {
+                                            "type": "string"
+                                        },
+                                        "session_id": {
+                                            "type": "string"
+                                        },
+                                        "workspace_id": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["kind", "session_id", "workspace_id"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Workspace-identified session catalog event stream"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Internal server error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "diagnostic": {
+                                            "nullable": true,
+                                            "properties": {
+                                                "category": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "data_freshness": {
+                                                    "type": "string"
+                                                },
+                                                "doc_url": {
+                                                    "type": "string"
+                                                },
+                                                "evidence": {
+                                                    "additionalProperties": {},
+                                                    "type": "object"
+                                                },
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "severity": {
+                                                    "type": "string"
+                                                },
+                                                "suggested_command": {
+                                                    "type": "string"
+                                                },
+                                                "title": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "category",
+                                                "code",
+                                                "data_freshness",
+                                                "id",
+                                                "message",
+                                                "severity",
+                                                "title"
+                                            ],
+                                            "type": "object"
+                                        },
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": ["error"],
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Session catalog stream is unavailable"
+                    }
+                },
+                "summary": "Stream session catalog changes across workspaces",
                 "tags": ["sessions"],
                 "x-agh-transports": ["http", "uds"]
             }
@@ -145569,6 +145773,45 @@
                                                                         },
                                                                         "type": "array"
                                                                     },
+                                                                    "events": {
+                                                                        "items": {
+                                                                            "properties": {
+                                                                                "filter": {
+                                                                                    "type": "string"
+                                                                                },
+                                                                                "kind": {
+                                                                                    "enum": [
+                                                                                        "task.status_changed",
+                                                                                        "task.blocked",
+                                                                                        "task.unblocked",
+                                                                                        "task.needs_attention",
+                                                                                        "task.recovered",
+                                                                                        "task.run.completed",
+                                                                                        "task.run.failed",
+                                                                                        "loop.terminal",
+                                                                                        "loop.node.terminal",
+                                                                                        "automation.run.completed",
+                                                                                        "automation.run.failed",
+                                                                                        "network.message.persisted",
+                                                                                        "network.thread.opened",
+                                                                                        "network.direct_room.opened",
+                                                                                        "network.work.opened",
+                                                                                        "network.work.transitioned",
+                                                                                        "network.work.closed",
+                                                                                        "coordinator.spawned",
+                                                                                        "coordinator.decision",
+                                                                                        "coordinator.stopped",
+                                                                                        "coordinator.failed",
+                                                                                        "event.post_record"
+                                                                                    ],
+                                                                                    "type": "string"
+                                                                                }
+                                                                            },
+                                                                            "required": ["kind"],
+                                                                            "type": "object"
+                                                                        },
+                                                                        "type": "array"
+                                                                    },
                                                                     "filter": {
                                                                         "type": "string"
                                                                     },
@@ -150054,6 +150297,45 @@
                                                                     },
                                                                     "type": "array"
                                                                 },
+                                                                "events": {
+                                                                    "items": {
+                                                                        "properties": {
+                                                                            "filter": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "kind": {
+                                                                                "enum": [
+                                                                                    "task.status_changed",
+                                                                                    "task.blocked",
+                                                                                    "task.unblocked",
+                                                                                    "task.needs_attention",
+                                                                                    "task.recovered",
+                                                                                    "task.run.completed",
+                                                                                    "task.run.failed",
+                                                                                    "loop.terminal",
+                                                                                    "loop.node.terminal",
+                                                                                    "automation.run.completed",
+                                                                                    "automation.run.failed",
+                                                                                    "network.message.persisted",
+                                                                                    "network.thread.opened",
+                                                                                    "network.direct_room.opened",
+                                                                                    "network.work.opened",
+                                                                                    "network.work.transitioned",
+                                                                                    "network.work.closed",
+                                                                                    "coordinator.spawned",
+                                                                                    "coordinator.decision",
+                                                                                    "coordinator.stopped",
+                                                                                    "coordinator.failed",
+                                                                                    "event.post_record"
+                                                                                ],
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "required": ["kind"],
+                                                                        "type": "object"
+                                                                    },
+                                                                    "type": "array"
+                                                                },
                                                                 "filter": {
                                                                     "type": "string"
                                                                 },
@@ -150480,6 +150762,47 @@
                                                                                     "required": [
                                                                                         "id",
                                                                                         "type"
+                                                                                    ],
+                                                                                    "type": "object"
+                                                                                },
+                                                                                "type": "array"
+                                                                            },
+                                                                            "events": {
+                                                                                "items": {
+                                                                                    "properties": {
+                                                                                        "filter": {
+                                                                                            "type": "string"
+                                                                                        },
+                                                                                        "kind": {
+                                                                                            "enum": [
+                                                                                                "task.status_changed",
+                                                                                                "task.blocked",
+                                                                                                "task.unblocked",
+                                                                                                "task.needs_attention",
+                                                                                                "task.recovered",
+                                                                                                "task.run.completed",
+                                                                                                "task.run.failed",
+                                                                                                "loop.terminal",
+                                                                                                "loop.node.terminal",
+                                                                                                "automation.run.completed",
+                                                                                                "automation.run.failed",
+                                                                                                "network.message.persisted",
+                                                                                                "network.thread.opened",
+                                                                                                "network.direct_room.opened",
+                                                                                                "network.work.opened",
+                                                                                                "network.work.transitioned",
+                                                                                                "network.work.closed",
+                                                                                                "coordinator.spawned",
+                                                                                                "coordinator.decision",
+                                                                                                "coordinator.stopped",
+                                                                                                "coordinator.failed",
+                                                                                                "event.post_record"
+                                                                                            ],
+                                                                                            "type": "string"
+                                                                                        }
+                                                                                    },
+                                                                                    "required": [
+                                                                                        "kind"
                                                                                     ],
                                                                                     "type": "object"
                                                                                 },
@@ -151663,6 +151986,47 @@
                                                                                 },
                                                                                 "type": "array"
                                                                             },
+                                                                            "events": {
+                                                                                "items": {
+                                                                                    "properties": {
+                                                                                        "filter": {
+                                                                                            "type": "string"
+                                                                                        },
+                                                                                        "kind": {
+                                                                                            "enum": [
+                                                                                                "task.status_changed",
+                                                                                                "task.blocked",
+                                                                                                "task.unblocked",
+                                                                                                "task.needs_attention",
+                                                                                                "task.recovered",
+                                                                                                "task.run.completed",
+                                                                                                "task.run.failed",
+                                                                                                "loop.terminal",
+                                                                                                "loop.node.terminal",
+                                                                                                "automation.run.completed",
+                                                                                                "automation.run.failed",
+                                                                                                "network.message.persisted",
+                                                                                                "network.thread.opened",
+                                                                                                "network.direct_room.opened",
+                                                                                                "network.work.opened",
+                                                                                                "network.work.transitioned",
+                                                                                                "network.work.closed",
+                                                                                                "coordinator.spawned",
+                                                                                                "coordinator.decision",
+                                                                                                "coordinator.stopped",
+                                                                                                "coordinator.failed",
+                                                                                                "event.post_record"
+                                                                                            ],
+                                                                                            "type": "string"
+                                                                                        }
+                                                                                    },
+                                                                                    "required": [
+                                                                                        "kind"
+                                                                                    ],
+                                                                                    "type": "object"
+                                                                                },
+                                                                                "type": "array"
+                                                                            },
                                                                             "filter": {
                                                                                 "type": "string"
                                                                             },
@@ -152369,6 +152733,45 @@
                                                                     },
                                                                     "type": "array"
                                                                 },
+                                                                "events": {
+                                                                    "items": {
+                                                                        "properties": {
+                                                                            "filter": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "kind": {
+                                                                                "enum": [
+                                                                                    "task.status_changed",
+                                                                                    "task.blocked",
+                                                                                    "task.unblocked",
+                                                                                    "task.needs_attention",
+                                                                                    "task.recovered",
+                                                                                    "task.run.completed",
+                                                                                    "task.run.failed",
+                                                                                    "loop.terminal",
+                                                                                    "loop.node.terminal",
+                                                                                    "automation.run.completed",
+                                                                                    "automation.run.failed",
+                                                                                    "network.message.persisted",
+                                                                                    "network.thread.opened",
+                                                                                    "network.direct_room.opened",
+                                                                                    "network.work.opened",
+                                                                                    "network.work.transitioned",
+                                                                                    "network.work.closed",
+                                                                                    "coordinator.spawned",
+                                                                                    "coordinator.decision",
+                                                                                    "coordinator.stopped",
+                                                                                    "coordinator.failed",
+                                                                                    "event.post_record"
+                                                                                ],
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "required": ["kind"],
+                                                                        "type": "object"
+                                                                    },
+                                                                    "type": "array"
+                                                                },
                                                                 "filter": {
                                                                     "type": "string"
                                                                 },
@@ -152797,6 +153200,47 @@
                                                                                     "required": [
                                                                                         "id",
                                                                                         "type"
+                                                                                    ],
+                                                                                    "type": "object"
+                                                                                },
+                                                                                "type": "array"
+                                                                            },
+                                                                            "events": {
+                                                                                "items": {
+                                                                                    "properties": {
+                                                                                        "filter": {
+                                                                                            "type": "string"
+                                                                                        },
+                                                                                        "kind": {
+                                                                                            "enum": [
+                                                                                                "task.status_changed",
+                                                                                                "task.blocked",
+                                                                                                "task.unblocked",
+                                                                                                "task.needs_attention",
+                                                                                                "task.recovered",
+                                                                                                "task.run.completed",
+                                                                                                "task.run.failed",
+                                                                                                "loop.terminal",
+                                                                                                "loop.node.terminal",
+                                                                                                "automation.run.completed",
+                                                                                                "automation.run.failed",
+                                                                                                "network.message.persisted",
+                                                                                                "network.thread.opened",
+                                                                                                "network.direct_room.opened",
+                                                                                                "network.work.opened",
+                                                                                                "network.work.transitioned",
+                                                                                                "network.work.closed",
+                                                                                                "coordinator.spawned",
+                                                                                                "coordinator.decision",
+                                                                                                "coordinator.stopped",
+                                                                                                "coordinator.failed",
+                                                                                                "event.post_record"
+                                                                                            ],
+                                                                                            "type": "string"
+                                                                                        }
+                                                                                    },
+                                                                                    "required": [
+                                                                                        "kind"
                                                                                     ],
                                                                                     "type": "object"
                                                                                 },
@@ -153999,8 +154443,69 @@
                                                 }
                                             },
                                             "type": "object"
+                                        },
+                                        "effective_config": {
+                                            "properties": {
+                                                "budget_on_exceeded": {
+                                                    "enum": ["halt", "escalate"],
+                                                    "type": "string"
+                                                },
+                                                "budget_tokens": {
+                                                    "type": "integer"
+                                                },
+                                                "budget_wall_sec": {
+                                                    "type": "integer"
+                                                },
+                                                "enabled_checks_json": {},
+                                                "fan_out_width": {
+                                                    "type": "integer"
+                                                },
+                                                "gate_max_revisions": {
+                                                    "type": "integer"
+                                                },
+                                                "human_gate_enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "iteration_cap": {
+                                                    "type": "integer"
+                                                },
+                                                "model_defaults": {
+                                                    "properties": {
+                                                        "judge": {
+                                                            "type": "string"
+                                                        },
+                                                        "worker": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["judge", "worker"],
+                                                    "type": "object"
+                                                },
+                                                "no_progress_window": {
+                                                    "type": "integer"
+                                                },
+                                                "reattempt_strategy": {
+                                                    "enum": ["failed_only", "full_body"],
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "budget_on_exceeded",
+                                                "budget_tokens",
+                                                "budget_wall_sec",
+                                                "enabled_checks_json",
+                                                "fan_out_width",
+                                                "gate_max_revisions",
+                                                "human_gate_enabled",
+                                                "iteration_cap",
+                                                "model_defaults",
+                                                "no_progress_window",
+                                                "reattempt_strategy"
+                                            ],
+                                            "type": "object"
                                         }
                                     },
+                                    "required": ["effective_config"],
                                     "type": "object"
                                 }
                             }
@@ -154418,8 +154923,69 @@
                                                 }
                                             },
                                             "type": "object"
+                                        },
+                                        "effective_config": {
+                                            "properties": {
+                                                "budget_on_exceeded": {
+                                                    "enum": ["halt", "escalate"],
+                                                    "type": "string"
+                                                },
+                                                "budget_tokens": {
+                                                    "type": "integer"
+                                                },
+                                                "budget_wall_sec": {
+                                                    "type": "integer"
+                                                },
+                                                "enabled_checks_json": {},
+                                                "fan_out_width": {
+                                                    "type": "integer"
+                                                },
+                                                "gate_max_revisions": {
+                                                    "type": "integer"
+                                                },
+                                                "human_gate_enabled": {
+                                                    "type": "boolean"
+                                                },
+                                                "iteration_cap": {
+                                                    "type": "integer"
+                                                },
+                                                "model_defaults": {
+                                                    "properties": {
+                                                        "judge": {
+                                                            "type": "string"
+                                                        },
+                                                        "worker": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": ["judge", "worker"],
+                                                    "type": "object"
+                                                },
+                                                "no_progress_window": {
+                                                    "type": "integer"
+                                                },
+                                                "reattempt_strategy": {
+                                                    "enum": ["failed_only", "full_body"],
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "budget_on_exceeded",
+                                                "budget_tokens",
+                                                "budget_wall_sec",
+                                                "enabled_checks_json",
+                                                "fan_out_width",
+                                                "gate_max_revisions",
+                                                "human_gate_enabled",
+                                                "iteration_cap",
+                                                "model_defaults",
+                                                "no_progress_window",
+                                                "reattempt_strategy"
+                                            ],
+                                            "type": "object"
                                         }
                                     },
+                                    "required": ["effective_config"],
                                     "type": "object"
                                 }
                             }
@@ -156172,6 +156738,45 @@
                                                                             }
                                                                         },
                                                                         "required": ["id", "type"],
+                                                                        "type": "object"
+                                                                    },
+                                                                    "type": "array"
+                                                                },
+                                                                "events": {
+                                                                    "items": {
+                                                                        "properties": {
+                                                                            "filter": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "kind": {
+                                                                                "enum": [
+                                                                                    "task.status_changed",
+                                                                                    "task.blocked",
+                                                                                    "task.unblocked",
+                                                                                    "task.needs_attention",
+                                                                                    "task.recovered",
+                                                                                    "task.run.completed",
+                                                                                    "task.run.failed",
+                                                                                    "loop.terminal",
+                                                                                    "loop.node.terminal",
+                                                                                    "automation.run.completed",
+                                                                                    "automation.run.failed",
+                                                                                    "network.message.persisted",
+                                                                                    "network.thread.opened",
+                                                                                    "network.direct_room.opened",
+                                                                                    "network.work.opened",
+                                                                                    "network.work.transitioned",
+                                                                                    "network.work.closed",
+                                                                                    "coordinator.spawned",
+                                                                                    "coordinator.decision",
+                                                                                    "coordinator.stopped",
+                                                                                    "coordinator.failed",
+                                                                                    "event.post_record"
+                                                                                ],
+                                                                                "type": "string"
+                                                                            }
+                                                                        },
+                                                                        "required": ["kind"],
                                                                         "type": "object"
                                                                     },
                                                                     "type": "array"
@@ -171200,10 +171805,16 @@
                                     "message": {
                                         "type": "string"
                                     },
+                                    "messageId": {
+                                        "type": "string"
+                                    },
                                     "messages": {
                                         "items": {
                                             "properties": {
                                                 "content": {
+                                                    "type": "string"
+                                                },
+                                                "id": {
                                                     "type": "string"
                                                 },
                                                 "parts": {

@@ -35,6 +35,10 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	if err != nil {
 		return sessionStartSpec{}, fmt.Errorf("session: resolve agent name: %w", err)
 	}
+	sessionType := normalizeSessionType(opts.Type)
+	if aghconfig.IsInternalManagedAgentName(agentName) {
+		sessionType = SessionTypeSystem
+	}
 	sessionID, err := m.createSessionID(opts.DesiredSessionID)
 	if err != nil {
 		return sessionStartSpec{}, err
@@ -43,7 +47,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	if sandboxID == "" {
 		return sessionStartSpec{}, errors.New("session: sandbox id generator returned empty id")
 	}
-	lineage, err := m.normalizeCreateLineage(ctx, sessionID, opts.Type, opts.Lineage)
+	lineage, err := m.normalizeCreateLineage(ctx, sessionID, sessionType, opts.Lineage)
 	if err != nil {
 		return sessionStartSpec{}, err
 	}
@@ -64,7 +68,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		promptOverlay:           strings.TrimSpace(opts.PromptOverlay),
 		contractOverlay:         strings.TrimSpace(opts.ContractOverlay),
 		runtimeMode:             strings.TrimSpace(opts.RuntimeMode),
-		sessionType:             normalizeSessionType(opts.Type),
+		sessionType:             sessionType,
 		lineage:                 lineage,
 		allowedToolsOverride:    append([]string(nil), opts.AllowedToolsOverride...),
 		creationProfile:         cloneCreationProfile(opts.CreationProfile),

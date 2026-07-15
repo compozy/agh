@@ -615,8 +615,8 @@ func assertBridgeDeliveryMigrationStatus(t *testing.T, db *sql.DB) {
 	if err != nil {
 		t.Fatalf("Status(global) error = %v", err)
 	}
-	if status.Version != 2 || status.AppliedCount != 2 || status.SumDigest == "" {
-		t.Fatalf("Status(global) = %#v, want version 2 with 2 applied migrations and a digest", status)
+	if status.Version != 3 || status.AppliedCount != 3 || status.SumDigest == "" {
+		t.Fatalf("Status(global) = %#v, want version 3 with 3 applied migrations and a digest", status)
 	}
 }
 

@@ -3476,6 +3476,7 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 	if got := sessionListValues(SessionListQuery{
 		Workspace:     "ws-1",
 		State:         "active",
+		Type:          "user",
 		Agent:         "coder",
 		Query:         "needle",
 		Resumable:     true,
@@ -3483,7 +3484,8 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 		Sort:          "last_activity",
 		Cursor:        "cursor-1",
 		Limit:         2,
-	}); got.Get("workspace") != "ws-1" || got.Get("state") != "active" || got.Get("agent") != "coder" ||
+	}); got.Get("workspace") != "ws-1" || got.Get("state") != "active" || got.Get("type") != "user" ||
+		got.Get("agent") != "coder" ||
 		got.Get("q") != "needle" || got.Get("resumable") != "true" || got.Get("sort") != "last_activity" ||
 		got.Get("include_health") != "true" || got.Get("cursor") != "cursor-1" || got.Get("limit") != "2" {
 		t.Fatalf("sessionListValues() = %v, want all page filters", got)

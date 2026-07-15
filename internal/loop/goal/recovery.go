@@ -256,7 +256,7 @@ func (e *Executor) ambiguousPromptBoundary(
 	result loop.ActionPromptResult,
 ) (*turnBoundary, error) {
 	if result.ReasonCode == loop.ReasonCodeGoalControlRevokedInFlight {
-		return nil, fmt.Errorf("%w: Goal control revoked the in-flight prompt", loop.ErrTransitionConflict)
+		return nil, newControlRevokedError()
 	}
 	if segment.checkpoint.Phase != checkpointPhaseAwaitingControl {
 		if err := e.store.MarkAmbiguous(ctx, AmbiguousRequest{

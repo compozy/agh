@@ -4,12 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"io/fs"
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/compozy/agh/internal/store"
+	globalschema "github.com/compozy/agh/internal/store/globaldb/schema"
 	"github.com/compozy/agh/internal/testutil"
 )
 
@@ -487,19 +490,80 @@ func TestGlobalDBRegisterSessionPreservesTranscriptEpoch(t *testing.T) {
 func TestGlobalDBDeleteSession(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should remove the session and non-cascading dependent rows", func(t *testing.T) {
+	t.Run("Should remove only the target session and its dependent rows", func(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openTestGlobalDB(t)
 		sessionID := "sess-delete"
+		survivorID := "sess-delete-survivor"
 		registerSessionForGlobalTests(t, globalDB, sessionID)
+		registerSessionForGlobalTests(t, globalDB, survivorID)
 		writeSessionDeleteDependents(t, globalDB, sessionID)
+		writeSessionDeleteDependents(t, globalDB, survivorID)
 
 		if err := globalDB.DeleteSession(testutil.Context(t), sessionID); err != nil {
 			t.Fatalf("DeleteSession() error = %v", err)
 		}
 
 		assertSessionDeleteRowCounts(t, globalDB, sessionID, 0, 0, 0)
+		assertSessionDeleteRowCounts(t, globalDB, survivorID, 1, 1, 1)
+	})
+
+	t.Run("Should upgrade the immutable bridge prefix before cascading session history", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefixDB, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
+			return store.Apply(ctx, db, sessionCascadeMigrationPrefix(t))
+		})
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(v2 prefix) error = %v", err)
+		}
+		prefixGlobalDB := &GlobalDB{
+			db:   prefixDB,
+			path: path,
+			now: func() time.Time {
+				return time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
+			},
+		}
+		prefixGlobalDB.initializeRepositories()
+		targetID := "sess-v2-upgrade-target"
+		survivorID := "sess-v2-upgrade-survivor"
+		registerSessionForGlobalTests(t, prefixGlobalDB, targetID)
+		registerSessionForGlobalTests(t, prefixGlobalDB, survivorID)
+		writeSessionDeleteDependents(t, prefixGlobalDB, targetID)
+		writeSessionDeleteDependents(t, prefixGlobalDB, survivorID)
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("prefixDB.Close() error = %v", err)
+		}
+
+		globalDB, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(v3 upgrade) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := globalDB.Close(testutil.Context(t)); err != nil {
+				t.Errorf("Close(upgraded global DB) error = %v", err)
+			}
+		})
+
+		assertSessionDeleteRowCounts(t, globalDB, targetID, 1, 1, 1)
+		assertSessionDeleteRowCounts(t, globalDB, survivorID, 1, 1, 1)
+		assertSessionDeleteForeignKeysCascade(t, globalDB.db)
+		status, err := store.Status(ctx, globalDB.db, MigrationStream())
+		if err != nil {
+			t.Fatalf("Status(upgraded global DB) error = %v", err)
+		}
+		if status.Version != 3 || status.AppliedCount != 3 {
+			t.Fatalf("Status(upgraded global DB) = %#v, want version/applied count 3", status)
+		}
+
+		if err := globalDB.DeleteSession(ctx, targetID); err != nil {
+			t.Fatalf("DeleteSession(upgraded target) error = %v", err)
+		}
+		assertSessionDeleteRowCounts(t, globalDB, targetID, 0, 0, 0)
+		assertSessionDeleteRowCounts(t, globalDB, survivorID, 1, 1, 1)
 	})
 
 	t.Run("Should return session not found when the catalog row is absent", func(t *testing.T) {
@@ -736,5 +800,54 @@ func assertSessionDeleteRowCounts(
 	}
 	if len(entries) != wantPermissionLogs {
 		t.Fatalf("len(permission logs) = %d, want %d", len(entries), wantPermissionLogs)
+	}
+}
+
+func sessionCascadeMigrationPrefix(t *testing.T) store.MigrationStream {
+	t.Helper()
+
+	const v2AtlasSum = "h1:/3U/DcBvQv8MKlUUznXHiKwlNS7ZWCwZR0CNPIs6UHw=\n" +
+		"00001_baseline.sql h1:S/Hl9w8PyqMpsW5NP7g/7u/VnQI84pVFJZUUBi0MMy0=\n" +
+		"00002_schema.sql h1:PBK6FCjEVDmfxcoY4whqvHExe4llHojr9bZjNymgtHw=\n"
+	files := fstest.MapFS{
+		"atlas.sum": &fstest.MapFile{Data: []byte(v2AtlasSum)},
+	}
+	for _, name := range []string{"00001_baseline.sql", "00002_schema.sql"} {
+		data, err := fs.ReadFile(globalschema.Files, "migrations/"+name)
+		if err != nil {
+			t.Fatalf("read global migration prefix %q: %v", name, err)
+		}
+		files[name] = &fstest.MapFile{Data: data}
+	}
+	stream := MigrationStream()
+	stream.FS = files
+	stream.Dir = "."
+	return stream
+}
+
+func assertSessionDeleteForeignKeysCascade(t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	var foreignKeysEnabled int
+	if err := db.QueryRowContext(testutil.Context(t), `PRAGMA foreign_keys`).Scan(&foreignKeysEnabled); err != nil {
+		t.Fatalf("query foreign_keys error = %v", err)
+	}
+	if foreignKeysEnabled != 1 {
+		t.Fatalf("foreign_keys = %d, want 1", foreignKeysEnabled)
+	}
+	for _, table := range []string{"permission_log", "token_stats"} {
+		var onDelete string
+		if err := db.QueryRowContext(
+			testutil.Context(t),
+			`SELECT on_delete
+			 FROM pragma_foreign_key_list(?)
+			 WHERE "table" = 'sessions' AND "from" = 'session_id'`,
+			table,
+		).Scan(&onDelete); err != nil {
+			t.Fatalf("query %s session foreign key error = %v", table, err)
+		}
+		if onDelete != "CASCADE" {
+			t.Fatalf("%s session foreign key on_delete = %q, want CASCADE", table, onDelete)
+		}
 	}
 }

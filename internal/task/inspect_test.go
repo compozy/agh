@@ -174,6 +174,50 @@ func TestInspectTaskDiagnostics(t *testing.T) {
 		}
 	})
 
+	t.Run("Should not emit orphan diagnostic for terminal run statuses", func(t *testing.T) {
+		t.Parallel()
+
+		reader := inspectReaderForTest{
+			sessions: []storepkg.SessionInfo{{
+				ID:          "sess-terminal-history",
+				AgentName:   "coder",
+				WorkspaceID: "ws-inspect",
+				State:       "stopped",
+			}},
+		}
+		manager, now := newInspectManagerForTest(t, reader)
+		for _, status := range []RunStatus{
+			TaskRunStatusCompleted,
+			TaskRunStatusFailed,
+			TaskRunStatusCanceled,
+		} {
+			runID := "run-inspect-terminal-" + status.String()
+			seedInspectTaskRun(t, manager.store.(*inMemoryManagerStore), inspectSeed{
+				TaskID:         "task-inspect-terminal-" + status.String(),
+				RunID:          runID,
+				Status:         status,
+				SessionID:      "sess-terminal-history",
+				ClaimTokenHash: "sha256:0123456789abcdef",
+				LeaseUntil:     time.Time{},
+				HeartbeatAt:    time.Time{},
+				ClaimedAt:      now.Add(-time.Minute),
+			})
+
+			view, err := manager.InspectRun(context.Background(), runID, validActorContext())
+			if err != nil {
+				t.Fatalf("InspectRun(%s) error = %v", status, err)
+			}
+			if inspectCodesContain(view.Diagnostics, diagnosticcontract.CodeTaskRunOrphan) {
+				t.Fatalf(
+					"InspectRun(%s) diagnostics = %#v, want no %s",
+					status,
+					view.Diagnostics,
+					diagnosticcontract.CodeTaskRunOrphan,
+				)
+			}
+		}
+	})
+
 	t.Run("Should not emit crashed diagnostic when a later retry exists", func(t *testing.T) {
 		t.Parallel()
 

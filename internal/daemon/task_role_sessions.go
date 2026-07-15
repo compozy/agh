@@ -113,13 +113,19 @@ func (r *taskRoleRuntime) activateForStarvation(
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	existing, err := r.activeRoleSession(ctx, activation)
+	result, err := r.activateRoleSession(
+		ctx,
+		activation,
+		taskRoleActivationReasonStarvation,
+		r.startStarvationSession,
+	)
 	if err != nil {
 		return err
 	}
-	if existing != nil {
+	if !result.created {
 		r.logger.Info(
 			"daemon: starvation worker already active",
+			"session_id", result.info.ID,
 			taskRoleRuntimeTaskIDKey, activation.TaskID,
 			daemonLogRunIDKey, activation.RunID,
 			"agent_name", activation.AgentName,
@@ -127,13 +133,9 @@ func (r *taskRoleRuntime) activateForStarvation(
 		)
 		return nil
 	}
-	info, err := r.startStarvationSession(ctx, activation)
-	if err != nil {
-		return err
-	}
 	r.logger.Info(
 		"daemon: starvation worker spawned",
-		"session_id", info.ID,
+		"session_id", result.info.ID,
 		taskRoleRuntimeTaskIDKey, activation.TaskID,
 		daemonLogRunIDKey, activation.RunID,
 		"agent_name", activation.AgentName,

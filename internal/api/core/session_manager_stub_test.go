@@ -191,6 +191,14 @@ func (s sessionManagerStub) Prompt(ctx context.Context, id string, msg string) (
 	return nil, session.ErrSessionNotFound
 }
 
+func (s sessionManagerStub) PromptWithOpts(
+	ctx context.Context,
+	id string,
+	opts session.PromptOpts,
+) (<-chan acp.AgentEvent, error) {
+	return s.Prompt(ctx, id, opts.Message)
+}
+
 func (s sessionManagerStub) PromptSynthetic(
 	ctx context.Context,
 	id string,

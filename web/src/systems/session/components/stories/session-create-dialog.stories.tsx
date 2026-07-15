@@ -133,3 +133,13 @@ export const SubmitError: Story = {
     submitError: "Provider codex rejected the selected reasoning effort.",
   },
 };
+
+/**
+ * Pending startup keeps the dialog open until ACP confirms the session.
+ */
+export const PendingStartup: Story = {
+  args: {
+    ...baseArgs,
+    isSubmitting: true,
+  },
+};

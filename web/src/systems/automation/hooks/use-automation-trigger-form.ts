@@ -1,11 +1,18 @@
 import type { FormEvent } from "react";
 
-import type { LoopTargetDraft } from "@/systems/loops";
+import {
+  loopTargetAvailabilityMessage,
+  useLoopTargetCatalog,
+  type LoopAutomationStartKind,
+  type LoopTargetDraft,
+} from "@/systems/loops";
 
 import {
   automationTargetMode,
+  bindLoopTargetWorkspace,
   retryDraftForStrategy,
   setTriggerTargetMode,
+  loopTargetWorkspaceId,
   type AutomationTargetMode,
 } from "../lib/automation-drafts";
 import {
@@ -43,11 +50,17 @@ export interface UseAutomationTriggerFormParams {
 function computeCanSubmit(
   draft: CreateAutomationTriggerRequest,
   selection: ReturnType<typeof parseEventSelection>,
-  mode: "create" | "edit"
+  mode: "create" | "edit",
+  loopTargetCompatible: boolean
 ): boolean {
-  const targetValid = draft.loop_target
-    ? draft.loop_target.loop_name.trim() !== ""
-    : draft.agent_name.trim() !== "" && draft.prompt.trim() !== "";
+  const loopWorkspaceId = draft.loop_target?.workspace_id ?? "";
+  const loopWorkspaceValid =
+    loopWorkspaceId !== "" &&
+    (draft.scope === "global" || loopWorkspaceId === (draft.workspace_id ?? ""));
+  const targetValid =
+    automationTargetMode(draft) === "loop"
+      ? Boolean(draft.loop_target?.loop_name.trim()) && loopTargetCompatible && loopWorkspaceValid
+      : draft.agent_name.trim() !== "" && draft.prompt.trim() !== "";
   const baseValid =
     draft.name.trim() !== "" &&
     targetValid &&
@@ -89,7 +102,25 @@ export function useAutomationTriggerForm({
         ? [{ id: activeWorkspaceId, name: activeWorkspaceId }]
         : [];
 
-  const preview = buildTriggerPreview(draft, { workspaces: resolvedWorkspaces });
+  const targetMode = automationTargetMode(draft);
+  const loopTarget: LoopTargetDraft = draft.loop_target ?? {
+    loop_name: "",
+    inputs: {},
+    input_mapping: {},
+  };
+  const loopWorkspaceId = loopTargetWorkspaceId(draft, activeWorkspaceId);
+  const requiredStartKind: LoopAutomationStartKind = isWebhook ? "webhook" : "trigger";
+  const loopCatalog = useLoopTargetCatalog(
+    loopWorkspaceId,
+    loopTarget.loop_name,
+    requiredStartKind
+  );
+  const loopTargetIssue = loopTargetAvailabilityMessage(loopCatalog, mode);
+  const preview = buildTriggerPreview(draft, {
+    mode,
+    targetIssue: loopTargetIssue,
+    workspaces: resolvedWorkspaces,
+  });
 
   const dataFields = def ? availableDataFields(def) : [];
   const subConfigValues: SubConfigValues = {
@@ -103,14 +134,8 @@ export function useAutomationTriggerForm({
 
   const patch = (next: Partial<CreateAutomationTriggerRequest>) => onChange({ ...draft, ...next });
 
-  const targetMode = automationTargetMode(draft);
-  const loopTarget: LoopTargetDraft = draft.loop_target ?? {
-    loop_name: "",
-    inputs: {},
-    input_mapping: {},
-  };
   const handleLoopTargetChange = (next: LoopTargetDraft) => {
-    patch({ loop_target: { ...next, workspace_id: draft.workspace_id ?? "" } });
+    patch({ loop_target: { ...next, workspace_id: loopWorkspaceId } });
   };
 
   const handleScopeChange = (scope: AutomationScope) => {
@@ -119,7 +144,13 @@ export function useAutomationTriggerForm({
       return;
     }
     const fallback = draft.workspace_id ?? activeWorkspaceId ?? resolvedWorkspaces[0]?.id;
-    patch({ scope: "workspace", workspace_id: fallback ?? undefined });
+    const workspaceId = fallback ?? "";
+    onChange(
+      bindLoopTargetWorkspace(
+        { ...draft, scope: "workspace", workspace_id: workspaceId || undefined },
+        workspaceId
+      )
+    );
   };
 
   const handleSelectEvent = (catalogId: string) => {
@@ -166,9 +197,11 @@ export function useAutomationTriggerForm({
     onChange(next);
   };
 
+  const canSubmit = computeCanSubmit(draft, selection, mode, loopCatalog.status === "compatible");
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!computeCanSubmit(draft, selection, mode) || isPending) return;
+    if (!canSubmit || isPending) return;
     onSubmit();
   };
 
@@ -184,20 +217,23 @@ export function useAutomationTriggerForm({
     openPayload: def?.openPayload ?? true,
     hasActiveFilters: Object.keys(draft.filter ?? {}).some(key => key.trim() !== ""),
     subConfigValues,
-    canSubmit: computeCanSubmit(draft, selection, mode),
+    canSubmit,
     reliabilityDefaultOpen:
       mode === "edit" || retry.strategy === "backoff" || draft.enabled === false,
     onName: (name: string) => patch({ name }),
     onScopeChange: handleScopeChange,
-    onWorkspaceChange: (workspace_id: string) => patch({ workspace_id }),
+    onWorkspaceChange: (workspace_id: string) =>
+      onChange(bindLoopTargetWorkspace({ ...draft, workspace_id }, workspace_id)),
     onSelectEvent: handleSelectEvent,
     onSubConfigChange: handleSubConfigChange,
     onFilterChange: (filter: AutomationTriggerFilter) => patch({ filter }),
     onAgentChange: (agent_name: string) => patch({ agent_name }),
     onPromptChange: (prompt: string) => patch({ prompt }),
     targetMode,
+    loopCatalog,
     loopTarget,
-    onTargetModeChange: (mode: AutomationTargetMode) => onChange(setTriggerTargetMode(draft, mode)),
+    onTargetModeChange: (mode: AutomationTargetMode) =>
+      onChange(setTriggerTargetMode(draft, mode, loopWorkspaceId)),
     onLoopTargetChange: handleLoopTargetChange,
     onRetryChange: (next: AutomationRetry) => patch({ retry: next }),
     onFireLimitChange: (next: AutomationFireLimit) => patch({ fire_limit: next }),

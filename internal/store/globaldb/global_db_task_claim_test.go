@@ -3963,9 +3963,13 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 		name              string
 		complete          bool
 		result            json.RawMessage
+		failureMetadata   json.RawMessage
 		tokensUsed        int64
 		wantOutputStatus  string
 		wantOutputRef     string
+		wantFailureCode   string
+		wantFailureCause  string
+		wantRecovery      string
 		wantEvents        []string
 		initialFailures   int
 		wantFailureStreak int
@@ -3993,6 +3997,26 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 			tokensUsed:       5,
 			wantOutputStatus: "failed",
 			wantOutputRef:    "credential_missing",
+			wantEvents: []string{
+				loopRunEventStatusChanged,
+				loopRunEventNodeRunning,
+				loopRunEventNodeFailed,
+				loopRunEventTokenTick,
+			},
+			initialFailures:   1,
+			wantFailureStreak: 2,
+		},
+		{
+			name:     "action failure preserves operator detail",
+			complete: false,
+			failureMetadata: json.RawMessage(
+				`{"reason_code":"loop_action_failed","failure":{"kind":"action_failure","code":"tool_invalid_input","cause":"No task set matched .compozy/tasks/helix-v1-launch/task_*.md.","recovery":"Create the matching task set or correct the Loop input, then retry the run."}}`,
+			),
+			tokensUsed:       5,
+			wantOutputStatus: "failed",
+			wantFailureCode:  "tool_invalid_input",
+			wantFailureCause: "No task set matched .compozy/tasks/helix-v1-launch/task_*.md.",
+			wantRecovery:     "Create the matching task set or correct the Loop input, then retry the run.",
 			wantEvents: []string{
 				loopRunEventStatusChanged,
 				loopRunEventNodeRunning,
@@ -4079,13 +4103,17 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 					t.Fatalf("CompleteRunLease() error = %v", err)
 				}
 			} else {
+				metadata := tc.failureMetadata
+				if len(metadata) == 0 {
+					metadata = json.RawMessage(`{"reason_code":"credential_missing"}`)
+				}
 				if _, err := globalDB.FailRunLease(ctx, taskpkg.LeaseFailure{
 					Actor:      coordinatorActorContextForTest(),
 					RunID:      claim.Run.ID,
 					ClaimToken: claim.ClaimToken,
 					Failure: taskpkg.RunFailure{
 						Error:    "missing credential",
-						Metadata: json.RawMessage(`{"reason_code":"credential_missing"}`),
+						Metadata: metadata,
 					},
 					TokensUsed: tc.tokensUsed,
 					Now:        terminalAt,
@@ -4107,7 +4135,27 @@ func TestGlobalDBRunLeaseTerminalShouldRecordLoopNodeProgress(t *testing.T) {
 			if status != tc.wantOutputStatus {
 				t.Fatalf("output status = %q, want %q", status, tc.wantOutputStatus)
 			}
-			if outputRef.String != tc.wantOutputRef {
+			if tc.wantFailureCode != "" {
+				var failure struct {
+					Kind     string `json:"kind"`
+					Code     string `json:"code"`
+					Cause    string `json:"cause"`
+					Recovery string `json:"recovery"`
+				}
+				if err := json.Unmarshal([]byte(outputRef.String), &failure); err != nil {
+					t.Fatalf("decode action failure output_ref error = %v; output_ref=%q", err, outputRef.String)
+				}
+				if failure.Kind != "action_failure" || failure.Code != tc.wantFailureCode ||
+					failure.Cause != tc.wantFailureCause || failure.Recovery != tc.wantRecovery {
+					t.Fatalf(
+						"action failure output_ref = %#v, want code/cause/recovery %q/%q/%q",
+						failure,
+						tc.wantFailureCode,
+						tc.wantFailureCause,
+						tc.wantRecovery,
+					)
+				}
+			} else if outputRef.String != tc.wantOutputRef {
 				t.Fatalf("output_ref = %q, want %q", outputRef.String, tc.wantOutputRef)
 			}
 			storedLoop, err := globalDB.GetLoopRunByID(ctx, loopRun.ID)

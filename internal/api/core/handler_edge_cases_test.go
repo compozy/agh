@@ -195,7 +195,8 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 
 	usageValue := int64(10)
 	goalTurn := 2
-	agentEvent := core.AgentEventPayloadFromEvent(acp.AgentEvent{
+	clientMessageID := "client-message-1"
+	event := acp.AgentEvent{
 		Type:      acp.EventTypePermission,
 		SessionID: "sess-1",
 		TurnID:    "turn-1",
@@ -214,9 +215,13 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 			ItemIndex: 1, Turn: &goalTurn, PromptAttempt: 2, PromptID: "goal-prompt-2",
 		},
 		Raw: []byte(`{"ok":true}`),
-	})
+	}.WithClientMessageID(clientMessageID)
+	agentEvent := core.AgentEventPayloadFromEvent(event)
 	if agentEvent.Type != acp.EventTypePermission || agentEvent.Usage == nil || agentEvent.Usage.InputTokens == nil {
 		t.Fatalf("agent event payload = %#v", agentEvent)
+	}
+	if got, want := agentEvent.ClientMessageID, "client-message-1"; got != want {
+		t.Fatalf("agent event client_message_id = %q, want %q", got, want)
 	}
 	if agentEvent.Failure == nil || agentEvent.Failure.Kind != store.FailurePermission {
 		t.Fatalf("agent event failure = %#v", agentEvent.Failure)
@@ -988,6 +993,9 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 				if query.AgentName != "coder" {
 					t.Fatalf("agent query = %q, want coder", query.AgentName)
 				}
+				if query.SessionType != session.SessionTypeUser {
+					t.Fatalf("type query = %q, want %q", query.SessionType, session.SessionTypeUser)
+				}
 				return session.ListPage{Sessions: []*session.Info{
 					{
 						ID:          "sess-user",
@@ -1021,7 +1029,7 @@ func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/sessions?resumable=true&agent=coder",
+			"/sessions?resumable=true&agent=coder&type=user",
 			nil,
 		)
 		if resp.Code != http.StatusOK {
@@ -1137,6 +1145,62 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 				"list sessions status = %d, want %d; body=%s",
 				resp.Code,
 				http.StatusInternalServerError,
+				resp.Body.String(),
+			)
+		}
+	})
+
+	t.Run("Should reject an invalid session type before paging", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{
+				ListPageFn: func(context.Context, session.ListQuery) (session.ListPage, error) {
+					t.Fatal("ListPage() called for invalid session type")
+					return session.ListPage{}, nil
+				},
+			},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?type=temporary", nil)
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf(
+				"list sessions status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusBadRequest,
+				resp.Body.String(),
+			)
+		}
+	})
+
+	t.Run("Should reject the internal dream type before paging", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{
+				ListPageFn: func(context.Context, session.ListQuery) (session.ListPage, error) {
+					t.Fatal("ListPage() called for internal dream session type")
+					return session.ListPage{}, nil
+				},
+			},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?type=dream", nil)
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf(
+				"list sessions status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusBadRequest,
 				resp.Body.String(),
 			)
 		}
@@ -1266,6 +1330,79 @@ func TestBaseHandlersListSessionsErrorBranches(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBaseHandlersStreamSessionCatalog(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should stream workspace-identified catalog wakes through one global endpoint", func(t *testing.T) {
+		t.Parallel()
+
+		events := make(chan session.CatalogEvent, 2)
+		events <- session.CatalogEvent{
+			Kind:        session.CatalogEventUpserted,
+			WorkspaceID: "ws_beta",
+			SessionID:   "sess_beta",
+		}
+		events <- session.CatalogEvent{
+			Kind:        session.CatalogEventDeleted,
+			WorkspaceID: "ws_alpha",
+			SessionID:   "sess_deleted",
+		}
+		close(events)
+		canceled := false
+		manager := testutil.StubSessionManager{
+			SubscribeCatalogFn: func(
+				_ context.Context,
+			) (<-chan session.CatalogEvent, func(), error) {
+				return events, func() { canceled = true }, nil
+			},
+		}
+		fixture := newHandlerFixture(
+			t,
+			manager,
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/sessions/catalog-stream",
+			nil,
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf(
+				"session catalog stream status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusOK,
+				resp.Body.String(),
+			)
+		}
+		if contentType := resp.Header().Get("Content-Type"); contentType != "text/event-stream" {
+			t.Fatalf("session catalog stream content type = %q, want text/event-stream", contentType)
+		}
+		if !canceled {
+			t.Fatal("session catalog subscription was not canceled")
+		}
+		body := resp.Body.String()
+		for _, want := range []string{
+			"event: session_catalog_changed",
+			`"kind":"upserted"`,
+			`"workspace_id":"ws_beta"`,
+			`"session_id":"sess_beta"`,
+			`"kind":"deleted"`,
+			`"workspace_id":"ws_alpha"`,
+			`"session_id":"sess_deleted"`,
+		} {
+			if !strings.Contains(body, want) {
+				t.Fatalf("session catalog stream body = %q, want %q", body, want)
+			}
+		}
+	})
 }
 
 func TestObserveStreamAndParseObserveQuery(t *testing.T) {

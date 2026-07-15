@@ -1,6 +1,7 @@
 import { SquareCheck, Terminal } from "lucide-react";
 
 import type { JobRunDigest } from "../../../lib/job-preview";
+import { AutomationTargetDetails } from "../../automation-target-details";
 import { PreviewCard } from "../../trigger-form/preview/preview-card";
 
 interface RunDigestCardProps {
@@ -9,6 +10,13 @@ interface RunDigestCardProps {
 
 /** Digest of the run body: the prompt the agent receives, or the materialized task. */
 export function RunDigestCard({ runDigest }: RunDigestCardProps) {
+  if (runDigest.output === "loop" && runDigest.loopTarget) {
+    return (
+      <PreviewCard icon={Terminal} label="Loop target">
+        <AutomationTargetDetails showInputMapping={false} target={runDigest.loopTarget} />
+      </PreviewCard>
+    );
+  }
   if (runDigest.output === "task" && runDigest.task) {
     const task = runDigest.task;
     return (

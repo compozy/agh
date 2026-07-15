@@ -40,7 +40,7 @@ export async function preloadHomeRoute(queryClient: QueryClient): Promise<void> 
   await settleRouteQueries([
     queryClient.ensureQueryData(agentsListOptions(workspaceId)),
     queryClient.ensureInfiniteQueryData(
-      sessionsListOptions({ workspace: workspaceId, state: "active", limit: 1 })
+      sessionsListOptions({ workspace: workspaceId, state: "active", type: "user", limit: 1 })
     ),
   ]);
 }
@@ -57,13 +57,30 @@ export async function preloadAgentDetailRoute(
   await settleRouteQueries([
     queryClient.ensureQueryData(agentDetailOptions(name, workspaceId)),
     queryClient.ensureInfiniteQueryData(
-      sessionsListOptions({ workspace: workspaceId, agent: name, sort: "last_activity" })
+      sessionsListOptions({
+        workspace: workspaceId,
+        agent: name,
+        type: "user",
+        sort: "last_activity",
+      })
     ),
     queryClient.ensureInfiniteQueryData(
-      sessionsListOptions({ workspace: workspaceId, agent: name, state: "active", limit: 1 })
+      sessionsListOptions({
+        workspace: workspaceId,
+        agent: name,
+        state: "active",
+        type: "user",
+        limit: 1,
+      })
     ),
     queryClient.ensureInfiniteQueryData(
-      sessionsListOptions({ workspace: workspaceId, agent: name, resumable: true, limit: 1 })
+      sessionsListOptions({
+        workspace: workspaceId,
+        agent: name,
+        type: "user",
+        resumable: true,
+        limit: 1,
+      })
     ),
   ]);
 }

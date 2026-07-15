@@ -1,8 +1,10 @@
 package loop_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"maps"
 	"math"
 	"reflect"
@@ -387,6 +389,55 @@ func TestServiceInlineGoalStartAndReplaceShouldSharePinnedStartPath(t *testing.T
 		}
 		if got := store.mustRun(t, old.ID); got.Status != loop.StatusFailed {
 			t.Fatalf("replaced Run status = %q, want failed", got.Status)
+		}
+	})
+
+	t.Run("Should report cleanup failure without denying a committed replacement", func(t *testing.T) {
+		t.Parallel()
+
+		store := newFakeLoopStore()
+		old := seedFakeRun(store, loop.StatusRunning)
+		old.LoopName = loop.InlineGoalLoopName
+		origin := inlineGoalOrigin("session-origin")
+		old.Origin = &origin
+		store.seed(old)
+		store.inlineReplaceRevokedPromptLeases = []loop.GoalPromptLease{{
+			LoopRunID: string(old.ID), TaskRunID: "task-run-cleanup", JudgeAttemptID: "judge-cleanup",
+		}}
+		cleanupErr := errors.New("stop judge session")
+		var logs bytes.Buffer
+		svc := newTestServiceWithOptions(
+			t,
+			store,
+			validDefinition(),
+			loop.WithLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+			loop.WithGoalPromptLeaseRevoker(loop.GoalPromptLeaseRevokerFunc(func(
+				context.Context,
+				loop.GoalPromptLease,
+				string,
+			) error {
+				return cleanupErr
+			})),
+		)
+
+		result, err := svc.ReplaceInline(
+			context.Background(),
+			old.ID,
+			"ws-1",
+			inlineGoalDefinition("ship the safer release", "judge-v1"),
+			loop.Inputs{},
+			inlineGoalOrigin("session-origin"),
+			humanActor(t),
+		)
+		if err != nil {
+			t.Fatalf("ReplaceInline() error = %v, want committed success", err)
+		}
+		if result.ReplacedRunID != old.ID || result.Run == nil {
+			t.Fatalf("ReplaceInline() result = %#v, want committed replacement", result)
+		}
+		if got := logs.String(); !strings.Contains(got, cleanupErr.Error()) ||
+			!strings.Contains(got, "judge-cleanup") {
+			t.Fatalf("cleanup log = %q, want error and judge attempt identity", got)
 		}
 	})
 
@@ -948,6 +999,18 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 		if string(cfg.EnabledChecks) != `{"human":true}` {
 			t.Fatalf("EnabledChecks = %s, want persisted JSON", cfg.EnabledChecks)
 		}
+		snapshot, err := svc.GetConfigSnapshot(context.Background(), "ws-1", "valid-loop")
+		if err != nil {
+			t.Fatalf("GetConfigSnapshot() error = %v", err)
+		}
+		if snapshot.Stored == nil || snapshot.Stored.FanOutWidth == nil ||
+			*snapshot.Stored.FanOutWidth != loop.LoopMaxFanoutWidth {
+			t.Fatalf("stored config = %#v, want clamped override", snapshot.Stored)
+		}
+		if snapshot.Effective.FanOutWidth != loop.LoopMaxFanoutWidth ||
+			snapshot.Effective.GateMaxRevisions != 10 {
+			t.Fatalf("effective config = %#v, want stored fan-out and delivery gate default", snapshot.Effective)
+		}
 	})
 
 	t.Run("Should reject invalid config JSON", func(t *testing.T) {
@@ -1257,9 +1320,10 @@ func TestServiceStopShouldFailRunWithOperatorCause(t *testing.T) {
 			store,
 			validDefinition(),
 			loop.WithGoalPromptLeaseRevoker(loop.GoalPromptLeaseRevokerFunc(
-				func(got loop.GoalPromptLease, reason string) {
+				func(_ context.Context, got loop.GoalPromptLease, reason string) error {
 					revoked = append(revoked, got)
 					reasons = append(reasons, reason)
+					return nil
 				},
 			)),
 		)
@@ -1293,8 +1357,13 @@ func TestServiceStopShouldFailRunWithOperatorCause(t *testing.T) {
 			t,
 			store,
 			validDefinition(),
-			loop.WithGoalPromptLeaseRevoker(loop.GoalPromptLeaseRevokerFunc(func(loop.GoalPromptLease, string) {
+			loop.WithGoalPromptLeaseRevoker(loop.GoalPromptLeaseRevokerFunc(func(
+				context.Context,
+				loop.GoalPromptLease,
+				string,
+			) error {
 				revokeCalls++
+				return nil
 			})),
 		)
 		if err := svc.Stop(
@@ -1439,15 +1508,16 @@ type fakeTransition struct {
 }
 
 type fakeLoopStore struct {
-	mu                sync.Mutex
-	runs              map[loop.RunID]loop.Run
-	configs           map[string]loop.LoopConfig
-	snapshots         map[string]loop.DefinitionSnapshot
-	decisions         map[string]map[string]gate.HumanDecision
-	transitions       []fakeTransition
-	goalControl       *loop.GoalControlState
-	goalReactivations []loop.GoalReactivationRequest
-	creates           int
+	mu                               sync.Mutex
+	runs                             map[loop.RunID]loop.Run
+	configs                          map[string]loop.LoopConfig
+	snapshots                        map[string]loop.DefinitionSnapshot
+	decisions                        map[string]map[string]gate.HumanDecision
+	transitions                      []fakeTransition
+	goalControl                      *loop.GoalControlState
+	goalReactivations                []loop.GoalReactivationRequest
+	inlineReplaceRevokedPromptLeases []loop.GoalPromptLease
+	creates                          int
 }
 
 func newFakeLoopStore() *fakeLoopStore {
@@ -1593,6 +1663,10 @@ func (s *fakeLoopStore) ReplaceInlineLoopRun(
 		ReplacedRunID: old.ID,
 		ReplacedRun:   old,
 		Run:           created,
+		RevokedPromptLeases: append(
+			[]loop.GoalPromptLease(nil),
+			s.inlineReplaceRevokedPromptLeases...,
+		),
 	}, nil
 }
 

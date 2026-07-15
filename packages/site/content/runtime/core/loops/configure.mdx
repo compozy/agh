@@ -56,6 +56,10 @@ compile-time ceilings:
 3. this per-Loop configure overlay,
 4. any per-run overrides from the run form.
 
+`GET /loops/:name/config` returns the stored per-Loop override as `config` and the daemon-resolved
+first three layers as `effective_config`. A missing override is `config: null`; it is not a missing
+Loop and does not prevent clients from reading the effective values.
+
 Loop `run-agent` workers use the Loop action runtime. They do not read
 `[[tasks.run.task_runtime_rules]]`; that table remains scoped to normal task worker profile
 routing. The Loop runtime resolves the model into the ACP session bind request, then the provider

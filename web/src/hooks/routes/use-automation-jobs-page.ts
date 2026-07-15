@@ -3,10 +3,10 @@ import { toast } from "sonner";
 
 import {
   automationJobToDraft,
+  buildAutomationJobRequest,
   createAutomationJobDraft,
   createAutomationDialogHandle,
   createLoopTargetJobDraft,
-  normalizeAutomationRetry,
   useAutomationJob,
   useAutomationJobRuns,
   useAutomationJobs,
@@ -24,7 +24,6 @@ import type {
 import {
   automationUnavailableMessage,
   buildEmptyState,
-  normalizeAutomationSchedule,
   resolveSelectedId,
   useAutomationPageBase,
   type AutomationCreateSeed,
@@ -114,11 +113,7 @@ export function useAutomationJobsPage(
 
     jobSubmitInFlightRef.current = true;
     try {
-      const payload = {
-        ...editor.draft,
-        retry: normalizeAutomationRetry(editor.draft.retry ?? undefined),
-        schedule: normalizeAutomationSchedule(editor.draft.schedule),
-      };
+      const payload = buildAutomationJobRequest(editor.draft);
       const job =
         editor.mode === "create"
           ? await createJobMutation.mutateAsync(payload)
@@ -137,17 +132,13 @@ export function useAutomationJobsPage(
 
   const handleDelete = async () => {
     if (!selectedJob) {
-      return;
+      throw new Error("The selected job is no longer available.");
     }
 
-    try {
-      await deleteJobMutation.mutateAsync({ id: selectedJob.id });
-      page.setSelectedId(null);
-      setQueuedRun(null);
-      toast.success(`Deleted ${selectedJob.name}.`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to delete automation job");
-    }
+    await deleteJobMutation.mutateAsync({ id: selectedJob.id });
+    page.setSelectedId(null);
+    setQueuedRun(null);
+    toast.success(`Deleted ${selectedJob.name}.`);
   };
 
   const handleToggleEnabled = async (enabled: boolean) => {
@@ -219,9 +210,7 @@ export function useAutomationJobsPage(
     },
     item: selectedJob,
     kind: "jobs" as const,
-    onDelete: () => {
-      void handleDelete();
-    },
+    onDelete: handleDelete,
     onEdit: handleEdit,
     onToggleEnabled: (enabled: boolean) => {
       void handleToggleEnabled(enabled);

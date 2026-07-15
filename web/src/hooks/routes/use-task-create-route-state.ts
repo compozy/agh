@@ -1,9 +1,10 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useRef, useState, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type SetStateAction } from "react";
 import { toast } from "sonner";
 
 import { useCreateChildTask, useCreateTask, useEnqueueTaskRun } from "@/systems/tasks";
 import {
+  applyTaskTemplateToEditorDraft,
   buildCreateChildTaskRequest,
   buildCreateTaskRequest,
   createTaskEditorDraft,
@@ -21,6 +22,27 @@ import {
 } from "@/systems/workspace";
 import { taskScopeForActiveWorkspace } from "./workspace-scope-filter";
 
+interface TaskCreateDraftState {
+  draft: TaskEditorDraft;
+  key: string;
+  appliedTemplateId: TaskTemplateId;
+}
+
+function resolveTaskCreateDraft(
+  state: TaskCreateDraftState,
+  nextTemplateId: TaskTemplateId,
+  draftKey: string,
+  workspaceId: string | undefined
+): TaskEditorDraft {
+  if (state.key !== draftKey) {
+    return createTaskEditorDraft(nextTemplateId, workspaceId);
+  }
+  if (state.appliedTemplateId !== nextTemplateId) {
+    return applyTaskTemplateToEditorDraft(state.draft, nextTemplateId);
+  }
+  return state.draft;
+}
+
 export function useTaskCreateRouteState(search: { template?: TaskTemplateId }) {
   const navigate = useNavigate({ from: "/tasks/new" });
   const { activeWorkspace, workspaces } = useActiveWorkspace();
@@ -34,24 +56,40 @@ export function useTaskCreateRouteState(search: { template?: TaskTemplateId }) {
   const activeTaskScope = taskScopeForActiveWorkspace(activeWorkspace, userHomeDir);
   const createDraftWorkspaceId =
     activeTaskScope?.scope === "workspace" ? activeTaskScope.workspace : undefined;
-  const draftKey = `${templateId}:${createDraftWorkspaceId ?? "global"}`;
-  const [draftState, setDraftState] = useState(() => ({
+  const draftKey = createDraftWorkspaceId ?? "global";
+  const [draftState, setDraftState] = useState<TaskCreateDraftState>(() => ({
     draft: createTaskEditorDraft(templateId, createDraftWorkspaceId),
     key: draftKey,
+    appliedTemplateId: templateId,
   }));
-  const draft =
-    draftState.key === draftKey
-      ? draftState.draft
-      : createTaskEditorDraft(templateId, createDraftWorkspaceId);
+
+  const draft = resolveTaskCreateDraft(draftState, templateId, draftKey, createDraftWorkspaceId);
+
+  useEffect(() => {
+    setDraftState(current => {
+      if (current.key === draftKey && current.appliedTemplateId === templateId) {
+        return current;
+      }
+      return {
+        draft: resolveTaskCreateDraft(current, templateId, draftKey, createDraftWorkspaceId),
+        key: draftKey,
+        appliedTemplateId: templateId,
+      };
+    });
+  }, [createDraftWorkspaceId, draftKey, search.template, templateId]);
+
   const setDraft = (update: SetStateAction<TaskEditorDraft>) => {
     setDraftState(current => {
-      const currentDraft =
-        current.key === draftKey
-          ? current.draft
-          : createTaskEditorDraft(templateId, createDraftWorkspaceId);
+      const currentDraft = resolveTaskCreateDraft(
+        current,
+        templateId,
+        draftKey,
+        createDraftWorkspaceId
+      );
       return {
         draft: typeof update === "function" ? update(currentDraft) : update,
         key: draftKey,
+        appliedTemplateId: templateId,
       };
     });
   };

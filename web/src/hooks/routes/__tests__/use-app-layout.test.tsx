@@ -17,6 +17,8 @@ const {
   mockUseAgents,
   mockUseAgentCatalog,
   mockUseSessions,
+  mockUseWorkspaceSessionActivity,
+  mockUseSessionCatalogStreams,
 } = vi.hoisted(() => ({
   mockNavigate: vi.fn<(input: unknown) => Promise<void>>(),
   mockMutateAsync: vi.fn<(input: unknown) => Promise<{ id: string; agent_name: string }>>(),
@@ -28,6 +30,8 @@ const {
   mockUseAgents: vi.fn(),
   mockUseAgentCatalog: vi.fn(),
   mockUseSessions: vi.fn(),
+  mockUseWorkspaceSessionActivity: vi.fn(),
+  mockUseSessionCatalogStreams: vi.fn(),
 }));
 
 let mockActiveWorkspaceId: string | null = "ws_alpha";
@@ -158,6 +162,8 @@ vi.mock("@/systems/session", async () => {
       isPending: mockUseCreateSessionPending.current,
     }),
     useSessions: mockUseSessions,
+    useWorkspaceSessionActivity: mockUseWorkspaceSessionActivity,
+    useSessionCatalogStreams: mockUseSessionCatalogStreams,
     useSessionCreateDialog: useSessionCreateDialogModule.useSessionCreateDialog,
   };
 });
@@ -231,6 +237,9 @@ describe("useAppLayout", () => {
     });
     mockUseSessions.mockReset();
     mockUseSessions.mockReturnValue({ data: [], total: 3 });
+    mockUseWorkspaceSessionActivity.mockReset();
+    mockUseWorkspaceSessionActivity.mockReturnValue({});
+    mockUseSessionCatalogStreams.mockReset();
     mockNavigate.mockReset();
     mockMutateAsync.mockReset();
     mockSetActiveWorkspaceId.mockReset();
@@ -288,7 +297,7 @@ describe("useAppLayout", () => {
     expect(result.current.sessionCreate.runtimeValue.provider).toBe("codex");
   });
 
-  it("uses the active workspace for agent definitions and exact shell summaries", () => {
+  it("counts every active session type for operational restart safety", () => {
     mockUseAgents.mockImplementation((workspace?: string | null) => ({
       data:
         workspace === "ws_alpha"
@@ -309,6 +318,21 @@ describe("useAppLayout", () => {
     });
     expect(result.current.agentsCount).toEqual({ live: 1, total: 2 });
     expect(result.current.activeSessionCount).toBe(3);
+    expect(result.current.workspaceSessionActivity).toEqual({});
+    expect(mockUseWorkspaceSessionActivity).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "ws_alpha" }),
+        expect.objectContaining({ id: "ws_beta" }),
+      ]),
+      true
+    );
+    expect(mockUseSessionCatalogStreams).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "ws_alpha" }),
+        expect.objectContaining({ id: "ws_beta" }),
+      ]),
+      { enabled: true }
+    );
 
     act(() => {
       result.current.handleNewSession("workspace-review");

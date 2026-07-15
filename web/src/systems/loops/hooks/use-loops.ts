@@ -35,7 +35,12 @@ export function useLoop(workspaceId: string, name: string, enabled = true) {
 }
 
 export function useLoopConfig(workspaceId: string, name: string, enabled = true) {
-  return useQuery(loopConfigOptions(workspaceId, name, enabled));
+  const query = useQuery(loopConfigOptions(workspaceId, name, enabled));
+  return {
+    ...query,
+    data: query.data?.config ?? null,
+    effectiveConfig: query.data?.effectiveConfig,
+  };
 }
 
 export function useLoopAnnotations(workspaceId: string, name: string, enabled = true) {

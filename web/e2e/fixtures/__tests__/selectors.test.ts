@@ -132,6 +132,15 @@ describe("automation operator selectors", () => {
     expect(selectors.createTriggerButton).toBe(
       `locator:${automationOperatorTestIds.createTriggerButton}`
     );
+    expect(selectors.automationDeleteDialog).toBe(
+      `locator:${automationOperatorTestIds.automationDeleteDialog}`
+    );
+    expect(selectors.automationDeleteConfirmTyping).toBe(
+      `locator:${automationOperatorTestIds.automationDeleteConfirmTyping}`
+    );
+    expect(selectors.confirmDeleteAutomationButton).toBe(
+      `locator:${automationOperatorTestIds.confirmDeleteAutomationButton}`
+    );
     expect(selectors.detailPanel).toBe(
       `locator:${automationOperatorTestIds.automationDetailPanel}`
     );

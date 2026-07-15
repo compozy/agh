@@ -1,6 +1,7 @@
 import type { PillTone } from "@agh/ui";
 
 import type { LoopDefinition, LoopRunGeneration } from "../types";
+import { parseLoopActionFailure, type LoopActionFailure } from "./action-failure";
 import { type LoopGraphNode, nodeClassLabel, readLoopGraph } from "./loop-graph";
 
 /**
@@ -43,6 +44,8 @@ export interface LoopTimelineNode {
   childLoopRunId?: string;
   /** Fan-out branch index when this output is one materialized branch. */
   itemIndex?: number;
+  /** Sanitized durable failure detail for a failed action node. */
+  failure?: LoopActionFailure;
 }
 
 export interface LoopTimelineGeneration {
@@ -72,6 +75,8 @@ function projectTimelineNode(
     isCarriedForward: CARRY_FORWARD_STATUSES.has(status),
     childLoopRunId: output.child_loop_run_id,
     itemIndex: output.item_index,
+    failure:
+      status === "failed" ? (parseLoopActionFailure(output.output_ref) ?? undefined) : undefined,
   };
 }
 

@@ -32,7 +32,11 @@ export function useTasksCreateModalForm({
     onDraftChange(current => ({ ...current, priority }));
 
   const updateOwnerKind = (ownerKind: TaskOwnerKind | "") =>
-    onDraftChange(current => ({ ...current, ownerKind }));
+    onDraftChange(current => ({
+      ...current,
+      ownerKind,
+      ownerRef: current.ownerKind === ownerKind ? current.ownerRef : "",
+    }));
 
   const updateMaxAttempts = (maxAttempts: number | null) =>
     onDraftChange(current => ({ ...current, maxAttempts }));

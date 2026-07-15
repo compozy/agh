@@ -9,7 +9,7 @@ import { LoopsApiError } from "./loops-api-errors";
 import type {
   LoopAnnotation,
   LoopAnnotationsUpdateRequest,
-  LoopConfig,
+  LoopConfigSnapshot,
   LoopConfigUpdateRequest,
 } from "../types";
 
@@ -17,7 +17,7 @@ export async function getLoopConfig(
   workspaceId: string,
   name: string,
   signal?: AbortSignal
-): Promise<LoopConfig | null> {
+): Promise<LoopConfigSnapshot> {
   const { data, error, response } = await apiClient.GET(
     "/api/workspaces/{workspace_id}/loops/{name}/config",
     {
@@ -27,16 +27,17 @@ export async function getLoopConfig(
   );
 
   if (apiRequestFailed(response, error)) {
-    if (response.status === 404) return null;
+    if (response.status === 404) {
+      throw new LoopsApiError(`Loop not found: ${name}`, 404);
+    }
     throw new LoopsApiError(
       defaultApiErrorMessage(`Failed to fetch config for loop "${name}"`, response, error),
       response.status
     );
   }
 
-  return (
-    requireResponseData(data, response, `Failed to fetch config for loop "${name}"`).config ?? null
-  );
+  const payload = requireResponseData(data, response, `Failed to fetch config for loop "${name}"`);
+  return { config: payload.config ?? null, effectiveConfig: payload.effective_config };
 }
 
 export async function putLoopConfig(
@@ -44,7 +45,7 @@ export async function putLoopConfig(
   name: string,
   body: LoopConfigUpdateRequest,
   signal?: AbortSignal
-): Promise<LoopConfig | null> {
+): Promise<LoopConfigSnapshot> {
   const { data, error, response } = await apiClient.PUT(
     "/api/workspaces/{workspace_id}/loops/{name}/config",
     {
@@ -62,9 +63,8 @@ export async function putLoopConfig(
     );
   }
 
-  return (
-    requireResponseData(data, response, `Failed to update config for loop "${name}"`).config ?? null
-  );
+  const payload = requireResponseData(data, response, `Failed to update config for loop "${name}"`);
+  return { config: payload.config ?? null, effectiveConfig: payload.effective_config };
 }
 
 export async function getLoopAnnotations(

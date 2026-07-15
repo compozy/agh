@@ -680,6 +680,65 @@ func TestMarshalAgentEventBuildsCanonicalPayload(t *testing.T) {
 	}
 }
 
+func TestToUIMessagesPreservesUserClientIdentity(t *testing.T) {
+	t.Run("Should project the durable client message identity into user metadata", func(t *testing.T) {
+		t.Parallel()
+
+		timestamp := time.Date(2026, 7, 13, 23, 55, 0, 0, time.UTC)
+		clientMessageID := "client-user-identity"
+		event := acp.AgentEvent{
+			Type:      acp.EventTypeUserMessage,
+			TurnID:    "turn-user-identity",
+			Timestamp: timestamp,
+			Text:      "Transformed provider input.",
+		}.WithClientMessageID(clientMessageID)
+		authoredText := "Keep this message after reload."
+		payload, err := MarshalPromptInputEvent(event, authoredText)
+		if err != nil {
+			t.Fatalf("MarshalAgentEvent() error = %v", err)
+		}
+		decoded, err := UnmarshalAgentEvent(payload)
+		if err != nil {
+			t.Fatalf("UnmarshalAgentEvent() error = %v", err)
+		}
+		if got, want := decoded.ClientMessageIDValue(), clientMessageID; got != want {
+			t.Fatalf("ClientMessageID = %q, want %q", got, want)
+		}
+		if got, want := decoded.Text, event.Text; got != want {
+			t.Fatalf("effective Text = %q, want %q", got, want)
+		}
+
+		messages, err := ToUIMessages([]store.SessionEvent{{
+			ID:        "ev-user-identity",
+			SessionID: "sess-user-identity",
+			TurnID:    event.TurnID,
+			Sequence:  1,
+			Type:      event.Type,
+			Content:   payload,
+			Timestamp: timestamp,
+		}})
+		if err != nil {
+			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		if got, want := len(messages), 1; got != want {
+			t.Fatalf("len(messages) = %d, want %d", got, want)
+		}
+		var metadata struct {
+			TurnID          string `json:"turn_id"`
+			ClientMessageID string `json:"client_message_id"`
+		}
+		if err := json.Unmarshal(messages[0].Metadata, &metadata); err != nil {
+			t.Fatalf("json.Unmarshal(metadata) error = %v", err)
+		}
+		if metadata.TurnID != event.TurnID || metadata.ClientMessageID != clientMessageID {
+			t.Fatalf("metadata = %#v, want turn/client identity", metadata)
+		}
+		if got, want := messages[0].Parts[0].Text, authoredText; got != want {
+			t.Fatalf("projected user text = %q, want exact authored text %q", got, want)
+		}
+	})
+}
+
 func TestMarshalAgentEventExtractsToolResultShapeWithoutPersistingRaw(t *testing.T) {
 	t.Run("Should extract structured tool result fields without persisting raw payloads", func(t *testing.T) {
 		t.Parallel()

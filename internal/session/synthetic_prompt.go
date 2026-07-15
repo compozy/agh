@@ -144,11 +144,12 @@ func (m *Manager) parseSyntheticPromptRequest(
 	}
 
 	return promptRequest{
-		turnID:     turnID,
-		target:     target,
-		message:    message,
-		turnSource: TurnSourceSynthetic,
-		meta:       meta,
+		turnID:          turnID,
+		target:          target,
+		message:         message,
+		authoredMessage: message,
+		turnSource:      TurnSourceSynthetic,
+		meta:            meta,
 	}, nil
 }
 

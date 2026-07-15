@@ -1,11 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SessionThread } from "@/components/assistant-ui/session-thread";
+import { Toaster } from "@agh/ui";
 import { formatMessageError } from "@/components/assistant-ui/session-thread-error";
 import { sessionKeys, useSessionTranscriptThreadState } from "@/systems/session";
+import { useSessionStore } from "@/systems/session/hooks/use-session-store";
 import { mergeSessionThreadReadModel } from "@/systems/session/lib/session-thread-read-model";
 import { toReadonlyThreadMessages } from "@/systems/session/lib/session-thread-repository";
 import type { SessionTranscriptData } from "@/systems/session/lib/session-transcript-query";
@@ -117,6 +120,27 @@ function getRequestURL(input: RequestInfo | URL): URL {
   return new URL(input.url, "http://localhost");
 }
 
+function getLastUserMessageID(init?: RequestInit): string {
+  if (typeof init?.body !== "string") return "";
+  const body: unknown = JSON.parse(init.body);
+  if (typeof body !== "object" || body === null || !("messages" in body)) return "";
+  const messages = body.messages;
+  if (!Array.isArray(messages)) return "";
+  for (const message of [...messages].reverse()) {
+    if (
+      typeof message === "object" &&
+      message !== null &&
+      "role" in message &&
+      message.role === "user" &&
+      "id" in message &&
+      typeof message.id === "string"
+    ) {
+      return message.id;
+    }
+  }
+  return "";
+}
+
 function createQueryClient() {
   return new QueryClient({
     defaultOptions: {
@@ -138,6 +162,30 @@ function createDeferred<T>() {
     reject = promiseReject;
   });
   return { promise, reject, resolve };
+}
+
+function abortableResponse(response: Promise<Response>, signal?: AbortSignal | null) {
+  if (!signal) return response;
+  if (signal.aborted) {
+    return Promise.reject(new DOMException("The operation was aborted", "AbortError"));
+  }
+
+  return new Promise<Response>((resolve, reject) => {
+    const handleAbort = () => {
+      reject(new DOMException("The operation was aborted", "AbortError"));
+    };
+    signal.addEventListener("abort", handleAbort, { once: true });
+    void response.then(
+      result => {
+        signal.removeEventListener("abort", handleAbort);
+        resolve(result);
+      },
+      error => {
+        signal.removeEventListener("abort", handleAbort);
+        reject(error);
+      }
+    );
+  });
 }
 
 function testRect(top: number, height = 40): DOMRect {
@@ -211,13 +259,16 @@ function TranscriptStateProbe() {
 function renderSessionThread(
   options: {
     eventSourceFactory?: (url: string) => FakeSessionEventSource;
+    includeToaster?: boolean;
     queryClient?: QueryClient;
     includeTranscriptStateProbe?: boolean;
+    onCancelPrompt?: () => void;
+    strictMode?: boolean;
   } = {}
 ) {
   const queryClient = options.queryClient ?? createQueryClient();
 
-  const utils = render(
+  const tree = (
     <QueryClientProvider client={queryClient}>
       <SessionChatRuntimeProvider
         sessionId={primarySessionFixture.id}
@@ -229,11 +280,13 @@ function renderSessionThread(
           sessionId={primarySessionFixture.id}
           agentName={primarySessionFixture.agent_name}
           canPrompt
-          onCancelPrompt={() => {}}
+          onCancelPrompt={options.onCancelPrompt ?? (() => {})}
         />
+        {options.includeToaster ? <Toaster duration={500} /> : null}
       </SessionChatRuntimeProvider>
     </QueryClientProvider>
   );
+  const utils = render(options.strictMode ? <StrictMode>{tree}</StrictMode> : tree);
   return { ...utils, queryClient };
 }
 
@@ -242,6 +295,15 @@ function countTranscriptFetches(fetchMock: ReturnType<typeof vi.fn>): number {
     return (
       getPathname(input as RequestInfo | URL) ===
       `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/transcript`
+    );
+  }).length;
+}
+
+function countPromptFetches(fetchMock: ReturnType<typeof vi.fn>): number {
+  return fetchMock.mock.calls.filter(([input]) => {
+    return (
+      getPathname(input as RequestInfo | URL) ===
+      `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/prompt`
     );
   }).length;
 }
@@ -273,26 +335,39 @@ describe("SessionChatRuntimeProvider", () => {
 
   let transcriptMessages = sessionTranscriptFixture.slice(0, 2);
   let sessionDetailResponse = primarySessionFixture;
+  let transcriptEpoch = 1;
+  let transcriptGeneration = 1;
   let transcriptFetchShouldFail = false;
   let transcriptResponsePromise: Promise<Response> | null = null;
+  let promptResponsePromise: Promise<Response> | null = null;
   let olderTranscriptResponsePromise: Promise<Response> | null = null;
   let transcriptFirstSequence = 1;
   let transcriptHasOlder = false;
   let transcriptNextBeforeSequence: number | undefined;
   let olderTranscriptMessages: TranscriptMessage[] = [];
+  let goalCommandFailureReason: "goal_objective_required" | "goal_objective_too_large" | null =
+    null;
+  let lastPromptClientMessageID = "";
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    useSessionStore.getState().clearDraft(primarySessionFixture.id);
+    useSessionStore.setState({ goalResults: {}, goalResultCommands: {}, goalErrorVisible: {} });
     transcriptMessages = sessionTranscriptFixture.slice(0, 2);
     sessionDetailResponse = primarySessionFixture;
+    transcriptEpoch = 1;
+    transcriptGeneration = 1;
     transcriptFetchShouldFail = false;
     transcriptResponsePromise = null;
+    promptResponsePromise = null;
     olderTranscriptResponsePromise = null;
     transcriptFirstSequence = 1;
     transcriptHasOlder = false;
     transcriptNextBeforeSequence = undefined;
     olderTranscriptMessages = [];
-    fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    goalCommandFailureReason = null;
+    lastPromptClientMessageID = "";
+    fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const requestURL = getRequestURL(input);
       const pathname = requestURL.pathname;
 
@@ -324,19 +399,36 @@ describe("SessionChatRuntimeProvider", () => {
           if (olderTranscriptResponsePromise) return olderTranscriptResponsePromise;
           return jsonResponse(transcriptPayload(olderTranscriptMessages));
         }
-        return jsonResponse(
-          transcriptPayload(transcriptMessages, {
+        return jsonResponse({
+          ...transcriptPayload(transcriptMessages, {
             firstSequence: transcriptFirstSequence,
             hasOlder: transcriptHasOlder,
             nextBeforeSequence: transcriptNextBeforeSequence,
-          })
-        );
+          }),
+          epoch: transcriptEpoch,
+          generation: transcriptGeneration,
+        });
       }
 
       if (
         pathname ===
         `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/prompt`
       ) {
+        lastPromptClientMessageID = getLastUserMessageID(init);
+        if (promptResponsePromise) {
+          return abortableResponse(promptResponsePromise, init?.signal);
+        }
+        if (goalCommandFailureReason) {
+          return jsonResponse(
+            {
+              outcome: "error",
+              reason_code: goalCommandFailureReason,
+              replaced_run_id: null,
+              snapshot: null,
+            },
+            { status: 422 }
+          );
+        }
         return sseResponse([
           'data: {"type":"start","messageId":"turn-runtime-001"}\n\n',
           'data: {"type":"text-start","id":"turn-runtime-001-text-1"}\n\n',
@@ -356,6 +448,8 @@ describe("SessionChatRuntimeProvider", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    useSessionStore.getState().clearDraft(primarySessionFixture.id);
+    useSessionStore.setState({ goalResults: {}, goalResultCommands: {}, goalErrorVisible: {} });
   });
 
   it("Should still render from cache after fake timers advance beyond the old 5-minute gcTime default", async () => {
@@ -541,6 +635,117 @@ describe("SessionChatRuntimeProvider", () => {
     ).toThrow("SessionChatRuntimeProvider requires a non-empty workspaceId");
   });
 
+  it("Should preserve the first Goal transport and local cancellation across StrictMode replay", async () => {
+    const prompt =
+      '/goal Reply in exactly one sentence: "AGH keeps agent work local-first and durable."';
+    const promptResponse = createDeferred<Response>();
+    const onCancelPrompt = vi.fn();
+    const sources: FakeSessionEventSource[] = [];
+    const user = userEvent.setup();
+    transcriptMessages = [
+      {
+        id: "session-create-hook-start",
+        role: "assistant",
+        parts: [{ type: "data-agh-event", data: { type: "hook.dispatch.start" } }],
+      },
+      {
+        id: "session-create-hook-complete",
+        role: "assistant",
+        parts: [{ type: "data-agh-event", data: { type: "hook.dispatch.complete" } }],
+      },
+    ];
+    transcriptEpoch = 0;
+    transcriptGeneration = 0;
+    promptResponsePromise = promptResponse.promise;
+
+    const view = renderSessionThread({
+      eventSourceFactory: url => {
+        const source = new FakeSessionEventSource(url);
+        sources.push(source);
+        return source;
+      },
+      onCancelPrompt,
+      strictMode: true,
+    });
+
+    try {
+      const composer = await screen.findByRole("textbox", { name: "Session prompt" });
+      await waitFor(() => {
+        expect(screen.getAllByTestId("thread-message-row")).toHaveLength(2);
+        expect(composer).toBeEnabled();
+        expect(sources).toHaveLength(2);
+        expect(sources[0]?.closed).toBe(true);
+        expect(sources[1]?.closed).toBe(false);
+      });
+      expect(countPromptFetches(fetchMock)).toBe(0);
+
+      fireEvent.change(composer, { target: { value: prompt } });
+      await user.click(screen.getByTestId("composer-send-button"));
+
+      expect(await screen.findByText(prompt)).toBeInTheDocument();
+      expect(await screen.findByLabelText("Working")).toBeInTheDocument();
+      await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+
+      await user.click(screen.getByTestId("composer-stop-button"));
+
+      expect(onCancelPrompt).toHaveBeenCalledTimes(1);
+      await waitFor(() => {
+        expect(screen.queryByTestId("composer-stop-button")).not.toBeInTheDocument();
+        expect(screen.getByTestId("composer-send-button")).toBeEnabled();
+      });
+    } finally {
+      promptResponse.resolve(
+        sseResponse([
+          'data: {"type":"start","messageId":"turn-runtime-strict-001"}\n\n',
+          'data: {"type":"finish","finishReason":"stop"}\n\n',
+          "data: [DONE]\n\n",
+        ])
+      );
+      view.unmount();
+    }
+  });
+
+  it.each([
+    ["goal_objective_required", "/goal", "Add an objective after /goal, then try again."],
+    [
+      "goal_objective_too_large",
+      `/goal ${"x".repeat(5_000)}`,
+      "Shorten the Goal objective, then try again.",
+    ],
+  ] as const)(
+    "Should render actionable guidance for %s while keeping its reason code internal",
+    async (reasonCode, prompt, guidance) => {
+      goalCommandFailureReason = reasonCode;
+      const user = userEvent.setup();
+      renderSessionThread();
+
+      const composer = await screen.findByRole("textbox", { name: "Session prompt" });
+      fireEvent.change(composer, { target: { value: prompt } });
+      await user.click(screen.getByTestId("composer-send-button"));
+
+      await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+      expect(useSessionStore.getState().goalResults[primarySessionFixture.id]?.reason_code).toBe(
+        reasonCode
+      );
+      expect(await screen.findByRole("alert")).toHaveTextContent(guidance);
+      expect(screen.queryByText(reasonCode)).not.toBeInTheDocument();
+      expect(composer).toBeEnabled();
+      await user.type(composer, "Retry draft");
+      expect(composer).toHaveValue("Retry draft");
+      expect(screen.getByRole("alert")).toHaveTextContent(guidance);
+      expect(screen.getByTestId("composer-send-button")).toBeEnabled();
+      expect(countPromptFetches(fetchMock)).toBe(1);
+
+      goalCommandFailureReason = null;
+      await user.click(screen.getByTestId("composer-send-button"));
+      await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(2));
+      await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+      expect(useSessionStore.getState().goalResults[primarySessionFixture.id]?.reason_code).toBe(
+        reasonCode
+      );
+    }
+  );
+
   it("keeps locally sent prompts visible through transcript reconciliation", async () => {
     const user = userEvent.setup();
     const { queryClient } = renderSessionThread();
@@ -560,12 +765,14 @@ describe("SessionChatRuntimeProvider", () => {
         screen.getByText("Live runtime answer before transcript reconciliation.")
       ).toBeInTheDocument();
     });
+    expect(lastPromptClientMessageID).not.toBe("");
 
     transcriptMessages = [
       ...sessionTranscriptFixture.slice(0, 2),
       {
         id: "transcript_user_after_send_001",
         role: "user",
+        metadata: { client_message_id: lastPromptClientMessageID },
         parts: [
           {
             type: "text",
@@ -591,11 +798,20 @@ describe("SessionChatRuntimeProvider", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getAllByText("Continue from the reattached thread").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Continue from the reattached thread")).toHaveLength(1);
       expect(
         screen.getByText("Durable transcript answer after reconciliation.")
       ).toBeInTheDocument();
     });
+    const reconciledRows = screen.getAllByTestId("thread-message-row");
+    const promptIndex = reconciledRows.findIndex(row =>
+      row.textContent?.includes("Continue from the reattached thread")
+    );
+    const answerIndex = reconciledRows.findIndex(row =>
+      row.textContent?.includes("Durable transcript answer after reconciliation.")
+    );
+    expect(promptIndex).toBeGreaterThanOrEqual(0);
+    expect(answerIndex).toBeGreaterThan(promptIndex);
 
     expect(
       screen.queryByText("Live runtime answer before transcript reconciliation.")
@@ -651,10 +867,104 @@ describe("SessionChatRuntimeProvider", () => {
     expect(merged.map(message => message.id)).toEqual(["server_assistant_001"]);
   });
 
-  it("Should prefill a settled draft reply as a Goal through the thread composer store", async () => {
+  it("Should reconcile a user message by client identity without requiring a turn id", () => {
+    const runtimeMessages = toReadonlyThreadMessages([
+      {
+        id: "client_user_001",
+        role: "user",
+        parts: [{ type: "text", text: "One authored prompt.", state: "done" }],
+      } as TranscriptMessage,
+    ]);
+    const transcriptMessages = toReadonlyThreadMessages([
+      {
+        id: "server_user_001",
+        role: "user",
+        metadata: { client_message_id: "client_user_001" },
+        parts: [{ type: "text", text: "One authored prompt.", state: "done" }],
+      } as TranscriptMessage,
+      {
+        id: "server_assistant_001",
+        role: "assistant",
+        parts: [{ type: "text", text: "One durable response.", state: "done" }],
+      } as TranscriptMessage,
+    ]);
+
+    const merged = mergeSessionThreadReadModel({ transcriptMessages, runtimeMessages });
+
+    expect(merged.map(message => message.id)).toEqual(["server_user_001", "server_assistant_001"]);
+  });
+
+  it("Should expose one focused and cancellable Goal draft without submitting the response", async () => {
+    const response =
+      "Validate that one event creates one automation run and one terminal loop result.";
     transcriptMessages = [
       {
+        id: "assistant-earlier-goal",
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: "Confirm the trigger is disabled before changing its configuration.",
+            state: "done",
+          },
+        ],
+      },
+      {
         id: "assistant-draft-goal",
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: response,
+            state: "done",
+          },
+        ],
+      },
+    ];
+    const user = userEvent.setup();
+    renderSessionThread({ includeToaster: true });
+
+    const actions = await screen.findAllByRole("button", { name: "Use as Goal" });
+    expect(actions).toHaveLength(2);
+    await user.click(actions[1]!);
+    const composer = screen.getByRole("textbox", { name: "Session prompt" });
+    expect(composer).toHaveValue(`/goal ${response}`);
+    expect(composer).toHaveFocus();
+    expect(screen.getByRole("status")).toHaveTextContent("Goal command draft");
+    expect(countPromptFetches(fetchMock)).toBe(0);
+
+    await user.click(screen.getByRole("button", { name: "Discard Goal command" }));
+    expect(composer).toHaveValue("");
+    expect(screen.queryByText("Goal command draft")).not.toBeInTheDocument();
+    expect(countPromptFetches(fetchMock)).toBe(0);
+
+    await user.type(composer, "Keep this operator draft.");
+    await user.click(screen.getAllByRole("button", { name: "Use as Goal" })[1]!);
+    expect(composer).toHaveValue("Keep this operator draft.");
+    expect(composer).toHaveFocus();
+    expect(
+      screen.getByText("Send or discard the current draft before prefilling a Goal command.")
+    ).toBeVisible();
+    expect(countPromptFetches(fetchMock)).toBe(0);
+    await user.clear(composer);
+    expect(composer).toHaveValue("");
+  });
+
+  it("Should activate Use as Goal from the keyboard without duplicate submission", async () => {
+    transcriptMessages = [
+      {
+        id: "assistant-earlier-keyboard-goal",
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: "Inspect the existing run before retrying it.",
+            state: "done",
+          },
+        ],
+      },
+      {
+        id: "assistant-keyboard-goal",
         role: "assistant",
         parts: [
           {
@@ -668,10 +978,17 @@ describe("SessionChatRuntimeProvider", () => {
     const user = userEvent.setup();
     renderSessionThread();
 
-    await user.click(await screen.findByRole("button", { name: "Use as Goal" }));
+    const actions = await screen.findAllByRole("button", { name: "Use as Goal" });
+    expect(actions).toHaveLength(2);
+    const action = actions[1]!;
+    action.focus();
+    await user.keyboard("{Enter}");
+
     expect(screen.getByRole("textbox", { name: "Session prompt" })).toHaveValue(
       "/goal Expand the release checks and cite each result."
     );
+    expect(countPromptFetches(fetchMock)).toBe(0);
+    await user.click(screen.getByRole("button", { name: "Discard Goal command" }));
   });
 
   it("Should let an empty authoritative transcript replace a stale runtime tail", () => {

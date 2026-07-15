@@ -38,11 +38,7 @@ func (s *service) ClearInlineGoal(
 	if !result.Terminalized {
 		return nil
 	}
-	if s.goalLeaseRevoker != nil {
-		for _, lease := range result.RevokedPromptLeases {
-			s.goalLeaseRevoker.RevokeGoalPromptLease(lease, string(TransitionCauseGoalClear))
-		}
-	}
+	s.revokeGoalPromptLeases(ctx, result.RevokedPromptLeases, TransitionCauseGoalClear)
 	s.dispatchCoordinatorTerminal(ctx, result.Run, TransitionCauseGoalClear, clearedAt)
 	return nil
 }

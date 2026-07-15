@@ -42,6 +42,7 @@ import {
   listTasks,
   markTaskRead,
   publishTask,
+  recoverTaskRun,
   recoverTask,
   rejectTask,
   removeTaskDependency,
@@ -409,6 +410,46 @@ describe("task mutations", () => {
     expect(error).toBeInstanceOf(TasksApiError);
     expect(error).toMatchObject({
       message: "Task task_001 is not in needs_attention",
+      status: 409,
+    });
+  });
+
+  it("recovers one needs_attention run through the continuation contract", async () => {
+    const previousRun = { ...runFixture, status: "needs_attention" as const };
+    const continuation = {
+      ...runFixture,
+      id: "run_002",
+      attempt: 2,
+      previous_run_id: "run_001",
+      status: "queued" as const,
+    };
+    mockJsonResponse({ previous_run: previousRun, run: continuation }, { status: 201 });
+
+    const result = await recoverTaskRun("run_001", { reason: "scheduler starvation" });
+
+    expect(result).toEqual({ previous_run: previousRun, run: continuation });
+    await expectFetchRequest({
+      body: { reason: "scheduler starvation" },
+      method: "POST",
+      path: "/api/runs/run_001/recover",
+    });
+  });
+
+  it("preserves the actionable API error when a run cannot be recovered", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: "Run run_001 is running; only needs_attention runs can be recovered.",
+        }),
+        { status: 409, headers: { "Content-Type": "application/json" } }
+      )
+    );
+
+    const error = await recoverTaskRun("run_001").catch(err => err);
+
+    expect(error).toBeInstanceOf(TasksApiError);
+    expect(error).toMatchObject({
+      message: "Run run_001 is running; only needs_attention runs can be recovered.",
       status: 409,
     });
   });

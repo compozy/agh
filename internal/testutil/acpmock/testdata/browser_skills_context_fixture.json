@@ -10,8 +10,7 @@
                 {
                     "name": "skill-context",
                     "match": {
-                        "turn_source": "user",
-                        "occurrence": 1
+                        "turn_source": "user"
                     },
                     "steps": [
                         {

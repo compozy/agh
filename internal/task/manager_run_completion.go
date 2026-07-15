@@ -2,11 +2,9 @@ package task
 
 import (
 	"context"
-
+	"errors"
 	"fmt"
-
 	"strings"
-
 	"time"
 )
 
@@ -26,7 +24,7 @@ func (m *Service) CompleteRun(
 		return nil, err
 	}
 
-	run, taskRecord, err := m.loadRunWithTask(ctx, runID)
+	run, _, err := m.loadRunWithTask(ctx, runID)
 	if err != nil {
 		return nil, err
 	}
@@ -54,24 +52,22 @@ func (m *Service) CompleteRun(
 	if err := m.stopTerminalRunSession(ctx, run, StopReasonCompleted); err != nil {
 		return nil, err
 	}
-	if err := m.store.UpdateTaskRun(ctx, run); err != nil {
-		return nil, err
-	}
-
-	reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID, actor)
+	settlement, err := m.store.CompleteRunSettlement(ctx, run, actor)
 	if err != nil {
 		return nil, err
 	}
-	if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunCompleted, actor, completedRunPayload{
+
+	publicationCtx, publicationCancel := completedSettlementPublicationContext(ctx)
+	defer publicationCancel()
+	reconciledTask, publicationErr := m.publishCompletedRunSettlement(publicationCtx, &settlement, actor)
+	eventErr := m.recordTaskEvent(publicationCtx, run.TaskID, run.ID, taskEventRunCompleted, actor, completedRunPayload{
 		Status:     run.Status,
 		TaskStatus: reconciledTask.Status,
 		Result:     cloneRawJSON(run.Result),
-	}); err != nil {
-		return nil, err
-	}
-	m.dispatchTerminalWake(ctx, reconciledTask, run, actor)
+	})
+	m.dispatchTerminalWake(publicationCtx, reconciledTask, run, actor)
 
-	return &run, nil
+	return &run, errors.Join(publicationErr, eventErr)
 }
 
 // FailRun marks one starting or running task run as failed and reconciles task state.

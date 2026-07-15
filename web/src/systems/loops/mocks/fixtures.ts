@@ -6,6 +6,7 @@ import type {
   LoopDefinition,
   LoopDefinitionGraph,
   LoopDetail,
+  LoopEffectiveConfig,
   LoopRun,
   LoopRunAggregates,
   LoopRunDetail,
@@ -497,6 +498,20 @@ export const loopConfigFixture: LoopConfig = {
   no_progress_window: 3,
   reattempt_strategy: "failed_only",
   enabled_checks_json: null,
+};
+
+export const loopEffectiveConfigFixture: LoopEffectiveConfig = {
+  budget_on_exceeded: "escalate",
+  budget_tokens: 750_000,
+  budget_wall_sec: 0,
+  enabled_checks_json: {},
+  fan_out_width: 4,
+  gate_max_revisions: 3,
+  human_gate_enabled: true,
+  iteration_cap: 16,
+  model_defaults: { judge: "", worker: "" },
+  no_progress_window: 3,
+  reattempt_strategy: "failed_only",
 };
 
 export const loopAnnotationsFixture: LoopAnnotation[] = [

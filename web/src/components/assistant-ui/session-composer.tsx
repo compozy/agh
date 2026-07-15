@@ -1,5 +1,5 @@
 import { ComposerPrimitive } from "@assistant-ui/react";
-import { ListPlus, Scissors, SendHorizontal, Square } from "lucide-react";
+import { FilePenLine, ListPlus, Scissors, SendHorizontal, Square, X } from "lucide-react";
 import type { KeyboardEvent } from "react";
 import { toast } from "sonner";
 
@@ -60,8 +60,11 @@ export function SessionComposer({
   onRemoveQueuedPrompt,
   onSteerQueuedPrompt,
 }: SessionComposerProps & { composerState: SessionComposerState }) {
-  const { clearComposer, setComposerText, composerText, isRunning } = composerState;
+  const { clearComposer, setComposerInputElement, setComposerText, composerText, isRunning } =
+    composerState;
   const trimmedComposerText = composerText.trim();
+  const goalCommandReady =
+    trimmedComposerText === "/goal" || trimmedComposerText.startsWith("/goal ");
   const runtimeRunning = isRunning || isSessionRunning;
   const canSubmitBusyInput =
     runtimeRunning &&
@@ -142,6 +145,7 @@ export function SessionComposer({
           )}
         >
           <ComposerPrimitive.Input
+            ref={setComposerInputElement}
             aria-label="Session prompt"
             data-testid="composer-textarea"
             disabled={!canPrompt}
@@ -159,6 +163,26 @@ export function SessionComposer({
           />
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
+              {goalCommandReady ? (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="flex min-w-0 items-center gap-1.5 text-form-label text-info"
+                >
+                  <FilePenLine className="size-3.5 shrink-0" aria-hidden="true" />
+                  <span>Goal command draft</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    aria-label="Discard Goal command"
+                    onClick={clearComposer}
+                    className="size-6 p-0 text-muted hover:text-fg"
+                  >
+                    <X className="size-3" aria-hidden="true" />
+                  </Button>
+                </div>
+              ) : null}
               {runtimeRunning && canQueueFromInput ? (
                 <span data-testid="composer-enter-hint" className="text-form-label text-subtle">
                   <kbd className="font-mono not-italic text-subtle">Enter</kbd> to queue

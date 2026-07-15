@@ -11,34 +11,18 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	aghcontract "github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/testutil/acpmock"
 	e2etest "github.com/compozy/agh/internal/testutil/e2e"
 )
-
-const goalCommandJudgeScript = `#!/bin/sh
-set -eu
-mode="$1"
-if [ "$mode" = "rejections" ]; then
-  counter_file=".goal-judge-rejections"
-  attempt=0
-  if [ -f "$counter_file" ]; then
-    attempt="$(cat "$counter_file")"
-  fi
-  attempt=$((attempt + 1))
-  printf '%s' "$attempt" > "$counter_file"
-  if [ "$attempt" -lt 3 ]; then
-    printf '{"verdict":"revise","blocking_issues":[{"id":"attempt_%s","note":"Objective needs another turn."}],"confidence":0.9,"evidence":{"attempt":%s}}\n' "$attempt" "$attempt"
-    exit 0
-  fi
-fi
-printf '{"verdict":"pass","blocking_issues":[],"confidence":1.0,"evidence":{"mode":"%s"}}\n' "$mode"
-`
 
 func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testing.T) {
 	acpmock.RequireDriver(t)
@@ -53,12 +37,13 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 	// Subtests share one runtime and are intentionally sequential.
 	var rejectionSessionID string
 	var rejectionSnapshot aghcontract.GoalSnapshot
+	var judgeSessionIDsBeforeRestart []string
 	t.Run("Should retry rejected Goal turns through approval", func(t *testing.T) {
 		rejectionSession := createFixtureBackedSession(t, ctx, harness, "goal-rejections", "goal-rejections")
 		rejectionSessionID = rejectionSession.ID
 		status := startGoalThroughHTTPAndDisconnect(
-			t,
 			ctx,
+			t,
 			harness,
 			rejectionSession.ID,
 			"Complete after two evidence-backed revisions",
@@ -67,8 +52,8 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			t.Fatalf("HTTP disconnected Goal start status = %d, want %d", status, http.StatusAccepted)
 		}
 		rejectionSnapshot = waitForGoalSnapshot(
-			t,
 			ctx,
+			t,
 			harness,
 			rejectionSession.ID,
 			func(goal *aghcontract.GoalSnapshot) bool {
@@ -86,8 +71,8 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			},
 		)
 		rejectionTurns := waitForGoalTurns(
-			t,
 			ctx,
+			t,
 			harness,
 			rejectionSnapshot.RunID,
 			func(page aghcontract.GoalTurnPage) bool {
@@ -95,13 +80,14 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			},
 		)
 		assertGoalJudgeOutcomes(t, rejectionTurns, []string{"rejected", "rejected", "approved"})
+		waitForStoppedGoalJudgeSessions(ctx, t, harness, "goal-rejections", 3)
 	})
 
 	t.Run("Should pause and resume at a durable boundary", func(t *testing.T) {
 		pauseSession := createFixtureBackedSession(t, ctx, harness, "goal-pause", "goal-pause")
 		startedStatus, started := callGoalCommandUDS(
-			t,
 			ctx,
+			t,
 			harness,
 			pauseSession.ID,
 			"/goal Pause and resume at a durable boundary",
@@ -110,31 +96,38 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			started.Snapshot == nil {
 			t.Fatalf("pause Goal start = status:%d result:%#v", startedStatus, started)
 		}
-		pauseStatus, paused := callGoalCommandUDS(t, ctx, harness, pauseSession.ID, "/goal pause")
+		pauseStatus, paused := callGoalCommandUDS(ctx, t, harness, pauseSession.ID, "/goal pause")
 		if pauseStatus != http.StatusOK || paused.Outcome != aghcontract.GoalOutcomePaused {
 			t.Fatalf("pause Goal command = status:%d result:%#v", pauseStatus, paused)
 		}
-		waitForGoalSnapshot(t, ctx, harness, pauseSession.ID, func(goal *aghcontract.GoalSnapshot) bool {
+		waitForGoalSnapshot(ctx, t, harness, pauseSession.ID, func(goal *aghcontract.GoalSnapshot) bool {
 			return goal != nil && goal.RunStatus == aghcontract.LoopRunStatusPaused
 		})
-		resumeStatus, resumed := callGoalCommandUDS(t, ctx, harness, pauseSession.ID, "/goal resume")
+		resumeStatus, resumed := callGoalCommandUDS(ctx, t, harness, pauseSession.ID, "/goal resume")
 		if resumeStatus != http.StatusOK || resumed.Outcome != aghcontract.GoalOutcomeResumed {
 			t.Fatalf("resume paused Goal command = status:%d result:%#v", resumeStatus, resumed)
 		}
-		pauseCompleted := waitForGoalSnapshot(t, ctx, harness, pauseSession.ID, func(goal *aghcontract.GoalSnapshot) bool {
-			return goal != nil && goal.RunStatus == aghcontract.LoopRunStatusDone
-		})
-		pauseTurns := waitForGoalTurns(t, ctx, harness, pauseCompleted.RunID, func(page aghcontract.GoalTurnPage) bool {
+		pauseCompleted := waitForGoalSnapshot(
+			ctx,
+			t,
+			harness,
+			pauseSession.ID,
+			func(goal *aghcontract.GoalSnapshot) bool {
+				return goal != nil && goal.RunStatus == aghcontract.LoopRunStatusDone
+			},
+		)
+		pauseTurns := waitForGoalTurns(ctx, t, harness, pauseCompleted.RunID, func(page aghcontract.GoalTurnPage) bool {
 			return len(page.Turns) >= 1 && page.Turns[len(page.Turns)-1].ResultStatus != nil
 		})
 		assertMonotonicGoalTurns(t, pauseTurns)
+		waitForStoppedGoalJudgeSessions(ctx, t, harness, "goal-pause", countGoalVerdicts(pauseTurns))
 	})
 
 	t.Run("Should recover from refusal through explicit approval", func(t *testing.T) {
 		approvalSession := createFixtureBackedSession(t, ctx, harness, "goal-approval", "goal-approval")
 		approvalStartStatus, approvalStart := callGoalCommandUDS(
-			t,
 			ctx,
+			t,
 			harness,
 			approvalSession.ID,
 			"/goal Recover from a refused turn through an explicit approval grant",
@@ -142,16 +135,16 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 		if approvalStartStatus != http.StatusAccepted || approvalStart.Snapshot == nil {
 			t.Fatalf("approval Goal start = status:%d result:%#v", approvalStartStatus, approvalStart)
 		}
-		waitForGoalSnapshot(t, ctx, harness, approvalSession.ID, func(goal *aghcontract.GoalSnapshot) bool {
+		waitForGoalSnapshot(ctx, t, harness, approvalSession.ID, func(goal *aghcontract.GoalSnapshot) bool {
 			return goal != nil && goal.RunStatus == aghcontract.LoopRunStatusNeedsApproval
 		})
-		grantStatus, granted := callGoalCommandUDS(t, ctx, harness, approvalSession.ID, "/goal resume")
+		grantStatus, granted := callGoalCommandUDS(ctx, t, harness, approvalSession.ID, "/goal resume")
 		if grantStatus != http.StatusOK || granted.Outcome != aghcontract.GoalOutcomeResumed {
 			t.Fatalf("approval grant command = status:%d result:%#v", grantStatus, granted)
 		}
 		approvalCompleted := waitForGoalSnapshot(
-			t,
 			ctx,
+			t,
 			harness,
 			approvalSession.ID,
 			func(goal *aghcontract.GoalSnapshot) bool {
@@ -159,8 +152,8 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			},
 		)
 		approvalTurns := waitForGoalTurns(
-			t,
 			ctx,
+			t,
 			harness,
 			approvalCompleted.RunID,
 			func(page aghcontract.GoalTurnPage) bool {
@@ -168,13 +161,14 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			},
 		)
 		assertMonotonicGoalTurns(t, approvalTurns)
+		waitForStoppedGoalJudgeSessions(ctx, t, harness, "goal-approval", 1)
 	})
 
 	t.Run("Should clear an active Goal without a late turn", func(t *testing.T) {
 		clearSession := createFixtureBackedSession(t, ctx, harness, "goal-clear", "goal-clear")
 		clearStartStatus, clearStart := callGoalCommandUDS(
-			t,
 			ctx,
+			t,
 			harness,
 			clearSession.ID,
 			"/goal Keep one prompt active until an explicit clear",
@@ -183,12 +177,13 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			t.Fatalf("clear Goal start = status:%d result:%#v", clearStartStatus, clearStart)
 		}
 		clearRunID := clearStart.Snapshot.RunID
-		waitForGoalTurns(t, ctx, harness, clearRunID, func(page aghcontract.GoalTurnPage) bool {
+		waitForGoalTurns(ctx, t, harness, clearRunID, func(page aghcontract.GoalTurnPage) bool {
 			return len(page.Turns) == 1 && page.Turns[0].ResultStatus == nil
 		})
+		waitForActiveGoalJudgeSession(ctx, t, harness, "goal-clear")
 		staleStatus, stale := callGoalCommandUDS(
-			t,
 			ctx,
+			t,
 			harness,
 			clearSession.ID,
 			"/goal replace stale-run-id Replace the wrong Run",
@@ -198,8 +193,9 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			stale.Snapshot == nil || stale.Snapshot.RunID != clearRunID {
 			t.Fatalf("stale replacement result = status:%d result:%#v", staleStatus, stale)
 		}
-		clearStatus, cleared := callGoalCommandUDS(t, ctx, harness, clearSession.ID, "/goal clear")
-		if clearStatus != http.StatusOK || cleared.Outcome != aghcontract.GoalOutcomeCleared || cleared.Snapshot != nil {
+		clearStatus, cleared := callGoalCommandUDS(ctx, t, harness, clearSession.ID, "/goal clear")
+		if clearStatus != http.StatusOK || cleared.Outcome != aghcontract.GoalOutcomeCleared ||
+			cleared.Snapshot != nil {
 			t.Fatalf("clear active Goal result = status:%d result:%#v", clearStatus, cleared)
 		}
 		clearedProjection, err := getGoalSnapshot(ctx, harness, clearSession.ID)
@@ -209,14 +205,17 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 		if clearedProjection.Goal != nil {
 			t.Fatalf("cleared Goal projection = %#v, want nil", clearedProjection.Goal)
 		}
-		clearedTurns := waitForGoalTurns(t, ctx, harness, clearRunID, func(page aghcontract.GoalTurnPage) bool {
+		clearedTurns := waitForGoalTurns(ctx, t, harness, clearRunID, func(page aghcontract.GoalTurnPage) bool {
 			return len(page.Turns) == 1 && page.Turns[0].ResultStatus != nil
 		})
-		if clearedTurns.Turns[0].ReasonCode == nil ||
-			*clearedTurns.Turns[0].ReasonCode != aghcontract.GoalReasonControlRevokedInFlight {
-			t.Fatalf("cleared active turn = %#v", clearedTurns.Turns[0])
+		if clearedTurns.Turns[0].ResultStatus == nil || clearedTurns.Turns[0].ReasonCode != nil ||
+			clearedTurns.Turns[0].VerdictOutcome != nil {
+			t.Fatalf("cleared judging turn = %#v, want completed work without a stale verdict", clearedTurns.Turns[0])
 		}
-		time.Sleep(200 * time.Millisecond)
+		clearedRun := waitForClearedGoalRun(ctx, t, harness, clearRunID)
+		if clearedRun.Run.Status != aghcontract.LoopRunStatusFailed {
+			t.Fatalf("cleared Loop Run status = %q, want failed", clearedRun.Run.Status)
+		}
 		afterClear, err := getGoalTurns(ctx, harness, clearRunID)
 		if err != nil {
 			t.Fatalf("get Goal turns after clear fence error = %v", err)
@@ -224,6 +223,26 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 		if len(afterClear.Turns) != len(clearedTurns.Turns) {
 			t.Fatalf("Goal turns after clear = %d, want stable %d", len(afterClear.Turns), len(clearedTurns.Turns))
 		}
+		waitForStoppedGoalJudgeSessions(ctx, t, harness, "goal-clear", 1)
+		judgePage, err := listGoalRuntimeSessions(ctx, harness)
+		if err != nil {
+			t.Fatalf("list stopped Goal judge sessions error = %v", err)
+		}
+		judgeSessions := goalJudgeSessions(judgePage.Sessions)
+		clearJudgeCount := 0
+		for _, item := range judgeSessions {
+			if item.AgentName != "goal-clear" {
+				continue
+			}
+			clearJudgeCount++
+			if item.State != session.StateStopped || item.StopReason != store.StopUserCanceled {
+				t.Fatalf("cleared Goal judge session = %#v, want user-canceled stopped audit", item)
+			}
+		}
+		if clearJudgeCount != 1 {
+			t.Fatalf("cleared Goal judge count = %d, want 1", clearJudgeCount)
+		}
+		judgeSessionIDsBeforeRestart = goalJudgeSessionIDs(judgeSessions)
 	})
 
 	t.Run("Should preserve Goal snapshot and turns across restart", func(t *testing.T) {
@@ -236,8 +255,8 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 
 		restarted := e2etest.StartRuntimeHarness(t, options)
 		restartedSnapshot := waitForGoalSnapshot(
-			t,
 			ctx,
+			t,
 			restarted,
 			rejectionSessionID,
 			func(goal *aghcontract.GoalSnapshot) bool {
@@ -254,7 +273,8 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			t.Fatalf("get restarted Goal turns error = %v", err)
 		}
 		assertGoalJudgeOutcomes(t, restartedTurns, []string{"rejected", "rejected", "approved"})
-		assertGoalTurnsCLIParity(t, ctx, restarted, restartedTurns, rejectionSnapshot.RunID)
+		assertGoalTurnsCLIParity(ctx, t, restarted, restartedTurns, rejectionSnapshot.RunID)
+		waitForGoalJudgeSessionIDs(ctx, t, restarted, judgeSessionIDsBeforeRestart)
 	})
 }
 
@@ -293,7 +313,6 @@ enabled = false
 [loops.defaults.delivery.model_defaults]
 judge = "goal-e2e-judge"
 `,
-				"goal-judge.sh": goalCommandJudgeScript,
 			},
 		},
 		StartTimeout: 30 * time.Second,
@@ -306,8 +325,8 @@ func goalSessionPromptPath(harness *e2etest.RuntimeHarness, sessionID string) st
 }
 
 func startGoalThroughHTTPAndDisconnect(
-	t testing.TB,
 	ctx context.Context,
+	t testing.TB,
 	harness *e2etest.RuntimeHarness,
 	sessionID string,
 	objective string,
@@ -351,8 +370,8 @@ func startGoalThroughHTTPAndDisconnect(
 }
 
 func callGoalCommandUDS(
-	t testing.TB,
 	ctx context.Context,
+	t testing.TB,
 	harness *e2etest.RuntimeHarness,
 	sessionID string,
 	command string,
@@ -418,9 +437,243 @@ func getGoalTurns(
 	return response, err
 }
 
-func waitForGoalSnapshot(
-	t testing.TB,
+func getGoalLoopRun(
 	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	runID string,
+) (aghcontract.LoopRunResponse, error) {
+	var response aghcontract.LoopRunResponse
+	path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) +
+		"/loop-runs/" + url.PathEscape(strings.TrimSpace(runID))
+	err := harness.UDSJSON(ctx, http.MethodGet, path, nil, &response)
+	return response, err
+}
+
+func listGoalRuntimeSessions(
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+) (aghcontract.SessionCatalogResponse, error) {
+	var response aghcontract.SessionCatalogResponse
+	path := "/api/sessions?workspace=" + url.QueryEscape(harness.WorkspaceID) + "&limit=100"
+	err := harness.UDSJSON(ctx, http.MethodGet, path, nil, &response)
+	return response, err
+}
+
+func waitForStoppedGoalJudgeSessions(
+	ctx context.Context,
+	t testing.TB,
+	harness *e2etest.RuntimeHarness,
+	agentName string,
+	want int,
+) {
+	t.Helper()
+	deadline := time.NewTimer(30 * time.Second)
+	defer deadline.Stop()
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
+	var last []aghcontract.SessionPayload
+	var lastErr error
+	for {
+		page, err := listGoalRuntimeSessions(ctx, harness)
+		if err == nil {
+			last = last[:0]
+			for _, item := range page.Sessions {
+				if item.Type != session.SessionTypeSystem || !strings.HasPrefix(item.Name, "loop gate ") ||
+					item.AgentName != agentName {
+					continue
+				}
+				last = append(last, item)
+			}
+			if len(last) == want && allGoalJudgeSessionsStopped(last) {
+				return
+			}
+			lastErr = nil
+		} else {
+			lastErr = err
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf(
+				"wait for stopped Goal judge session context error = %v; agent=%s last=%#v err=%v",
+				ctx.Err(),
+				agentName,
+				last,
+				lastErr,
+			)
+		case <-deadline.C:
+			t.Fatalf(
+				"timed out waiting for stopped Goal judge sessions; agent=%s want=%d last=%#v err=%v",
+				agentName,
+				want,
+				last,
+				lastErr,
+			)
+		case <-ticker.C:
+		}
+	}
+}
+
+func waitForActiveGoalJudgeSession(
+	ctx context.Context,
+	t testing.TB,
+	harness *e2etest.RuntimeHarness,
+	agentName string,
+) {
+	t.Helper()
+	deadline := time.NewTimer(10 * time.Second)
+	defer deadline.Stop()
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
+	var last []aghcontract.SessionPayload
+	var lastErr error
+	for {
+		page, err := listGoalRuntimeSessions(ctx, harness)
+		if err == nil {
+			last = last[:0]
+			for _, item := range page.Sessions {
+				if item.Type == session.SessionTypeSystem && strings.HasPrefix(item.Name, "loop gate ") &&
+					item.AgentName == agentName {
+					last = append(last, item)
+					if item.State == session.StateActive {
+						return
+					}
+				}
+			}
+			lastErr = nil
+		} else {
+			lastErr = err
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf(
+				"wait for active Goal judge context error = %v; agent=%s last=%#v err=%v",
+				ctx.Err(),
+				agentName,
+				last,
+				lastErr,
+			)
+		case <-deadline.C:
+			t.Fatalf(
+				"timed out waiting for active Goal judge; agent=%s last=%#v err=%v",
+				agentName,
+				last,
+				lastErr,
+			)
+		case <-ticker.C:
+		}
+	}
+}
+
+func allGoalJudgeSessionsStopped(sessions []aghcontract.SessionPayload) bool {
+	for _, item := range sessions {
+		if item.State != session.StateStopped {
+			return false
+		}
+	}
+	return true
+}
+
+func waitForGoalJudgeSessionIDs(
+	ctx context.Context,
+	t testing.TB,
+	harness *e2etest.RuntimeHarness,
+	want []string,
+) {
+	t.Helper()
+	deadline := time.NewTimer(30 * time.Second)
+	defer deadline.Stop()
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
+	var last []string
+	var lastStopped bool
+	var lastErr error
+	for {
+		page, err := listGoalRuntimeSessions(ctx, harness)
+		if err == nil {
+			judges := goalJudgeSessions(page.Sessions)
+			last = goalJudgeSessionIDs(judges)
+			lastStopped = allGoalJudgeSessionsStopped(judges)
+			if slices.Equal(last, want) && lastStopped {
+				return
+			}
+			lastErr = nil
+		} else {
+			lastErr = err
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf(
+				"wait for stable stopped Goal judge sessions context error = %v; want=%#v last=%#v stopped=%t err=%v",
+				ctx.Err(),
+				want,
+				last,
+				lastStopped,
+				lastErr,
+			)
+		case <-deadline.C:
+			t.Fatalf(
+				"timed out waiting for stable stopped Goal judge sessions; want=%#v last=%#v stopped=%t err=%v",
+				want,
+				last,
+				lastStopped,
+				lastErr,
+			)
+		case <-ticker.C:
+		}
+	}
+}
+
+func goalJudgeSessions(sessions []aghcontract.SessionPayload) []aghcontract.SessionPayload {
+	judges := make([]aghcontract.SessionPayload, 0, len(sessions))
+	for _, item := range sessions {
+		if item.Type == session.SessionTypeSystem && strings.HasPrefix(item.Name, "loop gate ") {
+			judges = append(judges, item)
+		}
+	}
+	return judges
+}
+
+func goalJudgeSessionIDs(sessions []aghcontract.SessionPayload) []string {
+	judges := goalJudgeSessions(sessions)
+	ids := make([]string, 0, len(judges))
+	for _, item := range judges {
+		ids = append(ids, item.ID)
+	}
+	slices.Sort(ids)
+	return ids
+}
+
+func waitForClearedGoalRun(
+	ctx context.Context,
+	t testing.TB,
+	harness *e2etest.RuntimeHarness,
+	runID string,
+) aghcontract.LoopRunResponse {
+	t.Helper()
+	deadline := time.NewTimer(30 * time.Second)
+	defer deadline.Stop()
+	ticker := time.NewTicker(25 * time.Millisecond)
+	defer ticker.Stop()
+	var last aghcontract.LoopRunResponse
+	var lastErr error
+	for {
+		last, lastErr = getGoalLoopRun(ctx, harness, runID)
+		if lastErr == nil && last.Run.Status == aghcontract.LoopRunStatusFailed {
+			return last
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("wait for cleared Goal run context error = %v; last=%#v err=%v", ctx.Err(), last, lastErr)
+		case <-deadline.C:
+			t.Fatalf("timed out waiting for cleared Goal run; last=%#v err=%v", last, lastErr)
+		case <-ticker.C:
+		}
+	}
+}
+
+func waitForGoalSnapshot(
+	ctx context.Context,
+	t testing.TB,
 	harness *e2etest.RuntimeHarness,
 	sessionID string,
 	predicate func(*aghcontract.GoalSnapshot) bool,
@@ -471,8 +724,8 @@ func goalReasonValue(reason *aghcontract.GoalReasonCode) any {
 }
 
 func waitForGoalTurns(
-	t testing.TB,
 	ctx context.Context,
+	t testing.TB,
 	harness *e2etest.RuntimeHarness,
 	runID string,
 	predicate func(aghcontract.GoalTurnPage) bool,
@@ -512,6 +765,16 @@ func assertGoalJudgeOutcomes(t testing.TB, page aghcontract.GoalTurnPage, want [
 	assertMonotonicGoalTurns(t, page)
 }
 
+func countGoalVerdicts(page aghcontract.GoalTurnPage) int {
+	count := 0
+	for _, turn := range page.Turns {
+		if turn.VerdictOutcome != nil {
+			count++
+		}
+	}
+	return count
+}
+
 func assertMonotonicGoalTurns(t testing.TB, page aghcontract.GoalTurnPage) {
 	t.Helper()
 	type streamKey struct {
@@ -533,8 +796,8 @@ func assertMonotonicGoalTurns(t testing.TB, page aghcontract.GoalTurnPage) {
 }
 
 func assertGoalTurnsCLIParity(
-	t testing.TB,
 	ctx context.Context,
+	t testing.TB,
 	harness *e2etest.RuntimeHarness,
 	want aghcontract.GoalTurnPage,
 	runID string,

@@ -116,6 +116,53 @@ func TestSessionEventBroadcaster(t *testing.T) {
 	})
 }
 
+func TestSessionCatalogBroadcaster(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should broadcast workspace-identified events to one global subscriber", func(t *testing.T) {
+		t.Parallel()
+
+		manager, err := NewManager(WithHomePaths(testHomePaths(t)))
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		events, cancel, err := manager.SubscribeSessionCatalogEvents(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
+		}
+
+		manager.publishSessionCatalogEvent(CatalogEvent{
+			Kind:        CatalogEventUpserted,
+			WorkspaceID: "ws-beta",
+			SessionID:   "sess-beta",
+		})
+		manager.publishSessionCatalogEvent(CatalogEvent{
+			Kind:        CatalogEventUpserted,
+			WorkspaceID: "ws-alpha",
+			SessionID:   "sess-alpha",
+		})
+
+		for _, want := range []CatalogEvent{
+			{Kind: CatalogEventUpserted, WorkspaceID: "ws-beta", SessionID: "sess-beta"},
+			{Kind: CatalogEventUpserted, WorkspaceID: "ws-alpha", SessionID: "sess-alpha"},
+		} {
+			select {
+			case event := <-events:
+				if event != want {
+					t.Fatalf("catalog event = %#v, want %#v", event, want)
+				}
+			default:
+				t.Fatalf("catalog event %#v was not delivered", want)
+			}
+		}
+
+		cancel()
+		if _, ok := <-events; ok {
+			t.Fatal("catalog event channel remains open after cancel")
+		}
+	})
+}
+
 func TestManagerAppendSessionEventIfAbsent(t *testing.T) {
 	t.Parallel()
 
@@ -207,13 +254,13 @@ func TestManagerAppendSessionEventIfAbsent(t *testing.T) {
 		}
 		done := make(chan struct{})
 		h.manager.mu.Lock()
-		h.manager.finalizing[sess.ID] = done
+		h.manager.finalizing[sess.ID] = &sessionFinalization{done: done}
 		h.manager.mu.Unlock()
 		stub := &queryRecorderStub{appendErrs: []error{store.ErrClosed}}
 		stub.onAppend = func() {
 			stub.onAppend = nil
 			h.manager.removeActive(sess.ID)
-			h.manager.finishFinalization(sess.ID)
+			h.manager.finishFinalization(sess.ID, nil)
 		}
 		sess.setRecorder(stub)
 		projection := GoalEvent{

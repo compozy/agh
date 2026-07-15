@@ -85,6 +85,9 @@ export const automationOperatorTestIds = {
   automationJobForm: "automation-job-form",
   automationListPanel: "automation-list-panel",
   automationRunHistory: "automation-run-history",
+  automationDeleteDialog: "automation-delete-dialog",
+  automationDeleteConfirmTyping: "automation-delete-confirm-typing",
+  confirmDeleteAutomationButton: "confirm-delete-automation-btn",
   createJobButton: "create-job-btn",
   createTriggerButton: "create-trigger-btn",
   deleteAutomationButton: "delete-automation-btn",
@@ -318,6 +321,9 @@ export interface NetworkOperatorSelectors {
 
 export interface AutomationOperatorSelectors {
   appSidebar: Locator;
+  automationDeleteConfirmTyping: Locator;
+  automationDeleteDialog: Locator;
+  confirmDeleteAutomationButton: Locator;
   createJobButton: Locator;
   createTriggerButton: Locator;
   deleteAutomationButton: Locator;
@@ -1083,6 +1089,13 @@ export function automationOperatorSelectors(
 
   return {
     appSidebar: page.getByTestId(automationOperatorTestIds.appSidebar),
+    automationDeleteConfirmTyping: page.getByTestId(
+      automationOperatorTestIds.automationDeleteConfirmTyping
+    ),
+    automationDeleteDialog: page.getByTestId(automationOperatorTestIds.automationDeleteDialog),
+    confirmDeleteAutomationButton: page.getByTestId(
+      automationOperatorTestIds.confirmDeleteAutomationButton
+    ),
     createJobButton: page.getByTestId(automationOperatorTestIds.createJobButton),
     createTriggerButton: page.getByTestId(automationOperatorTestIds.createTriggerButton),
     deleteAutomationButton: page.getByTestId(automationOperatorTestIds.deleteAutomationButton),

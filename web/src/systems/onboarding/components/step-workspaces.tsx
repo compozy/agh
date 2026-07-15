@@ -1,6 +1,6 @@
 import { Folder, X } from "lucide-react";
 
-import { Button, Eyebrow } from "@agh/ui";
+import { Alert, AlertDescription, Button, Eyebrow } from "@agh/ui";
 
 import type { OnboardingWorkspacesApi } from "../hooks/use-onboarding-workspaces";
 import { DirectoryBrowser } from "./directory-browser";
@@ -31,6 +31,22 @@ export function StepWorkspaces({ workspaces }: StepWorkspacesProps) {
             {selected.length} folder{selected.length === 1 ? "" : "s"}
           </span>
         </div>
+        {workspaces.catalogError ? (
+          <Alert role="alert" variant="warning">
+            <AlertDescription className="flex items-center justify-between gap-3">
+              <span>{workspaces.catalogError}</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={workspaces.isCatalogLoading}
+                onClick={() => void workspaces.reloadCatalog()}
+              >
+                Retry
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : null}
         {selected.length === 0 ? (
           <p className="rounded-md border border-dashed border-line px-4 py-5 text-center text-sm text-faint">
             No folders yet. Browse above and add at least one workspace to continue.
@@ -57,7 +73,11 @@ export function StepWorkspaces({ workspaces }: StepWorkspacesProps) {
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  disabled={workspaces.isRemoving}
+                  disabled={
+                    workspaces.isRemoving ||
+                    workspaces.isCatalogLoading ||
+                    workspaces.catalogError !== null
+                  }
                   onClick={() => void workspaces.removeWorkspace(workspace.path)}
                   aria-label={`Remove ${workspace.name}`}
                 >

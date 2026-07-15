@@ -21,6 +21,28 @@ func updateLoopBoundaryStatusWithExecutor(
 	at time.Time,
 	generation int,
 ) error {
+	return updateLoopBoundaryStatusWithFailure(
+		ctx,
+		exec,
+		current,
+		to,
+		cause,
+		at,
+		generation,
+		nil,
+	)
+}
+
+func updateLoopBoundaryStatusWithFailure(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	current loop.Run,
+	to loop.Status,
+	cause loop.TransitionCause,
+	at time.Time,
+	generation int,
+	failure *taskpkg.CoordinatorFailure,
+) error {
 	if current.Status == to {
 		return updateLoopGenerationWithExecutor(ctx, exec, string(current.ID), generation)
 	}
@@ -54,7 +76,7 @@ func updateLoopBoundaryStatusWithExecutor(
 			to,
 		)
 	}
-	return appendLoopRunStatusEvent(
+	return appendLoopRunStatusEventWithFailure(
 		ctx,
 		exec,
 		current.ID,
@@ -62,6 +84,7 @@ func updateLoopBoundaryStatusWithExecutor(
 		current.Status,
 		to,
 		cause,
+		failure,
 		at,
 	)
 }

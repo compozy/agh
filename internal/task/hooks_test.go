@@ -875,9 +875,13 @@ type recordingTaskRunHooks struct {
 		context.Context,
 		hookspkg.TaskRunLeaseRecoveredPayload,
 	) (hookspkg.TaskRunLeaseRecoveredPayload, error)
-	released  func(context.Context, hookspkg.TaskRunReleasedPayload) (hookspkg.TaskRunReleasedPayload, error)
-	completed func(context.Context, hookspkg.TaskRunCompletedPayload) (hookspkg.TaskRunCompletedPayload, error)
-	failed    func(context.Context, hookspkg.TaskRunFailedPayload) (hookspkg.TaskRunFailedPayload, error)
+	released     func(context.Context, hookspkg.TaskRunReleasedPayload) (hookspkg.TaskRunReleasedPayload, error)
+	completed    func(context.Context, hookspkg.TaskRunCompletedPayload) (hookspkg.TaskRunCompletedPayload, error)
+	failed       func(context.Context, hookspkg.TaskRunFailedPayload) (hookspkg.TaskRunFailedPayload, error)
+	loopTerminal func(
+		context.Context,
+		hookspkg.LoopTerminalPayload,
+	) (hookspkg.LoopTerminalPayload, error)
 }
 
 func (h recordingTaskRunHooks) DispatchTaskBlocked(
@@ -1016,6 +1020,16 @@ func (h recordingTaskRunHooks) DispatchTaskRunFailed(
 ) (hookspkg.TaskRunFailedPayload, error) {
 	if h.failed != nil {
 		return h.failed(ctx, payload)
+	}
+	return payload, nil
+}
+
+func (h recordingTaskRunHooks) DispatchLoopTerminal(
+	ctx context.Context,
+	payload hookspkg.LoopTerminalPayload,
+) (hookspkg.LoopTerminalPayload, error) {
+	if h.loopTerminal != nil {
+		return h.loopTerminal(ctx, payload)
 	}
 	return payload, nil
 }

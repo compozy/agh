@@ -449,54 +449,6 @@ func toolPartType(toolName string) string {
 	return "tool-" + strings.TrimSpace(toolName)
 }
 
-func inputUIMessage(decoded *decodedStoredEvent, role string) *UIMessage {
-	text := strings.TrimSpace(decoded.parsed.Text)
-	if text == "" {
-		return nil
-	}
-	return &UIMessage{
-		ID:       inputMessageID(decoded, role),
-		Role:     role,
-		Metadata: goalUIMessageMetadata(decoded.agent.Goal),
-		Parts: []UIMessagePart{{
-			Type:  uiPartText,
-			Text:  decoded.parsed.Text,
-			State: uiPartStateDone,
-		}},
-	}
-}
-
-func goalUIMessageMetadata(goal *acp.GoalPromptMeta) json.RawMessage {
-	normalized := acp.CloneGoalPromptMeta(goal)
-	if normalized == nil {
-		return nil
-	}
-	encoded, err := json.Marshal(struct {
-		Goal *acp.GoalPromptMeta `json:"goal"`
-	}{Goal: normalized})
-	if err != nil {
-		// GoalPromptMeta contains only JSON-safe scalar fields; this branch is defensive.
-		return nil
-	}
-	return json.RawMessage(encoded)
-}
-
-func runtimeMarkerUIMessage(decoded *decodedStoredEvent, markerText string) UIMessage {
-	return UIMessage{
-		ID: fallbackMessageID(
-			strings.TrimSpace(decoded.stored.ID),
-			strings.TrimSpace(decoded.parsed.ID),
-			"runtime-marker",
-		),
-		Role: UIRoleSystem,
-		Parts: []UIMessagePart{{
-			Type:  uiPartText,
-			Text:  markerText,
-			State: uiPartStateDone,
-		}},
-	}
-}
-
 // UIMessageText returns the concatenated visible text parts for one UI message.
 func UIMessageText(message UIMessage) string {
 	parts := make([]string, 0, len(message.Parts))

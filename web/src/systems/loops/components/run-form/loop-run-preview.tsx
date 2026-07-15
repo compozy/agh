@@ -1,12 +1,23 @@
 import { Eyebrow } from "@agh/ui";
 
-import type { LoopContract, LoopDryRunPreview, LoopInputSchema } from "../../types";
+import {
+  resolveLoopEffectiveConfig,
+  type LoopRunConfigOverrides,
+} from "../../lib/loop-effective-config";
+import type {
+  LoopContract,
+  LoopDryRunPreview,
+  LoopEffectiveConfig,
+  LoopInputSchema,
+} from "../../types";
 import { LoopContractPanel } from "../detail/loop-contract-panel";
 import { LoopRunPlan } from "./loop-run-plan";
 
 interface LoopRunPreviewProps {
   loopName: string;
   contract: LoopContract;
+  effectiveConfig: LoopEffectiveConfig;
+  configOverrides: LoopRunConfigOverrides | null;
   inputs?: LoopInputSchema;
   /** Present only after a successful Dry run. */
   plan?: LoopDryRunPreview | null;
@@ -17,11 +28,18 @@ interface LoopRunPreviewProps {
  * contract (goal, DoD, verification, terminal chips — reused from the loop detail
  * surface), the lifecycle line, and — after Dry run — the resolved gen-1 plan.
  */
-export function LoopRunPreview({ loopName, contract, inputs, plan }: LoopRunPreviewProps) {
+export function LoopRunPreview({
+  loopName,
+  contract,
+  effectiveConfig,
+  configOverrides,
+  inputs,
+  plan,
+}: LoopRunPreviewProps) {
   const inputCount = inputs ? Object.keys(inputs).length : 0;
-  const hasHumanGate = Boolean(
-    contract.verification?.some(criterion => criterion.type === "human")
-  );
+  const effective =
+    plan?.effective_config ?? resolveLoopEffectiveConfig(effectiveConfig, configOverrides);
+  const reattemptLabel = effective.reattempt_strategy === "full_body" ? "full-body" : "failed-only";
   return (
     <aside className="flex flex-col gap-3.5" data-testid="loop-run-preview">
       <Eyebrow className="text-subtle">Run preview</Eyebrow>
@@ -31,10 +49,10 @@ export function LoopRunPreview({ loopName, contract, inputs, plan }: LoopRunPrev
           Run <b className="font-medium text-fg-strong">{loopName}</b> against its contract:{" "}
           {contract.goal} Iterates up to{" "}
           <b className="font-medium text-fg-strong">
-            {contract.iteration_cap === 0 ? "∞" : contract.iteration_cap}
+            {effective.iteration_cap === 0 ? "∞" : effective.iteration_cap}
           </b>{" "}
-          generations from {inputCount} declared input{inputCount === 1 ? "" : "s"}, ending honestly
-          at one of its terminal outcomes.
+          generations with {reattemptLabel} re-attempts from {inputCount} declared input
+          {inputCount === 1 ? "" : "s"}, ending honestly at one of its terminal outcomes.
         </p>
       </div>
       <LoopContractPanel contract={contract} />
@@ -46,7 +64,7 @@ export function LoopRunPreview({ loopName, contract, inputs, plan }: LoopRunPrev
           <span className="text-muted">verify</span>
           {/* needs-approval only appears when the loop actually declares a human gate —
               a loop with no human criterion can never enter it (truthful lifecycle, §4.3). */}
-          {hasHumanGate ? (
+          {effective.human_gate_enabled ? (
             <>
               <span className="text-faint">→</span>
               <span className="text-warning">needs-approval</span>

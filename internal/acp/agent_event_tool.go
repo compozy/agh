@@ -1,29 +1,50 @@
 package acp
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+)
 
-type agentToolPayload struct {
-	name        string
-	input       json.RawMessage
-	failed      bool
-	errorDetail string
+type agentEventPayload struct {
+	clientMessageID string
+	toolName        string
+	toolInput       json.RawMessage
+	toolErrorDetail string
+	toolFailed      bool
+	hasTool         bool
 }
 
-func newAgentToolPayload(
-	name string,
-	input json.RawMessage,
-	failed bool,
-	errorDetail string,
-) *agentToolPayload {
-	if name == "" && len(input) == 0 && !failed && errorDetail == "" {
+func (e AgentEvent) clonePayload() *agentEventPayload {
+	if e.payload == nil {
+		return &agentEventPayload{}
+	}
+	cloned := *e.payload
+	cloned.toolInput = CloneRawMessage(e.payload.toolInput)
+	return &cloned
+}
+
+func normalizeAgentEventPayload(payload *agentEventPayload) *agentEventPayload {
+	if payload == nil || payload.clientMessageID == "" && !payload.hasTool {
 		return nil
 	}
-	return &agentToolPayload{
-		name:        name,
-		input:       CloneRawMessage(input),
-		failed:      failed || errorDetail != "",
-		errorDetail: errorDetail,
+	return payload
+}
+
+// WithClientMessageID returns an event carrying the normalized authored-message identity.
+func (e AgentEvent) WithClientMessageID(clientMessageID string) AgentEvent {
+	payload := e.clonePayload()
+	payload.clientMessageID = strings.TrimSpace(clientMessageID)
+	e.payload = normalizeAgentEventPayload(payload)
+	return e
+}
+
+// ClientMessageIDValue returns the normalized client identity for an authored
+// user message, or an empty string when the event has no client identity.
+func (e *AgentEvent) ClientMessageIDValue() string {
+	if e == nil || e.payload == nil {
+		return ""
 	}
+	return e.payload.clientMessageID
 }
 
 // WithTool returns an event carrying an isolated optional tool payload.
@@ -38,40 +59,46 @@ func (e AgentEvent) WithToolDetail(
 	failed bool,
 	errorDetail string,
 ) AgentEvent {
-	e.tool = newAgentToolPayload(name, input, failed, errorDetail)
+	payload := e.clonePayload()
+	payload.toolName = name
+	payload.toolInput = CloneRawMessage(input)
+	payload.toolFailed = failed || errorDetail != ""
+	payload.toolErrorDetail = errorDetail
+	payload.hasTool = name != "" || len(input) > 0 || failed || errorDetail != ""
+	e.payload = normalizeAgentEventPayload(payload)
 	return e
 }
 
 // ToolName returns the optional tool name.
 func (e AgentEvent) ToolName() string {
-	if e.tool == nil {
+	if e.payload == nil || !e.payload.hasTool {
 		return ""
 	}
-	return e.tool.name
+	return e.payload.toolName
 }
 
 // ToolInput returns an isolated copy of the optional tool input.
 func (e AgentEvent) ToolInput() json.RawMessage {
-	if e.tool == nil {
+	if e.payload == nil || !e.payload.hasTool {
 		return nil
 	}
-	return CloneRawMessage(e.tool.input)
+	return CloneRawMessage(e.payload.toolInput)
 }
 
 // ToolError reports whether the optional tool result failed.
 func (e AgentEvent) ToolError() bool {
-	return e.tool != nil && e.tool.failed
+	return e.payload != nil && e.payload.hasTool && e.payload.toolFailed
 }
 
 // ToolErrorDetail returns the optional tool-result failure detail.
 func (e AgentEvent) ToolErrorDetail() string {
-	if e.tool == nil {
+	if e.payload == nil || !e.payload.hasTool {
 		return ""
 	}
-	return e.tool.errorDetail
+	return e.payload.toolErrorDetail
 }
 
 // HasToolPayload reports whether typed tool metadata is present on the event.
 func (e AgentEvent) HasToolPayload() bool {
-	return e.tool != nil
+	return e.payload != nil && e.payload.hasTool
 }

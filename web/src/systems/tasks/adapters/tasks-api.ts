@@ -36,6 +36,7 @@ export {
   forceReleaseTaskRun,
   getTaskRun,
   inspectRun,
+  recoverTaskRun,
   retryTaskRun,
   startTaskRun,
 } from "./task-run-api";

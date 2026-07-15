@@ -15,11 +15,12 @@ import { buildTaskRunRecordFixture } from "../../mocks/fixtures";
 import type { TaskDetailView } from "../../types";
 
 function buildSummaryActiveRun(
-  overrides: Parameters<typeof buildTaskRunRecordFixture>[0] = {}
+  overrides: Partial<NonNullable<TaskDetailView["summary"]["active_run"]>> = {}
 ): NonNullable<TaskDetailView["summary"]["active_run"]> {
   return {
-    ...buildTaskRunRecordFixture(overrides),
+    ...buildTaskRunRecordFixture(),
     max_attempts: 3,
+    ...overrides,
   };
 }
 
@@ -39,6 +40,7 @@ function buildDetail(
     created_by: { kind: "human", ref: "pedro@" },
     owner: { kind: "agent_session", ref: "Coder" },
     priority: "high",
+    max_attempts: 3,
     ...overrides,
   } as TaskDetailView["task"];
 
@@ -226,6 +228,52 @@ describe("TasksDetailHeader", () => {
       expect(screen.queryByTestId("tasks-detail-enqueue")).not.toBeInTheDocument();
     }
   );
+
+  it("Should recover the active needs_attention run instead of offering Start run", () => {
+    const onRecover = vi.fn();
+    const activeRun = buildSummaryActiveRun({
+      id: "run_attention",
+      task_id: "task_001",
+      attempt: 1,
+      status: "needs_attention",
+      queued_at: "2026-04-11T09:30:00Z",
+    });
+
+    render(
+      <TasksDetailHeader
+        detail={buildDetail({ status: "ready", max_attempts: 2 }, { active_run: activeRun })}
+        onEnqueueRun={() => {}}
+        onRecover={onRecover}
+      />
+    );
+
+    expect(screen.getByTestId("tasks-detail-lifecycle")).toHaveTextContent("Needs attention");
+    expect(screen.queryByTestId("tasks-detail-enqueue")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Recover" }));
+    expect(onRecover).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should hide Recover and Start run when the active needs_attention run exhausted attempts", () => {
+    const activeRun = buildSummaryActiveRun({
+      id: "run_exhausted",
+      task_id: "task_001",
+      attempt: 1,
+      status: "needs_attention",
+      queued_at: "2026-04-11T09:30:00Z",
+    });
+
+    render(
+      <TasksDetailHeader
+        detail={buildDetail({ status: "ready", max_attempts: 1 }, { active_run: activeRun })}
+        onEnqueueRun={() => {}}
+        onRecover={() => {}}
+      />
+    );
+
+    expect(screen.getByTestId("tasks-detail-lifecycle")).toHaveTextContent("Needs attention");
+    expect(screen.queryByTestId("tasks-detail-recover")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tasks-detail-enqueue")).not.toBeInTheDocument();
+  });
 
   it("Should render the needs_attention badge with its reason and fire recover", () => {
     const onRecover = vi.fn();

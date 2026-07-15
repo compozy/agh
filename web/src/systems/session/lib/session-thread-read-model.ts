@@ -53,16 +53,19 @@ function promotionKeys(message: ThreadMessage, source: MessageSource): string[] 
 
   for (const candidate of candidates) {
     const turnId = stringField(candidate, TURN_ID_KEYS);
-    if (!turnId) {
-      continue;
-    }
     const clientTempId = stringField(candidate, CLIENT_TEMP_ID_KEYS);
     if (clientTempId) {
+      keys.add(`client:${clientTempId}`);
+    }
+    if (turnId && clientTempId) {
       keys.add(`${turnId}:${clientTempId}`);
     }
-    if (source === "runtime") {
+    if (turnId && source === "runtime") {
       keys.add(`${turnId}:${message.id}`);
     }
+  }
+  if (source === "runtime" && message.role === "user") {
+    keys.add(`client:${message.id}`);
   }
 
   return [...keys];

@@ -10,11 +10,68 @@ import (
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/api/core"
 	automationpkg "github.com/compozy/agh/internal/automation"
+	"github.com/compozy/agh/internal/loop/dsl"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
+
+func TestLoopDefinitionDocumentPreservesWatchEvents(t *testing.T) {
+	t.Run("Should preserve watch-events subscriptions across the public DTO boundary", func(t *testing.T) {
+		t.Parallel()
+
+		const raw = `{
+			"definition": {
+				"apiVersion": "agh.loop/v1",
+				"kind": "Loop",
+				"meta": {"name": "watch-events-contract", "catalog": {}},
+				"contract": {
+					"goal": "",
+					"definition_of_done": "Create one follow-up task.",
+					"iteration_cap": 0,
+					"no_progress": {"window": 0},
+					"budget": {"tokens": 0, "wall_clock_sec": 0}
+				},
+				"graph": {
+					"nodes": [{
+						"id": "on_parent_completed",
+						"class": "source",
+						"kind": "watch-events",
+						"events": [{
+							"kind": "task.status_changed",
+							"filter": "event.task_id == 'task-parent' && event.payload.to_status == 'completed'"
+						}]
+					}],
+					"edges": []
+				}
+			}
+		}`
+
+		var request contract.ValidateLoopRequest
+		if err := json.Unmarshal([]byte(raw), &request); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+
+		var definition dsl.Definition
+		if err := request.Definition.Decode(&definition); err != nil {
+			t.Fatalf("LoopDefinitionDocument.Decode() error = %v", err)
+		}
+		if len(definition.Graph.Nodes) != 1 {
+			t.Fatalf("decoded nodes = %d, want 1", len(definition.Graph.Nodes))
+		}
+		if len(definition.Graph.Nodes[0].Events) != 1 {
+			t.Fatalf("decoded watch-events subscriptions = %d, want 1", len(definition.Graph.Nodes[0].Events))
+		}
+		subscription := definition.Graph.Nodes[0].Events[0]
+		if subscription.Kind != "task.status_changed" {
+			t.Fatalf("subscription.Kind = %q, want task.status_changed", subscription.Kind)
+		}
+		if subscription.Filter != "event.task_id == 'task-parent' && event.payload.to_status == 'completed'" {
+			t.Fatalf("subscription.Filter = %q, want authored CEL filter", subscription.Filter)
+		}
+	})
+}
 
 func TestSessionPayloadJSONShape(t *testing.T) {
 	t.Run("Should preserve session payload JSON shape", func(t *testing.T) {

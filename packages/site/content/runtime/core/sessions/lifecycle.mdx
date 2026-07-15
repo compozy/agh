@@ -60,6 +60,11 @@ curl -X POST http://localhost:2123/api/sessions \
   }'
 ```
 
+`name` is optional for user sessions. When it is omitted, AGH derives a durable title from the
+first submitted prompt, persists that title in session metadata and the catalog, and keeps it across
+stop and resume. An explicit name always wins, and daemon-managed session types remain unnamed
+unless their creator supplies an identity.
+
 The request must include exactly one of:
 
 - `workspace`: a registered workspace name or ID
@@ -164,7 +169,7 @@ agh session stop sess-1234
 Stop it over HTTP:
 
 ```bash
-curl -X DELETE http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234
+curl -X POST http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/stop
 ```
 
 The stop path is cooperative first and forceful only when needed:
@@ -178,6 +183,8 @@ The stop path is cooperative first and forceful only when needed:
 7. record a terminal `session_stopped` event
 8. close the recorder and write final metadata
 9. `stopping -> stopped`
+
+Stopping preserves the session directory, catalog row, metadata, events, and resume eligibility.
 
 ### Timeout behavior
 
@@ -217,6 +224,23 @@ Inspect the current session state and stop classification at any time:
 ```bash
 agh session status sess-1234
 ```
+
+## Removing persisted history
+
+Remove a session only when its durable history is no longer needed:
+
+```bash
+agh session remove sess-1234
+```
+
+```bash
+curl -X DELETE http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234
+```
+
+Removal stops an active session first, deletes its durable catalog row and session directory, and
+emits a workspace-scoped catalog deletion signal. A successful removal is not resumable and later
+status or detail reads return session not found. If deletion fails before the directory is removed,
+AGH preserves or restores catalog truth instead of reporting a partially deleted session.
 
 ## Failure diagnostics
 

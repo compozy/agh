@@ -1,7 +1,8 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { renderWithTopbar as render } from "@/test/render-with-topbar";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderWithTopbar } from "@/test/render-with-topbar";
 import userEvent from "@testing-library/user-event";
-import type { AnchorHTMLAttributes } from "react";
+import type { AnchorHTMLAttributes, ReactElement, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AutomationJob, AutomationRun, AutomationTrigger } from "@/systems/automation";
@@ -274,6 +275,20 @@ function makeRun(overrides: Partial<AutomationRun> = {}): AutomationRun {
 
 const JobsPage = (JobsRoute as unknown as { component: () => React.ReactNode }).component;
 const TriggersPage = (TriggersRoute as unknown as { component: () => React.ReactNode }).component;
+
+function render(ui: ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const withQueryClient = (child: ReactNode) => (
+    <QueryClientProvider client={queryClient}>{child}</QueryClientProvider>
+  );
+  const result = renderWithTopbar(withQueryClient(ui));
+  return {
+    ...result,
+    rerender: (next: ReactNode) => result.rerender(withQueryClient(next)),
+  };
+}
 
 beforeEach(() => {
   vi.useRealTimers();

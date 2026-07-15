@@ -3,6 +3,7 @@ import type { UIMessage as AIUIMessage } from "ai";
 import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
 export type SessionsResponse = OperationResponse<"listSessions", 200>;
+export type SessionCatalogEventPayload = OperationResponse<"streamSessionCatalog", 200>;
 export type SessionsQuery = OperationQuery<"listSessions">;
 export type SessionListFilters = Omit<SessionsQuery, "cursor">;
 export type SessionPayload = SessionsResponse["sessions"][number];
@@ -113,6 +114,7 @@ export interface AgentEventPayload {
   type: string;
   session_id?: string;
   turn_id?: string;
+  client_message_id?: string;
   request_id?: string;
   timestamp?: string;
   text?: string;

@@ -15,6 +15,7 @@ import (
 type sessionListInput struct {
 	Workspace     string `json:"workspace,omitempty"`
 	State         string `json:"state,omitempty"`
+	Type          string `json:"type,omitempty"`
 	Agent         string `json:"agent,omitempty"`
 	Query         string `json:"q,omitempty"`
 	Resumable     bool   `json:"resumable,omitempty"`
@@ -51,6 +52,7 @@ func (n *daemonNativeTools) sessionList(
 	page, err := pager.ListPage(ctx, session.ListQuery{
 		WorkspaceID: workspaceID,
 		State:       strings.TrimSpace(input.State),
+		SessionType: session.Type(strings.TrimSpace(input.Type)),
 		AgentName:   strings.TrimSpace(input.Agent),
 		Search:      strings.TrimSpace(input.Query),
 		Resumable:   input.Resumable,

@@ -148,7 +148,7 @@ func trimStringPointer(value *string) string {
 }
 
 func findModelConfigOption(options []SessionConfigOption) (SessionConfigOption, bool) {
-	if option, ok := findSelectConfigOption(options, "model"); ok {
+	if option, ok := findSelectConfigOption(options, sessionConfigModelKey); ok {
 		return option, true
 	}
 	return findSelectConfigOptionByCategory(options, string(acpsdk.SessionConfigOptionCategoryModel))

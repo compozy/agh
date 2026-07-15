@@ -39,6 +39,9 @@ func (g *TaskRunRepo) FailRunLease(
 		if err := requireLeaseTerminalTransition(current, taskpkg.TaskRunStatusFailed); err != nil {
 			return err
 		}
+		if current.RunKind.Normalize() == taskpkg.RunKindCoordinator {
+			normalized.Failure = taskpkg.CanonicalCoordinatorRunFailure(normalized.Failure)
+		}
 		affected, err := sqlcgen.New(exec).FailTaskRunLease(ctx, sqlcgen.FailTaskRunLeaseParams{
 			Status:         taskpkg.TaskRunStatusFailed.String(),
 			EndedAt:        nullableTaskTime(normalized.Now),
@@ -53,12 +56,15 @@ func (g *TaskRunRepo) FailRunLease(
 		if affected == 0 {
 			return fmt.Errorf("store: task run lease %q: %w", current.ID, taskpkg.ErrTaskRunNotFound)
 		}
+		if err := settleCoordinatorFailureLoopWithExecutor(ctx, exec, current, normalized); err != nil {
+			return err
+		}
 		if err := recordLoopNodeTerminalWithExecutor(
 			ctx,
 			exec,
 			current,
 			"failure",
-			loopFailureReasonCode(normalized.Failure),
+			loopFailureOutputRef(normalized.Failure),
 			nil,
 			normalized.Now,
 		); err != nil {

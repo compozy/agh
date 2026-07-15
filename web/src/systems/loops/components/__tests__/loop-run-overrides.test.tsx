@@ -4,13 +4,19 @@ import { describe, expect, it } from "vitest";
 
 import { LoopRunOverrides } from "../run-form/loop-run-overrides";
 import { initialOverrideDraft, type LoopOverrideDraft } from "../../lib/loop-overrides";
-import { loopDetailByName } from "../../mocks/fixtures";
-
-const contract = loopDetailByName.get("software-delivery")!.definition.contract;
+import { loopEffectiveConfigFixture } from "../../mocks/fixtures";
 
 function Harness() {
-  const [draft, setDraft] = useState<LoopOverrideDraft>(() => initialOverrideDraft(contract));
-  return <LoopRunOverrides contract={contract} draft={draft} onChange={setDraft} />;
+  const [draft, setDraft] = useState<LoopOverrideDraft>(() =>
+    initialOverrideDraft(loopEffectiveConfigFixture)
+  );
+  return (
+    <LoopRunOverrides
+      effectiveConfig={loopEffectiveConfigFixture}
+      draft={draft}
+      onChange={setDraft}
+    />
+  );
 }
 
 /** Expand the Advanced collapsible so its clamped grid mounts. */

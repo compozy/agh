@@ -44,6 +44,7 @@ func redactCanonicalPayload(payload *canonicalEventPayload) {
 		return
 	}
 	payload.Text = redactDisplayString(payload.Text)
+	payload.AuthoredText = redactDisplayString(payload.AuthoredText)
 	payload.Title = redactDisplayString(payload.Title)
 	payload.ToolName = redactDisplayString(payload.ToolName)
 	payload.ToolCallID = redactDisplayString(payload.ToolCallID)

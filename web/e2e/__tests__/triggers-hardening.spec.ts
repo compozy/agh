@@ -376,6 +376,17 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   await expect(ui.item(updated.id)).toBeVisible({ timeout: 20_000 });
   await ui.item(updated.id).click();
   await ui.deleteAutomationButton.click();
+  await expect(ui.automationDeleteDialog).toBeVisible();
+  await ui.automationDeleteConfirmTyping.fill(editedName);
+  const deleteResponsePromise = appPage.waitForResponse(
+    response =>
+      response.request().method() === "DELETE" &&
+      new URL(response.url()).pathname === `/api/automation/triggers/${updated.id}`
+  );
+  await ui.confirmDeleteAutomationButton.click();
+  const deleteResponse = await deleteResponsePromise;
+  expect(deleteResponse.ok()).toBe(true);
+  await expect(ui.automationDeleteDialog).toBeHidden();
   await expect.poll(async () => await getTriggerStatus(runtime, updated.id)).toBe(404);
   const afterDelete = await deliverWebhook(runtime, {
     deliveryID: uniqueName("delivery-deleted"),

@@ -18,36 +18,61 @@
             "turns": [
                 {
                     "name": "goal-rejections-work-1",
-                    "match": { "turn_source": "synthetic", "occurrence": 1 },
+                    "match": { "turn_source": "synthetic", "goal": { "turn": 1 } },
                     "steps": [
                         { "kind": "assistant", "text": "```json\n{\"status\":\"complete\"}\n```" }
                     ]
                 },
                 {
                     "name": "goal-rejections-work-2",
-                    "match": { "turn_source": "synthetic", "occurrence": 2 },
+                    "match": { "turn_source": "synthetic", "goal": { "turn": 2 } },
                     "steps": [
                         { "kind": "assistant", "text": "```json\n{\"status\":\"complete\"}\n```" }
                     ]
                 },
                 {
                     "name": "goal-rejections-work-3",
-                    "match": { "turn_source": "synthetic", "occurrence": 3 },
+                    "match": { "turn_source": "synthetic", "goal": { "turn": 3 } },
                     "steps": [
                         { "kind": "assistant", "text": "```json\n{\"status\":\"complete\"}\n```" }
                     ]
                 },
                 {
-                    "name": "goal-rejections-judge",
-                    "match": { "turn_source": "user" },
+                    "name": "goal-rejections-judge-1",
+                    "match": {
+                        "turn_source": "user",
+                        "judge": { "role": "agent-judge", "attempt": 1 }
+                    },
                     "steps": [
                         {
-                            "kind": "sandbox_exec",
-                            "tool_call_id": "goal-rejections-judge-command",
-                            "title": "Evaluate deterministic Goal attempt",
-                            "command": "sh",
-                            "args": ["goal-judge.sh", "rejections"],
-                            "emit_output": true
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"revise\",\"blocking_issues\":[{\"id\":\"attempt_1\",\"note\":\"Objective needs another turn.\"}],\"confidence\":0.9,\"evidence\":{\"attempt\":1}}"
+                        }
+                    ]
+                },
+                {
+                    "name": "goal-rejections-judge-2",
+                    "match": {
+                        "turn_source": "user",
+                        "judge": { "role": "agent-judge", "attempt": 2 }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"revise\",\"blocking_issues\":[{\"id\":\"attempt_2\",\"note\":\"Objective needs another turn.\"}],\"confidence\":0.9,\"evidence\":{\"attempt\":2}}"
+                        }
+                    ]
+                },
+                {
+                    "name": "goal-rejections-judge-3",
+                    "match": {
+                        "turn_source": "user",
+                        "judge": { "role": "agent-judge", "attempt": 3 }
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"confidence\":1.0,\"evidence\":{\"attempt\":3}}"
                         }
                     ]
                 }
@@ -70,7 +95,7 @@
             "turns": [
                 {
                     "name": "goal-pause-work-1",
-                    "match": { "turn_source": "synthetic", "occurrence": 1 },
+                    "match": { "turn_source": "synthetic", "goal": { "turn": 1 } },
                     "steps": [
                         {
                             "kind": "sandbox_exec",
@@ -84,22 +109,25 @@
                 },
                 {
                     "name": "goal-pause-work-2",
-                    "match": { "turn_source": "synthetic", "occurrence": 2 },
+                    "match": { "turn_source": "synthetic", "goal": { "turn": 2 } },
                     "steps": [
                         { "kind": "assistant", "text": "```json\n{\"status\":\"complete\"}\n```" }
                     ]
                 },
                 {
                     "name": "goal-pause-judge",
-                    "match": { "turn_source": "user" },
+                    "match": {
+                        "turn_source": "user",
+                        "judge": {
+                            "role": "agent-judge",
+                            "gate_id": "goal:goal-judge",
+                            "criterion_id": "objective_satisfied"
+                        }
+                    },
                     "steps": [
                         {
-                            "kind": "sandbox_exec",
-                            "tool_call_id": "goal-pause-judge-command",
-                            "title": "Approve the resumed Goal",
-                            "command": "sh",
-                            "args": ["goal-judge.sh", "pass"],
-                            "emit_output": true
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"confidence\":1.0,\"evidence\":{\"mode\":\"constrained\"}}"
                         }
                     ]
                 }
@@ -122,7 +150,7 @@
             "turns": [
                 {
                     "name": "goal-approval-refusal",
-                    "match": { "turn_source": "synthetic", "occurrence": 1 },
+                    "match": { "turn_source": "synthetic", "goal": { "turn": 1 } },
                     "steps": [
                         { "kind": "assistant", "text": "```json\n{\"status\":\"complete\"}\n```" }
                     ],
@@ -130,22 +158,21 @@
                 },
                 {
                     "name": "goal-approval-reentry",
-                    "match": { "turn_source": "synthetic", "occurrence": 2 },
+                    "match": { "turn_source": "synthetic", "goal": { "turn": 2 } },
                     "steps": [
                         { "kind": "assistant", "text": "```json\n{\"status\":\"complete\"}\n```" }
                     ]
                 },
                 {
                     "name": "goal-approval-judge",
-                    "match": { "turn_source": "user" },
+                    "match": {
+                        "turn_source": "user",
+                        "judge": { "role": "agent-judge", "attempt": 2 }
+                    },
                     "steps": [
                         {
-                            "kind": "sandbox_exec",
-                            "tool_call_id": "goal-approval-judge-command",
-                            "title": "Approve the granted Goal",
-                            "command": "sh",
-                            "args": ["goal-judge.sh", "pass"],
-                            "emit_output": true
+                            "kind": "assistant",
+                            "text": "{\"verdict\":\"pass\",\"blocking_issues\":[],\"confidence\":1.0,\"evidence\":{\"mode\":\"constrained\"}}"
                         }
                     ]
                 }
@@ -167,27 +194,22 @@
             ],
             "turns": [
                 {
-                    "name": "goal-clear-blocked-work",
-                    "match": { "turn_source": "synthetic", "occurrence": 1 },
+                    "name": "goal-clear-completed-work",
+                    "match": { "turn_source": "synthetic", "goal": { "turn": 1 } },
                     "steps": [
-                        { "kind": "assistant", "text": "Goal clear prompt started." },
-                        {
-                            "kind": "driver_control",
-                            "driver_control": { "action": "block_until_cancel" }
-                        }
+                        { "kind": "assistant", "text": "```json\n{\"status\":\"complete\"}\n```" }
                     ]
                 },
                 {
                     "name": "goal-clear-judge",
-                    "match": { "turn_source": "user" },
+                    "match": {
+                        "turn_source": "user",
+                        "judge": { "role": "agent-judge", "attempt": 1 }
+                    },
                     "steps": [
                         {
-                            "kind": "sandbox_exec",
-                            "tool_call_id": "goal-clear-judge-command",
-                            "title": "Approve an uncleared Goal",
-                            "command": "sh",
-                            "args": ["goal-judge.sh", "pass"],
-                            "emit_output": true
+                            "kind": "driver_control",
+                            "driver_control": { "action": "block_until_cancel" }
                         }
                     ]
                 }

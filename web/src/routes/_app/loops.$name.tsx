@@ -24,9 +24,11 @@ function LoopDetailRoute() {
     hasChildMatch,
     workspaceId,
     loopQuery,
+    configQuery,
     catalogEntry,
     runsQuery,
     bindings,
+    deleteLoop,
     readGraph,
     handlers,
   } = useLoopDetail(name);
@@ -43,7 +45,7 @@ function LoopDetailRoute() {
       />
     );
   }
-  if (loopQuery.isLoading) {
+  if (loopQuery.isLoading || configQuery.isLoading) {
     return (
       <div
         className="flex min-h-0 flex-1 items-center justify-center"
@@ -53,13 +55,26 @@ function LoopDetailRoute() {
       </div>
     );
   }
-  if (loopQuery.error || !loopQuery.data) {
+  if (loopQuery.error || configQuery.error || !loopQuery.data) {
     return (
       <DetailState
-        description={loopQuery.error?.message ?? `Loop ${name} not found.`}
+        description={
+          loopQuery.error?.message ?? configQuery.error?.message ?? `Loop ${name} not found.`
+        }
         icon={AlertCircle}
         testId="loop-detail-not-found"
         title="Unable to load loop"
+      />
+    );
+  }
+
+  if (!configQuery.effectiveConfig) {
+    return (
+      <DetailState
+        description="The daemon did not return effective loop configuration."
+        icon={AlertCircle}
+        testId="loop-detail-config-error"
+        title="Unable to load loop configuration"
       />
     );
   }
@@ -68,6 +83,7 @@ function LoopDetailRoute() {
   return (
     <LoopDetailView
       loop={loop}
+      effectiveConfig={configQuery.effectiveConfig}
       graph={readGraph(loop.definition)}
       recentRuns={runsQuery.data?.runs ?? []}
       bindings={bindings.rows}
@@ -79,7 +95,11 @@ function LoopDetailRoute() {
       onBack={handlers.onBack}
       onRun={handlers.onRun}
       onConfigure={handlers.onConfigure}
-      onFork={handlers.onFork}
+      onOpenEditor={handlers.onOpenEditor}
+      onDelete={handlers.onDelete}
+      onDeleteReset={handlers.onDeleteReset}
+      deletePending={deleteLoop.isPending}
+      deleteError={deleteLoop.error?.message ?? null}
       onAddTrigger={handlers.onAddTrigger}
       onAddSchedule={handlers.onAddSchedule}
     />

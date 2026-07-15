@@ -4,6 +4,7 @@ import {
   useCancelTaskRun,
   useForceFailTaskRun,
   useForceReleaseTaskRun,
+  useRecoverTaskRun,
   useRetryTaskRun,
   useTask,
   useTaskRunDetail,
@@ -31,6 +32,7 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
   const cancelMutation = useCancelTaskRun();
   const forceReleaseMutation = useForceReleaseTaskRun();
   const forceFailMutation = useForceFailTaskRun();
+  const recoverMutation = useRecoverTaskRun();
   const retryMutation = useRetryTaskRun();
 
   const run = runQuery.data ?? null;
@@ -98,6 +100,19 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
     }
   };
 
+  const handleRecoverRun = async () => {
+    if (!hasRunId || recoverMutation.isPending) {
+      return;
+    }
+
+    try {
+      await recoverMutation.mutateAsync({ runId, taskId });
+      toast.success("Run recovered.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to recover run");
+    }
+  };
+
   const reviews = reviewsQuery.data ?? [];
 
   return {
@@ -105,11 +120,13 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
     handleCancelRun,
     handleForceFailRun,
     handleForceReleaseRun,
+    handleRecoverRun,
     handleRetryRun,
     isCancelPending: cancelMutation.isPending,
     isForceFailPending: forceFailMutation.isPending,
     isForceReleasePending: forceReleaseMutation.isPending,
     isLive,
+    isRecoverPending: recoverMutation.isPending,
     isRetryPending: retryMutation.isPending,
     inspect,
     inspectError: inspectQuery.error ?? null,

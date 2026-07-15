@@ -3,7 +3,11 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { StorySurface } from "@/storybook/story-layout";
 
 import { LoopConfigureSheet } from "../configure/loop-configure-sheet";
-import { loopConfigFixture, loopDetailByName } from "../../mocks/fixtures";
+import {
+  loopConfigFixture,
+  loopDetailByName,
+  loopEffectiveConfigFixture,
+} from "../../mocks/fixtures";
 
 const meta: Meta<typeof LoopConfigureSheet> = {
   title: "systems/loops/components/LoopConfigureSheet",
@@ -29,8 +33,9 @@ export const Delivery: Story = {
         workspaceId="ws_default"
         loop={deliveryLoop}
         config={loopConfigFixture}
+        effectiveConfig={loopEffectiveConfigFixture}
         onOpenChange={noop}
-        onFork={noop}
+        onOpenEditor={noop}
       />
     </StorySurface>
   ),
@@ -46,8 +51,9 @@ export const InheritedDefaults: Story = {
         workspaceId="ws_default"
         loop={deliveryLoop}
         config={null}
+        effectiveConfig={loopEffectiveConfigFixture}
         onOpenChange={noop}
-        onFork={noop}
+        onOpenEditor={noop}
       />
     </StorySurface>
   ),
@@ -62,8 +68,14 @@ export const WatchNoChecks: Story = {
         workspaceId="ws_default"
         loop={watchLoop}
         config={null}
+        effectiveConfig={{
+          ...loopEffectiveConfigFixture,
+          fan_out_width: 2,
+          gate_max_revisions: 0,
+          iteration_cap: 0,
+        }}
         onOpenChange={noop}
-        onFork={noop}
+        onOpenEditor={noop}
       />
     </StorySurface>
   ),

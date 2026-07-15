@@ -41,7 +41,9 @@ function invalidateConversation(
         ];
   for (const queryKey of roots) void queryClient.invalidateQueries({ queryKey });
   void queryClient.invalidateQueries({ queryKey: networkKeys.channelsRoot(input.workspaceId) });
-  void queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
+  void queryClient.invalidateQueries({
+    queryKey: sessionKeys.workspaceLists(input.workspaceId),
+  });
 }
 
 export function useSendNetworkMessage(

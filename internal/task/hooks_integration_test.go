@@ -65,6 +65,7 @@ type integrationTaskRunHooks struct {
 		context.Context,
 		hookspkg.TaskRunLeaseRecoveredPayload,
 	) (hookspkg.TaskRunLeaseRecoveredPayload, error)
+	completed func(context.Context, hookspkg.TaskRunCompletedPayload) (hookspkg.TaskRunCompletedPayload, error)
 }
 
 func (h integrationTaskRunHooks) DispatchTaskBlocked(
@@ -164,9 +165,12 @@ func (h integrationTaskRunHooks) DispatchTaskRunReleased(
 }
 
 func (h integrationTaskRunHooks) DispatchTaskRunCompleted(
-	_ context.Context,
+	ctx context.Context,
 	payload hookspkg.TaskRunCompletedPayload,
 ) (hookspkg.TaskRunCompletedPayload, error) {
+	if h.completed != nil {
+		return h.completed(ctx, payload)
+	}
 	return payload, nil
 }
 

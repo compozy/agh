@@ -17,7 +17,7 @@ import {
   buildTaskTreeFixture,
 } from "@/systems/tasks/mocks/fixtures";
 import { buildTaskCatalogResponse } from "@/systems/tasks/mocks/query-responses";
-import { TASK_TEMPLATES } from "@/systems/tasks/lib/task-templates";
+import { SIMPLE_TASK_TEMPLATE_IDS, TASK_TEMPLATES } from "@/systems/tasks/lib/task-templates";
 import { useTask, useTasks } from "@/systems/tasks";
 import type {
   CreateTaskRequest,
@@ -119,6 +119,8 @@ let createTaskRequests: CreateTaskRequest[] = [];
 let updateTaskRequests: UpdateTaskRequest[] = [];
 let enqueuedTaskIds: string[] = [];
 let createTaskResponseOverride: ((body: CreateTaskRequest) => Response | Promise<Response>) | null =
+  null;
+let updateTaskResponseOverride: ((body: UpdateTaskRequest) => Response | Promise<Response>) | null =
   null;
 
 function createQueryClient() {
@@ -318,6 +320,9 @@ function taskCreateHandlers(): HttpHandler[] {
     http.patch("/api/tasks/:id", async ({ params, request }) => {
       const body = (await request.json()) as UpdateTaskRequest;
       updateTaskRequests.push(body);
+      if (updateTaskResponseOverride) {
+        return updateTaskResponseOverride(body);
+      }
       const task = taskStore.get(String(params.id));
       if (!task) {
         return HttpResponse.json(
@@ -407,6 +412,7 @@ beforeEach(() => {
   updateTaskRequests = [];
   enqueuedTaskIds = [];
   createTaskResponseOverride = null;
+  updateTaskResponseOverride = null;
   searchParams = {};
   routeParams = {};
   childMatches = [];
@@ -508,6 +514,10 @@ describe("TaskCreateRoute create modal", () => {
         to: "/tasks/new",
       })
     );
+    expect(screen.getByTestId("task-template-human_in_loop")).toHaveAttribute(
+      "aria-checked",
+      "false"
+    );
 
     searchParams = { template: "human_in_loop" };
     rerender(
@@ -520,6 +530,92 @@ describe("TaskCreateRoute create modal", () => {
       "aria-checked",
       "true"
     );
+  });
+
+  it("Should preserve the authored draft across every Simple template and mode round trip", async () => {
+    const view = renderTaskCreatePage();
+
+    await waitForTaskWorkspace();
+    fillRequiredTaskFields(
+      "Preserve authored contract",
+      "Keep this description through every template transition."
+    );
+
+    const assertAuthoredContract = () => {
+      expect(screen.getByTestId("task-title-input")).toHaveValue("Preserve authored contract");
+      expect(screen.getByTestId("task-description-input")).toHaveValue(
+        "Keep this description through every template transition."
+      );
+    };
+    const assertAuthoredAdvancedFields = () => {
+      expect(screen.getByTestId("task-parent-input")).toHaveValue("task-parent-release");
+      expect(screen.getByTestId("task-owner-kind")).toHaveValue("human");
+      expect(screen.getByTestId("task-owner-ref")).toHaveValue("release-operator");
+    };
+    const rerenderWithTemplate = (template: string | undefined) => {
+      searchParams = template ? { template } : {};
+      view.rerender(
+        <QueryClientProvider client={createQueryClient()}>
+          <TaskCreatePage />
+        </QueryClientProvider>
+      );
+    };
+
+    expect(SIMPLE_TASK_TEMPLATE_IDS).toEqual(["one_shot", "human_in_loop", "epic"]);
+    assertAuthoredContract();
+
+    fireEvent.click(screen.getByTestId("task-mode-advanced"));
+    fireEvent.change(screen.getByTestId("task-parent-input"), {
+      target: { value: "task-parent-release" },
+    });
+    fireEvent.change(screen.getByTestId("task-owner-kind"), { target: { value: "human" } });
+    fireEvent.change(screen.getByTestId("task-owner-ref"), {
+      target: { value: "release-operator" },
+    });
+    fireEvent.click(screen.getByTestId("task-priority-urgent"));
+    fireEvent.click(screen.getByTestId("task-attempts-5"));
+    fireEvent.click(screen.getByTestId("task-approval-manual"));
+    assertAuthoredContract();
+    assertAuthoredAdvancedFields();
+    fireEvent.click(screen.getByTestId("task-mode-simple"));
+    assertAuthoredContract();
+    fireEvent.click(screen.getByTestId("task-mode-advanced"));
+    assertAuthoredAdvancedFields();
+    expect(screen.getByTestId("task-priority-urgent")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("task-attempts-5")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("task-approval-manual")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByTestId("task-mode-simple"));
+
+    fireEvent.click(screen.getByTestId("task-template-human_in_loop"));
+    rerenderWithTemplate("human_in_loop");
+    assertAuthoredContract();
+    expect(screen.getByTestId("task-priority-high")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByTestId("task-mode-advanced"));
+    assertAuthoredAdvancedFields();
+    expect(screen.getByTestId("task-attempts-1")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("task-approval-manual")).toHaveAttribute("aria-pressed", "true");
+    assertAuthoredContract();
+    fireEvent.click(screen.getByTestId("task-mode-simple"));
+
+    fireEvent.click(screen.getByTestId("task-template-epic"));
+    rerenderWithTemplate("epic");
+    assertAuthoredContract();
+    expect(screen.getByTestId("task-priority-high")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByTestId("task-mode-advanced"));
+    assertAuthoredAdvancedFields();
+    expect(screen.getByTestId("task-attempts-1")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("task-approval-none")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByTestId("task-mode-simple"));
+    assertAuthoredContract();
+
+    fireEvent.click(screen.getByTestId("task-template-one_shot"));
+    rerenderWithTemplate(undefined);
+    assertAuthoredContract();
+    expect(screen.getByTestId("task-priority-medium")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByTestId("task-mode-advanced"));
+    assertAuthoredAdvancedFields();
+    expect(screen.getByTestId("task-attempts-1")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("task-approval-none")).toHaveAttribute("aria-pressed", "true");
   });
 
   it("Should block empty-title submission and surface the validation toast", async () => {
@@ -755,6 +851,144 @@ describe("TaskCreateRoute create modal", () => {
       expect(taskStore.get("task_continuity_task")).toBeUndefined();
     });
     detail.unmount();
+  });
+
+  it("Should clear an exact-session owner through PATCH and show Unassigned on a fresh edit read", async () => {
+    const task = createdTaskFromBody({
+      approval_policy: "manual",
+      auto_enqueue_on_ready: true,
+      description: "Preserve every mutable field while clearing ownership.",
+      draft: false,
+      max_attempts: 3,
+      network_channel: "launch-room",
+      owner: { kind: "agent_session", ref: "sess-exact-owner" },
+      priority: "urgent",
+      scope: "workspace",
+      title: "Release exact owner",
+      workspace: "ws_alpha",
+    });
+    taskStore.reset([task]);
+
+    const edit = renderTaskEditPage(task.id);
+    expect(await screen.findByTestId("task-owner-kind")).toHaveValue("agent_session");
+    expect(screen.getByTestId("task-owner-ref")).toHaveValue("sess-exact-owner");
+
+    fireEvent.change(screen.getByTestId("task-owner-kind"), { target: { value: "" } });
+
+    expect(screen.getByTestId("task-owner-kind")).toHaveValue("");
+    expect(screen.getByTestId("task-owner-ref")).toBeDisabled();
+    expect(screen.getByTestId("task-owner-ref")).toHaveValue("");
+    fireEvent.click(screen.getByTestId("task-editor-modal-submit"));
+
+    await waitFor(() => {
+      expect(updateTaskRequests).toHaveLength(1);
+    });
+    expect(updateTaskRequests[0]).toEqual({
+      approval_policy: "manual",
+      auto_enqueue_on_ready: true,
+      clear_owner: true,
+      description: "Preserve every mutable field while clearing ownership.",
+      max_attempts: 3,
+      network_channel: "launch-room",
+      priority: "urgent",
+      title: "Release exact owner",
+    });
+    expect(taskStore.get(task.id)?.owner).toBeUndefined();
+    edit.unmount();
+
+    renderTaskEditPage(task.id);
+    expect(await screen.findByTestId("task-owner-kind")).toHaveValue("");
+    expect(screen.getByTestId("task-owner-ref")).toBeDisabled();
+    expect(screen.getByTestId("task-owner-ref")).toHaveValue("");
+    expect(screen.getByTestId("task-title-input")).toHaveValue("Release exact owner");
+    expect(screen.getByTestId("task-description-input")).toHaveValue(
+      "Preserve every mutable field while clearing ownership."
+    );
+    expect(screen.getByTestId("task-network-input")).toHaveValue("launch-room");
+  });
+
+  it("Should preserve a non-clear owner edit and omit the clear operation", async () => {
+    const task = createdTaskFromBody({
+      owner: { kind: "agent_session", ref: "sess-original" },
+      scope: "workspace",
+      title: "Reassign exact owner",
+      workspace: "ws_alpha",
+    });
+    taskStore.reset([task]);
+    renderTaskEditPage(task.id);
+
+    expect(await screen.findByTestId("task-owner-kind")).toHaveValue("agent_session");
+    fireEvent.change(screen.getByTestId("task-owner-kind"), { target: { value: "human" } });
+    fireEvent.change(screen.getByTestId("task-owner-ref"), { target: { value: "pedro" } });
+    fireEvent.click(screen.getByTestId("task-editor-modal-submit"));
+
+    await waitFor(() => {
+      expect(updateTaskRequests).toHaveLength(1);
+    });
+    expect(updateTaskRequests[0]?.owner).toEqual({ kind: "human", ref: "pedro" });
+    expect(updateTaskRequests[0]).not.toHaveProperty("clear_owner");
+    expect(taskStore.get(task.id)?.owner).toEqual({ kind: "human", ref: "pedro" });
+  });
+
+  it("Should cancel an owner clear without sending a PATCH", async () => {
+    const task = createdTaskFromBody({
+      owner: { kind: "agent_session", ref: "sess-keep-owner" },
+      scope: "workspace",
+      title: "Keep owner on cancel",
+      workspace: "ws_alpha",
+    });
+    taskStore.reset([task]);
+    renderTaskEditPage(task.id);
+
+    expect(await screen.findByTestId("task-owner-kind")).toHaveValue("agent_session");
+    fireEvent.change(screen.getByTestId("task-owner-kind"), { target: { value: "" } });
+    fireEvent.click(screen.getByTestId("task-editor-modal-cancel"));
+
+    expect(updateTaskRequests).toEqual([]);
+    expect(taskStore.get(task.id)?.owner).toEqual({
+      kind: "agent_session",
+      ref: "sess-keep-owner",
+    });
+    expect(navigateMock).toHaveBeenCalledWith({ params: { id: task.id }, to: "/tasks/$id" });
+  });
+
+  it("Should preserve the edited draft and owner-clear intent after a PATCH error", async () => {
+    const task = createdTaskFromBody({
+      description: "Persisted description.",
+      owner: { kind: "agent_session", ref: "sess-error-owner" },
+      scope: "workspace",
+      title: "Retry owner clear",
+      workspace: "ws_alpha",
+    });
+    taskStore.reset([task]);
+    updateTaskResponseOverride = () =>
+      HttpResponse.json({ error: "task store unavailable" }, { status: 500 });
+    renderTaskEditPage(task.id);
+
+    expect(await screen.findByTestId("task-owner-kind")).toHaveValue("agent_session");
+    fireEvent.change(screen.getByTestId("task-title-input"), {
+      target: { value: "Retry owner clear after failure" },
+    });
+    fireEvent.change(screen.getByTestId("task-owner-kind"), { target: { value: "" } });
+    fireEvent.click(screen.getByTestId("task-editor-modal-submit"));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("task store unavailable");
+    });
+    expect(updateTaskRequests[0]).toEqual(expect.objectContaining({ clear_owner: true }));
+    expect(updateTaskRequests[0]).not.toHaveProperty("owner");
+    expect(screen.getByTestId("task-editor-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("task-title-input")).toHaveValue("Retry owner clear after failure");
+    expect(screen.getByTestId("task-owner-kind")).toHaveValue("");
+    expect(screen.getByTestId("task-owner-ref")).toHaveValue("");
+    expect(taskStore.get(task.id)?.title).toBe("Retry owner clear");
+    expect(taskStore.get(task.id)?.owner).toEqual({
+      kind: "agent_session",
+      ref: "sess-error-owner",
+    });
+    expect(navigateMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ params: { id: task.id }, to: "/tasks/$id" })
+    );
   });
 
   it("Should submit task owner kind/ref combinations without dropping an explicit null owner", async () => {

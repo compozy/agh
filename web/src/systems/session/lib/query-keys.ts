@@ -20,8 +20,13 @@ export const sessionKeys = {
   all: ["sessions"] as const,
   byId: (id: string) => [...sessionKeys.all, "by-id", id] as const,
   lists: () => [...sessionKeys.all, "list"] as const,
-  list: (filters: SessionListFilters = {}) =>
-    [...sessionKeys.lists(), normalizeSessionListFilters(filters)] as const,
+  workspaceLists: (workspace: string) => [...sessionKeys.lists(), workspace.trim()] as const,
+  workspaceActivity: (workspace: string) =>
+    [...sessionKeys.workspaceLists(workspace), "activity"] as const,
+  list: (filters: SessionListFilters = {}) => {
+    const normalized = normalizeSessionListFilters(filters);
+    return [...sessionKeys.workspaceLists(normalized.workspace ?? ""), normalized] as const;
+  },
   workspace: (workspace: string) => [...sessionKeys.all, "workspace", workspace] as const,
   detail: (workspace: string, id: string) =>
     [...sessionKeys.workspace(workspace), "detail", id] as const,

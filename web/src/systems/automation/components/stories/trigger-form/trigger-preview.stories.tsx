@@ -57,6 +57,31 @@ export const WontFire: Story = {
   ),
 };
 
+export const LoopTarget: Story = {
+  args: {},
+  render: () => (
+    <PreviewHarness
+      preview={buildTriggerPreview(
+        {
+          ...createAutomationTriggerDraft(storyWorkspaceIds.hq),
+          event: "session.stopped",
+          name: "delivery-on-stop",
+          agent_name: "",
+          prompt: "",
+          target_kind: "loop",
+          loop_target: {
+            workspace_id: storyWorkspaceIds.hq,
+            loop_name: "software-delivery",
+            inputs: { slug: "helix-v1-launch" },
+            input_mapping: { branch: "data.branch" },
+          },
+        },
+        { mode: "edit", workspaces }
+      )}
+    />
+  ),
+};
+
 export const Webhook: Story = {
   args: {},
   render: () => (

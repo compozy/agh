@@ -115,11 +115,12 @@ func (s *daemonLoopAPIService) syncLoopResources(ctx context.Context) error {
 }
 
 func (s *daemonLoopAPIService) loopResponseFromDefinitionFile(
+	ctx context.Context,
 	path string,
 	workspaceID looppkg.WorkspaceID,
 	name string,
 ) (contract.LoopResponse, error) {
-	record, def, err := s.refreshCatalogLoopRecordFromFile(path, workspaceID, name)
+	record, def, err := s.refreshCatalogLoopRecordFromFile(ctx, path, workspaceID, name)
 	if err != nil {
 		return contract.LoopResponse{}, err
 	}
@@ -131,13 +132,14 @@ func (s *daemonLoopAPIService) loopResponseFromDefinitionFile(
 }
 
 func (s *daemonLoopAPIService) refreshCatalogLoopRecordFromFile(
+	ctx context.Context,
 	path string,
 	workspaceID looppkg.WorkspaceID,
 	name string,
 ) (resources.Record[looppkg.ResourceSpec], dsl.Definition, error) {
 	spec, def, err := looppkg.ParseResourceFile(path, looppkg.ResourceParseOptions{
 		Source: looppkg.SourceWorkspace,
-		Linter: looppkg.NewLinter(),
+		Linter: newLoopLinterWithSchemaSource(newLoopToolSchemaSource(ctx, s.toolRegistry)),
 	})
 	if err != nil {
 		return resources.Record[looppkg.ResourceSpec]{}, dsl.Definition{}, err

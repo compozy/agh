@@ -635,6 +635,49 @@ func TestMergeRows(t *testing.T) {
 func TestCatalogViews(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should suppress noncanonical Cursor aliases from the public catalog", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryStore()
+		store.rows[sourceProviderKey(SourceIDBuiltin, "cursor")] = []ModelRow{
+			testRow(
+				SourceIDBuiltin,
+				SourceKindBuiltin,
+				PriorityBuiltin,
+				"cursor",
+				"grok-4.5[effort=high,fast=true]",
+				testTime(0),
+				func(row *ModelRow) { row.ExplicitlyCurated = true },
+			),
+		}
+		store.rows[sourceProviderKey(SourceIDConfig, "cursor")] = []ModelRow{
+			testRow(
+				SourceIDConfig,
+				SourceKindConfig,
+				PriorityConfig,
+				"cursor",
+				"cursor-grok-4.5-high",
+				testTime(0),
+				func(row *ModelRow) { row.ExplicitlyCurated = true },
+			),
+		}
+		service := newTestService(t, store, nil)
+		models, err := service.ListModels(testutil.Context(t), ListOptions{
+			ProviderID:   "cursor",
+			View:         CatalogViewAll,
+			IncludeAll:   true,
+			IncludeStale: true,
+			Now:          testTime(1),
+		})
+		if err != nil {
+			t.Fatalf("ListModels(cursor) error = %v", err)
+		}
+		want := []string{"cursor/grok-4.5[effort=high,fast=true]"}
+		if got := modelKeys(models); !slices.Equal(got, want) {
+			t.Fatalf("Cursor catalog models = %#v, want %#v", got, want)
+		}
+	})
+
 	t.Run("Should curate candidates and preserve hidden deprecated rows in all view", func(t *testing.T) {
 		t.Parallel()
 

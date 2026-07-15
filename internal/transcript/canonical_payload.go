@@ -9,14 +9,16 @@ import (
 )
 
 type canonicalEventPayload struct {
-	Schema    string `json:"schema,omitempty"`
-	Type      string `json:"type,omitempty"`
-	SessionID string `json:"session_id,omitempty"`
-	TurnID    string `json:"turn_id,omitempty"`
-	RequestID string `json:"request_id,omitempty"`
+	Schema          string `json:"schema,omitempty"`
+	Type            string `json:"type,omitempty"`
+	SessionID       string `json:"session_id,omitempty"`
+	TurnID          string `json:"turn_id,omitempty"`
+	ClientMessageID string `json:"client_message_id,omitempty"`
+	RequestID       string `json:"request_id,omitempty"`
 	store.EventCorrelation
 	Timestamp         time.Time                        `json:"timestamp"`
 	Text              string                           `json:"text,omitempty"`
+	AuthoredText      string                           `json:"authored_text,omitempty"`
 	Title             string                           `json:"title,omitempty"`
 	ToolName          string                           `json:"tool_name,omitempty"`
 	ToolCallID        string                           `json:"tool_call_id,omitempty"`

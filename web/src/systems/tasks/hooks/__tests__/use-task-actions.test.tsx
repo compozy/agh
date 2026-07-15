@@ -18,6 +18,7 @@ import {
   useMarkTaskRead,
   usePublishTask,
   useRejectTask,
+  useRecoverTaskRun,
   useRetryTaskRun,
   useUpdateTask,
 } from "@/systems/tasks";
@@ -41,6 +42,7 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   failTaskRun: vi.fn(),
   forceFailTaskRun: vi.fn(),
   forceReleaseTaskRun: vi.fn(),
+  recoverTaskRun: vi.fn(),
   retryTaskRun: vi.fn(),
   inspectTask: vi.fn().mockResolvedValue(null),
   inspectRun: vi.fn().mockResolvedValue(null),
@@ -65,6 +67,7 @@ import {
   markTaskRead,
   publishTask,
   rejectTask,
+  recoverTaskRun,
   retryTaskRun,
   updateTask,
 } from "@/systems/tasks/adapters/tasks-api";
@@ -279,6 +282,31 @@ describe("task mutation hooks", () => {
     expect(forceFailTaskRun).toHaveBeenCalledWith("run_001", { reason: "operator recovery" });
     expect(retryTaskRun).toHaveBeenCalledWith("run_001", { metadata: { source: "operator" } });
     expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "run-detail", "run_001"] });
+  });
+
+  it("targets the owning task and aggregate queries after recovering a run", async () => {
+    vi.mocked(recoverTaskRun).mockResolvedValue({
+      previous_run: { ...runFixture, status: "needs_attention" },
+      run: { ...runFixture, id: "run_002", status: "queued" },
+    } as never);
+
+    const queryClient = buildClient();
+    const spy = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHook(() => useRecoverTaskRun(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => {
+      result.current.mutate({ runId: "run_001", taskId: "task_001" });
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(recoverTaskRun).toHaveBeenCalledTimes(1);
+    expect(recoverTaskRun).toHaveBeenCalledWith("run_001", {});
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "run-detail", "run_001"] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "detail", "task_001"] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "inbox"] });
   });
 
   it("invalidates triage, list, detail, and inbox queries on triage actions", async () => {

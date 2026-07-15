@@ -16,13 +16,41 @@ function result(
 }
 
 describe("createGoalAwareFetch", () => {
+  it("Should announce a later send before transport work without changing typed result ownership", async () => {
+    const order: string[] = [];
+    const payload = result("error", "goal_objective_required");
+    const onResult = vi.fn(() => order.push("result"));
+    const goalFetch = createGoalAwareFetch({
+      fetch: vi.fn(async () => {
+        order.push("fetch");
+        return new Response(JSON.stringify(payload), {
+          status: 422,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+      onRequest: () => order.push("request"),
+      onResult,
+    });
+
+    await goalFetch("/prompt", { method: "POST", body: JSON.stringify({ message: "/goal" }) });
+
+    expect(order).toEqual(["request", "fetch", "result"]);
+    expect(onResult).toHaveBeenCalledWith(payload, "/goal");
+  });
+
   it.each([
-    ["started", null],
-    ["status", null],
-    ["error", "goal_replace_required"],
+    ["started", null, null],
+    ["status", null, null],
+    [
+      "error",
+      "goal_replace_required",
+      "A Goal is already active. Replace it explicitly or keep the current Goal.",
+    ],
+    ["error", "goal_objective_required", "Add an objective after /goal, then try again."],
+    ["error", "goal_objective_too_large", "Shorten the Goal objective, then try again."],
   ] as const)(
     "Should settle the %s structured outcome without AI stream decoding",
-    async (outcome, reason) => {
+    async (outcome, reason, expectedFailure) => {
       const payload = result(outcome, reason);
       const source = vi.fn(
         async () =>
@@ -45,7 +73,8 @@ describe("createGoalAwareFetch", () => {
       if (outcome === "error") {
         expect(response.status).toBe(409);
         expect(response.headers.get("content-type")).toContain("text/plain");
-        await expect(response.text()).resolves.toBe("goal_replace_required");
+        await expect(response.text()).resolves.toBe(expectedFailure);
+        expect(expectedFailure).not.toBe(reason);
         return;
       }
 
@@ -75,6 +104,54 @@ describe("createGoalAwareFetch", () => {
       body: JSON.stringify({ message: "/goal replace run_1 ship it" }),
     });
     expect(onResult).toHaveBeenCalledWith(payload, "/goal replace run_1 ship it");
+  });
+
+  it("Should use operator-safe guidance for a malformed future reason code", async () => {
+    const payload = {
+      ...result("error"),
+      reason_code: "goal_future_unknown",
+    };
+    const goalFetch = createGoalAwareFetch({
+      fetch: vi.fn(
+        async () =>
+          new Response(JSON.stringify(payload), {
+            status: 409,
+            headers: { "content-type": "application/json" },
+          })
+      ),
+      onResult: vi.fn(),
+    });
+
+    const response = await goalFetch("/prompt", { method: "POST" });
+
+    await expect(response.text()).resolves.toBe(
+      "Goal command failed. Refresh Goal status, then retry."
+    );
+  });
+
+  it("Should preserve the typed unavailable-judge result and return actionable configuration guidance", async () => {
+    const payload = result("error", "goal_judge_unavailable");
+    const onResult = vi.fn();
+    const goalFetch = createGoalAwareFetch({
+      fetch: vi.fn(
+        async () =>
+          new Response(JSON.stringify(payload), {
+            status: 422,
+            headers: { "content-type": "application/json" },
+          })
+      ),
+      onResult,
+    });
+
+    const response = await goalFetch("/prompt", {
+      method: "POST",
+      body: JSON.stringify({ message: "/goal ship the verified release" }),
+    });
+
+    expect(onResult).toHaveBeenCalledWith(payload, "/goal ship the verified release");
+    await expect(response.text()).resolves.toBe(
+      "Goal judge is not configured. Set loops.defaults.delivery.model_defaults.judge or use a session created with an explicit model, then retry."
+    );
   });
 
   it("Should return normal and draft streams untouched", async () => {

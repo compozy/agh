@@ -5,29 +5,54 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const loopsState = vi.hoisted(() => ({
   current: {
     loops: [] as unknown[],
+    error: null as Error | null,
+    fetchNextPage: vi.fn(),
+    hasNextPage: false,
     isError: false,
+    isFetchingNextPage: false,
     isLoading: false,
   },
 }));
 
 vi.mock("../../hooks/use-loops", async () => {
   const { loopCatalogFixtures } = await import("../../mocks/fixtures");
-  loopsState.current = { loops: loopCatalogFixtures, isError: false, isLoading: false };
+  loopsState.current = {
+    loops: loopCatalogFixtures,
+    error: null,
+    fetchNextPage: vi.fn(),
+    hasNextPage: false,
+    isError: false,
+    isFetchingNextPage: false,
+    isLoading: false,
+  };
   return { useLoops: () => loopsState.current };
 });
 
 const { LoopTargetFields } = await import("../target/loop-target-fields");
+const { useLoopTargetCatalog } = await import("../../hooks/use-loop-target-catalog");
 type LoopTargetDraft = import("../../lib/loop-target").LoopTargetDraft;
 
-function Harness({ showMapping }: { showMapping?: boolean }) {
-  const [value, setValue] = useState<LoopTargetDraft>({
-    loop_name: "",
-    inputs: {},
-    input_mapping: {},
-  });
+function Harness({
+  initialValue,
+  requiredStartKind = "schedule",
+  showMapping,
+}: {
+  initialValue?: LoopTargetDraft;
+  requiredStartKind?: "schedule" | "trigger" | "webhook";
+  showMapping?: boolean;
+}) {
+  const [value, setValue] = useState<LoopTargetDraft>(
+    initialValue ?? {
+      loop_name: "",
+      inputs: {},
+      input_mapping: {},
+    }
+  );
+  const catalog = useLoopTargetCatalog("ws", value.loop_name, requiredStartKind);
   return (
     <LoopTargetFields
-      workspaceId="ws"
+      catalog={catalog}
+      mode={initialValue ? "edit" : "create"}
       value={value}
       onChange={setValue}
       showMapping={showMapping}
@@ -38,7 +63,15 @@ function Harness({ showMapping }: { showMapping?: boolean }) {
 describe("LoopTargetFields", () => {
   beforeEach(async () => {
     const { loopCatalogFixtures } = await import("../../mocks/fixtures");
-    loopsState.current = { loops: loopCatalogFixtures, isError: false, isLoading: false };
+    loopsState.current = {
+      loops: loopCatalogFixtures,
+      error: null,
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isError: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    };
   });
 
   it("Should list selectable loops and auto-generate a typed input form for the chosen loop", () => {
@@ -82,9 +115,34 @@ describe("LoopTargetFields", () => {
   });
 
   it("Should render a load error instead of the empty workspace copy", () => {
-    loopsState.current = { loops: [], isError: true, isLoading: false };
+    loopsState.current = {
+      loops: [],
+      error: new Error("catalog unavailable"),
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isError: true,
+      isFetchingNextPage: false,
+      isLoading: false,
+    };
     render(<Harness />);
     expect(screen.getByRole("alert")).toHaveTextContent("Could not load Loops");
     expect(screen.queryByText("No Loops are available in this workspace.")).not.toBeInTheDocument();
+  });
+
+  it("Should filter by the authoritative start contract and preserve an incompatible edit target", () => {
+    render(
+      <Harness
+        initialValue={{ loop_name: "reviews-watch", inputs: {}, input_mapping: {} }}
+        requiredStartKind="schedule"
+      />
+    );
+
+    const select = screen.getByRole("combobox", { name: "Loop" });
+    expect(select).toHaveValue("reviews-watch");
+    expect(select).toHaveTextContent("software-delivery");
+    expect(select).toHaveTextContent("reviews-watch (unavailable for schedule)");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "reviews-watch does not declare the schedule start kind"
+    );
   });
 });

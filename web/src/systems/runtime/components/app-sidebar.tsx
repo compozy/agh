@@ -2,6 +2,7 @@ import { Link, useMatchRoute } from "@tanstack/react-router";
 import {
   Book,
   Boxes,
+  CircleAlert,
   Clock3,
   Home,
   KeyRound,
@@ -33,6 +34,11 @@ import {
   WorkspaceCommandSelect,
   type WorkspacePayload,
 } from "@/systems/workspace";
+import {
+  createSessionReturnHistoryState,
+  type WorkspaceSessionActivity,
+  type WorkspaceSessionActivityMap,
+} from "@/systems/session";
 
 import { RuntimeConnectionIndicator } from "./connection-indicator";
 import { RestartDaemonButton } from "./restart-daemon-button";
@@ -45,6 +51,7 @@ export interface AgentsCount {
 interface RailSlotProps {
   workspaces: WorkspacePayload[] | undefined;
   activeWorkspaceId: string | null;
+  workspaceSessionActivity: WorkspaceSessionActivityMap;
   onSelectWorkspace: (id: string) => void;
   onAddWorkspace: () => void;
 }
@@ -53,10 +60,69 @@ interface WorkspaceRailItemProps {
   workspace: WorkspacePayload;
   isActive: boolean;
   isHome: boolean;
+  activity: WorkspaceSessionActivity | undefined;
   onSelect: (id: string) => void;
 }
 
-function WorkspaceRailItem({ workspace, isActive, isHome, onSelect }: WorkspaceRailItemProps) {
+const workspaceRailItemClassName =
+  "relative inline-flex size-7 items-center justify-center rounded-md border border-transparent bg-elevated font-mono text-eyebrow font-medium text-muted transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
+
+function WorkspaceSessionCount({ workspaceId, count }: { workspaceId: string; count: number }) {
+  return (
+    <span
+      aria-hidden="true"
+      data-testid={`workspace-active-session-count-${workspaceId}`}
+      className="absolute -top-1.5 -right-2 inline-flex min-h-4 min-w-4 items-center justify-center rounded-pill border border-rail bg-success-tint px-1 text-badge leading-none font-semibold text-success tabular-nums"
+    >
+      {count}
+    </span>
+  );
+}
+
+function WorkspaceRailItem({
+  workspace,
+  isActive,
+  isHome,
+  activity,
+  onSelect,
+}: WorkspaceRailItemProps) {
+  const workspaceLabel = isHome
+    ? `Home workspace: ${workspace.name}`
+    : `Workspace: ${workspace.name}`;
+  const activityCount =
+    !isActive && activity?.state === "ready" && activity.count > 0 ? activity.count : 0;
+  const activityError = activity?.state === "error" ? activity.message : null;
+  const glyph = isHome ? (
+    <Home aria-hidden="true" className="size-3.5" />
+  ) : (
+    workspace.name.charAt(0).toUpperCase() || "·"
+  );
+
+  if (activityCount > 0 && activity?.state === "ready" && activity.returnTarget) {
+    const target = activity.returnTarget;
+    return (
+      <Link
+        to="/agents/$name/sessions/$id"
+        params={{ name: target.agentName, id: target.sessionId }}
+        state={createSessionReturnHistoryState(target.sessionId, workspace.id)}
+        data-testid={`workspace-avatar-${workspace.id}`}
+        data-active="false"
+        data-home={isHome ? "true" : undefined}
+        title={`Return to ${workspace.name}: ${target.title}`}
+        aria-label={`Return to ${workspace.name}: ${activityCount} active ${activityCount === 1 ? "session" : "sessions"}. Latest: ${target.title}`}
+        className={workspaceRailItemClassName}
+      >
+        {glyph}
+        <WorkspaceSessionCount workspaceId={workspace.id} count={activityCount} />
+      </Link>
+    );
+  }
+
+  const activityDescription =
+    activityCount > 0
+      ? `, ${activityCount} active ${activityCount === 1 ? "session" : "sessions"}`
+      : "";
+  const availabilityDescription = activityError ? ", session activity unavailable" : "";
   return (
     <button
       type="button"
@@ -65,18 +131,24 @@ function WorkspaceRailItem({ workspace, isActive, isHome, onSelect }: WorkspaceR
       data-active={isActive}
       data-home={isHome ? "true" : undefined}
       title={isHome ? "Home workspace" : workspace.name}
-      aria-label={isHome ? `Home workspace: ${workspace.name}` : `Workspace: ${workspace.name}`}
+      aria-label={`${workspaceLabel}${activityDescription}${availabilityDescription}`}
       aria-pressed={isActive}
-      className={cn(
-        "inline-flex size-7 items-center justify-center rounded-md border border-transparent bg-elevated font-mono text-eyebrow font-medium text-muted transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-        isActive && "border-accent text-fg"
-      )}
+      aria-busy={activity?.state === "loading" || undefined}
+      className={cn(workspaceRailItemClassName, isActive && "border-accent text-fg")}
     >
-      {isHome ? (
-        <Home aria-hidden="true" className="size-3.5" />
-      ) : (
-        workspace.name.charAt(0).toUpperCase() || "·"
-      )}
+      {glyph}
+      {activityCount > 0 ? (
+        <WorkspaceSessionCount workspaceId={workspace.id} count={activityCount} />
+      ) : null}
+      {activityError ? (
+        <span
+          className="absolute -right-1.5 -bottom-1.5 grid size-3.5 place-items-center rounded-pill border border-rail bg-warning-tint text-warning"
+          data-testid={`workspace-session-activity-error-${workspace.id}`}
+          title={activityError}
+        >
+          <CircleAlert aria-hidden="true" className="size-2.5" />
+        </span>
+      ) : null}
     </button>
   );
 }
@@ -84,6 +156,7 @@ function WorkspaceRailItem({ workspace, isActive, isHome, onSelect }: WorkspaceR
 function RailSlot({
   workspaces,
   activeWorkspaceId,
+  workspaceSessionActivity,
   onSelectWorkspace,
   onAddWorkspace,
 }: RailSlotProps) {
@@ -105,6 +178,7 @@ function RailSlot({
           workspace={homeWorkspace}
           isActive={homeWorkspace.id === activeWorkspaceId}
           isHome
+          activity={workspaceSessionActivity[homeWorkspace.id]}
           onSelect={onSelectWorkspace}
         />
       )}
@@ -121,6 +195,7 @@ function RailSlot({
           workspace={workspace}
           isActive={workspace.id === activeWorkspaceId}
           isHome={false}
+          activity={workspaceSessionActivity[workspace.id]}
           onSelect={onSelectWorkspace}
         />
       ))}
@@ -283,6 +358,7 @@ export interface AppSidebarProps {
   onAddWorkspace: () => void;
   agentsCount: AgentsCount | undefined;
   activeSessionCount: number;
+  workspaceSessionActivity: WorkspaceSessionActivityMap;
   className?: string;
 }
 
@@ -295,12 +371,14 @@ function AppSidebar({
   onAddWorkspace,
   agentsCount,
   activeSessionCount,
+  workspaceSessionActivity,
   className,
 }: AppSidebarProps) {
   const rail = (
     <RailSlot
       workspaces={workspaces}
       activeWorkspaceId={activeWorkspaceId}
+      workspaceSessionActivity={workspaceSessionActivity}
       onSelectWorkspace={onSelectWorkspace}
       onAddWorkspace={onAddWorkspace}
     />

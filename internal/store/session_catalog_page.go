@@ -28,6 +28,7 @@ func (p SessionCatalogPosition) Validate() error {
 type SessionCatalogPageQuery struct {
 	WorkspaceID         string
 	State               string
+	SessionType         string
 	AgentName           string
 	Search              string
 	Resumable           bool

@@ -3,10 +3,10 @@ title: Jobs and Scheduling
 description: Define scheduled AGH automation jobs with cron, interval, and one-time schedules, then monitor runs and retries.
 ---
 
-Jobs run agents without an interactive operator. A job answers three questions:
+Jobs start unattended work without an interactive operator. A job answers three questions:
 
-- which agent should run
-- what prompt should be submitted
+- which Agent or Loop should run
+- what input the target should receive
 - when AGH should dispatch the run
 
 Jobs can live in TOML config, in package-provided definitions, or in the dynamic store created
@@ -50,17 +50,55 @@ that created it; restart from the first page when any filter changes. See the ge
 
 ## Job fields
 
-| Field                        | Required                        | Meaning                                                                                                                |
-| ---------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `name`                       | Yes                             | Human-readable job name.                                                                                               |
-| `scope`                      | Yes                             | `global` or `workspace`.                                                                                               |
-| `workspace` / `workspace_id` | Workspace jobs only             | TOML uses `workspace`; API payloads and stored jobs use `workspace_id`. Global jobs must leave it empty.               |
-| `agent` / `agent_name`       | Yes unless `task` is configured | TOML uses `agent`; API payloads use `agent_name`.                                                                      |
-| `prompt`                     | Yes unless `task` is configured | Prompt submitted to the agent when the job fires.                                                                      |
-| `schedule`                   | Yes                             | One of `cron`, `every`, or `at`.                                                                                       |
-| `enabled`                    | No                              | Defaults to `true` for parsed config definitions. Disabled jobs stay stored but are not registered with the scheduler. |
-| `retry`                      | No                              | Defaults to `{ strategy = "none" }`.                                                                                   |
-| `fire_limit`                 | No                              | Defaults to `max = 12`, `window = "1h"` unless the automation default is changed.                                      |
+| Field                        | Required                     | Meaning                                                                                                                |
+| ---------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `name`                       | Yes                          | Human-readable job name.                                                                                               |
+| `scope`                      | Yes                          | `global` or `workspace`.                                                                                               |
+| `workspace` / `workspace_id` | Workspace jobs only          | TOML uses `workspace`; API payloads and stored jobs use `workspace_id`. Global jobs must leave it empty.               |
+| `target_kind`                | No                           | `agent` or `loop`. Omitted targets default to `agent` unless a `loop_target` is present.                               |
+| `agent` / `agent_name`       | Agent targets without `task` | TOML uses `agent`; API payloads use `agent_name`. Must be empty for Loop targets.                                      |
+| `prompt`                     | Agent targets without `task` | Prompt submitted to the agent when the job fires. Must be empty for Loop targets.                                      |
+| `task`                       | No                           | Materializes Task-backed work for an Agent target. Must be empty for Loop targets.                                     |
+| `loop_target`                | Loop targets                 | Selects `workspace_id`, `loop_name`, and static `inputs`. Scheduled jobs reject `input_mapping`.                       |
+| `schedule`                   | Yes                          | One of `cron`, `every`, or `at`.                                                                                       |
+| `enabled`                    | No                           | Defaults to `true` for parsed config definitions. Disabled jobs stay stored but are not registered with the scheduler. |
+| `retry`                      | No                           | Defaults to `{ strategy = "none" }`.                                                                                   |
+| `fire_limit`                 | No                           | Defaults to `max = 12`, `window = "1h"` unless the automation default is changed.                                      |
+
+## Target an Agent or a Loop
+
+Set `target_kind` to `agent` for the existing session or Task-backed path. Set it to `loop` to
+start a published Loop directly. Loop targets must omit `agent_name`, `prompt`, and `task`.
+
+`loop_target.workspace_id` always identifies the workspace that owns the Loop. For a
+workspace-scoped job, it must equal the job's `workspace_id`. A global job still names the target
+workspace explicitly. The selected Loop must support automation starts.
+
+Scheduled jobs supply deterministic static values through `loop_target.inputs`. They cannot use
+`input_mapping` because a clock fire has no activation envelope to map.
+
+```bash
+curl -sS -X POST http://localhost:2123/api/automation/jobs \
+  -H "Content-Type: application/json" \
+  --data '{
+    "name": "weekday-release-readiness",
+    "scope": "workspace",
+    "workspace_id": "ws_123",
+    "target_kind": "loop",
+    "schedule": { "mode": "cron", "expr": "0 9 * * 1-5" },
+    "loop_target": {
+      "workspace_id": "ws_123",
+      "loop_name": "release-readiness",
+      "inputs": { "channel": "stable" }
+    },
+    "enabled": true
+  }'
+```
+
+Agents can send the same payload through `agh__automation_jobs_create`; HTTP and UDS expose the
+same request contract. The `agh automation jobs create|update` flags currently author Agent
+targets. The CLI can still list, inspect, enable, disable, trigger, and delete Loop-target jobs
+created through a native tool or transport API.
 
 ## Schedule modes
 

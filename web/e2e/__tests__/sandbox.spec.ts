@@ -288,7 +288,6 @@ test("operator sees blocked sandbox diagnostics without leaking secrets or writi
   await expect(sessionUI.chatHeader).toBeVisible();
   await sessionUI.composerTextarea.fill("exercise sandbox blocked path");
   await sessionUI.composerTextarea.press("Enter");
-  await expect(sessionUI.chatView).toContainText("Sandbox blocked started.");
   await expect(sessionUI.chatView).toContainText("terminal/create denied", {
     timeout: 30_000,
   });

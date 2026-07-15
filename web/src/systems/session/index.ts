@@ -31,6 +31,7 @@ export type {
   GoalPromptMeta,
   SessionAttachResponse,
   SessionBadge,
+  SessionCatalogEventPayload,
   SessionRecapPayload,
   SessionRecapResponse,
   SessionUsagePayload,
@@ -84,7 +85,13 @@ export {
 
 // Query infrastructure
 export { formatMessageTimestamp, formatMessageTimestampFull } from "./lib/format-timestamp";
+export { getSessionDisplayTitle, UNTITLED_SESSION_TITLE } from "./lib/session-display-title";
 export { sessionKeys } from "./lib/query-keys";
+export {
+  createSessionReturnHistoryState,
+  sessionReturnWorkspaceIdFromState,
+  type SessionReturnNavigationState,
+} from "./lib/session-return-navigation";
 export {
   sessionByIdOptions,
   sessionDetailOptions,
@@ -124,6 +131,19 @@ export {
   useSessionUsage,
   useSessions,
 } from "./hooks/use-sessions";
+export {
+  useWorkspaceSessionActivity,
+  workspaceSessionActivityFromResults,
+  type WorkspaceSessionActivity,
+  type WorkspaceSessionActivityMap,
+  type WorkspaceSessionReturnTarget,
+} from "./hooks/use-workspace-session-activity";
+export {
+  sessionCatalogStreamURL,
+  useSessionCatalogStreams,
+  type SessionCatalogEventSource,
+  type SessionCatalogEventSourceFactory,
+} from "./hooks/use-session-catalog-streams";
 export {
   useSessionTranscriptThreadMessages,
   useSessionTranscriptThreadState,

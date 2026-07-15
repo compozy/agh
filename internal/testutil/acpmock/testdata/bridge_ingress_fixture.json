@@ -11,7 +11,6 @@
                     "name": "initial-bridge-summary",
                     "match": {
                         "turn_source": "network",
-                        "occurrence": 1,
                         "user_text": "Need a runtime bridge summary",
                         "network": {
                             "message_id": "321",
@@ -59,7 +58,6 @@
                     "name": "edited-bridge-summary",
                     "match": {
                         "turn_source": "network",
-                        "occurrence": 2,
                         "network": {
                             "message_id": "321",
                             "kind": "edit",
@@ -77,7 +75,6 @@
                     "name": "reply-bridge-summary",
                     "match": {
                         "turn_source": "network",
-                        "occurrence": 3,
                         "network": {
                             "message_id": "322",
                             "kind": "message",

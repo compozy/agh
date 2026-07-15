@@ -664,10 +664,9 @@ describe("SessionThread transcript states", () => {
     expect(screen.getByText("Stopped before the summary.")).toBeInTheDocument();
   });
 
-  it("Should reveal copy + timestamp only on the settled terminal assistant message, never while streaming", async () => {
-    // Copy is offered on a settled turn with a text answer; a streaming turn and
-    // the user prompts are checked in the same thread so the terminal-only,
-    // hidden-while-streaming, and focus-within-reveal contracts are proven together.
+  it("Should expose Goal only on settled successful assistant text while preserving copy", async () => {
+    // Copy remains available for non-streaming partial/error output, but Goal prefill
+    // requires an independently settled successful assistant response.
     const transcript = [
       {
         id: "user-first",
@@ -704,6 +703,68 @@ describe("SessionThread transcript states", () => {
           },
         ] as unknown as SessionMessage["parts"],
       } as SessionMessage,
+      {
+        id: "assistant-incomplete",
+        role: "assistant",
+        status: { type: "incomplete", reason: "error", error: "provider stopped" },
+        parts: [
+          {
+            type: "text",
+            text: "Incomplete answer that remains copyable.",
+            state: "done",
+            turn_id: "turn-incomplete",
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as unknown as SessionMessage,
+      {
+        id: "assistant-persisted-failure",
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: "Persisted partial answer before failure.",
+            state: "done",
+            turn_id: "turn-persisted-failure",
+          },
+          {
+            type: "data-agh-event",
+            data: {
+              type: "error",
+              failure: { kind: "process_exit", summary: "provider exited" },
+            },
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+      {
+        id: "turn-9546159e1f16b3f2",
+        role: "assistant",
+        parts: [
+          {
+            type: "data-agh-event",
+            data: { type: "system", title: "AGH Runtime Agent" },
+          },
+          {
+            type: "text",
+            text: "\n\nError: RetriableError: Connection stalled",
+            state: "done",
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+      {
+        id: "assistant-runtime-success",
+        role: "assistant",
+        parts: [
+          {
+            type: "data-agh-event",
+            data: { type: "system", title: "AGH Runtime Agent" },
+          },
+          {
+            type: "text",
+            text: "Runtime check completed successfully.",
+            state: "done",
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
     ];
 
     renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
@@ -711,14 +772,25 @@ describe("SessionThread transcript states", () => {
     expect(
       await screen.findByText("The launch note is ready and the checks are green.")
     ).toBeInTheDocument();
-    // Exactly one assistant toolbar — the settled turn; the streaming turn renders none.
+    // The settled, incomplete, and persisted-failure text remain copyable. The
+    // streaming turn renders no toolbar, and only the two successful turns expose Goal.
     const assistantToolbars = screen.getAllByTestId("assistant-message-actions");
-    expect(assistantToolbars).toHaveLength(1);
-    const toolbar = assistantToolbars[0]!;
-    expect(within(toolbar).getByTestId("assistant-message-actions-copy")).toBeInTheDocument();
-    expect(within(toolbar).getByTestId("assistant-message-actions-timestamp")).toBeInTheDocument();
-    // Keyboard focus reveals the row without a hover (focus-within a11y contract).
-    expect(toolbar.className).toContain("focus-within:opacity-100");
+    expect(assistantToolbars).toHaveLength(5);
+    expect(screen.getAllByRole("button", { name: "Use as Goal" })).toHaveLength(2);
+    expect(screen.getAllByTestId("assistant-message-actions-copy")).toHaveLength(5);
+    const successfulToolbar = assistantToolbars[0]!;
+    expect(
+      within(successfulToolbar).getByRole("button", { name: "Use as Goal" })
+    ).toBeInTheDocument();
+    expect(
+      within(successfulToolbar).getByTestId("assistant-message-actions-timestamp")
+    ).toBeInTheDocument();
+    expect(within(assistantToolbars[1]!).queryByRole("button", { name: "Use as Goal" })).toBeNull();
+    expect(within(assistantToolbars[2]!).queryByRole("button", { name: "Use as Goal" })).toBeNull();
+    expect(within(assistantToolbars[3]!).queryByRole("button", { name: "Use as Goal" })).toBeNull();
+    expect(
+      within(assistantToolbars[4]!).getByRole("button", { name: "Use as Goal" })
+    ).toBeInTheDocument();
     // Both user prompts expose the copy affordance.
     expect(screen.getAllByTestId("user-message-actions")).toHaveLength(2);
   });

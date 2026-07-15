@@ -113,13 +113,14 @@ type CoordinatorCompletion struct {
 
 // CoordinatorCompletionResult records the durable state written by coordinator finalization.
 type CoordinatorCompletionResult struct {
-	Run          Run             `json:"run"`
-	EnqueuedRuns []Run           `json:"enqueued_runs,omitempty"`
-	LoopRunID    string          `json:"loop_run_id,omitempty"`
-	Context      json.RawMessage `json:"context,omitempty"`
-	Paused       bool            `json:"paused,omitempty"`
-	Terminal     bool            `json:"terminal,omitempty"`
-	TokensUsed   int64           `json:"tokens_used,omitempty"`
+	Run          Run                     `json:"run"`
+	EnqueuedRuns []Run                   `json:"enqueued_runs,omitempty"`
+	LoopRunID    string                  `json:"loop_run_id,omitempty"`
+	Context      json.RawMessage         `json:"context,omitempty"`
+	Paused       bool                    `json:"paused,omitempty"`
+	Terminal     bool                    `json:"terminal,omitempty"`
+	TokensUsed   int64                   `json:"tokens_used,omitempty"`
+	Settlement   *CompletedRunSettlement `json:"-"`
 }
 
 // Normalize returns a validated coordinator completion request with default time applied.

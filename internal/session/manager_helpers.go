@@ -78,6 +78,7 @@ func (m *Manager) activateAndWatch(
 	ctx context.Context,
 	session *Session,
 	proc *AgentProcess,
+	adoptCurrentModel bool,
 	resolved aghconfig.ResolvedAgent,
 	networkCapabilities []NetworkPeerCapability,
 	postEvent hookspkg.HookEvent,
@@ -90,7 +91,7 @@ func (m *Manager) activateAndWatch(
 	if err := m.activate(session); err != nil {
 		return err
 	}
-	session.updateFromProcess(proc, now)
+	session.updateFromProcess(proc, now, adoptCurrentModel)
 	if err := m.persistSessionLifecycleState(ctx, session, true); err != nil {
 		rollbackErr := m.rollbackActivation(session, proc, now)
 		return errors.Join(err, rollbackErr)

@@ -6,11 +6,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMswFetch } from "@/test/msw-fetch";
 import { LoopRunForm } from "../run-form/loop-run-form";
 import { handlers } from "../../mocks";
-import { loopDetailByName } from "../../mocks/fixtures";
+import { loopDetailByName, loopEffectiveConfigFixture } from "../../mocks/fixtures";
+import type { LoopEffectiveConfig } from "../../types";
 
 const WS = "ws_default";
 const loop = loopDetailByName.get("software-delivery")!;
 const watchLoop = loopDetailByName.get("reviews-watch")!;
+const savedConfig: Partial<LoopEffectiveConfig> = {
+  iteration_cap: 3,
+  budget_on_exceeded: "escalate",
+  no_progress_window: 2,
+  fan_out_width: 4,
+  gate_max_revisions: 2,
+  reattempt_strategy: "full_body",
+  human_gate_enabled: true,
+};
 
 function stubFetch() {
   const mswFetch = createMswFetch(() => handlers);
@@ -21,14 +31,35 @@ function stubFetch() {
 
 let fetchMock: ReturnType<typeof stubFetch>;
 
-function renderForm(onRunStarted = vi.fn(), selectedLoop = loop) {
+function renderForm(
+  onRunStarted = vi.fn(),
+  selectedLoop = loop,
+  config: Partial<LoopEffectiveConfig> | null = null
+) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client: queryClient }, children);
-  render(<LoopRunForm workspaceId={WS} loop={selectedLoop} onRunStarted={onRunStarted} />, {
-    wrapper,
-  });
+  render(
+    <LoopRunForm
+      workspaceId={WS}
+      loop={selectedLoop}
+      effectiveConfig={{ ...loopEffectiveConfigFixture, ...config }}
+      onRunStarted={onRunStarted}
+    />,
+    { wrapper }
+  );
   return { onRunStarted };
+}
+
+async function runRequestBody(): Promise<Record<string, unknown>> {
+  const call = fetchMock.mock.calls.find(([input]) => {
+    const url = input instanceof Request ? input.url : String(input);
+    return url.includes(`/api/workspaces/${WS}/loops/software-delivery/run`);
+  });
+  if (!call) throw new Error("run request was not issued");
+  const [input, init] = call;
+  const request = input instanceof Request ? input.clone() : new Request(input, init);
+  return request.json() as Promise<Record<string, unknown>>;
 }
 
 describe("LoopRunForm", () => {
@@ -105,5 +136,55 @@ describe("LoopRunForm", () => {
       return url.includes(`/api/workspaces/${WS}/loops/software-delivery/run`);
     });
     expect(runRequests).toHaveLength(1);
+  });
+
+  it("Should preview saved Loop defaults and keep an untouched run override-free", async () => {
+    renderForm(vi.fn(), loop, savedConfig);
+
+    expect(screen.getByTestId("loop-run-preview")).toHaveTextContent("3 generations");
+    expect(screen.getByTestId("loop-run-preview")).toHaveTextContent("full-body re-attempt");
+    fireEvent.click(screen.getByRole("button", { name: /Advanced/ }));
+    expect(screen.getByTestId("loop-run-override-input-iteration_cap")).toHaveAttribute(
+      "placeholder",
+      "3"
+    );
+    expect(screen.getByTestId("loop-run-override-policy")).toHaveValue("escalate");
+    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent("using loop defaults");
+
+    fireEvent.change(screen.getByTestId("loop-run-field-input-goal"), {
+      target: { value: "ship it" },
+    });
+    fireEvent.click(screen.getByTestId("loop-run-submit-button"));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await expect(runRequestBody()).resolves.toMatchObject({ config_overrides: null });
+  });
+
+  it("Should preview an explicit per-run cap without changing the saved Loop baseline", async () => {
+    renderForm(vi.fn(), loop, savedConfig);
+    const preview = screen.getByTestId("loop-run-preview");
+
+    expect(preview).toHaveTextContent("3 generations");
+    fireEvent.click(screen.getByRole("button", { name: /Advanced/ }));
+    const capInput = screen.getByTestId("loop-run-override-input-iteration_cap");
+    expect(capInput).toHaveAttribute("placeholder", "3");
+
+    fireEvent.change(capInput, { target: { value: "4" } });
+    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent("overrides set");
+    expect(preview).toHaveTextContent("4 generations");
+    expect(capInput).toHaveAttribute("placeholder", "3");
+
+    fireEvent.change(capInput, { target: { value: "" } });
+    expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent("using loop defaults");
+    expect(preview).toHaveTextContent("3 generations");
+
+    fireEvent.change(capInput, { target: { value: "4" } });
+    fireEvent.change(screen.getByTestId("loop-run-field-input-goal"), {
+      target: { value: "ship it" },
+    });
+    fireEvent.click(screen.getByTestId("loop-run-submit-button"));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    await expect(runRequestBody()).resolves.toMatchObject({
+      config_overrides: { iteration_cap: 4 },
+    });
   });
 });

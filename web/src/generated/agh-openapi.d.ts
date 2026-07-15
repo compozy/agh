@@ -2399,6 +2399,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/sessions/catalog-stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream session catalog changes across workspaces */
+    get: operations["streamSessionCatalog"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions/{session_id}": {
     parameters: {
       query?: never;
@@ -4939,6 +4956,33 @@ export interface components {
         } & {
           [key: string]: unknown;
         })[];
+        events?: {
+          filter?: string;
+          /** @enum {string} */
+          kind:
+            | "task.status_changed"
+            | "task.blocked"
+            | "task.unblocked"
+            | "task.needs_attention"
+            | "task.recovered"
+            | "task.run.completed"
+            | "task.run.failed"
+            | "loop.terminal"
+            | "loop.node.terminal"
+            | "automation.run.completed"
+            | "automation.run.failed"
+            | "network.message.persisted"
+            | "network.thread.opened"
+            | "network.direct_room.opened"
+            | "network.work.opened"
+            | "network.work.transitioned"
+            | "network.work.closed"
+            | "coordinator.spawned"
+            | "coordinator.decision"
+            | "coordinator.stopped"
+            | "coordinator.failed"
+            | "event.post_record";
+        }[];
         filter?: string;
         harvest?: {
           [key: string]: unknown;
@@ -36054,6 +36098,8 @@ export interface operations {
         include_health?: boolean;
         /** @description Filter by exact session state */
         state?: "starting" | "active" | "stopping" | "stopped";
+        /** @description Filter by exact session type */
+        type?: "user" | "system" | "coordinator" | "spawned";
         /** @description Filter by exact agent definition name */
         agent?: string;
         /** @description Search session id, name, agent, provider, or channel */
@@ -36635,6 +36681,80 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  streamSessionCatalog: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Workspace-identified session catalog event stream */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": {
+            kind: string;
+            session_id: string;
+            workspace_id: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session catalog stream is unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -64474,6 +64594,33 @@ export interface operations {
                   } & {
                     [key: string]: unknown;
                   })[];
+                  events?: {
+                    filter?: string;
+                    /** @enum {string} */
+                    kind:
+                      | "task.status_changed"
+                      | "task.blocked"
+                      | "task.unblocked"
+                      | "task.needs_attention"
+                      | "task.recovered"
+                      | "task.run.completed"
+                      | "task.run.failed"
+                      | "loop.terminal"
+                      | "loop.node.terminal"
+                      | "automation.run.completed"
+                      | "automation.run.failed"
+                      | "network.message.persisted"
+                      | "network.thread.opened"
+                      | "network.direct_room.opened"
+                      | "network.work.opened"
+                      | "network.work.transitioned"
+                      | "network.work.closed"
+                      | "coordinator.spawned"
+                      | "coordinator.decision"
+                      | "coordinator.stopped"
+                      | "coordinator.failed"
+                      | "event.post_record";
+                  }[];
                   filter?: string;
                   harvest?: {
                     [key: string]: unknown;
@@ -66378,6 +66525,33 @@ export interface operations {
                 } & {
                   [key: string]: unknown;
                 })[];
+                events?: {
+                  filter?: string;
+                  /** @enum {string} */
+                  kind:
+                    | "task.status_changed"
+                    | "task.blocked"
+                    | "task.unblocked"
+                    | "task.needs_attention"
+                    | "task.recovered"
+                    | "task.run.completed"
+                    | "task.run.failed"
+                    | "loop.terminal"
+                    | "loop.node.terminal"
+                    | "automation.run.completed"
+                    | "automation.run.failed"
+                    | "network.message.persisted"
+                    | "network.thread.opened"
+                    | "network.direct_room.opened"
+                    | "network.work.opened"
+                    | "network.work.transitioned"
+                    | "network.work.closed"
+                    | "coordinator.spawned"
+                    | "coordinator.decision"
+                    | "coordinator.stopped"
+                    | "coordinator.failed"
+                    | "event.post_record";
+                }[];
                 filter?: string;
                 harvest?: {
                   [key: string]: unknown;
@@ -66538,6 +66712,33 @@ export interface operations {
                     } & {
                       [key: string]: unknown;
                     })[];
+                    events?: {
+                      filter?: string;
+                      /** @enum {string} */
+                      kind:
+                        | "task.status_changed"
+                        | "task.blocked"
+                        | "task.unblocked"
+                        | "task.needs_attention"
+                        | "task.recovered"
+                        | "task.run.completed"
+                        | "task.run.failed"
+                        | "loop.terminal"
+                        | "loop.node.terminal"
+                        | "automation.run.completed"
+                        | "automation.run.failed"
+                        | "network.message.persisted"
+                        | "network.thread.opened"
+                        | "network.direct_room.opened"
+                        | "network.work.opened"
+                        | "network.work.transitioned"
+                        | "network.work.closed"
+                        | "coordinator.spawned"
+                        | "coordinator.decision"
+                        | "coordinator.stopped"
+                        | "coordinator.failed"
+                        | "event.post_record";
+                    }[];
                     filter?: string;
                     harvest?: {
                       [key: string]: unknown;
@@ -66861,6 +67062,33 @@ export interface operations {
                     } & {
                       [key: string]: unknown;
                     })[];
+                    events?: {
+                      filter?: string;
+                      /** @enum {string} */
+                      kind:
+                        | "task.status_changed"
+                        | "task.blocked"
+                        | "task.unblocked"
+                        | "task.needs_attention"
+                        | "task.recovered"
+                        | "task.run.completed"
+                        | "task.run.failed"
+                        | "loop.terminal"
+                        | "loop.node.terminal"
+                        | "automation.run.completed"
+                        | "automation.run.failed"
+                        | "network.message.persisted"
+                        | "network.thread.opened"
+                        | "network.direct_room.opened"
+                        | "network.work.opened"
+                        | "network.work.transitioned"
+                        | "network.work.closed"
+                        | "coordinator.spawned"
+                        | "coordinator.decision"
+                        | "coordinator.stopped"
+                        | "coordinator.failed"
+                        | "event.post_record";
+                    }[];
                     filter?: string;
                     harvest?: {
                       [key: string]: unknown;
@@ -67278,6 +67506,33 @@ export interface operations {
                 } & {
                   [key: string]: unknown;
                 })[];
+                events?: {
+                  filter?: string;
+                  /** @enum {string} */
+                  kind:
+                    | "task.status_changed"
+                    | "task.blocked"
+                    | "task.unblocked"
+                    | "task.needs_attention"
+                    | "task.recovered"
+                    | "task.run.completed"
+                    | "task.run.failed"
+                    | "loop.terminal"
+                    | "loop.node.terminal"
+                    | "automation.run.completed"
+                    | "automation.run.failed"
+                    | "network.message.persisted"
+                    | "network.thread.opened"
+                    | "network.direct_room.opened"
+                    | "network.work.opened"
+                    | "network.work.transitioned"
+                    | "network.work.closed"
+                    | "coordinator.spawned"
+                    | "coordinator.decision"
+                    | "coordinator.stopped"
+                    | "coordinator.failed"
+                    | "event.post_record";
+                }[];
                 filter?: string;
                 harvest?: {
                   [key: string]: unknown;
@@ -67438,6 +67693,33 @@ export interface operations {
                     } & {
                       [key: string]: unknown;
                     })[];
+                    events?: {
+                      filter?: string;
+                      /** @enum {string} */
+                      kind:
+                        | "task.status_changed"
+                        | "task.blocked"
+                        | "task.unblocked"
+                        | "task.needs_attention"
+                        | "task.recovered"
+                        | "task.run.completed"
+                        | "task.run.failed"
+                        | "loop.terminal"
+                        | "loop.node.terminal"
+                        | "automation.run.completed"
+                        | "automation.run.failed"
+                        | "network.message.persisted"
+                        | "network.thread.opened"
+                        | "network.direct_room.opened"
+                        | "network.work.opened"
+                        | "network.work.transitioned"
+                        | "network.work.closed"
+                        | "coordinator.spawned"
+                        | "coordinator.decision"
+                        | "coordinator.stopped"
+                        | "coordinator.failed"
+                        | "event.post_record";
+                    }[];
                     filter?: string;
                     harvest?: {
                       [key: string]: unknown;
@@ -67940,6 +68222,24 @@ export interface operations {
               /** @enum {string|null} */
               reattempt_strategy?: "failed_only" | "full_body" | null;
             } | null;
+            effective_config: {
+              /** @enum {string} */
+              budget_on_exceeded: "halt" | "escalate";
+              budget_tokens: number;
+              budget_wall_sec: number;
+              enabled_checks_json: unknown;
+              fan_out_width: number;
+              gate_max_revisions: number;
+              human_gate_enabled: boolean;
+              iteration_cap: number;
+              model_defaults: {
+                judge: string;
+                worker: string;
+              };
+              no_progress_window: number;
+              /** @enum {string} */
+              reattempt_strategy: "failed_only" | "full_body";
+            };
           };
         };
       };
@@ -68108,6 +68408,24 @@ export interface operations {
               /** @enum {string|null} */
               reattempt_strategy?: "failed_only" | "full_body" | null;
             } | null;
+            effective_config: {
+              /** @enum {string} */
+              budget_on_exceeded: "halt" | "escalate";
+              budget_tokens: number;
+              budget_wall_sec: number;
+              enabled_checks_json: unknown;
+              fan_out_width: number;
+              gate_max_revisions: number;
+              human_gate_enabled: boolean;
+              iteration_cap: number;
+              model_defaults: {
+                judge: string;
+                worker: string;
+              };
+              no_progress_window: number;
+              /** @enum {string} */
+              reattempt_strategy: "failed_only" | "full_body";
+            };
           };
         };
       };
@@ -68760,6 +69078,33 @@ export interface operations {
                 } & {
                   [key: string]: unknown;
                 })[];
+                events?: {
+                  filter?: string;
+                  /** @enum {string} */
+                  kind:
+                    | "task.status_changed"
+                    | "task.blocked"
+                    | "task.unblocked"
+                    | "task.needs_attention"
+                    | "task.recovered"
+                    | "task.run.completed"
+                    | "task.run.failed"
+                    | "loop.terminal"
+                    | "loop.node.terminal"
+                    | "automation.run.completed"
+                    | "automation.run.failed"
+                    | "network.message.persisted"
+                    | "network.thread.opened"
+                    | "network.direct_room.opened"
+                    | "network.work.opened"
+                    | "network.work.transitioned"
+                    | "network.work.closed"
+                    | "coordinator.spawned"
+                    | "coordinator.decision"
+                    | "coordinator.stopped"
+                    | "coordinator.failed"
+                    | "event.post_record";
+                }[];
                 filter?: string;
                 harvest?: {
                   [key: string]: unknown;
@@ -74658,8 +75003,10 @@ export interface operations {
       content: {
         "application/json": {
           message?: string;
+          messageId?: string;
           messages?: {
             content?: string;
+            id?: string;
             parts?: {
               text?: string;
               type?: string;

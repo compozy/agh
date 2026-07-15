@@ -2,12 +2,18 @@
  * Pure derivation of the trigger live-preview view-model from the form draft.
  *
  * Everything the right-hand preview pane shows — the plain-language summary, the
- * sample-event JSON with matched filter keys, the rendered prompt, the match
- * badge, and the webhook endpoint/curl — is computed here from `draft` alone.
+ * sample-event JSON with matched filter keys, the selected target, displayed
+ * request, match badge, and webhook endpoint/curl — is computed from `draft`.
  * No React, no side effects: the orchestrator wraps a single call in `useMemo`.
  */
 
 import type { CreateAutomationTriggerRequest } from "../types";
+import {
+  projectAutomationTriggerRequest,
+  type AutomationEditorMode,
+  type AutomationRequestProjection,
+} from "./automation-requests";
+import { projectAutomationTarget, type AutomationTargetProjection } from "./automation-target";
 import {
   ENVELOPE_KEYS,
   availableDataFields,
@@ -34,6 +40,8 @@ export interface WorkspaceOption {
 }
 
 export interface TriggerPreviewContext {
+  mode?: AutomationEditorMode;
+  targetIssue?: string | null;
   workspaces?: ReadonlyArray<WorkspaceOption>;
 }
 
@@ -78,6 +86,9 @@ export interface TriggerPreviewModel {
   rendered: RenderToken[];
   templateTokens: TemplateToken[];
   reliabilityBadge: string;
+  request: AutomationRequestProjection<CreateAutomationTriggerRequest>;
+  target: AutomationTargetProjection;
+  targetIssue: string | null;
   webhook: WebhookPreview | null;
 }
 
@@ -208,9 +219,15 @@ function buildSummary(
     });
   }
 
+  const target = projectAutomationTarget(draft);
   segments.push({ tone: "plain", text: ", " });
-  segments.push({ tone: "weak", text: "run " });
-  segments.push({ tone: "accent", text: draft.agent_name.trim() || "an agent" });
+  if (target.kind === "loop") {
+    segments.push({ tone: "weak", text: "start Loop " });
+    segments.push({ tone: "accent", text: target.loopName || "not selected" });
+  } else {
+    segments.push({ tone: "weak", text: "run " });
+    segments.push({ tone: "accent", text: target.agentName.trim() || "an agent" });
+  }
   segments.push({ tone: "plain", text: "." });
   return segments;
 }
@@ -269,10 +286,13 @@ export function buildTriggerPreview(
   context: TriggerPreviewContext = {}
 ): TriggerPreviewModel {
   const workspaces = context.workspaces ?? [];
-  const selection = parseEventSelection(draft.event);
+  const request = projectAutomationTriggerRequest(draft, context.mode ?? "create");
+  const normalizedDraft = request.payload;
+  const target = projectAutomationTarget(normalizedDraft);
+  const selection = parseEventSelection(normalizedDraft.event);
   const def = getEventDef(selection.catalogId);
-  const env = buildEnvelope(draft, def, selection);
-  const filter = getFilter(draft);
+  const env = buildEnvelope(normalizedDraft, def, selection);
+  const filter = getFilter(normalizedDraft);
   const filteredKeys = new Set(Object.keys(filter).filter(key => key.trim() !== ""));
   const active = activeFilterEntries(filter);
 
@@ -289,17 +309,20 @@ export function buildTriggerPreview(
     matchLabel = "won't fire on this sample";
   }
 
-  const url = def?.family === "webhook" ? webhookUrl(draft) : null;
+  const url = def?.family === "webhook" ? webhookUrl(normalizedDraft) : null;
 
   return {
-    eventKind: formatEventKind(selection, draft.event),
-    summary: buildSummary(draft, def, selection, workspaces),
+    eventKind: formatEventKind(selection, normalizedDraft.event),
+    summary: buildSummary(normalizedDraft, def, selection, workspaces),
     json: buildJsonRows(env, filteredKeys),
     matchState,
     matchLabel,
-    rendered: renderTemplate(draft.prompt ?? "", env),
-    templateTokens: tokenizeTemplate(draft.prompt ?? ""),
-    reliabilityBadge: buildReliabilityBadge(draft),
+    rendered: renderTemplate(normalizedDraft.prompt ?? "", env),
+    templateTokens: tokenizeTemplate(normalizedDraft.prompt ?? ""),
+    reliabilityBadge: buildReliabilityBadge(normalizedDraft),
+    request,
+    target,
+    targetIssue: context.targetIssue ?? null,
     webhook: url ? { url, curl: buildWebhookCurl(url) } : null,
   };
 }

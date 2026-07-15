@@ -21,6 +21,7 @@ import (
 	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/compozy/agh/internal/sandbox"
 	skillspkg "github.com/compozy/agh/internal/skills"
 	"github.com/compozy/agh/internal/store"
@@ -82,11 +83,13 @@ func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
 	if meta := readMeta(t, session.MetaPath()); meta.Channel != "" {
 		t.Fatalf("meta channel = %q, want empty", meta.Channel)
 	}
-	if got := len(h.resolver.resolveCalls); got != 1 {
-		t.Fatalf("resolver Resolve() calls = %d, want 1", got)
+	if got := len(h.resolver.resolveCalls); got != 2 {
+		t.Fatalf("resolver Resolve() calls = %d, want 2", got)
 	}
-	if got := h.resolver.resolveCalls[0]; got != h.workspaceID {
-		t.Fatalf("resolver Resolve() arg = %q, want %q", got, h.workspaceID)
+	for index, got := range h.resolver.resolveCalls {
+		if got != h.workspaceID {
+			t.Fatalf("resolver Resolve() call %d arg = %q, want %q", index, got, h.workspaceID)
+		}
 	}
 	if got := len(h.resolver.resolveOrRegisterCalls); got != 0 {
 		t.Fatalf("resolver ResolveOrRegister() calls = %d, want 0", got)
@@ -95,6 +98,170 @@ func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
 
 func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 	t.Parallel()
+
+	const cursorModel = "grok-4.5[effort=high,fast=true]"
+	canonicalCursorCatalog := modelCatalogFunc(func(
+		_ context.Context,
+		_ modelcatalog.ListOptions,
+	) ([]modelcatalog.Model, error) {
+		return []modelcatalog.Model{{ProviderID: "cursor", ModelID: cursorModel}}, nil
+	})
+
+	t.Run("Should reject an explicit model alias before driver or storage startup", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t, WithModelCatalog(canonicalCursorCatalog))
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Provider:  "cursor",
+			Model:     "cursor-grok-4.5-high",
+			Workspace: h.workspaceID,
+		})
+		if !errors.Is(err, ErrInvalidRuntimeOverride) {
+			t.Fatalf("Create() error = %v, want ErrInvalidRuntimeOverride", err)
+		}
+		if got := len(h.driver.startCalls); got != 0 {
+			t.Fatalf("driver start calls = %d, want 0", got)
+		}
+		entries, readErr := os.ReadDir(h.homePaths.SessionsDir)
+		if readErr != nil {
+			t.Fatalf("ReadDir(sessions) error = %v", readErr)
+		}
+		if len(entries) != 0 {
+			t.Fatalf("session storage entries = %d, want 0", len(entries))
+		}
+	})
+
+	t.Run("Should recommend only available explicit models", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := modelCatalogFunc(func(
+			_ context.Context,
+			_ modelcatalog.ListOptions,
+		) ([]modelcatalog.Model, error) {
+			return []modelcatalog.Model{
+				{ProviderID: "cursor", ModelID: "available-model", Available: new(true)},
+				{ProviderID: "cursor", ModelID: "unavailable-model", Available: new(false)},
+			}, nil
+		})
+		h := newHarness(t, WithModelCatalog(catalog))
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Provider:  "cursor",
+			Model:     "missing-model",
+			Workspace: h.workspaceID,
+		})
+		if !errors.Is(err, ErrInvalidRuntimeOverride) {
+			t.Fatalf("Create() error = %v, want ErrInvalidRuntimeOverride", err)
+		}
+		if !strings.Contains(err.Error(), "choose one of: available-model") {
+			t.Fatalf("Create() error = %v, want available-model recommendation", err)
+		}
+		if strings.Contains(err.Error(), "unavailable-model") {
+			t.Fatalf("Create() error = %v, want unavailable model omitted", err)
+		}
+	})
+
+	t.Run("Should report when a provider has no available explicit models", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := modelCatalogFunc(func(
+			_ context.Context,
+			_ modelcatalog.ListOptions,
+		) ([]modelcatalog.Model, error) {
+			return []modelcatalog.Model{
+				{ProviderID: "cursor", ModelID: "unavailable-model", Available: new(false)},
+			}, nil
+		})
+		h := newHarness(t, WithModelCatalog(catalog))
+		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Provider:  "cursor",
+			Model:     "unavailable-model",
+			Workspace: h.workspaceID,
+		})
+		if !errors.Is(err, ErrInvalidRuntimeOverride) {
+			t.Fatalf("Create() error = %v, want ErrInvalidRuntimeOverride", err)
+		}
+		if !strings.Contains(err.Error(), "has no available explicit models") {
+			t.Fatalf("Create() error = %v, want no available explicit models", err)
+		}
+	})
+
+	t.Run("Should accept and persist the exact catalog descriptor", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t, WithModelCatalog(canonicalCursorCatalog))
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Provider:  "cursor",
+			Model:     cursorModel,
+			Workspace: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if stopErr := h.manager.Stop(testutil.Context(t), session.ID); stopErr != nil {
+				t.Errorf("Stop() error = %v", stopErr)
+			}
+		})
+		if got := h.driver.startCalls[0].PreferredModel; got != cursorModel {
+			t.Fatalf("StartOpts.PreferredModel = %q, want %q", got, cursorModel)
+		}
+		if got := readMeta(t, session.MetaPath()).Model; got != cursorModel {
+			t.Fatalf("meta.Model = %q, want %q", got, cursorModel)
+		}
+	})
+
+	t.Run("Should preserve native default startup and persist the provider current model", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		resolvedWorkspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		for index := range resolvedWorkspace.Agents {
+			if resolvedWorkspace.Agents[index].Name == "coder" {
+				resolvedWorkspace.Agents[index].Provider = "cursor"
+				resolvedWorkspace.Agents[index].Model = "cursor-grok-4.5-high"
+			}
+		}
+		h.resolver.upsert(&resolvedWorkspace)
+		h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+			if opts.PreferredModel != "" {
+				t.Fatalf("StartOpts.PreferredModel = %q, want provider-native default", opts.PreferredModel)
+			}
+			proc := newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-cursor-native")
+			proc.handle.Caps.ConfigOptions = []acp.SessionConfigOption{{
+				ID:      "model",
+				Kind:    acp.SessionConfigOptionKindSelect,
+				Current: cursorModel,
+				Values:  []acp.SessionConfigOptionValue{{Value: cursorModel}},
+			}}
+			return proc, nil
+		}
+
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if stopErr := h.manager.Stop(testutil.Context(t), session.ID); stopErr != nil {
+				t.Errorf("Stop() error = %v", stopErr)
+			}
+		})
+		if got := session.Info().Model; got != cursorModel {
+			t.Fatalf("session.Info().Model = %q, want %q", got, cursorModel)
+		}
+		if got := readMeta(t, session.MetaPath()).Model; got != cursorModel {
+			t.Fatalf("meta.Model = %q, want %q", got, cursorModel)
+		}
+	})
 
 	t.Run("Should resolve the session with the explicit model override", func(t *testing.T) {
 		t.Parallel()
@@ -294,8 +461,11 @@ func TestCreateWithWorkspacePathUsesResolveOrRegister(t *testing.T) {
 		_ = h.manager.Stop(testutil.Context(t), session.ID)
 	})
 
-	if got := len(h.resolver.resolveCalls); got != 0 {
-		t.Fatalf("resolver Resolve() calls = %d, want 0", got)
+	if got := len(h.resolver.resolveCalls); got != 1 {
+		t.Fatalf("resolver Resolve() calls = %d, want 1", got)
+	}
+	if got, want := h.resolver.resolveCalls[0], session.Info().WorkspaceID; got != want {
+		t.Fatalf("resolver Resolve() arg = %q, want %q", got, want)
 	}
 	if got := len(h.resolver.resolveOrRegisterCalls); got != 1 {
 		t.Fatalf("resolver ResolveOrRegister() calls = %d, want 1", got)
@@ -940,8 +1110,8 @@ func TestActivateAndWatchUpdatesStateAndStartsWatcher(t *testing.T) {
 		recorder:    recorder,
 	}
 
-	if err := h.manager.reserve(session.ID); err != nil {
-		t.Fatalf("reserve() error = %v", err)
+	if err := h.manager.reserveStart(testutil.Context(t), session.ID, h.workspaceID); err != nil {
+		t.Fatalf("reserveStart() error = %v", err)
 	}
 
 	proc, err := h.driver.Start(testutil.Context(t), acp.StartOpts{
@@ -952,11 +1122,11 @@ func TestActivateAndWatchUpdatesStateAndStartsWatcher(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
-
 	if err := h.manager.activateAndWatch(
 		testutil.Context(t),
 		session,
 		proc,
+		false,
 		aghconfig.ResolvedAgent{Name: "coder"},
 		[]NetworkPeerCapability{},
 		hookspkg.HookSessionPostCreate,
@@ -1051,11 +1221,15 @@ func TestActivateAndWatchRollsBackOnMetaWriteFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
+	if err := h.manager.reserveStart(testutil.Context(t), session.ID, session.WorkspaceID); err != nil {
+		t.Fatalf("reserveStart() error = %v", err)
+	}
 
 	if err := h.manager.activateAndWatch(
 		testutil.Context(t),
 		session,
 		proc,
+		false,
 		aghconfig.ResolvedAgent{Name: "coder"},
 		[]NetworkPeerCapability{},
 		hookspkg.HookSessionPostCreate,
@@ -1848,6 +2022,135 @@ func TestPromptPersistsUserMessageBeforeDriverPrompt(t *testing.T) {
 	if !strings.Contains(storedBeforePrompt[0].Content, `"text":"remember me"`) {
 		t.Fatalf("stored user_message content = %s", storedBeforePrompt[0].Content)
 	}
+}
+
+func TestPromptOwnsAutomaticUserSessionIdentity(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist the first user task as the durable session title", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := newRecordingSessionCatalog()
+		h := newHarness(t, WithSessionCatalog(catalog))
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+			Type:      SessionTypeUser,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if stopErr := h.manager.Stop(testutil.Context(t), session.ID); stopErr != nil &&
+				!errors.Is(stopErr, ErrSessionNotFound) {
+				t.Errorf("Stop() error = %v", stopErr)
+			}
+		})
+		catalogEvents, cancelCatalogEvents, err := h.manager.SubscribeSessionCatalogEvents(
+			testutil.Context(t),
+		)
+		if err != nil {
+			t.Fatalf("SubscribeSessionCatalogEvents() error = %v", err)
+		}
+		defer cancelCatalogEvents()
+
+		events, err := h.manager.Prompt(
+			testutil.Context(t),
+			session.ID,
+			"Fix checkout webhook retries",
+		)
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		_ = collectEvents(t, events)
+
+		const wantTitle = "Fix checkout webhook retries"
+		if got := session.Info().Name; got != wantTitle {
+			t.Fatalf("session title = %q, want %q", got, wantTitle)
+		}
+		if got := readMeta(t, session.MetaPath()).Name; got != wantTitle {
+			t.Fatalf("persisted session title = %q, want %q", got, wantTitle)
+		}
+		catalogSessions, err := catalog.ListSessions(testutil.Context(t), store.SessionListQuery{
+			WorkspaceID: h.workspaceID,
+			SessionType: string(SessionTypeUser),
+		})
+		if err != nil {
+			t.Fatalf("ListSessions() error = %v", err)
+		}
+		if len(catalogSessions) != 1 || catalogSessions[0].Name != wantTitle {
+			t.Fatalf("catalog sessions = %#v, want one session titled %q", catalogSessions, wantTitle)
+		}
+		select {
+		case event := <-catalogEvents:
+			if event.Kind != CatalogEventUpserted || event.WorkspaceID != h.workspaceID ||
+				event.SessionID != session.ID {
+				t.Fatalf("catalog title event = %#v, want workspace-scoped upsert", event)
+			}
+		default:
+			t.Fatal("catalog title event was not published")
+		}
+
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		if got := resumed.Info().Name; got != wantTitle {
+			t.Fatalf("resumed session title = %q, want %q", got, wantTitle)
+		}
+	})
+
+	t.Run("Should preserve explicit and internal session identities", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name        string
+			sessionName string
+			sessionType Type
+		}{
+			{
+				name:        "Should preserve an explicit user title",
+				sessionName: "Release review",
+				sessionType: SessionTypeUser,
+			},
+			{name: "Should leave a system session unnamed", sessionType: SessionTypeSystem},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				h := newHarness(t)
+				session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+					AgentName: "coder",
+					Name:      test.sessionName,
+					Workspace: h.workspaceID,
+					Type:      test.sessionType,
+				})
+				if err != nil {
+					t.Fatalf("Create() error = %v", err)
+				}
+				t.Cleanup(func() {
+					if stopErr := h.manager.Stop(testutil.Context(t), session.ID); stopErr != nil &&
+						!errors.Is(stopErr, ErrSessionNotFound) {
+						t.Errorf("Stop() error = %v", stopErr)
+					}
+				})
+
+				events, err := h.manager.Prompt(testutil.Context(t), session.ID, "Ignore internal bookkeeping")
+				if err != nil {
+					t.Fatalf("Prompt() error = %v", err)
+				}
+				_ = collectEvents(t, events)
+
+				if got := session.Info().Name; got != test.sessionName {
+					t.Fatalf("session title = %q, want preserved %q", got, test.sessionName)
+				}
+			})
+		}
+	})
 }
 
 func TestPromptRejectsConcurrentUserPromptWithoutPersistingSecondInput(t *testing.T) {
@@ -3396,6 +3699,47 @@ func TestCreateInjectsOnlyHostedMCPServerWhenLauncherConfigured(t *testing.T) {
 	}
 }
 
+func TestCreateOmitsMCPServersForVerdictOnlyRuntime(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should withhold hosted MCP capabilities from verdict-only sessions", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		hosted := &recordingHostedMCPLauncher{
+			server: aghconfig.MCPServer{
+				Name:      "agh-hosted-tools",
+				Transport: aghconfig.MCPServerTransportStdio,
+				Command:   "/bin/agh",
+			},
+		}
+		h.manager = newManagerWithHarness(t, h, WithHostedMCPLauncher(hosted))
+
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName:   "coder",
+			Name:        "verdict-only",
+			Workspace:   h.workspaceID,
+			RuntimeMode: RuntimeModeVerdictOnly,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil &&
+				!errors.Is(err, ErrSessionNotFound) {
+				t.Errorf("Stop(%q) error = %v", session.ID, err)
+			}
+		})
+
+		if got := h.driver.startCalls[0].MCPServers; len(got) != 0 {
+			t.Fatalf("start MCPServers = %#v, want none for verdict-only runtime", got)
+		}
+		if got := hosted.launchRequests(); len(got) != 0 {
+			t.Fatalf("hosted launch requests = %#v, want none for verdict-only runtime", got)
+		}
+	})
+}
+
 func TestCreateSkipsHostedMCPWhenProviderDisablesSessionMCP(t *testing.T) {
 	t.Parallel()
 
@@ -4016,6 +4360,15 @@ type harness struct {
 	workspace     string
 	workspaceID   string
 	workspaceName string
+}
+
+type modelCatalogFunc func(context.Context, modelcatalog.ListOptions) ([]modelcatalog.Model, error)
+
+func (f modelCatalogFunc) ListModels(
+	ctx context.Context,
+	opts modelcatalog.ListOptions,
+) ([]modelcatalog.Model, error) {
+	return f(ctx, opts)
 }
 
 func newHarness(t *testing.T, extraOpts ...Option) *harness {

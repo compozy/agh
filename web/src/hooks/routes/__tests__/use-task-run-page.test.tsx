@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -15,9 +15,15 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   getTaskDashboard: vi.fn(),
   getTaskInbox: vi.fn(),
   listTaskRunReviews: vi.fn(),
+  recoverTaskRun: vi.fn(),
 }));
 
-import { getTask, getTaskRun, listTaskRunReviews } from "@/systems/tasks/adapters/tasks-api";
+import {
+  getTask,
+  getTaskRun,
+  listTaskRunReviews,
+  recoverTaskRun,
+} from "@/systems/tasks/adapters/tasks-api";
 
 import { useTaskRunPage } from "../use-task-run-page";
 
@@ -101,6 +107,29 @@ describe("useTaskRunPage", () => {
     await waitFor(() => {
       expect(result.current.isLive).toBe(true);
     });
+  });
+
+  it("recovers the current needs_attention run by run id exactly once", async () => {
+    vi.mocked(getTaskRun).mockResolvedValue({
+      ...runDetailFixture,
+      run: { ...runDetailFixture.run, status: "needs_attention" },
+    } as never);
+    vi.mocked(recoverTaskRun).mockResolvedValue({
+      previous_run: { id: "run_001", status: "canceled" },
+      run: { id: "run_002", status: "queued" },
+    } as never);
+
+    const { result } = renderHook(() => useTaskRunPage("task_001", "run_001"), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.run?.run.status).toBe("needs_attention"));
+    await act(async () => {
+      await result.current.handleRecoverRun();
+    });
+
+    expect(recoverTaskRun).toHaveBeenCalledTimes(1);
+    expect(recoverTaskRun).toHaveBeenCalledWith("run_001", {});
   });
 
   it("exposes a handleCancelRun action", async () => {

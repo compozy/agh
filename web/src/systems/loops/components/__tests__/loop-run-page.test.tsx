@@ -116,6 +116,48 @@ describe("LoopGenerationTimeline", () => {
     expect(cards[0]).toHaveAttribute("data-verdict", "revise");
     expect(cards[0]).toHaveTextContent("issue_022");
   });
+
+  it("Should render an action failure cause and recovery from the durable output", () => {
+    const failedTimeline = buildRunTimeline(
+      [
+        {
+          generation: 1,
+          outputs: [
+            {
+              node_id: "load_tasks",
+              status: "failed",
+              output_ref: JSON.stringify({
+                kind: "action_failure",
+                code: "tool_invalid_input",
+                cause: "No task set matched .compozy/tasks/helix-v1-launch/task_*.md.",
+                recovery:
+                  "Create the matching task set or correct the Loop input, then retry the run.",
+              }),
+            },
+          ],
+        },
+      ],
+      definition
+    );
+
+    render(
+      <LoopGenerationTimeline
+        generations={failedTimeline}
+        gateVerdicts={{}}
+        channelMessages={[]}
+        isLive={false}
+      />
+    );
+
+    expect(
+      screen.getByText("No task set matched .compozy/tasks/helix-v1-launch/task_*.md.")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Create the matching task set or correct the Loop input, then retry the run."
+      )
+    ).toBeInTheDocument();
+  });
 });
 
 describe("LoopGenerationCard summary", () => {

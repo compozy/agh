@@ -267,4 +267,87 @@ describe("LoopEditor", () => {
     await waitFor(() => expect(screen.getByTestId("loop-editor-version")).toHaveTextContent("v5"));
     expect(screen.queryByTestId("loop-editor-dirty-chip")).not.toBeInTheDocument();
   });
+
+  it("Should publish contract edits including an intentionally cleared goal with CAS", async () => {
+    let patchBody: {
+      definition?: { contract?: { goal?: string; definition_of_done?: string } };
+      expected_version?: number | null;
+    } | null = null;
+    const capture = http.patch("/api/workspaces/:workspaceId/loops/:name", async ({ request }) => {
+      patchBody = (await request.json()) as typeof patchBody;
+      return HttpResponse.json({ loop: deliveryDetail });
+    });
+    renderEditor("software-delivery", [capture]);
+
+    await screen.findByTestId("loop-editor");
+    fireEvent.change(screen.getByRole("textbox", { name: "Goal (optional)" }), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Definition of done" }), {
+      target: { value: "The release evidence is recorded." },
+    });
+    expect(screen.getByTestId("loop-editor-dirty-chip")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("loop-editor-publish"));
+
+    await waitFor(() => expect(patchBody).not.toBeNull());
+    expect(patchBody).toEqual(
+      expect.objectContaining({
+        expected_version: 4,
+        definition: expect.objectContaining({
+          contract: expect.objectContaining({
+            goal: "",
+            definition_of_done: "The release evidence is recorded.",
+          }),
+        }),
+      })
+    );
+  });
+
+  it("Should publish the first edit of a version-zero workspace Loop with explicit CAS", async () => {
+    let patchBody: {
+      definition?: { meta?: { version?: number } };
+      expected_version?: number | null;
+    } | null = null;
+    const versionZeroDetail: LoopDetail = {
+      ...deliveryDetail,
+      version: 0,
+      definition: {
+        ...deliveryDetail.definition,
+        meta: { ...deliveryDetail.definition.meta, version: undefined },
+      },
+    };
+    const loadFork = http.get("/api/workspaces/:workspaceId/loops/:name", () =>
+      HttpResponse.json({ loop: versionZeroDetail })
+    );
+    const publish = http.patch("/api/workspaces/:workspaceId/loops/:name", async ({ request }) => {
+      patchBody = (await request.json()) as typeof patchBody;
+      return HttpResponse.json({
+        loop: {
+          ...versionZeroDetail,
+          version: 1,
+          definition: {
+            ...versionZeroDetail.definition,
+            meta: { ...versionZeroDetail.definition.meta, version: 1 },
+          },
+        },
+      });
+    });
+    const { onPublished } = renderEditor("software-delivery", [loadFork, publish]);
+
+    await screen.findByTestId("loop-editor");
+    await waitFor(() => expect(screen.getByTestId("loop-editor-version")).toHaveTextContent("v0"));
+    fireEvent.click(screen.getByTestId("loop-palette-item-collect"));
+    fireEvent.click(screen.getByTestId("loop-editor-publish"));
+
+    await waitFor(() => expect(onPublished).toHaveBeenCalledTimes(1));
+    expect(patchBody).toEqual(
+      expect.objectContaining({
+        expected_version: 0,
+        definition: expect.objectContaining({
+          meta: expect.objectContaining({ version: 0 }),
+        }),
+      })
+    );
+    expect(onPublished.mock.calls[0][0].version).toBe(1);
+  });
 });

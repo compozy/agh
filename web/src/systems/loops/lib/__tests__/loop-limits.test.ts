@@ -1,14 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import type { LoopContract } from "../../types";
+import { loopEffectiveConfigFixture } from "../../mocks/fixtures";
 import { buildLoopLimits, formatTokenBudget, formatWallClock } from "../loop-limits";
 
-const baseContract: LoopContract = {
-  goal: "g",
-  definition_of_done: "d",
+const baseEffectiveConfig = {
+  ...loopEffectiveConfigFixture,
   iteration_cap: 50,
-  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
-  no_progress: { window: 3, hash_fields: [] },
+  budget_tokens: 0,
+  budget_wall_sec: 0,
+  budget_on_exceeded: "halt" as const,
+  no_progress_window: 3,
 };
 
 describe("loop-limits", () => {
@@ -27,21 +28,21 @@ describe("loop-limits", () => {
   });
 
   it("Should pair each per-loop default with its hard daemon ceiling", () => {
-    const rows = buildLoopLimits(baseContract);
+    const rows = buildLoopLimits(baseEffectiveConfig);
     const byLabel = new Map(rows.map(row => [row.label, row]));
     expect(byLabel.get("Iteration cap")).toMatchObject({ value: "50", ceiling: "/ 100" });
     expect(byLabel.get("Token budget")).toMatchObject({ value: "off", ceiling: "/ 20M" });
     expect(byLabel.get("Wall clock")).toMatchObject({ value: "off", ceiling: "/ 7d" });
     expect(byLabel.get("On exceeded")).toMatchObject({ value: "halt", ceiling: "→ exhausted" });
     expect(byLabel.get("Cost (USD)")).toMatchObject({ value: "—", ceiling: "display-only" });
-    expect(byLabel.get("Fan-out breadth")).toMatchObject({ value: "≤ tasks", ceiling: "/ 64" });
+    expect(byLabel.get("Fan-out breadth")).toMatchObject({ value: "4", ceiling: "/ 64" });
   });
 
   it("Should render the unbounded glyph for watch loops and escalate targets", () => {
     const rows = buildLoopLimits({
-      ...baseContract,
+      ...baseEffectiveConfig,
       iteration_cap: 0,
-      budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "escalate" },
+      budget_on_exceeded: "escalate" as const,
     });
     const byLabel = new Map(rows.map(row => [row.label, row]));
     expect(byLabel.get("Iteration cap")?.value).toBe("∞");
@@ -49,5 +50,23 @@ describe("loop-limits", () => {
       value: "escalate",
       ceiling: "→ needs-approval",
     });
+  });
+
+  it("Should render saved per-Loop limits instead of authored defaults", () => {
+    const rows = buildLoopLimits({
+      ...baseEffectiveConfig,
+      iteration_cap: 3,
+      budget_on_exceeded: "escalate" as const,
+      no_progress_window: 2,
+      fan_out_width: 4,
+      gate_max_revisions: 2,
+    });
+    const byLabel = new Map(rows.map(row => [row.label, row]));
+
+    expect(byLabel.get("Iteration cap")?.value).toBe("3");
+    expect(byLabel.get("No-progress window")?.value).toBe("2");
+    expect(byLabel.get("Fan-out breadth")?.value).toBe("4");
+    expect(byLabel.get("Gate max revisions")?.value).toBe("2");
+    expect(byLabel.get("On exceeded")?.value).toBe("escalate");
   });
 });

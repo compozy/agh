@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/agh/internal/loop/dsl"
 	"github.com/compozy/agh/internal/resources"
 	"github.com/compozy/agh/internal/testutil"
+	toolspkg "github.com/compozy/agh/internal/tools"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
@@ -209,6 +210,157 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 		_, err = service.CreateLoop(ctx, "ws-create", contract.CreateLoopRequest{Definition: &def})
 		if !errors.Is(err, looppkg.ErrDefinitionExists) {
 			t.Fatalf("CreateLoop(duplicate) error = %v, want ErrDefinitionExists", err)
+		}
+	})
+
+	t.Run("Should fork a file-backed extension Loop into the workspace", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newLoopAPIForkFixture(t)
+
+		response, err := fixture.service.CreateLoop(fixture.ctx, fixture.workspaceID, contract.CreateLoopRequest{
+			ForkFromName: "software-delivery",
+		})
+		if err != nil {
+			t.Fatalf("CreateLoop(fork extension) error = %v", err)
+		}
+		if got, want := response.Loop.Source, contract.LoopSourceWorkspace; got != want {
+			t.Fatalf("CreateLoop(fork extension) source = %q, want %q", got, want)
+		}
+		if _, _, err := looppkg.ParseResourceFile(fixture.forkPath, looppkg.ResourceParseOptions{
+			Source: looppkg.SourceWorkspace,
+			Linter: newLoopLinterWithSchemaSource(newLoopToolSchemaSource(fixture.ctx, fixture.registry)),
+		}); err != nil {
+			t.Fatalf("ParseResourceFile(fork) error = %v", err)
+		}
+		if fixture.sourcePath == fixture.forkPath {
+			t.Fatalf("fork path = source path %q, want a workspace-owned copy", fixture.forkPath)
+		}
+
+		definition := response.Loop.Definition
+		definition.Meta.Version = response.Loop.Version
+		definition.Meta.Description = "first workspace edit"
+		_, err = fixture.service.PatchLoop(
+			fixture.ctx,
+			fixture.workspaceID,
+			response.Loop.Name,
+			contract.PatchLoopRequest{Definition: definition},
+		)
+		if !errors.Is(err, looppkg.ErrValidation) || !strings.Contains(err.Error(), "expected_version is required") {
+			t.Fatalf("PatchLoop(fork without CAS) error = %v, want required expected_version validation", err)
+		}
+
+		expectedVersion := 0
+		published, err := fixture.service.PatchLoop(
+			fixture.ctx,
+			fixture.workspaceID,
+			response.Loop.Name,
+			contract.PatchLoopRequest{
+				ExpectedVersion: &expectedVersion,
+				Definition:      definition,
+			},
+		)
+		if err != nil {
+			t.Fatalf("PatchLoop(fork version zero) error = %v", err)
+		}
+		if got, want := published.Loop.Version, 1; got != want {
+			t.Fatalf("PatchLoop(fork version zero) version = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should remove the workspace fork after post-copy failures", func(t *testing.T) {
+		t.Parallel()
+
+		syncErr := errors.New("sync fork resources")
+		tests := []struct {
+			name      string
+			configure func(*loopAPIForkFixture)
+			matches   func(error) bool
+		}{
+			{
+				name: "Should roll back after resource sync fails",
+				configure: func(fixture *loopAPIForkFixture) {
+					requestCtx, cancel := context.WithCancel(fixture.ctx)
+					fixture.ctx = requestCtx
+					firstSync := true
+					fixture.service.publisher = &loopAPITestPublisher{syncFn: func(ctx context.Context) error {
+						if firstSync {
+							firstSync = false
+							cancel()
+							return syncErr
+						}
+						return ctx.Err()
+					}}
+				},
+				matches: func(err error) bool { return errors.Is(err, syncErr) },
+			},
+			{
+				name: "Should roll back after response projection fails",
+				configure: func(fixture *loopAPIForkFixture) {
+					fixture.service.publisher = &loopAPITestPublisher{syncFn: func(context.Context) error {
+						if _, err := os.Stat(fixture.forkPath); errors.Is(err, os.ErrNotExist) {
+							removeLoopAPIFixtureWorkspaceRecord(fixture)
+							return nil
+						} else if err != nil {
+							return fmt.Errorf("inspect copied fork: %w", err)
+						}
+						if _, _, err := fixture.service.refreshCatalogLoopRecordFromFile(
+							fixture.ctx,
+							fixture.forkPath,
+							looppkg.WorkspaceID(fixture.workspaceID),
+							"software-delivery",
+						); err != nil {
+							return fmt.Errorf("project copied fork: %w", err)
+						}
+						data, err := os.ReadFile(fixture.forkPath)
+						if err != nil {
+							return fmt.Errorf("read copied fork: %w", err)
+						}
+						data = []byte(strings.Replace(string(data), "name: software-delivery", "name: other", 1))
+						if err := os.WriteFile(fixture.forkPath, data, 0o600); err != nil {
+							return fmt.Errorf("corrupt copied fork: %w", err)
+						}
+						return nil
+					}}
+				},
+				matches: func(err error) bool { return errors.Is(err, looppkg.ErrValidation) },
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				fixture := newLoopAPIForkFixture(t)
+				tt.configure(&fixture)
+				_, err := fixture.service.CreateLoop(
+					fixture.ctx,
+					fixture.workspaceID,
+					contract.CreateLoopRequest{ForkFromName: "software-delivery"},
+				)
+				if !tt.matches(err) {
+					t.Fatalf("CreateLoop(fork failure) error = %v, want injected post-copy failure", err)
+				}
+				if _, statErr := os.Stat(filepath.Dir(fixture.forkPath)); !errors.Is(statErr, os.ErrNotExist) {
+					t.Fatalf("Stat(fork directory) error = %v, want os.ErrNotExist", statErr)
+				}
+				publisher, ok := fixture.service.publisher.(*loopAPITestPublisher)
+				if !ok {
+					t.Fatalf("publisher type = %T, want *loopAPITestPublisher", fixture.service.publisher)
+				}
+				if got, want := publisher.calls, 2; got != want {
+					t.Fatalf("publisher.Sync() calls = %d, want %d after cleanup reconciliation", got, want)
+				}
+				resolved := looppkg.ResolveEffectiveResources(
+					fixture.service.catalog.Snapshot(),
+					fixture.workspaceID,
+				)
+				if got, want := len(resolved), 1; got != want {
+					t.Fatalf("len(resolved loops after rollback) = %d, want %d", got, want)
+				}
+				if got, want := resolved[0].Spec.Source, looppkg.SourceMarketplace; got != want {
+					t.Fatalf("resolved source after rollback = %q, want %q", got, want)
+				}
+			})
 		}
 	})
 
@@ -452,7 +604,8 @@ graph:
 }
 
 type loopAPITestPublisher struct {
-	calls int
+	calls  int
+	syncFn func(context.Context) error
 }
 
 func (p *loopAPITestPublisher) Sync(ctx context.Context) error {
@@ -460,7 +613,124 @@ func (p *loopAPITestPublisher) Sync(ctx context.Context) error {
 		return fmt.Errorf("loop api test publisher: %w", err)
 	}
 	p.calls++
+	if p.syncFn != nil {
+		return p.syncFn(ctx)
+	}
 	return nil
+}
+
+type loopAPIForkFixture struct {
+	ctx         context.Context
+	service     *daemonLoopAPIService
+	workspaceID string
+	registry    toolspkg.Registry
+	sourcePath  string
+	forkPath    string
+}
+
+func newLoopAPIForkFixture(t *testing.T) loopAPIForkFixture {
+	t.Helper()
+
+	ctx := testutil.Context(t)
+	db := openDaemonTestGlobalDB(t)
+	homePaths := testHomePaths(t)
+	workspaceID := "ws-fork-extension"
+	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+	if err := os.MkdirAll(workspaceRoot, 0o755); err != nil {
+		t.Fatalf("MkdirAll(workspaceRoot) error = %v", err)
+	}
+	now := time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)
+	if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+		ID:        workspaceID,
+		Name:      "workspace-fork-extension",
+		RootDir:   workspaceRoot,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("InsertWorkspace() error = %v", err)
+	}
+	resolver, err := workspacepkg.NewResolver(
+		db,
+		workspacepkg.WithHomePaths(homePaths),
+		workspacepkg.WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("workspace.NewResolver() error = %v", err)
+	}
+	descriptor := loopToolSchemaDescriptor(t)
+	registry := loopToolSchemaRegistry{views: map[toolspkg.ToolID]toolspkg.ToolView{
+		descriptor.ID: {Descriptor: descriptor},
+	}}
+	definition := strings.Replace(
+		testLoopYAML("software-delivery", "extension source"),
+		"version: 1",
+		"version: 0",
+		1,
+	)
+	definition = strings.Replace(
+		definition,
+		"kind: transform",
+		"kind: "+descriptor.ID.String(),
+		1,
+	)
+	sourceSpec, sourcePath, err := looppkg.WriteDefinition(
+		t.TempDir(),
+		[]byte(definition),
+		looppkg.WriteDefinitionOptions{
+			Source: looppkg.SourceMarketplace,
+			Linter: newLoopLinterWithSchemaSource(newLoopToolSchemaSource(ctx, registry)),
+		},
+	)
+	if err != nil {
+		t.Fatalf("WriteDefinition(source) error = %v", err)
+	}
+	catalog := newResourceCatalog(looppkg.CloneResourceSpec)
+	catalog.Replace(1, []resources.Record[looppkg.ResourceSpec]{
+		{
+			ID:      "loop:extension:software-delivery",
+			Version: 1,
+			Scope:   resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Spec:    sourceSpec,
+		},
+	})
+	return loopAPIForkFixture{
+		ctx:         ctx,
+		workspaceID: workspaceID,
+		registry:    registry,
+		sourcePath:  sourcePath,
+		forkPath: filepath.Join(
+			workspaceRoot,
+			aghconfig.DirName,
+			aghconfig.LoopsDirName,
+			"software-delivery",
+			looppkg.DefinitionFileName,
+		),
+		service: &daemonLoopAPIService{
+			catalog:           catalog,
+			publisher:         &loopAPITestPublisher{},
+			toolRegistry:      registry,
+			workspaceResolver: resolver,
+			now:               func() time.Time { return now },
+		},
+	}
+}
+
+func removeLoopAPIFixtureWorkspaceRecord(fixture *loopAPIForkFixture) {
+	fixture.service.catalog.Update(func(
+		records []resources.Record[looppkg.ResourceSpec],
+	) []resources.Record[looppkg.ResourceSpec] {
+		filtered := make([]resources.Record[looppkg.ResourceSpec], 0, len(records))
+		for _, record := range records {
+			scope := record.Scope.Normalize()
+			if scope.Kind == resources.ResourceScopeKindWorkspace &&
+				scope.ID == fixture.workspaceID &&
+				record.Spec.Name == "software-delivery" {
+				continue
+			}
+			filtered = append(filtered, record)
+		}
+		return filtered
+	})
 }
 
 func loopAPITestDefinition(t *testing.T, name string, version int, description string) dsl.Definition {

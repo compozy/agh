@@ -41,11 +41,15 @@ The discovery loop and denial-handling rules live in the preceding tools-and-ski
 
 Session tools: `agh__session_list`, `agh__session_status`, `agh__session_history`, `agh__session_events`, `agh__session_describe`, `agh__session_health`.
 
+`agh__session_list` returns one counted catalog page and accepts workspace, exact state, exact session `type`, exact agent, search, resumability, health, sort, cursor, and limit inputs. Use `type: "user"` when a workflow needs operator-created sessions without daemon-managed dream, system, coordinator, or spawned sessions.
+
 Authored context tools: `agh__agent_heartbeat_status`, `agh__agent_heartbeat_wake`.
 
 Workspace tools: `agh__workspace_list`, `agh__workspace_info`, `agh__workspace_describe`, `agh__agent_create`. `agh__agent_create` authors one public `AGENT.md` at `global` or `workspace` scope; provide `scope`, `name`, `provider`, `prompt`, and `workspace` for workspace scope. Reserved internal names such as `onboarding` are rejected.
 
 Fresh daemon boot registers the operator `$HOME` as the default workspace through the resolver, so `agh__workspace_list` should return at least that workspace on a clean install.
+
+A successful workspace catalog read reconciles registered roots before returning: entries whose directories no longer exist are durably unregistered, while other filesystem or deletion failures fail the read instead of hiding uncertain state. `agh__workspace_list`, `agh workspace list`, and HTTP/UDS `GET /api/workspaces` share this catalog.
 
 The managed `onboarding` agent is internal to first-run setup and is not granted the full workspace or coordination toolsets. It receives only `agh__workspace_list`, `agh__workspace_describe`, `agh__network_channels`, `agh__network_channel_create`, and `agh__agent_create`.
 

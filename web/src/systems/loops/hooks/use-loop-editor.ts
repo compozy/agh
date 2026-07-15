@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useReducer, useRef, type SetStateAction } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import {
   addEdge,
   applyEdgeChanges,
@@ -18,29 +18,30 @@ import {
   graphToDefinition,
   type EditorEdge,
   type EditorNode,
-  type RawLoopNode,
 } from "../lib/codec";
 import { buildDslView, type DslLine } from "../lib/loop-dsl";
-import { isNodeIdPath, renameNodeId, setNodeField } from "../lib/loop-editor-draft";
 import {
-  applyLintToNodes,
-  buildLintState,
-  emptyLintState,
-  type LoopLintState,
-} from "../lib/loop-editor-lint";
+  editorDefinitionFromLoop,
+  withLoopContractField,
+  type EditableLoopContractField,
+} from "../lib/loop-editor-definition";
+import { isNodeIdPath, renameNodeId, setNodeField } from "../lib/loop-editor-draft";
+import { applyLintToNodes, buildLintState, type LoopLintState } from "../lib/loop-editor-lint";
 import { layoutEditorGraph } from "../lib/loop-editor-layout";
 import { buildNodeFields, type FieldPath, type FieldSpec } from "../lib/loop-node-schema";
-import { uniqueNodeId, type PaletteItem } from "../lib/loop-palette";
+import type { PaletteItem } from "../lib/loop-palette";
 import type { LoopDefinition, LoopDetail } from "../types";
+import { useLoopEditorState, type LoopEditorView } from "./use-loop-editor-state";
 
 const AUTO_VALIDATE_DEBOUNCE_MS = 400;
 
 export type LoopEditorStatus = "no-workspace" | "loading" | "error" | "ready";
-export type LoopEditorView = "graph" | "dsl";
+export type { LoopEditorView } from "./use-loop-editor-state";
 
 export interface UseLoopEditorResult {
   status: LoopEditorStatus;
   loop: LoopDetail | undefined;
+  definition: LoopDefinition | undefined;
   errorMessage: string | undefined;
   version: number | undefined;
   nodes: EditorNode[];
@@ -65,62 +66,12 @@ export interface UseLoopEditorResult {
   selectNode: (id: string | null) => void;
   revealNode: (id: string) => void;
   changeField: (path: FieldPath, value: unknown) => void;
+  changeContract: (field: EditableLoopContractField, value: string) => void;
   addNode: (item: PaletteItem) => void;
   autoLayout: () => void;
   validate: () => Promise<void>;
   publish: () => Promise<LoopDetail | null>;
   savePositions: () => Promise<void>;
-}
-
-function nodeKind(raw: RawLoopNode): string {
-  return typeof raw.kind === "string" ? raw.kind : "";
-}
-
-function nextDropPosition(nodes: readonly EditorNode[]): { x: number; y: number } {
-  if (nodes.length === 0) return { x: 40, y: 40 };
-  const rightmost = nodes.reduce((max, node) => (node.position.x > max.position.x ? node : max));
-  return { x: rightmost.position.x + 200, y: rightmost.position.y };
-}
-
-interface LoopEditorState {
-  baseDefinition: LoopDefinition | null;
-  edges: EditorEdge[];
-  isDirty: boolean;
-  lint: LoopLintState;
-  nodes: EditorNode[];
-  positionsDirty: boolean;
-  publishError: string | null;
-  selectedNodeId: string | null;
-  selectionSeq: number;
-  validateFailed: boolean;
-  view: LoopEditorView;
-}
-
-interface LoopEditorStateAction {
-  update: (current: LoopEditorState) => LoopEditorState;
-}
-
-function createLoopEditorState(): LoopEditorState {
-  return {
-    baseDefinition: null,
-    edges: [],
-    isDirty: false,
-    lint: emptyLintState(),
-    nodes: [],
-    positionsDirty: false,
-    publishError: null,
-    selectedNodeId: null,
-    selectionSeq: 0,
-    validateFailed: false,
-    view: "graph",
-  };
-}
-
-function updateLoopEditorState(
-  current: LoopEditorState,
-  action: LoopEditorStateAction
-): LoopEditorState {
-  return action.update(current);
 }
 
 /**
@@ -138,14 +89,11 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
   const patchMutation = usePatchLoop();
   const annotationsMutation = usePutLoopAnnotations();
 
-  const [editorState, dispatchEditorState] = useReducer(
-    updateLoopEditorState,
-    undefined,
-    createLoopEditorState
-  );
   const {
+    addNode,
     baseDefinition,
     edges,
+    initialize,
     isDirty,
     lint,
     nodes,
@@ -155,38 +103,18 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
     selectionSeq,
     validateFailed,
     view,
-  } = editorState;
-  const setEditorField = <Field extends keyof LoopEditorState>(
-    field: Field,
-    value: SetStateAction<LoopEditorState[Field]>
-  ) => {
-    dispatchEditorState({
-      update: current => {
-        const currentValue = current[field];
-        const nextValue =
-          typeof value === "function"
-            ? (value as (previous: LoopEditorState[Field]) => LoopEditorState[Field])(currentValue)
-            : value;
-        return { ...current, [field]: nextValue };
-      },
-    });
-  };
-  const setBaseDefinition = (value: SetStateAction<LoopDefinition | null>) =>
-    setEditorField("baseDefinition", value);
-  const setEdges = (value: SetStateAction<EditorEdge[]>) => setEditorField("edges", value);
-  const setDirty = (value: SetStateAction<boolean>) => setEditorField("isDirty", value);
-  const setLint = (value: SetStateAction<LoopLintState>) => setEditorField("lint", value);
-  const setNodes = (value: SetStateAction<EditorNode[]>) => setEditorField("nodes", value);
-  const setPositionsDirty = (value: SetStateAction<boolean>) =>
-    setEditorField("positionsDirty", value);
-  const setPublishError = (value: SetStateAction<string | null>) =>
-    setEditorField("publishError", value);
-  const setSelectedNodeId = (value: SetStateAction<string | null>) =>
-    setEditorField("selectedNodeId", value);
-  const setSelectionSeq = (value: SetStateAction<number>) => setEditorField("selectionSeq", value);
-  const setValidateFailed = (value: SetStateAction<boolean>) =>
-    setEditorField("validateFailed", value);
-  const setView = (value: SetStateAction<LoopEditorView>) => setEditorField("view", value);
+    setBaseDefinition,
+    setDirty,
+    setEdges,
+    setLint,
+    setNodes,
+    setPositionsDirty,
+    setPublishError,
+    setSelectedNodeId,
+    setSelectionSeq,
+    setValidateFailed,
+    setView,
+  } = useLoopEditorState();
 
   const initedKeyRef = useRef<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -197,23 +125,23 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
   // Seed the editable draft once the definition + settled sidecar arrive. This syncs
   // server state into local editor state (a legit external-system → draft sync).
   useEffect(() => {
-    const definition = loopQuery.data?.definition;
-    if (!definition || annotationsQuery.isLoading) return;
+    const loop = loopQuery.data;
+    if (!loop || annotationsQuery.isLoading) return;
+    const definition = editorDefinitionFromLoop(loop);
     const key = `${workspaceId}:${name}`;
     if (initedKeyRef.current === key) return;
     initedKeyRef.current = key;
     const graph = definitionToGraph(definition);
     const laid = layoutEditorGraph(graph.nodes, graph.edges, annotationsQuery.data ?? []);
-    dispatchEditorState({
-      update: () => ({
-        ...createLoopEditorState(),
-        baseDefinition: definition,
-        edges: graph.edges,
-        nodes: laid,
-        selectedNodeId: laid[0]?.id ?? null,
-      }),
-    });
-  }, [loopQuery.data, annotationsQuery.data, annotationsQuery.isLoading, workspaceId, name]);
+    initialize(definition, graph.edges, laid);
+  }, [
+    loopQuery.data,
+    annotationsQuery.data,
+    annotationsQuery.isLoading,
+    workspaceId,
+    name,
+    initialize,
+  ]);
 
   // Positions are cosmetic (auto-layout is the fallback), but a broken sidecar should be
   // observable, not silently swallowed. Surface it once per error, non-blocking.
@@ -260,6 +188,7 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
   // the render-local validation function identity.
   const runAutoValidation = useEffectEvent(() => runValidation());
   const structuralKey = JSON.stringify({
+    c: baseDefinition?.contract,
     n: nodes.map(node => node.data.raw),
     e: edges.map(edge => edge.data?.raw),
   });
@@ -335,27 +264,12 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
     setDirty(true);
   };
 
-  const addNode = (item: PaletteItem) => {
-    dispatchEditorState({
-      update: current => {
-        const existing = new Set(current.nodes.map(node => node.id));
-        const id = uniqueNodeId(item.idBase, existing);
-        const raw = item.buildRaw(id);
-        const node: EditorNode = {
-          id,
-          type: "loopNode",
-          position: nextDropPosition(current.nodes),
-          data: { raw, nodeClass: item.nodeClass, kind: nodeKind(raw), hasError: false },
-        };
-        return {
-          ...current,
-          isDirty: true,
-          nodes: [...current.nodes, node],
-          selectedNodeId: id,
-          selectionSeq: current.selectionSeq + 1,
-        };
-      },
-    });
+  const changeContract = (field: EditableLoopContractField, value: string) => {
+    setPublishError(null);
+    setBaseDefinition(current =>
+      current ? withLoopContractField(current, field, value) : current
+    );
+    setDirty(true);
   };
 
   const publish = async (): Promise<LoopDetail | null> => {
@@ -378,7 +292,7 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
         name,
         data: { definition, expected_version: base.meta.version ?? null },
       });
-      setBaseDefinition(updated.definition);
+      setBaseDefinition(editorDefinitionFromLoop(updated));
       setDirty(false);
       // A successful publish means the daemon accepted the definition — a validated-clean
       // state, not the pre-validation neutral state.
@@ -454,6 +368,7 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
   return {
     status,
     loop: loopQuery.data,
+    definition: baseDefinition ?? loopQuery.data?.definition,
     errorMessage: loopQuery.error?.message,
     version: baseDefinition?.meta.version ?? loopQuery.data?.version,
     nodes,
@@ -480,6 +395,7 @@ export function useLoopEditor(workspaceId: string, name: string): UseLoopEditorR
     selectNode,
     revealNode,
     changeField,
+    changeContract,
     addNode,
     autoLayout,
     validate: () => runValidation({ notify: true }),

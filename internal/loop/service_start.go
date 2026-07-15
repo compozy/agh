@@ -115,11 +115,7 @@ func (s *service) ReplaceInline(
 	if err != nil {
 		return InlineReplaceResult{}, err
 	}
-	if s.goalLeaseRevoker != nil {
-		for _, lease := range committed.RevokedPromptLeases {
-			s.goalLeaseRevoker.RevokeGoalPromptLease(lease, string(TransitionCauseGoalReplace))
-		}
-	}
+	s.revokeGoalPromptLeases(ctx, committed.RevokedPromptLeases, TransitionCauseGoalReplace)
 	s.dispatchCoordinatorTerminal(ctx, committed.ReplacedRun, TransitionCauseGoalReplace, replacedAt)
 	s.dispatchLoopStarted(ctx, committed.Run, actor)
 	created := committed.Run

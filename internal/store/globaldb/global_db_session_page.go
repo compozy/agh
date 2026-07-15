@@ -127,6 +127,7 @@ func sessionCatalogPageFilters(
 	where, args := store.BuildClauses(
 		store.StringClause("workspace_id", query.WorkspaceID),
 		store.StringClause("state", query.State),
+		store.StringClause(sessionCatalogSessionTypeColumn, query.SessionType),
 		store.StringClause("agent_name", query.AgentName),
 	)
 	if search := strings.ToLower(strings.TrimSpace(query.Search)); search != "" {

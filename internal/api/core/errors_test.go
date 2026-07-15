@@ -179,6 +179,9 @@ func TestAutomationAndNetworkErrorHelpers(t *testing.T) {
 	if got := StatusForAutomationError(looppkg.ErrValidation); got != http.StatusUnprocessableEntity {
 		t.Fatalf("StatusForAutomationError(loop validation) = %d, want %d", got, http.StatusUnprocessableEntity)
 	}
+	if got := StatusForAutomationError(looppkg.ErrDefinitionNotFound); got != http.StatusNotFound {
+		t.Fatalf("StatusForAutomationError(loop not found) = %d, want %d", got, http.StatusNotFound)
+	}
 
 	tests := []struct {
 		name string

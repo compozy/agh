@@ -5,7 +5,12 @@ import { StorySurface } from "@/storybook/story-layout";
 import { LoopDetailView } from "../detail/loop-detail";
 import type { LoopBindingRow } from "../../lib/loop-bindings";
 import { readLoopGraph } from "../../lib/loop-graph";
-import { loopCatalogFixtures, loopDetailByName, loopRunFixtures } from "../../mocks/fixtures";
+import {
+  loopCatalogFixtures,
+  loopDetailByName,
+  loopEffectiveConfigFixture,
+  loopRunFixtures,
+} from "../../mocks/fixtures";
 
 const meta: Meta<typeof LoopDetailView> = {
   title: "systems/loops/components/LoopDetail",
@@ -19,6 +24,15 @@ type Story = StoryObj<typeof meta>;
 const loop = loopDetailByName.get("software-delivery")!;
 const catalogEntry = loopCatalogFixtures.find(entry => entry.name === "software-delivery")!;
 const recentRuns = loopRunFixtures.filter(run => run.loop_name === "software-delivery").slice(0, 5);
+const config = {
+  iteration_cap: 3,
+  budget_on_exceeded: "escalate" as const,
+  no_progress_window: 2,
+  fan_out_width: 4,
+  gate_max_revisions: 2,
+  reattempt_strategy: "full_body" as const,
+  human_gate_enabled: true,
+};
 
 const BINDINGS: LoopBindingRow[] = [
   {
@@ -33,10 +47,12 @@ const BINDINGS: LoopBindingRow[] = [
 const noop = () => {};
 
 export const WithBinding: Story = {
+  args: {},
   render: () => (
     <StorySurface>
       <LoopDetailView
         loop={loop}
+        effectiveConfig={{ ...loopEffectiveConfigFixture, ...config }}
         graph={readLoopGraph(loop.definition)}
         recentRuns={recentRuns}
         bindings={BINDINGS}
@@ -46,7 +62,11 @@ export const WithBinding: Story = {
         onBack={noop}
         onRun={noop}
         onConfigure={noop}
-        onFork={noop}
+        onOpenEditor={noop}
+        onDelete={async () => undefined}
+        onDeleteReset={noop}
+        deletePending={false}
+        deleteError={null}
         onAddTrigger={noop}
         onAddSchedule={noop}
       />
@@ -55,10 +75,12 @@ export const WithBinding: Story = {
 };
 
 export const NoBindings: Story = {
+  args: {},
   render: () => (
     <StorySurface>
       <LoopDetailView
         loop={loop}
+        effectiveConfig={{ ...loopEffectiveConfigFixture, ...config }}
         graph={readLoopGraph(loop.definition)}
         recentRuns={recentRuns}
         bindings={[]}
@@ -68,7 +90,11 @@ export const NoBindings: Story = {
         onBack={noop}
         onRun={noop}
         onConfigure={noop}
-        onFork={noop}
+        onOpenEditor={noop}
+        onDelete={async () => undefined}
+        onDeleteReset={noop}
+        deletePending={false}
+        deleteError={null}
         onAddTrigger={noop}
         onAddSchedule={noop}
       />

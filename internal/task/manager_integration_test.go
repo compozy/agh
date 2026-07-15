@@ -14,10 +14,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	eventspkg "github.com/compozy/agh/internal/events"
+	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/store/sessiondb"
@@ -40,6 +42,37 @@ type integrationSessionExecutor struct {
 type integrationRuntimeViewReader struct {
 	registry     *globaldb.GlobalDB
 	sessionStore map[string]*sessiondb.SessionDB
+}
+
+type rollupPublicationFailureStore struct {
+	taskpkg.Store
+	cancel         context.CancelFunc
+	reconcileErr   error
+	failDependents atomic.Bool
+}
+
+func (s *rollupPublicationFailureStore) CompleteRunLeaseSettlement(
+	ctx context.Context,
+	completion taskpkg.LeaseCompletion,
+) (taskpkg.CompletedRunSettlement, error) {
+	settlement, err := s.Store.CompleteRunLeaseSettlement(ctx, completion)
+	if err == nil && len(settlement.RolledUpRuns) > 0 {
+		s.failDependents.Store(true)
+		if s.cancel != nil {
+			s.cancel()
+		}
+	}
+	return settlement, err
+}
+
+func (s *rollupPublicationFailureStore) ListDependents(
+	ctx context.Context,
+	taskID string,
+) ([]taskpkg.Dependency, error) {
+	if s.failDependents.Load() {
+		return nil, s.reconcileErr
+	}
+	return s.Store.ListDependents(ctx, taskID)
 }
 
 func (e *integrationSessionExecutor) StartTaskSession(
@@ -679,6 +712,77 @@ func TestTaskManagerApprovalGateAndAttemptExhaustionIntegration(t *testing.T) {
 	if !containsEventType(events, "task.approved") {
 		t.Fatalf("event types = %#v, want task.approved", sortedEventTypes(events))
 	}
+
+	t.Run("Should approve and claim the existing gated run without duplication", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openTaskManagerGlobalDB(t)
+		manager := newTaskManagerIntegration(t, db)
+		operator, err := taskpkg.DeriveHumanActorContext(
+			"approval-operator",
+			taskpkg.OriginKindCLI,
+			"agh task approve",
+		)
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		gatedTask, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope:          taskpkg.ScopeGlobal,
+			Title:          "Pre-enqueued approval integration",
+			ApprovalPolicy: taskpkg.ApprovalPolicyManual,
+		}, operator)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		pendingRun, err := manager.EnqueueRun(
+			ctx,
+			taskpkg.EnqueueRun{TaskID: gatedTask.ID},
+			operator,
+		)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+
+		approved, err := manager.ApproveTask(
+			ctx,
+			gatedTask.ID,
+			taskpkg.ExecutionRequest{},
+			operator,
+		)
+		if err != nil {
+			t.Fatalf("ApproveTask() error = %v", err)
+		}
+		if got, want := approved.Run.ID, pendingRun.ID; got != want {
+			t.Fatalf("ApproveTask().Run.ID = %q, want existing %q", got, want)
+		}
+		if !approved.ExistingRun {
+			t.Fatal("ApproveTask().ExistingRun = false, want true")
+		}
+		runs, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: gatedTask.ID})
+		if err != nil {
+			t.Fatalf("ListTaskRuns() error = %v", err)
+		}
+		if got, want := len(runs), 1; got != want {
+			t.Fatalf("runs after approval = %d, want %d", got, want)
+		}
+
+		worker, err := taskpkg.DeriveAgentSessionActorContext("sess-approval-worker")
+		if err != nil {
+			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
+		}
+		claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-approval-worker",
+			LeaseDuration:    time.Minute,
+		}, worker)
+		if err != nil {
+			t.Fatalf("ClaimNextRun() error = %v", err)
+		}
+		if got, want := claim.Run.ID, pendingRun.ID; got != want {
+			t.Fatalf("ClaimNextRun().Run.ID = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestTaskManagerStartBoundaryCreatesChannelAndClaimableRunIntegration(t *testing.T) {
@@ -970,6 +1074,560 @@ func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t
 			}
 		},
 	)
+}
+
+func TestTaskManagerCompletedChildrenRollUpParentIntegration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should complete parent exactly once after final child settles", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openTaskManagerGlobalDB(t)
+		manager := newTaskManagerIntegration(t, db)
+		actor, err := taskpkg.DeriveHumanActorContext(
+			"user-parent-rollup",
+			taskpkg.OriginKindCLI,
+			"agh task create",
+		)
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+
+		parent, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope: taskpkg.ScopeGlobal,
+			Title: "Parent rollup",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask(parent) error = %v", err)
+		}
+		parentRun, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: parent.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun(parent) error = %v", err)
+		}
+		if _, err := manager.MarkRunNeedsAttention(
+			ctx,
+			parentRun.ID,
+			"no eligible worker claimed the run",
+			actor,
+		); err != nil {
+			t.Fatalf("MarkRunNeedsAttention(parent) error = %v", err)
+		}
+
+		children := make([]*taskpkg.Task, 0, 2)
+		for _, title := range []string{"Child A", "Child B"} {
+			child, err := manager.CreateChildTask(ctx, parent.ID, taskpkg.CreateTask{
+				Scope: taskpkg.ScopeGlobal,
+				Title: title,
+			}, actor)
+			if err != nil {
+				t.Fatalf("CreateChildTask(%s) error = %v", title, err)
+			}
+			children = append(children, child)
+		}
+
+		completeChild := func(child *taskpkg.Task, sessionID string) taskpkg.LeaseCompletion {
+			t.Helper()
+			run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: child.ID}, actor)
+			if err != nil {
+				t.Fatalf("EnqueueRun(%s) error = %v", child.ID, err)
+			}
+			worker, err := taskpkg.DeriveAgentSessionActorContext(sessionID)
+			if err != nil {
+				t.Fatalf("DeriveAgentSessionActorContext(%s) error = %v", sessionID, err)
+			}
+			claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+				RunID:            run.ID,
+				Scope:            taskpkg.ScopeGlobal,
+				ClaimerSessionID: sessionID,
+				LeaseDuration:    time.Minute,
+			}, worker)
+			if err != nil {
+				t.Fatalf("ClaimNextRun(%s) error = %v", child.ID, err)
+			}
+			completion := taskpkg.LeaseCompletion{
+				RunID:      claim.Run.ID,
+				ClaimToken: claim.ClaimToken,
+				Result:     taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
+			}
+			if _, err := manager.CompleteRunLease(ctx, completion, worker); err != nil {
+				t.Fatalf("CompleteRunLease(%s) error = %v", child.ID, err)
+			}
+			return completion
+		}
+
+		completeChild(children[0], "sess-parent-rollup-a")
+		storedParent, err := db.GetTask(ctx, parent.ID)
+		if err != nil {
+			t.Fatalf("GetTask(parent after first child) error = %v", err)
+		}
+		if got := storedParent.Status.Normalize(); got == taskpkg.TaskStatusCompleted {
+			t.Fatalf("parent status after first child = %q, want nonterminal", got)
+		}
+
+		finalCompletion := completeChild(children[1], "sess-parent-rollup-b")
+		storedParent, err = db.GetTask(ctx, parent.ID)
+		if err != nil {
+			t.Fatalf("GetTask(parent after final child) error = %v", err)
+		}
+		if got, want := storedParent.Status.Normalize(), taskpkg.TaskStatusCompleted; got != want {
+			t.Fatalf("parent status after final child = %q, want %q", got, want)
+		}
+
+		storedParentRuns, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: parent.ID})
+		if err != nil {
+			t.Fatalf("ListTaskRuns(parent) error = %v", err)
+		}
+		if len(storedParentRuns) != 1 {
+			t.Fatalf("parent runs = %d, want exactly 1 settled historical run", len(storedParentRuns))
+		}
+		if got, want := storedParentRuns[0].Status.Normalize(), taskpkg.TaskRunStatusCompleted; got != want {
+			t.Fatalf("parent run status after rollup = %q, want %q", got, want)
+		}
+
+		statusChangedCount := 0
+		records, err := db.ListTaskEventRecords(ctx, taskpkg.EventRecordQuery{TaskID: parent.ID})
+		if err != nil {
+			t.Fatalf("ListTaskEventRecords(parent) error = %v", err)
+		}
+		for _, record := range records {
+			if record.Event.EventType == "task.status_changed" {
+				statusChangedCount++
+			}
+		}
+		if statusChangedCount != 1 {
+			t.Fatalf("parent task.status_changed event count = %d, want 1", statusChangedCount)
+		}
+
+		worker, err := taskpkg.DeriveAgentSessionActorContext("sess-parent-rollup-b")
+		if err != nil {
+			t.Fatalf("DeriveAgentSessionActorContext(replay) error = %v", err)
+		}
+		if _, err := manager.CompleteRunLease(ctx, finalCompletion, worker); !errors.Is(
+			err,
+			taskpkg.ErrInvalidStatusTransition,
+		) {
+			t.Fatalf("CompleteRunLease(replay) error = %v, want %v", err, taskpkg.ErrInvalidStatusTransition)
+		}
+		replayedRecords, err := db.ListTaskEventRecords(ctx, taskpkg.EventRecordQuery{TaskID: parent.ID})
+		if err != nil {
+			t.Fatalf("ListTaskEventRecords(parent after replay) error = %v", err)
+		}
+		if got, want := len(replayedRecords), len(records); got != want {
+			t.Fatalf("parent event count after replay = %d, want unchanged %d", got, want)
+		}
+	})
+
+	t.Run("Should publish the committed parent completion after request cancellation and reconcile failure", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openTaskManagerGlobalDB(t)
+		requestCtx, cancelRequest := context.WithCancel(ctx)
+		reconcileErr := errors.New("forced dependent reconciliation failure")
+		store := &rollupPublicationFailureStore{
+			Store: db, cancel: cancelRequest, reconcileErr: reconcileErr,
+		}
+		var hookMu sync.Mutex
+		completedByTask := make(map[string]int)
+		hooks := integrationTaskRunHooks{
+			completed: func(
+				hookCtx context.Context,
+				payload hookspkg.TaskRunCompletedPayload,
+			) (hookspkg.TaskRunCompletedPayload, error) {
+				if hookCtx.Err() != nil {
+					t.Errorf("TaskRunCompleted hook context error = %v", hookCtx.Err())
+				}
+				if _, ok := hookCtx.Deadline(); !ok {
+					t.Error("TaskRunCompleted hook context has no publication deadline")
+				}
+				hookMu.Lock()
+				completedByTask[payload.TaskID]++
+				hookMu.Unlock()
+				return payload, nil
+			},
+		}
+		manager := newTaskManagerIntegration(t, store, taskpkg.WithTaskRunHooks(hooks))
+		actor, err := taskpkg.DeriveHumanActorContext(
+			"user-parent-publication",
+			taskpkg.OriginKindCLI,
+			"agh task create",
+		)
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		parent, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope: taskpkg.ScopeGlobal, Title: "Parent publication",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask(parent) error = %v", err)
+		}
+		parentRun, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: parent.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun(parent) error = %v", err)
+		}
+		if _, err := manager.MarkRunNeedsAttention(ctx, parentRun.ID, "await child", actor); err != nil {
+			t.Fatalf("MarkRunNeedsAttention(parent) error = %v", err)
+		}
+		child, err := manager.CreateChildTask(ctx, parent.ID, taskpkg.CreateTask{
+			Scope: taskpkg.ScopeGlobal, Title: "Only child",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateChildTask() error = %v", err)
+		}
+		completion, worker := claimTaskRunForRollupIntegration(
+			t,
+			ctx,
+			manager,
+			child.ID,
+			actor,
+			"sess-parent-publication",
+		)
+
+		completedRun, err := manager.CompleteRunLease(requestCtx, completion, worker)
+		if completedRun == nil {
+			t.Fatal("CompleteRunLease() run = nil after committed settlement")
+		}
+		if !errors.Is(err, reconcileErr) {
+			t.Fatalf("CompleteRunLease() error = %v, want %v", err, reconcileErr)
+		}
+		if requestCtx.Err() != context.Canceled {
+			t.Fatalf("request context error = %v, want %v", requestCtx.Err(), context.Canceled)
+		}
+
+		storedParent, err := db.GetTask(ctx, parent.ID)
+		if err != nil {
+			t.Fatalf("GetTask(parent) error = %v", err)
+		}
+		if got, want := storedParent.Status.Normalize(), taskpkg.TaskStatusCompleted; got != want {
+			t.Fatalf("parent status = %q, want %q", got, want)
+		}
+		parentRuns, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: parent.ID})
+		if err != nil {
+			t.Fatalf("ListTaskRuns(parent) error = %v", err)
+		}
+		if len(parentRuns) != 1 || parentRuns[0].Status.Normalize() != taskpkg.TaskRunStatusCompleted {
+			t.Fatalf("parent runs = %#v, want one completed run", parentRuns)
+		}
+		parentEvents, err := db.ListTaskEventRecords(ctx, taskpkg.EventRecordQuery{TaskID: parent.ID})
+		if err != nil {
+			t.Fatalf("ListTaskEventRecords(parent) error = %v", err)
+		}
+		completedEventCount := 0
+		for _, record := range parentEvents {
+			if record.Event.EventType == "task.run.completed" {
+				completedEventCount++
+			}
+		}
+		if completedEventCount != 1 {
+			t.Fatalf("parent task.run.completed event count = %d, want 1", completedEventCount)
+		}
+		hookMu.Lock()
+		parentHookCount := completedByTask[parent.ID]
+		hookMu.Unlock()
+		if parentHookCount != 1 {
+			t.Fatalf("parent TaskRunCompleted hook count = %d, want 1", parentHookCount)
+		}
+
+		if _, replayErr := manager.CompleteRunLease(ctx, completion, worker); !errors.Is(
+			replayErr,
+			taskpkg.ErrInvalidStatusTransition,
+		) {
+			t.Fatalf("CompleteRunLease(replay) error = %v, want %v", replayErr, taskpkg.ErrInvalidStatusTransition)
+		}
+		hookMu.Lock()
+		parentHookCount = completedByTask[parent.ID]
+		hookMu.Unlock()
+		if parentHookCount != 1 {
+			t.Fatalf("parent TaskRunCompleted hook count after replay = %d, want 1", parentHookCount)
+		}
+	})
+
+	t.Run("Should roll up once when final children complete concurrently", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openTaskManagerGlobalDB(t)
+		executor := &integrationSessionExecutor{}
+		manager := newTaskManagerIntegration(t, db, taskpkg.WithSessionExecutor(executor))
+		actor, err := taskpkg.DeriveHumanActorContext(
+			"user-parent-concurrent",
+			taskpkg.OriginKindCLI,
+			"agh task create",
+		)
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		parent, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope: taskpkg.ScopeGlobal,
+			Title: "Concurrent parent rollup",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask(parent) error = %v", err)
+		}
+		parentRun, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: parent.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun(parent) error = %v", err)
+		}
+		if _, err := manager.MarkRunNeedsAttention(ctx, parentRun.ID, "starved", actor); err != nil {
+			t.Fatalf("MarkRunNeedsAttention(parent) error = %v", err)
+		}
+
+		type claimedCompletion struct {
+			completion taskpkg.LeaseCompletion
+			worker     taskpkg.ActorContext
+		}
+		claims := make([]claimedCompletion, 0, 2)
+		for idx, title := range []string{"Concurrent child A", "Concurrent child B"} {
+			child, err := manager.CreateChildTask(ctx, parent.ID, taskpkg.CreateTask{
+				Scope: taskpkg.ScopeGlobal,
+				Title: title,
+			}, actor)
+			if err != nil {
+				t.Fatalf("CreateChildTask(%s) error = %v", title, err)
+			}
+			completion, worker := claimTaskRunForRollupIntegration(
+				t,
+				ctx,
+				manager,
+				child.ID,
+				actor,
+				"sess-parent-concurrent-"+strconv.Itoa(idx),
+			)
+			claims = append(claims, claimedCompletion{completion: completion, worker: worker})
+		}
+
+		var wg sync.WaitGroup
+		errCh := make(chan error, len(claims))
+		for _, claim := range claims {
+			wg.Add(1)
+			go func(claim claimedCompletion) {
+				defer wg.Done()
+				if _, err := manager.CompleteRunLease(ctx, claim.completion, claim.worker); err != nil {
+					errCh <- err
+				}
+			}(claim)
+		}
+		wg.Wait()
+		close(errCh)
+		for err := range errCh {
+			t.Fatalf("concurrent CompleteRunLease() error = %v", err)
+		}
+
+		storedParent, err := db.GetTask(ctx, parent.ID)
+		if err != nil {
+			t.Fatalf("GetTask(parent) error = %v", err)
+		}
+		if got, want := storedParent.Status.Normalize(), taskpkg.TaskStatusCompleted; got != want {
+			t.Fatalf("parent status = %q, want %q", got, want)
+		}
+		records, err := db.ListTaskEventRecords(ctx, taskpkg.EventRecordQuery{TaskID: parent.ID})
+		if err != nil {
+			t.Fatalf("ListTaskEventRecords(parent) error = %v", err)
+		}
+		statusChangedCount := 0
+		for _, record := range records {
+			if record.Event.EventType == "task.status_changed" {
+				statusChangedCount++
+			}
+		}
+		if statusChangedCount != 1 {
+			t.Fatalf("parent task.status_changed event count = %d, want 1", statusChangedCount)
+		}
+		if len(executor.startCalls) != 0 {
+			t.Fatalf("parent rollup started %d sessions, want 0", len(executor.startCalls))
+		}
+	})
+
+	t.Run("Should apply the same rollup through unfenced completion", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openTaskManagerGlobalDB(t)
+		manager := newTaskManagerIntegration(t, db, taskpkg.WithSessionExecutor(&integrationSessionExecutor{}))
+		actor, err := taskpkg.DeriveHumanActorContext(
+			"user-parent-unfenced",
+			taskpkg.OriginKindCLI,
+			"agh task complete",
+		)
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+		parent, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope: taskpkg.ScopeGlobal,
+			Title: "Unfenced parent rollup",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask(parent) error = %v", err)
+		}
+
+		for idx, title := range []string{"Unfenced child A", "Unfenced child B"} {
+			child, err := manager.CreateChildTask(ctx, parent.ID, taskpkg.CreateTask{
+				Scope: taskpkg.ScopeGlobal,
+				Title: title,
+			}, actor)
+			if err != nil {
+				t.Fatalf("CreateChildTask(%s) error = %v", title, err)
+			}
+			run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: child.ID}, actor)
+			if err != nil {
+				t.Fatalf("EnqueueRun(%s) error = %v", title, err)
+			}
+			run, err = manager.ClaimRun(ctx, run.ID, taskpkg.ClaimRun{}, actor)
+			if err != nil {
+				t.Fatalf("ClaimRun(%s) error = %v", title, err)
+			}
+			run, err = manager.StartRun(ctx, run.ID, taskpkg.StartRun{}, actor)
+			if err != nil {
+				t.Fatalf("StartRun(%s) error = %v", title, err)
+			}
+			if _, err := manager.CompleteRun(ctx, run.ID, taskpkg.RunResult{
+				Value: json.RawMessage(`{"child_index":` + strconv.Itoa(idx) + `}`),
+			}, actor); err != nil {
+				t.Fatalf("CompleteRun(%s) error = %v", title, err)
+			}
+		}
+
+		storedParent, err := db.GetTask(ctx, parent.ID)
+		if err != nil {
+			t.Fatalf("GetTask(parent) error = %v", err)
+		}
+		if got, want := storedParent.Status.Normalize(), taskpkg.TaskStatusCompleted; got != want {
+			t.Fatalf("parent status = %q, want %q", got, want)
+		}
+	})
+
+	for _, terminalStatus := range []taskpkg.RunStatus{
+		taskpkg.TaskRunStatusFailed,
+		taskpkg.TaskRunStatusCanceled,
+	} {
+		terminalStatus := terminalStatus
+		t.Run("Should keep parent nonterminal when child is "+terminalStatus.String(), func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t)
+			db := openTaskManagerGlobalDB(t)
+			manager := newTaskManagerIntegration(t, db)
+			actor, err := taskpkg.DeriveHumanActorContext(
+				"user-parent-negative-"+terminalStatus.String(),
+				taskpkg.OriginKindCLI,
+				"agh task create",
+			)
+			if err != nil {
+				t.Fatalf("DeriveHumanActorContext() error = %v", err)
+			}
+			parent, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+				Scope: taskpkg.ScopeGlobal,
+				Title: "Negative parent rollup",
+			}, actor)
+			if err != nil {
+				t.Fatalf("CreateTask(parent) error = %v", err)
+			}
+			completedChild, err := manager.CreateChildTask(ctx, parent.ID, taskpkg.CreateTask{
+				Scope: taskpkg.ScopeGlobal,
+				Title: "Completed child",
+			}, actor)
+			if err != nil {
+				t.Fatalf("CreateChildTask(completed) error = %v", err)
+			}
+			terminalChild, err := manager.CreateChildTask(ctx, parent.ID, taskpkg.CreateTask{
+				Scope:       taskpkg.ScopeGlobal,
+				Title:       "Non-success child",
+				MaxAttempts: new(1),
+			}, actor)
+			if err != nil {
+				t.Fatalf("CreateChildTask(non-success) error = %v", err)
+			}
+
+			completion, worker := claimTaskRunForRollupIntegration(
+				t,
+				ctx,
+				manager,
+				completedChild.ID,
+				actor,
+				"sess-parent-negative-complete-"+terminalStatus.String(),
+			)
+			if _, err := manager.CompleteRunLease(ctx, completion, worker); err != nil {
+				t.Fatalf("CompleteRunLease(completed child) error = %v", err)
+			}
+			terminalCompletion, terminalWorker := claimTaskRunForRollupIntegration(
+				t,
+				ctx,
+				manager,
+				terminalChild.ID,
+				actor,
+				"sess-parent-negative-terminal-"+terminalStatus.String(),
+			)
+			switch terminalStatus {
+			case taskpkg.TaskRunStatusFailed:
+				if _, err := manager.FailRunLease(ctx, taskpkg.LeaseFailure{
+					RunID:      terminalCompletion.RunID,
+					ClaimToken: terminalCompletion.ClaimToken,
+					Failure:    taskpkg.RunFailure{Error: "worker failed"},
+				}, terminalWorker); err != nil {
+					t.Fatalf("FailRunLease() error = %v", err)
+				}
+			case taskpkg.TaskRunStatusCanceled:
+				if _, err := manager.CancelRun(ctx, terminalCompletion.RunID, taskpkg.CancelRun{
+					Reason: "operator canceled child",
+				}, actor); err != nil {
+					t.Fatalf("CancelRun() error = %v", err)
+				}
+			default:
+				t.Fatalf("unexpected terminal status %q", terminalStatus)
+			}
+
+			storedParent, err := db.GetTask(ctx, parent.ID)
+			if err != nil {
+				t.Fatalf("GetTask(parent) error = %v", err)
+			}
+			if got := storedParent.Status.Normalize(); got == taskpkg.TaskStatusCompleted {
+				t.Fatalf("parent status = %q, want nonterminal", got)
+			}
+			records, err := db.ListTaskEventRecords(ctx, taskpkg.EventRecordQuery{TaskID: parent.ID})
+			if err != nil {
+				t.Fatalf("ListTaskEventRecords(parent) error = %v", err)
+			}
+			for _, record := range records {
+				if record.Event.EventType == "task.status_changed" {
+					t.Fatalf("parent emitted unexpected task.status_changed event: %#v", record.Event)
+				}
+			}
+		})
+	}
+}
+
+func claimTaskRunForRollupIntegration(
+	t *testing.T,
+	ctx context.Context,
+	manager *taskpkg.Service,
+	taskID string,
+	actor taskpkg.ActorContext,
+	sessionID string,
+) (taskpkg.LeaseCompletion, taskpkg.ActorContext) {
+	t.Helper()
+	run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: taskID}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun(%s) error = %v", taskID, err)
+	}
+	worker, err := taskpkg.DeriveAgentSessionActorContext(sessionID)
+	if err != nil {
+		t.Fatalf("DeriveAgentSessionActorContext(%s) error = %v", sessionID, err)
+	}
+	claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		RunID:            run.ID,
+		Scope:            taskpkg.ScopeGlobal,
+		ClaimerSessionID: sessionID,
+		LeaseDuration:    time.Minute,
+	}, worker)
+	if err != nil {
+		t.Fatalf("ClaimNextRun(%s) error = %v", taskID, err)
+	}
+	return taskpkg.LeaseCompletion{
+		RunID:      claim.Run.ID,
+		ClaimToken: claim.ClaimToken,
+		Result:     taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
+	}, worker
 }
 
 func TestTaskManagerAgentCreatedTaskApprovesThenClaimsIntegration(t *testing.T) {

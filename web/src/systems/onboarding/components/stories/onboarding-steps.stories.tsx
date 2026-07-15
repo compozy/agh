@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 
 import type { OnboardingDefaultModelApi } from "../../hooks/use-onboarding-default-model";
 import type { OnboardingWorkspacesApi } from "../../hooks/use-onboarding-workspaces";
@@ -79,6 +80,8 @@ const baseWorkspaces: OnboardingWorkspacesApi = {
   workspaces: [{ path: "/Users/operator/Dev/compozy", name: "compozy" }],
   isResolving: false,
   isRemoving: false,
+  isCatalogLoading: false,
+  catalogError: null,
   resolveError: null,
   navigateTo: noop,
   goToParent: noop,
@@ -86,6 +89,7 @@ const baseWorkspaces: OnboardingWorkspacesApi = {
   addWorkspace: async () => {},
   removeWorkspace: async () => {},
   isAdded: (path: string) => path === "/Users/operator/Dev/compozy",
+  reloadCatalog: async () => {},
 };
 
 const meta: Meta = {
@@ -137,4 +141,21 @@ export const Workspaces: Story = {
 
 export const WorkspacesEmpty: Story = {
   render: () => <StepWorkspaces workspaces={{ ...baseWorkspaces, workspaces: [] }} />,
+};
+
+export const WorkspacesCatalogError: Story = {
+  render: () => (
+    <StepWorkspaces
+      workspaces={{
+        ...baseWorkspaces,
+        catalogError: "Workspace catalog is unavailable. Check the daemon connection.",
+      }}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole("alert")).toHaveTextContent("Workspace catalog is unavailable");
+    await expect(canvas.getByRole("button", { name: "Retry" })).toBeEnabled();
+    await expect(canvas.getByRole("button", { name: "Remove compozy" })).toBeDisabled();
+  },
 };

@@ -8,7 +8,10 @@ import {
   sessionTranscriptOptions,
   type SessionPayload,
 } from "@/systems/session";
-import { adoptRouteWorkspaceWhenSelectionInvalid } from "./-route-preload";
+import {
+  adoptRouteWorkspaceWhenSelectionInvalid,
+  selectRouteWorkspaceForNavigation,
+} from "./-route-preload";
 
 export interface AgentSessionRouteLoaderData {
   workspaceId: string | null;
@@ -17,16 +20,26 @@ export interface AgentSessionRouteLoaderData {
 export async function prefetchAgentSessionRoute({
   queryClient,
   sessionId,
+  returnWorkspaceId,
+  preload = false,
 }: {
   queryClient: QueryClient;
   sessionId: string;
+  returnWorkspaceId?: string;
+  preload?: boolean;
 }): Promise<AgentSessionRouteLoaderData> {
   const workspaceId = await resolveSessionRouteWorkspace(queryClient, sessionId);
   if (!workspaceId) {
     return { workspaceId: null };
   }
 
-  await adoptRouteWorkspaceWhenSelectionInvalid(queryClient, workspaceId);
+  if (!preload) {
+    if (returnWorkspaceId === workspaceId) {
+      await selectRouteWorkspaceForNavigation(queryClient, workspaceId);
+    } else {
+      await adoptRouteWorkspaceWhenSelectionInvalid(queryClient, workspaceId);
+    }
+  }
   await Promise.allSettled([
     queryClient.ensureQueryData(sessionDetailOptions(workspaceId, sessionId)),
     queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(workspaceId, sessionId)),

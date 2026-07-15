@@ -107,16 +107,17 @@ func stoppedGoalRevokeRequest(
 
 func goalPromptLease(checkpoint goal.Checkpoint) looppkg.GoalPromptLease {
 	return looppkg.GoalPromptLease{
-		QueueEntryID:  checkpoint.QueueEntryID,
-		SessionID:     checkpoint.SessionID,
-		OwnerKind:     "goal",
-		LoopRunID:     string(checkpoint.Key.LoopRunID),
-		TaskRunID:     checkpoint.TaskRunID,
-		RunGeneration: checkpoint.Key.Generation,
-		PromptAttempt: checkpoint.PromptAttempt,
-		ControlEpoch:  checkpoint.ControlEpoch,
-		BindingEpoch:  checkpoint.BindingEpoch,
-		PromptID:      checkpoint.PromptID,
-		PromptKind:    checkpoint.PromptKind,
+		QueueEntryID:   checkpoint.QueueEntryID,
+		SessionID:      checkpoint.SessionID,
+		OwnerKind:      "goal",
+		LoopRunID:      string(checkpoint.Key.LoopRunID),
+		TaskRunID:      checkpoint.TaskRunID,
+		RunGeneration:  checkpoint.Key.Generation,
+		PromptAttempt:  checkpoint.PromptAttempt,
+		ControlEpoch:   checkpoint.ControlEpoch,
+		BindingEpoch:   checkpoint.BindingEpoch,
+		PromptID:       checkpoint.PromptID,
+		PromptKind:     checkpoint.PromptKind,
+		JudgeAttemptID: checkpoint.JudgeAttemptID,
 	}
 }

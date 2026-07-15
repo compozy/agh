@@ -94,6 +94,8 @@ const (
 	TransitionCauseWatchPoll TransitionCause = "watch_poll"
 	// TransitionCauseWatchEvents records a watch-events source yielding dormancy.
 	TransitionCauseWatchEvents TransitionCause = "watch_events"
+	// TransitionCauseCoordinatorFailure records an execution failure before a boundary settled.
+	TransitionCauseCoordinatorFailure TransitionCause = "coordinator_failure"
 )
 
 // StopReason captures the operator-visible stop reason.
@@ -162,6 +164,12 @@ type EffectiveConfig struct {
 	FanOutWidth       int                    `json:"fan_out_width"`
 	GateMaxRevisions  int                    `json:"gate_max_revisions"`
 	ModelDefaults     EffectiveModelDefaults `json:"model_defaults"`
+}
+
+// ConfigSnapshot keeps the stored override and daemon-resolved runtime config from one read.
+type ConfigSnapshot struct {
+	Stored    *LoopConfig
+	Effective EffectiveConfig
 }
 
 // EffectiveModelDefaults is the fully resolved loop-owned session model routing.
@@ -354,6 +362,7 @@ type Service interface {
 	) error
 	Configure(ctx context.Context, ws WorkspaceID, name string, cfg LoopConfig) error
 	GetConfig(ctx context.Context, ws WorkspaceID, name string) (*LoopConfig, error)
+	GetConfigSnapshot(ctx context.Context, ws WorkspaceID, name string) (ConfigSnapshot, error)
 	Get(ctx context.Context, ws WorkspaceID, runID RunID) (*Run, error)
 	Transition(ctx context.Context, runID RunID, to Status, cause TransitionCause) error
 }

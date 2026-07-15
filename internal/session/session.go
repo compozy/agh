@@ -456,38 +456,6 @@ func (s *Session) clearCurrentPromptCancel() {
 	s.currentPromptCancel = nil
 }
 
-func (s *Session) updateFromProcess(proc *AgentProcess, now time.Time) {
-	if s == nil {
-		return
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.process = proc
-	if proc != nil {
-		s.ACPSessionID = strings.TrimSpace(proc.SessionID)
-		s.ACPCaps = cloneCaps(proc.CapsSnapshot())
-		if s.Liveness == nil {
-			s.Liveness = &store.SessionLivenessMeta{}
-		}
-		s.Liveness.SubprocessPID = proc.PID
-		if !proc.StartedAt.IsZero() {
-			startedAt := proc.StartedAt.UTC()
-			s.Liveness.SubprocessStartedAt = &startedAt
-		}
-		if !now.IsZero() {
-			lastUpdateAt := now.UTC()
-			s.Liveness.LastUpdateAt = &lastUpdateAt
-		}
-		s.Liveness.StallState = ""
-		s.Liveness.StallReason = ""
-	}
-	if !now.IsZero() {
-		s.UpdatedAt = now
-	}
-}
-
 func (s *Session) clearProcess(now time.Time) {
 	if s == nil {
 		return

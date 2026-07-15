@@ -45,8 +45,13 @@ import (
 
 const defaultShutdownTimeout = 10 * time.Second
 
-var errMissingNetworkBindingSurface = errors.New(
-	"daemon: session manager does not implement the network binding surface",
+var (
+	errMissingNetworkBindingSurface = errors.New(
+		"daemon: session manager does not implement the network binding surface",
+	)
+	errMissingWorkspaceRemovalPreparation = errors.New(
+		"daemon: session manager does not implement workspace removal preparation",
+	)
 )
 
 // Option customizes daemon construction.
@@ -273,35 +278,6 @@ type extensionManagerDeps struct {
 	ProcessRegistry        *toolruntime.Registry
 	SecretResolver         extensionpkg.SecretRefResolver
 	AGHExecutable          func() (string, error)
-}
-
-// SessionManagerDeps captures the composition-root dependencies needed to create a session manager.
-type SessionManagerDeps struct {
-	HomePaths            aghconfig.HomePaths
-	Logger               *slog.Logger
-	Notifier             session.Notifier
-	Hooks                session.HookSet
-	PromptAssembler      session.PromptAssembler
-	StartupPromptOverlay session.StartupPromptOverlay
-	PromptInputAugmenter session.PromptInputAugmenter
-	MemoryStore          *memory.Store
-	LedgerMaterializer   session.LedgerMaterializer
-	AgentResolver        session.AgentResolver
-	SkillRegistry        session.SkillRegistry
-	MCPResolver          session.MCPResolver
-	WorkspaceResolver    workspacepkg.RuntimeResolver
-	SandboxRegistry      *sandbox.Registry
-	SessionSupervision   aghconfig.SessionSupervisionConfig
-	SessionBusyInput     aghconfig.SessionBusyInputConfig
-	SessionInputQueue    store.SessionInputQueueStore
-	SessionHealthConfig  aghconfig.HeartbeatConfig
-	SessionCatalog       store.SessionCatalog
-	ProcessRegistry      *toolruntime.Registry
-	HostedMCP            session.HostedMCPLauncher
-	ProviderSecrets      session.ProviderSecretResolver
-	SoulStore            session.SoulSnapshotStore
-	SoulRunChecker       session.SoulRunActivityChecker
-	SessionHealthStore   session.HealthStore
 }
 
 // Daemon is the sole AGH composition root.
@@ -1198,9 +1174,6 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets shutdownTar
 	if targets.spawnReaper != nil {
 		appendWrappedError(errs, "daemon: shutdown spawn reaper", targets.spawnReaper.shutdown(ctx))
 	}
-	if err := d.stopSessions(ctx, targets.sessions); err != nil {
-		*errs = append(*errs, err)
-	}
 	if targets.coordinator != nil {
 		appendWrappedError(errs, "daemon: shutdown coordinator runtime", targets.coordinator.shutdown(ctx))
 	}
@@ -1209,6 +1182,9 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets shutdownTar
 	}
 	if targets.tasks != nil {
 		appendWrappedError(errs, "daemon: shutdown task runtime", targets.tasks.shutdown(ctx))
+	}
+	if err := d.stopSessions(ctx, targets.sessions); err != nil {
+		*errs = append(*errs, err)
 	}
 	if targets.localMemoryProvider != nil {
 		appendWrappedError(errs, "daemon: shutdown local memory provider", targets.localMemoryProvider.Shutdown(ctx))

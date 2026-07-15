@@ -5,7 +5,9 @@ import {
   LoopsApiError,
   readLoopGraph,
   useCreateLoop,
+  useDeleteLoop,
   useLoop,
+  useLoopConfig,
   useLoopRuns,
   useLoops,
 } from "@/systems/loops";
@@ -26,9 +28,11 @@ export function useLoopDetail(name: string) {
   const active = workspaceId !== "" && !hasChildMatch;
 
   const loopQuery = useLoop(workspaceId, name, active);
+  const configQuery = useLoopConfig(workspaceId, name, active);
   const catalogQuery = useLoops(workspaceId, { limit: 50, q: name, sort: "name" }, active);
   const runsQuery = useLoopRuns(workspaceId, { loop: name, limit: RECENT_RUNS_LIMIT }, active);
   const createLoop = useCreateLoop();
+  const deleteLoop = useDeleteLoop();
   const bindings = useLoopBindings(active ? workspaceId : "", active ? name : "");
 
   const catalogEntry = catalogQuery.loops.find(entry => entry.name === name) ?? null;
@@ -43,7 +47,7 @@ export function useLoopDetail(name: string) {
     },
     onRun: () => void navigate({ to: "/loops/$name/run", params: { name } }),
     onConfigure: () => void navigate({ to: "/loops/$name/configure", params: { name } }),
-    onFork: async () => {
+    onOpenEditor: async () => {
       if (workspaceId === "" || createLoop.isPending) return;
       if (loopQuery.data?.source !== "workspace") {
         try {
@@ -57,6 +61,19 @@ export function useLoopDetail(name: string) {
       }
       void navigate({ to: "/loops/$name/editor", params: { name } });
     },
+    onDelete: async () => {
+      if (workspaceId === "" || loopQuery.data?.source !== "workspace" || deleteLoop.isPending) {
+        return;
+      }
+      try {
+        await deleteLoop.mutateAsync({ workspaceId, name });
+        toast.success(`Deleted workspace loop ${name}`);
+        void navigate({ to: "/loops", replace: true });
+      } catch {
+        // The mutation retains the primary error for the confirmation dialog.
+      }
+    },
+    onDeleteReset: deleteLoop.reset,
     onAddTrigger: () => void navigate({ to: "/triggers", search: { create: "loop", loop: name } }),
     onAddSchedule: () => void navigate({ to: "/jobs", search: { create: "loop", loop: name } }),
   };
@@ -65,9 +82,11 @@ export function useLoopDetail(name: string) {
     hasChildMatch,
     workspaceId,
     loopQuery,
+    configQuery,
     catalogEntry,
     runsQuery,
     bindings,
+    deleteLoop,
     readGraph: readLoopGraph,
     handlers,
   };

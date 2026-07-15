@@ -1509,6 +1509,16 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 		t.Parallel()
 
 		fixture, workspace, _, _, deleteCalled, _, _, _ := setup(t)
+		fixture.Handlers.Sessions = testutil.StubSessionManager{
+			ListAllFn: func(context.Context) ([]*session.Info, error) {
+				t.Fatal("DeleteWorkspace() called Sessions.ListAll")
+				return nil, nil
+			},
+			DeleteFn: func(context.Context, string) error {
+				t.Fatal("DeleteWorkspace() called Sessions.Delete")
+				return nil
+			},
+		}
 		deleteResp := performRequest(t, fixture.Engine, http.MethodDelete, "/workspaces/"+workspace.ID, nil)
 		if deleteResp.Code != http.StatusNoContent || !*deleteCalled {
 			t.Fatalf("delete status=%d called=%v", deleteResp.Code, *deleteCalled)

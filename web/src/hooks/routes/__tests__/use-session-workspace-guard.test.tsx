@@ -1,3 +1,7 @@
+// Suite: session workspace route guard
+// Invariant: A stable foreign-workspace mismatch redirects, but an exiting session cannot race a pending session route.
+// Boundary IN: selected workspace state, pending TanStack Router match, and guard navigation.
+// Boundary OUT: session HTTP reads, query caches, SSE, and rendered route content.
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -5,6 +9,7 @@ const guardMocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   setActiveWorkspaceId: vi.fn(),
   toastWarning: vi.fn(),
+  pendingSessionMatch: false as false | { name: string; id: string },
   activeWorkspace: {
     activeWorkspaceId: "ws_beta" as string | null,
     workspaces: [
@@ -15,6 +20,7 @@ const guardMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@tanstack/react-router", () => ({
+  useMatchRoute: () => () => guardMocks.pendingSessionMatch,
   useNavigate: () => guardMocks.navigate,
 }));
 
@@ -39,6 +45,7 @@ describe("useSessionWorkspaceGuard", () => {
     guardMocks.navigate.mockReset();
     guardMocks.setActiveWorkspaceId.mockReset();
     guardMocks.toastWarning.mockReset();
+    guardMocks.pendingSessionMatch = false;
     guardMocks.activeWorkspace.activeWorkspaceId = "ws_beta";
     guardMocks.activeWorkspace.workspaces = [
       { id: "ws_alpha", name: "Alpha workspace" },
@@ -91,6 +98,22 @@ describe("useSessionWorkspaceGuard", () => {
       useSessionWorkspaceGuard({
         agentName: "claude-agent",
         sessionId: "sess_123",
+        sessionName: "Launch review",
+        sessionWorkspaceId: "ws_alpha",
+      })
+    );
+
+    expect(guardMocks.navigate).not.toHaveBeenCalled();
+    expect(guardMocks.toastWarning).not.toHaveBeenCalled();
+  });
+
+  it("Should not redirect the source session while a different session route is pending", () => {
+    guardMocks.pendingSessionMatch = { name: "claude-agent", id: "sess_beta" };
+
+    renderHook(() =>
+      useSessionWorkspaceGuard({
+        agentName: "claude-agent",
+        sessionId: "sess_alpha",
         sessionName: "Launch review",
         sessionWorkspaceId: "ws_alpha",
       })

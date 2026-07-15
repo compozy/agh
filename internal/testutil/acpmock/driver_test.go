@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -323,6 +324,98 @@ func TestDriverDiagnosticsIncludePromptMetadataAndMatch(t *testing.T) {
 			t.Fatalf("records[0].Match.UserText = %q, want %q", got, want)
 		}
 	})
+}
+
+func TestDriverRoutesConcurrentProcessesByStructuredJudgeMetadata(t *testing.T) {
+	t.Parallel()
+
+	driverPath, err := DefaultDriverPath()
+	if err != nil {
+		t.Fatalf("DefaultDriverPath() error = %v", err)
+	}
+	fixturePath := filepath.Join(t.TempDir(), "concurrent-judge-fixture.json")
+	fixture := `{
+  "version": 2,
+  "agents": [{
+    "name": "judge",
+    "provider": "claude",
+    "turns": [
+      {"name":"attempt-1","match":{"turn_source":"user","judge":{"role":"agent-judge","attempt":1}},"steps":[{"kind":"assistant","text":"attempt one"}]},
+      {"name":"attempt-2","match":{"turn_source":"user","judge":{"role":"agent-judge","attempt":2}},"steps":[{"kind":"assistant","text":"attempt two"}]}
+    ]
+  }]
+}`
+	if err := os.WriteFile(fixturePath, []byte(fixture), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(fixture) error = %v", err)
+	}
+	diagnosticsPath := filepath.Join(t.TempDir(), "shared-diagnostics.jsonl")
+	driver := acp.New()
+	processes := make([]*acp.AgentProcess, 0, 2)
+	t.Cleanup(func() {
+		for _, proc := range processes {
+			stopDriverProcess(t, driver, proc)
+		}
+	})
+	for index := 1; index <= 2; index++ {
+		proc, startErr := driver.Start(testutil.Context(t), acp.StartOpts{
+			AgentName:   "judge",
+			Command:     BuildCommand(driverPath, fixturePath, "judge", diagnosticsPath),
+			Cwd:         t.TempDir(),
+			Permissions: aghconfig.PermissionModeApproveAll,
+		})
+		if startErr != nil {
+			t.Fatalf("driver.Start(%d) error = %v", index, startErr)
+		}
+		processes = append(processes, proc)
+	}
+
+	type promptResult struct {
+		attempt int
+		text    string
+		err     error
+	}
+	results := make(chan promptResult, 2)
+	correlationIDs := []string{"goal-judge:attempt-1", "goal-judge:attempt-2"}
+	for index, proc := range processes {
+		attempt := index + 1
+		correlationID := correlationIDs[index]
+		go func() {
+			meta := acp.PromptJudgeMeta{
+				Role: acp.PromptJudgeRoleAgent, Attempt: attempt,
+				CorrelationID: correlationID,
+				GateID:        "goal:goal-judge", CriterionID: "review",
+			}
+			events, promptErr := driver.Prompt(testutil.Context(t), proc, acp.PromptRequest{
+				TurnID: "turn-judge", Message: "identical rendered rubric",
+				Meta: acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser, Judge: &meta},
+			})
+			if promptErr != nil {
+				results <- promptResult{attempt: attempt, err: promptErr}
+				return
+			}
+			var text strings.Builder
+			for event := range events {
+				if event.Type == acp.EventTypeAgentMessage {
+					text.WriteString(event.Text)
+				}
+			}
+			results <- promptResult{attempt: attempt, text: text.String()}
+		}()
+	}
+
+	for range processes {
+		result := <-results
+		if result.err != nil {
+			t.Fatalf("driver.Prompt(attempt=%d) error = %v", result.attempt, result.err)
+		}
+		want := "attempt one"
+		if result.attempt == 2 {
+			want = "attempt two"
+		}
+		if result.text != want {
+			t.Fatalf("driver.Prompt(attempt=%d) text = %q, want %q", result.attempt, result.text, want)
+		}
+	}
 }
 
 func TestDriverControlDisconnectSurfacesPromptFailure(t *testing.T) {

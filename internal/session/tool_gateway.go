@@ -10,20 +10,29 @@ import (
 	hookspkg "github.com/compozy/agh/internal/hooks"
 )
 
+// RuntimeModeVerdictOnly disables provider-native tools for isolated verdict sessions.
+const RuntimeModeVerdictOnly = "verdict-only"
+
 type providerNativeToolGateway struct {
-	manager *Manager
-	session *Session
+	manager     *Manager
+	session     *Session
+	runtimeMode string
 }
 
 var _ acp.ToolExecutionGateway = (*providerNativeToolGateway)(nil)
 
-func newProviderNativeToolGateway(manager *Manager, session *Session) acp.ToolExecutionGateway {
+func newProviderNativeToolGateway(
+	manager *Manager,
+	session *Session,
+	runtimeMode string,
+) acp.ToolExecutionGateway {
 	if manager == nil || session == nil {
 		return nil
 	}
 	return &providerNativeToolGateway{
-		manager: manager,
-		session: session,
+		manager:     manager,
+		session:     session,
+		runtimeMode: strings.TrimSpace(runtimeMode),
 	}
 }
 
@@ -33,6 +42,12 @@ func (g *providerNativeToolGateway) Intercept(
 ) (acp.ToolExecutionRequest, error) {
 	if g == nil || g.manager == nil || g.session == nil {
 		return req, nil
+	}
+	if strings.EqualFold(g.runtimeMode, RuntimeModeVerdictOnly) {
+		return acp.ToolExecutionRequest{}, fmt.Errorf(
+			"%w: provider-native tools are disabled for verdict-only sessions",
+			acp.ErrPermissionDenied,
+		)
 	}
 
 	dispatchCtx := hookDispatchContext(ctx, g.manager, g.session)

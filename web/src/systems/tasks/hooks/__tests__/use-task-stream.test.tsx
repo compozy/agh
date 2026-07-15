@@ -308,7 +308,7 @@ describe("useTaskStream", () => {
     expect(eventSource.hasListener("task.notification_delivered")).toBe(false);
   });
 
-  it("Should subscribe to and apply the streamed needs_attention / recover / run-lifecycle block events", async () => {
+  it("Should subscribe to every transactional task state event and apply its cache wake signal", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
     const eventSource = new FakeTaskStreamEventSource();
@@ -325,26 +325,32 @@ describe("useTaskStream", () => {
       { wrapper: createWrapper(queryClient) }
     );
 
-    // Only the frames the daemon writes to the task stream are subscribed:
-    // escalation, recovery, and the run-lifecycle events that carry block
-    // add/clear (a mid-run block parks the run; last-block-clear auto-enqueues).
+    // These hook events are appended inside the same transaction as their state
+    // change, then published by the durable Task stream under their dot names.
+    expect(eventSource.hasListener("task.blocked")).toBe(true);
+    expect(eventSource.hasListener("task.unblocked")).toBe(true);
     expect(eventSource.hasListener("task.needs_attention")).toBe(true);
     expect(eventSource.hasListener("task.recovered")).toBe(true);
-    expect(eventSource.hasListener("task.run_released")).toBe(true);
-    expect(eventSource.hasListener("task.run_enqueued")).toBe(true);
-    // task.blocked / task.unblocked are typed hook events, NOT stream frames, so
-    // they must never be subscribed here (truthful UI — no phantom listeners).
-    expect(eventSource.hasListener("task.blocked")).toBe(false);
-    expect(eventSource.hasListener("task.unblocked")).toBe(false);
+    expect(eventSource.hasListener("task.status_changed")).toBe(true);
+    expect(eventSource.hasListener("task.run.completed")).toBe(true);
+    expect(eventSource.hasListener("task.run.failed")).toBe(true);
+    expect(eventSource.hasListener("task.paused")).toBe(true);
+    expect(eventSource.hasListener("task.resumed")).toBe(true);
+    expect(eventSource.hasListener("task.block.created")).toBe(true);
+    expect(eventSource.hasListener("task.block.cleared")).toBe(true);
+    expect(eventSource.hasListener("task.block.expired")).toBe(true);
+    expect(eventSource.hasListener("task.auto_enqueue.triggered")).toBe(true);
+    expect(eventSource.hasListener("task.completion.hallucination_blocked")).toBe(true);
+    expect(eventSource.hasListener("task.wake.delivered")).toBe(true);
 
-    const needsAttention = buildStreamPayload({ sequence: 31, type: "task.needs_attention" });
+    const completed = buildStreamPayload({ sequence: 31, type: "task.run.completed" });
 
     act(() => {
-      eventSource.emitNamed("task.needs_attention", needsAttention);
+      eventSource.emitNamed("task.run.completed", completed);
     });
 
     await waitFor(() => {
-      expect(onEvent).toHaveBeenCalledWith(needsAttention);
+      expect(onEvent).toHaveBeenCalledWith(completed);
     });
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: ["tasks", "detail", "task_001"],
@@ -353,14 +359,30 @@ describe("useTaskStream", () => {
     invalidateQueries.mockClear();
     onEvent.mockClear();
 
-    const recovered = buildStreamPayload({ sequence: 32, type: "task.recovered" });
+    const statusChanged = buildStreamPayload({ sequence: 32, type: "task.status_changed" });
 
     act(() => {
-      eventSource.emitNamed("task.recovered", recovered);
+      eventSource.emitNamed("task.status_changed", statusChanged);
     });
 
     await waitFor(() => {
-      expect(onEvent).toHaveBeenCalledWith(recovered);
+      expect(onEvent).toHaveBeenCalledWith(statusChanged);
+    });
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["tasks", "detail", "task_001"],
+    });
+
+    invalidateQueries.mockClear();
+    onEvent.mockClear();
+
+    const blockExpired = buildStreamPayload({ sequence: 33, type: "task.block.expired" });
+
+    act(() => {
+      eventSource.emitNamed("task.block.expired", blockExpired);
+    });
+
+    await waitFor(() => {
+      expect(onEvent).toHaveBeenCalledWith(blockExpired);
     });
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: ["tasks", "detail", "task_001"],

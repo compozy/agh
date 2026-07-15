@@ -36,6 +36,7 @@ export function preloadLoopsRoute(
 export function preloadLoopDetailRoute(queryClient: QueryClient, name: string): Promise<void> {
   return withActiveWorkspace(queryClient, workspaceId => [
     queryClient.ensureQueryData(loopDetailOptions(workspaceId, name)),
+    queryClient.ensureQueryData(loopConfigOptions(workspaceId, name)),
     queryClient.ensureInfiniteQueryData(
       loopsCatalogOptions(workspaceId, { limit: 50, q: name, sort: "name" })
     ),
@@ -46,6 +47,7 @@ export function preloadLoopDetailRoute(queryClient: QueryClient, name: string): 
 export function preloadLoopRunFormRoute(queryClient: QueryClient, name: string): Promise<void> {
   return withActiveWorkspace(queryClient, workspaceId => [
     queryClient.ensureQueryData(loopDetailOptions(workspaceId, name)),
+    queryClient.ensureQueryData(loopConfigOptions(workspaceId, name)),
   ]);
 }
 

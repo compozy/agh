@@ -45,7 +45,7 @@ func (p *runtimeProvider) CallTool(
 		}
 		result, err := importTasks(input)
 		if err != nil {
-			return toolspkg.ToolResult{}, err
+			return toolspkg.ToolResult{}, importTasksToolError(req.ToolID, input, err)
 		}
 		payload = result
 	case toolFetchUnresolved:

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/compozy/agh/internal/acp"
+	aghconfig "github.com/compozy/agh/internal/config"
 	looppkg "github.com/compozy/agh/internal/loop"
 	"github.com/compozy/agh/internal/loop/gate"
 	"github.com/compozy/agh/internal/session"
@@ -26,29 +27,51 @@ type loopPromptSessionManager interface {
 	CancelPrompt(ctx context.Context, id string) error
 }
 
+type loopJudgeSessionManager interface {
+	loopPromptSessionManager
+	PromptWithOpts(ctx context.Context, id string, opts session.PromptOpts) (<-chan acp.AgentEvent, error)
+	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
+}
+
 type loopGateJudgeRunner struct {
-	sessions            loopPromptSessionManager
+	sessions            loopJudgeSessionManager
 	globalWorkspacePath string
 	policyGate          *loopSessionPolicyGate
+	executions          *loopJudgeExecutionRegistry
 }
 
 var _ gate.JudgeRunner = (*loopGateJudgeRunner)(nil)
 
-func (r *loopGateJudgeRunner) Judge(ctx context.Context, req gate.JudgeRequest) (gate.JudgeResponse, error) {
-	if r == nil || r.sessions == nil {
+func (r *loopGateJudgeRunner) Judge(
+	ctx context.Context,
+	req gate.JudgeRequest,
+) (_ gate.JudgeResponse, err error) {
+	if r == nil || r.sessions == nil || r.policyGate == nil {
 		return gate.JudgeResponse{}, errors.New("daemon: loop judge sessions are unavailable")
 	}
+	if ctx == nil {
+		return gate.JudgeResponse{}, errors.New("daemon: loop judge context is required")
+	}
+	judgeCtx, finishExecution, err := r.beginExecution(ctx, req.CorrelationID)
+	if err != nil {
+		return gate.JudgeResponse{}, err
+	}
+	var executionCleanupErr error
+	defer func() { finishExecution(executionCleanupErr) }()
+	ctx = judgeCtx
 	agent := strings.TrimSpace(req.Agent)
 	if agent == "" {
 		return gate.JudgeResponse{}, fmt.Errorf("%w: judge agent is required", looppkg.ErrValidation)
 	}
+	contractOverlay := looppkg.RenderContractBlock(req.Contract)
 	opts := session.CreateOpts{
-		AgentName:     agent,
-		Model:         strings.TrimSpace(req.Model),
-		Name:          loopRuntimeSessionName("gate", agent, req.CriterionID),
-		Channel:       loopRuntimeSessionChannel(looppkg.WorkspaceID(req.WorkspaceID), req.GateID),
-		PromptOverlay: looppkg.RenderContractBlock(req.Contract),
-		Type:          session.SessionTypeSystem,
+		AgentName:       agent,
+		Model:           strings.TrimSpace(req.Model),
+		Name:            loopRuntimeSessionName("gate", agent, req.CriterionID),
+		Channel:         loopRuntimeSessionChannel(looppkg.WorkspaceID(req.WorkspaceID), req.GateID),
+		PromptOverlay:   contractOverlay,
+		ContractOverlay: contractOverlay,
+		Type:            session.SessionTypeSystem,
 	}
 	if workspaceID := strings.TrimSpace(req.WorkspaceID); workspaceID != "" {
 		opts.Workspace = workspaceID
@@ -60,26 +83,66 @@ func (r *loopGateJudgeRunner) Judge(ctx context.Context, req gate.JudgeRequest) 
 	if err := r.policyGate.apply(ctx, &opts, agent, nil); err != nil {
 		return gate.JudgeResponse{}, err
 	}
-	created, err := r.sessions.Create(ctx, opts)
-	if err != nil {
+	opts.RuntimeMode = session.RuntimeModeVerdictOnly
+	opts.Permissions = aghconfig.PermissionModeDenyAll
+	created, createErr := r.sessions.Create(ctx, opts)
+	if created == nil {
+		if createErr != nil {
+			return gate.JudgeResponse{}, createErr
+		}
+		return gate.JudgeResponse{}, errors.New("daemon: loop judge session create returned nil")
+	}
+	sessionID := strings.TrimSpace(created.ID)
+	if sessionID == "" {
+		return gate.JudgeResponse{}, errors.New("daemon: loop judge session create returned an empty id")
+	}
+	defer func() {
+		executionCleanupErr = r.stopJudgeSession(ctx, sessionID, err)
+		err = errors.Join(err, executionCleanupErr)
+	}()
+	if err := r.bindExecution(req.CorrelationID, sessionID); err != nil {
 		return gate.JudgeResponse{}, err
 	}
-	if created == nil {
-		return gate.JudgeResponse{}, errors.New("daemon: loop judge session create returned nil")
+	if createErr != nil {
+		return gate.JudgeResponse{}, createErr
 	}
 	info := created.Info()
 	if info == nil {
 		return gate.JudgeResponse{}, errors.New("daemon: loop judge session create returned nil info")
 	}
-	result, err := collectLoopPromptResult(ctx, r.sessions, strings.TrimSpace(info.ID), looppkg.ActionPromptRequest{
-		Message: req.Rubric,
-	})
+	result, err := collectLoopJudgeResult(ctx, r.sessions, sessionID, req)
 	if err != nil {
 		return gate.JudgeResponse{}, err
 	}
 	return gate.JudgeResponse{
 		Raw: result.Text, TokensUsed: result.TokensUsed, TokensReported: result.TokensReported,
 	}, nil
+}
+
+func (r *loopGateJudgeRunner) stopJudgeSession(ctx context.Context, sessionID string, terminalErr error) error {
+	if terminalErr == nil {
+		terminalErr = ctx.Err()
+	}
+	stopCause, detail := loopJudgeStopCause(terminalErr)
+	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultShutdownTimeout)
+	defer cancel()
+	if err := r.sessions.StopWithCause(stopCtx, sessionID, stopCause, detail); err != nil {
+		return fmt.Errorf("daemon: stop loop judge session %q: %w", sessionID, err)
+	}
+	return nil
+}
+
+func loopJudgeStopCause(err error) (session.StopCause, string) {
+	if err == nil {
+		return session.CauseCompleted, "loop judge completed"
+	}
+	if errors.Is(err, context.Canceled) {
+		return session.CauseUserRequested, "loop judge canceled"
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return session.CauseTimeout, "loop judge timed out"
+	}
+	return session.CauseFailed, "loop judge failed"
 }
 
 type loopGateCommandRunner struct{}

@@ -279,8 +279,9 @@ type recordingSessionCatalog struct {
 	mu            sync.Mutex
 	sessions      map[string]store.SessionInfo
 	updateErr     error
-	attachErr     error
+	updateHook    func(store.SessionStateUpdate) error
 	deleteErr     error
+	attachErr     error
 	strictUpdates bool
 }
 
@@ -298,6 +299,11 @@ func (c *recordingSessionCatalog) RegisterSession(_ context.Context, session sto
 func (c *recordingSessionCatalog) UpdateSessionState(_ context.Context, update store.SessionStateUpdate) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.updateHook != nil {
+		if err := c.updateHook(update); err != nil {
+			return err
+		}
+	}
 	if c.updateErr != nil {
 		return c.updateErr
 	}
@@ -336,7 +342,6 @@ func (c *recordingSessionCatalog) DeleteSession(_ context.Context, id string) er
 	delete(c.sessions, id)
 	return nil
 }
-
 func (c *recordingSessionCatalog) ListSessions(
 	_ context.Context,
 	query store.SessionListQuery,
@@ -419,12 +424,6 @@ func (c *recordingSessionCatalog) setAttachErr(err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.attachErr = err
-}
-
-func (c *recordingSessionCatalog) setDeleteErr(err error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.deleteErr = err
 }
 
 func (c *recordingSessionCatalog) requireExistingUpdates() {

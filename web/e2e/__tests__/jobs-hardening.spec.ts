@@ -280,6 +280,17 @@ test("operator creates edits disables enables triggers and deletes a dynamic job
   await ui.item(created.id).click();
 
   await ui.deleteAutomationButton.click();
+  await expect(ui.automationDeleteDialog).toBeVisible();
+  await ui.automationDeleteConfirmTyping.fill(editedName);
+  const deleteResponsePromise = appPage.waitForResponse(
+    response =>
+      response.request().method() === "DELETE" &&
+      new URL(response.url()).pathname === `/api/automation/jobs/${created.id}`
+  );
+  await ui.confirmDeleteAutomationButton.click();
+  const deleteResponse = await deleteResponsePromise;
+  expect(deleteResponse.ok()).toBe(true);
+  await expect(ui.automationDeleteDialog).toBeHidden();
   await expect.poll(async () => await getJobStatus(runtime, created.id)).toBe(404);
   const afterDelete = await automationCLI<JobsResponse>(runtime, [
     "automation",

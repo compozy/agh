@@ -14,6 +14,22 @@ import (
 func TestProviderNativeToolGatewayIntercept(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should deny provider native tools for verdict only sessions", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := &Session{}
+		gateway := newProviderNativeToolGateway(h.manager, session, RuntimeModeVerdictOnly)
+		_, err := gateway.Intercept(testutil.Context(t), acp.ToolExecutionRequest{
+			ToolID:   "Read",
+			ReadOnly: true,
+			Input:    json.RawMessage(`{"path":"internal/loop/goal/route.go"}`),
+		})
+		if !errors.Is(err, acp.ErrPermissionDenied) {
+			t.Fatalf("Intercept() error = %v, want ErrPermissionDenied", err)
+		}
+	})
+
 	t.Run("Should reject tool execution when tool pre call returns deny patch", func(t *testing.T) {
 		t.Parallel()
 
@@ -57,7 +73,7 @@ func TestProviderNativeToolGatewayIntercept(t *testing.T) {
 			}
 		})
 
-		gateway := newProviderNativeToolGateway(h.manager, session)
+		gateway := newProviderNativeToolGateway(h.manager, session, "")
 		if gateway == nil {
 			t.Fatal("newProviderNativeToolGateway() = nil, want gateway")
 		}

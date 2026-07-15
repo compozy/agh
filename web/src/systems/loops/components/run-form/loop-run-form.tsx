@@ -3,7 +3,7 @@ import { CheckCircle2, Info, Play } from "lucide-react";
 import { Button, Section } from "@agh/ui";
 
 import { useLoopRunForm } from "../../hooks/use-loop-run-form";
-import type { LoopDetail } from "../../types";
+import type { LoopDetail, LoopEffectiveConfig } from "../../types";
 import { LoopRunInputField } from "./loop-run-input-field";
 import { LoopRunOverrides } from "./loop-run-overrides";
 import { LoopRunPreview } from "./loop-run-preview";
@@ -11,6 +11,7 @@ import { LoopRunPreview } from "./loop-run-preview";
 interface LoopRunFormProps {
   workspaceId: string;
   loop: LoopDetail;
+  effectiveConfig: LoopEffectiveConfig;
   onRunStarted?: (runId: string) => void;
   onCancel?: () => void;
 }
@@ -21,8 +22,14 @@ interface LoopRunFormProps {
  * preview, and the Dry run / Run actions. State + the run/dry calls live in
  * `useLoopRunForm`; this component is the presentation.
  */
-export function LoopRunForm({ workspaceId, loop, onRunStarted, onCancel }: LoopRunFormProps) {
-  const form = useLoopRunForm({ workspaceId, loop, onRunStarted });
+export function LoopRunForm({
+  workspaceId,
+  loop,
+  effectiveConfig,
+  onRunStarted,
+  onCancel,
+}: LoopRunFormProps) {
+  const form = useLoopRunForm({ workspaceId, loop, effectiveConfig, onRunStarted });
   const inputNames = form.schema ? Object.keys(form.schema) : [];
 
   return (
@@ -72,7 +79,7 @@ export function LoopRunForm({ workspaceId, loop, onRunStarted, onCancel }: LoopR
         </Section>
 
         <LoopRunOverrides
-          contract={form.contract}
+          effectiveConfig={effectiveConfig}
           draft={form.overrides}
           disabled={form.busy}
           onChange={form.setOverridesDraft}
@@ -93,6 +100,8 @@ export function LoopRunForm({ workspaceId, loop, onRunStarted, onCancel }: LoopR
           <LoopRunPreview
             loopName={loop.name}
             contract={form.contract}
+            effectiveConfig={effectiveConfig}
+            configOverrides={form.configOverrides}
             inputs={form.schema}
             plan={form.plan}
           />

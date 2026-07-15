@@ -210,7 +210,8 @@ export function AutomationJobForm({
                 />
                 {form.targetMode === "loop" ? (
                   <LoopTargetFields
-                    workspaceId={draft.workspace_id ?? activeWorkspaceId ?? ""}
+                    catalog={form.loopCatalog}
+                    mode={mode}
                     value={form.loopTarget}
                     onChange={form.onLoopTargetChange}
                   />

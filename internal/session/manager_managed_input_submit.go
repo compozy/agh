@@ -144,10 +144,11 @@ func managedInputPromptRequest(
 		return promptRequest{}, err
 	}
 	return promptRequest{
-		turnID:     submission.PromptMeta.PromptID,
-		target:     entry.SessionID,
-		message:    entry.Text,
-		turnSource: TurnSourceSynthetic,
+		turnID:          submission.PromptMeta.PromptID,
+		target:          entry.SessionID,
+		message:         entry.Text,
+		authoredMessage: entry.Text,
+		turnSource:      TurnSourceSynthetic,
 		meta: acp.PromptMeta{
 			TurnSource: string(TurnSourceSynthetic),
 			Synthetic: &acp.PromptSyntheticMeta{

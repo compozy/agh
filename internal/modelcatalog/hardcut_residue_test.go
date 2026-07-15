@@ -134,7 +134,8 @@ func skipResidueGuardFile(rel string) bool {
 	if strings.HasSuffix(base, "_test.go") ||
 		strings.Contains(base, ".test.") ||
 		strings.Contains(base, ".spec.") ||
-		strings.HasSuffix(base, ".snap") {
+		strings.HasSuffix(base, ".snap") ||
+		strings.HasSuffix(base, ".tsbuildinfo") {
 		return true
 	}
 	switch strings.ToLower(filepath.Ext(base)) {
