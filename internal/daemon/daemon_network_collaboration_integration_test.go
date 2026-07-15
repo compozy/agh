@@ -282,8 +282,8 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		}
 
 		status := mustHTTPNetworkStatus(t, ctx, harness)
-		if !status.Enabled || status.Status != "running" {
-			t.Fatalf("HTTP network status = %#v, want enabled running", status)
+		if !status.Enabled || status.Status != "active" {
+			t.Fatalf("HTTP network status = %#v, want enabled active", status)
 		}
 		if status.LocalPeers != 2 {
 			t.Fatalf("HTTP network local_peers = %d, want %d", status.LocalPeers, 2)
@@ -591,8 +591,8 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 		})
 
 		status := mustHTTPNetworkStatus(t, ctx, harness)
-		if !status.Enabled || status.Status != "running" {
-			t.Fatalf("HTTP network status = %#v, want enabled running", status)
+		if !status.Enabled || status.Status != "active" {
+			t.Fatalf("HTTP network status = %#v, want enabled active", status)
 		}
 		if status.LocalPeers != 2 {
 			t.Fatalf("HTTP network local_peers = %d, want %d", status.LocalPeers, 2)
